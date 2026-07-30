@@ -27,12 +27,19 @@ provider uses the repository's core `anthropic` dependency. The default
 `anthropic` provider stays on the dependency-free urllib path in
 `_anthropic_api`, so the default eval needs no SDK and existing baselines do not
 move.
+
+The `copilot-cli` provider needs no SDK and no API key at all: it shells out to
+an authenticated GitHub Copilot CLI. That makes it the cheapest way to eval
+against the exact models this repository's owner uses day to day, so prefer it
+when the question is "does this change help the models we actually run."
 """
 
 from __future__ import annotations
 
 import os
 import re
+import subprocess  # noqa: S404 - drives the Copilot CLI with a fixed argv, shell=False
+import tempfile
 from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, cast
@@ -294,6 +301,180 @@ class _AnthropicSDKProvider:
         return "".join(parts)
 
 
+class _CopilotCLIProvider:
+    """GitHub Copilot CLI transport, driven as a subprocess.
+
+    Distinct from every other provider here in one way that matters: it needs
+    no API key. It reuses the operator's existing Copilot authentication, so an
+    eval can run against the models the owner actually works in
+    (`claude-opus-5`, `gpt-5.6-sol`) without separate Anthropic or OpenAI
+    billing. That is why it is the preferred transport for this repository.
+
+    Two isolation decisions, both load-bearing:
+
+    1. `cwd` is a caller-supplied empty directory, not the repository. The CLI
+       loads `AGENTS.md`, `CLAUDE.md`, and `.github/instructions/**` from its
+       working directory. In this repo those files are frequently the variable
+       under test, so running from the repo root would put the treatment into
+       the control cell and silently destroy the comparison.
+    2. Built-in MCP servers are disabled. Their tool definitions occupy the
+       same context the eval is measuring, and they add latency for no signal
+       on a text-completion eval.
+
+    Ambient user-level configuration (`~/.copilot/`) is NOT isolated, because
+    the auth token lives there. It is therefore a constant across every cell of
+    a single run, which is the same control argument ADR-058 makes for not
+    comparing scores across providers. Do not compare a copilot-cli score to an
+    HTTP-provider score.
+    """
+
+    # The CLI prints a stats block after the answer, formatted as a fixed-width
+    # label column. Matching on "2+ spaces" is wrong: the widest label
+    # ("AI Credits") fills the column and leaves a single space before its
+    # value. Match the label, then require the padded prefix to reach the
+    # column width, which is what separates a stats line from prose that
+    # happens to open with the same word ("Tokens are the unit of billing").
+    _FOOTER_LABEL_RE = re.compile(
+        r"^(?:Changes|AI Credits|Tokens|Resume|Total duration|Wall time)( +)",
+    )
+    _FOOTER_COLUMN = 11
+
+    def __init__(self, *, executable: str = "copilot", timeout: float = 900.0) -> None:
+        self.name = "copilot-cli"
+        self._provider_label = "Copilot CLI"
+        self._executable = executable
+        self._timeout = timeout
+        self.system_fingerprint: str | None = None
+
+    @classmethod
+    def _is_footer_line(cls, line: str) -> bool:
+        match = cls._FOOTER_LABEL_RE.match(line)
+        if match is None:
+            return False
+        # Either the label is padded out to the value column, or it is followed
+        # by a run of spaces no prose would use. Both are stats formatting.
+        return len(match.group(0)) >= cls._FOOTER_COLUMN or len(match.group(1)) >= 2
+
+    @classmethod
+    def _strip_footer(cls, text: str) -> str:
+        """Remove the CLI's trailing stats block.
+
+        Walks backwards from the end, dropping blank lines and footer-shaped
+        lines, and stops at the first line that is neither. Anchoring at the
+        end (rather than searching forward for the first match) keeps a model
+        answer that legitimately contains the word "Tokens" intact.
+        """
+        lines = text.splitlines()
+        end = len(lines)
+        while end > 0:
+            candidate = lines[end - 1]
+            if not candidate.strip() or cls._is_footer_line(candidate):
+                end -= 1
+                continue
+            break
+        return "\n".join(lines[:end]).strip()
+
+    def complete(
+        self,
+        *,
+        messages: list[dict[str, str]],
+        system: str = "",
+        model: str,
+        max_tokens: int = 1024,
+        temperature: float = 0.0,
+        seed: int | None = None,
+    ) -> str:
+        # Copilot CLI takes a single prompt with no separate system channel and
+        # no sampling controls. Fold the system text in as a leading block;
+        # ignore max_tokens/temperature/seed rather than failing, so the same
+        # fixture runs unchanged across providers. Callers that need sampling
+        # determinism must use an HTTP provider.
+        del max_tokens, temperature, seed
+        parts = [system.strip()] if system.strip() else []
+        parts.extend(
+            str(m.get("content", "")).strip()
+            for m in messages
+            if str(m.get("content", "")).strip()
+        )
+        prompt = "\n\n".join(parts)
+        if not prompt:
+            raise RuntimeError(
+                f"{self._provider_label} requires a non-empty prompt; "
+                "system and messages were both blank."
+            )
+
+        argv = [
+            self._executable,
+            "--prompt",
+            prompt,
+            "--model",
+            model,
+            "--allow-all-tools",
+            "--disable-builtin-mcps",
+            "--no-ask-user",
+            "--no-color",
+            "--log-level",
+            "none",
+        ]
+        with tempfile.TemporaryDirectory(prefix="eval-copilot-") as sandbox:
+            try:
+                completed = subprocess.run(  # noqa: S603 - fixed argv, shell=False
+                    argv,
+                    capture_output=True,
+                    text=True,
+                    timeout=self._timeout,
+                    cwd=sandbox,
+                    check=False,
+                )
+            except subprocess.TimeoutExpired as exc:
+                raise RuntimeError(
+                    f"{self._provider_label} API request timed out after "
+                    f"{self._timeout:.0f}s. The service may be slow or unreachable."
+                ) from exc
+            except FileNotFoundError as exc:
+                raise RuntimeError(
+                    f"{self._provider_label} network error: executable "
+                    f"{self._executable!r} not found on PATH. Install the "
+                    "GitHub Copilot CLI or pass a different executable."
+                ) from exc
+            except OSError as exc:
+                raise RuntimeError(
+                    f"{self._provider_label} API network error: {type(exc).__name__}. "
+                    "Check that the Copilot CLI is installed and authenticated."
+                ) from exc
+
+        if completed.returncode != 0:
+            # CWE-200: short ascii excerpt only, never the full stderr body.
+            stderr = completed.stderr or completed.stdout or ""
+            excerpt = "".join(ch for ch in stderr if 32 <= ord(ch) < 127)[:200]
+            raise RuntimeError(
+                f"{self._provider_label} API returned HTTP "
+                f"{completed.returncode}: {excerpt}"
+            )
+        answer = self._strip_footer(completed.stdout or "")
+        if not answer:
+            raise RuntimeError(
+                f"{self._provider_label} API returned no choices for model {model}."
+            )
+        return answer
+
+
+def _make_copilot_cli() -> EvalProvider:
+    timeout = os.environ.get("COPILOT_CLI_TIMEOUT")
+    kwargs: dict[str, object] = {}
+    if timeout:
+        try:
+            kwargs["timeout"] = float(timeout)
+        except ValueError as exc:
+            raise RuntimeError(
+                f"COPILOT_CLI_TIMEOUT must be a number of seconds, got {timeout!r}."
+            ) from exc
+    executable = os.environ.get("COPILOT_CLI_BIN")
+    if executable:
+        kwargs["executable"] = executable
+    return _CopilotCLIProvider(**cast("dict", kwargs))
+
+
 def _make_openai() -> EvalProvider:
     return _OpenAICompatibleProvider(
         name="openai",
@@ -324,6 +505,8 @@ _REGISTRY: dict[str, Callable[[], EvalProvider]] = {
     "github": _make_github,
     "github-models": _make_github,
     "anthropic-sdk": _make_anthropic_sdk,
+    "copilot": _make_copilot_cli,
+    "copilot-cli": _make_copilot_cli,
 }
 
 # Provider names that mean "use the default urllib Anthropic path in

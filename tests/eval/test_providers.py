@@ -567,3 +567,198 @@ def test_normal_model_keeps_max_tokens_and_temperature(
     assert sent["max_tokens"] == 512
     assert sent["temperature"] == 0.0
     assert "max_completion_tokens" not in sent
+
+
+# --- Copilot CLI provider -----------------------------------------------
+
+
+@pytest.mark.parametrize("alias", ["copilot", "copilot-cli"])
+def test_copilot_aliases_resolve_to_the_cli_provider(alias: str) -> None:
+    provider = _providers.resolve_provider(alias)
+
+    assert provider.name == "copilot-cli"
+
+
+def test_known_provider_names_includes_copilot_aliases() -> None:
+    names = _providers.known_provider_names()
+
+    assert "copilot" in names
+    assert "copilot-cli" in names
+
+
+def test_strip_footer_removes_the_cli_stats_block() -> None:
+    raw = (
+        "PONG\n\n\n"
+        "Changes    +0 -0\n"
+        "AI Credits 68.3 (6s)\n"
+        "Tokens     109.3k written\n"
+        "Resume     copilot --resume=abc123\n"
+    )
+
+    assert _providers._CopilotCLIProvider._strip_footer(raw) == "PONG"
+
+
+def test_strip_footer_preserves_multiline_answer_body() -> None:
+    raw = "line one\nline two\n\nChanges    +1 -1\nResume     copilot --resume=x\n"
+
+    assert _providers._CopilotCLIProvider._strip_footer(raw) == "line one\nline two"
+
+
+def test_strip_footer_keeps_prose_that_merely_starts_with_a_footer_word() -> None:
+    """Single-spaced prose is not the CLI's 2+-space column format."""
+    raw = "Tokens are the unit of billing.\n\nChanges    +0 -0\n"
+
+    assert (
+        _providers._CopilotCLIProvider._strip_footer(raw)
+        == "Tokens are the unit of billing."
+    )
+
+
+def test_strip_footer_returns_empty_when_output_is_only_a_footer() -> None:
+    raw = "\nChanges    +0 -0\nResume     copilot --resume=abc\n"
+
+    assert _providers._CopilotCLIProvider._strip_footer(raw) == ""
+
+
+class _FakeCompleted:
+    def __init__(self, *, stdout: str = "", stderr: str = "", returncode: int = 0):
+        self.stdout = stdout
+        self.stderr = stderr
+        self.returncode = returncode
+
+
+def _capture_run(monkeypatch: pytest.MonkeyPatch, result: object) -> dict:
+    """Patch subprocess.run inside _providers and record how it was called."""
+    seen: dict = {}
+
+    def fake_run(argv, **kwargs):  # noqa: ANN001, ANN003
+        seen["argv"] = argv
+        seen["kwargs"] = kwargs
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    monkeypatch.setattr(_providers.subprocess, "run", fake_run)
+    return seen
+
+
+def test_copilot_complete_returns_stripped_answer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen = _capture_run(
+        monkeypatch,
+        _FakeCompleted(stdout="the answer\n\nChanges    +0 -0\n"),
+    )
+    provider = _providers._CopilotCLIProvider()
+
+    out = provider.complete(
+        messages=[{"role": "user", "content": "the question"}],
+        system="be terse",
+        model="claude-opus-5",
+    )
+
+    assert out == "the answer"
+    argv = seen["argv"]
+    assert argv[0] == "copilot"
+    assert "--model" in argv
+    assert argv[argv.index("--model") + 1] == "claude-opus-5"
+    # System text is folded into the single prompt channel, ahead of the user turn.
+    prompt = argv[argv.index("--prompt") + 1]
+    assert prompt == "be terse\n\nthe question"
+
+
+def test_copilot_complete_isolates_cwd_and_disables_builtin_mcps(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The repo's own instruction files are the variable under test; the CLI
+    must not load them from the working directory."""
+    seen = _capture_run(monkeypatch, _FakeCompleted(stdout="ok\n"))
+    provider = _providers._CopilotCLIProvider()
+
+    provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
+
+    assert "--disable-builtin-mcps" in seen["argv"]
+    cwd = seen["kwargs"]["cwd"]
+    assert cwd != str(_REPO_ROOT)
+    assert not (Path(cwd) / "AGENTS.md").exists()
+    assert seen["kwargs"].get("shell", False) is False
+
+
+def test_copilot_complete_raises_on_empty_prompt() -> None:
+    provider = _providers._CopilotCLIProvider()
+
+    with pytest.raises(RuntimeError, match="non-empty prompt"):
+        provider.complete(messages=[{"role": "user", "content": "  "}], model="m")
+
+
+def test_copilot_complete_nonzero_exit_uses_the_http_error_shape(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run(
+        monkeypatch,
+        _FakeCompleted(stderr="rate limit exceeded", returncode=429),
+    )
+    provider = _providers._CopilotCLIProvider()
+
+    with pytest.raises(RuntimeError) as exc_info:
+        provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
+
+    assert "HTTP 429" in str(exc_info.value)
+    assert _eval_api_adapter._categorize_error(exc_info.value) == "rate_limit"
+
+
+def test_copilot_complete_timeout_is_categorized_as_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run(
+        monkeypatch,
+        _providers.subprocess.TimeoutExpired(cmd="copilot", timeout=900),
+    )
+    provider = _providers._CopilotCLIProvider()
+
+    with pytest.raises(RuntimeError) as exc_info:
+        provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
+
+    assert "timed out" in str(exc_info.value)
+    assert _eval_api_adapter._categorize_error(exc_info.value) == "timeout"
+
+
+def test_copilot_complete_missing_executable_names_the_binary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run(monkeypatch, FileNotFoundError("no such file"))
+    provider = _providers._CopilotCLIProvider(executable="copilot-nope")
+
+    with pytest.raises(RuntimeError, match="copilot-nope"):
+        provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
+
+
+def test_copilot_complete_blank_stdout_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run(monkeypatch, _FakeCompleted(stdout="\nChanges    +0 -0\n"))
+    provider = _providers._CopilotCLIProvider()
+
+    with pytest.raises(RuntimeError, match="no choices"):
+        provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
+
+
+def test_copilot_factory_reads_timeout_and_binary_from_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("COPILOT_CLI_TIMEOUT", "42")
+    monkeypatch.setenv("COPILOT_CLI_BIN", "/opt/copilot")
+
+    provider = _providers.resolve_provider("copilot-cli")
+
+    assert provider._timeout == 42.0
+    assert provider._executable == "/opt/copilot"
+
+
+def test_copilot_factory_rejects_a_non_numeric_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("COPILOT_CLI_TIMEOUT", "soon")
+
+    with pytest.raises(RuntimeError, match="COPILOT_CLI_TIMEOUT"):
+        _providers.resolve_provider("copilot-cli")
