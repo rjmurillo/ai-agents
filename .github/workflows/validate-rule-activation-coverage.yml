@@ -19,10 +19,6 @@ on:
   push:
     branches:
       - main
-      - 'feat/**'
-      - 'fix/**'
-      - 'chore/**'
-      - 'copilot/**'
   pull_request:
     branches:
       - main

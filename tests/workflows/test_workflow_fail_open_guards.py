@@ -7,13 +7,17 @@ edit cannot silently reintroduce the suppression without a test failing first.
 
 Covered:
   - audit-hook-bypass.yml: detection step classifies exit code, fails on >=2,
-    and treats missing JSON as a failure (not indicator_count=0).
+    and treats missing JSON as a failure (not indicator_count=0). The contract
+    now lives in scripts/ci/run_hook_bypass_audit.py (ADR-006), so these tests
+    drive that script directly instead of matching shell text.
   - pytest.yml (security job): bandit gates on high severity/confidence with no
     `|| true`, the job has actions: read plus security-events: write, and a
     codeql upload-sarif step publishes findings with if: always().
   - memory-validation.yml: verify step captures the exit code before pipefail
     aborts, and the parse step fails on a missing/empty results file instead of
-    posting a green Pass.
+    posting a green Pass. The parse branch now lives in
+    scripts/ci/parse_memory_validation_results.py (ADR-006) and is driven
+    directly here.
   - drift-detection.yml: the JSON re-run stops swallowing stderr and the exit
     code, failing only on exit >=2 (config/crash) since exit 1 is the expected
     drift path for this step.
@@ -21,6 +25,9 @@ Covered:
 
 from __future__ import annotations
 
+import subprocess
+import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +35,66 @@ import pytest
 import yaml
 
 _WORKFLOWS = Path(__file__).resolve().parents[2] / ".github" / "workflows"
+_SCRIPTS_CI = Path(__file__).resolve().parents[2] / "scripts" / "ci"
+
+
+def _run_bypass_audit(detector_body: str, *, write_output: bool) -> tuple[int, str, str]:
+    """Drive run_hook_bypass_audit.py against a stub detector.
+
+    The stub stands in for detect_hook_bypass.py so the exit contract can be
+    exercised without a real audit. Returns (returncode, stdout, stderr).
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        detector = Path(tmp) / "stub_detector.py"
+        output = Path(tmp) / "audit.json"
+        detector.write_text(detector_body, encoding="utf-8")
+        if write_output:
+            output.write_text("[]", encoding="utf-8")
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(_SCRIPTS_CI / "run_hook_bypass_audit.py"),
+                "--detector",
+                str(detector),
+                "--base-ref",
+                "origin/main",
+                "--output",
+                str(output),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+    return result.returncode, result.stdout, result.stderr
+
+
+def _run_memory_parse(contents: str | None) -> tuple[int, str, str]:
+    """Drive parse_memory_validation_results.py against a results file.
+
+    Pass None to omit the file entirely. Returns (returncode, stdout, stderr).
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        results = Path(tmp) / "memory-validation-results.json"
+        if contents is not None:
+            results.write_text(contents, encoding="utf-8")
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(_SCRIPTS_CI / "parse_memory_validation_results.py"),
+                "--input",
+                str(results),
+                "--output",
+                str(Path(tmp) / "github_output.txt"),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+    return result.returncode, result.stdout, result.stderr
 
 
 def _load_workflow(name: str) -> dict[str, Any]:
@@ -115,7 +182,7 @@ class TestAuditHookBypass:
 
     def _detect_step(self) -> dict[str, Any]:
         steps = _job_steps(_load_workflow("audit-hook-bypass.yml"), "detect-bypass")
-        step = _find_step_by_run(steps, "detect_hook_bypass.py")
+        step = _find_step_by_run(steps, "run_hook_bypass_audit.py")
         assert step is not None
         return step
 
@@ -123,18 +190,20 @@ class TestAuditHookBypass:
         assert "|| true" not in _command_text(self._detect_step()["run"])
 
     def test_captures_and_hard_fails_on_crash(self) -> None:
-        run = self._detect_step()["run"]
-        assert "set +e" in run
-        assert "rc=$?" in run
-        assert "set -e" in run
-        assert 'if [ "$rc" -ge 2 ]' in run
-        assert 'exit "$rc"' in run
+        # The exit contract moved from shell into a tested script (ADR-006).
+        # Assert the behavior, not the shell text: a detector that crashes
+        # must propagate its code, never collapse to a clean audit.
+        rc, _, _ = _run_bypass_audit(
+            "import sys; sys.exit(3)",
+            write_output=False,
+        )
+        assert rc == 3
 
     def test_missing_json_is_a_failure_not_zero_indicators(self) -> None:
-        run = self._detect_step()["run"]
-        # The else branch must fail instead of reporting a clean audit.
-        assert "indicator_count=0" not in run
-        assert "test -s artifacts/hook-bypass-audit.json" in run
+        # A detector that claims success but writes no JSON is a broken audit.
+        rc, out, err = _run_bypass_audit("pass", write_output=False)
+        assert rc != 0
+        assert "indicator_count=0" not in out + err
 
 
 class TestPytestBanditSecurity:
@@ -197,12 +266,10 @@ class TestMemoryValidation:
         return step
 
     def _parse_step(self) -> dict[str, Any]:
-        # The verify step also references the results file; pick the parser.
-        for candidate in _job_steps(self._workflow(), "validate-memories"):
-            run = candidate.get("run")
-            if isinstance(run, str) and "jq 'length'" in run:
-                return candidate
-        raise AssertionError("parse step not found")
+        steps = _job_steps(self._workflow(), "validate-memories")
+        step = _find_step_by_run(steps, "parse_memory_validation_results.py")
+        assert step is not None
+        return step
 
     def test_verify_captures_exit_code_before_pipefail(self) -> None:
         run = self._verify_step()["run"]
@@ -214,16 +281,16 @@ class TestMemoryValidation:
         assert 'echo "exit_code=$?"' not in run
 
     def test_parse_treats_empty_results_as_failure(self) -> None:
-        run = self._parse_step()["run"]
-        assert "-s memory-validation-results.json" in run
-        assert "exit 1" in run
+        # The jq pipeline moved into a tested script (ADR-006). Assert the
+        # behavior: an empty results file is a crashed run, not a clean one.
+        rc, _, _ = _run_memory_parse("")
+        assert rc != 0
 
     def test_parse_does_not_default_missing_file_to_pass(self) -> None:
-        run = self._parse_step()["run"]
-        # The else branch previously set has_stale=false on a missing file.
-        # has_stale=false legitimately remains in the zero-stale branch, so key
-        # on the error signal that must now precede any exit in the else path.
-        assert "::error::memory-validation-results.json missing or empty" in run
+        # A missing file previously set has_stale=false and posted a green Pass.
+        rc, out, _ = _run_memory_parse(None)
+        assert rc != 0
+        assert "::error::memory-validation-results.json missing or empty" in out
 
 
 class TestDriftDetection:

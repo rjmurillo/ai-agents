@@ -1,6 +1,6 @@
 # Diagnostics Instrument Guides
 
-Per-instrument detail for `ai-agents-diagnostics-toolkit`: the exact commands, the current repo baseline (as of 2026-07-02; description budget and skill size re-measured 2026-07-03), the healthy and unhealthy readings, and the trap each instrument has already cost someone. The SKILL.md Instrument Index routes you here; consult the matching section when you run an instrument.
+Per-instrument detail for `ai-agents-diagnostics-toolkit`: the exact commands, the current repo baseline (as of 2026-07-29), the healthy and unhealthy readings, and the trap each instrument has already cost someone. The SKILL.md Instrument Index routes you here; consult the matching section when you run an instrument.
 
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
 
@@ -16,8 +16,8 @@ uv run python ./scripts/skill_description_budget.py --output-format json
 uv run python ./scripts/skill_description_budget.py --max-total-tokens 8000   # gate mode, exit 1 over budget
 ```
 
-- Current baseline (as of 2026-07-03): 92 skills, 35892 chars, ~8973 estimated tokens; top offenders `analyze` and `pr-comment-responder` at 558 chars each.
-- Healthy: total flat or falling; a new skill adds roughly 350-500 chars (house style), hard cap 1024 (`DESCRIPTION_MAX_LENGTH = 1024`, `.claude/skills/SkillForge/scripts/validate-skill.py:171`).
+- Current baseline (as of 2026-07-29): 98 skills, 40940 chars, ~10235 estimated tokens; top offenders `adr-generator` at 830 chars and `software-engineering-library` at 824 chars.
+- Healthy: total flat or falling; a new skill adds roughly 350-500 chars (house style), hard cap 1024 (`DESCRIPTION_MAX_LENGTH = 1024` at `.claude/skills/SkillForge/scripts/_constants.py:65`, enforced at `.claude/skills/SkillForge/scripts/validate-skill.py:241-242`). The copy at `validate-skill.py:185` is an `except ImportError` fallback, so change the constants file, not the validator.
 - Unhealthy: total climbing PR over PR with no budget flag set; any single description near 1024.
 - Trap: the token figure is a chars/4 heuristic, deliberately not tiktoken. Trend it; never quote it as an exact cost.
 
@@ -30,7 +30,7 @@ uv run python ./scripts/validation/skill_size.py --path .claude/skills/<name>/SK
 ```
 
 - Limits: warn over 300 lines, block over 500. Escape: `size-exception: true` in frontmatter, justification required.
-- Current baseline (as of 2026-07-03): 92 skills, 26 warnings, 1 FAIL (`.claude/skills/SkillForge/SKILL.md` at 1033 lines).
+- Current baseline (as of 2026-07-29): 98 skills, 44 warnings, 0 failures, exit 0. `.claude/skills/SkillForge/SKILL.md` is now 298 lines and only warns.
 - Healthy: your skill lands under 300; overflow goes to `references/` files.
 - Unhealthy: a skill creeping from warn toward 500; that is the signal to split before the block gate bites.
 - Trap: without `--ci` the script prints FAIL but exits 0. In scripts, pass `--ci` or you will read success where there is none.
@@ -45,10 +45,10 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/orp
 ```
 
 - Output contract: JSON envelope then a final `VERDICT: PASS|WARN|CRITICAL_FAIL` line. Exit 0 for PASS/WARN, 1 for CRITICAL_FAIL, 2 for config error.
-- Current baseline (as of 2026-07-02): 99 files scanned, 216 refs checked, 49 findings, all severity critical, `VERDICT: CRITICAL_FAIL`, exit 1. The findings sit in historical specs (for example `.agents/specs/requirements/REQ-009-orphan-ref-validator.md:32` referencing skills that no longer exist).
+- Current baseline (as of 2026-07-29): 190 files scanned, 535 refs checked, 0 findings, `VERDICT: PASS`, exit 0. The instrument reads green only because 187 refs are directive-suppressed: the historical specs that once produced findings now carry `orphan-ref-ignore` markers, so read the suppression count alongside the verdict.
 - Healthy delta: your PR adds zero findings. Backticked kebab names in anything you write must resolve to real `.claude/skills/<name>/` directories.
 - Unhealthy: new findings pointing at YOUR files; CI runs this on PR-relevant targets and a new critical blocks.
-- Suppression, sparingly: line-scope `orphan-ref-ignore` and file-scope `orphan-ref-ignore-file` HTML-comment directives; the file-scope directive must appear in the first 50 lines (`scan.py:157`, `patterns.py:95`).
+- Suppression, sparingly: line-scope `orphan-ref-ignore` and file-scope `orphan-ref-ignore-file` HTML-comment directives; the file-scope directive must appear in the first 50 lines (`scan.py:234-235`, `patterns.py:89`).
 - Trap: do not "fix" the red baseline by mass-adding ignore directives to historical specs; that destroys the instrument. Measure your delta instead.
 
 ### Golden principles
@@ -62,7 +62,7 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/gol
 ```
 
 - Exit codes: 0 clean, 1 script error, 10 violations. 10 is a finding, not a crash.
-- Current baseline (as of 2026-07-02): 5990 files scanned, 23 errors, 102 warnings, exit 10. Standing errors include GP-001 shell scripts under `src/copilot-cli/skills/github/scripts/gh-native/`.
+- Current baseline (as of 2026-07-29): 7912 files scanned, 109 errors, 92 warnings, exit 10. Errors break down as GP-003 `skill-frontmatter` 89, GP-001 `script-language` 16, GP-004 `agent-definition` 4. The GP-001 set is still the shell scripts under `src/copilot-cli/skills/github/scripts/gh-native/`. All 92 warnings are GP-005 `yaml-logic`. The file count tracks repo size and moves with every merge, so trend the error and warning counts; treat a changed file count alone as noise.
 - Healthy: `--diff-scope main` clean for your branch.
 - Unhealthy: new errors on your changed files; each comes with an `AGENT_REMEDIATION` block telling you the fix.
 - Trap: findings in generated trees (`src/copilot-cli/`, `.github/instructions/`) must be fixed at the canonical source under `.claude/` and regenerated, never edited in place. Suppress a true false positive with `# golden-principle: ignore <rule>` on the flagged line.
@@ -71,7 +71,7 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/gol
 
 Three separate drift surfaces; run all three when you suspect any generation problem:
 
-| Gate | Command | Current reading (as of 2026-07-02) | Meaning of red |
+| Gate | Command | Current reading (as of 2026-07-29) | Meaning of red |
 |---|---|---|---|
 | Agents | `uv run python build/generate_agents.py --validate` | `VALIDATION PASSED`, 0.05s, exit 0 | `templates/agents/*.shared.md` and `src/` trees diverged |
 | Mirrors | `uv run python build/scripts/build_all.py --check` | exit 0 | A `.claude/` canonical edit was not regenerated, or a generated tree was hand-edited |
@@ -90,7 +90,7 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/gua
 
 Tier semantics (from `classify_guard_maturity.py`, first match wins): Harmful (3+ intercepts, fitness below -0.02: remove), Proficient (60+ days, 10+ intercepts, fitness at or above +0.02: keep), Mature (30+ days, 5+ intercepts, fitness at or above 0), Inert (30+ days, 0 intercepts: prune candidate), Growing (14+ days, 1+ intercept), Budding (under 14 days). Fitness is `block_rate - 0.5`.
 
-- Current baseline (as of 2026-07-02): 3 guards reported (`manifest-count`, `markdown-lint`, `session-log-field`), all Budding, 0 intercepts, fitness -0.50, age n/a.
+- Current baseline (re-measured 2026-07-29, unchanged): 3 guards reported (`manifest-count`, `markdown-lint`, `session-log-field`), all Budding, 0 intercepts, fitness -0.50, age n/a.
 - Honest caveat: `.agents/telemetry/` does not exist in this checkout, so EVENT lines are not being persisted anywhere the aggregator reads by default. The measurement pipeline exists; its production feed is not wired (unverified who or what should populate `.agents/telemetry/`). Treat current tier output as a smoke test of the classifier, not as evidence about guard value.
 - Healthy: guards age into Mature/Proficient. Unhealthy: Inert (validator too narrow or guard pointless) or Harmful (normalizes bypass; remove).
 
@@ -103,8 +103,8 @@ uv run pytest <exact test files> --cov=<module_name> --cov-branch --cov-fail-und
 
 Two traps, both already paid for:
 
-- File-set sensitivity (#1963): a `--cov-fail-under=100` pin is only valid with the exact test-file set it was calibrated with. CI's own comment records that a drifted set "alone now reports 63% and trips --cov-fail-under=100" (`.github/workflows/pytest.yml:144`).
-- Module-name form (#2063): use `--cov=scripts.ai_review_common.verdict` style (dotted module), never a file path. The file-path form yields "Module never imported" and 0% coverage on pytest-cov 7.x / Python 3.14 (`pytest.yml:150-152`; live example at `pytest.yml:147`).
+- File-set sensitivity (#1963): a `--cov-fail-under=100` pin is only valid with the exact test-file set it was calibrated with. CI's own comment records that a drifted set "alone now reports 63% and trips --cov-fail-under=100" (`.github/workflows/pytest.yml:202`).
+- Module-name form (#2063): use `--cov=scripts.ai_review_common.verdict` style (dotted module), never a file path. The file-path form yields "Module never imported" and 0% coverage on pytest-cov 7.x / Python 3.14 (`pytest.yml:209`; live example at `pytest.yml:205`).
 
 The evidence bar (100% block coverage on changed files, pos+neg+edge) belongs to `ai-agents-validation-and-qa`; this section only covers how to get a trustworthy number. Targets: 100% security, 80% business, 60% docs (AGENTS.md Standards).
 
@@ -130,19 +130,21 @@ git rev-list --count HEAD ^origin/main
 
 Cap 20 commits per PR, warn above 15 (AGENTS.md Mid gate, ADR-008; enforced by `pr-validation.yml` and the pre-push hook). Current reading on a fresh main checkout: 0. Run it mid-session, not at push time, so you can split the branch while it is still cheap.
 
-## Current Baselines Summary (as of 2026-07-02; description budget and skill size re-measured 2026-07-03)
+## Current Baselines Summary (as of 2026-07-29)
 
 | Instrument | Reading | State |
 |---|---|---|
-| Description budget | 92 skills, 35892 chars, ~8973 est. tokens | Green, trend it |
-| Skill size | 26 warnings, 1 FAIL (SkillForge, 1033 lines) | Red on main |
-| Orphan refs (default targets) | 49 critical findings, CRITICAL_FAIL | Red on main |
-| Golden principles | 23 errors, 102 warnings, exit 10 | Red on main |
-| Agent drift | VALIDATION PASSED | Green |
+| Description budget | 98 skills, 40940 chars, ~10235 est. tokens | Red in gate mode: over the 8000 budget, exit 1 |
+| Skill size | 98 skills, 44 warnings, 0 failures, exit 0 | Green |
+| Orphan refs (default targets) | 190 files, 535 refs, 0 findings, `VERDICT: PASS`, exit 0 | Green, but 187 refs are directive-suppressed |
+| Golden principles | 7912 files, 109 errors, 92 warnings, exit 10 | Red on main |
+| Agent drift | `VALIDATION PASSED`, exit 0 | Green |
 | Mirror drift (`build_all.py --check`) | exit 0 | Green |
-| Plugin lib drift | in sync | Green |
-| Guard maturity | 3 guards, all Budding, 0 intercepts | Feed not wired |
+| Plugin lib drift | `All plugin lib copies are in sync.`, exit 0 | Green |
+| Guard maturity | 3 guards, all Budding, 0 intercepts, fitness -0.50 | Feed not wired |
 | Commit count | 0 on main | Green |
+
+Two instruments read red on main: golden principles (exit 10) and the description budget in gate mode (exit 1). Guard maturity is unassessable rather than green: its telemetry feed is not wired, so exit 0 only proves the classifier runs. Every other instrument is green.
 
 Re-measure before trusting any of these numbers; they are a snapshot, and the whole point of this skill is that re-measuring costs one command.
 

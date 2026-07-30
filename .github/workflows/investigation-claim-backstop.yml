@@ -73,7 +73,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          cat <<'EOF' > comment.md
+          cat <<'EOF' > "${RUNNER_TEMP:-.}/comment.md"
           ## Investigation-Only Claim Violation
 
           This PR contains session logs claiming `SKIPPED: investigation-only` but the
@@ -99,5 +99,5 @@ jobs:
           python3 .github/scripts/run_with_retry.py -- \
             python3 .github/scripts/post_issue_comment.py \
             --issue "$PR_NUMBER" \
-            --body-file comment.md \
+            --body-file "${RUNNER_TEMP:-.}/comment.md" \
             --marker "INVESTIGATION-CLAIM-BACKSTOP"
