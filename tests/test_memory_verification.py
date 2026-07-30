@@ -81,14 +81,11 @@ class TestVerifyFileCitation:
         assert result.is_valid is False
         assert "traversal" in result.reason.lower()
 
-
     @pytest.mark.unit
     def test_verify_file_line_oserror(self, tmp_path, monkeypatch):
         target = tmp_path / "unreadable.py"
         target.write_text("line1\nline2\n")
-        c = Citation(
-            source_type=SourceType.FILE, target="unreadable.py:1", context=""
-        )
+        c = Citation(source_type=SourceType.FILE, target="unreadable.py:1", context="")
 
         def _raise_oserror(*_a, **_kw):
             raise OSError("permission denied")
@@ -126,9 +123,7 @@ class TestVerifyFunctionCitation:
 
     @pytest.mark.unit
     def test_invalid_function_format(self, tmp_path):
-        c = Citation(
-            source_type=SourceType.FUNCTION, target="no_separator", context=""
-        )
+        c = Citation(source_type=SourceType.FUNCTION, target="no_separator", context="")
         result = verify_citation(c, tmp_path)
         assert result.is_valid is False
 
@@ -141,7 +136,6 @@ class TestVerifyFunctionCitation:
         )
         result = verify_citation(c, tmp_path)
         assert result.is_valid is False
-
 
     @pytest.mark.unit
     def test_search_function_oserror(self, tmp_path, monkeypatch):
@@ -166,9 +160,7 @@ class TestVerifyIssuePrCitation:
     """Issue and PR citation format validation."""
 
     @pytest.mark.unit
-    @pytest.mark.parametrize(
-        "source_type", [SourceType.ISSUE, SourceType.PR]
-    )
+    @pytest.mark.parametrize("source_type", [SourceType.ISSUE, SourceType.PR])
     def test_valid_format_hash_prefix(self, tmp_path, source_type):
         c = Citation(source_type=source_type, target="#123", context="")
         result = verify_citation(c, tmp_path)
@@ -195,9 +187,7 @@ class TestVerifyMemoryCitation:
         mem_dir = tmp_path / ".serena" / "memories"
         mem_dir.mkdir(parents=True)
         (mem_dir / "target-memory.md").write_text("# Target\n")
-        c = Citation(
-            source_type=SourceType.MEMORY, target="target-memory", context=""
-        )
+        c = Citation(source_type=SourceType.MEMORY, target="target-memory", context="")
         result = verify_citation(c, tmp_path)
         assert result.is_valid is True
 
@@ -205,9 +195,7 @@ class TestVerifyMemoryCitation:
     def test_missing_memory(self, tmp_path):
         mem_dir = tmp_path / ".serena" / "memories"
         mem_dir.mkdir(parents=True)
-        c = Citation(
-            source_type=SourceType.MEMORY, target="nonexistent", context=""
-        )
+        c = Citation(source_type=SourceType.MEMORY, target="nonexistent", context="")
         result = verify_citation(c, tmp_path)
         assert result.is_valid is False
 
@@ -345,3 +333,5 @@ class TestFindStaleCitations:
         ]
         stale = find_stale_citations(memories, tmp_path)
         assert len(stale) == 0
+
+
