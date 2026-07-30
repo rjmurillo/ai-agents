@@ -103,7 +103,11 @@ _PIPE = "subprocess.PIPE"
 _STDOUT = "subprocess.STDOUT"
 _NOT_ENTRY_POINTS = frozenset({_PARTIAL, _DEVNULL, _PIPE, _STDOUT})
 
-# Calls that hand back the object they were given. Each one is a place a
+# Calls the scan treats as pass-through: the reference handed in is the one
+# tracked coming out. ``nullcontext`` literally returns its argument;
+# ``staticmethod`` returns a wrapper that dereferences to the same callable;
+# ``enter_context`` returns ``__enter__()``'s value, which for the context
+# managers tracked here is the manager itself. Each one is a place a
 # subprocess reference can pass through with no assignment statement to find.
 # ``classmethod`` is deliberately absent: it binds the owning class as the
 # first argument, so what comes out is not the callable that went in.
@@ -1080,9 +1084,9 @@ def _parameter_bindings(tree: ast.Module) -> list[tuple[str, ast.expr]]:
     parameter a runner, because a parameter that is a runner at one call site
     and something else at another still decodes at runtime. Call sites are
     matched by name within the module only, so a function reached from another
-    module or through a     reference is not covered. Call sites are indexed in the same walk that
-    finds the definitions, because walking the tree once per definition is
-    quadratic in a file that holds many of both.
+    module or through a reference is not covered. Call sites are indexed in
+    the same walk that finds the definitions, because walking the tree once
+    per definition is quadratic in a file that holds many of both.
     """
     definitions: dict[str, ast.arguments] = {}
     sites: dict[str, list[ast.Call]] = {}
