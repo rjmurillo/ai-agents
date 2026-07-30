@@ -8,7 +8,7 @@ tools_vscode:
   - $toolset:research
   - $toolset:knowledge
 tools_copilot:
-  - $toolset:editor
+  - $toolset:executor
   - $toolset:github-research
   - $toolset:research
   - $toolset:knowledge
