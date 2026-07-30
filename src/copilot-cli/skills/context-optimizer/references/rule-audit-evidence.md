@@ -2,7 +2,7 @@
 
 Companion to `rule-audit-procedure.md`. That document is the procedure and
 carries the published table; this one carries the forensics behind it: which
-judge samples were lost, what recovering them changed, and what fourteen rounds
+judge samples were lost, what recovering them changed, and what eighteen rounds
 of adversarial review found in the verdict-parsing code.
 
 Read this before citing a number from the procedure document, and before
@@ -398,6 +398,63 @@ value against the value actually filed and refuses only on a conflict, or when
 the two cannot be compared at all. All 288 archived payloads are unaffected by
 all three changes; none carries either shape.
 
+
+Round 18 corrected the reasoning behind round 17's third fix, and the
+correction governs the rest. Round 17 argued that an over-eager refusal is a
+defect in the same family as an over-eager accept, "because a dropped sample
+moves a published median exactly as a fabricated one does." That equivalence
+is wrong. A refusal moves the median **visibly**: it lands in `judge_failed`
+and in the sample count, where the recovery pass above found it. A fabricated
+sample moves the median **invisibly**, as an unmarked false observation. The
+rule that follows is narrower than round 17 wrote it: an equal restatement may
+be accepted only where equality is established **exactly**. Two of the four
+round-18 defects are cases where round 17 claimed equality without
+establishing it exactly.
+
+The first defect is the double serialization that round 17's fix half-solved.
+`json.dumps` applied twice turns `\u0061` into `\\u0061`, two backslashes. A
+peel that only understands `\uXXXX` matches the *second* backslash, consumes
+it, and leaves `\activation_score`, which no further peel can decode and no
+field pattern can match. The peel now handles `\\` first, along with `\"`,
+`\/`, and the control escapes, so the layer decodes to `\u0061` and the next
+one to `a`. Handling order is the whole fix.
+
+The second defect is the inexact comparison. The named-value pattern captured
+`(-?[0-9]+)?`, an integer prefix, so a judge writing `"activation_score": 1.5`
+beside a filed `1` had its `1.5` read as `1`, matched, and was published as
+agreement. `1e1` beside a filed `1` did the same. The pattern now captures the
+whole token and refuses anything that is not exactly an integer.
+
+The third defect is the same failure of exactness one level up. The escape
+peel stops after a fixed number of layers. A payload escaped four times
+exhausted that budget with content still undecoded, and the exhausted walk
+returned no contradiction, which the caller read as agreement. Running out of
+budget is not evidence of agreement. The walk now reports whether it was
+truncated, and a truncated walk refuses.
+
+The fourth is a liveness defect in round 17's own fix. Making both walkers
+iterative removed `RecursionError` and with it the recursion limit that had
+been terminating a self-referential object by accident. Both walkers now carry
+an identity-keyed `seen` set.
+
+The fifth defect in this round is one this session introduced while fixing the
+third, and it is recorded because of how it was caught rather than what it
+was. The first truncation fix refused on any layer that still had anything to
+decode, not on a truncated walk. A judge quoting a Windows path in `reasoning`
+leaves a literal `\U` and `\b` in the parsed string; `\b` is a JSON escape, so
+that payload decoded further, so it would have been refused. The symptom that
+exposed it was a negative control **passing**: disabling the backslash
+handling left the double-serialization test green, because the refusal was
+coming from the truncation arm rather than from the code the test was supposed
+to pin. A negative control that passes is as informative as one that fails.
+Both mean the test passes for a reason other than the one claimed. The
+Windows-path, regex, and newline cases are now pinned as tests that must
+score.
+
+Replaying all 288 archived judge payloads through the round-18 parser produces
+the same 24 recovery divergences as the parser before it, the same 24 by
+coordinate and not merely by count (issue #3999). None of the five shapes
+above occurs in the archive, so the published table is unmoved.
 
 Reproduce the recovery from any archived run. The failed samples store the
 truncated raw payload in their `reasoning` field behind a
