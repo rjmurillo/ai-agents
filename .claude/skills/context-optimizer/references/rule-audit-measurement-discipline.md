@@ -39,8 +39,16 @@ markdown and code and does not scan `.xml` or `.txt`; the real figure was one.
 
 A test-addition delta was checked with `grep -o '^def test_'` against a file
 whose tests are all indented class methods, so the command returns zero and can
-never contradict the claim it is quoted for. The corrected form matches leading
-whitespace, and the real figure was 76 to 87 with no deletions.
+never contradict the claim it is quoted for. The correction then made the same
+mistake in a second way: fixing the pattern *and* moving the comparison base
+from the commit's parent to current `origin/main` produced 76 to 87, which
+credits the change with eight tests it did not add. Measured against immutable
+revisions, `81fd0eb4` holds 84 and `ed4c4061` holds 87, so the change added 3
+with no deletions. Fixing a broken detector is only half the repair; changing
+the population at the same time hides that the first figure was right.
+
+The general form: quote a delta against two named revisions, not against a
+moving ref. `origin/main` is a different set of commits on Tuesday.
 
 The shared shape is a detector applied to a set that could not have contained
 the thing being counted. Before quoting a figure, state the denominator out
@@ -55,10 +63,22 @@ the `<!-- vendor-portability:` marker at the foot of the forensics file,
 turning two long-declared path references back into undeclared drift.
 
 Each time, the edit reported success. The portability gate caught the third,
-but only because the gate was run. The check that costs nothing is
-`git diff | grep '^-'` after each edit: an unintended deletion shows up as a
-line nobody meant to remove. For multi-function edits, prefer removing an AST
-span to matching on a `def` line.
+but only because the gate was run.
+
+The obvious detector is `git diff | grep '^-'` after each edit, and it is
+weaker than it looks. Run against a file the base revision does not contain it
+matches only `--- /dev/null`, so a brand-new file always reports clean no
+matter what was removed from it since. That happened here: a deletion audit run
+as `git diff origin/main -- <path>` on a file created on the branch reported
+zero removals by construction, and the reassurance it produced was worth
+nothing. Assert the baseline first with `git cat-file -e "$base:$path"`, and
+compare against the branch tip rather than the trunk when the file is new.
+
+Even with the right base, a deleted-line grep proves only that some line went
+missing, not that a particular structural anchor survived. The stronger check
+is the invariant that owns the anchor: pytest collection for a test, the
+portability gate for a vendor marker, the parity gate for a manifest. For
+multi-function edits, prefer removing an AST span to matching on a `def` line.
 
 ## A helper probed alone can answer a different question than the entry point
 

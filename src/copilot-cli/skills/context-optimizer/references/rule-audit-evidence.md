@@ -57,8 +57,10 @@ resolved to 288 distinct source events for 288 samples. Claims below that were
 written against the prefixes are marked where the originals now settle them.
 
 **The cause is recoverable, and it is uniform.** All 24 break inside the
-`reasoning` value at an unescaped double quote, where the judge quoted a phrase
-from the response it was grading. Re-parsing the 200-character prefixes
+`reasoning` value at an unescaped inline double quote. Whether the quoted text
+came from the graded response is not established here: the artifacts retain
+only a truncated response preview, at most 403 characters, and for two
+coordinates the quoted phrase does not appear in the preview available. Re-parsing the 200-character prefixes
 reported `Unterminated string` for 19 of 24, which was the truncation talking;
 at full length the error is `Expecting ',' delimiter` for 24 of 24. An earlier
 draft asserted unescaped quotes, a later one retracted it as unmeasurable at
