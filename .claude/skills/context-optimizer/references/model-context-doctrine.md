@@ -117,6 +117,12 @@ that looks like restatement, check whether it is actually resolving conflicts,
 setting local thresholds, or ranking priorities. That content is
 repo-knowledge wearing a textbook's clothes.
 
+**How far this generalizes is not yet measured.** One rule was tested, eight
+times. The direction is consistent and the mechanism is plausible, but a
+single rule cannot establish that arbitration always earns a slot. Treat this
+as a reason to measure a rule before cutting it, not as a standing exemption
+for anything that calls itself a tiebreaker.
+
 This is a refinement of Shihipar, not a refutation. Anthropic cut restated
 constraint. It did not claim that policy about which constraint wins is free
 to cut.

@@ -123,18 +123,49 @@ more runs widened it more than threefold. Expect the same if you add runs.
 
 The means are swamped. The **sign is not**:
 
-| Mechanism | beats baseline | pooled mean delta |
-|---|---|---|
-| `description` only | 1 of 8 runs | -0.13 |
-| `full` body | **7 of 8 runs** | **+0.67** |
+| Mechanism | beats baseline | ties | pooled mean delta |
+|---|---|---|---|
+| `description` only | 1 of 8 runs | 3 | -0.13 |
+| `full` body | **7 of 8 runs** | 0 | **+0.67** |
 
-Seven of eight in one direction is p is about 0.035 under a fair-coin null.
-That survives noise the means do not, and it holds across two model families
-that share no weights.
+Seven of eight in one direction is p about 0.070 two-tailed under a fair-coin
+null. **Read it two-tailed.** The doctrine predicted the opposite direction,
+so scoring the one-tailed 0.035 against the result actually observed would be
+picking the tail after seeing the data. At 0.070 this is suggestive, not
+conclusive, and it is the strongest claim the eight runs support.
+
+The signal survives noise the means do not, and its direction is the same in
+both model families: `full` wins 4 of 4 on Opus and 3 of 4 on Sol. Note also
+that the `description` row hides three exact ties, so its real record is one
+win against four losses. A sign test discards ties.
 
 **So run the eval at least four times per model and count signs.** A
 consistent direction across runs is evidence. A large delta in one run is not.
 This is the only reading of this instrument that has held up.
+
+### The eight runs, for comparison
+
+Recorded so a later re-run has something to compare against. Scenario is
+`unified-software-engineering`, three positive cells plus one negative,
+one generation per cell, judge samples medianed. Scores are 0 to 5.
+
+| Model | baseline | description | full | delta desc | delta full | judge failures |
+|---|---|---|---|---|---|---|
+| Opus 5 | 3.83 | 3.67 | 4.11 | -0.16 | +0.28 | 4 |
+| Opus 5 | 3.67 | 3.89 | 4.78 | +0.22 | +1.11 | 6 |
+| Opus 5 | 3.67 | 3.67 | 4.89 | 0.00 | +1.22 | 3 |
+| Opus 5 | 3.67 | 3.67 | 4.89 | 0.00 | +1.22 | 4 |
+| Sol 5.6 | 3.89 | 3.78 | 3.56 | -0.11 | -0.33 | 0 |
+| Sol 5.6 | 3.44 | 3.33 | 4.22 | -0.11 | +0.78 | 0 |
+| Sol 5.6 | 3.22 | 3.22 | 4.00 | 0.00 | +0.78 | 0 |
+| Sol 5.6 | 4.11 | 3.22 | 4.44 | -0.89 | +0.33 | 0 |
+
+Every cell above was graded on the full sample, so no average is computed over
+a reduced denominator. The Opus judge failures were retried and did not shrink
+any cell. **The failures are not evenly spread: Opus logged 3 to 6 per run and
+Sol logged none.** Per-cell Opus scores are usable, but Opus run-level verdicts
+are not, and any future comparison should check this column before trusting a
+verdict.
 
 Other limits, all real:
 
@@ -146,7 +177,7 @@ Other limits, all real:
   noise, not model noise. Model noise needs repeat runs.
 - **The Copilot provider does not test passive context.** Copilot CLI has no
   separate system channel, so `_CopilotCLIProvider` folds the treatment into
-  the user prompt (`scripts/eval/_providers.py`). A `copilot-cli` result
+  the user prompt (`scripts/eval/_copilot_cli.py`). A `copilot-cli` result
   measures user-message priming. Whether it transfers to always-on placement
   is an assumption, not a measurement (issue #3934).
 - **Negative scenarios cannot fail a rule.** `aggregate` computes the negative
