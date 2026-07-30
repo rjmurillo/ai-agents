@@ -1,0 +1,71 @@
+{
+  "id": "episode-2026-07-30-session-3608-workflow-local-run-cascade-attribution",
+  "session": "2026-07-30-session-3608-workflow-local-run-cascade-attribution",
+  "timestamp": "2026-07-30T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix #3869 workflow-local-run aggregator cascade attribution",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read task, issue #3869, root AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/HANDOFF.md, and relevant ADR context.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added failing regression test for cli-smoke aggregator cascade, verified RED with targeted pytest.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Implemented scoped aggregator cascade attribution in scripts/validation/run_workflow_local_test.py and added hard-failure regression for cascade without an explained upstream limitation.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validation passed: 105 run_workflow_local_test tests, 1066 validation tests, ruff on touched files, py_compile, and pre_pr validations.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: cf10e2d4",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}
