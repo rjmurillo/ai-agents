@@ -61,41 +61,44 @@ Three mechanisms run per scenario:
 If they tie, the body is dead weight and belongs in progressive disclosure.
 `baseline` tells you whether the rule was ever needed at all.
 
-### Measure your ambient contamination before trusting a run
+### Ambient instructions contaminated runs archived before 2026-07-29
 
 The provider sandboxes `cwd` so repo instruction files cannot leak into the
 control cell, and passes `--no-custom-instructions` so user-level ones in
-`~/.copilot/` cannot either. What no flag removes is the CLI's own system
-prompt and tool schema.
+`~/.copilot/` cannot either. The second flag was added on 2026-07-29. Every
+run archived before that carries ambient user-level instructions in all three
+cells.
 
-Re-measure both numbers when the CLI updates, because an ambient block that
-grows past the treatment can swamp it:
+A rough size check, run from an empty directory against `claude-opus-5` with
+the same prompt twice, once with `--no-custom-instructions` and once without,
+put the difference near 13k input tokens on the CLI's own stdout counter. Read
+that as an order of magnitude and nothing more. **That counter is
+non-monotonic and is listed under instrument gotchas below as unusable for
+measurement**, and the probe did not pass `--disable-builtin-mcps`, so neither
+absolute number is the provider's floor. It is enough to establish that the
+ambient block was larger than the rule bodies being compared, not enough to
+quantify it. Measure it properly from
+`session.usage_checkpoint.data.totalNanoAiu` in the event log, under the
+provider's actual argument list, before quoting a number.
 
-```bash
-mkdir -p /tmp/cci-probe && cd /tmp/cci-probe
-copilot --no-custom-instructions --allow-all-tools --model claude-opus-5 \
-  -p "Reply with exactly the word: PONG"
-copilot --allow-all-tools --model claude-opus-5 \
-  -p "Reply with exactly the word: PONG"
-```
-
-Read the `Tokens ↑` line from each. The difference is what the flag removes;
-the smaller number is the floor you cannot remove. Measured 2026-07-29:
-**41.2k floor, 54.7k with ambient instructions, so 13.5k contaminating.** That
-was several times the size of the rule bodies under comparison and overlapped
-them semantically, which compresses deltas toward zero. Every run archived
-before 2026-07-29 carries that compression. It biases against finding an
-effect, so it does not explain away a positive result, but it does mean those
-deltas are lower bounds.
+**The direction of that bias is unknown.** It is tempting to argue the ambient
+block only adds a constant to every cell and so compresses deltas toward zero,
+which would make the archived deltas lower bounds. That does not follow.
+Ambient text that overlaps the rule body could substitute for it and shrink
+the gap, or prime the behavior the rule asks for and widen it; position and
+salience effects cut either way. Treat pre-2026-07-29 deltas as measured under
+a different and less controlled condition, not as conservative estimates.
+Settling the direction needs a two-by-two: ambient on and off crossed with
+`description` and `full`.
 
 ## Step 2. Read the table honestly
 
 ```
 | Mechanism    | Pos avg | Neg avg | Δ vs baseline | Graded |
 |--------------|---------|---------|---------------|--------|
-| baseline     |    3.83 |     5.0 |               |    3/3 |
-| description  |    3.67 |     5.0 |         -0.16 |    3/3 |
-| full         |    4.11 |     5.0 |         +0.28 |    3/3 |
+| baseline     |    3.89 |     5.0 |               |    3/3 |
+| description  |    3.67 |     5.0 |         -0.22 |    3/3 |
+| full         |    4.11 |     5.0 |         +0.22 |    3/3 |
 ```
 
 Check in this order:
@@ -122,24 +125,16 @@ issue #3445). The rule path is single-shot against an LLM judge and cannot
 average that away.
 
 Measured 2026-07-29 on `unified-software-engineering.json`, eight runs of
-identical inputs through `EVAL_PROVIDER=copilot-cli`, four per model:
+identical inputs through `EVAL_PROVIDER=copilot-cli`, four per model. The full
+table is below under "The eight runs, for comparison"; it lives in one place
+because an earlier draft carried two copies and they drifted apart, which is
+how a stale baseline survived two review rounds.
 
-| Model | baseline | description | full |
-|---|---|---|---|
-| Opus 5 | 3.83 | 3.67 (-0.16) | 4.11 (+0.28) |
-| Opus 5 | 3.67 | 3.89 (+0.22) | 4.78 (+1.11) |
-| Opus 5 | 3.67 | 3.67 (+0.00) | 4.89 (+1.22) |
-| Opus 5 | 3.67 | 3.67 (+0.00) | 4.89 (+1.22) |
-| Sol 5.6 | 3.89 | 3.78 (-0.11) | 3.56 (-0.33) |
-| Sol 5.6 | 3.44 | 3.33 (-0.11) | 4.22 (+0.78) |
-| Sol 5.6 | 3.22 | 3.22 (+0.00) | 4.00 (+0.78) |
-| Sol 5.6 | 4.11 | 3.22 (-0.89) | 4.44 (+0.33) |
-
-Run-to-run spread on the `full` delta was **0.94 on Opus 5 and 1.11 on
+Run-to-run spread on the `full` delta was **1.00 on Opus 5 and 1.11 on
 Sol 5.6**. Sol's `full` delta changed sign, -0.33 to +0.78, on identical
 inputs. Baseline alone moved 3.22 to 4.11 with nothing changed.
 
-**Practical rule: at 3 positive scenarios and one generation per cell, a
+**Practical rule: at 2 to 3 positive scenarios and one generation per cell, a
 single run cannot resolve an effect smaller than about 1.0 on a 0-5 scale.**
 That is most of the usable range. Never cut or keep content on one run.
 
@@ -193,31 +188,40 @@ one generation per cell, judge samples medianed. Scores are 0 to 5.
 | Sol 5.6 | 3.22 | 3.22 | 4.00 | 0.00 | +0.78 | 0 |
 | Sol 5.6 | 4.11 | 3.22 | 4.44 | -0.89 | +0.33 | 0 |
 
-### The judge discarded a quarter of the Opus samples, and it was recoverable
+### The judge discarded Opus samples unevenly, and it was recoverable
 
 An earlier version of this table claimed every cell was graded on the full
-sample. **That was false.** Twelve of the 48 Opus cells were averaged over one
-or two judge samples instead of three, and the `total_judge_failures` field
-those numbers came from counts *affected cells*, not failed samples (issue
-#3958). The real per-run sample losses are 6, 8, 4, and 6, against 0 for every
-Sol run.
+sample. **That was false.** Twelve of the 48 Opus cells, one in four, were
+averaged over one or two judge samples instead of three. That is 24 of 144
+Opus judge samples, one in six. The `total_judge_failures` field the claim
+rested on counts affected cells, not failed samples (issue #3958), which is
+how the undercount survived. Sol lost none.
 
 The cause is a single defect, and it is not random with respect to the
 comparison. The judge is asked for three numbers plus a `reasoning` string. It
 quotes the response it is grading, an unescaped quote inside that prose
 invalidates the whole JSON object, and the cell was thrown away. **All 24 lost
-samples carried their three scores intact, ahead of the prose that broke the
-parse.** Verbose models trip it more often, which is why Opus lost 24 samples
-and Sol lost none.
+samples were recovered**, which means each carried its three scores intact
+ahead of the prose that broke the parse; the salvage path is all-or-nothing,
+so a partial payload would have failed rather than recovered. Verbose models
+trip it more often, which is why Opus lost 24 samples and Sol lost none.
 
 `_salvage_scores` in `scripts/eval/eval-rule-activation.py` now recovers the
 numbers when the object will not parse, all-or-nothing, and marks the sample
 `judge_salvaged`. The table above is recomputed with all 24 recovered.
 
-**The correction did not change the conclusion.** One cell moved (`fx-opus5`
-baseline, 3.83 to 3.89). The sign counts, the per-model split, and the pooled
-deltas are the same to two decimal places. That is worth stating plainly: the
-claim was wrong, and the finding it supported survived being fixed.
+**The correction did not change the reported sign count.** One cell moved
+(`fx-opus5` baseline, 3.83 to 3.89). The per-model split held and the pooled
+description delta shifted from -0.13 to -0.14.
+
+State the limit of that plainly. The extractor was written after seeing which
+samples failed and was evaluated on those same failures, so this is a
+post-hoc recovery, not an independent replication. Recovering *every* failure
+rather than a chosen subset avoids outcome selection, and the negative control
+below is real evidence the method is faithful. Neither makes it a blind test.
+Falsifying it takes one of: blinded manual transcription of the failed
+payloads, a second parser written without sight of them, or held-out malformed
+output. None of those has been done.
 
 Reproduce the recovery from any archived run with the three
 `"<field>": <number>` patterns; the artifacts store enough of each failed
@@ -309,7 +313,8 @@ METR integrity flag in `model-context-doctrine.md`.
 
 ## Known instrument gotchas
 
-These each cost real time. They are fixed, but the shapes recur.
+These each cost real time. Some are fixed; the ones carrying an open issue
+number are not. The shapes recur either way.
 
 - **Judge failures used to score as zero.** One unparseable sample out of three
   zeroed a whole cell, and zeroed cells were averaged into the mechanism mean.
@@ -329,8 +334,8 @@ These each cost real time. They are fixed, but the shapes recur.
 - **The CLI loads `AGENTS.md` from its working directory.** Eval calls must run
   in an empty temp directory or the repo's own instructions contaminate the
   baseline mechanism. User-level instructions in `~/.copilot/` ignore the
-  working directory entirely and need `--no-custom-instructions`; see Step 1
-  for how to measure what they were costing you.
+  working directory entirely and need `--no-custom-instructions`. Runs archived
+  before 2026-07-29 predate that flag; see Step 1 for what that means for them.
 - **Most eval entry points still demand `ANTHROPIC_API_KEY`** even when
   `EVAL_PROVIDER` selects a keyless provider. Tracked in issue #3924.
   `eval-rule-activation.py` is fixed and shows the pattern.
