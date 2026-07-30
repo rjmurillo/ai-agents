@@ -290,7 +290,7 @@ class TestRuleResults:
         assert rule_results(scenarios, "full") == {"S1": False}
 
     def test_activation_floor_is_inclusive(self):
-        scenarios = [_scenario("S1", "full", (3.5, 3.5, 3.5))]
+        scenarios = [_scenario("S1", "full", (4, 4, 3))]
         assert rule_results(scenarios, "full") == {"S1": True}
 
     def test_negative_scenario_passes_when_the_rule_stays_quiet(self):
@@ -322,8 +322,8 @@ class TestRuleResults:
     def test_negative_and_positive_use_the_same_threshold(self):
         """Both polarities read the same normalized scale, so one floor fits."""
         scenarios = [
-            _scenario("POS", "full", (3.5, 3.5, 3.5)),
-            _scenario("NEG", "full", (3.5, 3.5, 3.5), negative=True),
+            _scenario("POS", "full", (4, 4, 3)),
+            _scenario("NEG", "full", (4, 4, 3), negative=True),
         ]
         assert rule_results(scenarios, "full") == {"POS": True, "NEG": True}
 
@@ -670,9 +670,12 @@ class TestAScoreOutsideItsDomainCannotCoverForAMissingOne:
         )
         assert got == {"S": False}
 
-    @pytest.mark.parametrize("bad", [5.5, 6, 100, -1, -0.5])
-    def test_a_rule_score_outside_zero_to_five_is_an_adapter_error(self, bad):
-        with pytest.raises(AdapterError, match="between"):
+    @pytest.mark.parametrize(
+        ("bad", "message"),
+        [(5.5, "integer"), (6, "between"), (100, "between"), (-1, "between"), (-0.5, "integer")],
+    )
+    def test_a_rule_score_outside_zero_to_five_is_an_adapter_error(self, bad, message):
+        with pytest.raises(AdapterError, match=message):
             rule_results(
                 self._scen(activation_score=bad, citation_score=5, behavior_score=5),
                 "full",

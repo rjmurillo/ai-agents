@@ -223,10 +223,20 @@ def parse_report(report: dict[str, Any], *, model_id: str) -> ModelResult:
         raise ValueError(
             f"report for {model_id} has empty/invalid fixture_set_sha"
         )
-    per_fixture = report["per_fixture_pass_rates"]
-    if not isinstance(per_fixture, dict):
+    agent_recall = report["agent_recall"]
+    if (
+        not isinstance(agent_recall, (int, float))
+        or isinstance(agent_recall, bool)
+        or not math.isfinite(agent_recall)
+        or not 0.0 <= float(agent_recall) <= 1.0
+    ):
         raise ValueError(
-            f"report for {model_id} per_fixture_pass_rates is not an object"
+            f"report for {model_id} agent_recall must be finite and in [0, 1]"
+        )
+    per_fixture = report["per_fixture_pass_rates"]
+    if not isinstance(per_fixture, dict) or not per_fixture:
+        raise ValueError(
+            f"report for {model_id} per_fixture_pass_rates must be a non-empty object"
         )
     excluded_raw = report.get("flaky_fixtures_excluded")
     # Must be a list of fixture ids. A bare string would make set() iterate
@@ -261,15 +271,38 @@ def parse_report(report: dict[str, Any], *, model_id: str) -> ModelResult:
         )
     rates: dict[str, list[float]] = {}
     for fixture_id, variants in per_fixture.items():
-        if fixture_id in excluded or not isinstance(variants, dict):
+        if fixture_id in excluded:
             continue
+        if not isinstance(variants, dict):
+            raise ValueError(
+                f"report for {model_id} fixture {fixture_id!r} variants "
+                "must be an object"
+            )
         agent_rates = variants.get("agent")
-        if agent_rates is None:
-            continue
-        rates[fixture_id] = [float(r) for r in agent_rates]
+        if not isinstance(agent_rates, list) or not agent_rates:
+            raise ValueError(
+                f"report for {model_id} fixture {fixture_id!r} agent rates "
+                "must be a non-empty list"
+            )
+        parsed_rates: list[float] = []
+        for index, rate in enumerate(agent_rates):
+            if (
+                not isinstance(rate, (int, float))
+                or isinstance(rate, bool)
+                or not math.isfinite(rate)
+                or not 0.0 <= float(rate) <= 1.0
+            ):
+                raise ValueError(
+                    f"report for {model_id} fixture {fixture_id!r} agent "
+                    f"rate {index} must be finite and in [0, 1]"
+                )
+            parsed_rates.append(float(rate))
+        rates[str(fixture_id)] = parsed_rates
+    if not rates:
+        raise ValueError(f"report for {model_id} has no stable agent rates")
     return ModelResult(
         model_id=model_id,
-        agent_recall=float(report["agent_recall"]),
+        agent_recall=float(agent_recall),
         per_fixture_agent_rates=rates,
         tokens_in=int(report.get("total_tokens_in", 0)),
         tokens_out=int(report.get("total_tokens_out", 0)),

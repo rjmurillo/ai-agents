@@ -1,3 +1,12 @@
+# taste-lint: ignore file-size
+#
+# file-size suppression rationale: this module is the single owner of the
+# runs.jsonl on-disk contract, and most of its bulk is the documentation of
+# that contract: every corrupt shape, failure mode, and exit-code mapping is
+# recorded next to the guard that enforces it. Splitting the parse path from
+# the write path to satisfy a line count would separate the two halves of one
+# round-trip invariant. If the module grows real new responsibilities, split
+# by responsibility then, not by line count.
 """RunPersistence: idempotent JSONL writer for eval-agent-vs-baseline.
 
 DESIGN-004 §5.5, REQ-004 AC-9. Records are appended one per line to
@@ -28,6 +37,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import math
 import os
 import tempfile
 from collections.abc import Iterable
@@ -82,6 +92,24 @@ class RunSeedMismatchError(Exception):
 # stable name to reference.
 RUNS_FILENAME = "runs.jsonl"
 SUPPORTED_RUN_RECORD_SCHEMA_VERSIONS = {1, RUN_RECORD_SCHEMA_VERSION}
+_REQUIRED_RUN_RECORD_FIELDS = (
+    "fixture_id",
+    "variant",
+    "run_index",
+    "model_id",
+    "prompt_sha",
+    "prompt_ref",
+    "fixture_sha",
+    "raw_response",
+    "assertions",
+    "outcome",
+    "latency_ms",
+    "tokens_in",
+    "tokens_out",
+    "error_category",
+    "attempts",
+    "tokens_estimated",
+)
 
 
 def _record_key(record: RunRecord) -> tuple[str, str, int]:
@@ -103,6 +131,136 @@ def _record_to_json_line(record: RunRecord) -> str:
         if hasattr(kind, "value"):
             assertion["kind"] = kind.value
     return json.dumps(payload, sort_keys=True)
+
+
+def _strict_bool(payload: dict[str, Any], field: str, line_context: str) -> bool:
+    value = payload.get(field)
+    if not isinstance(value, bool):
+        raise MalformedRunRecordError(
+            f"{line_context} field {field!r} has wrong type "
+            f"(expected bool, got {type(value).__name__})"
+        )
+    return value
+
+
+def _strict_int(payload: dict[str, Any], field: str, line_context: str) -> int:
+    value = payload.get(field)
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise MalformedRunRecordError(
+            f"{line_context} field {field!r} has wrong type "
+            f"(expected int, got {type(value).__name__})"
+        )
+    return value
+
+
+def _strict_number(payload: dict[str, Any], field: str, line_context: str) -> int | float:
+    value = payload.get(field)
+    if (
+        not isinstance(value, (int, float))
+        or isinstance(value, bool)
+        or not math.isfinite(value)
+    ):
+        raise MalformedRunRecordError(
+            f"{line_context} field {field!r} has wrong type "
+            f"(expected finite number, got {type(value).__name__})"
+        )
+    return value
+
+
+def _strict_str(payload: dict[str, Any], field: str, line_context: str) -> str:
+    value = payload.get(field)
+    if not isinstance(value, str):
+        raise MalformedRunRecordError(
+            f"{line_context} field {field!r} has wrong type "
+            f"(expected str, got {type(value).__name__})"
+        )
+    return value
+
+
+def _strict_optional_str(payload: dict[str, Any], field: str, line_context: str) -> str | None:
+    value = payload.get(field)
+    if value is not None and not isinstance(value, str):
+        raise MalformedRunRecordError(
+            f"{line_context} field {field!r} has wrong type "
+            f"(expected str or null, got {type(value).__name__})"
+        )
+    return value
+
+
+def _normalize_seed(payload: dict[str, Any], schema_version: int) -> None:
+    if schema_version == 1 and "seed" not in payload:
+        payload["seed"] = 0
+
+
+def _validate_assertions(payload: dict[str, Any], line_context: str) -> list[AssertionResult]:
+    raw_assertions = payload.get("assertions")
+    if not isinstance(raw_assertions, list):
+        raise MalformedRunRecordError(
+            f"{line_context} field 'assertions' has wrong type "
+            f"(expected list, got {type(raw_assertions).__name__})"
+        )
+    if payload.get("outcome") == "success" and not raw_assertions:
+        raise MalformedRunRecordError(
+            f"{line_context} successful record must include non-empty assertions"
+        )
+    assertions: list[AssertionResult] = []
+    for index, assertion in enumerate(raw_assertions):
+        if not isinstance(assertion, dict):
+            raise MalformedRunRecordError(
+                f"{line_context} assertion {index} has wrong type "
+                f"(expected object, got {type(assertion).__name__})"
+            )
+        if "kind" not in assertion:
+            raise MalformedRunRecordError(
+                f"{line_context} assertion {index} missing field: kind"
+            )
+        assertions.append(
+            AssertionResult(
+                kind=AssertionKind(assertion["kind"]),
+                pattern=assertion.get("pattern"),
+                expected_value=assertion.get("expected_value"),
+                passed=_strict_bool(assertion, "passed", f"{line_context} assertion {index}"),
+                extracted=assertion.get("extracted"),
+            )
+        )
+    return assertions
+
+
+def _validate_payload(payload: dict[str, Any], line_context: str) -> None:
+    missing = [field for field in _REQUIRED_RUN_RECORD_FIELDS if field not in payload]
+    if missing:
+        raise MalformedRunRecordError(
+            f"{line_context} missing required field(s): {', '.join(missing)}"
+        )
+    _strict_str(payload, "fixture_id", line_context)
+    _strict_str(payload, "variant", line_context)
+    _strict_int(payload, "run_index", line_context)
+    _strict_str(payload, "model_id", line_context)
+    _strict_str(payload, "prompt_sha", line_context)
+    _strict_str(payload, "prompt_ref", line_context)
+    _strict_str(payload, "fixture_sha", line_context)
+    # `RunRecord.raw_response` is `str | None` (DESIGN-004): error-path
+    # records are written with `raw_response=None`, so requiring `str`
+    # here would fail closed on legitimate error records during resume.
+    _strict_optional_str(payload, "raw_response", line_context)
+    _strict_str(payload, "outcome", line_context)
+    _strict_number(payload, "latency_ms", line_context)
+    _strict_int(payload, "tokens_in", line_context)
+    _strict_int(payload, "tokens_out", line_context)
+    _strict_int(payload, "attempts", line_context)
+    _strict_bool(payload, "tokens_estimated", line_context)
+    seed = payload.get("seed")
+    if seed is not None and (not isinstance(seed, int) or isinstance(seed, bool)):
+        raise MalformedRunRecordError(
+            f"{line_context} field 'seed' has wrong type "
+            f"(expected int or null, got {type(seed).__name__})"
+        )
+    fingerprint = payload.get("system_fingerprint")
+    if fingerprint is not None and not isinstance(fingerprint, str):
+        raise MalformedRunRecordError(
+            f"{line_context} field 'system_fingerprint' has wrong type "
+            f"(expected str or null, got {type(fingerprint).__name__})"
+        )
 
 
 def _parse_record(line: str) -> RunRecord | None:
@@ -135,27 +293,18 @@ def _parse_record(line: str) -> RunRecord | None:
             f"unsupported schemaVersion={schema_version!r} on record "
             f"(supported: {sorted(SUPPORTED_RUN_RECORD_SCHEMA_VERSIONS)})"
         )
+    if isinstance(schema_version, bool):
+        raise SchemaVersionError(
+            f"unsupported schemaVersion={schema_version!r} on record "
+            f"(supported: {sorted(SUPPORTED_RUN_RECORD_SCHEMA_VERSIONS)})"
+        )
     payload["schema_version"] = schema_version
     payload.setdefault("system_fingerprint", None)
+    _normalize_seed(payload, schema_version)
     payload.setdefault("seed", None)
     try:
-        raw_assertions = payload.get("assertions", [])
-        if not isinstance(raw_assertions, list):
-            # Explicit, because iteration would silently accept "" and {}
-            # as zero assertions instead of naming the corrupt shape.
-            raise TypeError(
-                f"assertions is {type(raw_assertions).__name__}, expected list"
-            )
-        payload["assertions"] = [
-            AssertionResult(
-                kind=AssertionKind(a["kind"]),
-                pattern=a.get("pattern"),
-                expected_value=a.get("expected_value"),
-                passed=bool(a.get("passed")),
-                extracted=a.get("extracted"),
-            )
-            for a in raw_assertions
-        ]
+        _validate_payload(payload, "record")
+        payload["assertions"] = _validate_assertions(payload, "record")
         return RunRecord(**payload)
     except (ValueError, KeyError, TypeError) as exc:
         # The rejected detail is echoed for diagnosis and capped, because a
@@ -225,24 +374,32 @@ class RunPersistence:
                     raise MalformedRunRecordError(
                         f"{self._jsonl_path}: line {line_no} is not valid JSON ({exc})"
                     ) from exc
+                if not isinstance(payload, dict):
+                    raise MalformedRunRecordError(
+                        f"{self._jsonl_path}: line {line_no} is not a JSON object "
+                        f"(got {type(payload).__name__})"
+                    )
                 # Reject incompatible schemas at resume time, before
                 # `_seen`/`_completed` get seeded with rows whose shape
                 # the writer would otherwise accept.
                 schema_version = payload.get("schemaVersion")
-                if schema_version not in SUPPORTED_RUN_RECORD_SCHEMA_VERSIONS:
+                if (
+                    schema_version not in SUPPORTED_RUN_RECORD_SCHEMA_VERSIONS
+                    or isinstance(schema_version, bool)
+                ):
                     raise SchemaVersionError(
                         f"{self._jsonl_path}: line {line_no} has "
                         f"schemaVersion={schema_version!r} (supported: "
                         f"{sorted(SUPPORTED_RUN_RECORD_SCHEMA_VERSIONS)})"
                     )
+                line_context = f"{self._jsonl_path}: line {line_no}"
+                _normalize_seed(payload, cast(int, schema_version))
                 existing_seed = payload.get("seed")
                 if (
-                    schema_version == 1
-                    and "seed" not in payload
-                    and self._seed in (None, 0)
+                    self._resume
+                    and self._seed is not None
+                    and existing_seed != self._seed
                 ):
-                    existing_seed = self._seed
-                if self._resume and existing_seed != self._seed:
                     raise RunSeedMismatchError(
                         f"{self._jsonl_path}: line {line_no} has seed="
                         f"{existing_seed!r}, current seed={self._seed!r}"
@@ -284,6 +441,13 @@ class RunPersistence:
                             f"{expected_type.__name__}, got {type(value).__name__})"
                         )
                 record_key = cast(tuple[str, str, int], key)
+                if record_key in self._seen:
+                    raise MalformedRunRecordError(
+                        f"{self._jsonl_path}: line {line_no} duplicates "
+                        f"identity {record_key!r}"
+                    )
+                _validate_payload(payload, line_context)
+                _validate_assertions(payload, line_context)
                 self._seen.add(record_key)
                 if payload.get("outcome") == "success":
                     self._completed.add(record_key)
