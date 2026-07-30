@@ -56,8 +56,8 @@ from scripts.github_core.api import resolve_repo_params  # noqa: E402
 WARNING_THRESHOLD = 10
 ALERT_THRESHOLD = 15
 BLOCK_THRESHOLD = 20
-# Issue #3596: ADR-008 relieves the ceiling to 40 for a branch that merges main,
-# and the pre-push hook has always honoured that. CI never did, so a branch the
+# Issue #3596: the ceiling is relieved to 40 for a branch that merges main, and
+# the pre-push hook has always honoured that. CI never did, so a branch the
 # hook let through was blocked on arrival. These two numbers are the single
 # source of truth; `scripts/validation/git_hook_policy.py` imports them rather
 # than restating them.

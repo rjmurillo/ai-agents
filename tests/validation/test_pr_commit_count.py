@@ -66,11 +66,12 @@ def test_the_block_boundary_agrees_with_the_local_hook(count: int, blocked: bool
     pushed cleanly and then failed the pull request check gave an author a red
     pull request with no local signal (issue #3721).
 
-    The hook widens ``limit`` to 40 when the update contains a merge of main.
-    This check never sees the push shape, so it cannot mirror that widening,
-    and a main-merge push of 21 through 40 still needs the
-    commit-limit-bypass label. That gap is out of scope here and is not what
-    this test pins.
+    The hook widens ``limit`` to 40 when the update contains a merge of main,
+    and CI applies the same widening: ``count_pr_commits`` reads the pull
+    request's own commit list through ``contains_base_merge``. A main-merge
+    branch at 21 through 40 therefore needs no bypass label. This test pins
+    only the default boundary; ``test_classify_count_honours_an_explicit_limit``
+    pins the widened one.
     """
     assert (mod.classify_count(count) == "BLOCKED") is blocked
 
@@ -318,7 +319,7 @@ def test_main_blocked_emits_error_annotation(
 
 
 # ---------------------------------------------------------------------------
-# Issue #3596: the ADR-008 main-merge relief must apply in CI, not only in the
+# Issue #3596: the main-merge relief must apply in CI, not only in the
 # pre-push hook, and both ceilings must come from this module.
 # ---------------------------------------------------------------------------
 
