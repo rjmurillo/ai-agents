@@ -4364,3 +4364,85 @@ class TestTableDisclosesItsPopulations:
 
         assert "Excluded as unreachable" not in table
         assert "Positive pool incomplete" not in table
+
+
+class TestPositiveVerdictIsTotal:
+    """The extracted positive branch must decide every input, NaN included."""
+
+    def test_it_agrees_with_the_inline_form_it_replaced(self):
+        # The original wrote `passes and beats` first, then `not passes`. This
+        # pins all four combinations so a later simplification to `<` cannot
+        # quietly change one of them.
+        cases = [
+            (5.0, 1.0, "PASS"),
+            (1.0, 1.0, "FAIL_THRESHOLD"),
+            (
+                eval_mod.MIN_ACTIVATION_SCORE,
+                eval_mod.MIN_ACTIVATION_SCORE,
+                "FAIL_NO_DELTA",
+            ),
+            (1.0, 5.0, "FAIL_THRESHOLD"),
+        ]
+        for desc, base, expected in cases:
+            assert eval_mod._positive_verdict(desc, base) == expected, (desc, base)
+
+    def test_a_non_comparable_average_fails_closed(self):
+        # Every comparison against NaN is False, so a `<` form would fall
+        # through to PASS. The negated `>=` form reports the threshold miss.
+        nan = float("nan")
+        assert eval_mod._positive_verdict(nan, 1.0) == "FAIL_THRESHOLD"
+        assert eval_mod._positive_verdict(5.0, nan) == "FAIL_NO_DELTA"
+
+
+class TestVerdictRankingLivesInOnePlace:
+    """The gate order is load-bearing, so pin it against reordering."""
+
+    def _summary(self, *, neg_incomplete=(), pos_incomplete=()):
+        return {
+            "negative_gate_incomplete": list(neg_incomplete),
+            "positive_gate_incomplete": list(pos_incomplete),
+        }
+
+    def test_a_judge_failure_outranks_every_other_gate(self):
+        verdict = eval_mod._decide_verdict(
+            self._summary(neg_incomplete=["description"], pos_incomplete=["baseline"]),
+            gating_judge_failures=1,
+            worst_neg_avg=1.0,
+            has_positive_cases=False,
+            desc_avg=1.0,
+            baseline_avg=5.0,
+        )
+        assert verdict == "FAIL_JUDGE_ERRORS"
+
+    def test_an_observed_harm_outranks_an_incomplete_negative_pool(self):
+        verdict = eval_mod._decide_verdict(
+            self._summary(neg_incomplete=["description"]),
+            gating_judge_failures=0,
+            worst_neg_avg=1.0,
+            has_positive_cases=True,
+            desc_avg=5.0,
+            baseline_avg=1.0,
+        )
+        assert verdict == "FAIL_OVER_ACTIVATION"
+
+    def test_an_unproven_harm_outranks_an_unproven_benefit(self):
+        verdict = eval_mod._decide_verdict(
+            self._summary(neg_incomplete=["description"], pos_incomplete=["baseline"]),
+            gating_judge_failures=0,
+            worst_neg_avg=5.0,
+            has_positive_cases=True,
+            desc_avg=5.0,
+            baseline_avg=1.0,
+        )
+        assert verdict == "FAIL_NEGATIVE_INCOMPLETE"
+
+    def test_a_clean_run_still_reaches_the_positive_branch(self):
+        verdict = eval_mod._decide_verdict(
+            self._summary(),
+            gating_judge_failures=0,
+            worst_neg_avg=5.0,
+            has_positive_cases=True,
+            desc_avg=5.0,
+            baseline_avg=1.0,
+        )
+        assert verdict == "PASS"

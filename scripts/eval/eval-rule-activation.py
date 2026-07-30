@@ -1824,38 +1824,70 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
         summary["per_mechanism"], pos_gate_mechs, len(pos_scenarios)
     )
 
+    summary["verdict"] = _decide_verdict(
+        summary,
+        gating_judge_failures=gating_judge_failures,
+        worst_neg_avg=worst_neg_avg,
+        has_positive_cases=bool(pos_scenarios),
+        desc_avg=desc_avg,
+        baseline_avg=baseline_avg,
+    )
+
+    return summary
+
+
+def _positive_verdict(desc_avg: float, baseline_avg: float) -> str:
+    """Name which of the two positive requirements a reachable run missed.
+
+    Written as negated `>=` rather than `<` so that a non-comparable average
+    fails closed. Both comparisons are False against NaN, so negating them
+    reports FAIL_THRESHOLD instead of falling through to PASS.
+    """
+    passes_threshold = desc_avg >= MIN_ACTIVATION_SCORE
+    beats_baseline = (desc_avg - baseline_avg) >= MIN_DELTA_VS_BASELINE
+    if not passes_threshold:
+        return "FAIL_THRESHOLD"
+    if not beats_baseline:
+        return "FAIL_NO_DELTA"
+    return "PASS"
+
+
+def _decide_verdict(
+    summary: dict[str, Any],
+    *,
+    gating_judge_failures: int,
+    worst_neg_avg: float | None,
+    has_positive_cases: bool,
+    desc_avg: float,
+    baseline_avg: float,
+) -> str:
+    """Rank the gates and return the one that decides the run.
+
+    Order is load-bearing, so it lives in one function rather than threaded
+    through the collection above it. An observed harm outranks an unobserved
+    benefit, and an unproven harm outranks an unproven benefit.
+    """
     if gating_judge_failures > 0:
-        summary["verdict"] = "FAIL_JUDGE_ERRORS"
-    elif worst_neg_avg is not None and worst_neg_avg < MIN_RESTRAINT_SCORE:
-        # Checked ahead of the positive gates: a rule that fires where it must
-        # not is actively harmful, while one that under-fires is merely useless.
-        # Checked ahead of the coverage gate too: a floor violation seen on part
-        # of the pool is still a violation, and naming the harm beats naming the
+        return "FAIL_JUDGE_ERRORS"
+    if worst_neg_avg is not None and worst_neg_avg < MIN_RESTRAINT_SCORE:
+        # Ahead of the positive gates: a rule that fires where it must not is
+        # actively harmful, while one that under-fires is merely useless. Ahead
+        # of the coverage gate too, because a floor violation seen on part of
+        # the pool is still a violation, and naming the harm beats naming the
         # gap in coverage that would have found more of it.
-        summary["verdict"] = "FAIL_OVER_ACTIVATION"
-    elif summary["negative_gate_incomplete"]:
+        return "FAIL_OVER_ACTIVATION"
+    if summary["negative_gate_incomplete"]:
         # No harm was observed, but the pool was not fully measured, so
         # restraint was not demonstrated either. Passing here would attach a
         # clean average to a population it was never computed over.
-        summary["verdict"] = "FAIL_NEGATIVE_INCOMPLETE"
-    elif not pos_scenarios:
-        summary["verdict"] = "NO_POSITIVE_CASES"
-    elif summary["positive_gate_incomplete"]:
-        # Ranked under the negative gates on purpose. An unproven harm outranks
-        # an unproven benefit: shipping a rule that might fire where it must not
-        # costs more than withholding one that might have helped.
-        summary["verdict"] = "FAIL_POSITIVE_INCOMPLETE"
-    else:
-        passes_threshold = desc_avg >= MIN_ACTIVATION_SCORE
-        beats_baseline = (desc_avg - baseline_avg) >= MIN_DELTA_VS_BASELINE
-        if passes_threshold and beats_baseline:
-            summary["verdict"] = "PASS"
-        elif not passes_threshold:
-            summary["verdict"] = "FAIL_THRESHOLD"
-        else:
-            summary["verdict"] = "FAIL_NO_DELTA"
-
-    return summary
+        return "FAIL_NEGATIVE_INCOMPLETE"
+    if not has_positive_cases:
+        return "NO_POSITIVE_CASES"
+    if summary["positive_gate_incomplete"]:
+        # Under the negative gates on purpose: shipping a rule that might fire
+        # where it must not costs more than withholding one that might help.
+        return "FAIL_POSITIVE_INCOMPLETE"
+    return _positive_verdict(desc_avg, baseline_avg)
 
 
 # ---------------------------------------------------------------------------
