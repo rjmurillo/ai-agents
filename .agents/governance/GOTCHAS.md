@@ -45,16 +45,29 @@ and what a vendored install loses without it>. Issue #2050. -->
 Both the canonical file and its `src/copilot-cli/` mirror carry the marker,
 because the checker scans both trees.
 
-## Pass explicit file paths to taste-lints, never a directory
+## A bare directory argument to taste-lints is a silent false pass
 
-`taste_lints.py --rules file-size <dir>` scans **zero** files and reports "no
-violations". That is a false pass, not a clean result. It only reads paths you
-name.
+`taste_lints.py --rules file-size <dir>` with the directory as a **positional**
+argument scans **zero** files, prints "0 files scanned, no violations found",
+and exits 0. That is a false pass, not a clean result: positional arguments go
+into the `files` list, and a directory is not a file.
+
+Directory scanning is supported, but only through the flag:
 
 ```
+# works: 4 files scanned
 uv run --frozen python .claude/skills/taste-lints/scripts/taste_lints.py \
-  --rules file-size path/to/one.md path/to/two.md
+  --rules file-size --directory .claude/skills/context-optimizer/references
+
+# silent no-op: 0 files scanned, exit 0
+uv run --frozen python .claude/skills/taste-lints/scripts/taste_lints.py \
+  --rules file-size .claude/skills/context-optimizer/references
 ```
+
+Also available: `--git-staged` and `--diff-scope BASE_BRANCH`. Explicit file
+paths remain the safest habit, because the count in the output line is the
+only thing that distinguishes a real pass from the no-op, and "no violations
+found" reads identically either way.
 
 Authored file size is a **hard error at 501 lines** and a warning from 301 to
 500, so a file that silently skipped the check can block a later commit.

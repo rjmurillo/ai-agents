@@ -141,6 +141,18 @@
     {
       "step": "Added the offline reproduction recipe instead of only the rule. extract_mentioned_files imports and runs against a candidate body, which turns a round trip through CI into a one-second check.",
       "timestamp": "2026-07-30T14:12:35.222102Z"
+    },
+    {
+      "step": "Bot review flagged the taste-lints gotcha as implying directories are unsupported. Verified against the argparse block: --directory / -d exists, along with --git-staged and --diff-scope. The bot is right and my entry was imprecise.",
+      "timestamp": "2026-07-30T14:45:37.012204Z"
+    },
+    {
+      "step": "Reproduced both behaviours before rewriting. A positional directory prints '0 files scanned, no violations found' and exits 0; --directory on the same path scans 4 files and reports the warning. The trap is the positional form specifically, not directories.",
+      "timestamp": "2026-07-30T14:45:37.012204Z"
+    },
+    {
+      "step": "Rewrote the entry to name the trap and the supported remedy, and to point at the file count in the output line as the only thing distinguishing a real pass from the no-op.",
+      "timestamp": "2026-07-30T14:45:37.012204Z"
     }
   ],
   "endingCommit": "0d610bc2f7d43f531d8a9fa9c03854fbca7a6b4e",
