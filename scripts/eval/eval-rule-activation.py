@@ -509,12 +509,13 @@ def _salvage_scores(text: str) -> dict[str, int] | None:
     score the judge did not give. Returns ``None`` unless all three are found.
     """
     for candidate in _iter_json_objects(text):
+        window = candidate.partition('"reasoning"')[0]
         salvaged: dict[str, int] = {}
         for field, pattern in _SCORE_FIELD_RE.items():
-            match = pattern.search(candidate)
-            if match is None:
+            matches = pattern.findall(window)
+            if len(matches) != 1:
                 break
-            salvaged[field] = int(match.group(1))
+            salvaged[field] = int(matches[0])
         if len(salvaged) == len(_SCORE_FIELD_RE):
             return salvaged
     return None

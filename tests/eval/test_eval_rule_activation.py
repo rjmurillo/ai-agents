@@ -1098,6 +1098,29 @@ def test_judge_parse_failure_does_not_combine_partial_objects():
     assert result["judge_failed"] is True
 
 
+def test_salvage_scores_ignore_score_fields_inside_reasoning():
+    salvaged = eval_mod._salvage_scores(
+        '{"activation_score": 4, "citation_score": 3, "behavior_score": 5, '
+        '"reasoning": "the rubric says "activation_score": 1"}'
+    )
+
+    assert salvaged == {
+        "activation_score": 4,
+        "citation_score": 3,
+        "behavior_score": 5,
+    }
+
+
+def test_salvage_scores_reject_duplicate_fields_before_reasoning():
+    result = eval_mod._judge_parse_failure(
+        '{"activation_score": 4, "activation_score": 5, '
+        '"citation_score": 3, "behavior_score": 5, "reasoning": "broken"}',
+        "parse error",
+    )
+
+    assert result["judge_failed"] is True
+
+
 def test_judge_parse_failure_salvages_scores_from_unescaped_quote_prose():
     result = eval_mod._judge_parse_failure(_UNESCAPED_QUOTE_JUDGE, "judge parse error")
 
