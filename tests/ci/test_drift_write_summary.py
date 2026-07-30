@@ -14,10 +14,8 @@ from pathlib import Path
 
 import pytest
 
-_SCRIPTS_CI = Path(__file__).resolve().parents[2] / "scripts" / "ci"
-sys.path.insert(0, str(_SCRIPTS_CI))
-
-from drift_write_summary import build_summary, main, run  # noqa: E402
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from scripts.ci.drift_write_summary import build_summary, main, run
 
 # ---------------------------------------------------------------------------
 # build_summary
@@ -45,9 +43,7 @@ def test_build_summary_returns_string() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_run_appends_to_step_summary_file(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_appends_to_step_summary_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     summary_file = tmp_path / "summary.md"
     summary_file.write_text("# existing\n", encoding="utf-8")
     monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary_file))
@@ -59,9 +55,7 @@ def test_run_appends_to_step_summary_file(
     assert "drift" in content.lower()
 
 
-def test_run_clean_job(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_clean_job(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     summary_file = tmp_path / "summary.md"
     summary_file.write_text("", encoding="utf-8")
     monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary_file))
@@ -101,9 +95,7 @@ def test_run_env_var_case_insensitive_false(
 # ---------------------------------------------------------------------------
 
 
-def test_main_exit_code(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_main_exit_code(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     summary_file = tmp_path / "summary.md"
     summary_file.write_text("", encoding="utf-8")
     monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary_file))

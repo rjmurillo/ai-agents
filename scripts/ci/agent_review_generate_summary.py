@@ -31,14 +31,14 @@ import os
 import sys
 
 
-def run(argv: list[str] | None = None) -> int:  # noqa: ARG001
+def run(_argv: list[str] | None = None) -> int:
     """Generate and write the step summary."""
     github_workspace = os.environ.get("GITHUB_WORKSPACE", "")
     if github_workspace:
         sys.path.insert(0, github_workspace)
 
     try:
-        from scripts.ai_review_common.issue_triage import (  # noqa: PLC0415
+        from scripts.ai_review_common.issue_triage import (
             get_verdict_alert_type,
             get_verdict_emoji,
         )
@@ -93,7 +93,7 @@ def run(argv: list[str] | None = None) -> int:  # noqa: ARG001
 
         return 0
 
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         print(f"::error::Failed to generate step summary: {exc}")
         print(f"::error::Verdict: {os.environ.get('VERDICT', 'N/A')}")
         print(f"::error::Agent: {os.environ.get('AGENT', 'N/A')}")

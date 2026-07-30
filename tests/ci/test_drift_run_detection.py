@@ -14,10 +14,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-_SCRIPTS_CI = Path(__file__).resolve().parents[2] / "scripts" / "ci"
-sys.path.insert(0, str(_SCRIPTS_CI))
-
-from drift_run_detection import main, run, write_github_output  # noqa: E402
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from scripts.ci.drift_run_detection import main, run, write_github_output
 
 # ---------------------------------------------------------------------------
 # write_github_output
@@ -59,7 +57,7 @@ def test_no_drift_returns_zero_and_sets_false(
     out = tmp_path / "gh_out.txt"
     out.write_text("", encoding="utf-8")
     monkeypatch.setenv("GITHUB_OUTPUT", str(out))
-    with patch("drift_run_detection.subprocess.run", return_value=_mock_run(0)):
+    with patch("scripts.ci.drift_run_detection.subprocess.run", return_value=_mock_run(0)):
         assert run() == 0
     assert "drift_detected=false" in out.read_text()
 
@@ -70,34 +68,30 @@ def test_drift_detected_returns_zero_and_sets_true(
     out = tmp_path / "gh_out.txt"
     out.write_text("", encoding="utf-8")
     monkeypatch.setenv("GITHUB_OUTPUT", str(out))
-    with patch("drift_run_detection.subprocess.run", return_value=_mock_run(1)):
+    with patch("scripts.ci.drift_run_detection.subprocess.run", return_value=_mock_run(1)):
         assert run() == 0
     assert "drift_detected=true" in out.read_text()
 
 
-def test_crash_propagates_exit_code(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_crash_propagates_exit_code(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     out = tmp_path / "gh_out.txt"
     out.write_text("", encoding="utf-8")
     monkeypatch.setenv("GITHUB_OUTPUT", str(out))
-    with patch("drift_run_detection.subprocess.run", return_value=_mock_run(3)):
+    with patch("scripts.ci.drift_run_detection.subprocess.run", return_value=_mock_run(3)):
         assert run() == 3
     # drift_detected set to false before propagating
     assert "drift_detected=false" in out.read_text()
 
 
-def test_crash_rc2_propagated(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_crash_rc2_propagated(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     out = tmp_path / "gh_out.txt"
     out.write_text("", encoding="utf-8")
     monkeypatch.setenv("GITHUB_OUTPUT", str(out))
-    with patch("drift_run_detection.subprocess.run", return_value=_mock_run(2)):
+    with patch("scripts.ci.drift_run_detection.subprocess.run", return_value=_mock_run(2)):
         assert run() == 2
 
 
 def test_main_delegates_to_run() -> None:
-    with patch("drift_run_detection.run", return_value=0) as mock_run:
+    with patch("scripts.ci.drift_run_detection.run", return_value=0) as mock_run:
         assert main() == 0
         mock_run.assert_called_once()

@@ -15,10 +15,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-_SCRIPTS_CI = Path(__file__).resolve().parents[2] / "scripts" / "ci"
-sys.path.insert(0, str(_SCRIPTS_CI))
-
-from drift_collect_details import run, write_github_output  # noqa: E402
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from scripts.ci.drift_collect_details import run, write_github_output
 
 
 def _mock_run(returncode: int) -> MagicMock:
@@ -27,9 +25,7 @@ def _mock_run(returncode: int) -> MagicMock:
     return m
 
 
-def test_write_github_output_appends(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_write_github_output_appends(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     out = tmp_path / "out.txt"
     out.write_text("", encoding="utf-8")
     monkeypatch.setenv("GITHUB_OUTPUT", str(out))
@@ -45,7 +41,7 @@ def test_detection_crash_rc2_returns_2(
     out_file = tmp_path / "out.txt"
     out_file.write_text("", encoding="utf-8")
     monkeypatch.setenv("GITHUB_OUTPUT", str(out_file))
-    with patch("drift_collect_details.subprocess.run", return_value=_mock_run(2)):
+    with patch("scripts.ci.drift_collect_details.subprocess.run", return_value=_mock_run(2)):
         rc = run()
     assert rc == 2
     assert "::error::" in capsys.readouterr().out
@@ -59,15 +55,13 @@ def test_empty_json_returns_error(
     out_file = tmp_path / "out.txt"
     out_file.write_text("", encoding="utf-8")
     monkeypatch.setenv("GITHUB_OUTPUT", str(out_file))
-    with patch("drift_collect_details.subprocess.run", return_value=_mock_run(0)):
+    with patch("scripts.ci.drift_collect_details.subprocess.run", return_value=_mock_run(0)):
         rc = run()
     assert rc == 1
     assert "empty" in capsys.readouterr().out
 
 
-def test_parse_script_failure_propagated(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_parse_script_failure_propagated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
     out_file = tmp_path / "out.txt"
@@ -82,14 +76,12 @@ def test_parse_script_failure_propagated(
             return detect_ok
         return parse_fail
 
-    with patch("drift_collect_details.subprocess.run", side_effect=fake_run):
+    with patch("scripts.ci.drift_collect_details.subprocess.run", side_effect=fake_run):
         rc = run()
     assert rc == 5
 
 
-def test_success_writes_agents_count(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_success_writes_agents_count(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
     out_file = tmp_path / "out.txt"
@@ -105,15 +97,13 @@ def test_success_writes_agents_count(
             return detect_ok
         return parse_ok
 
-    with patch("drift_collect_details.subprocess.run", side_effect=fake_run):
+    with patch("scripts.ci.drift_collect_details.subprocess.run", side_effect=fake_run):
         rc = run()
     assert rc == 0
     assert "agents_count=2" in out_file.read_text()
 
 
-def test_runner_temp_defaults_to_dot(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_runner_temp_defaults_to_dot(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("RUNNER_TEMP", raising=False)
     out_file = tmp_path / "out.txt"
@@ -129,6 +119,6 @@ def test_runner_temp_defaults_to_dot(
             return detect_ok
         return parse_ok
 
-    with patch("drift_collect_details.subprocess.run", side_effect=fake_run):
+    with patch("scripts.ci.drift_collect_details.subprocess.run", side_effect=fake_run):
         rc = run()
     assert rc == 0

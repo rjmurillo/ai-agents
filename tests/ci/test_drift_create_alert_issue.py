@@ -16,10 +16,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-_SCRIPTS_CI = Path(__file__).resolve().parents[2] / "scripts" / "ci"
-sys.path.insert(0, str(_SCRIPTS_CI))
-
-from drift_create_alert_issue import run  # noqa: E402
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from scripts.ci.drift_create_alert_issue import run
 
 
 def _make_template(tmp_path: Path) -> Path:
@@ -52,9 +50,7 @@ def test_missing_template_returns_error(
     assert "template not found" in capsys.readouterr().out
 
 
-def test_success_calls_gh_issue_create(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_success_calls_gh_issue_create(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     _make_template(tmp_path)
     monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
@@ -63,7 +59,9 @@ def test_success_calls_gh_issue_create(
     monkeypatch.setenv("RUN_ID", "99")
     (tmp_path / "drift-details.md").write_text("- agent: foo", encoding="utf-8")
 
-    with patch("drift_create_alert_issue.subprocess.run", return_value=_mock_gh(0)) as mock_sub:
+    with patch(
+        "scripts.ci.drift_create_alert_issue.subprocess.run", return_value=_mock_gh(0)
+    ) as mock_sub:
         rc = run()
 
     assert rc == 0
@@ -73,9 +71,7 @@ def test_success_calls_gh_issue_create(
     assert "create" in call_args
 
 
-def test_gh_failure_propagated(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_gh_failure_propagated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     _make_template(tmp_path)
     monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
@@ -83,15 +79,13 @@ def test_gh_failure_propagated(
     monkeypatch.setenv("REPOSITORY", "owner/repo")
     monkeypatch.setenv("RUN_ID", "1")
 
-    with patch("drift_create_alert_issue.subprocess.run", return_value=_mock_gh(1)):
+    with patch("scripts.ci.drift_create_alert_issue.subprocess.run", return_value=_mock_gh(1)):
         rc = run()
 
     assert rc == 1
 
 
-def test_template_substitution(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_template_substitution(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     _make_template(tmp_path)
     monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
@@ -111,7 +105,7 @@ def test_template_substitution(
         m.returncode = 0
         return m
 
-    with patch("drift_create_alert_issue.subprocess.run", side_effect=fake_gh):
+    with patch("scripts.ci.drift_create_alert_issue.subprocess.run", side_effect=fake_gh):
         run()
 
     body = captured_body[0]
@@ -121,9 +115,7 @@ def test_template_substitution(
     assert "drift here" in body
 
 
-def test_missing_drift_details_handled(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_missing_drift_details_handled(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     _make_template(tmp_path)
     monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
@@ -132,15 +124,13 @@ def test_missing_drift_details_handled(
     monkeypatch.setenv("RUN_ID", "1")
     # drift-details.md does NOT exist
 
-    with patch("drift_create_alert_issue.subprocess.run", return_value=_mock_gh(0)):
+    with patch("scripts.ci.drift_create_alert_issue.subprocess.run", return_value=_mock_gh(0)):
         rc = run()
 
     assert rc == 0
 
 
-def test_fallback_env_vars_used(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_fallback_env_vars_used(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     _make_template(tmp_path)
     monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
@@ -160,7 +150,7 @@ def test_fallback_env_vars_used(
         m.returncode = 0
         return m
 
-    with patch("drift_create_alert_issue.subprocess.run", side_effect=fake_gh):
+    with patch("scripts.ci.drift_create_alert_issue.subprocess.run", side_effect=fake_gh):
         run()
 
     body = captured_body[0]
