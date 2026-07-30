@@ -1583,21 +1583,19 @@ def _inherits_capture(call: ast.Call, functions: dict[str, str], modules: dict[s
 
 
 def _capture_survives(call: ast.Call, item: str, modules: dict[str, str]) -> bool:
-    """Report whether one pre-bound capture keyword still captures at *call*."""
+    """Report whether one pre-bound capture keyword still captures at *call*.
+
+    A call site overrides the keyword it repeats, so where one is supplied the
+    supplied value is the whole answer. A keyword the call site leaves alone
+    keeps the state the construction gave it.
+    """
     name, _, state = item.partition(_CAPTURE_STATE)
-    if _keyword(call, name) is None:
-        return state == _CAPTURE_ON
-    return not _shadowed_off(call, name, modules)
-
-
-def _shadowed_off(call: ast.Call, name: str, modules: dict[str, str]) -> bool:
-    """Report whether *call* repeats *name* with a value that captures nothing."""
     supplied = _keyword(call, name)
     if supplied is None:
-        return False
+        return state == _CAPTURE_ON
     if name == "capture_output":
-        return _is_literal_falsy(supplied)
-    return not _is_capturing_stream(supplied, modules)
+        return not _is_literal_falsy(supplied)
+    return _is_capturing_stream(supplied, modules)
 
 
 def _literal_string(node: ast.expr | None) -> str | None:
