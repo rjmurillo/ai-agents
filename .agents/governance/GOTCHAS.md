@@ -151,12 +151,36 @@ PR` in branch protection and blocks merge on two things.
 **A file path mentioned but not in the diff.** The validator extracts paths
 only from inline code, bold, list items, and Markdown links, so a path in plain
 prose is fine but an inline-backtick mention is not. Silence a genuine
-reference the way the validator recognizes: a citation cue (`see` before the
-path), a fenced code block, a GitHub admonition (`> [!NOTE]`), or a contextual
-H2 such as `## References`, `## Related Files`, `## See Also`, `## Notes`,
+reference the way the validator recognizes: a citation cue, a fenced code
+block, a GitHub admonition (`> [!NOTE]`), or a contextual H2 such as
+`## References`, `## Related Files`, `## See Also`, `## Notes`,
 `## Background`, `## Evidence`, `## Out of Scope`, or `## Prior Art`. The full
 set is `_CONTEXTUAL_SECTION_NAMES` and `_REFERENCE_SECTION_PREFIXES` in the
 validator.
+
+A citation cue is narrower than it looks, and both constraints are
+load-bearing. The cue (`see`, `per`, `defined in`, `for example`, and the rest
+of `_INLINE_CITATION_PATTERN`) must sit on the same line and immediately
+before the path, separated only by whitespace, colons, or an open paren. And
+the backtick span must end at the extension: `` `taste_lints.py` `` is
+suppressible, `` `taste_lints.py --rules file-size` `` is not, because the
+trailing flags push the closing backtick past the extension. Reword so the
+path stands alone in its own span.
+
+Do not guess at the shape and push to find out. The extractor imports and runs
+offline against a candidate body, which turns a round trip through CI into a
+one-second check:
+
+```python
+import importlib.util, sys, pathlib
+spec = importlib.util.spec_from_file_location("prd", "scripts/validation/pr_description.py")
+m = importlib.util.module_from_spec(spec)
+sys.modules["prd"] = m  # dataclass resolution needs the module registered
+spec.loader.exec_module(m)
+print(sorted(m.extract_mentioned_files(pathlib.Path(sys.argv[1]).read_text())))
+```
+
+Anything it prints that is not in the diff is a CRITICAL waiting to happen.
 
 **Any em-dash (U+2014) or en-dash (U+2013).** Byte-verify rather than trusting
 a visual scan:

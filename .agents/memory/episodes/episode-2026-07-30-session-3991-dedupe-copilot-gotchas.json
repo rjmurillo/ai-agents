@@ -46,6 +46,30 @@
       "content": "Commit: 0d610bc2f7d43f531d8a9fa9c03854fbca7a6b4e",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The PR description gate failed on this very PR for three paths that were references rather than change claims, which is the trap the entry I had just written was supposed to prevent.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The entry was missing the two load-bearing constraints: the citation cue must sit immediately before the path, and the backtick span must end at the extension, so a span carrying trailing flags is not suppressible.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added the offline reproduction recipe instead of only the rule. extract_mentioned_files imports and runs against a candidate body, which turns a round trip through CI into a one-second check.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
