@@ -4,9 +4,12 @@ Non-obvious repository behavior that cost real time to learn and cannot be
 inferred from reading the code. Each entry states the trap, the symptom you
 will actually see, and the fix.
 
-`AGENTS.md` is budget-capped at 3072 bytes because it is injected into every
-session. These entries live here instead so detail is not paid for on every
-turn. `AGENTS.md` points at this file from its Retrieval section.
+`AGENTS.md` is budget-capped because it is injected into every session. Two
+byte gates disagree: `tests/test_workspace_limits.py` allows 3072 per file,
+`scripts/validate_workspace_budget.py` allows 3000. **Write to 3000.** The
+stricter gate binds, and a file between the two passes one and fails the other
+(Refs #3951). These entries live here instead so detail is not paid for on
+every turn. `AGENTS.md` points at this file from its Retrieval section.
 
 ## Session log ordering
 

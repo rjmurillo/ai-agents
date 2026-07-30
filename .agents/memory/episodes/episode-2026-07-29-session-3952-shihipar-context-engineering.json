@@ -4,7 +4,18 @@
   "timestamp": "2026-07-29T00:00:00+00:00",
   "outcome": "success",
   "task": "Apply the Shihipar context-engineering doctrine to this repository's own authoring surfaces, so that the instruction corpus stops paying for text that no longer earns its slot. Anthropic deleted more than 80 percent of Claude Code's system prompt for Opus 5 with no measurable coding-eval loss, naming overconstraint as the failure mode. This repository loads roughly 95 kilobytes of always-on rules on a single Python edit, carries the same concept in as many as four places, and states a context budget in AGENTS.md that the enforced gate contradicts by about twelve times. Every cut must be gated by an eval run against claude-opus-5 and gpt-5.6-sol, the two models this repository is actually operated in.",
-  "decisions": [],
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "implementation",
+      "context": "",
+      "chosen": "Labeled the sign-counting decision rule exploratory. It was selected after the eight runs were observed, so it cannot carry its nominal false-positive rate. Filed #3957 to pre-register it before the next audit.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
   "events": [
     {
       "id": "e001",
@@ -250,7 +261,9 @@
       "caused_by": [
         "e020"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e024"
+      ]
     },
     {
       "id": "e022",
@@ -273,6 +286,88 @@
         "e022"
       ],
       "leads_to": []
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Sol adversarial round 2 found a false claim I had shipped: the procedure doc said every cell was graded on the full sample. Verified against the raw artifacts and it was false. Four Opus runs lost 6, 8, 4 and 6 judge samples; Sol lost none. The total_judge_failures field I read that claim from counts affected cells, not failed samples, so it undercounted. Filed #3958.",
+      "caused_by": [
+        "e021"
+      ],
+      "leads_to": [
+        "e025"
+      ]
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Root-caused the judge failures. All 24 lost samples carried valid scores; only the trailing reasoning prose broke the JSON, because the judge quotes the response it grades and an unescaped quote invalidates the object. Verbose models trip it more, so the loss was correlated with one arm of the comparison rather than random. Added a score-salvage tier to eval-rule-activation.py.",
+      "caused_by": [
+        "e024"
+      ],
+      "leads_to": [
+        "e026"
+      ]
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated the recovery with a negative control before trusting it: reproduced all 12 clean Sol cells exactly from raw artifacts, then applied the same method to the Opus failures. Recomputing the headline with all 24 recovered moved exactly one cell (3.83 to 3.89). Sign counts, per-model split and pooled deltas unchanged. The claim was wrong and the finding survived being fixed.",
+      "caused_by": [
+        "e025"
+      ],
+      "leads_to": [
+        "e027"
+      ]
+    },
+    {
+      "id": "e027",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Confirmed Sol's contamination finding empirically rather than by reading flags. Ran the same prompt twice from an empty directory against claude-opus-5: 54.7k input tokens with ambient instructions, 41.2k with --no-custom-instructions. That is 13.5k tokens of behavioral instruction in every eval cell, several times the size of the rule bodies under comparison and overlapping them semantically. Added the flag to the provider with a regression test. The contamination compresses deltas toward zero, so it biases against the observed positive result rather than manufacturing it.",
+      "caused_by": [
+        "e026"
+      ],
+      "leads_to": [
+        "e028"
+      ]
+    },
+    {
+      "id": "e028",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Found unified-software-engineering.md is path-scoped to code files, not always-on, contradicting both the doctrine doc and the software-engineering-library skill's own summary line. The one rule with eval coverage is therefore not part of the always-on corpus under debate, which makes the headline an extrapolation when applied to it. Corrected all three surfaces and labeled the extrapolation.",
+      "caused_by": [
+        "e027"
+      ],
+      "leads_to": [
+        "e029"
+      ]
+    },
+    {
+      "id": "e029",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected three further shipped claims: n is 2 or 3 positive scenarios per rule not 3 or 4; code-quality and pragmatic-programmer are the two largest book-derived always-on rules, not the two largest overall, since voice.md at 19,624 bytes is larger; and always-on status is declared two ways in this tree, applyTo '**' on six rules and alwaysApply true on two, so a survey that greps one convention misses the other.",
+      "caused_by": [
+        "e028"
+      ],
+      "leads_to": [
+        "e030"
+      ]
+    },
+    {
+      "id": "e030",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Labeled the sign-counting decision rule exploratory. It was selected after the eight runs were observed, so it cannot carry its nominal false-positive rate. Filed #3957 to pre-register it before the next audit.",
+      "caused_by": [
+        "e029"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -281,7 +376,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 3,
-    "files_changed": 4
+    "files_changed": 6
   },
   "lessons": []
 }

@@ -143,16 +143,38 @@
     },
     {
       "step": "Two workspace-budget gates disagree on the limit: tests/test_workspace_limits.py allows 3072 bytes per file and 6758 total, scripts/validate_workspace_budget.py allows 3000 and 6600. A file can pass one and fail the other, which is what happened here. Filed for reconciliation."
+    },
+    {
+      "step": "Sol adversarial round 2 found a false claim I had shipped: the procedure doc said every cell was graded on the full sample. Verified against the raw artifacts and it was false. Four Opus runs lost 6, 8, 4 and 6 judge samples; Sol lost none. The total_judge_failures field I read that claim from counts affected cells, not failed samples, so it undercounted. Filed #3958."
+    },
+    {
+      "step": "Root-caused the judge failures. All 24 lost samples carried valid scores; only the trailing reasoning prose broke the JSON, because the judge quotes the response it grades and an unescaped quote invalidates the object. Verbose models trip it more, so the loss was correlated with one arm of the comparison rather than random. Added a score-salvage tier to eval-rule-activation.py."
+    },
+    {
+      "step": "Validated the recovery with a negative control before trusting it: reproduced all 12 clean Sol cells exactly from raw artifacts, then applied the same method to the Opus failures. Recomputing the headline with all 24 recovered moved exactly one cell (3.83 to 3.89). Sign counts, per-model split and pooled deltas unchanged. The claim was wrong and the finding survived being fixed."
+    },
+    {
+      "step": "Confirmed Sol's contamination finding empirically rather than by reading flags. Ran the same prompt twice from an empty directory against claude-opus-5: 54.7k input tokens with ambient instructions, 41.2k with --no-custom-instructions. That is 13.5k tokens of behavioral instruction in every eval cell, several times the size of the rule bodies under comparison and overlapping them semantically. Added the flag to the provider with a regression test. The contamination compresses deltas toward zero, so it biases against the observed positive result rather than manufacturing it."
+    },
+    {
+      "step": "Found unified-software-engineering.md is path-scoped to code files, not always-on, contradicting both the doctrine doc and the software-engineering-library skill's own summary line. The one rule with eval coverage is therefore not part of the always-on corpus under debate, which makes the headline an extrapolation when applied to it. Corrected all three surfaces and labeled the extrapolation."
+    },
+    {
+      "step": "Corrected three further shipped claims: n is 2 or 3 positive scenarios per rule not 3 or 4; code-quality and pragmatic-programmer are the two largest book-derived always-on rules, not the two largest overall, since voice.md at 19,624 bytes is larger; and always-on status is declared two ways in this tree, applyTo '**' on six rules and alwaysApply true on two, so a survey that greps one convention misses the other."
+    },
+    {
+      "step": "Labeled the sign-counting decision rule exploratory. It was selected after the eight runs were observed, so it cannot carry its nominal false-positive rate. Filed #3957 to pre-register it before the next audit."
     }
   ],
   "endingCommit": "d73ee09796",
   "nextSteps": [
-    "Write rule scenarios for code-quality.md and pragmatic-programmer.md (#3935). Roughly 26KB of always-on content currently cannot be evaluated by the tool built to evaluate always-on content, which is the mechanism by which the corpus grew unchallenged",
-    "Fix the copilot-cli provider to load treatments through a sandbox instruction file rather than the user prompt (#3934). The sandbox and the CLI's cwd-loading behavior already exist, so the real fix is close to free, and until it lands no copilot-cli result should be cited as passive-context evidence",
-    "Gate the verdict on negative scenarios (#3933). Over-activation is the exact failure mode this doctrine warns about and the instrument is blind to it",
-    "Reconcile analyze_skill_placement.py with the Decision Framework it ships beside (#3936). SKILL.md currently states which one wins as a stopgap",
-    "Make pre_pr.py fail fast or re-exec when run outside the project venv (#3938), rather than only fixing the documented command",
-    "Do NOT cut the three book rules without new evidence. unified-software-engineering.md is measurably earning its slot; the other two are unmeasured, and the honest prerequisite is #3935"
+    "Run Sol adversarial round 3 against the corrected documents and the salvage code path. Round 2 produced one finding whose supporting evidence was wrong but whose conclusion was right, so verify every claim independently before acting on it",
+    "Add run provenance to eval artifacts (#3956). Model attribution for the eight archived headline runs currently rests on the operator's choice of filename in /tmp, which cannot be audited",
+    "Write rule scenarios for code-quality.md and pragmatic-programmer.md (#3935). Roughly 26KB of always-on content still cannot be evaluated by the tool built to evaluate always-on content",
+    "Fix the copilot-cli provider to load treatments through a sandbox instruction file rather than the user prompt (#3934). Until it lands no copilot-cli result should be cited as passive-context evidence",
+    "Gate the verdict on negative scenarios (#3933). Over-activation is the failure mode this doctrine warns about and the instrument cannot currently see it",
+    "Surface transcript read failures instead of silently falling back to stdout parsing (#3959), which skips the only check confirming which model served the request",
+    "Re-run the audit under the corrected instrument once the above land. The archived deltas are lower bounds, not point estimates"
   ],
   "sessionEnd": "2026-07-29"
 }

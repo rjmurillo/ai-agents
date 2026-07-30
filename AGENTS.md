@@ -36,9 +36,9 @@ Always-on = what the model can't know. Depth -> disclosure. Actions -> skills.
 |Security: security-detection|Quality: analyze|Learn: reflect|Lifecycle: /spec /plan /build /test /review /ship
 |CI-feedback sub-loop: cluster, ladder build->test->review->ship. See `.agents/governance/CI-FEEDBACK-SUBLOOP.md`
 |ADR-078: no skill -> autoplan; multi-step/cross-cutting -> orchestrator; no return loop
-|New capability: buy-vs-build Quick BEFORE /spec+baseline; >13wk no baseline = prune. Skip: bug/doc/refactor/approved-capability-extension
+|New capability: buy-vs-build Quick BEFORE /spec+baseline; >13wk no baseline = prune. Skip: bug/doc/refactor/approved-cap-extension
 |Harness work: read agent-harness-reference; mutate via ai-agents-portability-campaign
-|`SESSION-PROTOCOL.md` edit fires adr-review
+|`ADR-*.md`/`SESSION-PROTOCOL.md` edit fires adr-review
 
 ## Standards
 
