@@ -189,3 +189,5 @@ lands.
 | METR evaluation of GPT-5.6 Sol | 2026 | Third party |
 | PR #1022, commit `77edc827` | 2026-01-31 | This repo |
 | ADR-088 | see `.agents/architecture/` | This repo |
+
+<!-- vendor-portability: declared. This reference cites two upstream paths (AGENTS.md, scripts/validation/instruction_budget_constants.py) as historical provenance for the 8KB budget figure, so a future reader does not re-investigate a settled question. They are citations in a narrative, not paths the skill reads or writes; a vendored install loses the ability to verify the provenance locally but the doctrine itself still applies. Issue #2050. -->
