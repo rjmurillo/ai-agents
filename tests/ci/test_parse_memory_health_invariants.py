@@ -88,10 +88,16 @@ class TestProducerInvariantsAreMirrored:
         return {**HEALTHY_REPORT, **overrides}
 
     def test_the_producer_type_is_constructible(self) -> None:
-        """Negative control: if construction always raised, the rest is vacuous."""
+        """Negative control: if construction always raised, the rest is vacuous.
+
+        Asserts only that a valid payload yields an instance. Asserting a
+        particular ``health_score`` here would couple the control to the
+        fixture's value, so a producer that changed the healthy score while
+        staying constructible would fail this test for the wrong reason.
+        """
         from scripts.memory_enhancement.models import HealthReport
 
-        assert HealthReport(**self._kwargs()).health_score == 1.0
+        assert isinstance(HealthReport(**self._kwargs()), HealthReport)
 
     @pytest.mark.parametrize("score", [1.5, -0.1])
     def test_the_producer_rejects_out_of_range_scores(self, score: float) -> None:
