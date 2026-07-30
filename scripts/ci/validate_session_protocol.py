@@ -40,6 +40,19 @@ def _run(argv: list[str]) -> subprocess.CompletedProcess[str]:
     )
 
 
+def escapes_workspace(session_file: str) -> bool:
+    """True when the path resolves outside the checkout.
+
+    The matrix feeds this from ``detect_session_logs.py``, whose pattern is
+    anchored under ``.agents/sessions/``, and git will not store a path with an
+    unnormalised ``..`` segment, so a traversal cannot reach here today. Both
+    of those are invariants owned elsewhere. This is the local one.
+    """
+    root = Path.cwd().resolve()
+    candidate = (root / session_file).resolve()
+    return candidate != root and root not in candidate.parents
+
+
 def artifact_name(session_file: str) -> str:
     """Return a name unique across directories, not just across file stems."""
     path = Path(session_file)
@@ -109,6 +122,13 @@ def main(argv: list[str] | None = None) -> int:
     session_file = args.session_file
     if not session_file:
         print("::error::session-file is required", file=sys.stderr)
+        return 2
+
+    if escapes_workspace(session_file):
+        print(
+            f"::error::Refusing a session path outside the checkout: {session_file}",
+            file=sys.stderr,
+        )
         return 2
 
     name = artifact_name(session_file)

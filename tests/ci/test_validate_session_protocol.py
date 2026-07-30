@@ -56,6 +56,52 @@ class TestArtifactName:
         assert mod.artifact_name("x.json") == "-x"
 
 
+class TestEscapesWorkspace:
+    """CWE-22 defence in depth. Not reachable through the workflow today: the
+    detector anchors under .agents/sessions/ and git normalises stored paths.
+    Both invariants are owned elsewhere, so the entry point checks locally."""
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            ".agents/sessions/2026-01-05-session-1.json",
+            "sessions/x.json",
+            "x.json",
+            "./sessions/x.json",
+            "a/../sessions/x.json",
+        ],
+    )
+    def test_paths_inside_the_checkout_are_allowed(self, path: str) -> None:
+        assert mod.escapes_workspace(path) is False
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "../outside.json",
+            ".agents/sessions/2026-01-05-session-1/../../../../etc/passwd.json",
+            "/etc/passwd",
+        ],
+    )
+    def test_paths_outside_the_checkout_are_rejected(self, path: str) -> None:
+        assert mod.escapes_workspace(path) is True
+
+    def test_main_refuses_an_escaping_path(self, tmp_path) -> None:
+        assert mod.main(["--session-file", "../outside.json"]) == 2
+
+    def test_main_writes_no_results_for_an_escaping_path(self, tmp_path) -> None:
+        mod.main(["--session-file", "../outside.json"])
+        assert not mod._RESULTS.exists()
+
+    def test_main_emits_no_artifact_name_for_an_escaping_path(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        out = tmp_path / "out"
+        out.touch()
+        monkeypatch.setenv("GITHUB_OUTPUT", str(out))
+        mod.main(["--session-file", "/etc/passwd"])
+        assert out.read_text(encoding="utf-8") == ""
+
+
 class TestMustFailureCount:
     def test_reads_the_count_from_the_summary(self) -> None:
         mod._SUMMARY.write_text(json.dumps({"must_failures": 3}), encoding="utf-8")
