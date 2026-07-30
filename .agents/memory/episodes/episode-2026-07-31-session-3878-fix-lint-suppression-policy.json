@@ -82,8 +82,16 @@
     {
       "id": "e010",
       "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Aligned the governance gotcha with the final suppression contract",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-31T00:00:00+00:00",
       "type": "commit",
-      "content": "Commit: e94b5d42ad",
+      "content": "Commit: 1ea9161081",
       "caused_by": [],
       "leads_to": []
     }
@@ -94,7 +102,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 9
+    "files_changed": 5
   },
   "lessons": []
 }

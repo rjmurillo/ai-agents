@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Final code tip e94b5d42ad after current-main merges, review fixes, and security hardening"
+        "Evidence": "Reviewed code tip 1ea9161081 plus final docs and dead-code cleanup staged with this session update"
       },
       "validationPassed": {
         "level": "MUST",
@@ -163,9 +163,14 @@
       "step": 9,
       "action": "Closed security-review findings and merge-specific false positives",
       "result": "File-level directives, split notebooks, type changes, trusted merge parents, rename-with-edit, uppercase tokens, and pre-merge hooks covered"
+    },
+    {
+      "step": 10,
+      "action": "Aligned the governance gotcha with the final suppression contract",
+      "result": "Removed a dead rename helper and documented staged, merge, push, type-ignore, and rename behavior"
     }
   ],
-  "endingCommit": "e94b5d42ad",
+  "endingCommit": "1ea9161081",
   "nextSteps": [
     "Issues #3792 and #3941 need focused cleanup PRs",
     "Issue #4039 tracks a separate type-ignore policy",

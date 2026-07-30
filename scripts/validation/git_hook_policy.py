@@ -4156,13 +4156,6 @@ def _normalized_record_number(identifier: str) -> str:
     return f"{prefix}-{number.lstrip('0') or '0'}"
 
 
-def _is_scanned_suppression_rename(source: str, destination: str) -> bool:
-    return (
-        Path(source).suffix.lower() in SECURITY_SUPPRESSION_SUFFIXES
-        and Path(destination).suffix.lower() in SECURITY_SUPPRESSION_SUFFIXES
-    )
-
-
 def _parse_suppression_renames(
     output: str,
     *,

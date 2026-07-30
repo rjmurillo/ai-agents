@@ -11,11 +11,6 @@ evidence. The exception is a merge in progress: an ADR reviewed on main arrives
 in the merge commit with no evidence of its own, and blocking there would wedge
 every merge that touches architecture.
 
-The filename is stale and this file no longer tests causal restore. Three
-classes covering the causal graph's snapshot-and-restore path were removed with
-the graph itself (ADR-089). The two suites left never touched causality; they
-shared this file only because both exercise ``git_hook_policy``.
-
 Do not run ``ruff format`` on this file. The fixtures below split their
 suppression tokens across adjacent string literals on purpose, so the push
 gate's own scanner does not flag this file as introducing what it tests for.
