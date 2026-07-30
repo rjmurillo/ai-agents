@@ -1,0 +1,27 @@
+{
+  "id": "episode-2026-07-29-session-3810",
+  "session": "2026-07-29-session-3810",
+  "timestamp": "2026-07-29T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix five subprocess-guard defects (#3810-#3814); verify #3801/#3802 already fixed",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 5f7989b2fb8cfde37cddc4306e2c67373e7d563e",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 5
+  },
+  "lessons": []
+}
