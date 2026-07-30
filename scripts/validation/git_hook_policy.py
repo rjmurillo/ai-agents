@@ -4218,8 +4218,8 @@ def _suppression_renames(
     return _parse_suppression_renames(result.stdout, context=context)
 
 
-PATH_SEPARATOR_RE = re.compile(r"[\\/]")
 
+PATH_SEPARATOR_RE = re.compile(r"[\\/]")
 
 def _step_defeats_bash_subparse(shell: str | None, run: str) -> bool:
     if _body_declares_its_own_interpreter(run):
