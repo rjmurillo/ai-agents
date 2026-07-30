@@ -43,6 +43,7 @@ if _path_added:
     sys.path.insert(0, str(EVAL_DIR))
 try:
     types_mod = _load_module("_eval_agent_types.py", "_eval_agent_types")
+    common_mod = _load_module("_eval_common.py", "_eval_common")
     scoring_mod = _load_module("_scoring_engine.py", "_scoring_engine")
     plan_mod = _load_module("_plan_runner.py", "_plan_runner")
     adapter_mod = _load_module("_eval_api_adapter.py", "_eval_api_adapter")
@@ -3553,3 +3554,53 @@ class TestCliInputValidators:
         # Does not require existence.
         resolved = cli_mod._assert_under_repo_root(inside)
         assert resolved.is_relative_to(tmp_path.resolve())
+
+
+class TestCostBasisProviderResolution:
+    """`cost_basis` must answer for the provider the transport actually routes to.
+
+    `_providers.resolve_provider` resolves a provider name as
+    `(name or EVAL_PROVIDER or "anthropic").strip().lower()`. A basis that
+    resolves differently can disagree with the transport that will really be
+    billed: the plan promises dollars while the run consumes request quota.
+    """
+
+    def test_env_selects_quota_basis_when_flag_absent(self, monkeypatch):
+        """Env-only selection must reach the quota basis (plan/report agreement)."""
+        monkeypatch.setenv("EVAL_PROVIDER", "github-models")
+        assert common_mod.cost_basis(None) == "requests"
+
+    def test_env_selects_usd_basis_for_per_token_provider(self, monkeypatch):
+        """Env-only selection of a per-token provider still answers usd."""
+        monkeypatch.setenv("EVAL_PROVIDER", "openai")
+        assert common_mod.cost_basis(None) == "usd"
+
+    def test_explicit_argument_wins_over_env(self, monkeypatch):
+        """An explicit provider outranks the environment, as the transport does."""
+        monkeypatch.setenv("EVAL_PROVIDER", "github-models")
+        assert common_mod.cost_basis("openai") == "usd"
+
+    def test_mixed_case_provider_normalizes(self, monkeypatch):
+        """A spelling the transport accepts must not miss the quota set."""
+        monkeypatch.delenv("EVAL_PROVIDER", raising=False)
+        assert common_mod.cost_basis("GitHub-Models") == "requests"
+
+    def test_surrounding_whitespace_normalizes(self, monkeypatch):
+        """The transport strips; so must the basis."""
+        monkeypatch.delenv("EVAL_PROVIDER", raising=False)
+        assert common_mod.cost_basis("  github  ") == "requests"
+
+    def test_absent_provider_and_absent_env_answers_usd(self, monkeypatch):
+        """The default Anthropic path keeps the strict raise-on-unpriced rule."""
+        monkeypatch.delenv("EVAL_PROVIDER", raising=False)
+        assert common_mod.cost_basis(None) == "usd"
+
+    def test_unrecognized_provider_answers_usd(self, monkeypatch):
+        """An unknown name must not be assumed quota-billed."""
+        monkeypatch.delenv("EVAL_PROVIDER", raising=False)
+        assert common_mod.cost_basis("some-new-vendor") == "usd"
+
+    def test_empty_provider_falls_through_to_env(self, monkeypatch):
+        """Empty string is falsy for the transport, so the env must win here too."""
+        monkeypatch.setenv("EVAL_PROVIDER", "github-models")
+        assert common_mod.cost_basis("") == "requests"

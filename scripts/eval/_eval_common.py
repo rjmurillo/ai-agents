@@ -6,6 +6,7 @@ duplication of score aggregation logic.
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 # ---------------------------------------------------------------------------
@@ -51,12 +52,21 @@ def cost_basis(provider: str | None) -> str:
     through a per-token vendor is metered in dollars, so the basis has to
     follow the transport that will actually be charged.
 
+    *provider* is resolved exactly as ``_providers.resolve_provider`` resolves
+    it, ``(name or EVAL_PROVIDER or "anthropic").strip().lower()``, because the
+    transport that resolution selects is the one that gets billed. Resolving
+    any other way lets the two disagree: selecting GitHub Models through the
+    environment alone, or spelling it ``GitHub-Models``, would route to a
+    request-metered transport while this function still answered ``"usd"``,
+    so the plan would promise dollars for a run that spends request quota.
+
     An unrecognized or absent provider answers ``"usd"``. That keeps the
     default Anthropic path, and any per-token vendor added later, on the
     existing rule: a missing rate is a real gap an operator must fill, not a
     licence to print a price.
     """
-    return "requests" if (provider or "") in QUOTA_BILLED_PROVIDERS else "usd"
+    selected = (provider or os.environ.get("EVAL_PROVIDER") or "anthropic").strip().lower()
+    return "requests" if selected in QUOTA_BILLED_PROVIDERS else "usd"
 
 
 def aggregate_multi_run_scores(
