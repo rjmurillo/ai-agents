@@ -1171,10 +1171,10 @@ def _module_sources(value: ast.expr) -> list[str]:
     the walk inside one expression is what bounds it: chasing bindings from
     here re-walks a chain of length N once per link and costs N squared.
     """
-    queue = [value]
+    queue = deque([value])
     found: list[str] = []
     while queue:
-        node = queue.pop(0)
+        node = queue.popleft()
         if isinstance(node, ast.Name):
             found.append(node.id)
         elif isinstance(node, ast.Subscript):
@@ -1184,7 +1184,12 @@ def _module_sources(value: ast.expr) -> list[str]:
     return found
 
 
-def _settle(bindings: list[tuple[str, ast.expr]], seed: dict[str, str]) -> dict[str, str]:
+def _settle(
+    bindings: list[tuple[str, ast.expr]],
+    seed: dict[str, str],
+    *,
+    blocked: set[str] | None = None,
+) -> dict[str, str]:
     """Grow *seed* with every name that inherits from a name already in it.
 
     ``sp = subprocess`` and ``runner = base`` are one problem twice: a name
@@ -1209,7 +1214,8 @@ def _settle(bindings: list[tuple[str, ast.expr]], seed: dict[str, str]) -> dict[
     name can answer for, and a group that has settled is skipped outright, so
     each group is read once and each edge is followed once.
     """
-    grown = dict(seed)
+    blocked = blocked or set()
+    grown = {name: value for name, value in seed.items() if name not in blocked}
     groups: dict[int, tuple[list[str], list[str]]] = {}
     for name, value in bindings:
         key = id(value)
@@ -1227,7 +1233,7 @@ def _settle(bindings: list[tuple[str, ast.expr]], seed: dict[str, str]) -> dict[
         if key in settled:
             continue
         candidates, names = groups[key]
-        pending = [one for one in names if one not in grown]
+        pending = [one for one in names if one not in grown and one not in blocked]
         if not pending:
             settled.add(key)
             continue
@@ -1428,6 +1434,7 @@ def _prepinned(
     unrelated function says nothing about the runner called out here.
     """
     pinning: dict[str, bool] = {}
+    source_groups: dict[int, tuple[bool, bool, list[str], set[str]]] = {}
     for name, value in bindings:
         pins = (
             isinstance(value, ast.Call)
@@ -1435,12 +1442,48 @@ def _prepinned(
             and _pins_utf8(value)
         )
         pinning[name] = pinning.get(name, True) and pins
+        key = id(value)
+        if key not in source_groups:
+            empty_container = (
+                isinstance(value, (ast.List, ast.Tuple, ast.Set)) and not value.elts
+            ) or (isinstance(value, ast.Dict) and not value.keys)
+            source_groups[key] = (
+                pins,
+                empty_container,
+                _module_sources(value),
+                set(),
+            )
+        source_groups[key][3].add(name)
     seed = {
         name: name
         for name, pins in pinning.items()
         if pins and name not in undone
     }
-    return set(_settle(bindings, seed))
+    bound = set(pinning)
+    blocked: set[str] = set()
+    waiting: dict[str, list[int]] = {}
+    for key, (pins, empty_container, sources, names) in source_groups.items():
+        if pins:
+            continue
+        if (not sources and not empty_container) or any(
+            source not in bound for source in sources
+        ):
+            blocked.update(names)
+        for source in sources:
+            waiting.setdefault(source, []).append(key)
+    queue = deque(blocked)
+    blocked_groups: set[int] = set()
+    while queue:
+        source = queue.popleft()
+        for key in waiting.get(source, ()):
+            if key in blocked_groups:
+                continue
+            blocked_groups.add(key)
+            for name in source_groups[key][3]:
+                if name not in blocked:
+                    blocked.add(name)
+                    queue.append(name)
+    return set(_settle(bindings, seed, blocked=blocked))
 
 
 def _parameter_bindings(tree: ast.Module) -> list[tuple[str, ast.expr]]:
@@ -2402,6 +2445,38 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             "import operator, subprocess\n"
             'operator.methodcaller("run", ["x"])(subprocess)',
             "a methodcaller that captures nothing decodes nothing",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'alias = runner\n'
+            'next_alias = alias\n'
+            'next_alias(["x"], text=True)',
+            "a wholly pinned alias chain keeps the construction-site codec",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'holders = []\n'
+            'holders.append(runner)\n'
+            'alias = holders[0]\n'
+            'alias(["x"], text=True)',
+            "an empty container can later receive a wholly pinned runner",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'holders = {}\n'
+            'holders["runner"] = runner\n'
+            'alias = holders["runner"]\n'
+            'alias(["x"], text=True)',
+            "an empty mapping can later receive a wholly pinned runner",
         ),
     ],
 )
@@ -3449,6 +3524,39 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'alias.keywords["encoding"] = None\n'
             'runner(["x"], text=True)',
             "an alias shares the keyword mapping rather than copying it",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'alias = runner\n'
+            'alias = subprocess.run\n'
+            'alias(["x"], capture_output=True, text=True)',
+            "a later unpinned binding keeps a mixed alias out of the pinned set",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'raw = subprocess.run\n'
+            'alias = runner\n'
+            'alias = raw\n'
+            'next_alias = alias\n'
+            'next_alias(["x"], capture_output=True, text=True)',
+            "a transitive unpinned binding taints every downstream alias",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'raw = subprocess.run\n'
+            'holders = [runner, raw]\n'
+            'alias = holders[1]\n'
+            'alias(["x"], capture_output=True, text=True)',
+            "a container with an unpinned alternative cannot confer a codec pin",
         ),
         (
             "import operator, subprocess\n"
