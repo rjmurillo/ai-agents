@@ -49,7 +49,7 @@ import re
 import statistics
 import sys
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -280,41 +280,6 @@ def _skip_string_literal(text: str, index: int) -> int:
     return len(text)
 
 
-def _iter_root_brace_positions(text: str) -> Iterator[int]:
-    """Yield the index of every ``{`` that opens a *root-level* object.
-
-    Root level means enclosed by neither an object nor an array. Both prior
-    scanners defined it as "any ``{`` not inside a span I already verified",
-    which counts braces and ignores brackets entirely. An object inside a
-    top-level array satisfied that definition, so ``[{...}]`` handed back its
-    first element as though the judge had written it at the root. The element
-    is an exemplar the judge was quoting, not its answer, and the harness
-    reported it with ``judge_failed`` false.
-
-    Tracking both bracket kinds is what makes "root" mean what the safety
-    argument in every caller already assumed it meant.
-    """
-    brace_depth = 0
-    bracket_depth = 0
-    index = 0
-    while index < len(text):
-        char = text[index]
-        if char == '"':
-            index = _skip_string_literal(text, index)
-            continue
-        if char == "{":
-            if brace_depth == 0 and bracket_depth == 0:
-                yield index
-            brace_depth += 1
-        elif char == "}":
-            brace_depth = max(0, brace_depth - 1)
-        elif char == "[":
-            bracket_depth += 1
-        elif char == "]":
-            bracket_depth = max(0, bracket_depth - 1)
-        index += 1
-
-
 def _scan_balanced_object(text: str, start: int) -> int | None:
     """Return the index just past the object opening at ``start``, or ``None``.
 
@@ -381,70 +346,49 @@ def _strict_json_loads(text: str) -> object:
     )
 
 
-def _iter_json_objects(text: str) -> Iterator[str]:
-    """Yield every balanced top-level JSON object in ``text``, left to right.
-
-    Advancing past a completed object rather than past its opening brace keeps
-    nested objects out of the stream, so callers see candidates rather than
-    every sub-object of the first one.
-
-    An opener that never balances ends the walk. Resuming one character later
-    would descend *into* that unbalanced object, which is how a score-shaped
-    object quoted inside a malformed ``reasoning`` string became the verdict
-    and replaced the judge's real answer with the prose one. There is no way
-    to bound an unbalanced object, so nothing after its opener can be offered
-    as a root-level candidate.
-
-    Root position comes from ``_iter_root_brace_positions``, which tracks
-    brackets as well as braces. Counting braces alone let an object inside a
-    top-level array pass as a root candidate.
-    """
-    for start in _iter_root_brace_positions(text):
-        end = _scan_balanced_object(text, start)
-        if end is None:
-            return
-        yield text[start:end]
-
-
 def _extract_json_object(text: str) -> str | None:
-    """Return the embedded JSON object that is most likely the judge's verdict.
+    """Return the object the payload begins with, when the payload is not one.
 
-    The judge is told to answer with JSON only, and the Anthropic path obeys.
-    Agentic CLI providers do not: they interleave tool-call traces and stray
-    prose into stdout around the answer, so a whole-string ``json.loads`` fails
-    on output that plainly contains a valid object. Scanning for a balanced
-    object recovers it without loosening the contract for providers that
-    already comply, because callers only reach this after a strict parse fails.
+    The judge is told to answer in JSON only. When a whole-payload parse fails,
+    the one recoverable shape is a valid object followed by content that is not
+    part of it. The object is therefore read from offset 0, never searched for.
 
-    Taking the *first* balanced object is wrong for exactly the providers this
-    exists to serve: a tool-call trace emits its own JSON before the answer, so
-    the first object is the trace and the real verdict is never tried. Every
-    candidate is therefore checked against the same shape validator the caller
-    uses. When none does, the first parseable object is returned so the caller
-    still reports a shape error against real content rather than a bare parse
-    failure.
+    Searching here was the twelfth defect of a single class. ``_salvage_anchor``
+    had already stopped the *failure* path from searching, but this is the
+    *success* path: it returns through the normal result branch, so a searched
+    verdict was indistinguishable from a clean parse and no post-hoc audit
+    could surface it. An unauditable search is worse than an auditable one, so
+    both paths now obey one rule: the verdict is the object the payload starts
+    with, or there is no verdict. Callers mark what this recovers.
 
-    Two candidates carrying a verdict is an ambiguity, not a choice. Returning
-    the first would let an echoed exemplar outrank the judge's own answer, so
-    the whole payload is refused and the caller falls through to salvage,
-    which applies the same uniqueness rule to what it can still read.
+    The version this replaces justified its search by saying agentic CLI
+    providers interleave tool-call traces into the answer. That is stale.
+    ``_copilot_cli._read_session_transcript`` reads ``assistant.message``
+    events from the session log, where tool calls sit in a sibling
+    ``toolRequests`` field and never reach this function.
 
-    Returns ``None`` when no balanced object parses.
+    ``_names_a_score_field_twice`` applies here for the same reason it applies
+    to salvage: a second copy of a score field anywhere in the payload makes
+    the leading object one of two candidate answers, and two candidates is an
+    ambiguity rather than a choice.
+
+    Returns ``None`` when the payload does not begin with a balanced,
+    strictly-parseable object, or when it names a score field twice.
     """
-    fallback: str | None = None
-    verdict: str | None = None
-    for candidate in _iter_json_objects(text):
-        try:
-            parsed = _strict_json_loads(candidate)
-        except ValueError:
-            continue
-        if fallback is None:
-            fallback = candidate
-        if isinstance(parsed, dict) and _judge_score_shape_error(parsed) is None:
-            if verdict is not None:
-                return None
-            verdict = candidate
-    return verdict if verdict is not None else fallback
+    if _names_a_score_field_twice(text):
+        return None
+    start = _salvage_anchor(text)
+    if start is None:
+        return None
+    end = _scan_balanced_object(text, start)
+    if end is None:
+        return None
+    candidate = text[start:end]
+    try:
+        _strict_json_loads(candidate)
+    except ValueError:
+        return None
+    return candidate
 
 
 def score_response(
@@ -523,6 +467,7 @@ Respond in JSON only, no other text:
 
     try:
         parsed = _strict_json_loads(text)
+        recovered_from_prefix = False
     except ValueError:
         embedded = _extract_json_object(text)
         if embedded is None:
@@ -530,6 +475,7 @@ Respond in JSON only, no other text:
         # _extract_json_object only returns candidates it already parsed with
         # _strict_json_loads, so this cannot raise.
         parsed = _strict_json_loads(embedded)
+        recovered_from_prefix = True
     if not isinstance(parsed, dict):
         return _failed_judge(f"judge returned non-object JSON: {text[:200]}")
     score_error = _judge_score_shape_error(parsed)
@@ -542,6 +488,11 @@ Respond in JSON only, no other text:
         "reasoning": str(parsed.get("reasoning", ""))[:300],
         "judge_failed": False,
     }
+    if recovered_from_prefix:
+        # The whole payload did not parse; the verdict came from its leading
+        # object. Marking it is what makes the recovery auditable after the
+        # run, which the searching version it replaced never was.
+        result["judge_salvaged"] = True
     fingerprint = metadata.get("system_fingerprint")
     if isinstance(fingerprint, str):
         result["judge_system_fingerprint"] = fingerprint
@@ -867,14 +818,21 @@ def _names_a_score_field_twice(text: str) -> bool:
     disagree, which makes the payload ambiguous, and ambiguous payloads are
     refused rather than guessed at.
 
-    Counting raw names is cheap and needs no parse of the untrusted tail. A
-    name spelled with a unicode escape would slip the count, so any ``\\u`` in
-    the payload refuses outright: judge prose does not contain one, and a
-    refusal costs a sample while a fabrication costs a published number.
+    Counting raw names is cheap and needs no parse of the untrusted tail. The
+    count is of the *bare* identifier, not its quoted JSON-key spelling,
+    because a quoted count is evaded by an escaped one: a payload carrying a
+    second verdict serialized inside a string spells its keys with escaped
+    quotes, which ``count('"activation_score"')`` does not see. Bare counting
+    also refuses a payload whose prose names a score field, which is the
+    intended trade: across the 264 graded samples in the archived runs, no
+    judge reasoning names one. A name spelled with a unicode escape would
+    still slip the count, so any ``\\u`` in the payload refuses outright.
+    Judge prose does not contain one, and a refusal costs a sample while a
+    fabrication costs a published number.
     """
     if "\\u" in text:
         return True
-    return any(text.count(f'"{field}"') > 1 for field in _SCORE_FIELDS)
+    return any(text.count(field) > 1 for field in _SCORE_FIELDS)
 
 
 def _complete_verdict(members: dict[str, str] | None) -> dict[str, int] | None:

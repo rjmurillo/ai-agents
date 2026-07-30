@@ -980,13 +980,41 @@ def test_extract_json_object_returns_plain_object_unchanged():
     assert eval_mod._extract_json_object(_JUDGE) == _JUDGE
 
 
-def test_extract_json_object_skips_leading_cli_tool_trace():
+def _score_with_judge_text(judge_text: str) -> dict:
+    """Run ``score_response`` against a fixed judge payload.
+
+    Restores the real ``_call_api`` so a failure inside the call under test
+    cannot leak a stub into the tests that follow.
+    """
+    original = eval_mod._call_api
+    eval_mod._call_api = lambda *_args, **_kwargs: judge_text
+    try:
+        return eval_mod.score_response(
+            "sk-test",
+            {"input": "x", "expected_gate": "apply-rule"},
+            "response",
+        )
+    finally:
+        eval_mod._call_api = original
+
+
+def test_extract_json_object_refuses_a_leading_cli_tool_trace():
+    """A payload that leads with prose has no readable verdict.
+
+    The searching version walked past this trace and returned the object after
+    it. That search is what produced twelve fabrication defects, each one a
+    disagreement about which candidate was the answer. The trace is also not a
+    shape the harness still sees: ``_copilot_cli._read_session_transcript``
+    reads ``assistant.message`` events, where tool calls sit in a sibling
+    field. Refusing costs one of three judge samples and is recorded as a
+    failure; searching cost a published number and was recorded as nothing.
+    """
     text = (
         "\u25cf List working directory contents (shell)\n"
         "  \u2502 ls -la /tmp/eval-copilot-abc 2>&1 | head -50\n"
         "  \u2514 4 lines\u2026\n\n" + _JUDGE
     )
-    assert eval_mod._extract_json_object(text) == _JUDGE
+    assert eval_mod._extract_json_object(text) is None
 
 
 def test_extract_json_object_drops_trailing_prose():
@@ -997,8 +1025,14 @@ def test_extract_json_object_drops_trailing_prose():
 
 
 def test_extract_json_object_handles_nested_objects():
-    text = 'noise {"a": {"b": 1}, "c": 2} tail'
+    """A nested object must not end the scan early, and a tail must not extend it."""
+    text = '{"a": {"b": 1}, "c": 2} tail'
     assert eval_mod._extract_json_object(text) == '{"a": {"b": 1}, "c": 2}'
+
+
+def test_extract_json_object_refuses_when_the_payload_leads_with_prose():
+    """Offset zero is the whole rule. One leading word is enough to refuse."""
+    assert eval_mod._extract_json_object('noise {"a": {"b": 1}, "c": 2}') is None
 
 
 def test_extract_json_object_returns_none_without_any_brace():
@@ -1009,30 +1043,56 @@ def test_extract_json_object_returns_none_on_unbalanced_object():
     assert eval_mod._extract_json_object('{"activation_score": 5') is None
 
 
-def test_extract_json_object_prefers_the_verdict_over_an_earlier_tool_result():
-    """A tool-call trace emits its own JSON before the answer.
+def test_a_leading_tool_result_is_refused_rather_than_searched_past():
+    """The verdict is never taken from past a leading object.
 
-    Taking the first balanced object hands back the trace, the shape check
-    fails, and the real verdict is never tried. This is the shape that made
-    the extractor useless for the providers it was written for.
+    The searching version checked each candidate against the score shape and
+    returned the one that matched, so it walked past this trace and graded the
+    object after it. Now the leading object is the only one read; it fails the
+    caller's shape check, salvage finds no score fields in it, and the sample
+    is refused. No score is produced from anywhere else in the payload.
     """
     text = '{"command": "ls", "exit_code": 0}\n\nHere is my grade:\n' + _JUDGE
 
-    assert eval_mod._extract_json_object(text) == _JUDGE
+    assert eval_mod._extract_json_object(text) == '{"command": "ls", "exit_code": 0}'
+    assert eval_mod._salvage_scores(text) is None
+    assert _score_with_judge_text(text)["judge_failed"] is True
 
 
-def test_extract_json_object_skips_an_unparseable_leading_object():
+def test_extract_json_object_refuses_an_unparseable_leading_object():
+    """A broken leading object ends the read. It does not start a search."""
     text = '{"broken": }\n' + _JUDGE
 
-    assert eval_mod._extract_json_object(text) == _JUDGE
+    assert eval_mod._extract_json_object(text) is None
 
 
-def test_extract_json_object_skips_a_partial_score_object():
-    """A near-miss must not win. Missing one field is not a verdict."""
+def test_extract_json_object_refuses_a_partial_object_followed_by_a_full_one():
+    """A near-miss must not win, and the search that found it is gone.
+
+    Two objects each naming ``activation_score`` is exactly the ambiguity the
+    name count refuses, so the extractor declines before shape is considered.
+    The searching version instead picked the second, which is the same move
+    that let a quoted exemplar outrank the judge's own answer.
+    """
     partial = '{"activation_score": 5, "citation_score": 4}'
     text = partial + "\n\n" + _JUDGE
 
-    assert eval_mod._extract_json_object(text) == _JUDGE
+    assert eval_mod._extract_json_object(text) is None
+    assert _score_with_judge_text(text)["judge_failed"] is True
+
+
+def test_extract_json_object_returns_a_partial_object_for_the_caller_to_refuse():
+    """The extractor no longer judges shape; the caller still does.
+
+    With no second copy of a score field there is no ambiguity, so the leading
+    object is returned. It is not a verdict, and the caller's existing shape
+    check is what says so. The visible outcome is unchanged.
+    """
+    partial = '{"activation_score": 5, "citation_score": 4}'
+    text = partial + "\n\nthat is all"
+
+    assert eval_mod._extract_json_object(text) == partial
+    assert _score_with_judge_text(text)["judge_failed"] is True
 
 
 def test_extract_json_object_falls_back_to_the_first_parseable_object():
@@ -1044,10 +1104,16 @@ def test_extract_json_object_falls_back_to_the_first_parseable_object():
     assert eval_mod._extract_json_object(text) == '{"refusal": "cannot grade"}'
 
 
-def test_iter_json_objects_yields_siblings_without_reentering_nested_ones():
-    text = 'a {"x": {"y": 1}} b {"z": 2} c'
+def test_a_balanced_object_scan_does_not_reenter_nested_ones():
+    """Coverage moved here when ``_iter_json_objects`` was deleted.
 
-    assert list(eval_mod._iter_json_objects(text)) == ['{"x": {"y": 1}}', '{"z": 2}']
+    The walker existed only to feed the candidate search. With the search
+    gone, the property that still matters is that a nested object does not
+    terminate the scan of the one that contains it.
+    """
+    text = '{"x": {"y": 1}} b {"z": 2} c'
+
+    assert eval_mod._scan_balanced_object(text, 0) == len('{"x": {"y": 1}}')
 
 
 # ---------------------------------------------------------------------------
@@ -1670,26 +1736,47 @@ def test_salvage_refuses_an_exemplar_it_cannot_tell_from_the_verdict(label, payl
     assert eval_mod._salvage_scores(payload) is None, label
 
 
-def test_salvage_recovers_when_prose_names_a_field_without_quoting_it():
-    """The raw-name count keys on ``"field"``, not on the bare word.
+def test_salvage_refuses_when_prose_names_a_score_field_at_all():
+    """The name count is of the bare identifier, not its quoted spelling.
 
-    A bare mention cannot be a JSON key, so it cannot be the duplicate the
-    count exists to catch, and refusing it would discard a sample over prose
-    that carries no second number. The quoted form in
-    ``test_salvage_refuses_when_reasoning_prose_names_a_score_field`` is
-    indistinguishable from a duplicate key and is refused; this one is not.
+    Counting ``"activation_score"`` is evaded by an escaped spelling: a second
+    verdict serialized inside a string spells the key ``\\"activation_score\\"``
+    and the quoted count does not see it. Counting the bare word closes that,
+    at the cost of refusing a payload whose prose names a score field.
+
+    That cost was measured, not assumed. Across the 264 graded samples in the
+    archived runs, no judge reasoning names a score field; the only 24 that do
+    are the stored parse-error strings, which are not judge prose. The refusal
+    is therefore free on observed output and closes a real evasion.
     """
-    assert eval_mod._salvage_scores(
-        '{"activation_score":5,"citation_score":3,"behavior_score":4,'
-        '"reasoning":"I set activation_score high because"}'
-    ) == {
-        "activation_score": 5,
-        "citation_score": 3,
-        "behavior_score": 4,
-    }
+    assert (
+        eval_mod._salvage_scores(
+            '{"activation_score":5,"citation_score":3,"behavior_score":4,'
+            '"reasoning":"I set activation_score high because"}'
+        )
+        is None
+    )
 
 
-def test_a_prematurely_closed_rubric_is_read_by_json_grammar_not_by_guessing():
+def test_salvage_refuses_a_second_verdict_serialized_inside_a_string():
+    """The evasion the bare-name count exists to close.
+
+    The payload states which triple is the answer and salvage cannot read
+    that, so it must decline rather than pick. Counting the quoted spelling
+    returned the first triple; counting the bare name refuses.
+    """
+    payload = (
+        '{"activation_score":1,"citation_score":1,'
+        '"behavior_score":1,"reasoning":"rubric "example""}\n'
+        '{"final_answer":"{\\"activation_score\\":5,\\"citation_score\\":5,'
+        '\\"behavior_score\\":5}"}'
+    )
+
+    assert eval_mod._names_a_score_field_twice(payload) is True
+    assert eval_mod._salvage_scores(payload) is None
+
+
+def test_a_prematurely_closed_rubric_is_refused_by_both_paths():
     """Trailing root-level score fields make the payload ambiguous.
 
     This payload closes a complete object and then continues with bare
@@ -1697,23 +1784,20 @@ def test_a_prematurely_closed_rubric_is_read_by_json_grammar_not_by_guessing():
     judge whose rubric block closed one brace early, so the 5/5/5 tail is
     plausibly the answer it meant to give.
 
-    The strict path still takes 1/1/1, because JSON grammar says trailing
-    bytes after a complete document are garbage. Salvage now refuses instead
-    of agreeing, on the raw-name count. It reaches that answer without a
-    parse, so it cannot rely on the strict path having gone first, and where
-    the two stated numbers disagree the safe move is to state neither.
+    Both paths now refuse on the same name count. Previously the strict path
+    took 1/1/1 while salvage refused, so the instrument's two readers of one
+    payload disagreed and only the quieter one was audited. Where two stated
+    numbers disagree, the safe move is to state neither.
     """
     payload = (
         '{"rubric":{"note":"x"},"activation_score":1,"citation_score":1,'
         '"behavior_score":1},"activation_score":5,"citation_score":5,'
         '"behavior_score":5}'
     )
-    expected = {"activation_score": 1, "citation_score": 1, "behavior_score": 1}
-    extracted = eval_mod._extract_json_object(payload)
-    assert extracted is not None
-    strict = eval_mod._strict_json_loads(extracted)
-    assert {key: strict[key] for key in expected} == expected
+
+    assert eval_mod._extract_json_object(payload) is None
     assert eval_mod._salvage_scores(payload) is None
+    assert _score_with_judge_text(payload)["judge_failed"] is True
 
 
 def test_salvage_survives_trailing_content_carrying_no_scores():
@@ -1768,10 +1852,34 @@ def test_extract_json_object_stops_at_an_unbalanced_leading_candidate():
 
 
 def test_extract_json_object_result_parses_as_json():
-    text = "trace line\n" + _JUDGE + "\ntrailing"
+    text = _JUDGE + "\ntrailing"
     extracted = eval_mod._extract_json_object(text)
     assert extracted is not None
     assert json.loads(extracted)["activation_score"] == 5
+
+
+def test_a_verdict_recovered_from_the_prefix_is_marked_salvaged():
+    """Every recovery must be auditable after the run.
+
+    A whole-payload parse failure followed by a prefix recovery used to return
+    through the ordinary success branch, so it was indistinguishable from a
+    clean parse. No post-hoc audit could count how often the instrument had
+    read past a broken payload, which is why twelve defects of one class went
+    twelve rounds without the archive showing a single one.
+    """
+    result = _score_with_judge_text(_JUDGE + "\ntrailing prose")
+
+    assert result["judge_failed"] is False
+    assert result["judge_salvaged"] is True
+    assert result["activation_score"] == 5
+
+
+def test_a_clean_payload_is_not_marked_salvaged():
+    """Negative control: the marker must distinguish, not decorate."""
+    result = _score_with_judge_text(_JUDGE)
+
+    assert result["judge_failed"] is False
+    assert "judge_salvaged" not in result
 
 
 # ---------------------------------------------------------------------------
