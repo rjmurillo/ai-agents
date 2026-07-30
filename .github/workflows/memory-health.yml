@@ -2,9 +2,9 @@
 #
 # Runs batch health checks on Serena memories for PRs.
 # Detects stale citations, generates a health report, and posts a PR comment.
-# Supports exemption mechanism (memories with exempt: true in frontmatter).
 #
-# Exit codes: 0 = all healthy/exempt, 1 = stale citations (warning), 2 = error
+# Exit codes from `memory_enhancement health`: 0 = no stale memories,
+# 1 = stale memories found (warning, absorbed by continue-on-error).
 #
 # IMPORTANT: This workflow runs on ALL PRs to satisfy required status checks,
 # but skips actual health checks when no relevant files are changed.
@@ -48,8 +48,9 @@ jobs:
             memories:
               - '.serena/memories/**'
             code:
-              - '.claude/skills/memory-enhancement/src/memory_enhancement/**'
               - 'scripts/**/*.py'
+              - 'scripts/memory_enhancement/**'
+              - 'memory_enhancement'
               - 'pyproject.toml'
 
       - name: Determine if memory health should run
@@ -80,16 +81,14 @@ jobs:
           enable-git-hooks: false
 
       - name: Run health check (JSON)
-        id: health-json
         continue-on-error: true
         run: |
-          PYTHONPATH=.claude/skills/memory-enhancement/src python3 -m memory_enhancement health --json --repo-root . > health-report.json
-          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          python3 -m memory_enhancement --repo-root . health --json > health-report.json
 
       - name: Run health check (Markdown)
         continue-on-error: true
         run: |
-          PYTHONPATH=.claude/skills/memory-enhancement/src python3 -m memory_enhancement health --markdown --repo-root . > health-report.md
+          python3 -m memory_enhancement --repo-root . health --markdown > health-report.md
 
       - name: Upload health reports
         if: always()
@@ -113,10 +112,10 @@ jobs:
         env:
           HEALTH_STALE: ${{ steps.parse.outputs.has_stale }}
           HEALTH_TOTAL: ${{ steps.parse.outputs.total }}
-          HEALTH_HEALTHY: ${{ steps.parse.outputs.healthy }}
+          HEALTH_SCORE: ${{ steps.parse.outputs.health_score }}
           HEALTH_STALE_COUNT: ${{ steps.parse.outputs.stale }}
-          HEALTH_EXEMPT: ${{ steps.parse.outputs.exempt }}
-          HEALTH_ERRORS: ${{ steps.parse.outputs.errors }}
+          HEALTH_BROKEN: ${{ steps.parse.outputs.broken_citations }}
+          HEALTH_UNVERIFIED: ${{ steps.parse.outputs.unverified_citations }}
         with:
           script: |
             const fs = require('fs');
@@ -141,10 +140,10 @@ jobs:
               '<summary>Health Check Details</summary>',
               '',
               `- **Total memories**: ${process.env.HEALTH_TOTAL}`,
-              `- **Healthy**: ${process.env.HEALTH_HEALTHY}`,
-              `- **Stale**: ${process.env.HEALTH_STALE_COUNT}`,
-              `- **Exempt**: ${process.env.HEALTH_EXEMPT}`,
-              `- **Errors**: ${process.env.HEALTH_ERRORS}`,
+              `- **Health score**: ${process.env.HEALTH_SCORE}`,
+              `- **Stale memories**: ${process.env.HEALTH_STALE_COUNT}`,
+              `- **Broken citations**: ${process.env.HEALTH_BROKEN}`,
+              `- **Unverified citations**: ${process.env.HEALTH_UNVERIFIED}`,
               '',
               '</details>',
             ].join('\n');
@@ -181,7 +180,7 @@ jobs:
         env:
           STALE_COUNT: ${{ steps.parse.outputs.stale }}
         run: |
-          echo "::warning::Found $STALE_COUNT memories with stale citations"
+          echo "::warning::Found $STALE_COUNT stale memories"
 
   skip-health-check:
     name: Skip health check (no changes)

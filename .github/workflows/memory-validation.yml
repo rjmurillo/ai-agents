@@ -36,8 +36,9 @@ jobs:
             memories:
               - '.serena/memories/**'
             code:
-              - '.claude/skills/memory-enhancement/src/memory_enhancement/**'
               - 'scripts/**/*.py'
+              - 'scripts/memory_enhancement/**'
+              - 'memory_enhancement'
               - 'pyproject.toml'
               - 'uv.lock'
 

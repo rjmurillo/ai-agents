@@ -4,16 +4,22 @@
 Extracted from ``.github/workflows/memory-health.yml`` under ADR-006 (no logic
 in workflow YAML). Issue #3541.
 
-The shell this replaces read five ``.summary.*`` fields with five separate
-``jq`` calls and derived a ``has_stale`` flag from the stale count. Two
-behaviours are load-bearing and preserved exactly:
+The report is produced by ``memory_enhancement health --json``, which emits a
+flat object. Every key this module reads is listed in ``_FIELD_SOURCES`` and
+``_STALE_LIST_KEY`` so a contract test can compare them against a payload from
+the real producer rather than against a hand-written fixture. Issue #3971.
 
-* A missing report is not a failure. It emits ``has_stale=false`` and
-  ``total=0`` and nothing else, so the downstream comment step still runs.
-* A stale count that is not an integer (a missing key makes ``jq`` emit
-  ``null``) reads as "not stale". In shell, ``[ "null" -gt 0 ]`` errors and
-  the ``if`` takes its else branch; the same outcome is produced here rather
-  than crashing.
+Anything the producer could not have emitted is fatal: a missing or empty
+file, unparseable JSON, a non-object payload, an absent key, or a
+``stale_memories`` that is not a list. The ``jq`` shell this replaces was
+tolerant of all of them, and that tolerance is the bug. The producer step runs
+under ``continue-on-error``, so a crash or a regression arrives here as
+malformed input; reading it as "no stale memories" turns a broken gate into a
+green "Pass", which is exactly how #3971 stayed hidden.
+
+Values are still rendered rather than type-checked. The count fields only
+reach a PR comment, so a wrong-typed one is cosmetic. ``stale_memories`` is
+checked because it alone decides whether the gate passes.
 """
 
 from __future__ import annotations
@@ -24,7 +30,27 @@ import os
 import sys
 from pathlib import Path
 
-_SUMMARY_FIELDS = ("total", "healthy", "stale", "exempt", "errors")
+# Output name -> key emitted by ``_cmd_health`` in memory_enhancement/__main__.
+_FIELD_SOURCES: dict[str, str] = {
+    "total": "total_memories",
+    "health_score": "health_score",
+    "broken_citations": "broken_citations",
+    "stale_citations": "stale_citations",
+    "unverified_citations": "unverified_citations",
+}
+
+# The producer emits the stale memories as a list, not a count.
+_STALE_LIST_KEY = "stale_memories"
+
+
+def producer_keys_read() -> frozenset[str]:
+    """Return every producer key this script reads.
+
+    The contract test compares this against the keys a real health report
+    carries. Deriving the set from the same tables the parser uses is what
+    makes that test a contract rather than a restatement.
+    """
+    return frozenset(_FIELD_SOURCES.values()) | {_STALE_LIST_KEY}
 
 
 def _write_outputs(pairs: list[tuple[str, str]], output_path: str | None) -> None:
@@ -38,41 +64,50 @@ def _write_outputs(pairs: list[tuple[str, str]], output_path: str | None) -> Non
             handle.write(f"{key}={value}\n")
 
 
-def _is_stale(value: object) -> bool:
-    """Report whether a stale count is a positive integer.
-
-    ``jq`` emits ``null`` for a missing key and the shell comparison that
-    consumed it failed rather than raising, so anything non-integral is
-    treated as "not stale".
-    """
-    if isinstance(value, bool) or not isinstance(value, int):
-        return False
-    return value > 0
-
-
-def parse_results(results: Path) -> list[tuple[str, str]]:
-    """Return the step outputs for a health report, present or not."""
-    if not results.is_file():
-        return [("has_stale", "false"), ("total", "0")]
-
-    payload = json.loads(results.read_text(encoding="utf-8"))
-    summary = payload.get("summary") if isinstance(payload, dict) else None
-    if not isinstance(summary, dict):
-        # jq emitted null for non-object shapes instead of crashing; a report
-        # whose summary is an array or scalar reads as absent, not fatal.
-        summary = {}
-    pairs = [(field, _render(summary.get(field))) for field in _SUMMARY_FIELDS]
-    pairs.append(("has_stale", "true" if _is_stale(summary.get("stale")) else "false"))
-    return pairs
-
-
 def _render(value: object) -> str:
-    """Render a summary value the way ``jq`` rendered it for the shell."""
+    """Render a report value the way ``jq`` rendered it for the shell."""
     if value is None:
         return "null"
     if isinstance(value, bool):
         return "true" if value else "false"
     return str(value)
+
+
+def parse_results(results: Path) -> list[tuple[str, str]]:
+    """Return the step outputs for a health report.
+
+    Raises:
+        ValueError: The file is empty, is not a JSON object, omits a key the
+            parser reads, or carries a non-list ``stale_memories``.
+        json.JSONDecodeError: The file is not valid JSON.
+        OSError: The file is missing or unreadable.
+    """
+    raw = results.read_text(encoding="utf-8")
+    if not raw.strip():
+        raise ValueError(
+            "report is empty, which means the health command exited without "
+            "writing output"
+        )
+
+    payload = json.loads(raw)
+    if not isinstance(payload, dict):
+        raise ValueError(f"report is a {type(payload).__name__}, not an object")
+
+    missing = sorted(producer_keys_read() - payload.keys())
+    if missing:
+        raise ValueError(f"report is missing keys the producer emits: {missing}")
+
+    stale = payload[_STALE_LIST_KEY]
+    if not isinstance(stale, list):
+        raise ValueError(
+            f"{_STALE_LIST_KEY} is a {type(stale).__name__}, not a list, so the "
+            "stale gate cannot be trusted"
+        )
+
+    pairs = [(name, _render(payload[key])) for name, key in _FIELD_SOURCES.items()]
+    pairs.append(("stale", str(len(stale))))
+    pairs.append(("has_stale", "true" if stale else "false"))
+    return pairs
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -87,7 +122,7 @@ def main(argv: list[str] | None = None) -> int:
     results = Path(args.results)
     try:
         pairs = parse_results(results)
-    except (json.JSONDecodeError, OSError) as exc:
+    except (json.JSONDecodeError, OSError, ValueError) as exc:
         print(f"::error::Could not read {results.name}: {exc}")
         return 1
 
