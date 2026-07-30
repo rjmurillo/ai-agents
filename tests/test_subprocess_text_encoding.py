@@ -101,7 +101,26 @@ _DEVNULL = "subprocess.DEVNULL"
 # either reads as what it is rather than as an opaque attribute.
 _PIPE = "subprocess.PIPE"
 _STDOUT = "subprocess.STDOUT"
-_NOT_ENTRY_POINTS = frozenset({_PARTIAL, _DEVNULL, _PIPE, _STDOUT})
+
+# The ``operator`` factories that reach a runner without ever spelling its
+# name at the call site. Each builds a callable, and it is the object handed
+# to that callable that decides what comes back: ``attrgetter("run")`` reads
+# the attribute off whatever module it is given, ``itemgetter(0)`` selects an
+# element out of whatever container it is given. The factory call and the
+# call that uses it are two separate nodes, so a scan that only reads the
+# outer ``func`` sees a call on a call and stops.
+_OPERATOR_GETTERS = frozenset({"attrgetter"})
+_OPERATOR_SELECTOR = "itemgetter"
+_OPERATOR_FACTORIES = _OPERATOR_GETTERS | frozenset({_OPERATOR_SELECTOR})
+_OPERATOR_MODULE = "operator"
+# Namespace prefix for every ``operator`` name recorded in the imported-name
+# table. The table's other values are entry points, so an unprefixed factory
+# name would read as one; the prefix keeps the two apart in one dict.
+_OPERATOR_ALIAS = "*op*"
+
+_NOT_ENTRY_POINTS = frozenset({_PARTIAL, _DEVNULL, _PIPE, _STDOUT}) | frozenset(
+    _OPERATOR_ALIAS + name for name in _OPERATOR_FACTORIES
+)
 
 # Calls the scan treats as pass-through: the reference handed in is the one
 # tracked coming out. ``nullcontext`` literally returns its argument;
@@ -178,7 +197,7 @@ _TRAILING_CONTAINERS = frozenset(
 # argument that is a container. One table rather than a branch per family, so
 # a new element-yielding callable is one row and the resolution reads once.
 _CONTAINER_ARGS: dict[str, int] = {
-    label: 0 for label in _ELEMENT_BUILTINS | _PASS_THROUGH
+    label: 0 for label in _ELEMENT_BUILTINS | _PASS_THROUGH | {"getitem"}
 } | {label: 1 for label in _TRAILING_CONTAINERS}
 
 # Dict methods that yield a view, mapped to the halves of the literal the view
@@ -218,6 +237,9 @@ _IMPORTED_NAMES: dict[str, dict[str, str]] = {
     | {"DEVNULL": _DEVNULL, "PIPE": _PIPE, "STDOUT": _STDOUT},
     "functools": {"partial": _PARTIAL},
     "os": {"popen": _OS_POPEN},
+    _OPERATOR_MODULE: {
+        name: _OPERATOR_ALIAS + name for name in _OPERATOR_FACTORIES
+    },
 }
 
 
@@ -382,6 +404,11 @@ def _resolve_indirect(
     subscript does: the element is not known, so the whole receiver answers.
     """
     label = _call_label(call)
+    if isinstance(call.func, ast.Call):
+        # ``attrgetter("run")(subprocess)`` is a call on a call, so the label
+        # above is empty and every branch below keys off it. Nothing else here
+        # can match, which is what makes returning straight out safe.
+        return _resolve_operator_getter(call, call.func, modules, functions)
     if _is_partial(label, functions) and call.args:
         return _resolve_callable(call.args[0], modules, functions)
     if label in _PASSTHROUGH and call.args:
@@ -411,24 +438,85 @@ def _resolve_indirect(
     if returned is not None:
         return returned
     if label == "getattr" and len(call.args) >= 2:
-        owner, attr = call.args[0], call.args[1]
-        if isinstance(attr, ast.Constant) and attr.value in _FORWARDING_ATTRS:
-            # ``getattr(subprocess.run, "__call__")`` composes the two shapes
-            # below, so resolving the owner answers for the pair.
-            return _resolve_callable(owner, modules, functions)
-        held = modules.get(owner.id) if isinstance(owner, ast.Name) else None
-        if held is None:
-            return None
-        if not isinstance(attr, ast.Constant):
-            # ``getattr(subprocess, name)`` hides which entry point it reaches.
-            # Nothing in this repository needs that, so the safe reading is
-            # that it reaches one of them.
-            return _DYNAMIC
-        if held == "subprocess" and attr.value in _SUBPROCESS_ATTRS:
-            return str(attr.value)
-        if held == "os" and attr.value == "popen":
-            return _OS_POPEN
+        return _module_attribute(call.args[0], call.args[1], modules, functions)
     return None
+
+
+def _module_attribute(
+    owner: ast.expr,
+    attr: ast.expr,
+    modules: dict[str, str],
+    functions: dict[str, str],
+) -> str | None:
+    """Resolve the attribute *attr* names, read off the module *owner* names.
+
+    ``getattr(subprocess, "run")`` and ``operator.attrgetter("run")(subprocess)``
+    both spell the owner and the attribute as two separate expressions, so one
+    resolution answers for both rather than two that can drift apart.
+    """
+    if isinstance(attr, ast.Constant) and attr.value in _FORWARDING_ATTRS:
+        # ``getattr(subprocess.run, "__call__")`` composes the two shapes
+        # below, so resolving the owner answers for the pair.
+        return _resolve_callable(owner, modules, functions)
+    held = modules.get(owner.id) if isinstance(owner, ast.Name) else None
+    if held is None:
+        return None
+    if not isinstance(attr, ast.Constant):
+        # ``getattr(subprocess, name)`` hides which entry point it reaches.
+        # Nothing in this repository needs that, so the safe reading is
+        # that it reaches one of them.
+        return _DYNAMIC
+    if held == "subprocess" and attr.value in _SUBPROCESS_ATTRS:
+        return str(attr.value)
+    if held == "os" and attr.value == "popen":
+        return _OS_POPEN
+    return None
+
+
+def _operator_label(factory: ast.Call, functions: dict[str, str]) -> str:
+    """Return the canonical ``operator`` factory *factory* builds, or ``""``.
+
+    Reads both spellings: an attribute on an imported ``operator`` module, and
+    a name bound by ``from operator import ... as ...``. A name reaching
+    neither is some other callable that happens to share a word, which is why
+    a local ``def itemgetter`` does not answer here.
+    """
+    func = factory.func
+    if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
+        owner = functions.get(_OPERATOR_ALIAS + func.value.id)
+        if owner == _OPERATOR_MODULE and func.attr in _OPERATOR_FACTORIES:
+            return func.attr
+        return ""
+    if isinstance(func, ast.Name):
+        canonical = functions.get(func.id, "")
+        if canonical.startswith(_OPERATOR_ALIAS):
+            return canonical[len(_OPERATOR_ALIAS) :]
+    return ""
+
+
+def _resolve_operator_getter(
+    call: ast.Call,
+    factory: ast.Call,
+    modules: dict[str, str],
+    functions: dict[str, str],
+) -> str | None:
+    """Resolve ``attrgetter("run")(subprocess)`` and ``itemgetter(0)(RUNNERS)``.
+
+    The factory call names what to read; the call using it names what to read
+    it from. Neither node alone spells a runner, which is what makes the pair
+    an evasion: a scan reading only the outer ``func`` sees a call on a call
+    and stops one step short of the entry point.
+    """
+    label = _operator_label(factory, functions)
+    if not label or not call.args:
+        return None
+    if label == _OPERATOR_SELECTOR:
+        # The index is not modelled, exactly as for a subscript, so every
+        # element of the container handed in answers.
+        return _resolve_elements(list(call.args), modules, functions)
+    if not factory.args:
+        return None
+    return _module_attribute(call.args[0], factory.args[0], modules, functions)
 
 
 def _resolve_elements(
@@ -1007,6 +1095,13 @@ def _imports(tree: ast.AST) -> tuple[dict[str, str], dict[str, str]]:
             for alias in node.names:
                 if alias.name in _TRACKED_MODULES:
                     modules[alias.asname or alias.name] = alias.name
+                elif alias.name == _OPERATOR_MODULE:
+                    # Recorded beside the imported names rather than in
+                    # ``modules`` because ``operator`` holds no entry point.
+                    # It only names the factories that reach one.
+                    functions[_OPERATOR_ALIAS + (alias.asname or alias.name)] = (
+                        _OPERATOR_MODULE
+                    )
         elif isinstance(node, ast.ImportFrom):
             wanted = _IMPORTED_NAMES.get(node.module or "", {})
             for alias in node.names:
@@ -1780,6 +1875,37 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             '    ["x"], capture_output=True, text=True, encoding="utf-8"\n'
             ')',
             "a runner reached through a filter is still pinned by its call site",
+        ),
+        (
+            'import operator, shutil\n'
+            'operator.attrgetter("which")(shutil)(["x"], capture_output=True, text=True)',
+            "an attribute read off a module we do not track starts nothing",
+        ),
+        (
+            'import subprocess\n'
+            'from operator import itemgetter\n'
+            'itemgetter(0)([print])(["x"], capture_output=True, text=True)',
+            "a selector over a container of something else selects something else",
+        ),
+        (
+            'import subprocess\n'
+            'from operator import attrgetter\n'
+            'attrgetter("run")(subprocess)(\n'
+            '    ["x"], capture_output=True, text=True, encoding="utf-8"\n'
+            ')',
+            "a runner reached through a getter is still pinned by its call site",
+        ),
+        (
+            'import subprocess\n'
+            'def itemgetter(index):\n'
+            '    return lambda rows: print\n'
+            'itemgetter(0)([subprocess.run])(["x"], capture_output=True, text=True)',
+            "a local factory sharing the name is not the one from operator",
+        ),
+        (
+            'import operator, subprocess\n'
+            'operator.attrgetter("Popen")(subprocess)(["x"])',
+            "a spawn with neither capture nor text decodes nothing",
         ),
     ],
 )
@@ -2647,6 +2773,48 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'from heapq import nsmallest\n'
             'nsmallest(1, [subprocess.run])[0](["x"], capture_output=True, text=True)',
             "nsmallest selects from the same container from the other end",
+        ),
+        (
+            'import operator, subprocess\n'
+            'operator.attrgetter("run")(subprocess)(["x"], capture_output=True, text=True)',
+            "attrgetter reads the named attribute off the module handed to it",
+        ),
+        (
+            'import operator as op, subprocess\n'
+            'op.attrgetter("run")(subprocess)(["x"], capture_output=True, text=True)',
+            "an aliased operator module builds the same factory",
+        ),
+        (
+            'import subprocess\n'
+            'from operator import attrgetter\n'
+            'name = "run"\n'
+            'attrgetter(name)(subprocess)(["x"], capture_output=True, text=True)',
+            "a computed attribute on a subprocess module still reaches one of ours",
+        ),
+        (
+            'import subprocess\n'
+            'from operator import itemgetter\n'
+            'itemgetter(0)([subprocess.run])(["x"], capture_output=True, text=True)',
+            "itemgetter selects an element, so the container it reads answers",
+        ),
+        (
+            'import subprocess\n'
+            'from operator import itemgetter as pick\n'
+            'pick(0)([subprocess.run])(["x"], capture_output=True, text=True)',
+            "an import alias renames the selector and nothing else",
+        ),
+        (
+            'import subprocess\n'
+            'from operator import itemgetter\n'
+            'HOLDER = [subprocess.run]\n'
+            'itemgetter(0)(HOLDER)(["x"], capture_output=True, text=True)',
+            "a selector reading a named container reads what the name holds",
+        ),
+        (
+            'import subprocess\n'
+            'from operator import getitem\n'
+            'getitem([subprocess.run], 0)(["x"], capture_output=True, text=True)',
+            "getitem is the subscript spelled as a call",
         ),
     ],
 )
