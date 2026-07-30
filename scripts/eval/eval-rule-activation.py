@@ -3012,6 +3012,7 @@ def _build_run_provenance(args: argparse.Namespace) -> dict[str, Any]:
             ["git", "rev-parse", "HEAD"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=5,
             check=False,
             cwd=REPO_ROOT,
