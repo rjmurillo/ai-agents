@@ -160,11 +160,19 @@ citation is markdown you write.
 | Function in file | `` `handleError()` in `src/utils.ts` `` | target=src/utils.ts |
 | Explicit citation | See: src/api.py:100 | target=src/api.py |
 
-A citation target may be a bare path, `path:LINE`, or `path::function`. The
-verifier checks all three: a bare path must exist, `:LINE` must be within the
-file's length, and `::function` must be defined in the file. Prefer
-`::function` over `:LINE`, because a line number goes stale on the next edit
-above it while a function name survives.
+A citation target may be a bare path, `path:LINE`, or `path::function`. A bare
+path must exist and `:LINE` must be within the file's length. The `::function`
+check is a text search rather than a parser: it passes when the file contains
+`def name` or `async def name` anywhere, including inside a comment or a
+string, and it never looks at the file extension.
+
+So prefer `::function` over `:LINE` for a Python function or method, where a
+line number goes stale on the next edit above it while the name survives. Cite
+`path` or `path:LINE` for anything else. A TypeScript, C#, or Go function is
+reported stale even though it exists, and so is a Python class, because none of
+them is preceded by `def`. A name containing a character outside
+`[A-Za-z0-9_]`, such as the hyphen in a PowerShell `Get-Thing`, fails the
+target format outright and is reported broken. Both make `health` exit 1.
 
 **Integration Point**:
 

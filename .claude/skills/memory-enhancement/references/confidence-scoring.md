@@ -238,4 +238,4 @@ of a defect.
 4. `verify` and `health` tell you what is actually broken; use them to act.
 5. Citations and links must be inline in the body to be parsed at all.
 
-<!-- vendor-portability: declared. This guide cites scripts/memory_enhancement/confidence.py, reflection.py, and hooks/session_end_memory.py as the source of truth for the weights and the persistence path. Those paths live outside the plugin root and are absent from a vendored install. They are read-only citations that let a maintainer in this repository re-derive every number here; the guide is complete without them. Issue #2050. -->
+<!-- vendor-portability: declared. This guide cites scripts/memory_enhancement/confidence.py, reflection.py, serena_integration.py, and hooks/session_end_memory.py as the source of truth for the weights and the persistence path. Those paths live outside the plugin root and are absent from a vendored install. They are read-only citations that let a maintainer in this repository re-derive every number here; the guide is complete without them. Issue #2050. -->
