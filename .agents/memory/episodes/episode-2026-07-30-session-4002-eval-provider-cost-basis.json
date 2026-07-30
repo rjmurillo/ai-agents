@@ -152,7 +152,9 @@
       "type": "commit",
       "content": "Commit: c7154520f",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e022"
+      ]
     },
     {
       "id": "e018",
@@ -161,6 +163,40 @@
       "content": "Purged another session's events from this session's episode file",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Made the declared report type match what actually gets written",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran adversarial review round 24 on a third model family",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Classified Copilot CLI as quota billed after the review found it fabricating",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: b0deadc5f",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -168,7 +204,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 2
   },
   "lessons": []

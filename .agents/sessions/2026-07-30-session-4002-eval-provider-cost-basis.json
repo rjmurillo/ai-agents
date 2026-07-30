@@ -215,12 +215,30 @@
       "action": "Purged another session's events from this session's episode file",
       "detail": "A bot review thread read the episode as a document of record and noticed it described a different change set than the diff. It was right: 12 of the 30 events came from the session log this one was copied from, extracted before commit 0fa58a1b4 rewrote the log. Rewriting the log did not fix the episode, because the commit hook always runs the extractor with --preserve, which unions the fresh extraction into the existing file. Content extracted from a wrong log therefore survives every later run by design, and --force is the only path that drops it. Regenerated with --force: 30 events become 17, every one of which traces to a workLog entry here. The general defect is that correcting a session log cannot correct its episode through any automatic path.",
       "outcome": "Episode matches the log; the systemic gap is recorded for filing"
+    },
+    {
+      "phase": "implementation",
+      "action": "Made the declared report type match what actually gets written",
+      "detail": "A bot review read Report as the authoritative serialized shape and called it out of sync with the writer. The premise was wrong and saying so mattered: _build_report_json serializes AggregateResult, which already carries cost_basis, and Report is constructed exactly once in the repo, in a test that asserts only default values. The observation underneath was still right. Report is DESIGN-004 section 5.6 declaring the report shape, and it said cost_estimate_usd was a float with no cost_basis, which stopped describing the artifact the moment a quota metered provider wrote a null cost beside a basis. Five tests first, four red. One asserts the annotation rather than runtime tolerance, because dataclasses do not enforce types and constructing with None would have passed under the old annotation and proven nothing.",
+      "outcome": "Commit 0fc7823be"
+    },
+    {
+      "phase": "verification",
+      "action": "Ran adversarial review round 24 on a third model family",
+      "detail": "Previous rounds ran on gpt-5.6-terra. This one ran on gemini-3.1-pro-preview against the three rule provenance commits, with the diff extracted into the repo because sub-agents cannot read outside it. It cleared the parts I asked it to attack hardest, including the falsy seed path and the agent and hook branches, and returned one Required finding in the file I thought was already settled.",
+      "outcome": "One real finding, verified before acting on it"
+    },
+    {
+      "phase": "implementation",
+      "action": "Classified Copilot CLI as quota billed after the review found it fabricating",
+      "detail": "Centralizing the dry-run decision in cost_basis was the right move, but the set that function reads was never audited against the provider registry. copilot and copilot-cli are registered transports that shell out to an authenticated GitHub Copilot CLI covered by a subscription, spend no per-token dollars, and were absent from the quota set, so they fell through the silent usd default. I checked the registry before accepting the finding, because adding a pricing opinion for a transport the tool cannot dispatch to would have been its own fabrication. Both names are registered, and the provider module documents copilot-cli as the preferred path, so the fabricated figure was live on the most recommended route. Reproduced on the real CLI: copilot-cli printed the sonnet input rate where github-models printed the requests line. Fixed the two names, then fixed the class: 17 tests pin every registry name to a declared basis and assert the registry and the classification cover the same set, so a new provider can no longer inherit a billing model by omission. Verified after on the real CLI.",
+      "outcome": "Commit b0deadc5f"
     }
   ],
   "outcomes": {
     "summary": "--provider works. A non-Anthropic provider now plans, runs, and reports, proven by live evals through GitHub Models while the Anthropic account is budget-capped. The cost basis follows the transport that actually gets billed, so no fabricated USD figure can reach an operator-facing report or a dry-run plan, and no third-party price was invented to achieve it. All three optimizer kinds, agent, rule, and hook, now run on live data, and the rule kind records which model produced its scores so the gate's cross-model refusal works for it as it already did for agents.",
-    "filesChanged": 13,
-    "testsAdded": 49
+    "filesChanged": 15,
+    "testsAdded": 71
   },
   "learnings": {
     "primary": "When two pieces of code answer the same question, the one that decides the consequence is the authority. cost_basis and resolve_provider both answered \"which provider is this\", and cost_basis answered differently. Because resolve_provider picks the transport that actually gets charged, any disagreement makes cost_basis wrong by construction, not merely inconsistent. The fix was not to add cases to a lookup but to delete the second answer and defer to the first.",
@@ -231,10 +249,11 @@
       "A required field filled with a placeholder passes validation and defeats the check it feeds. upstream_model is validated non-empty and compared by _provenance_mismatch to refuse cross-model gating. The rule kind auto-filled the literal 'not-applicable', which satisfied non-empty while carrying no information, so every rule comparison passed. A placeholder that is grammatically valid and semantically false is worse than a missing field, because the missing field would have raised.",
       "Proving a capability on one input kind does not prove it on the others the same tool declares. The optimizer declares agent, rule, and hook. Running rule for the first time surfaced a dead gate protection immediately. A kind nobody has run is a kind nobody has tested.",
       "A discrimination proof is stronger than a failure demonstration and costs one extra control. Showing the rule pair compared would have proved only that something was permissive; showing the agent pair refused through the same function established that the protection exists and was absent for exactly one kind, which told me which side to fix.",
-      "Correcting a fabricated session log does not correct the episode extracted from it. The commit hook only ever passes --preserve, which unions rather than replaces, so wrong content extracted once is permanent through the automatic path. --force exists and nothing invokes it. A correction mechanism that cannot reach a derived artifact leaves the derived artifact as the surviving copy of the error."
+      "Correcting a fabricated session log does not correct the episode extracted from it. The commit hook only ever passes --preserve, which unions rather than replaces, so wrong content extracted once is permanent through the automatic path. --force exists and nothing invokes it. A correction mechanism that cannot reach a derived artifact leaves the derived artifact as the surviving copy of the error.",
+      "Centralizing a decision does not audit the data the decision reads. cost_basis became the single answer to which provider bills how, and the fix was correct, but the frozenset it consults still omitted two registered transports, so the defect stayed live on the provider the docs recommend most. The durable fix was not the two names, it was the test that pins every registry entry to a declared basis so omission stops being a silent classification."
     ]
   },
-  "endingCommit": "c7154520f",
+  "endingCommit": "b0deadc5f",
   "nextSteps": [
     "Drive PR 4005 to closure and answer any bot review threads.",
     "eval-rule-activation.py has no --provider flag and only honors EVAL_PROVIDER, so it lacks the ergonomics parity the agent script has. Working as designed, but worth filing as a gap.",
