@@ -618,6 +618,171 @@ new file mode 100644
         assert "could not determine push base for new branch" in err
         assert "unshallow" in err
 
+    def test_non_security_noqa_is_not_blocked_by_push_gate(self, tmp_path, monkeypatch):
+        # noqa: E402 is not a security rule; after the regex narrowing it must pass.
+        comment = "# no" "qa: E402"
+        diff = f"""diff --git a/pkg/module.py b/pkg/module.py
+--- a/pkg/module.py
++++ b/pkg/module.py
+@@ -0,0 +1 @@
++import os  {comment}
+"""
+        assert _run_suppression_push(monkeypatch, tmp_path, diff) == 0
+
+    def test_security_noqa_is_still_blocked_by_push_gate(self, tmp_path, monkeypatch, capsys):
+        # A suppression carrying an S-prefixed rule must still be blocked.
+        comment = "# no" "qa: S603"
+        diff = f"""diff --git a/pkg/module.py b/pkg/module.py
+--- a/pkg/module.py
++++ b/pkg/module.py
+@@ -0,0 +1 @@
++subprocess.call(cmd)  {comment}
+"""
+        assert _run_suppression_push(monkeypatch, tmp_path, diff) == 1
+        assert "pkg/module.py:1" in capsys.readouterr().err
+
+    def test_moved_security_noqa_is_allowed(self, tmp_path, monkeypatch):
+        # A noqa: S603 that appears on both a removed and an added line (the line
+        # was refactored but not newly suppressed) must not be flagged.
+        comment = "# no" "qa: S603"
+        diff = f"""diff --git a/pkg/module.py b/pkg/module.py
+--- a/pkg/module.py
++++ b/pkg/module.py
+@@ -5,1 +5,1 @@
+-subprocess.call(cmd)  {comment}
++subprocess.call(cmd, env=env)  {comment}
+"""
+        assert _run_suppression_push(monkeypatch, tmp_path, diff) == 0
+
+    def test_moved_nosemgrep_is_allowed(self, tmp_path, monkeypatch):
+        # A nosemgrep comment that moves (same payload on - and + line) must pass.
+        comment = "# no" "semgrep: python.lang.security.insecure-subprocess-call"
+        diff = f"""diff --git a/pkg/module.py b/pkg/module.py
+--- a/pkg/module.py
++++ b/pkg/module.py
+@@ -10,1 +10,1 @@
+-foo(bar)  {comment}
++foo(bar, extra=True)  {comment}
+"""
+        assert _run_suppression_push(monkeypatch, tmp_path, diff) == 0
+
+    def test_net_new_security_noqa_after_removal_is_still_blocked(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        # One removal + two additions: the first addition consumes the removal
+        # credit; the second is net-new and must be blocked.
+        comment = "# no" "qa: S603"
+        diff = f"""diff --git a/pkg/module.py b/pkg/module.py
+--- a/pkg/module.py
++++ b/pkg/module.py
+@@ -5,1 +5,2 @@
+-subprocess.call(old_cmd)  {comment}
++subprocess.call(new_cmd)  {comment}
++subprocess.call(extra_cmd)  {comment}
+"""
+        assert _run_suppression_push(monkeypatch, tmp_path, diff) == 1
+        assert "pkg/module.py:6" in capsys.readouterr().err
+
+    def test_mixed_noqa_with_security_rule_is_blocked(self, tmp_path, monkeypatch, capsys):
+        # A suppression listing E402, S603 includes a security rule; must be blocked.
+        comment = "# no" "qa: E402, S603"
+        diff = f"""diff --git a/pkg/module.py b/pkg/module.py
+--- a/pkg/module.py
++++ b/pkg/module.py
+@@ -0,0 +1 @@
++import something  {comment}
+"""
+        assert _run_suppression_push(monkeypatch, tmp_path, diff) == 1
+        assert "pkg/module.py:1" in capsys.readouterr().err
+
+    def test_ann_noqa_is_not_blocked(self, tmp_path, monkeypatch):
+        # ANN rules are not security rules; noqa: ANN001 must pass.
+        comment = "# no" "qa: ANN001"
+        diff = f"""diff --git a/pkg/module.py b/pkg/module.py
+--- a/pkg/module.py
++++ b/pkg/module.py
+@@ -0,0 +1 @@
++def fn(x):  {comment}
+"""
+        assert _run_suppression_push(monkeypatch, tmp_path, diff) == 0
+
+
+class _GitStub:
+    """Minimal git subprocess stub for check_staged_suppressions tests."""
+
+    def __init__(
+        self,
+        diff_output: str,
+        *,
+        returncode: int = 0,
+    ) -> None:
+        self._diff_output = diff_output
+        self._returncode = returncode
+
+    def __call__(
+        self, repo: Path, args: list[str]
+    ) -> subprocess.CompletedProcess[str]:
+        import subprocess as _sp  # noqa: PLC0415 (import inside function is intentional)
+
+        return _sp.CompletedProcess(args, self._returncode, self._diff_output, "")
+
+
+class TestStagedSuppressionPolicy:
+    def _run_staged(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        repo_root: Path,
+        diff_output: str,
+        *,
+        git_returncode: int = 0,
+    ) -> int:
+        monkeypatch.setattr(
+            policy,
+            "_run_git",
+            _GitStub(diff_output, returncode=git_returncode),
+        )
+        return policy.check_staged_suppressions(repo_root)
+
+    def test_staged_security_noqa_is_blocked(self, tmp_path, monkeypatch, capsys):
+        comment = "# no" "qa: S603"
+        diff = f"""diff --git a/pkg/module.py b/pkg/module.py
+--- a/pkg/module.py
++++ b/pkg/module.py
+@@ -0,0 +1 @@
++subprocess.call(cmd)  {comment}
+"""
+        rc = self._run_staged(monkeypatch, tmp_path, diff)
+        assert rc == 1
+        assert "pkg/module.py:1" in capsys.readouterr().err
+
+    def test_staged_non_security_noqa_is_not_blocked(self, tmp_path, monkeypatch):
+        comment = "# no" "qa: E402"
+        diff = f"""diff --git a/pkg/module.py b/pkg/module.py
+--- a/pkg/module.py
++++ b/pkg/module.py
+@@ -0,0 +1 @@
++import something  {comment}
+"""
+        assert self._run_staged(monkeypatch, tmp_path, diff) == 0
+
+    def test_empty_staged_diff_passes(self, tmp_path, monkeypatch):
+        assert self._run_staged(monkeypatch, tmp_path, "") == 0
+
+    def test_git_failure_returns_2(self, tmp_path, monkeypatch):
+        assert self._run_staged(monkeypatch, tmp_path, "", git_returncode=1) == 2
+
+    def test_staged_moved_security_noqa_is_allowed(self, tmp_path, monkeypatch):
+        # Same suppression on removed and added line: move, not a new suppression.
+        comment = "# no" "qa: S603"
+        diff = f"""diff --git a/pkg/module.py b/pkg/module.py
+--- a/pkg/module.py
++++ b/pkg/module.py
+@@ -3,1 +3,1 @@
+-old_call()  {comment}
++new_call()  {comment}
+"""
+        assert self._run_staged(monkeypatch, tmp_path, diff) == 0
+
 
 class TestAdrReviewPolicyMergeScope:
     def test_non_merge_adr_without_review_evidence_is_blocked(self, tmp_path, monkeypatch, capsys):
