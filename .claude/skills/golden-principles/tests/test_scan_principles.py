@@ -77,9 +77,7 @@ def test_is_applicable_rejects_non_toolkit_files(tmp_path: Path) -> None:
 def test_path_markers_are_component_anchored(tmp_path: Path) -> None:
     fake_skill = _write(
         tmp_path,
-        "/".join(
-            ("my" + "." + "claude", "skills", "project", "demo", "SKILL.md")
-        ),
+        "/".join(("my" + "." + "claude", "skills", "project", "demo", "SKILL.md")),
         "---\n---\n",
     )
     real_skill = _write(tmp_path, _SKILL_DEMO, "---\n---\n")
@@ -89,11 +87,11 @@ def test_path_markers_are_component_anchored(tmp_path: Path) -> None:
 
 
 def test_applicable_clean_reports_no_violations(tmp_path: Path) -> None:
+    # model: field omitted -- correct default per ADR-080
     skill = _write(
         tmp_path,
         _SKILL_DEMO,
-        "---\nname: demo\nversion: 1.0.0\nmodel: claude-sonnet-4-6\n"
-        "description: demo\nlicense: MIT\n---\nBody.\n",
+        "---\nname: demo\nversion: 1.0.0\ndescription: demo\nlicense: MIT\n---\nBody.\n",
     )
 
     result = _mod.run_scan([skill], _mod.ALL_RULES)
@@ -145,3 +143,110 @@ def test_format_json_includes_applicable_files(tmp_path: Path) -> None:
     assert data["files_scanned"] == 1
     assert data["applicable_files"] == 0
     assert data["violations"] == []
+
+
+# ADR-080: model field optional, rolling alias + rationale required when present.
+
+
+def test_skill_model_omitted_is_valid(tmp_path: Path) -> None:
+    """No model: field is the correct default per ADR-080 (inherit harness)."""
+    skill = _write(
+        tmp_path,
+        _SKILL_DEMO,
+        "---\nname: demo\nversion: 1.0.0\ndescription: demo\nlicense: MIT\n---\n",
+    )
+    result = _mod.run_scan([skill], ["skill-frontmatter"])
+    assert not result.violations
+
+
+def test_skill_model_valid_alias_with_rationale_is_valid(tmp_path: Path) -> None:
+    """Rolling alias + model-rationale: passes GP-003 per ADR-080."""
+    skill = _write(
+        tmp_path,
+        _SKILL_DEMO,
+        (
+            "---\nname: demo\nversion: 1.0.0\ndescription: demo\nlicense: MIT\n"
+            "model: haiku\nmodel-rationale: Cost-sensitive scan.\n---\n"
+        ),
+    )
+    result = _mod.run_scan([skill], ["skill-frontmatter"])
+    assert not result.violations
+
+
+def test_skill_model_versioned_id_fails_adr080(tmp_path: Path) -> None:
+    """Versioned model id (claude-opus-4-6) is forbidden for skills per ADR-080."""
+    skill = _write(
+        tmp_path,
+        _SKILL_DEMO,
+        (
+            "---\nname: demo\nversion: 1.0.0\ndescription: demo\nlicense: MIT\n"
+            "model: claude-sonnet-4-6\n---\n"
+        ),
+    )
+    result = _mod.run_scan([skill], ["skill-frontmatter"])
+    assert len(result.violations) == 1
+    v = result.violations[0]
+    assert v.rule == "skill-frontmatter"
+    assert "ADR-080" in v.message
+    assert "versioned" in v.message
+
+
+def test_skill_model_alias_without_rationale_fails_adr080(tmp_path: Path) -> None:
+    """Rolling alias without model-rationale: is forbidden per ADR-080."""
+    skill = _write(
+        tmp_path,
+        _SKILL_DEMO,
+        ("---\nname: demo\nversion: 1.0.0\ndescription: demo\nlicense: MIT\nmodel: haiku\n---\n"),
+    )
+    result = _mod.run_scan([skill], ["skill-frontmatter"])
+    assert len(result.violations) == 1
+    v = result.violations[0]
+    assert v.rule == "skill-frontmatter"
+    assert "ADR-080" in v.message
+    assert "model-rationale" in v.message
+
+
+def test_skill_model_sonnet_alias_valid_with_rationale(tmp_path: Path) -> None:
+    """sonnet alias with model-rationale: is a valid ADR-080 pin."""
+    skill = _write(
+        tmp_path,
+        _SKILL_DEMO,
+        (
+            "---\nname: demo\nversion: 1.0.0\ndescription: demo\nlicense: MIT\n"
+            "model: sonnet\nmodel-rationale: Requires higher capability.\n---\n"
+        ),
+    )
+    result = _mod.run_scan([skill], ["skill-frontmatter"])
+    assert not result.violations
+
+
+def test_skill_model_unknown_value_fails_adr080(tmp_path: Path) -> None:
+    """Non-alias model value (e.g. gpt-4) fails ADR-080 versioned-id check."""
+    skill = _write(
+        tmp_path,
+        _SKILL_DEMO,
+        ("---\nname: demo\nversion: 1.0.0\ndescription: demo\nlicense: MIT\nmodel: gpt-4\n---\n"),
+    )
+    result = _mod.run_scan([skill], ["skill-frontmatter"])
+    assert len(result.violations) == 1
+    assert "ADR-080" in result.violations[0].message
+
+
+def test_adr080_check_is_isolating_load_bearing(tmp_path: Path) -> None:
+    """Negative control: removing _ALLOWED_MODEL_ALIASES from the check would
+    mean a versioned id no longer raises a violation. This test fails if that
+    validation path is removed.
+    """
+    skill = _write(
+        tmp_path,
+        _SKILL_DEMO,
+        (
+            "---\nname: demo\nversion: 1.0.0\ndescription: demo\nlicense: MIT\n"
+            "model: claude-opus-4-6\n---\n"
+        ),
+    )
+    result = _mod.run_scan([skill], ["skill-frontmatter"])
+    # Must produce exactly one violation citing ADR-080; if zero violations
+    # are returned the ADR-080 check was stripped and the mutation survived.
+    assert result.violations, "ADR-080 versioned-id check must be present and triggered"
+    assert any("ADR-080" in v.message for v in result.violations)
