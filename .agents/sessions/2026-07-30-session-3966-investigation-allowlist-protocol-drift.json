@@ -74,7 +74,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Five commits under the 5-file cap, listed in workLog"
+        "Evidence": "Six commits under the 5-file cap: 2ab0829dc, b11d48df6, 7c6a4ceed, 7bf2e554d, 30cc20b12, plus this session log update"
       },
       "validationPassed": {
         "level": "MUST",
@@ -120,7 +120,7 @@
       "outcome": "python3 build/scripts/build_all.py exit 0; all five canonical and mirror pairs verified byte-identical with diff -q per file rather than trusting the build summary, which undercounts rewrites."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "30cc20b12",
   "nextSteps": [
     "Open the PR and validate the description with scripts/validation/pr_description.py --ci",
     "Root-cause the Memory Health workflow failing on four open PRs with an empty health-report.json"
