@@ -244,7 +244,8 @@ three from post-hoc recovery of a truncated prefix, and seven get two.
 
 The full accounting and the confounds it creates for the table above are in
 `rule-audit-evidence.md`. Read it before citing a cell from this table. The
-defects found in the verdict-parsing code, across twenty-three review rounds,
+defects found in the verdict-parsing code, across more than twenty review
+rounds,
 are in `rule-audit-parser-forensics.md`. Each one's cost against this table was
 measurable, because this run's archive stores the raw judge payload for all 288
 samples, successes included, so a defect on the success path can be replayed

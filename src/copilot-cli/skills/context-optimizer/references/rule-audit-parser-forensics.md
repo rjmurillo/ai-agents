@@ -1,4 +1,4 @@
-# Rule Audit Parser Forensics: twenty-three rounds against one judge parser
+# Rule Audit Parser Forensics: many rounds against one judge parser
 
 Companion to `rule-audit-evidence.md`, which carries the published table and
 the sample-recovery provenance behind it. This document is the repair history

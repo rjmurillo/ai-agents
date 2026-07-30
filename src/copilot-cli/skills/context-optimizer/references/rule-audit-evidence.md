@@ -2,7 +2,7 @@
 
 Companion to `rule-audit-procedure.md`. That document is the procedure and
 carries the published table; this one carries the forensics behind it: which
-judge samples were lost, what recovering them changed, and what twenty-three rounds
+judge samples were lost, what recovering them changed, and what more than twenty rounds
 of adversarial review found in the verdict-parsing code.
 
 Read this before citing a number from the procedure document, and before
@@ -73,7 +73,7 @@ though the verbosity gap is real: Opus payloads average 456 characters against
 Sol's 213. It is inline quotation and the escaping of it. Opus attempts a
 quoted phrase inside `reasoning` in 28 of its 144 payloads (19.4%) against
 Sol's 6 of 144 (4.2%), and escapes it correctly in 4 of those 28 (14%) against
-Sol's 6 of 6 (100%). So Opus reaches for the construct four times as often and
+Sol's 6 of 6 (100%). So Opus reaches for the construct about 4.7 times as often and
 then mostly gets it wrong, which is a sharper statement than "verbose models
 trip it more often" and is measured against both populations rather than one.
 
@@ -109,10 +109,11 @@ State the limit plainly. The extractor was written after seeing which samples
 failed, so this is post-hoc recovery, not independent replication. Recovering
 *every* failure rather than a chosen subset avoids outcome selection.
 
-## The instrument that produced this table was reviewed across 23 rounds
+## The instrument that produced this table was reviewed across many rounds
 
 Every number above comes out of one parser. That parser has been under
-adversarial review for twenty-three rounds, and the rounds keep finding defects,
+adversarial review for more than twenty rounds, and the rounds keep finding
+defects,
 so its repair history is evidence about the table as much as the table is.
 `rule-audit-parser-forensics.md` carries the round-by-round record: what each
 round found, what it cost, and which fixes were themselves wrong. Read it

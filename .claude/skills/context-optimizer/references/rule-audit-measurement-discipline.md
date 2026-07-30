@@ -24,7 +24,7 @@ error.
 
 ## A number needs the population it was read off
 
-Three separate figures in this audit were wrong not because the count was
+Several figures in this audit were wrong not because the count was
 miscomputed but because it was computed over the wrong set.
 
 A claim that "1732 nested reasoning values name no score field" walked the
@@ -50,6 +50,14 @@ the population at the same time hides that the first figure was right.
 The general form: quote a delta against two named revisions, not against a
 moving ref. `origin/main` is a different set of commits on Tuesday.
 
+The same instability afflicts running totals written into prose. Several
+documents here carried a review-round count that was accurate when written and
+silently wrong one round later, and nothing failed when it went stale. A total
+that increments while the document sits on disk is a maintenance liability, and
+the cheap repair is to write the bound the reader actually needs, more than
+twenty rounds, rather than a precise figure that has to be chased. Reserve
+exact counts for populations that are closed.
+
 The shared shape is a detector applied to a set that could not have contained
 the thing being counted. Before quoting a figure, state the denominator out
 loud and check that the detector can see a member of it.
@@ -71,8 +79,11 @@ matches only `--- /dev/null`, so a brand-new file always reports clean no
 matter what was removed from it since. That happened here: a deletion audit run
 as `git diff origin/main -- <path>` on a file created on the branch reported
 zero removals by construction, and the reassurance it produced was worth
-nothing. Assert the baseline first with `git cat-file -e "$base:$path"`, and
-compare against the branch tip rather than the trunk when the file is new.
+nothing. Assert the baseline first, and assert it precisely: `git cat-file -e`
+succeeds on a directory as well as a file, so a truncated path passes the check
+and then produces a broad, reassuring directory diff. Require the type,
+`test "$(git cat-file -t "$base:$path")" = blob`, and compare against the
+branch tip rather than the trunk when the file is new.
 
 A rename produces the same vacuum for the same reason, and the guard catches
 it: `cat-file` reports the new path absent from the base even though the
