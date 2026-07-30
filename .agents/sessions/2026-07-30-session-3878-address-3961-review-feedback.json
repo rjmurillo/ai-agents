@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All three intended files staged for one atomic PR autofix commit"
+        "Evidence": "Fix commit 89358b55b and concurrent-work merge commit a104d29c8"
       },
       "validationPassed": {
         "level": "MUST",
@@ -127,7 +127,7 @@
       "outcome": "Independent reviewer found no blockers. Ruff and full pre-PR validation passed."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "a104d29c82de9924b87a694e74506071ef152282",
   "nextSteps": [
     "Push the autofix commit to feat/guard-operator-iterator-resolution.",
     "Reply to and resolve the three review threads.",
