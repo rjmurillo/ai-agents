@@ -85,6 +85,26 @@ if [ "$ACTION" = "SKIP" ]; then
     continue
 fi
 # ACTION == "ACT": proceed with the tier's planned action set.
+
+# Step 3: Auto-merge disarm gate (BLOCKING, issue #3913).
+# If the PR has auto-merge armed but is not T1-ready, a conflict refresh or CI
+# fix push could immediately land a PR whose readiness was never explicitly
+# verified in this session.  Disable auto-merge now, before any commit or push.
+TIER=$(echo "$LIVE" | jq -r '.Data.tier // "UNKNOWN"')
+CTX=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request "$PR" \
+    --output-format json 2>/dev/null)
+AUTO_MERGE=$(echo "$CTX" | jq -r '.Data.auto_merge_method // "null"')
+if [ "$AUTO_MERGE" != "null" ] && [ "$TIER" != "T1" ]; then
+    echo "Auto-merge armed on non-T1 PR #$PR (method: $AUTO_MERGE); disabling before acting."
+    python3 "$SCRIPTS_DIR/set_pr_auto_merge.py" \
+        --pull-request "$PR" --disable --output-format json || {
+        echo "Failed to disable auto-merge on #$PR; skipping to avoid unguarded merge."
+        python3 "$SCRIPTS_DIR/pr_autofix_lease.py" release \
+            --pull-request "$PR" --session "$SESSION_ID" --output-format json || true
+        continue
+    }
+fi
+
 # Release the lease after all per-PR work (push + post-push CI wait + merge).
 # Pattern:
 #   ... (tier actions) ...
@@ -333,6 +353,7 @@ Per PR processed:
 - [ ] Lease acquired before per-PR action (issue #3413): `pr_autofix_lease.py acquire --pull-request $PR --session $SESSION_ID`. Exit 1 = SKIP (another agent holds it); exit 0 = ACT. Lease released after PR work completes or on live-state SKIP.
 - [ ] Tier classification recorded (T1-T5).
 - [ ] Per-PR live-state gate ran immediately before the tier's action (issue #2455): `check_pr_live_state.py --pull-request $PR --skip-fetch --output-format json`. Verdict `Data.action=ACT` recorded; `Data.action=SKIP` aborted the action and recorded the reason (merged, closed, draft, or fully superseded by base).
+- [ ] Auto-merge disarm ran after live-state ACT on any non-T1 PR (issue #3913): `auto_merge_method` was null or `set_pr_auto_merge.py --disable` succeeded and returned `AutoMergeEnabled: false` before any push.
 - [ ] All required CI checks pass (T2/T4 only).
 - [ ] Every review thread is READ, TRIAGED, SOLVED (if Blocking), REPLIED with course of action, and RESOLVED (T3/T4 only).
 - [ ] `mergeStateStatus` is `CLEAN` (or `UNSTABLE` with documented non-required failures).
