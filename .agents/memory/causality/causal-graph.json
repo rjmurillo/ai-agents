@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-28T05:18:53.542312+00:00",
+  "updated": "2026-07-30T00:34:31.313870+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -23320,6 +23320,60 @@
         "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
       ],
       "created": "2026-07-28T05:06:51.357047+00:00"
+    },
+    {
+      "id": "c415346cb412",
+      "type": "milestone",
+      "label": "milestone: Read issue #3868, lefthook pre-push configuration, git_hook_policy.py, and existing lefthook integration tests.",
+      "episodes": [
+        "episode-2026-07-30-session-3608"
+      ],
+      "created": "2026-07-30T00:34:31.295310+00:00"
+    },
+    {
+      "id": "a9c4fea9921a",
+      "type": "milestone",
+      "label": "milestone: Added failing tests for unresolved merge, resolved uncommitted merge, rebase/cherry-pick state names, and clean tree behavior.",
+      "episodes": [
+        "episode-2026-07-30-session-3608"
+      ],
+      "created": "2026-07-30T00:34:31.295635+00:00"
+    },
+    {
+      "id": "4cbca94c8ed7",
+      "type": "milestone",
+      "label": "milestone: Implemented check_active_git_operation before the pre-push branch/history checks.",
+      "episodes": [
+        "episode-2026-07-30-session-3608"
+      ],
+      "created": "2026-07-30T00:34:31.295923+00:00"
+    },
+    {
+      "id": "767f5b791468",
+      "type": "milestone",
+      "label": "milestone: Committed fix(hooks): block active git operations before pre-push and ran full validation locally.",
+      "episodes": [
+        "episode-2026-07-30-session-3608"
+      ],
+      "created": "2026-07-30T00:34:31.296218+00:00"
+    },
+    {
+      "id": "f59c86659f46",
+      "type": "commit",
+      "label": "commit: Commit: 75d643fb",
+      "episodes": [
+        "episode-2026-07-30-session-3608"
+      ],
+      "created": "2026-07-30T00:34:31.296509+00:00"
+    },
+    {
+      "id": "e6c5fb0b5682",
+      "type": "outcome",
+      "label": "Outcome: success - Fix issue 3868 active Git operation pre-push guard",
+      "episodes": [
+        "episode-2026-07-30-session-3608"
+      ],
+      "created": "2026-07-30T00:34:31.296800+00:00"
     }
   ],
   "patterns": [
