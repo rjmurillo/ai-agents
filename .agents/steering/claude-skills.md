@@ -86,7 +86,7 @@ A skill has one purpose. Signs of scope explosion:
 | Signal | Threshold | Action |
 |--------|-----------|--------|
 | File count in PR | > 10 files | Split into separate PRs |
-| Commit count | > 20 commits | Squash or split |
+| Commit count | > active limit (20 default, 40 after qualifying base merge) | Squash or split |
 | Memory file changes | > 0 memory files | Move to separate PR |
 | Multiple unrelated features | > 1 feature | One skill, one PR |
 

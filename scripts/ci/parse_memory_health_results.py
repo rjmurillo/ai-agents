@@ -2,24 +2,22 @@
 """Parse memory health report results into GitHub Actions step outputs.
 
 Extracted from ``.github/workflows/memory-health.yml`` under ADR-006 (no logic
-in workflow YAML). Issue #3541.
+in workflow YAML). Issue #3541, reworked for issue #3971.
 
-Reads the schema that ``scripts/memory_enhancement/__main__.py::_cmd_health``
-actually emits. The original version read a ``summary`` object with ``total``,
-``healthy``, ``stale``, ``exempt``, and ``errors``. That shape belonged to an
-implementation deleted in ``2aeb4fddd``; the surviving one emits flat
-top-level keys and no ``summary`` at all, so every field rendered as ``null``
-and ``has_stale`` was permanently ``false`` (issue #3971).
+This reads the schema ``memory_enhancement health --json`` actually emits, a
+flat object produced by ``_cmd_health`` in ``scripts/memory_enhancement``. An
+earlier revision read a ``summary`` object belonging to the implementation
+deleted in ``2aeb4fddd``; every field it asked for rendered as ``null`` and the
+workflow reported a permanent green Pass.
 
-Two behaviours from the shell this originally replaced are load-bearing and
-still preserved:
+A missing, empty, or unparseable report means the health command crashed. That
+is reported as an error rather than defaulting to a green banner, matching the
+sibling ``memory-validation.yml`` contract established by issue #2808. The
+producing workflow steps set ``continue-on-error``, so a crash there is silent
+and this script is the only place it can become visible.
 
-* A missing report is not a failure. It emits ``has_stale=false`` and
-  ``total_memories=0`` and nothing else, so the downstream comment step still
-  runs.
-* A stale count that is not an integer reads as "not stale" rather than
-  crashing. In shell, ``[ "null" -gt 0 ]`` errored and the ``if`` took its
-  else branch; the same outcome is produced here.
+``has_issues`` mirrors the producer's own exit-code predicate so the banner and
+the command agree on what "unhealthy" means.
 """
 
 from __future__ import annotations
@@ -30,17 +28,75 @@ import os
 import sys
 from pathlib import Path
 
-# The keys ``_cmd_health`` emits that the PR comment renders. Kept as a tuple
-# so a regression test can assert it is a subset of the producer's output.
-_REPORT_FIELDS = (
+#: Integer counters copied straight through from the report.
+COUNT_FIELDS = (
     "total_memories",
     "total_citations",
     "valid_citations",
     "stale_citations",
     "broken_citations",
     "unverified_citations",
-    "health_score",
 )
+
+#: List-valued fields surfaced to the workflow as lengths.
+LENGTH_FIELDS = ("stale_memories", "recommendations")
+
+
+def _coerce_count(value: object) -> int:
+    """Return a non-negative integer for a report counter."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"expected an integer counter, got {value!r}")
+    if value < 0:
+        raise ValueError(f"expected a non-negative counter, got {value!r}")
+    return value
+
+
+def _coerce_length(value: object) -> int:
+    """Return the length of a list-valued report field."""
+    if not isinstance(value, list):
+        raise ValueError(f"expected a list, got {value!r}")
+    return len(value)
+
+
+def _render_score(value: object) -> str:
+    """Render a 0..1 ``health_score`` as a whole-number percentage."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"expected a numeric health score, got {value!r}")
+    if not 0.0 <= value <= 1.0:
+        raise ValueError(f"expected health_score between 0.0 and 1.0, got {value!r}")
+    return f"{round(value * 100)}%"
+
+
+def parse_report(payload: object) -> list[tuple[str, str]]:
+    """Return the step outputs for a decoded health report.
+
+    Raises ``ValueError`` when the payload is not the shape ``_cmd_health``
+    emits. A shape mismatch means the producer and this consumer have drifted
+    apart, which is the failure issue #3971 was filed for, so it must not be
+    absorbed into a default.
+    """
+    if not isinstance(payload, dict):
+        raise ValueError(f"expected a JSON object, got {type(payload).__name__}")
+
+    required = (*COUNT_FIELDS, *LENGTH_FIELDS, "health_score")
+    missing = [key for key in required if key not in payload]
+    if missing:
+        raise ValueError(f"report is missing expected keys: {', '.join(missing)}")
+
+    counts = {field: _coerce_count(payload[field]) for field in COUNT_FIELDS}
+    lengths = {field: _coerce_length(payload[field]) for field in LENGTH_FIELDS}
+
+    pairs = [(field, str(counts[field])) for field in COUNT_FIELDS]
+    pairs.extend((field, str(lengths[field])) for field in LENGTH_FIELDS)
+    pairs.append(("health_score", _render_score(payload["health_score"])))
+
+    has_issues = (
+        counts["broken_citations"] > 0
+        or counts["stale_citations"] > 0
+        or lengths["stale_memories"] > 0
+    )
+    pairs.append(("has_issues", "true" if has_issues else "false"))
+    return pairs
 
 
 def _write_outputs(pairs: list[tuple[str, str]], output_path: str | None) -> None:
@@ -54,63 +110,6 @@ def _write_outputs(pairs: list[tuple[str, str]], output_path: str | None) -> Non
             handle.write(f"{key}={value}\n")
 
 
-def _is_stale(value: object) -> bool:
-    """Report whether a stale count is a positive integer.
-
-    ``jq`` emits ``null`` for a missing key and the shell comparison that
-    consumed it failed rather than raising, so anything non-integral is
-    treated as "not stale".
-    """
-    if isinstance(value, bool) or not isinstance(value, int):
-        return False
-    return value > 0
-
-
-def parse_results(results: Path) -> list[tuple[str, str]]:
-    """Return the step outputs for a health report, present or not."""
-    if not results.is_file():
-        return [("has_stale", "false"), ("total_memories", "0")]
-
-    payload = json.loads(results.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        # A report that is an array or a scalar reads as absent, not fatal,
-        # so a malformed report never blocks the comment step.
-        payload = {}
-    pairs = [(field, _render(payload.get(field))) for field in _REPORT_FIELDS]
-    stale_memories = _count(payload.get("stale_memories"))
-    pairs.append(("stale_memory_count", _render(stale_memories)))
-    pairs.append(("has_stale", "true" if _has_issues(payload) else "false"))
-    return pairs
-
-
-def _has_issues(payload: dict[str, object]) -> bool:
-    """Mirror the producer's own issue test so the comment matches the exit code.
-
-    ``_cmd_health`` returns 1 when broken citations, stale citations, or stale
-    memories are present. Reading only the citation counts would report Pass on
-    a corpus the tool itself considers unhealthy.
-    """
-    return (
-        _is_stale(payload.get("broken_citations"))
-        or _is_stale(payload.get("stale_citations"))
-        or _count(payload.get("stale_memories")) > 0
-    )
-
-
-def _count(value: object) -> int:
-    """Return the length of a list field, or zero for any other shape."""
-    return len(value) if isinstance(value, list) else 0
-
-
-def _render(value: object) -> str:
-    """Render a report value the way ``jq`` rendered it for the shell."""
-    if value is None:
-        return "null"
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    return str(value)
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -121,10 +120,26 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     results = Path(args.results)
+    if not results.is_file() or results.stat().st_size == 0:
+        print(
+            f"::error::{results.name} is missing or empty, so the health command "
+            "crashed. Refusing to report a passing health check."
+        )
+        return 1
+
     try:
-        pairs = parse_results(results)
+        payload = json.loads(results.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as exc:
         print(f"::error::Could not read {results.name}: {exc}")
+        return 1
+
+    try:
+        pairs = parse_report(payload)
+    except ValueError as exc:
+        print(
+            f"::error::{results.name} does not match the schema emitted by "
+            f"'memory_enhancement health --json': {exc}"
+        )
         return 1
 
     _write_outputs(pairs, os.environ.get("GITHUB_OUTPUT"))
