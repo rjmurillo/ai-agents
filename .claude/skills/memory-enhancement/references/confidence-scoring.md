@@ -82,9 +82,10 @@ Three failure modes to keep in mind:
 
 1. **A high score can mean no data.** Zero citations gives `validity = 1.0`.
    Check the citation count before treating a high score as verification.
-2. **Recency dominates early.** A memory written today starts at 0.75 before
-   any citation or link is considered. Age alone will pull it down over 90
-   days with no content change.
+2. **Recency dominates early.** A memory written today with no citations and
+   no links starts at about 0.85 (measured 0.848: validity 1.0, recency and
+   freshness near 1.0, links 0.0). Age alone pulls it down with no content
+   change.
 3. **Link count is gameable.** Ten links maxes the link factor regardless of
    whether the targets exist. Graph traversal (`graph --start ID`) checks
    reachability; the confidence score does not.
@@ -183,8 +184,10 @@ Exit code 1 means at least one citation no longer resolves.
 python -m memory_enhancement health --json
 ```
 
-The report names broken citations and stale memories directly. That is more
-actionable than a blended score, because it tells you which line to fix.
+The report carries counts (total, valid, stale, broken, unverified), the ids of
+stale memories, and recommendations. It does not name individual citations. To
+see which citation failed and why, run `verify --memory-id ID` or `verify-all
+--json`, which report per-citation status and reason.
 
 ### 4. Link Deliberately
 
@@ -217,10 +220,13 @@ broken one costs 1/N of the validity factor.
 
 ### 6. Do Not Chase 1.0
 
-The maximum is unreachable for an aging memory: after 90 days without an
-update, the recency factor is 0 and the ceiling drops to 0.75. A stable,
-correct memory is supposed to decay on this scale. Decay is a prompt to
-re-verify, not evidence of a defect.
+The maximum is unreachable for an aging memory. After 90 days without an
+update the recency factor is 0, which caps the score at about 0.73 even with
+every citation valid and ten links. Past a year the freshness factor also
+reaches 0 and the ceiling settles at 0.65 (measured: a 210-day memory with ten
+links and a valid citation scores 0.6923). A stable, correct memory is
+supposed to decay on this scale. Decay is a prompt to re-verify, not evidence
+of a defect.
 
 ## Summary
 
@@ -231,3 +237,5 @@ re-verify, not evidence of a defect.
 3. The `confidence` subcommand prints and never writes.
 4. `verify` and `health` tell you what is actually broken; use them to act.
 5. Citations and links must be inline in the body to be parsed at all.
+
+<!-- vendor-portability: declared. This guide cites scripts/memory_enhancement/confidence.py, reflection.py, and hooks/session_end_memory.py as the source of truth for the weights and the persistence path. Those paths live outside the plugin root and are absent from a vendored install. They are read-only citations that let a maintainer in this repository re-derive every number here; the guide is complete without them. Issue #2050. -->
