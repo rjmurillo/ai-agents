@@ -74,6 +74,12 @@ zero removals by construction, and the reassurance it produced was worth
 nothing. Assert the baseline first with `git cat-file -e "$base:$path"`, and
 compare against the branch tip rather than the trunk when the file is new.
 
+A rename produces the same vacuum for the same reason, and the guard catches
+it: `cat-file` reports the new path absent from the base even though the
+content is there under the old name. The remedy is not to give up but to name
+both paths and enable rename detection, `git diff -M "$base" -- old new`, which
+restores the deleted lines the single-path form hid.
+
 Even with the right base, a deleted-line grep proves only that some line went
 missing, not that a particular structural anchor survived. The stronger check
 is the invariant that owns the anchor: pytest collection for a test, the
