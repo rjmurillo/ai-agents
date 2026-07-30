@@ -124,6 +124,11 @@ def _parse_record(line: str) -> RunRecord | None:
     if not line:
         return None
     payload = json.loads(line)
+    if not isinstance(payload, dict):
+        raise MalformedRunRecordError(
+            f"record does not describe a run: top-level JSON is "
+            f"{type(payload).__name__}, expected object"
+        )
     schema_version = payload.pop("schemaVersion", None)
     if schema_version not in SUPPORTED_RUN_RECORD_SCHEMA_VERSIONS:
         raise SchemaVersionError(
@@ -134,7 +139,13 @@ def _parse_record(line: str) -> RunRecord | None:
     payload.setdefault("system_fingerprint", None)
     payload.setdefault("seed", None)
     try:
-        raw_assertions = payload.get("assertions", []) or []
+        raw_assertions = payload.get("assertions", [])
+        if not isinstance(raw_assertions, list):
+            # Explicit, because iteration would silently accept "" and {}
+            # as zero assertions instead of naming the corrupt shape.
+            raise TypeError(
+                f"assertions is {type(raw_assertions).__name__}, expected list"
+            )
         payload["assertions"] = [
             AssertionResult(
                 kind=AssertionKind(a["kind"]),

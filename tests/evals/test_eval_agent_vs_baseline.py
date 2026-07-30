@@ -1112,6 +1112,16 @@ class TestParseRecordShapeGuard:
         """Control: the early return must survive the added guard."""
         assert persistence_mod._parse_record("   \n") is None
 
+    @pytest.mark.parametrize("line", ["[]", '"x"', "1", "null", "true"])
+    def test_a_non_object_top_level_raises_malformed(self, line):
+        """Valid JSON that is not an object is a corrupt record, not a crash.
+
+        Before the guard, `payload.pop` raised a bare `AttributeError` that
+        bypassed the EXIT_CONFIG mapping.
+        """
+        with pytest.raises(MalformedRunRecordError):
+            persistence_mod._parse_record(line)
+
     @pytest.mark.parametrize(
         "mutate, leaked",
         [
@@ -1123,6 +1133,13 @@ class TestParseRecordShapeGuard:
             (lambda p: p["assertions"][0].pop("kind"), "KeyError"),
             (lambda p: p.update({"assertions": {"a": 1}}), "TypeError"),
             (lambda p: p.update({"assertions": ["not-a-dict"]}), "TypeError"),
+            # Falsy non-list shapes: `or []` used to coerce these to zero
+            # assertions silently instead of naming the corrupt shape.
+            (lambda p: p.update({"assertions": ""}), "TypeError"),
+            (lambda p: p.update({"assertions": {}}), "TypeError"),
+            (lambda p: p.update({"assertions": 0}), "TypeError"),
+            (lambda p: p.update({"assertions": False}), "TypeError"),
+            (lambda p: p.update({"assertions": None}), "TypeError"),
             (lambda p: p.update({"surprise": 1}), "TypeError"),
             (lambda p: p.pop("fixture_id"), "TypeError"),
         ],
