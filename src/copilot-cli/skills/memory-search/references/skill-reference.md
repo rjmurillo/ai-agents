@@ -391,9 +391,9 @@ The memory skill includes additional scripts beyond search_memory.py. See the fu
 
 | Script | Purpose | Documentation |
 |--------|---------|---------------|
-| check_memory_health.py | System health check | [SKILL.md](.claude/skills/memory/SKILL.md) |
-| extract_session_episode.py | Episode extraction | [SKILL.md](.claude/skills/memory/SKILL.md) |
-| measure_memory_performance.py | Benchmarking | [SKILL.md](.claude/skills/memory/SKILL.md) |
+| test_memory_health.py | System health check | [SKILL.md](../../memory/SKILL.md) |
+| extract_session_episode.py | Episode extraction | [SKILL.md](../../memory/SKILL.md) |
+| measure_memory_performance.py | Benchmarking | [SKILL.md](../../memory/SKILL.md) |
 
 **Module Functions** (reflexion_memory module):
 
