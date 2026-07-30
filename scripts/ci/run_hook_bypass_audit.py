@@ -51,6 +51,9 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
     try:
+        # The detector inherits this process's stdout. Flush first so our own
+        # buffered output cannot land after the child's in a piped CI log.
+        sys.stdout.flush()
         result = subprocess.run(
             [
                 sys.executable,
