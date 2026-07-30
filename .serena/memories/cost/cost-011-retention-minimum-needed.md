@@ -53,7 +53,7 @@
 **Pattern**:
 ```yaml
 - name: Upload Test Results
-  uses: actions/upload-artifact@v4
+  uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
   with:
     name: test-results
     retention-days: 7  # Explicit, not default

@@ -15,7 +15,7 @@
 - Artifact is only useful when workflow fails
 
 **Evidence**:
-- ADR-015 Artifact Storage Minimization establishes the minimise-artifacts
+- ADR-015 Artifact Storage Minimization establishes the minimize-artifacts
   posture this follows. No ADR mandates the failure condition itself, so this
   is a practice, not a rule.
 - Repository practice: no workflow currently gates an upload on `failure()`
@@ -46,7 +46,7 @@
 ```yaml
 - name: Upload Debug Logs
   # Debug-only artifact; skip the upload on success to avoid storing noise
-  uses: actions/upload-artifact@v4
+  uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
   if: failure()
   with:
     name: debug-logs-${{ github.run_id }}
@@ -60,6 +60,6 @@
 ```yaml
 # WRONG: Always uploads regardless of success
 - name: Upload Debug Logs
-  uses: actions/upload-artifact@v4
+  uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
   if: always()  # Wastes storage on 90% of runs
 ```

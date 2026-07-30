@@ -48,7 +48,7 @@ SHOULD for the rest, which no authority mandates
 **Anti-Pattern**:
 ```yaml
 # WRONG: unexplained, and 90-day retention on CI output
-- uses: actions/upload-artifact@v4
+- uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
   with:
     name: logs
     path: logs/
@@ -59,7 +59,7 @@ SHOULD for the rest, which no authority mandates
 ```yaml
 # ADR-015: Test results justified for CI visibility
 # 7-day retention aligns with PR merge cycle
-- uses: actions/upload-artifact@v4
+- uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
   if: always()
   with:
     name: test-results
