@@ -119,6 +119,6 @@
       "description": "Invoked /adr-review skill: trivial one-line doc fix replacing deleted consistency.py reference with pre_pr.py in SESSION-PROTOCOL.md line 720; no semantic protocol change (issue #3818)"
     }
   ],
-  "endingCommit": "e21f549a6",
+  "endingCommit": "dca2a31fe",
   "nextSteps": []
 }
