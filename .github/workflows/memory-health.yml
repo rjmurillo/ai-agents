@@ -183,9 +183,11 @@ jobs:
       - name: Set job status
         if: steps.parse.outputs.has_issues == 'true'
         env:
-          STALE_COUNT: ${{ steps.parse.outputs.stale_memories }}
+          STALE_MEMORIES: ${{ steps.parse.outputs.stale_memories }}
+          BROKEN_CITATIONS: ${{ steps.parse.outputs.broken_citations }}
+          STALE_CITATIONS: ${{ steps.parse.outputs.stale_citations }}
         run: |
-          echo "::warning::Found $STALE_COUNT memories with stale citations"
+          echo "::warning::Memory health issues: $STALE_MEMORIES stale memories, $BROKEN_CITATIONS broken citations, $STALE_CITATIONS stale citations"
 
   skip-health-check:
     name: Skip health check (no changes)

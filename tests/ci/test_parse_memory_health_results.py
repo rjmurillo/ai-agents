@@ -438,6 +438,13 @@ class TestWorkflowWiring:
         text = MEMORY_HEALTH_YML.read_text(encoding="utf-8")
         assert ".claude/skills/memory-enhancement/src" not in text
 
+    def test_job_warning_reports_every_issue_count(self) -> None:
+        """Edge: a single issue type must not produce a misleading warning."""
+        text = MEMORY_HEALTH_YML.read_text(encoding="utf-8")
+        for output in ("stale_memories", "broken_citations", "stale_citations"):
+            assert f"steps.parse.outputs.{output}" in text
+            assert output.replace("_", " ") in text
+
     def test_path_filters_point_at_paths_that_exist(self) -> None:
         """Negative: a filter on a deleted directory can never match."""
         text = MEMORY_HEALTH_YML.read_text(encoding="utf-8")
