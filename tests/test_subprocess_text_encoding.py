@@ -1298,7 +1298,29 @@ def _names_other_key(parent: ast.Subscript) -> bool:
     return isinstance(key, ast.Constant) and key.value != _ENCODING
 
 
-def _spares_pin(node: ast.AST, parent: ast.AST | None, literal: bool) -> bool:
+def _rebound_builtins(
+    tree: ast.Module, bindings: list[tuple[str, ast.expr]]
+) -> frozenset[str]:
+    """Name every mapping reader the file binds for itself.
+
+    ``def len(mapping): mapping["encoding"] = None`` reads at the call site
+    exactly as the builtin does and runs as a mutation. The trusted sets are
+    spellings, not resolutions, so a file that defines or imports one of
+    those spellings can redefine its way past the scan.
+
+    Answered for the whole file rather than per scope. A reader shadowed
+    anywhere is treated as shadowed throughout, which errs toward flagging.
+    """
+    found = {name for name, _ in bindings} | _imported_names(tree)
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            found.add(node.name)
+    return frozenset(found & (_MAPPING_READERS | _RENDERING_READERS))
+
+
+def _spares_pin(
+    node: ast.AST, parent: ast.AST | None, literal: bool, shadowed: frozenset[str]
+) -> bool:
     """Report whether the keywords mapping at *node* leaves its codec standing.
 
     Six shapes are provably harmless: a dict method that reaches only the
@@ -1313,6 +1335,9 @@ def _spares_pin(node: ast.AST, parent: ast.AST | None, literal: bool) -> bool:
     *literal* is what separates a look from a leak. Rendering or comparing a
     mapping reaches its values, so a value carrying its own ``__repr__`` or
     ``__eq__`` runs code that can drop the pin. Literals cannot.
+
+    *shadowed* names the readers the file binds for itself. Those resolve to
+    the file's own code, so none of them is spared.
     """
     if isinstance(parent, ast.Attribute):
         return parent.attr in _KEY_READERS or (
@@ -1325,7 +1350,7 @@ def _spares_pin(node: ast.AST, parent: ast.AST | None, literal: bool) -> bool:
     if isinstance(parent, ast.keyword):
         return parent.arg is None
     if isinstance(parent, ast.Call):
-        if not isinstance(parent.func, ast.Name):
+        if not isinstance(parent.func, ast.Name) or parent.func.id in shadowed:
             return False
         return parent.func.id in _MAPPING_READERS or (
             literal and parent.func.id in _RENDERING_READERS
@@ -1412,7 +1437,10 @@ def _keyword_mapping(node: ast.AST) -> ast.expr | None:
 
 
 def _undone_pins(
-    tree: ast.AST, roots: dict[str, str], literal_roots: frozenset[str]
+    tree: ast.AST,
+    roots: dict[str, str],
+    literal_roots: frozenset[str],
+    shadowed: frozenset[str],
 ) -> set[str]:
     """Return the partials whose bound codec the source can undo.
 
@@ -1439,7 +1467,7 @@ def _undone_pins(
             continue
         name = _owner_name(owner)
         root = roots.get(name) if name is not None else None
-        if _spares_pin(node, parents.get(id(node)), root in literal_roots):
+        if _spares_pin(node, parents.get(id(node)), root in literal_roots, shadowed):
             continue
         if root is not None:
             undone.add(root)
@@ -1733,7 +1761,12 @@ def _subprocess_names(tree: ast.Module) -> _Names:
                 # name ``get``, because that is the only Name node in it.
                 queue.extend(dependents.get(name[: -len(_CALL_SUFFIX)], ()))
     roots = _partial_roots(bindings, functions)
-    undone = _undone_pins(tree, roots, _literal_roots(bindings, functions, roots))
+    undone = _undone_pins(
+        tree,
+        roots,
+        _literal_roots(bindings, functions, roots),
+        _rebound_builtins(tree, bindings),
+    )
     return _Names(
         modules,
         functions,
@@ -3879,6 +3912,39 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'import subprocess.run as runner\n'
             'runner(["x"], text=True)',
             "a plain import rebinds the name the same way a from-import does",
+        ),
+        (
+            'import functools, subprocess\n'
+            'def len(mapping):\n'
+            '    mapping["encoding"] = None\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'len(runner.keywords)\n'
+            'runner(["x"], text=True)',
+            "a file that defines its own len is not handing the mapping to the builtin",
+        ),
+        (
+            'import functools, subprocess\n'
+            'def repr(mapping):\n'
+            '    mapping["encoding"] = None\n'
+            '    return ""\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'seen = repr(runner.keywords)\n'
+            'runner(["x"], text=True)',
+            "a shadowed renderer runs the file's code, literal values or not",
+        ),
+        (
+            'import functools, subprocess\n'
+            'from helpers import sorted\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'seen = sorted(runner.keywords)\n'
+            'runner(["x"], text=True)',
+            "an imported name shadows the builtin as thoroughly as a def does",
         ),
     ],
 )
