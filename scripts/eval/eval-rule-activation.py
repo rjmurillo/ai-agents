@@ -550,12 +550,21 @@ _SCORE_RANGE = range(1, 6)
 
 _JSON_INT_RE = re.compile(r"-?(?:0|[1-9][0-9]*)\Z")
 
-# A score field spelled as a JSON key: quoted, or quoted with the quotes
-# escaped because the object was itself serialized into a string. Counting
-# this shape rather than the bare identifier is what lets ordinary prose name
-# a field without being mistaken for a second verdict.
+# A score field spelled as a JSON key: quoted, quoted with the quotes escaped
+# because the object was itself serialized into a string, or single-quoted
+# because the judge emitted the JSON5/Python dialect that lenient decoders
+# accept. Counting this shape rather than the bare identifier is what lets
+# ordinary prose name a field without being mistaken for a second verdict.
+# Each spelling pairs its own quotes, so a mismatched pair is not a key.
 _KEY_SHAPED_SCORE_FIELDS = tuple(
-    re.compile(r'(?:"|\\")' + re.escape(field) + r'(?:"|\\")\s*:') for field in _SCORE_FIELDS
+    re.compile(
+        "(?:"
+        + '"' + re.escape(field) + '"'
+        + "|" + r"\\\"" + re.escape(field) + r"\\\""
+        + "|" + "'" + re.escape(field) + "'"
+        + r")\s*:"
+    )
+    for field in _SCORE_FIELDS
 )
 
 # A Markdown code fence and its body. Applied only when the payload holds
@@ -827,19 +836,22 @@ def _names_a_score_field_twice(text: str) -> bool:
     refused rather than guessed at.
 
     Counting raw names is cheap and needs no parse of the untrusted tail. The
-    count is of the field spelled as a JSON *key*, quoted or escaped-quoted,
-    not of the bare identifier. A quoted-only count is evaded by an escaped
-    one: a payload carrying a second verdict serialized inside a string spells
-    its keys with escaped quotes, which ``count('"activation_score"')`` does
-    not see. A bare-identifier count closes that but refuses any payload whose
-    prose names a field, and a judge that emits its verdict and then explains
-    it in prose ("the activation_score reflects...") is plausible output, so
-    the bare count buys the same protection at the price of discarding real
-    samples. Matching the key shape covers both spellings and leaves prose
-    alone. A name spelled with a unicode escape would still slip the count, so
-    any ``\\u`` in the payload refuses outright. Judge prose does not contain
-    one, and a refusal costs a sample while a fabrication costs a published
-    number.
+    count is of the field spelled as a JSON *key*, quoted, escaped-quoted, or
+    single-quoted, not of the bare identifier. A quoted-only count is evaded by
+    an escaped one: a payload carrying a second verdict serialized inside a
+    string spells its keys with escaped quotes, which
+    ``count('"activation_score"')`` does not see. It is evaded again by the
+    JSON5/Python dialect, where a second verdict spells its keys
+    ``'activation_score':``; salvage exists precisely because the payload is
+    malformed, so treating that dialect as absent is unsafe. A bare-identifier
+    count closes both but refuses any payload whose prose names a field, and a
+    judge that emits its verdict and then explains it in prose ("the
+    activation_score reflects...") is plausible output, so the bare count buys
+    the same protection at the price of discarding real samples. Matching the
+    key shape covers all three spellings and leaves prose alone. A name spelled
+    with a unicode escape would still slip the count, so any ``\\u`` in the
+    payload refuses outright. Judge prose does not contain one, and a refusal
+    costs a sample while a fabrication costs a published number.
     """
     if "\\u" in text:
         return True
@@ -862,7 +874,7 @@ def _unwrap_lone_fence(text: str) -> str | None:
     Requiring exactly one fence removes the choice rather than adding another
     disqualifier to the search. Zero or several refuse.
     """
-    bodies = _FENCE_RE.findall(text)
+    bodies: list[str] = _FENCE_RE.findall(text)
     if len(bodies) != 1:
         return None
     return bodies[0].strip()
