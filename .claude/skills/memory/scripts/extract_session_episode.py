@@ -1875,6 +1875,25 @@ def validate_event_ids(events: Any) -> list[str]:
     return problems
 
 
+def validate_metrics_consistency(metrics: Any) -> list[str]:
+    """Return one message per metrics-consistency violation.
+
+    Catches the specific case where commits==0 but files_changed>0, which
+    indicates the episode's commit-collection logic failed to record the
+    commits that produced the file changes (issue #3873).
+    """
+    if not isinstance(metrics, dict):
+        return []
+    commits = metrics.get("commits", 0)
+    files_changed = metrics.get("files_changed", 0)
+    if commits == 0 and files_changed > 0:
+        return [
+            f"metrics.commits==0 but metrics.files_changed=={files_changed};"
+            " commit collection may have failed"
+        ]
+    return []
+
+
 def validate_episode_file(path: Path) -> list[str]:
     """Return one message per violation found in the episode JSON at ``path``."""
     try:
@@ -1883,7 +1902,11 @@ def validate_episode_file(path: Path) -> list[str]:
         return [f"{path}: unreadable: {exc}"]
     if not isinstance(data, dict):
         return [f"{path}: top level must be an object"]
-    return [f"{path}: {problem}" for problem in validate_event_ids(data.get("events"))]
+    problems = [
+        *validate_event_ids(data.get("events")),
+        *validate_metrics_consistency(data.get("metrics")),
+    ]
+    return [f"{path}: {problem}" for problem in problems]
 
 
 def _episode_paths(target: Path) -> list[Path]:

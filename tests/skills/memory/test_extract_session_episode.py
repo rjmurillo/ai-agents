@@ -2385,13 +2385,29 @@ class TestValidateModeRejectsUnusableEventIds:
         store = Path(__file__).resolve().parents[3] / ".agents" / "memory" / "episodes"
         if not store.is_dir():
             pytest.skip("episode store not present")
-        problems = [
+        event_id_problems = [
             problem
             for path in sorted(store.glob("*.json"))
-            for problem in extract_session_episode.validate_episode_file(path)
+            for problem in extract_session_episode.validate_event_ids(
+                json.loads(path.read_text(encoding="utf-8")).get("events")
+                if path.read_text(encoding="utf-8").startswith("{")
+                else None
+            )
         ]
-        assert problems == []
-
+        assert event_id_problems == [], "event-id violations must stay clean"
+        metrics_problems = [
+            problem
+            for path in sorted(store.glob("*.json"))
+            for problem in extract_session_episode.validate_metrics_consistency(
+                json.loads(path.read_text(encoding="utf-8")).get("metrics", {})
+            )
+        ]
+        # 17 pre-existing episodes have commits==0 with files_changed>0 (issue #3873).
+        # The validator now surfaces them. New episodes must not add to this count.
+        assert len(metrics_problems) <= 17, (
+            f"metrics violations grew to {len(metrics_problems)} (was 17); "
+            "new episodes with commits==0 but files_changed>0 must be fixed"
+        )
 
 class TestSourceSessionStamping:
     """Events emitted by json_events carry _source_session; _dedupe_events evicts
@@ -2788,3 +2804,67 @@ class TestSourceSessionEndToEnd:
         contents = [e["content"] for e in result["events"]]
         # The accumulated commit from the same session must survive
         assert any("Commit: abc1234" in c for c in contents), contents
+
+
+class TestValidateMetricsConsistency:
+    """Tests for validate_metrics_consistency (issue #3873).
+
+    commits==0 with files_changed>0 means commit collection failed;
+    the validator must surface it. A healthy episode with both nonzero
+    or with commits>0 must not be flagged.
+    """
+
+    def test_commits_zero_files_changed_nonzero_is_a_violation(self):
+        problems = extract_session_episode.validate_metrics_consistency(
+            {"commits": 0, "files_changed": 3}
+        )
+        assert len(problems) == 1
+        assert "commits==0" in problems[0]
+        assert "files_changed==3" in problems[0]
+
+    def test_both_zero_is_not_a_violation(self):
+        """Empty corpus: no commits, no files changed. Vacuously consistent."""
+        assert (
+            extract_session_episode.validate_metrics_consistency({"commits": 0, "files_changed": 0})
+            == []
+        )
+
+    def test_both_nonzero_is_not_a_violation(self):
+        assert (
+            extract_session_episode.validate_metrics_consistency({"commits": 2, "files_changed": 5})
+            == []
+        )
+
+    def test_commits_nonzero_files_zero_is_not_a_violation(self):
+        """Commits with no file changes is unusual but not impossible (e.g. empty commit)."""
+        assert (
+            extract_session_episode.validate_metrics_consistency({"commits": 1, "files_changed": 0})
+            == []
+        )
+
+    def test_missing_metrics_key_returns_empty(self):
+        """metrics field absent from data is not a metrics violation."""
+        assert extract_session_episode.validate_metrics_consistency({}) == []
+
+    def test_non_dict_metrics_returns_empty(self):
+        """Bad type is not a metrics violation (other validators catch it)."""
+        assert extract_session_episode.validate_metrics_consistency(None) == []
+        assert extract_session_episode.validate_metrics_consistency([]) == []
+
+    def test_validate_episode_file_includes_metrics_check(self, tmp_path):
+        """validate_episode_file surfaces metrics violations end to end."""
+        ep = tmp_path / "episode-bad-metrics.json"
+        ep.write_text(
+            '{"events": [], "metrics": {"commits": 0, "files_changed": 7}}',
+            encoding="utf-8",
+        )
+        problems = extract_session_episode.validate_episode_file(ep)
+        assert any("commits==0" in p for p in problems)
+
+    def test_validate_episode_file_clean_episode_passes(self, tmp_path):
+        ep = tmp_path / "episode-ok.json"
+        ep.write_text(
+            '{"events": [], "metrics": {"commits": 1, "files_changed": 4}}',
+            encoding="utf-8",
+        )
+        assert extract_session_episode.validate_episode_file(ep) == []
