@@ -452,6 +452,20 @@ number are not. The shapes recur either way.
 - **Most eval entry points still demand `ANTHROPIC_API_KEY`** even when
   `EVAL_PROVIDER` selects a keyless provider. Tracked in issue #3924.
   `eval-rule-activation.py` is fixed and shows the pattern.
+- **The archive nests dicts where a walker expects lists.** `rules` is a dict
+  keyed by rule name, and each scenario's `mechanisms` is a dict keyed by
+  `baseline`/`description`/`full`. Only `scenarios` is a list. A walker that
+  assumes lists finds zero samples and prints a clean result from no data,
+  which is the same failure class as the parser defects in the evidence
+  document: a confident answer derived from nothing. Reading
+  `rules[<name>].scenarios[].mechanisms[<mech>].score_samples[]` and
+  re-medianing each cell reproduces the published table exactly.
+- **Recovering discarded samples.** Failed samples store the truncated raw
+  payload in `reasoning` behind a `judge parse error: ` prefix; strip it and
+  feed the remainder to `_salvage_scores`. Successful samples store no payload
+  in the artifact at all. Both are recovered in full in
+  `recovered-judge-payloads.json` beside it, keyed by the same coordinates and
+  attributed by the input-based oracle rather than by the score.
 
 ## Scenario files
 

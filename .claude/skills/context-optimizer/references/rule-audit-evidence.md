@@ -364,12 +364,6 @@ source event to two cells. The test now asserts coordinate-set equality
 against the published table and source-event uniqueness, and both assertions
 were negative-controlled by dropping an entry and by duplicating a source.
 
-One process note, since it cost real work. Negative-controlling a source fix
-by reverting the file with `git checkout` destroys any *other* uncommitted
-change in it. That is how the two fixes above were lost and had to be rebuilt.
-Copy the file aside and copy it back instead; the tests written moments
-earlier are what caught the loss.
-
 Round 17 found three more, and the first is the one that had been assumed
 away. Every guard above rests on the parse having decoded the escaping, so a
 string was thought to arrive fully decoded. A parse decodes exactly one layer.
@@ -423,7 +417,8 @@ The second defect is the inexact comparison. The named-value pattern captured
 `(-?[0-9]+)?`, an integer prefix, so a judge writing `"activation_score": 1.5`
 beside a filed `1` had its `1.5` read as `1`, matched, and was published as
 agreement. `1e1` beside a filed `1` did the same. The pattern now captures the
-whole token and refuses anything that is not exactly an integer.
+value token up to the next whitespace or JSON delimiter, and round 19 below
+records why stopping there is still not the whole value.
 
 The third defect is the same failure of exactness one level up. The escape
 peel stops after a fixed number of layers. A payload escaped four times
@@ -456,21 +451,41 @@ the same 24 recovery divergences as the parser before it, the same 24 by
 coordinate and not merely by count (issue #3999). None of the five shapes
 above occurs in the archive, so the published table is unmoved.
 
-Reproduce the recovery from any archived run. The failed samples store the
-truncated raw payload in their `reasoning` field behind a
-`judge parse error: ` prefix; strip that prefix and feed the remainder to
-`_salvage_scores`. The successful samples store no payload in the artifact at
-all. Both are recovered in full in `recovered-judge-payloads.json` beside it,
-keyed by the same coordinates and attributed by the input-based oracle
-described above rather than by the score. Walking the artifact needs care about its
-shape: `rules` is a **dict keyed by rule name**, and each scenario's
-`mechanisms` is likewise a **dict keyed by**
-`baseline`/`description`/`full`, not a list. Only
-`scenarios` is a list. A walker that assumes lists finds zero samples and
-prints a clean result from no data, which is the same failure class as the
-parser defects recorded above: a confident answer derived from nothing. A
-walker that reads
-`rules[<name>].scenarios[].mechanisms[<mech>].score_samples[]` and re-medians
-each cell reproduces the published table exactly.
+Round 19 found that the round-18 comparison was still not exact, in both
+directions, and the two errors are not symmetric. The value token stops at
+whitespace, so `"activation_score": 5 - 1` beside a filed `5` captured `5`,
+compared equal, and would have published a 5 the judge had corrected to 4,
+with nothing in the record marking it. That is the fabrication class this
+whole line of work exists to prevent, reached through the fix that was
+supposed to close it. The comparison now also refuses when the character after
+the token is an arithmetic operator, since equality cannot be established
+across one.
+
+The same comparison could also end a run. `int(token)` on a digit run longer
+than 4300 characters raises `ValueError`, which CPython imposes deliberately;
+`eval_one_scenario` catches `RuntimeError`, so one adversarial judge response
+would have aborted every scenario after it. The check now compares decimal
+spellings and never converts, which removes the crash and, as a side effect,
+stops reading `05` as agreement with a filed `5`.
+
+The over-refusals ran the other way and were larger in practice. Comparing the
+raw token refused every judge who ended a sentence on the number, so
+`"activation_score": 5.` and `5;` and `5)` all failed; trailing sentence
+closers are now stripped, while `1.5` keeps its decimal and stays
+uncomparable. A three-layer decode budget refused a judge merely discussing
+regex escaping, over a remainder that held no score field at all; the budget
+is now eight, which absorbs 256 consecutive backslashes. Each peel strictly
+shortens the string, so the walk terminates on its own and the budget bounds
+cost rather than termination.
+
+Two of these seven fixes were caught only by negative-controlling them: an
+operator set that included `(` refused ordinary parentheticals, and the
+budget-exhaustion test kept passing after the budget was raised because the
+buried field then decoded into view and refused as a *contradiction* instead.
+It asserted the right outcome for the wrong reason. Each of the seven now has
+a control that fails when the fix is reverted, and the budget boundary is
+pinned from both sides. Replaying all 288 archived payloads again produces the
+same 24 divergences by coordinate, so the published table is unmoved by round
+19 as well.
 
 <!-- vendor-portability: declared. This file cites .agents/analysis/eval-artifacts/2026-07-29-unified-software-engineering/ as the archive holding the eight runs whose forensics are recorded here, so a reader can re-measure every claim instead of taking it on faith. It is a citation in a narrative, not a path the skill reads or writes. A vendored install loses the ability to re-measure our raw artifacts locally; the forensics still read as a record of what went wrong and what to check for, which is what this file is for. Issue #2050. -->
