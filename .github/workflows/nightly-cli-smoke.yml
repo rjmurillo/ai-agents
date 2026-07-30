@@ -214,7 +214,10 @@ jobs:
           SMOKE_RESULT: ${{ needs.smoke.result }}
         run: |
           python3 scripts/ci/require_job_results.py \
-            --check AUTHORIZE_RESULT success "Trusted-context gate result: {value}" \
-            --check TRUSTED true "Untrusted context; smoke skipped. Run on trusted repo via schedule/workflow_dispatch." \
-            --check SMOKE_RESULT success "Nightly smoke result: {value}" \
+            --check AUTHORIZE_RESULT success \
+              "Trusted-context gate result: {value}" \
+            --check TRUSTED true \
+              "Untrusted context; smoke skipped. Run on trusted repo via schedule/workflow_dispatch." \
+            --check SMOKE_RESULT success \
+              "Nightly smoke result: {value}" \
             --success-message "Nightly CLI smoke passed on all platforms."
