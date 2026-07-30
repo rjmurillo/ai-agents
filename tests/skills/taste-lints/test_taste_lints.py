@@ -160,6 +160,40 @@ class TestCheckFileSize:
         assert len(result) == 1
         assert result[0].severity == "error"
 
+    def test_session_log_exempt_despite_size(self) -> None:
+        # SESSION-PROTOCOL.md requires one workLog entry per step, so a session
+        # log's length measures how much work the session did. It is JSON, so it
+        # cannot carry a `# taste-lint: ignore` comment, and
+        # validate_session_json.py validates one file per session, so splitting
+        # is not available either. A path exemption is the only mechanism.
+        lines = ["{}\n"] * 900
+        result = check_file_size(
+            ".agents/sessions/2026-07-29-session-3952-example.json", lines
+        )
+        assert result == []
+
+    def test_session_log_absolute_path_under_cwd_exempt(self, tmp_path: Path) -> None:
+        target = tmp_path / ".agents" / "sessions" / "2026-07-29-session-1.json"
+        lines = ["{}\n"] * 900
+        with patch.object(mod.Path, "cwd", return_value=tmp_path):
+            result = check_file_size(str(target), lines)
+        assert result == []
+
+    def test_sessions_lookalike_not_exempt(self) -> None:
+        lines = ["line\n"] * 600
+        result = check_file_size(".agents/sessionsish/a.json", lines)
+        assert len(result) == 1
+        assert result[0].severity == "error"
+
+    def test_sessions_segment_mid_relative_path_not_exempt(self) -> None:
+        # The exemption anchors at the start of the repo-relative path, so an
+        # unrelated tree that happens to contain .agents/sessions does not
+        # inherit it.
+        lines = ["line\n"] * 600
+        result = check_file_size("src/.agents/sessions/x.json", lines)
+        assert len(result) == 1
+        assert result[0].severity == "error"
+
 
 class TestCheckNaming:
     """Tests for naming convention checks."""

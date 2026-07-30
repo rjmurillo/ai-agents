@@ -45,19 +45,28 @@ SCANNABLE_EXTENSIONS = {
 # captured or generated data rather than authored modules, so a line ceiling is
 # the wrong gate: the content has no boundaries to split on, and JSON cannot
 # carry a `# taste-lint: ignore` suppression comment. A path exemption is the
-# only mechanism.
+# only mechanism. All three live under the agent-state directory named by
+# `_AGENT_STATE_DIR`.
 #
-#   .agents/memory: the episode-extraction hook appends an episode record on
-#   every session-log commit (issue #2785).
+#   memory/: the episode-extraction hook appends an episode record on every
+#   session-log commit (issue #2785).
 #
-#   .agents/analysis/eval-artifacts: raw eval result files, archived so the
-#   numbers published in an analysis can be re-derived instead of taken on
-#   faith. Splitting one would break the provenance it exists to provide, and
-#   the file-size remediation text proposes extracting "helper functions" from
-#   a JSON dump, which is advice no author can act on (issue #3970).
+#   analysis/eval-artifacts/: raw eval result files, archived so the numbers
+#   published in an analysis can be re-derived instead of taken on faith.
+#   Splitting one would break the provenance it exists to provide, and the
+#   file-size remediation text proposes extracting "helper functions" from a
+#   JSON dump, which is advice no author can act on (issue #3970).
+#
+#   sessions/: session logs, which SESSION-PROTOCOL.md requires to carry one
+#   workLog entry per step, so length tracks how much work a session did and
+#   nothing else. validate_session_json.py validates one file per session, so
+#   splitting one is not available either.
+_AGENT_STATE_DIR = ".agents"
+
 FILE_SIZE_EXEMPT_SEGMENTS: tuple[tuple[str, ...], ...] = (
-    (".agents", "memory"),
-    (".agents", "analysis", "eval-artifacts"),
+    (_AGENT_STATE_DIR, "memory"),
+    (_AGENT_STATE_DIR, "analysis", "eval-artifacts"),
+    (_AGENT_STATE_DIR, "sessions"),
 )
 
 _GENERATED_PATH_SEGMENTS: tuple[tuple[str, ...], ...] = (
