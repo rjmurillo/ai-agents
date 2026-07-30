@@ -51,7 +51,7 @@ def top_n_flag(raw: str) -> list[str]:
 
 def _grade(grader: str, fmt: str, flag: list[str], destination: Path) -> int:
     """Run the grader for one format, writing stdout to destination."""
-    result = subprocess.run(  # nosemgrep: dangerous-subprocess-use-tainted-env-args
+    result = subprocess.run(
         [sys.executable, grader, "--format", fmt, *flag],
         check=False,
         capture_output=True,

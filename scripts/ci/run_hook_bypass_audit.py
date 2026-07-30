@@ -51,7 +51,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
     try:
-        result = subprocess.run(  # nosemgrep: dangerous-subprocess-use-tainted-env-args
+        result = subprocess.run(
             [
                 sys.executable,
                 args.detector,

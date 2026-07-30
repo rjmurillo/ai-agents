@@ -32,7 +32,7 @@ EXIT_USAGE = 2
 
 def _git(args: list[str]) -> subprocess.CompletedProcess[str]:
     """Run a git command, capturing combined output as UTF-8 text."""
-    return subprocess.run(  # nosemgrep: dangerous-subprocess-use-tainted-env-args
+    return subprocess.run(
         ["git", *args],
         check=False,
         stdout=subprocess.PIPE,

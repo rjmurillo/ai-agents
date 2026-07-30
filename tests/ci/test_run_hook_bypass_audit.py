@@ -20,7 +20,7 @@ _SCRIPTS_CI = Path(__file__).resolve().parent.parent.parent / "scripts" / "ci"
 _original_path = sys.path.copy()
 try:
     sys.path.insert(0, str(_SCRIPTS_CI))
-    from run_hook_bypass_audit import main  # noqa: E402
+    from run_hook_bypass_audit import main
 finally:
     sys.path[:] = _original_path
 
@@ -34,7 +34,7 @@ class _Detector:
         self._report = report
         self._body = body
 
-    def __call__(self, argv, **kwargs):  # noqa: ANN001, ANN204
+    def __call__(self, argv, **kwargs):
         self.calls.append(list(argv))
         if self._report is not None:
             self._report.write_text(self._body, encoding="utf-8")
@@ -109,7 +109,7 @@ def test_detector_receives_the_forwarded_arguments(
 def test_unlaunchable_detector_is_reported(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    def _boom(argv, **kwargs):  # noqa: ANN001, ANN202
+    def _boom(argv, **kwargs):
         raise OSError("exec format error")
 
     monkeypatch.setattr(subprocess, "run", _boom)

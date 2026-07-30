@@ -19,8 +19,8 @@ _SCRIPTS_CI = Path(__file__).resolve().parent.parent.parent / "scripts" / "ci"
 _original_path = sys.path.copy()
 try:
     sys.path.insert(0, str(_SCRIPTS_CI))
-    import commit_and_push  # noqa: E402
-    from commit_and_push import main  # noqa: E402
+    import commit_and_push
+    from commit_and_push import main
 finally:
     sys.path[:] = _original_path
 
@@ -41,7 +41,7 @@ class _Recorder:
         self._status_out = status_out
         self._failing = failing
 
-    def __call__(self, argv, **kwargs):  # noqa: ANN001, ANN204
+    def __call__(self, argv, **kwargs):
         self.calls.append(list(argv))
         verb = argv[1]
         if verb == "status":
@@ -133,7 +133,7 @@ def test_push_is_not_attempted_after_a_failed_commit(
 def test_missing_git_binary_is_a_usage_error(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    def _boom(argv, **kwargs):  # noqa: ANN001, ANN202
+    def _boom(argv, **kwargs):
         raise FileNotFoundError("git")
 
     monkeypatch.setattr(subprocess, "run", _boom)
@@ -144,7 +144,7 @@ def test_missing_git_binary_is_a_usage_error(
 def test_failed_status_is_reported_not_treated_as_clean(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    def _status_fails(argv, **kwargs):  # noqa: ANN001, ANN202
+    def _status_fails(argv, **kwargs):
         if argv[1] == "status":
             return subprocess.CompletedProcess(argv, 128, "not a repository")
         return subprocess.CompletedProcess(argv, 0, "")

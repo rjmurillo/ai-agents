@@ -19,7 +19,7 @@ _SCRIPTS_CI = Path(__file__).resolve().parent.parent.parent / "scripts" / "ci"
 _original_path = sys.path.copy()
 try:
     sys.path.insert(0, str(_SCRIPTS_CI))
-    from run_quality_grades import main, top_n_flag  # noqa: E402
+    from run_quality_grades import main, top_n_flag
 finally:
     sys.path[:] = _original_path
 
@@ -47,7 +47,7 @@ class _Grader:
         self.calls: list[list[str]] = []
         self._code = code
 
-    def __call__(self, argv, **kwargs):  # noqa: ANN001, ANN204
+    def __call__(self, argv, **kwargs):
         self.calls.append(list(argv))
         fmt = argv[argv.index("--format") + 1]
         return subprocess.CompletedProcess(argv, self._code, f"{fmt} body\n", "boom")
