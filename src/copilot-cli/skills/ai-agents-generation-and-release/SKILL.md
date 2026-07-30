@@ -8,7 +8,7 @@ license: MIT
 # ai-agents Generation and Release
 
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
-Runbook for the build, generation, mirroring, versioning, and release machinery of this repo. Every command below was executed or read from source on 2026-07-02/03; re-verify with the one-liners in Provenance before trusting a volatile number.
+Runbook for the build, generation, mirroring, versioning, and release machinery of this repo. Every command below was executed or read from source on 2026-07-02/03 and re-verified against the working tree on 2026-07-29; re-verify with the one-liners in Provenance before trusting a volatile number.
 
 Jargon, defined once:
 
@@ -54,7 +54,7 @@ The generation seam is ASYMMETRIC (ADR-072 is PROPOSED and refines this; the run
 | `.claude/lib/` | mirrored copy (relative imports) | `scripts/` packages | `scripts/sync_plugin_lib.py` |
 | `src/claude/` | MANUAL hand-synced exception (ADR-036, Accepted) | edited by hand | no generator; semantic drift CI only |
 
-Generator inventory inside `build/scripts/build_all.py` (list `GENERATORS`, build_all.py:426, order is load-bearing per the comment at build_all.py:420):
+Generator inventory inside `build/scripts/build_all.py` (list `GENERATORS`, build_all.py:435, order is load-bearing per the comment at build_all.py:429):
 
 | # | Generator | Reads | Writes |
 |---|-----------|-------|--------|
@@ -69,13 +69,13 @@ Generator inventory inside `build/scripts/build_all.py` (list `GENERATORS`, buil
 Facts that prevent confusion:
 
 - `build_all.py` enforces a no-write invariant on `.claude/` (REQ-003-010): if any generator writes there, the run exits 2 with `REQ-003-010 VIOLATION`. `.claude/` is input only.
-- Generated-tree ownership is exactly `OWNED_PREFIXES = ("src/", ".github/instructions/", "docs/agent-catalog.md")` (build_all.py:722). `--check` only flags staleness inside those prefixes.
+- Generated-tree ownership is exactly `OWNED_PREFIXES = ("src/", ".github/instructions/", "docs/agent-catalog.md")` (build_all.py:765). `--check` only flags staleness inside those prefixes.
 - The hooks generator maps Stop, SubagentStop, PermissionRequest, and
   PreCompact to their PascalCase compatibility names. Stop and SubagentStop
   remain direct host registrations because their structured decisions require
   host-level merging. A reported drop needs an identified source registration;
   never assume it is normal.
-- Every run overwrites the audit log at `build/audit/GENERATION-AUDIT.md` (gitignored via `/build/audit/`, .gitignore:66). Read it to see what each generator did.
+- Every run overwrites the audit log at `build/audit/GENERATION-AUDIT.md` (gitignored via `/build/audit/`, .gitignore:70). Read it to see what each generator did.
 
 ### Phase 2: Regenerate After Editing a Canonical Surface
 
@@ -93,13 +93,13 @@ Interpreter note: `build/generate_agents.py` and `build/scripts/build_all.py` bo
 
 Useful flags, verified against source:
 
-- `build/generate_agents.py`: `--validate` (CI compare mode), `--what-if` (dry run, writes nothing), `--templates-path`, `--output-root`. Exit codes: 0 ok, 1 logic error or drift, 2 config error (docstring, generate_agents.py:12).
-- `build/scripts/build_all.py`: `--check` (staleness gate; snapshots and restores owned trees), `--clean`, `--audit-format json`, `--platform copilot-cli`. Exit codes: 0 ok, 1 generator error, 2 config error or staleness, 3 audit blocklist violation (docstring, build_all.py:11).
+- `build/generate_agents.py`: `--validate` (CI compare mode), `--what-if` (dry run, writes nothing), `--templates-path`, `--output-root`. Exit codes: 0 ok, 1 logic error or drift, 2 config error (docstring, generate_agents.py:13-16).
+- `build/scripts/build_all.py`: `--check` (staleness gate; snapshots and restores owned trees), `--clean`, `--audit-format json`, `--platform copilot-cli`. Exit codes: 0 ok, 1 generator error, 2 config error or staleness, 3 audit blocklist violation (docstring, build_all.py:16-20).
 - `scripts/sync_plugin_lib.py`: no flag syncs, `--check` is the CI dry run (exit 1 when out of sync). It also rewrites `from scripts.x import` to relative imports; do not "fix" those imports in `.claude/lib/` by hand.
 
 ### Phase 3: Run the Drift Gates Locally Before Pushing
 
-Drift-gate matrix (all local commands verified runnable, all green on 2026-07-03):
+Drift-gate matrix (all local commands verified runnable, all green on 2026-07-29):
 
 | Gate | Catches | Local command | CI enforcement |
 |------|---------|---------------|----------------|
@@ -109,7 +109,7 @@ Drift-gate matrix (all local commands verified runnable, all green on 2026-07-03
 | Install parity | plugin install layout broken | `python3 scripts/validation/run_install_parity_ci.py` | `validate-generated-agents.yml` |
 | Manifest version parity | `.claude` vs `src/copilot-cli` plugin versions differ | `python3 build/scripts/check_plugin_manifest_parity.py` | `validate-generated-agents.yml`, `agent-drift-detection.yml` (fix for #2222) |
 | Plugin version bump | content change without semver bump | `pre-pr-validation` job in `lefthook.yml` (`scripts/validation/pre_pr.py`) | `validate-plugin-version-bump.yml` |
-| Semantic agent drift (src/claude) | hand-synced tree diverging in meaning | `python3 build/scripts/detect_agent_drift.py` | `drift-detection.yml`, weekly cron Monday 09:00 UTC (line 15); similarity threshold default 80 (detect_agent_drift.py:666), with a recorded-baseline floor so a clean checkout does not fail |
+| Semantic agent drift (src/claude) | hand-synced tree diverging in meaning | `python3 build/scripts/detect_agent_drift.py` | `drift-detection.yml`, weekly cron Monday 09:00 UTC (line 15); similarity threshold default 80 (detect_agent_drift.py:666-668), with a recorded-baseline floor so a clean checkout does not fail |
 
 When a drift gate is red, the output shows the DIFFERENCE, not the DIRECTION. Ask "which side is canonical?" using the Phase 1 table before touching anything. The 2025-12-15 incident (retro: `.agents/retrospective/2025-12-15-drift-detection-disaster.md`) happened because an agent edited the SOURCE to match the GENERATED tree; the commit was reverted. Fix is always: edit canonical, rerun generator, commit both.
 
@@ -170,7 +170,7 @@ the Claude kit into consumer repos. Release procedure (source: `RELEASING.md`,
 repo root):
 
 1. Bump `packages/ai-agents-cli/package.json` version. Tag/version mismatch is a listed failure mode.
-2. Local sanity: `cd packages/ai-agents-cli && bun run build` (runs `bun build src/cli.ts --outdir dist --target node`), `bun test`, `tsc --noEmit` via `bun run typecheck`.
+2. Local sanity: `cd packages/ai-agents-cli && bun run build` (runs `bun build src/cli.ts --outdir dist --target node`), `bun test`, `tsc --noEmit` via `bun run typecheck`. As of 2026-07-29 `bun run typecheck` exits 1 on this package with 38 errors (36 `TS2591`, 2 `TS2503`). `@types/node` 26.0.0 is installed, but the package `tsconfig.json` sets no `types` field, and TypeScript 7.0.2 no longer auto-includes it the way 5.9.3 does, so Node builtins are absent from the compilation. Issue #3865 tracks the fix: add `"types": ["node"]` and a CI job that runs typecheck and `bun test`. Before blaming your change for a red typecheck, check whether that fix landed: `grep -q '"types"' packages/ai-agents-cli/tsconfig.json`.
 3. Commit to main via normal PR flow (branch discipline still applies; see `ai-agents-change-control`).
 4. `git tag vX.Y.Z` then `git push origin main --tags`.
 5. `.github/workflows/publish.yml` fires on `v*` tags: validates package metadata, publishes with OIDC provenance (`id-token: write`; `NPM_TOKEN` is fallback only). `workflow_dispatch` offers a dry-run input defaulting to `true`.
@@ -182,7 +182,7 @@ Rollback is roll-FORWARD: npm unpublish is restricted; fix, bump patch, retag (R
 
 | Anti-pattern | Why it burns you | Do instead |
 |--------------|------------------|------------|
-| Hand-editing `src/copilot-cli/`, `src/vs-code-agents/`, `.github/instructions/`, `.claude/lib/` | Next regen silently overwrites your edit; ruff deliberately exempts generated Python (pyproject.toml:99-100 ignores all selected rule families under `src/copilot-cli/{hooks,skills}/**/*.py`), so lint will not even look at it | Edit the canonical tree (Phase 1 table), regenerate |
+| Hand-editing `src/copilot-cli/`, `src/vs-code-agents/`, `.github/instructions/`, `.claude/lib/` | Next regen silently overwrites your edit; ruff deliberately exempts generated Python (pyproject.toml:129-130 ignores all selected rule families under `src/copilot-cli/{hooks,skills}/**/*.py`), so lint will not even look at it | Edit the canonical tree (Phase 1 table), regenerate |
 | Editing source to make a drift gate green | The 2025-12-15 disaster; drift output shows difference, not direction | Identify canonical side first, regenerate outward |
 | Syncing lib with only one of the two steps | `sync_plugin_lib.py` feeds `.claude/lib/`; `build_all.py` feeds `src/copilot-cli/lib/`; missing either fails CI | Run both, in that order |
 | Bumping one project-toolkit manifest | Parity gate fails (#2222) | Bump `.claude` and `src/copilot-cli` manifests to the same value |
@@ -206,26 +206,26 @@ Run this checklist before pushing any change that touched a canonical or generat
 
 ## Provenance and Maintenance
 
-Verified 2026-07-03 against the working tree. Volatile facts and how to re-check them:
+Verified 2026-07-29 against the working tree (re-verification pass; the 2026-07-03 pass had rotted for `build/scripts/build_all.py`, `build/generate_agents.py`, `pyproject.toml`, `scripts/sync_plugin_lib.py`, `.github/workflows/publish.yml`, and `.github/workflows/validate-generated-agents.yml`). Volatile facts and how to re-check them:
 
 | Fact | Source | Re-verify |
 |------|--------|-----------|
-| 7 generators and their order | build/scripts/build_all.py:420-434 | `grep -n -A9 "^GENERATORS" build/scripts/build_all.py` |
-| OWNED_PREFIXES trio | build/scripts/build_all.py:722 | `grep -n "OWNED_PREFIXES" build/scripts/build_all.py` |
-| .claude/ no-write invariant | build/scripts/build_all.py (REQ-003-010 block near line 962) | `grep -n "REQ-003-010" build/scripts/build_all.py` |
-| build_all exit codes 0/1/2/3 | build/scripts/build_all.py:11-21 | `sed -n '11,21p' build/scripts/build_all.py` |
-| generate_agents flags and exit codes | build/generate_agents.py:12-17,395-422 | `uv run python build/generate_agents.py --help` |
-| sync pairs scripts to .claude/lib | scripts/sync_plugin_lib.py:26-30 | `grep -n -A4 "SYNC_PAIRS" scripts/sync_plugin_lib.py` |
-| Plugin manifest locations and current values | the three plugin.json files | `find . -path "*claude-plugin/plugin.json" -exec grep -H version {} \;` |
+| 7 generators and their order | build/scripts/build_all.py:435-443 | `grep -n -A9 "^GENERATORS" build/scripts/build_all.py` |
+| OWNED_PREFIXES trio | build/scripts/build_all.py:765 | `grep -n "OWNED_PREFIXES" build/scripts/build_all.py` |
+| .claude/ no-write invariant | build/scripts/build_all.py:674 (rule), :1013 (snapshot), :1076-1081 (enforcement) | `grep -n "REQ-003-010" build/scripts/build_all.py` |
+| build_all exit codes 0/1/2/3 | build/scripts/build_all.py:16-20 | `sed -n '16,20p' build/scripts/build_all.py` |
+| generate_agents flags and exit codes | build/generate_agents.py:13-16,460-487 | `uv run python build/generate_agents.py --help` |
+| sync pairs scripts to .claude/lib | scripts/sync_plugin_lib.py:27-31 | `grep -n -A4 "SYNC_PAIRS" scripts/sync_plugin_lib.py` |
+| Plugin manifest locations and current values | the three plugin.json files | `git ls-files '*claude-plugin/plugin.json' | xargs grep -H version` |
 | Strictly-greater bump rule, PR #1942 story | build/scripts/validate_plugin_version_bump.py:1-40 | `head -40 build/scripts/validate_plugin_version_bump.py` |
 | Parity gate #2222 | build/scripts/check_plugin_manifest_parity.py:1-16 | `python3 build/scripts/check_plugin_manifest_parity.py` |
-| Drift CI wiring | .github/workflows/validate-generated-agents.yml:123,132,151,164; agent-drift-detection.yml:143-168 | `grep -n "python3" .github/workflows/validate-generated-agents.yml` |
-| Weekly semantic drift cron, threshold 80 | .github/workflows/drift-detection.yml:13-15; build/scripts/detect_agent_drift.py:666 | `grep -n "cron" .github/workflows/drift-detection.yml` |
+| Drift CI wiring | .github/workflows/validate-generated-agents.yml:165,174,212,225,239; agent-drift-detection.yml:146,156,159,171 | `grep -n "uv run python" .github/workflows/validate-generated-agents.yml` |
+| Weekly semantic drift cron, threshold 80 | .github/workflows/drift-detection.yml:13-15; build/scripts/detect_agent_drift.py:666-668 | `grep -n "cron" .github/workflows/drift-detection.yml` |
 | Git hook jobs, filters, and validators | `lefthook.yml` | `uv run --frozen lefthook validate` |
-| Ruff exemption for generated Python | pyproject.toml:99-100 | `grep -n "src/copilot-cli" pyproject.toml` |
-| npm package, bun build, tag flow | packages/ai-agents-cli/package.json; RELEASING.md:35-54; .github/workflows/publish.yml:12-17 | `grep -n "tags" .github/workflows/publish.yml` |
+| Ruff exemption for generated Python | pyproject.toml:129-130 | `grep -n "src/copilot-cli" pyproject.toml` |
+| npm package, bun build, tag flow | packages/ai-agents-cli/package.json; RELEASING.md:35-54; .github/workflows/publish.yml:13-16 | `grep -n "tags" .github/workflows/publish.yml` |
 | Marketplace count validator retired | no dedicated count validator or marketplace counter YAML should exist | `find . -name "*marketplace*count*" -not -path "./.venv/*"` |
-| Audit log path, gitignored | .gitignore:66 | `grep -n "build/audit" .gitignore` |
+| Audit log path, gitignored | .gitignore:70 | `grep -n "build/audit" .gitignore` |
 | 2025-12-15 direction story | .agents/retrospective/2025-12-15-drift-detection-disaster.md | `ls .agents/retrospective/ \| grep drift` |
 | ADR-036 Accepted, ADR-072 Proposed | .agents/architecture/ADR-036-*.md, ADR-072-*.md | `head -12 .agents/architecture/ADR-072-jtbd-plugin-architecture.md` |
 
