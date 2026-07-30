@@ -194,8 +194,9 @@ this battle.
 comments. 53 of the files were `.serena/memories/` files reformatted by an
 unscoped `markdownlint --fix **/*.md` run, bundled into an unrelated change.
 
-**Root cause**: no enforcement of governance limits (ADR-008 commit cap
-existed only as prose), no local pre-PR validation, and protocol tooling with
+**Root cause**: no enforcement of governance limits (the commit cap existed
+only as prose; no ADR carried it until ADR-049 in February 2026), no local
+pre-PR validation, and protocol tooling with
 no scope precision
 (`.agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md:281-298`,
 `:559-580`).
