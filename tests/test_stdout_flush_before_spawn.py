@@ -172,32 +172,39 @@ def _owning_statement(tree: ast.Module, call: ast.Call) -> ast.stmt | None:
     return owner
 
 
-def unflushed_spawn_lines(source: str) -> list[int]:
-    """Return line numbers of fd-inheriting spawns with no preceding flush."""
-    tree = ast.parse(source)
-    modules, functions = _subprocess_names(tree)
-    offenders: list[int] = []
-    bodies: list[list[ast.stmt]] = []
+def _statement_blocks(tree: ast.AST) -> list[list[ast.stmt]]:
+    """Every statement list in the tree, so a predecessor lookup is one pass."""
+    blocks: list[list[ast.stmt]] = []
     for node in ast.walk(tree):
         for field in ("body", "orelse", "finalbody"):
             block = getattr(node, field, None)
             if isinstance(block, list) and all(isinstance(s, ast.stmt) for s in block):
-                bodies.append(block)
+                blocks.append(block)
+    return blocks
+
+
+def _preceded_by_flush(blocks: list[list[ast.stmt]], owner: ast.stmt) -> bool:
+    """True when ``owner``'s immediate predecessor flushes stdout."""
+    for block in blocks:
+        for index, statement in enumerate(block):
+            if statement is owner and index > 0 and _flushes_stdout(block[index - 1]):
+                return True
+    return False
+
+
+def unflushed_spawn_lines(source: str) -> list[int]:
+    """Return line numbers of fd-inheriting spawns with no preceding flush."""
+    tree = ast.parse(source)
+    modules, functions = _subprocess_names(tree)
+    blocks = _statement_blocks(tree)
+    offenders: list[int] = []
     for call in ast.walk(tree):
         if not isinstance(call, ast.Call) or not _is_spawn(call, modules, functions):
             continue
         if not _inherits_stdout(call):
             continue
         owner = _owning_statement(tree, call)
-        if owner is None:
-            offenders.append(call.lineno)
-            continue
-        guarded = False
-        for block in bodies:
-            for index, statement in enumerate(block):
-                if statement is owner and index > 0 and _flushes_stdout(block[index - 1]):
-                    guarded = True
-        if not guarded:
+        if owner is None or not _preceded_by_flush(blocks, owner):
             offenders.append(call.lineno)
     return sorted(offenders)
 
