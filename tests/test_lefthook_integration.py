@@ -4369,6 +4369,96 @@ def test_push_policy_rejects_protected_branch_deletion(tmp_path: Path) -> None:
     assert result == 1
 
 
+def test_push_policy_blocks_unresolved_merge_before_history_checks(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked.txt", "base\n")
+    _git(repo, "checkout", "-q", "-b", "other")
+    _commit_file(repo, "tracked.txt", "other\n")
+    _git(repo, "checkout", "-q", "feature/test")
+    _commit_file(repo, "tracked.txt", "feature\n")
+    _git(repo, "merge", "other", check=False)
+    monkeypatch.setattr(
+        policy,
+        "_check_history_integrity",
+        lambda _repo_root: pytest.fail("history checks should not run during a merge"),
+    )
+
+    result = policy.check_push_refs(io.StringIO(), repo)
+
+    assert result == 1
+    error = capsys.readouterr().err
+    assert "merge in progress" in error
+    assert "tracked.txt" in error
+    assert "git merge --abort" in error
+
+
+def test_push_policy_blocks_resolved_uncommitted_merge(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked.txt", "base\n")
+    _git(repo, "checkout", "-q", "-b", "other")
+    _commit_file(repo, "tracked.txt", "other\n")
+    _git(repo, "checkout", "-q", "feature/test")
+    _commit_file(repo, "tracked.txt", "feature\n")
+    _git(repo, "merge", "other", check=False)
+    _write_file(repo, "tracked.txt", "resolved\n")
+    _git(repo, "add", "tracked.txt")
+
+    result = policy.check_push_refs(io.StringIO(), repo)
+
+    assert result == 1
+    error = capsys.readouterr().err
+    assert "merge in progress" in error
+    assert "No unmerged paths remain" in error
+    assert "git commit" in error
+
+
+@pytest.mark.parametrize(
+    ("head_file", "operation", "remedy"),
+    [
+        ("REBASE_HEAD", "rebase", "git rebase --continue"),
+        ("CHERRY_PICK_HEAD", "cherry-pick", "git cherry-pick --continue"),
+    ],
+)
+def test_push_policy_names_active_git_operation(
+    head_file: str,
+    operation: str,
+    remedy: str,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    head = _commit_file(repo, "tracked.txt", "base\n")
+    git_path = Path(_git(repo, "rev-parse", "--git-path", head_file).stdout.strip())
+    if not git_path.is_absolute():
+        git_path = repo / git_path
+    git_path.write_text(f"{head}\n", encoding="utf-8")
+
+    result = policy.check_push_refs(io.StringIO(), repo)
+
+    assert result == 1
+    error = capsys.readouterr().err
+    assert f"{operation} in progress" in error
+    assert remedy in error
+
+
+def test_push_policy_allows_clean_tree_without_active_git_operation(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked.txt", "base\n")
+
+    assert policy.check_push_refs(io.StringIO(), repo) == 0
+
+
 def test_fetch_origin_main_refreshes_stale_tracking_ref(tmp_path: Path) -> None:
     remote = tmp_path / "remote.git"
     writer = tmp_path / "writer"

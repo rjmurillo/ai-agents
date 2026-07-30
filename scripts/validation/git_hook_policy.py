@@ -94,6 +94,15 @@ RUFF_COUNT_RATCHET = REPO_ROOT / "scripts" / "ci" / "ruff_count_ratchet.py"
 BANDIT_SUFFIXES = frozenset({".py", ".pyw"})
 TEXTUAL_DIFF_FLAGS = ("--no-ext-diff", "--no-textconv", "--text")
 EMPTY_TREE_SHA1 = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+ACTIVE_GIT_OPERATION_FILES = (
+    ("MERGE_HEAD", "merge", "git commit to finish the merge or git merge --abort"),
+    ("REBASE_HEAD", "rebase", "git rebase --continue or git rebase --abort"),
+    (
+        "CHERRY_PICK_HEAD",
+        "cherry-pick",
+        "git cherry-pick --continue or git cherry-pick --abort",
+    ),
+)
 SEMGREP_POWERSHELL_RULES = frozenset(
     {
         "yaml.github-actions.security.curl-eval.curl-eval",
@@ -1381,6 +1390,55 @@ def _merge_in_progress(repo_root: Path) -> bool:
     if not merge_head.is_absolute():
         merge_head = repo_root / merge_head
     return merge_head.is_file()
+
+
+def _git_path(repo_root: Path, path_name: str) -> Path | None:
+    result = _run_git(repo_root, ["rev-parse", "--git-path", path_name])
+    if result.returncode != 0:
+        return None
+    path_text = result.stdout.strip()
+    if not path_text:
+        return None
+    path = Path(path_text)
+    return path if path.is_absolute() else repo_root / path
+
+
+def _active_git_operation(repo_root: Path) -> tuple[str, str] | None:
+    for path_name, operation, remedy in ACTIVE_GIT_OPERATION_FILES:
+        git_path = _git_path(repo_root, path_name)
+        if git_path is not None and git_path.is_file():
+            return operation, remedy
+    return None
+
+
+def check_active_git_operation(repo_root: Path) -> int:
+    active = _active_git_operation(repo_root)
+    if active is None:
+        return 0
+    operation, remedy = active
+    unmerged = _unmerged_paths(repo_root)
+    print(f"ERROR: cannot push while a {operation} in progress", file=sys.stderr)
+    if unmerged is None:
+        print("  Unmerged paths could not be listed.", file=sys.stderr)
+    elif unmerged:
+        print("  Unmerged paths:", file=sys.stderr)
+        for path in unmerged:
+            print(f"    {path}", file=sys.stderr)
+    else:
+        print(
+            "  No unmerged paths remain, but the operation has not been committed.",
+            file=sys.stderr,
+        )
+    print(f"  Fix: resolve the operation with {remedy}.", file=sys.stderr)
+    return 1
+
+
+def _unmerged_paths(repo_root: Path) -> list[str] | None:
+    result = _run_git(repo_root, ["diff", "--name-only", "--diff-filter=U"])
+    if result.returncode != 0:
+        _print_process_output(result)
+        return None
+    return [line for line in result.stdout.splitlines() if line]
 
 
 def _paths_on_merge_head(paths: Sequence[str], repo_root: Path) -> set[str]:
@@ -4024,6 +4082,9 @@ def _protected_push_destination(push_ref: PushRef) -> str | None:
 
 
 def check_push_refs(stream: TextIO, repo_root: Path) -> int:
+    active_operation_result = check_active_git_operation(repo_root)
+    if active_operation_result != 0:
+        return active_operation_result
     branch_result = check_branch(repo_root)
     if branch_result != 0:
         return branch_result
