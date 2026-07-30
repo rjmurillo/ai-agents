@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size  -- see issue #3592: file has visible seams but splitting mixes refactor with bug fixes; deferred to its own PR
 """Held-out-gated optimization rails for agents, rules, and hooks.
 
 The optimizing agent proposes the edits. This CLI decides whether they

@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size  -- see issue #3592: test file is large because the optimizing CLI has many behaviors; deferred split to its own PR
 """Tests for scripts/eval/optimize-artifact.py (issue #3422).
 
 The CLI is the surface an optimizing agent drives. Its job is to make the

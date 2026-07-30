@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size  -- see issue #3592: adapter tests are large because each adapter type needs positive, negative, and edge coverage
 """Tests for `scripts/eval/_optimizer_adapters.py`.
 
 The adapters are the reason the held-out gate generalizes past skills. Each
