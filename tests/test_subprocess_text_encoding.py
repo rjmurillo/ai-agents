@@ -56,6 +56,7 @@ import codecs
 import time
 from collections import Counter
 from pathlib import Path
+from typing import NamedTuple
 
 import pytest
 
@@ -93,6 +94,9 @@ _DYNAMIC = "subprocess.<dynamic>"
 _ATTRIBUTE = "."
 # The attribute a functools.partial keeps its bound keywords under.
 _KEYWORDS = "keywords"
+# The dict methods that answer a question about the mapping without changing
+# it. Every other way of reaching the mapping is treated as a write.
+_KEYWORD_READERS = frozenset({"copy", "get", "items", "keys", "values"})
 _UNKNOWN = object()
 _PARTIAL = "functools.partial"
 # Marks the null sink. Held beside the entry points so an imported ``DEVNULL``
@@ -1213,8 +1217,42 @@ def _owner_module(node: ast.expr, modules: dict[str, str]) -> str | None:
     return None if key is None else modules.get(key)
 
 
-def _voided_pins(tree: ast.AST, bindings: list[tuple[str, ast.expr]]) -> set[int]:
-    """Return the construction sites whose bound codec the source can undo.
+def _reads_only(parent: ast.AST | None) -> bool:
+    """Report whether a keywords mapping under *parent* is only being read.
+
+    Three shapes are provably harmless: one of the dict methods that cannot
+    change the mapping, a subscript being loaded rather than stored or
+    deleted, and a comparison. Everything else counts as a write, including
+    handing the mapping to another function, which can change it out of
+    sight.
+    """
+    if isinstance(parent, ast.Attribute):
+        return parent.attr in _KEYWORD_READERS
+    if isinstance(parent, ast.Subscript):
+        return isinstance(parent.ctx, ast.Load)
+    return isinstance(parent, ast.Compare)
+
+
+def _partial_roots(
+    bindings: list[tuple[str, ast.expr]], functions: dict[str, str]
+) -> dict[str, str]:
+    """Map every name holding a partial back to the name it was built under.
+
+    An alias shares the partial's keyword mapping rather than copying it, so
+    ``alias.keywords["encoding"] = None`` unpins the call made through the
+    original name too. Resolving both to one root is what lets a mutation
+    found under either name answer for both.
+    """
+    seed = {
+        name: name
+        for name, value in bindings
+        if isinstance(value, ast.Call) and _is_partial(_call_label(value), functions)
+    }
+    return _settle(bindings, seed)
+
+
+def _undone_pins(tree: ast.AST, roots: dict[str, str]) -> set[str]:
+    """Return the partials whose bound codec the source can undo.
 
     ``functools.partial`` keeps its bound keywords in a plain dict that stays
     reachable through the result, so ``del runner.keywords["encoding"]`` and
@@ -1222,24 +1260,26 @@ def _voided_pins(tree: ast.AST, bindings: list[tuple[str, ast.expr]]) -> set[int
     site still spells out. Reading that site alone reports a codec the call
     will never use.
 
-    Any mention of the mapping counts, not writes alone. Telling a write from
-    a read needs the enclosing statement, and a partial whose keywords are
-    read but never changed is both rare and harmless to report: the answer
-    errs toward flagging, which is the direction this scan takes throughout.
-
-    Node identity is the key because a construction site is a value node, not
-    a name, and the same expression can be bound to several names. Every node
-    stays alive for as long as the tree that owns it, which outlives this
-    answer, so an address cannot be recycled underneath it.
+    Everything that is not a provable read counts, because a mapping handed
+    to another function comes back changed with nothing at this site to say
+    so. The answer errs toward flagging, which is the direction this scan
+    takes throughout.
     """
-    touched: set[str] = set()
+    parents = {
+        id(child): parent
+        for parent in ast.walk(tree)
+        for child in ast.iter_child_nodes(parent)
+    }
+    undone: set[str] = set()
     for node in ast.walk(tree):
         if not isinstance(node, ast.Attribute) or node.attr != _KEYWORDS:
             continue
+        if _reads_only(parents.get(id(node))):
+            continue
         name = _owner_name(node.value)
-        if name is not None:
-            touched.add(name)
-    return {id(value) for name, value in bindings if name in touched}
+        if name is not None and name in roots:
+            undone.add(roots[name])
+    return undone
 
 
 def _supplies_capture(
@@ -1274,6 +1314,36 @@ def _presupplied(
         if isinstance(value, ast.Call)
         and _is_partial(_call_label(value), functions)
         and _supplies_capture(value, modules, functions)
+    }
+    return set(_settle(bindings, seed))
+
+
+def _prepinned(
+    bindings: list[tuple[str, ast.expr]],
+    functions: dict[str, str],
+    undone: set[str],
+) -> set[str]:
+    """Name every callable whose codec was pinned where it was built.
+
+    The mirror of :func:`_presupplied`. ``partial(subprocess.run,
+    capture_output=True, encoding="utf-8")`` decides the codec at the
+    construction site, and the call site that adds ``text=True`` carries no
+    ``encoding`` keyword for :func:`_pins_utf8` to find. Without this, a call
+    that pins its codec correctly reads as a violation, which is worse than a
+    missed one: it nags the author who did the right thing. An alias inherits
+    the pin, through a container or not, because rebinding the name changes
+    nothing about what it holds.
+
+    A construction site the source can undo supplies no pin at all, which is
+    what keeps ``del runner.keywords["encoding"]`` reported at both ends.
+    """
+    seed = {
+        name: name
+        for name, value in bindings
+        if isinstance(value, ast.Call)
+        and _is_partial(_call_label(value), functions)
+        and _pins_utf8(value)
+        and name not in undone
     }
     return set(_settle(bindings, seed))
 
@@ -1338,9 +1408,31 @@ def _matched(
     return found
 
 
-def _subprocess_names(
-    tree: ast.Module,
-) -> tuple[dict[str, str], dict[str, str], dict[str, _Container], set[str], set[int]]:
+class _Names(NamedTuple):
+    """Everything one pass over a tree learns about the names in it.
+
+    Held as a named bundle rather than a bare tuple because the members are
+    six tables that all read alike at a call site, and a positional mix-up
+    between two of them would type-check silently.
+    """
+
+    modules: dict[str, str]
+    functions: dict[str, str]
+    containers: dict[str, _Container]
+    presupplied: set[str]
+    voided: set[int]
+    """Construction sites whose bound codec the source undoes.
+
+    Node identity is the key because a construction site is a value node, not
+    a name. Every node stays alive for as long as the tree that owns it,
+    which outlives this answer, so an address cannot be recycled underneath
+    it.
+    """
+
+    prepinned: set[str]
+
+
+def _subprocess_names(tree: ast.Module) -> _Names:
     """Collect every name in *tree* that reaches a subprocess entry point.
 
     Imports seed the search, and every binding is then resolved against what
@@ -1398,12 +1490,18 @@ def _subprocess_names(
                 # A group reading ``get()`` registers a dependency on the bare
                 # name ``get``, because that is the only Name node in it.
                 queue.extend(dependents.get(name[: -len(_CALL_SUFFIX)], ()))
-    return (
+    undone = _undone_pins(tree, _partial_roots(bindings, functions))
+    return _Names(
         modules,
         functions,
         containers,
         _presupplied(bindings, modules, functions),
-        _voided_pins(tree, bindings),
+        {
+            id(value)
+            for name, value in bindings
+            if name in undone and isinstance(value, ast.Call)
+        },
+        _prepinned(bindings, functions, undone),
     )
 
 
@@ -1533,12 +1631,12 @@ def _pins_utf8(call: ast.Call) -> bool:
 def unpinned_lines(source: str) -> list[int]:
     """Return the line numbers of text-capturing calls that do not pin UTF-8."""
     tree = ast.parse(source)
-    modules, functions, containers, presupplied, voided = _subprocess_names(tree)
+    names = _subprocess_names(tree)
     offenders: list[int] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
-        target = _target(node, modules, functions, containers)
+        target = _target(node, names.modules, names.functions, names.containers)
         if target is None:
             continue
         if target == "os.popen":
@@ -1547,11 +1645,22 @@ def unpinned_lines(source: str) -> list[int]:
             offenders.append(node.lineno)
             continue
         if target not in _DECODES_UNCONDITIONALLY and not _captures_text(
-            node, functions, target, modules, presupplied
+            node, names.functions, target, names.modules, names.presupplied
         ):
             continue
-        if not _pins_utf8(node) or id(node) in voided:
-            offenders.append(node.lineno)
+        if _pins_utf8(node) and id(node) not in names.voided:
+            continue
+        if (
+            _keyword(node, "encoding") is None
+            and not _has_splat(node)
+            and _call_label(node) in names.prepinned
+        ):
+            # The codec was pinned where this callable was built, and nothing
+            # since has undone it, so the call site needs no keyword of its
+            # own. A call site that names an encoding, or splats keywords this
+            # scan cannot read, overrides that pin and answers for itself.
+            continue
+        offenders.append(node.lineno)
     return sorted(offenders)
 
 
@@ -2045,6 +2154,51 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             'other.keywords["encoding"] = None\n'
             'runner(["x"])',
             "a mapping belonging to some other name leaves this pin standing",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, text=True, encoding="utf-8"\n'
+            ')\n'
+            'assert runner.keywords.get("encoding") == "utf-8"\n'
+            'runner(["x"])',
+            "asking the mapping what it holds cannot change what it holds",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, text=True, encoding="utf-8"\n'
+            ')\n'
+            'assert "encoding" in runner.keywords\n'
+            'runner(["x"])',
+            "testing the mapping for a key cannot change what it holds",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, text=True, encoding="utf-8"\n'
+            ')\n'
+            'codec = runner.keywords["encoding"]\n'
+            'runner(["x"])',
+            "loading one key out of the mapping leaves the mapping alone",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'runner(["x"], text=True)',
+            "a codec pinned where the partial was built covers the call site",
+        ),
+        (
+            'import functools, subprocess\n'
+            'base = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'holders = [base]\n'
+            'runner = holders[0]\n'
+            'runner(["x"], text=True)',
+            "the pin follows the partial through a container",
         ),
     ],
 )
@@ -3011,6 +3165,69 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'a.b.keywords["encoding"] = None\n'
             'a.b(["x"])',
             "a partial bound in a class body is mutated the same way",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, text=True, encoding="utf-8"\n'
+            ')\n'
+            'runner.keywords.update({"encoding": None})\n'
+            'runner(["x"])',
+            "updating the mapping replaces the bound encoding wholesale",
+        ),
+        (
+            'import functools, subprocess\n'
+            'def mutate(mapping):\n'
+            '    mapping.pop("encoding")\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, text=True, encoding="utf-8"\n'
+            ')\n'
+            'mutate(runner.keywords)\n'
+            'runner(["x"])',
+            "handing the mapping to something else changes it out of sight",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="latin-1"\n'
+            ')\n'
+            'runner(["x"], text=True)',
+            "a construction site pinning the wrong codec pins nothing",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'del runner.keywords["encoding"]\n'
+            'runner(["x"], text=True)',
+            "a construction pin the source undoes covers no later call site",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'runner(["x"], text=True, encoding="latin-1")',
+            "a call site naming its own codec overrides the one it was built with",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'runner(["x"], text=True, **overrides)',
+            "a splat at the call site can carry an encoding nothing here can read",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'alias = runner\n'
+            'alias.keywords["encoding"] = None\n'
+            'runner(["x"], text=True)',
+            "an alias shares the keyword mapping rather than copying it",
         ),
     ],
 )
