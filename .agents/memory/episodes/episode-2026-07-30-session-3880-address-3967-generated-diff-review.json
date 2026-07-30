@@ -1,0 +1,51 @@
+{
+  "id": "episode-2026-07-30-session-3880-address-3967-generated-diff-review",
+  "session": "2026-07-30-session-3880-address-3967-generated-diff-review",
+  "timestamp": "2026-07-30T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Address PR 3967 generated diff review feedback",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduce the silent git diff failure",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Report git diff failure without masking the workflow failure",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validate the autofix",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 4
+  },
+  "lessons": []
+}

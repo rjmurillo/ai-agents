@@ -17,8 +17,15 @@ import pytest
 from scripts.ci import show_generated_agent_diff as sgad
 
 
-def _completed(stdout: str = "", returncode: int = 0) -> subprocess.CompletedProcess[str]:
-    return subprocess.CompletedProcess(args=[], returncode=returncode, stdout=stdout, stderr="")
+def _completed(
+    stdout: str = "", returncode: int = 0, stderr: str = ""
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.CompletedProcess(
+        args=[],
+        returncode=returncode,
+        stdout=stdout,
+        stderr=stderr,
+    )
 
 
 class TestChangedFiles:
@@ -33,6 +40,19 @@ class TestChangedFiles:
     def test_no_output_means_no_files(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(sgad, "_run", lambda *_a, **_k: _completed(""))
         assert sgad.changed_files(Path(".")) == []
+
+    def test_git_failure_raises_with_stderr(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            sgad,
+            "_run",
+            lambda *_a, **_k: _completed(returncode=128, stderr="fatal: not a git repository"),
+        )
+
+        with pytest.raises(subprocess.CalledProcessError) as error:
+            sgad.changed_files(Path("."))
+
+        assert error.value.returncode == 128
+        assert error.value.stderr == "fatal: not a git repository"
 
 
 class TestMain:
@@ -77,6 +97,22 @@ class TestMain:
         assert "No differences detected" in out
         assert "were manually edited" not in out
         assert "=== Detailed diff ===" not in out
+
+    def test_git_diff_failure_reports_diagnostic_without_claiming_no_differences(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        def _run(argv: Sequence[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+            if list(argv) == ["git", "diff", "--name-only"]:
+                return _completed(returncode=128, stderr="fatal: not a git repository")
+            return _completed()
+
+        monkeypatch.setattr(sgad, "_run", _run)
+
+        assert sgad.main([]) == 0
+        captured = capsys.readouterr()
+        assert "git diff --name-only failed" in captured.err
+        assert "fatal: not a git repository" in captured.err
+        assert "No differences detected" not in captured.out
 
     def test_it_always_succeeds_so_it_cannot_mask_the_real_failure(
         self, monkeypatch: pytest.MonkeyPatch

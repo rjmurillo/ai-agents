@@ -39,6 +39,13 @@ def _run(argv: tuple[str, ...] | list[str], cwd: Path) -> subprocess.CompletedPr
 def changed_files(cwd: Path) -> list[str]:
     """Return the paths ``git diff`` reports as modified in the working tree."""
     completed = _run(["git", "diff", "--name-only"], cwd)
+    if completed.returncode != 0:
+        raise subprocess.CalledProcessError(
+            completed.returncode,
+            completed.args,
+            output=completed.stdout,
+            stderr=completed.stderr,
+        )
     return [line for line in completed.stdout.splitlines() if line.strip()]
 
 
@@ -56,7 +63,19 @@ def main(argv: list[str] | None = None) -> int:
     sys.stdout.write(regenerated.stdout)
     sys.stderr.write(regenerated.stderr)
 
-    files = changed_files(root)
+    try:
+        files = changed_files(root)
+    except subprocess.CalledProcessError as error:
+        print(
+            f"git diff --name-only failed with exit code {error.returncode}",
+            file=sys.stderr,
+        )
+        if error.stderr:
+            sys.stderr.write(error.stderr)
+            if not error.stderr.endswith("\n"):
+                sys.stderr.write("\n")
+        return 0
+
     if not files:
         print("No differences detected in git diff (validation may have failed for other reasons)")
         return 0
