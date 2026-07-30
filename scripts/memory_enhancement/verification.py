@@ -6,6 +6,7 @@ are added by registering a new verifier function, satisfying OCP.
 
 from __future__ import annotations
 
+import ast
 import re
 from collections.abc import Callable
 from pathlib import Path
@@ -27,7 +28,22 @@ VerifierFn = Callable[[Citation, Path], VerificationResult]
 
 _ISSUE_PR_PATTERN = re.compile(r"^#?\d+$")
 _FILE_LINE_PATTERN = re.compile(r"^(?P<path>[^:]+)(?::(?P<line>\d+))?$")
-_FUNCTION_PATTERN = re.compile(r"^(?P<path>[^:]+)::(?P<func>\w+)$")
+_FUNCTION_PATTERN = re.compile(r"^(?P<path>[^:]+)::(?P<func>[\w][\w-]*)$")
+
+# Extensions handled via ast.parse (avoids false positives on comments/strings).
+_PYTHON_EXTS: frozenset[str] = frozenset({".py", ".pyi"})
+
+# Pattern templates for non-Python languages. {name} is replaced with
+# re.escape(func_name) at call time.
+_LANG_PATTERN_TEMPLATES: dict[str, str] = {
+    ".ts": r"\bfunction\s+{name}\b",
+    ".tsx": r"\bfunction\s+{name}\b",
+    ".js": r"\bfunction\s+{name}\b",
+    ".jsx": r"\bfunction\s+{name}\b",
+    ".cs": r"\b{name}\s*\(",
+    ".ps1": r"\bfunction\s+{name}\b",
+    ".psm1": r"\bfunction\s+{name}\b",
+}
 
 
 def verify_citation(citation: Citation, repo_root: Path) -> VerificationResult:
@@ -46,9 +62,7 @@ def verify_citation(citation: Citation, repo_root: Path) -> VerificationResult:
     return verifier(citation, repo_root)
 
 
-def verify_all_citations(
-    memory: MemoryWithCitations, repo_root: Path
-) -> list[VerificationResult]:
+def verify_all_citations(memory: MemoryWithCitations, repo_root: Path) -> list[VerificationResult]:
     """Verify every citation in a memory.
 
     Args:
@@ -123,9 +137,7 @@ def _verify_file(citation: Citation, repo_root: Path) -> VerificationResult:
     return VerificationResult.create(citation, True, "File exists")
 
 
-def _verify_file_line(
-    citation: Citation, file_path: Path, line_num: int
-) -> VerificationResult:
+def _verify_file_line(citation: Citation, file_path: Path, line_num: int) -> VerificationResult:
     """Check that a file has at least the specified number of lines."""
     if line_num < 1:
         return VerificationResult.create(
@@ -169,16 +181,89 @@ def _search_function_in_file(
 ) -> VerificationResult:
     """Search for a function definition in a file.
 
-    Detects both sync and async Python function definitions.
+    Dispatch strategy by file extension:
+
+    - ``.py`` / ``.pyi``: use ``ast.parse`` so that occurrences inside comments
+      or string literals are ignored.  Falls back to a ``def``/``async def``
+      regex search if the file contains a syntax error; the reason field notes
+      "syntax-error fallback" in that case.
+    - ``.ts`` / ``.tsx`` / ``.js`` / ``.jsx``: match the ``function`` keyword.
+    - ``.cs``: match ``<name>(``.
+    - ``.ps1`` / ``.psm1``: match the ``function`` keyword (supports
+      hyphenated Verb-Noun names via the ``_FUNCTION_PATTERN`` fix).
+    - Any other extension: returns ``is_valid=False`` with a message directing
+      authors to use a file or file:line citation instead.
+
+    Args:
+        citation: The original citation being verified.
+        file_path: Resolved path to the file on disk.
+        func_name: Name of the function to search for.
+
+    Returns:
+        VerificationResult indicating whether the function was found.
     """
-    pattern = re.compile(rf"\b(?:async\s+)?def\s+{re.escape(func_name)}\b")
     try:
         content = file_path.read_text(encoding="utf-8", errors="replace")
     except OSError as exc:
         return VerificationResult.create(citation, False, f"Cannot read file: {exc}")
 
+    ext = file_path.suffix.lower()
+
+    if ext in _PYTHON_EXTS:
+        return _search_python_function(citation, func_name, content)
+
+    template = _LANG_PATTERN_TEMPLATES.get(ext)
+    if template is None:
+        return VerificationResult.create(
+            citation,
+            False,
+            f"Function-level citation unsupported for '{ext}' files; "
+            "use file or file:line citation instead",
+        )
+
+    pattern = re.compile(template.format(name=re.escape(func_name)))
     if pattern.search(content):
         return VerificationResult.create(citation, True, f"Function '{func_name}' found")
+    return VerificationResult.create(citation, False, f"Function '{func_name}' not found in file")
+
+
+def _search_python_function(citation: Citation, func_name: str, content: str) -> VerificationResult:
+    """Check for a function definition in Python source using ``ast.parse``.
+
+    Using the AST means occurrences inside comments or string literals
+    do not produce false positives.  If the source has a syntax error
+    (e.g. the file is incomplete or uses future syntax), falls back to a
+    regex search and notes "syntax-error fallback" in the reason.
+
+    Args:
+        citation: The original citation being verified.
+        func_name: Name of the function to find.
+        content: Full text of the Python file.
+
+    Returns:
+        VerificationResult indicating whether the function was found.
+    """
+    try:
+        tree = ast.parse(content)
+    except SyntaxError:
+        pattern = re.compile(rf"\b(?:async\s+)?def\s+{re.escape(func_name)}\b")
+        if pattern.search(content):
+            return VerificationResult.create(
+                citation,
+                True,
+                f"Function '{func_name}' found (syntax-error fallback; result may be imprecise)",
+            )
+        return VerificationResult.create(
+            citation,
+            False,
+            f"Function '{func_name}' not found in file (syntax-error fallback)",
+        )
+
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if node.name == func_name:
+                return VerificationResult.create(citation, True, f"Function '{func_name}' found")
+
     return VerificationResult.create(citation, False, f"Function '{func_name}' not found in file")
 
 
