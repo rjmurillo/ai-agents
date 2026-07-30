@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """Curated filter sets for orphan-ref-validator.
 
-Houses the denylist of kebab-case tokens that match ``SKILL_REF_RE`` but
-are not skill references in the working tree (model identifiers, schema
-fields, third-party Action names, bot identifiers, etc.). Kept in a
-separate module so ``scan.py`` stays under the 500-line file-size lint
-cap.
+Houses the curated allowlists that decide which kebab-case and
+single-word tokens are candidate skill references. Kept in a separate
+module so ``scan.py`` stays under the 500-line file-size lint cap.
 """
 
 from __future__ import annotations
@@ -14,65 +12,48 @@ import re
 
 MODEL_ID_RE = re.compile(r"^claude-(opus|sonnet|haiku)-\d")
 
-KEBAB_DENYLIST: frozenset[str] = frozenset({
-    # Prose hyphenated phrases
-    "well-known", "open-source", "self-contained", "follow-up",
-    "kebab-case", "snake-case", "ad-hoc", "real-time", "in-place",
-    "out-of-scope", "in-scope", "end-to-end", "best-practice", "copy-paste",
-    "spec-pipeline",
-    "left-hand", "right-hand", "ai-agents", "claude-code", "case-by-case",
-    "long-running", "short-running", "non-empty", "non-zero", "non-null",
-    "pass-through", "high-level", "low-level", "high-leverage",
-    "round-trip", "step-by-step", "fall-through", "cross-cutting",
-    "fix-loop", "read-only", "write-only", "first-principles",
-    "first-class", "second-class", "third-party", "drop-in", "in-flight",
-    "in-progress", "build-time", "run-time", "compile-time",
-    # YAML frontmatter / Claude Code skill schema field names
-    "allowed-tools", "argument-hint", "size-exception",
-    "disable-model-invocation", "user-invocable",
-    # Third-party Actions / scanners / CodeQL configs
-    "codeql-action", "security-extended", "security-and-quality",
-    "github-script", "actions-checkout", "actions-cache",
-    # Bot / role / actor identifiers
-    "rjmurillo-bot", "copilot-swe-agent", "gemini-code-assist",
-    "agent-controlled", "mention-triggered", "review-bot",
-    "code-review-bot",
-    # ADR-058 / INTERVIEW-1854 eval verdict + CVE-source literals
-    "keep-as-audit", "halt-due-to-flakiness", "keep-and-improve",
-    "public-cve", "paraphrased-from-public", "synthetic-novel",
-    "description-validation-bypass",
-    # REQ-011 / DESIGN-011 agent-vs-skill classification verdict literals.
-    # Same family as `keep-as-audit` above: REQ-011 AC-6 reads "THE SYSTEM
-    # SHALL set `verdict = keep-as-agent`", and TASK-011 TAC-4 counts
-    # `context-fork-skill` verdicts. Both name an enum value, not a skill.
-    "keep-as-agent", "context-fork-skill",
-    # Spec section-template names. REQ-012 proposes adding a
-    # `co-change-checklist` section template to `.claude/commands/spec.md`;
-    # the token names a template heading, not a skill directory.
-    "co-change-checklist",
-    # PowerShell / npm / pip module names that appear as backticked refs
-    "powershell-yaml", "python-frontmatter",
-    # Section anchors / API category labels
-    "graphql-vs-rest", "graphql-pr-operations",
-    "github-cli-api-patterns", "github-rest-api-reference",
-    # Distributed-systems vocabulary
-    "eventually-consistent", "strongly-consistent",
-    # Git hook lifecycle names
-    "pre-commit", "pre-push", "commit-msg", "post-commit",
-    "pre-receive", "post-receive", "pre-rebase",
-    # Plugin namespace identifiers (forthcoming + existing entries).
-    # `project-toolkit` is the actual plugin name in `.claude-plugin/marketplace.json`
-    # and `.github/plugin/marketplace.json`; backticked spec mentions of it (e.g. in
-    # INTERVIEW-review-axes-convergence) match SKILL_REF_RE and would false-positive
-    # without this entry. Refs PR #1979 round 18 (Devin filters.py:57).
-    "claude-toolkit", "copilot-cli-toolkit",
-    "claude-agents", "copilot-cli-agents",
-    "project-toolkit",
-    # CI job / workflow names referenced in spec content. `drift-check` is the
-    # planned ai-pr-quality-gate.yml job from REQ-008/TASK-008; backticked
-    # references describe a CI job, not a `.claude/skills/drift-check/`. Refs
-    # PR #1979 round 18 (Copilot REQ-008/TASK-008 forward refs).
-    "drift-check",
+
+
+# Hyphenated skill names that are genuinely absent from the live catalog but
+# existed as skills in repository history. This is the kebab counterpart of
+# KNOWN_SINGLE_WORD_SKILLS below and is governed by the same contract: the set
+# widens detection, the live catalog still decides validity.
+#
+# Two surfaces consume it, with different strictness.
+#
+# Prose-heavy targets such as Serena memories report a missing-skill claim only
+# when the line is typed AND the token is in this set, because those notes use
+# backticked kebab-case for workflow values, labels, models, headers, hooks,
+# and config keys (issue #3637, PR #3698).
+#
+# Everywhere else a bare backticked kebab token is a candidate only when this
+# set names it; a type claim alone is also enough. The old premise, that every
+# backticked kebab token is a skill candidate, holds inside skill and agent
+# definition files but fails in prose for exactly the reasons above. Measured
+# across `.serena/memories`, `.agents`, `.claude`, and `docs` after PR #3698
+# landed: 1485 skill_name findings, of which the overwhelming majority named
+# something that has never been a skill in this repository. Closing the
+# candidate set brings that to 135 and leaves script_path (687), rule_path
+# (73), and instruction_path (17) untouched.
+#
+# The alternative was appending each offending token to KEBAB_DENYLIST, which
+# enumerates the non-skill universe and therefore never terminates. Bounding
+# the candidate set by the skill universe instead is small and known. This is
+# the same trade #2679 made for single-word tokens.
+#
+# Cost of the trade: a bare backticked misspelling of a name that was never a
+# skill (`` `shipp` ``) no longer produces a finding. Writing the same
+# reference with a type claim (`` the `shipp` skill ``) still does, and a type
+# claim is what distinguishes a catalog reference from ordinary prose.
+#
+# Add a name here when a hyphenated skill is retired or renamed, so lingering
+# references keep surfacing instead of going silent.
+KNOWN_RETIRED_KEBAB_SKILLS: frozenset[str] = frozenset({
+    "doc-coverage",
+    "doc-sync",
+    "github-pr-reply",
+    "session-migration",
+    "session-qa-eligibility",
 })
 
 
@@ -99,6 +80,71 @@ KNOWN_SINGLE_WORD_SKILLS: frozenset[str] = frozenset({
 })
 
 
+def is_known_retired_kebab_skill(token: str) -> bool:
+    """Return True if a hyphenated token names a retired or renamed skill.
+
+    Membership makes the token a reference *candidate*; it does not make it a
+    finding. A name listed here that still resolves in the live catalog is a
+    valid reference and produces nothing, exactly as with
+    ``is_known_single_word_skill``.
+    """
+    return token in KNOWN_RETIRED_KEBAB_SKILLS
+
+
+# Skills that live in another repository's catalog and are referenced here on
+# purpose. A reference to one of these is correct prose, not an orphan: the
+# named skill exists, just not at ``.claude/skills/``. Before this set the
+# scanner reported them as critical findings whose offered remedies (update
+# the reference, restore the skill, remove the mention) were all wrong, since
+# the reference was already right and the skill is not ours to restore
+# (issue #3728).
+#
+# Bounded on purpose, same trade as ``KNOWN_RETIRED_KEBAB_SKILLS``: naming the
+# few foreign skills this repository cites is small and known, while deciding
+# foreignness by heuristic is not. Add a name here only with the owning
+# catalog recorded beside it, so a later reader can check the claim.
+FOREIGN_SKILL_CATALOGS: dict[str, str] = {
+    "claim-verification-before-ingest": "gstack",
+    "front-gate-before-pipeline": "gstack",
+}
+
+# Compiled once from the constant catalog names above rather than assembled per
+# call. Two reasons, in order of weight. First, it keeps the interpolation away
+# from the ``search`` call: Semgrep's LDAP-injection rule keys on a call named
+# ``search`` receiving a formatted string and cannot tell ``re.search`` from an
+# LDAP client's ``search``, so an inline ``re.search(rf"...")`` here produces a
+# blocking review finding for a sink this repository does not have (it declares
+# no LDAP dependency and imports no LDAP module). Suppressing that finding is
+# not available: the ``security-suppressions-push`` gate in
+# ``scripts/validation/git_hook_policy.py`` rejects any newly added suppression
+# comment. Second, the pattern set is fixed at import time, so compiling per
+# call was wasted work.
+_CATALOG_QUALIFIER_PATTERNS: dict[str, re.Pattern[str]] = {
+    catalog: re.compile(rf"\b{re.escape(catalog)}\b", re.IGNORECASE)
+    for catalog in sorted(set(FOREIGN_SKILL_CATALOGS.values()))
+}
+
+
+def foreign_skill_catalog(token: str) -> str | None:
+    """Return the owning catalog when a token names a known foreign skill."""
+    return FOREIGN_SKILL_CATALOGS.get(token)
+
+
+def is_qualified_foreign_skill(token: str, line: str) -> bool:
+    """Return True when ``line`` names the catalog that owns ``token``.
+
+    The token alone is not evidence. Issue #3728 asks for the exemption to
+    hold only for a catalog-qualified reference, so that an unqualified
+    mention of a skill this repository does not ship is still reported. The
+    qualifier is the owning catalog name appearing on the same line, which is
+    how the prose reads in practice: ``gstack `front-gate-before-pipeline` skill``.
+    """
+    catalog = FOREIGN_SKILL_CATALOGS.get(token)
+    if not catalog:
+        return False
+    return _CATALOG_QUALIFIER_PATTERNS[catalog].search(line) is not None
+
+
 def is_known_single_word_skill(token: str) -> bool:
     """Return True if a single-word token is a curated known skill name.
 
@@ -113,13 +159,21 @@ def is_known_single_word_skill(token: str) -> bool:
 def is_known_kebab_word(token: str) -> bool:
     """Return True if a kebab-case token is a known non-skill reference.
 
-    Filters tokens that match the SKILL_REF_RE pattern but should not be
-    flagged as orphan skill references: prose phrases, model identifiers,
-    third-party Action and config names, frontmatter field labels, bot
-    identifiers, and eval verdict literals seen in ADRs.
+    Two arms remain: a token with no hyphen is not the kebab shape this
+    filter guards, and a model identifier (``claude-opus-5``) is a version
+    string that a frontmatter scan can otherwise read as a catalog name.
+
+    The curated denylist that used to sit here was deleted in issue #3726.
+    PR #3698 replaced denying non-skills with requiring a type claim or a
+    retired-skill allowlist entry before a bare token becomes a candidate at
+    all, and recorded why: enumerating the non-skill universe never
+    terminates. That migration left the denylist behind. Measured across the
+    full corpus, 98 of its 101 entries suppressed nothing, and the survivors
+    only suppressed tokens inside this scanner's own test source. A token
+    like ``read-only`` is now reachable only when prose calls it a skill,
+    and a sentence that calls ``read-only`` a skill is wrong whether or not
+    a denylist hides it.
     """
     if "-" not in token:
         return True
-    if MODEL_ID_RE.match(token):
-        return True
-    return token in KEBAB_DENYLIST
+    return bool(MODEL_ID_RE.match(token))

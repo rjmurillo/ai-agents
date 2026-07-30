@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3641,
+    "date": "2026-07-29",
+    "branch": "fix/3641-eval-error-truncation",
+    "startingCommit": "c77d2bf89",
+    "objective": "Issue #3641 lists five pre-existing robustness gaps in the eval optimizer CLI and asserts that pull requests #3478, #3505, and #3560 do not cover them. Re-measure every claim before acting on it, fix what is genuinely open, and report the rest with evidence rather than re-fixing work that already shipped."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git checkout -b fix/3641-eval-error-truncation origin/main; branch reported as fix/3641-eval-error-truncation at 02bb54f7c."
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branch is fix/3641-eval-error-truncation, cut fresh from origin/main."
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Read earlier in this multi-issue campaign; the dashboard has not changed since."
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file, written before the first commit on the branch."
+      },
+      "serenaActivated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP has been unavailable for the whole campaign; no serena/ or mcp__serena__ tool is exposed."
+      },
+      "serenaInstructions": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Same cause. Fell back to reading the tree directly."
+      }
+    },
+    "sessionEnd": {
+      "logCompleted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Every workLog step carries the measurement that produced it."
+      },
+      "qaSkipDocumented": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Full QA ran. tests/eval/test_optimize_artifact_cli.py reports 766 passing tests, and the fix was mutation tested with two independent mutations."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "No markdown file changed. The change is one Python module and its test module."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "uv run pytest tests/eval/test_optimize_artifact_cli.py: 766 passed. uv run ruff check on both changed files: all checks passed."
+      },
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Every item recorded with evidence."
+      },
+      "serenaMemoryUpdated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP unavailable. The reusable finding, that an issue listing several gaps can have most of them already closed by later work and each claim must be re-measured before it is acted on, is recorded in the workLog and on issue #3641."
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "HANDOFF.md not modified (ADR-014)."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "The fix, its tests, and this log committed on fix/3641-eval-error-truncation. The endingCommit SHA is recorded in a follow-up commit rather than by amending."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Re-measured gap 1 (a --min-sel of 1e309 overflowing to infinity) rather than trusting the issue. The guard already exists: _check_split_drift catches OverflowError alongside TypeError and ValueError at optimize-artifact.py:681. Landed by pull request #3478 in commit 102e9976f. Gap 1 is closed and needed no change."
+    },
+    {
+      "step": "Re-measured gap 2 (a 309-digit integer score defeating math.isfinite). _as_float in _optimizer_adapters.py asks finiteness of floats only, so a 309-digit integer raises a clean AdapterError instead of reaching float() and overflowing. Verified by running the value through the adapter, not by reading the docstring. Gap 2 is closed."
+    },
+    {
+      "step": "Re-measured gap 3 (huge budget integers reaching float arithmetic). The _arith_int argparse type at optimize-artifact.py:2661 rejects them at the command line with exit 2 and a readable message, not exit 1 with a traceback. Verified end to end through the real CLI. Gap 3 is closed at the boundary. Also confirmed the two remaining plain type=int arguments cannot overflow because they only reach integer comparison in apply_patches, so _arith_int's coverage is deliberate rather than partial."
+    },
+    {
+      "step": "Probed gap 4 (a forced MemoryError) under a hard address-space limit rather than reasoning about it. It reproduces: with RLIMIT_AS at 80 MB and a 40 MB report, the command exits 1 with 0 bytes on stdout and a 1129-byte traceback ending in MemoryError at f.read()."
+    },
+    {
+      "step": "Established why that exit code matters before proposing a fix. The module docstring reserves exit 1 for 'reject, already-rejected, or a refused patch' and states that a REJECT is exit 1 'because it is a decision, not a crash'. Line 2444 returns EXIT_LOGIC for a REJECT decision. Python also exits 1 for an uncaught exception, and stdout is empty, so the decision field the docstring points a caller at is not present to tell a crash from a verdict."
+    },
+    {
+      "step": "Implemented the reclassification, then withdrew it on the evidence. Adding an except Exception arm that maps a crash to EXIT_CONFIG turned five tests red, each an explicit negative control: test_a_non_io_failure_from_mkstemp_still_escapes is documented as 'Negative control: the new arm must not swallow unrelated failures', and four siblings assert the same escape behaviour for locks, cleanup, and writes. The escape is a deliberate, test-enforced contract, so reversing it is an owner design decision and not a unilateral change. Reverted; the branch carries no gap 4 change."
+    },
+    {
+      "step": "Confirmed gap 5 (unbounded interpolation) end to end and bounded its scope. Only the string half is open: CPython caps JSON integer literals at 4300 digits (sys.get_int_max_str_digits), so the integer vector the issue describes is already mitigated by the interpreter. A 5,000,000-character fixture id in a report drove 5,000,110 bytes onto stdout, the stream the module docstring promises is machine-readable JSON."
+    },
+    {
+      "step": "Located the single fix point instead of patching call sites. _dispatch has exactly one error-emit boundary, the _emit({'error': ...}) at optimize-artifact.py:2845, and it is the only such site in the file. Truncating there is one edit and covers all 193 raise sites, present and future; wrapping call sites would have been 45 edits and forgettable. Confirmed the two outer handlers in main and _final_exit_code report stream-write failures only, so they carry no producer data and needed no change."
+    },
+    {
+      "step": "Calibrated the limit rather than picking a round number. Walked the AST of all three eval modules and measured the literal text of every raised message: 466 messages, longest fixed sentence 226 characters. Set the cap at 4096, about eighteen times the longest sentence, so no message the command raises today can reach it."
+    },
+    {
+      "step": "Chose middle elision over truncation on measured evidence. The reproduction's message reads \"fixture '<padding>' variant 'agent' run must be numeric, got 'not-a-number'\", so the part naming what was wrong sits at the tail and a head cut would have kept only the padding. The helper keeps both ends and states the dropped count between them."
+    },
+    {
+      "step": "Verified the fix end to end. The same 5,000,000-character reproduction now exits 2 with 4,140 bytes on stdout, down from 5,000,110. The reported error is exactly 4096 characters, starts with \"fixture '\", ends with \"must be numeric, got 'not-a-number'\", and carries the marker '[4996007 characters elided]'. Both ends of the diagnostic survive."
+    },
+    {
+      "step": "Mutation tested with two independent mutations, each caught by different tests. Removing the call at the emit boundary failed only the end-to-end test. Replacing middle elision with head truncation failed three tests, including the tail-survival control and the exact-accounting control, which is what proves middle elision is individually load-bearing rather than merely 'some truncation'. Restored: 8 of 8 green."
+    },
+    {
+      "step": "Checked the formatter before touching style. ruff format --check fails on both files at pristine origin/main, so the repository gates ruff check rather than ruff format here; reformatting would have produced 246 hunks of unrelated churn. Confirmed the only format hunk touching new code wants to join a signature the surrounding file also keeps wrapped, so the new code matches its neighbours. ruff check passes."
+    },
+    {
+      "step": "Full suite green: tests/eval/test_optimize_artifact_cli.py reports 766 passed, 8 of them new."
+    },
+    {
+      "step": "Rebased onto origin/main at c77d2bf89 after pull request #3752 restored the corpus gate. Re-ran the gate that had been red on main: TestTheMemoryCorpusIsGateable reports 2 passed, so this branch builds on a green base rather than inheriting the breakage."
+    }
+  ],
+  "nextSteps": [
+    "Gap 4 is real and reproducible but its remedy reverses a contract five explicit negative controls defend. Recorded on issue #3641 with the failing test names so the owner can decide whether an unexpected crash should keep exiting 1 or be reclassified.",
+    "The success path echoes producer data too: a 20 MB fixture id produced 20,000,640 bytes of stdout on a successful extract. That is output proportional to input for a command whose job is extraction, so it is treated as by design and not changed."
+  ],
+  "endingCommit": "098ccb9f3d2bfc2310a6468e3ced6901f9558028"
+}

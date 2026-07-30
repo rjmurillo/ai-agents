@@ -291,7 +291,7 @@ After initialization (or immediately if not a new session), plan the PR review w
 
 ### 3. Memory Inventory
 
-After calling `mcp__serena__list_memories`, write down every single memory key that was returned. List them all out, one by one. This section can be quite long: a comprehensive memory inventory may include dozens of keys, and you should list every single one. Do not skip any memory keys.
+After calling `mcp__serena__list_memories`, write down every single memory key that was returned. List them all out, one by one. This section can be quite long: a full memory inventory may include dozens of keys, and you should list every single one. Do not skip any memory keys.
 
 ### 4. Memory Relevance Evaluation
 
@@ -642,7 +642,7 @@ Do not attempt to land PRs while `mergeable` is `UNKNOWN`. Resolve status first,
 
 ### Stale merge-state cache
 
-GitHub can also keep a PR in `mergeable == "CONFLICTING"` or `mergeStateStatus == "DIRTY"` after the base branch advanced, even when the branch is already an ancestor of the base and a local merge is clean. Observed on PR #2334 (issue #2368): the agent verified locally that `origin/main` was an ancestor of the PR head and a local merge was clean, yet GitHub still reported the conflict. A safe base-ref refresh cleared the stale cache and the PR merged.
+GitHub can also keep a PR in `mergeable == "CONFLICTING"` or `mergeStateStatus == "DIRTY"` after the base branch advanced, even when the base is already an ancestor of the branch head and a local merge is clean. Observed on PR #2334 (issue #2368): the agent verified locally that `origin/main` was an ancestor of the PR head and a local merge was clean, yet GitHub still reported the conflict. A safe base-ref refresh cleared the stale cache and the PR merged.
 
 `test_pr_merge_ready.py` surfaces this with the `StaleDirtySuspected` output field. It is `true` whenever GitHub reports `mergeable == "CONFLICTING"` or `mergeStateStatus == "DIRTY"`. It is an ADVISORY flag only: it does not relax `CanMerge`. The script is a pure GitHub-API probe with no working tree, so it cannot run the ancestry check itself. Confirm against local git before acting.
 
@@ -669,16 +669,55 @@ Outcomes:
 
 - **Base is an ancestor AND trial merge is clean**: `mergeable == "CONFLICTING"` or `mergeStateStatus == "DIRTY"` is stale. Issue a safe base-ref refresh (below). Do not treat the PR as permanently blocked.
 - **Trial merge reports conflicts**: the conflict is real and authoritative. Resolve it via the merge-resolver skill; do not refresh-and-hope. `StaleDirtySuspected` being `true` does not override a failing trial merge.
+- **A conflicting path is served by a running custom merge driver**: the ancestry result above stays authoritative, but the trial-merge result stops being so. A custom driver is a shell command recorded in local git config. GitHub computes mergeability on its own servers where that config does not exist, so the command cannot run there. A local trial merge can then be clean while GitHub genuinely conflicts, or the reverse. Only the first direction has a cheap fix: merge the base in locally and push the merge commit so GitHub never has to compute it. A local conflict with a clean server merge cannot be pushed away, because the local merge does not complete; resolve it by hand. This applies to custom drivers only, not to git's built-ins (`text`, `binary`, `union`), which are compiled into git and need no config.
 
-Safe base-ref refresh (no force; runs the same merge as the Branch Update path, which is a no-op when already an ancestor and harmless otherwise):
+  Establishing that this case applies takes three checks, not one. First, `git check-attr --source=<head-sha> merge -- <path>` reporting a non-`unspecified` value proves only that an effective merge attribute exists, from `.gitattributes`, `.git/info/attributes`, or a global attributes file. An `unspecified` value is not a clean bill of health either: `git config --get merge.default`, if set, names a driver for every otherwise-unspecified path. Second, the value has to resolve: a built-in, or a `git config --get merge.<name>.driver` that exists. With no definition anywhere, git falls back to a text merge and says nothing. Third, a definition alone does not prove the command ran, and a conflict does not either, because a driver that fails quietly produces output identical to no driver at all. Merge locally under `GIT_TRACE=1` and look for a `run_command:` line naming the driver. Verified 2026-07-28: `origin/main` ships no merge-driver definition. `.agents/HANDOFF.md` declares `merge=ours`, and `ours` is not a gitattributes built-in (`-s ours` and `-X ours` are a merge strategy and a strategy option, a different mechanism). `.agents/handoffs/*.md` declares `merge=handoff-aggregate`, never implemented. Open issue #3625 tracks both. Both paths conflict like any other file, so this outcome is unreachable in a clean clone, though a clone carrying a stale local definition is a different case. See `.serena/memories/git/git-merge-driver-declared-versus-running.md` for the checks and `.serena/memories/git/git-merge-driver-github-disagreement.md` for the disagreement mechanism itself.
+
+Safe base-ref refresh has two paths. Use the local merge path when it creates or advances a ref. When the merge and push are both no-ops, use the GitHub update-branch API so GitHub recalculates PR state for the unchanged head.
 
 ```bash
-git -C "$WT" merge origin/"$BASE" --no-edit   # no-op when already an ancestor
-git -C "$WT" push origin "$BRANCH"            # fast-forward-friendly; no --force
+git -C "$WT" merge origin/"$BASE" --no-edit
+remote_before="$(git ls-remote origin "refs/heads/$BRANCH" | cut -f1)"
+git -C "$WT" push origin "$BRANCH"
+remote_after="$(git ls-remote origin "refs/heads/$BRANCH" | cut -f1)"
+
+if [ "$remote_before" = "$remote_after" ]; then
+  echo "Already up to date."
+  echo "Everything up-to-date"
+  echo "remote ref is unchanged; requesting GitHub recalculation"
+  HEAD_SHA="$(git -C "$WT" rev-parse HEAD)"
+  gh api -X PUT "repos/{owner}/{repo}/pulls/$PR/update-branch" \
+    -f "expected_head_sha=$HEAD_SHA"
+fi
+
 git worktree remove --force "$WT"
 ```
 
-Run the Force-Push Safety pre-push audit (verify the local tip matches the PR head SHA) before the push, then re-run the completion gate. After the push, GitHub recomputes mergeability from the fresh ref and clears the stale cache.
+Run the Force-Push Safety pre-push audit (verify the local tip matches the PR head SHA) before the push. If `remote_before` equals `remote_after`, do not claim the push refreshed the ref. The API call is the recalculation request. Re-run the completion gate after either the push advances the remote ref or the update-branch API returns success.
+
+Mergeability is not the only thing that goes stale, and the two do not clear
+together. GitHub also pins the comparison base used for the file list, and a
+push that only refreshes the head can leave it behind. Verified on PR #3647 on
+2026-07-28: after a plain push, `mergeable` corrected from `CONFLICTING` to
+`MERGEABLE`, while `base.sha` stayed at a main commit 30 commits old and the
+API reported 316 changed files against a real diff of 5. Every extra file was
+main's own work, attributed to the branch. Merging the current base in and
+pushing that moved `base.sha` to the base tip and the count to 5.
+
+The distinction matters when choosing the fix. A no-op merge is enough to clear
+stale mergeability, because the push alone refreshes the ref. It is not enough
+to clear a stale comparison base, because that only moves when the head
+actually advances past the base tip. So check the file count, not just
+`mergeable`, before concluding a refresh worked:
+
+```bash
+gh api "repos/$OWNER/$REPO/pulls/$PR" --jq '.base.sha, .changed_files'
+git diff --stat "origin/$BASE...HEAD" | tail -1   # authoritative
+```
+
+An inflated count is worth clearing rather than ignoring. It buries the real
+change in review, and any gate that reasons over changed files, including the
+PR description validator, will judge the PR on files it does not own.
 
 ## Branch Update Against Main
 
@@ -716,8 +755,23 @@ If a force-push is approved:
 ```bash
 SHA="<known-good-sha>"
 BRANCH="<branch-name>"
-git push origin "${SHA}:refs/heads/${BRANCH}" --force-with-lease --no-verify
+# The head.sha you already read from get_pr_context.py before starting work.
+EXPECTED_REMOTE_SHA="<observed-head-sha>"
+git push origin "${SHA}:refs/heads/${BRANCH}" \
+  --force-with-lease="refs/heads/${BRANCH}:${EXPECTED_REMOTE_SHA}" --no-verify
 ```
+
+Pin the lease to an explicit SHA; never use bare `--force-with-lease` here.
+Bare `--force-with-lease` takes its expected value from
+`refs/remotes/origin/$BRANCH`, and any concurrent `git fetch`, including one run
+by a sibling agent in the same checkout, silently advances that ref to the other
+agent's commit. The lease then passes and the push destroys their work. Measured
+on a two-clone repro: with a fetch between the two pushes the bare form
+overwrote a sibling's commit, while
+`--force-with-lease=refs/heads/$BRANCH:<observed-sha>` rejected the identical
+push with `stale info` (issues #3653, #3413). The `rev-parse` check above is a
+separate read and cannot close the window between check and push; only the
+pinned lease is atomic.
 
 Quote every variable expansion. The shell does not treat `:` specially in a refspec, so `$SHA:refs/heads/$BRANCH` is already passed to `git` as a single argument; the real reason to quote is that branch names can contain characters the shell DOES treat specially (`*`, `?`, `[`, whitespace), and any of those in `$BRANCH` will cause word-splitting or globbing on an unquoted expansion. Pin the SHA being pushed; do not use the local branch name as the source when restoring from corruption.
 
@@ -732,9 +786,10 @@ When any of these signal a force-reset, restore by force-pushing the last-known-
 ## Key Commands Used
 
 **Note**: Replace placeholders with actual values:
-- `{owner}` → Repository owner (e.g., `rjmurillo`)
-- `{repo}` → Repository name (e.g., `ai-agents`)
-- `{number}` → PR number (e.g., `255`)
+
+- `{owner}` -> Repository owner (e.g., `rjmurillo`)
+- `{repo}` -> Repository name (e.g., `ai-agents`)
+- `{number}` -> PR number (e.g., `255`)
 
 Use the Python skill scripts instead of raw `gh` commands. The project hook blocks raw `gh` usage.
 
@@ -847,6 +902,7 @@ For dependency update PRs (e.g., Renovate updating the same action across branch
 **Immediate fix**: Re-run the cancelled workflow run for each affected PR.
 
 **Durable fix options**:
+
 - Remove `cancel-in-progress: true` from PR validation workflows
 - Add `renovate[bot]` to the bot skip list alongside `dependabot[bot]`
 - Filter `edited` events for bot actors in workflow conditions

@@ -79,6 +79,8 @@ def run_sqlite3(db_path: str, query: str) -> str:
         ["sqlite3", db_path, query],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     if result.returncode != 0:
         raise RuntimeError(f"sqlite3 failed: {result.stderr.strip()}")
@@ -197,6 +199,7 @@ def main(argv: list[str] | None = None) -> int:
     security_script = _SCRIPT_DIR.parent / "review_memory_export_security.py"
     if security_script.exists():
         print("\nRunning mandatory security review...")
+        sys.stdout.flush()
         result = subprocess.run(
             [sys.executable, str(security_script), "--export-file", str(output_path)]
         )

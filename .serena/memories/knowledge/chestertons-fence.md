@@ -57,10 +57,8 @@ When changing existing systems:
 - Failure episodes document edge cases encountered
 - Success episodes show what worked
 
-**Tier 3 (Causal)**: What patterns led to Z outcome?
-- Causal graph shows decision → outcome paths
-- Success patterns show what to repeat
-- Failure patterns show what to avoid
+A Tier 3 causal graph once sat above these. ADR-089 deleted it: nothing read
+it, and its aggregated "patterns" were noise. Read the episodes directly.
 
 ## Enforcement (BLOCKING Gate)
 

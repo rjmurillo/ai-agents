@@ -38,6 +38,7 @@ def test_real_repo_head_unsets_git_environment_overrides(monkeypatch):
     monkeypatch.setenv("GIT_COMMON_DIR", "wrong")
     monkeypatch.setenv("GIT_REFLOG_ACTION", "caller-action")
     monkeypatch.setenv("GIT_TRACE2_EVENT", "caller-trace.json")
+    monkeypatch.setenv("GIT_TRACE_REFS", "caller-refs.log")
     monkeypatch.setenv("GIT_AUTHOR_NAME", "kept")
 
     def fake_run(*_args, **kwargs):
@@ -362,6 +363,15 @@ def test_reflog_action_ignores_marked_unrelated_branch_update(tmp_path, monkeypa
     )
 
     assert not module._reflog_contains_action(marker)
+
+
+def test_guard_fixture_allows_branch_creation_from_recorded_base(tmp_path):
+    repo = tmp_path / "repo"
+    base = _init_git_repo(repo)
+
+    _run_git(repo, "checkout", "-b", "local", base)
+
+    assert _run_git(repo, "branch", "--show-current") == "local"
 
 
 def test_trace_ignores_read_only_symbolic_ref(tmp_path):
@@ -798,7 +808,10 @@ def test_guard_fixture_restores_existing_trace_settings(monkeypatch):
     next(generator)
 
     for name, value in previous.items():
-        assert os.environ[name] != value
+        if name == "GIT_TRACE_REFS":
+            assert name not in os.environ
+        else:
+            assert os.environ[name] != value
     with pytest.raises(StopIteration):
         next(generator)
     for name, value in previous.items():
@@ -815,8 +828,11 @@ def test_guard_fixture_removes_new_trace_settings(monkeypatch):
     generator = module._guard_real_repo_head.__wrapped__()
     next(generator)
 
-    for name in module._TRACE_ENV_NAMES:
+    assert os.environ["GIT_REFLOG_ACTION"].startswith("pytest-head-guard:")
+    for name in module._TRACE_FILE_ENV_NAMES:
         assert name in os.environ
+    for name in module._TRACE_BLOCKED_ENV_NAMES:
+        assert name not in os.environ
     with pytest.raises(StopIteration):
         next(generator)
     for name in module._TRACE_ENV_NAMES:

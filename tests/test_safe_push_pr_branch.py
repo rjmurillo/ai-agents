@@ -8,10 +8,13 @@ import importlib.util
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
 import pytest
+
+from scripts.validation import git_hook_policy
 
 _MODULE_PATH = (
     Path(__file__).resolve().parents[1]
@@ -32,6 +35,8 @@ EXIT_OK = safe_push_pr_branch.EXIT_OK
 EXIT_VERIFICATION = safe_push_pr_branch.EXIT_VERIFICATION
 EXIT_TRANSPORT = safe_push_pr_branch.EXIT_TRANSPORT
 EXIT_USAGE = safe_push_pr_branch.EXIT_USAGE
+FULL_SHA1 = "a" * 40
+FULL_SHA256 = "b" * 64
 
 
 def _git(repo: Path, *args: str, check: bool = True) -> str:
@@ -204,6 +209,7 @@ def test_module_imports_without_fcntl(monkeypatch: pytest.MonkeyPatch) -> None:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.safe_push_transport
 @pytest.mark.integration
 def test_push_updates_requested_ref_and_reports_verified(tmp_path: Path) -> None:
     bare = _bare_remote(tmp_path)
@@ -224,6 +230,7 @@ def test_push_updates_requested_ref_and_reports_verified(tmp_path: Path) -> None
     assert _bare_git(bare, "rev-parse", "refs/heads/feature-x") == local_sha
 
 
+@pytest.mark.safe_push_transport
 @pytest.mark.integration
 def test_push_uses_resolved_sha_when_head_moves_before_transport(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -265,6 +272,7 @@ def test_push_uses_resolved_sha_when_head_moves_before_transport(
     assert _bare_git(bare, "rev-parse", "refs/heads/feature-x") != interloper_sha
 
 
+@pytest.mark.safe_push_transport
 @pytest.mark.integration
 def test_audit_records_full_remote_sha_on_update(tmp_path: Path) -> None:
     bare = _bare_remote(tmp_path)
@@ -281,6 +289,7 @@ def test_audit_records_full_remote_sha_on_update(tmp_path: Path) -> None:
     assert audit.observed_remote_sha == local_sha
 
 
+@pytest.mark.safe_push_transport
 @pytest.mark.integration
 def test_force_with_lease_pushes_only_expected_remote_sha(tmp_path: Path) -> None:
     bare = _bare_remote(tmp_path)
@@ -429,6 +438,7 @@ def test_push_fails_when_ls_remote_mismatches_local_after_successful_porcelain(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.safe_push_transport
 @pytest.mark.integration
 def test_push_refuses_when_head_on_other_branch(tmp_path: Path) -> None:
     bare = _bare_remote(tmp_path)
@@ -445,6 +455,7 @@ def test_push_refuses_when_head_on_other_branch(tmp_path: Path) -> None:
     assert "some-other-branch" not in refs
 
 
+@pytest.mark.safe_push_transport
 @pytest.mark.integration
 def test_push_refuses_on_detached_head_even_when_branch_is_head(tmp_path: Path) -> None:
     bare = _bare_remote(tmp_path)
@@ -461,6 +472,7 @@ def test_push_refuses_on_detached_head_even_when_branch_is_head(tmp_path: Path) 
     assert "refs/heads/HEAD" not in refs
 
 
+@pytest.mark.safe_push_transport
 @pytest.mark.integration
 def test_push_fails_on_non_fast_forward_rejection(tmp_path: Path) -> None:
     bare = _bare_remote(tmp_path)
@@ -490,6 +502,7 @@ def test_push_fails_on_non_fast_forward_rejection(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.safe_push_transport
 @pytest.mark.integration
 def test_concurrent_worktrees_same_destination_detects_competing_update(
     tmp_path: Path,
@@ -542,10 +555,135 @@ def test_concurrent_worktrees_same_destination_detects_competing_update(
 # ---------------------------------------------------------------------------
 
 
+def test_argument_parser_docstring_matches_bad_argument_contract(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    docstring = safe_push_pr_branch.SafePushArgumentParser.__doc__ or ""
+
+    code = main(["--branch", "feature-x", "--unknown-option"])
+
+    assert "raises SafePushError with EXIT_USAGE" in docstring
+    assert code == EXIT_USAGE
+    assert "unrecognized arguments" in capsys.readouterr().err
+
+
 def test_main_rejects_flag_shaped_branch(capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["--branch=--force", "--repo-root", "."]) == EXIT_USAGE
 
 
+def _successful_audit(branch: str, remote: str, repo_root: str, **kwargs: Any) -> Any:
+    return safe_push_pr_branch.PushAudit(
+        branch=branch,
+        remote=remote,
+        requested_refspec=f"{FULL_SHA1}:refs/heads/{branch}",
+        local_sha=FULL_SHA1,
+        process_id=1,
+        verified=True,
+        expected_remote_sha=kwargs.get("expected_remote_sha"),
+    )
+
+
+@pytest.mark.parametrize(
+    ("sha", "expected_code"),
+    [
+        (FULL_SHA1, EXIT_OK),
+        (FULL_SHA256, EXIT_OK),
+        ("abcdef12", EXIT_USAGE),
+        ("origin/main", EXIT_USAGE),
+        ("HEAD", EXIT_USAGE),
+        ("", EXIT_USAGE),
+        ("g" * 40, EXIT_USAGE),
+    ],
+)
+def test_main_validates_expected_remote_sha_at_parse_time(
+    sha: str,
+    expected_code: int,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    calls: list[dict[str, Any]] = []
+
+    def fake_safe_push(
+        branch: str,
+        remote: str,
+        repo_root: str,
+        expected_remote_sha: str | None = None,
+        force_with_lease: bool = False,
+    ) -> Any:
+        calls.append(
+            {
+                "branch": branch,
+                "remote": remote,
+                "repo_root": repo_root,
+                "expected_remote_sha": expected_remote_sha,
+                "force_with_lease": force_with_lease,
+            }
+        )
+        return _successful_audit(
+            branch,
+            remote,
+            repo_root,
+            expected_remote_sha=expected_remote_sha,
+        )
+
+    monkeypatch.setattr(safe_push_pr_branch, "safe_push", fake_safe_push)
+
+    code = main(
+        [
+            "--branch",
+            "feature-x",
+            "--repo-root",
+            ".",
+            "--force-with-lease",
+            "--expected-remote-sha",
+            sha,
+        ]
+    )
+
+    assert code == expected_code
+    if expected_code == EXIT_OK:
+        assert calls == [
+            {
+                "branch": "feature-x",
+                "remote": "origin",
+                "repo_root": ".",
+                "expected_remote_sha": sha,
+                "force_with_lease": True,
+            }
+        ]
+    else:
+        assert calls == []
+        assert "full 40 or 64 character hexadecimal object id" in capsys.readouterr().err
+
+
+def test_safe_push_rejects_invalid_expected_remote_sha_before_transport(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = tmp_path / "work"
+    _init_worktree(repo, "feature-x")
+    calls: list[list[str]] = []
+    real_run_git = safe_push_pr_branch._run_git
+
+    def fake_run_git(args: list[str], repo_root: str) -> subprocess.CompletedProcess[str]:
+        calls.append(args)
+        return real_run_git(args, repo_root)
+
+    monkeypatch.setattr(safe_push_pr_branch, "_run_git", fake_run_git)
+
+    with pytest.raises(SafePushError) as excinfo:
+        safe_push(
+            "feature-x",
+            "origin",
+            str(repo),
+            expected_remote_sha="origin/main",
+            force_with_lease=True,
+        )
+
+    assert excinfo.value.exit_code == EXIT_USAGE
+    assert [args for args in calls if args and args[0] == "push"] == []
+
+
+@pytest.mark.safe_push_transport
 @pytest.mark.integration
 def test_main_success_emits_notice(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     bare = _bare_remote(tmp_path)
@@ -599,14 +737,202 @@ def test_main_failure_emits_populated_audit(
 # ---------------------------------------------------------------------------
 
 
-def test_pre_push_pytest_entrypoint_excludes_integration_tests() -> None:
-    policy = (
-        Path(__file__).resolve().parents[1]
-        / "scripts"
-        / "validation"
-        / "git_hook_policy.py"
-    )
-    source = policy.read_text(encoding="utf-8")
+def _pytest_marker_and_paths(command: list[str]) -> tuple[str, list[str], list[str]]:
+    """Split a pytest argv into its marker expression, targets, and ignores.
 
-    assert '"-m"' in source
-    assert '"not integration"' in source
+    Parsing the argv instead of comparing it verbatim keeps the guard on the
+    two invariants that carry the safety (which marker deselects run, and which
+    module is targeted versus ignored) while tolerating benign additions such
+    as ``-q`` or ``--maxfail``.
+    """
+    marker = ""
+    targets: list[str] = []
+    ignores: list[str] = []
+    index = 0
+    while index < len(command):
+        token = command[index]
+        if token == "-m":
+            marker = command[index + 1]
+            index += 2
+            continue
+        if token == "--ignore":
+            ignores.append(command[index + 1])
+            index += 2
+            continue
+        if token.startswith("--ignore="):
+            ignores.append(token.split("=", 1)[1])
+            index += 1
+            continue
+        if not token.startswith("-") and index > 2:
+            targets.append(token)
+        index += 1
+    return marker, targets, ignores
+
+
+def test_pre_push_pytest_commands_include_safe_push_module() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    safe_push_tests = str(repo_root / "tests" / "test_safe_push_pr_branch.py")
+
+    commands = git_hook_policy._pytest_commands(repo_root)
+    parsed = [_pytest_marker_and_paths(command) for command in commands]
+
+    for command in commands:
+        assert command[:3] == [sys.executable, "-m", "pytest"]
+
+    bulk = [entry for entry in parsed if safe_push_tests in entry[2]]
+    targeted = [entry for entry in parsed if safe_push_tests in entry[1]]
+
+    assert len(bulk) == 1, parsed
+    assert len(targeted) == 1, parsed
+
+    bulk_marker, bulk_targets, _ = bulk[0]
+    assert bulk_marker == "not integration"
+    assert str(repo_root / "tests") in bulk_targets
+
+    targeted_marker, _, targeted_ignores = targeted[0]
+    assert targeted_marker == "not integration and not safe_push_transport"
+    assert safe_push_tests not in targeted_ignores
+
+    # The transport tests must never run under pre-push, so no command may
+    # reach this module without deselecting the safe_push_transport marker.
+    for marker, targets, ignores in parsed:
+        if safe_push_tests in ignores:
+            continue
+        reaches_module = safe_push_tests in targets or str(
+            repo_root / "tests"
+        ) in targets
+        if reaches_module:
+            assert "not integration" in marker, (marker, targets)
+            assert "not safe_push_transport" in marker, (marker, targets)
+
+
+def test_object_id_validator_loads_from_real_module() -> None:
+    validator = safe_push_pr_branch._load_object_id_validator()
+
+    assert validator(FULL_SHA1) is True
+    assert validator("abcdef12") is False
+
+
+def test_object_id_validator_missing_symbol_names_path(tmp_path: Path) -> None:
+    module_path = tmp_path / "object_id.py"
+    module_path.write_text("VALUE = 1\n", encoding="utf-8")
+
+    with pytest.raises(RuntimeError) as excinfo:
+        safe_push_pr_branch._load_object_id_validator(module_path)
+
+    message = str(excinfo.value)
+    assert "does not define is_full_object_id" in message
+    assert str(module_path) in message
+    assert excinfo.value.__cause__ is not None
+    assert isinstance(excinfo.value.__cause__, KeyError)
+
+
+def test_object_id_validator_non_callable_symbol_names_path(tmp_path: Path) -> None:
+    module_path = tmp_path / "object_id.py"
+    module_path.write_text("is_full_object_id = 3\n", encoding="utf-8")
+
+    with pytest.raises(RuntimeError) as excinfo:
+        safe_push_pr_branch._load_object_id_validator(module_path)
+
+    message = str(excinfo.value)
+    assert "non-callable" in message
+    assert str(module_path) in message
+
+
+def test_object_id_validator_absent_file_names_path(tmp_path: Path) -> None:
+    module_path = tmp_path / "missing_object_id.py"
+
+    with pytest.raises(RuntimeError) as excinfo:
+        safe_push_pr_branch._load_object_id_validator(module_path)
+
+    assert str(module_path) in str(excinfo.value)
+    assert isinstance(excinfo.value.__cause__, FileNotFoundError)
+
+
+def test_object_id_validator_unparsable_module_names_path(tmp_path: Path) -> None:
+    module_path = tmp_path / "object_id.py"
+    module_path.write_text("def is_full_object_id(:\n", encoding="utf-8")
+
+    with pytest.raises(RuntimeError) as excinfo:
+        safe_push_pr_branch._load_object_id_validator(module_path)
+
+    assert str(module_path) in str(excinfo.value)
+    assert isinstance(excinfo.value.__cause__, SyntaxError)
+
+
+# ---------------------------------------------------------------------------
+# Pre-push suite timeout is a whole-suite budget, not a per-command timeout
+# ---------------------------------------------------------------------------
+
+
+def _record_pytest_timeouts(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    elapsed_per_command: float,
+    returncode: int = 0,
+) -> list[float]:
+    seen: list[float] = []
+    clock = {"now": 1_000.0}
+
+    def fake_monotonic() -> float:
+        return clock["now"]
+
+    def fake_run_command(
+        args: Any,
+        repo_root: Any,
+        **kwargs: Any,
+    ) -> subprocess.CompletedProcess[str]:
+        seen.append(kwargs["timeout_seconds"])
+        clock["now"] += elapsed_per_command
+        return subprocess.CompletedProcess(list(args), returncode, "", "")
+
+    monkeypatch.setattr(time, "monotonic", fake_monotonic)
+    monkeypatch.setattr(git_hook_policy, "_run_command", fake_run_command)
+    monkeypatch.setattr(git_hook_policy, "_print_process_output", lambda result: None)
+    return seen
+
+
+def test_run_pytest_shares_one_timeout_budget_across_commands(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    budget = git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS
+    spent = 30.0
+    seen = _record_pytest_timeouts(monkeypatch, elapsed_per_command=spent)
+
+    assert git_hook_policy.run_pytest(tmp_path) == 0
+
+    assert len(seen) == len(git_hook_policy._pytest_commands(tmp_path))
+    assert seen[0] == pytest.approx(budget)
+    for index, timeout in enumerate(seen):
+        assert timeout == pytest.approx(budget - spent * index)
+    assert sum(seen) <= budget * len(seen)
+    assert seen[-1] < budget
+
+
+def test_run_pytest_refuses_to_start_a_command_past_the_budget(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    budget = git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS
+    seen = _record_pytest_timeouts(monkeypatch, elapsed_per_command=budget + 1)
+
+    assert git_hook_policy.run_pytest(tmp_path) == 1
+
+    assert len(seen) == 1
+    assert "exceeded" in capsys.readouterr().err
+
+
+def test_run_pytest_stops_on_the_first_failing_command(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    seen = _record_pytest_timeouts(
+        monkeypatch,
+        elapsed_per_command=1.0,
+        returncode=3,
+    )
+
+    assert git_hook_policy.run_pytest(tmp_path) == 3
+    assert len(seen) == 1

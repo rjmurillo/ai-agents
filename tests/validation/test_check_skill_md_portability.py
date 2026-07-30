@@ -17,6 +17,7 @@ against its baseline.
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -235,6 +236,109 @@ class TestDotPrefixedUpstreamBoundary:
         so ``/.agents/specs/x.md`` names the same directory as ``.agents/``.
         """
         assert cmp.count_upstream_refs(text + "\n") == 1
+
+
+class TestTerminatorWordBoundary:
+    """Issue #3482: a bare directory reference that ends at a word boundary.
+
+    The older terminator ``(?:[\\/]+|['\"?#]|$)`` ended a reference only at a
+    path separator, a quote, ``?``, ``#`` or end of string. A directory name
+    that ended at a space, a period, a comma, a closing bracket or most other
+    punctuation was therefore invisible. The widened terminator
+    ``(?:[\\/]+|(?![\\w-])(?!\\.[\\w]))`` ends the reference at any
+    non-identifier boundary while still rejecting a longer directory name and a
+    file-extension dot.
+
+    Each positive below returned 0 under the old terminator and 1 under the new
+    one; the revert proof in the PR body pins that direction. Each regression
+    guard returned 1 under both and must stay 1. Each negative returns 0 under
+    the new terminator, and the annotated ones return 1 under a plausible wrong
+    widening, so they are non-vacuous.
+    """
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Generate under templates/agents for each platform.\n",  # space
+            "The source is templates/agents. It ships nowhere.\n",  # period then space
+            "See templates/agents.",  # period then end of file, no newline
+            "Use (templates/agents) as the input.\n",  # closing paren
+            "Inputs: templates/agents, platforms, and more.\n",  # comma
+            "Run `templates/agents` by hand.\n",  # backtick
+            "Root templates/agents: the generator source.\n",  # colon
+            "Root templates/agents; see below.\n",  # semicolon
+            "Delete templates/agents! Now.\n",  # exclamation
+            "A list templates/agents] closes.\n",  # closing bracket
+            "A brace templates/agents} closes.\n",  # closing brace
+            "Edit templates/agents\nthen rebuild.\n",  # interior end of line
+            "Flow templates/agents\u2192platforms today.\n",  # non-ASCII non-letter
+        ],
+    )
+    def test_new_boundary_shapes_count(self, text: str) -> None:
+        """A bare directory reference ending at a newly accepted boundary counts."""
+        assert cmp.count_upstream_refs(text) == 1
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "See templates/agents",  # end of file via the old ``$`` alternative
+            "The templates/agents's contents ship nowhere.\n",  # possessive apostrophe
+            'He cited "templates/agents" as the source.\n',  # double quote
+            "Is it templates/agents? Yes.\n",  # question mark
+            "templates/agents#section links within.\n",  # fragment hash
+        ],
+    )
+    def test_old_boundary_shapes_still_count(self, text: str) -> None:
+        """Every shape the old terminator already counted must keep counting."""
+        assert cmp.count_upstream_refs(text) == 1
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "templates/agentsx",  # trailing letter, longer directory name
+            "templates/agents2",  # trailing digit, longer directory name
+            "templates/agents_v2",  # trailing underscore, longer directory name
+            "templates/agents-v2",  # trailing hyphen; a bare \\b widening would match
+            "templates/agents.md",  # file extension dot; a naive widening would match
+            "templates/AGENTS.md",  # case-folded file; a naive widening would match
+            "templates/agents\u00e9",  # non-ASCII letter, longer directory name
+            "{templates/agents}",  # brace is not an anchor; template variable shape
+            "The word .agentsx is not a path.\n",  # dot-prefixed trailing letter
+        ],
+    )
+    def test_word_boundary_negatives_do_not_count(self, text: str) -> None:
+        """A partial-word match or a file-extension collision still does not count."""
+        assert cmp.count_upstream_refs(text + "\n") == 0
+
+    def test_cli_new_boundary_ref_causes_drift_exit_1(self, tmp_path: Path) -> None:
+        """A skill file with a newly counted bare ref drifts from an empty baseline."""
+        skills = tmp_path / ".claude" / "skills" / "a"
+        skills.mkdir(parents=True)
+        (skills / "SKILL.md").write_text(
+            "Writes under .agents today.\n", encoding="utf-8"
+        )
+        # issue #3582: main() now requires every REQUIRED_SKILLS_ROOTS entry to
+        # exist, not just .claude, so a bare `.claude`-only fixture exits 2.
+        (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
+        rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+        assert rc == 1
+
+    def test_cli_glued_negative_stays_clean_exit_0(self, tmp_path: Path) -> None:
+        """A glued word that is not a directory reference does not drift."""
+        skills = tmp_path / ".claude" / "skills" / "a"
+        skills.mkdir(parents=True)
+        (skills / "SKILL.md").write_text(
+            "The templates/agentsx word is not a path.\n", encoding="utf-8"
+        )
+        # issue #3582: main() now requires every REQUIRED_SKILLS_ROOTS entry to
+        # exist, not just .claude, so a bare `.claude`-only fixture exits 2.
+        (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
+        rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+        assert rc == 0
 
 
 class TestPathStartAnchor:
@@ -520,7 +624,7 @@ class TestScan:
             tmp_path, "gamma/SKILL.md", "Reads .claude/lib/x and .agents/y\n"
         )
         skills_dir = tmp_path / ".claude" / "skills"
-        counts = cmp.scan_skill_markdown(skills_dir)
+        counts = cmp.scan_skill_markdown(skills_dir).counts
         assert counts == {
             "skills/alpha/SKILL.md": 1,
             "skills/gamma/SKILL.md": 2,
@@ -533,7 +637,7 @@ class TestScan:
             "<!-- vendor-portability: declared -->\nWrites .agents/a and .agents/b\n",
         )
         skills_dir = tmp_path / ".claude" / "skills"
-        assert cmp.scan_skill_markdown(skills_dir) == {}
+        assert cmp.scan_skill_markdown(skills_dir).counts == {}
 
 
 class TestPluginRootScan:
@@ -839,6 +943,53 @@ class TestMainCli:
         assert result == Path(""), "absolute path outside root must return empty Path"
 
 
+class TestUnexpectedScanException:
+    """Unexpected parser exceptions must return exit 2, not bubble up as exit 1.
+
+    Exit 1 means 'drift detected'. A scan-time exception is a configuration
+    or tool failure, not drift, so it must return exit 2. Without the catch-all
+    handler, an unexpected ValueError from markdown-it propagates as an unhandled
+    exception (exit 1) and misreports a scan failure as drift.
+    """
+
+    def test_unexpected_exception_returns_exit_2(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        skills = tmp_path / ".claude" / "skills" / "a"
+        skills.mkdir(parents=True)
+        (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
+        (skills / "SKILL.md").write_text("Some content.\n", encoding="utf-8")
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
+
+        def _exploding_scan(skills_dir: Path) -> None:
+            raise RuntimeError("simulated markdown-it internal error")
+
+        monkeypatch.setattr(cmp, "scan_skill_markdown", _exploding_scan)
+        rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+        assert rc == 2
+
+    def test_unexpected_exception_prints_type_and_message(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        skills = tmp_path / ".claude" / "skills" / "a"
+        skills.mkdir(parents=True)
+        (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
+        (skills / "SKILL.md").write_text("Some content.\n", encoding="utf-8")
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
+
+        def _exploding_scan(skills_dir: Path) -> None:
+            raise TypeError("bad token type")
+
+        monkeypatch.setattr(cmp, "scan_skill_markdown", _exploding_scan)
+        rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+        assert rc == 2
+        err = capsys.readouterr().err
+        assert "TypeError" in err
+        assert "bad token type" in err
+
+
 class TestCommittedRepoHasNoDrift:
     """The CI ratchet: the committed baseline must match the committed tree."""
 
@@ -906,3 +1057,281 @@ class TestBlockquoteFenceDepth:
         """The ordinary case keeps working: a marker at the opening depth closes."""
         text = "> ```\n> code\n> ```\n> /templates/agents/x.md\n"
         assert cmp.count_upstream_refs(text) == 1
+
+
+class TestAstCodeStripping:
+    """Regressions locking the #3499 AST rewrite of ``_strip_code``.
+
+    Each case was a disagreement between the old line scanner and the CommonMark
+    AST over the full repo corpus. The AST verdict is correct in every one; these
+    tests would fail against the old scanner and pass against the AST walk.
+    """
+
+    def test_indented_code_block_path_does_not_count(self) -> None:
+        """A path inside an indented code block is code, not a runtime directive.
+
+        The old line scanner stripped only fenced blocks, so this counted; the
+        AST classifies the indented block as code and it no longer counts.
+        """
+        text = "Prose /templates/agents/a.md\n\n    code /templates/agents/b.md\n"
+        assert cmp.count_upstream_refs(text) == 1
+
+    def test_fence_indented_in_nested_list_does_not_count(self) -> None:
+        """A fence aligned to a nested list sits past 3-space indent.
+
+        The old ``[ \\t]{0,3}`` fence regex missed it and counted the example
+        command; the AST resolves the list-relative indent and strips it.
+        """
+        text = "- outer:\n  - inner:\n    ```bash\n    cp .agents/x .\n    ```\n"
+        assert cmp.count_upstream_refs(text) == 0
+
+    def test_prose_after_nested_fence_example_counts(self) -> None:
+        """A stray closing fence must not swallow real prose to end of document.
+
+        The old scanner opened a phantom fence at the extra ``` and hid every
+        later reference; the AST ends the block at the list-item boundary, so the
+        following prose reference counts.
+        """
+        text = (
+            "1. example:\n"
+            "   ```markdown\n"
+            "   ### H\n"
+            "   ```python\n"
+            "   code\n"
+            "   ```\n"
+            "   ```\n"
+            "\n"
+            "2. real: write to .agents/analysis/x.md\n"
+        )
+        assert cmp.count_upstream_refs(text) == 1
+
+    def test_indented_code_drift_not_flagged_exit_zero(self, tmp_path: Path) -> None:
+        """End-to-end: a reference confined to indented code is not drift.
+
+        Under the old scanner this file counted 1 and, against an empty baseline,
+        the CLI exited 1. The AST counts 0, so the CLI exits 0.
+        """
+        skills = tmp_path / ".claude" / "skills" / "a"
+        skills.mkdir(parents=True)
+        (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
+        (skills / "SKILL.md").write_text(
+            "# Skill\n\nExample:\n\n    write to .agents/x.md\n", encoding="utf-8"
+        )
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
+        rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+        assert rc == 0
+
+
+class TestScanAccounting:
+    """Finding 3: scanned-file accounting is separate from offending counts.
+
+    A zero-file scan (empty tree, mistargeted root, unreadable dir) must not
+    read as a healthy scan that simply found no offenders. The success line and
+    JSON must report files SCANNED, not the offending count.
+    """
+
+    def _skill_md(self, root: Path, rel: str, body: str) -> None:
+        path = root / ".claude" / "skills" / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(body, encoding="utf-8")
+
+    def test_scanned_counts_every_md_not_only_offenders(self, tmp_path: Path) -> None:
+        # Three .md files, one offends. scanned must be 3; counts must hold 1.
+        self._skill_md(tmp_path, "a/SKILL.md", "Writes .agents/x\n")
+        self._skill_md(tmp_path, "b/references/b.md", "Clean prose.\n")
+        self._skill_md(tmp_path, "c/notes.md", "Also clean.\n")
+        skills_dir = tmp_path / ".claude" / "skills"
+        scan = cmp.scan_skill_markdown(skills_dir)
+        assert scan.scanned == 3
+        assert scan.counts == {"skills/a/SKILL.md": 1}
+
+    def test_zero_md_scan_refused_exit_2(self, tmp_path: Path) -> None:
+        # Skills dir exists but holds no .md. Refuse (exit 2), do not report clean.
+        skills = tmp_path / ".claude" / "skills" / "a"
+        skills.mkdir(parents=True)
+        (skills / "notes.txt").write_text("not markdown\n", encoding="utf-8")
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
+        rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+        assert rc == 2
+
+    def test_zero_md_scan_refused_before_writing_baseline(self, tmp_path: Path) -> None:
+        # An empty scan must not silently write an empty baseline either: the
+        # refusal precedes the --update-baseline branch.
+        skills = tmp_path / ".claude" / "skills" / "a"
+        skills.mkdir(parents=True)
+        (skills / "notes.txt").write_text("not markdown\n", encoding="utf-8")
+        baseline = tmp_path / "baseline.json"
+        rc = cmp.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--baseline",
+                str(baseline),
+                "--update-baseline",
+            ]
+        )
+        assert rc == 2
+        assert not baseline.exists()
+
+    def test_success_line_reports_scanned_not_offending(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Two clean files: success output names the scanned roots.
+        self._skill_md(tmp_path, "a/SKILL.md", "Clean prose.\n")
+        self._skill_md(tmp_path, "b/SKILL.md", "Also clean.\n")
+        (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
+        rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "No Markdown vendor-portability drift" in out
+        assert ".claude/skills" in out
+
+    def test_json_output_includes_files_scanned(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        self._skill_md(tmp_path, "a/SKILL.md", "Clean prose.\n")
+        self._skill_md(tmp_path, "b/SKILL.md", "Also clean.\n")
+        (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
+        rc = cmp.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--baseline",
+                str(baseline),
+                "--output-format",
+                "json",
+            ]
+        )
+        payload = json.loads(capsys.readouterr().out)
+        assert rc == 0
+        assert payload["regressions"] == []
+        assert payload["current_total"] == 0
+
+
+class TestTraversalErrorsSurface:
+    """Finding 3: traversal errors must fail closed, not be swallowed.
+
+    ``Path.rglob`` walks past a permission error on a subdirectory, so a partial
+    scan reads as clean; ``os.walk`` with a re-raising ``onerror`` refuses. A
+    broken ``.md`` symlink is a configuration error, not a file to drop.
+    """
+
+    def _skill_md(self, root: Path, rel: str, body: str) -> None:
+        path = root / ".claude" / "skills" / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(body, encoding="utf-8")
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Symlinks require privileges on Windows",
+    )
+    def test_broken_md_symlink_raises(self, tmp_path: Path) -> None:
+        skills = tmp_path / ".claude" / "skills" / "a"
+        skills.mkdir(parents=True)
+        (skills / "SKILL.md").write_text("Clean prose.\n", encoding="utf-8")
+        (skills / "dangling.md").symlink_to(skills / "gone.md")
+        with pytest.raises(OSError, match="Broken .md symlink"):
+            cmp.scan_skill_markdown(tmp_path / ".claude" / "skills")
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Symlinks require privileges on Windows",
+    )
+    def test_broken_md_symlink_makes_cli_exit_2(self, tmp_path: Path) -> None:
+        skills = tmp_path / ".claude" / "skills" / "a"
+        skills.mkdir(parents=True)
+        (skills / "SKILL.md").write_text("Clean prose.\n", encoding="utf-8")
+        (skills / "dangling.md").symlink_to(skills / "gone.md")
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
+        rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+        assert rc == 2
+
+    @pytest.mark.skipif(
+        getattr(os, "geteuid", lambda: -1)() == 0,
+        reason="chmod-based permission denial is a no-op for root (web containers)",
+    )
+    def test_unreadable_subdir_raises(self, tmp_path: Path) -> None:
+        skills = tmp_path / ".claude" / "skills" / "a"
+        skills.mkdir(parents=True)
+        (skills / "SKILL.md").write_text("Clean prose.\n", encoding="utf-8")
+        locked = tmp_path / ".claude" / "skills" / "locked"
+        locked.mkdir()
+        (locked / "SKILL.md").write_text("Writes .agents/x\n", encoding="utf-8")
+        locked.chmod(0o000)
+        try:
+            with pytest.raises(OSError):
+                cmp.scan_skill_markdown(tmp_path / ".claude" / "skills")
+        finally:
+            locked.chmod(0o755)
+
+    @pytest.mark.skipif(
+        getattr(os, "geteuid", lambda: -1)() == 0,
+        reason="chmod-based permission denial is a no-op for root (web containers)",
+    )
+    def test_unreadable_subdir_makes_cli_exit_2(self, tmp_path: Path) -> None:
+        skills = tmp_path / ".claude" / "skills" / "a"
+        skills.mkdir(parents=True)
+        (skills / "SKILL.md").write_text("Clean prose.\n", encoding="utf-8")
+        locked = tmp_path / ".claude" / "skills" / "locked"
+        locked.mkdir()
+        (locked / "SKILL.md").write_text("Writes .agents/x\n", encoding="utf-8")
+        locked.chmod(0o000)
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
+        try:
+            rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+        finally:
+            locked.chmod(0o755)
+        assert rc == 2
+
+
+class TestNestingExhaustionGate:
+    """Finding 1: parser nesting exhaustion is a gate bypass and must fail closed.
+
+    At ``maxNesting`` (20) markdown-it stops emitting fence tokens, so a
+    ``vendor-portability`` marker fenced that deep would leak and suppress a
+    genuine violation. End-to-end, the validator must refuse (exit 2) rather
+    than silently pass (exit 0).
+    """
+
+    @staticmethod
+    def _nested_fence(depth: int) -> str:
+        quote = ">" * depth + " "
+        return (
+            quote + "```\n"
+            + quote + "<!-- vendor-portability: example -->\n"
+            + quote + "```\n"
+            + "Ref .agents/analysis/foo.md.\n"
+        )
+
+    def _write_skill(self, tmp_path: Path, body: str) -> Path:
+        skills = tmp_path / ".claude" / "skills" / "a"
+        skills.mkdir(parents=True)
+        (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
+        (skills / "SKILL.md").write_text(body, encoding="utf-8")
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
+        return baseline
+
+    def test_depth_20_fenced_marker_refused_exit_2(self, tmp_path: Path) -> None:
+        # The fence vanishes at depth 20, so the marker would leak and zero the
+        # file. The gate must refuse the un-scannable file, not pass it.
+        baseline = self._write_skill(tmp_path, self._nested_fence(20))
+        rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+        assert rc == 2
+
+    def test_depth_19_control_flags_drift_exit_1(self, tmp_path: Path) -> None:
+        # Depth 19 is fully represented: the fence is stripped, the marker is
+        # blanked, and the genuine prose ref counts as drift against an empty
+        # baseline. This proves the refusal at depth 20 is the nesting limit, not
+        # the reference itself.
+        baseline = self._write_skill(tmp_path, self._nested_fence(19))
+        rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+        assert rc == 1

@@ -1,0 +1,266 @@
+{
+  "id": "episode-2026-07-29-session-3749-orphan-ref-doc-placeholder",
+  "session": "2026-07-29-session-3749-orphan-ref-doc-placeholder",
+  "timestamp": "2026-07-29T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Return main to green. Two pull requests that were each green on their own merged four minutes apart and left main red, which blocks every push in the repository because the pre-push hook runs the full suite. Restore the gate by applying the validator's own line-scoped ignore directive to the one line of documentation prose that trips it (issue #3749).",
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "implementation",
+      "context": "",
+      "chosen": "Chose the mechanism the validator already ships for this case: the line-scoped `<!-- orphan-ref-ignore -->` directive, IGNORE_DIRECTIVE_RE at patterns.py line 63. Confirmed from extract_directive_suppressed_refs that the directive is same-line, not previous-line, so it belongs on line 157 itself.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced the failure before reading the issue. uv run pytest on TestTheMemoryCorpusIsGateable failed with AssertionError: assert {'x'} == set(). The orphan skill name is the single character x.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Proved the breakage lives in main rather than in the branch that surfaced it. Added a detached worktree at pristine origin/main 476facc4d and ran the same test there: 1 failed, 1 passed. Re-fetched after PR #3735 merged and re-ran at 08f9e0c65 across both bundle trees: 2 failed, 2 passed. main is red on its own, so every push in the repository is blocked.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "content": "Proved the breakage lives in main rather than in the branch that surfaced it. Added a detached worktree at pristine origin/main 476facc4d and ran the same test there: 1 failed, 1 passed. Re-fetched after PR #3735 merged and re-ran at 08f9e0c65 across both bundle trees: 2 failed, 2 passed. main is red on its own, so every push in the repository is blocked.",
+      "caused_by": [],
+      "leads_to": [
+        "e014"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "error",
+      "content": "Proved the breakage lives in main rather than in the branch that surfaced it. Added a detached worktree at pristine origin/main 476facc4d and ran the same test there: 1 failed, 1 passed. Re-fetched after PR #3735 merged and re-ran at 08f9e0c65 across both bundle trees: 2 failed, 2 passed. main is red on its own, so every push in the repository is blocked.",
+      "caused_by": [],
+      "leads_to": [
+        "e017"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Checked whether the already-merged PR #3735 was the fix, because its branch tightened these same candidate rules. Its branch tip 609f33c65 passed 2 of 2, but merged main still fails, so the tightening is not sufficient and the corpus content is the remaining cause. Recording this because the branch-passes result on its own would have been a false all-clear.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Located the exact finding rather than inferring it. Ran the scanner directly over .serena/memories and dumped all 31 findings. Exactly one is kind skill_name: target_file .serena/memories/architecture/shipped-tree-route-resolution.md, line 157, referenced_entity x, severity critical.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read the line before deciding what was wrong with it. Line 157 reads: whole route, so `` `Skill: x` `` stays documentation and `` Skill: `x` `` stays a route. The memory documents the route parser's own syntax, and to document it, it writes it. The sentence literally asserts that the second form is a route, and the scanner agrees. Neither the prose nor the scanner is defective; the collision is between a corpus gate and documentation of that gate's grammar.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Identified which pattern fires, so the fix targets the real cause. SKILL_TYPED_REF_RE (patterns.py line 76) has a key-value alternative, skill followed by a colon and a quote character, which matches Skill: `x` and does not match `Skill: x`. That is exactly the distinction the prose describes.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rejected a scanner length heuristic, which was the tempting general fix. Excluding single-character tokens would silence this instance only. The same sentence could have used foo or bar as its placeholder and the gate would still be red, so a length rule is strictly weaker than it looks while also loosening a gate that issue #3637 had just calibrated. The placeholder is arbitrary; its length is not the defect.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Chose the mechanism the validator already ships for this case: the line-scoped `<!-- orphan-ref-ignore -->` directive, IGNORE_DIRECTIVE_RE at patterns.py line 63. Confirmed from extract_directive_suppressed_refs that the directive is same-line, not previous-line, so it belongs on line 157 itself.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Confirmed the directive records rather than discards. After the fix the scanner reports skill_name findings: 0 and carries an audit entry, target_file shipped-tree-route-resolution.md, line 157, referenced_entity x, reason line ignore directive. The suppression is visible in the envelope, which is why this is the right escape hatch and not a silent exemption.",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Confirmed the edit cannot trip markdown lint. MD013 line length is disabled at .markdownlint-cli2.yaml line 20, so extending line 157 by 26 characters is safe.",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ]
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified the fix across both shipped trees, since the test runs once per bundle tree and both read the same repository-root corpus. 4 passed for the two TestTheMemoryCorpusIsGateable classes, then 387 passed and 1 skipped for the two full orphan-ref-validator suites.",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e015"
+      ]
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "content": "Verified the fix across both shipped trees, since the test runs once per bundle tree and both read the same repository-root corpus. 4 passed for the two TestTheMemoryCorpusIsGateable classes, then 387 passed and 1 skipped for the two full orphan-ref-validator suites.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e016"
+      ]
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Mutation tested the fix in both directions. Removed the directive: 1 failed, 1 passed, the original assertion. Restored it: green, and git diff --stat reports exactly 1 file changed, 1 insertion, 1 deletion. The directive is load-bearing and the diff carries nothing else.",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e018"
+      ]
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "content": "Mutation tested the fix in both directions. Removed the directive: 1 failed, 1 passed, the original assertion. Restored it: green, and git diff --stat reports exactly 1 file changed, 1 insertion, 1 deletion. The directive is load-bearing and the diff carries nothing else.",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "error",
+      "content": "Mutation tested the fix in both directions. Removed the directive: 1 failed, 1 passed, the original assertion. Restored it: green, and git diff --stat reports exactly 1 file changed, 1 insertion, 1 deletion. The directive is load-bearing and the diff carries nothing else.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured the merge policy that allowed the race, rather than asserting it. The repository has no legacy branch protection on main (HTTP 404) and one active ruleset, id 11104075, whose required_status_checks rule sets strict_required_status_checks_policy to false. Pull requests are therefore not required to be up to date with main before merging, which is precisely how #3741 and #3735 merged four minutes apart into a red main with both showing green.",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 476facc4d",
+      "caused_by": [],
+      "leads_to": [
+        "e020"
+      ]
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 609f33c65",
+      "caused_by": [
+        "e019"
+      ],
+      "leads_to": [
+        "e021"
+      ]
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 1b557d0bfc02701ad32bb743585bbb9ce49ab475",
+      "caused_by": [
+        "e020"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 2,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 3
+  },
+  "lessons": []
+}

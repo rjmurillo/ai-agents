@@ -1,7 +1,7 @@
 ---
 name: retrospective
 version: 0.1.0
-description: Extract learnings from a session or task through structured retrospective frameworks. Gathers evidence, runs Five Whys and fishbone diagnosis, scores atomicity, and writes a canonical retrospective artifact. Use to turn execution experience into institutional knowledge. Do NOT use for in-conversation correction capture (use the reflect skill).
+description: Extract learnings from a session or task through structured retrospective frameworks. Gathers evidence, runs Five Whys and fishbone diagnosis, scores atomicity, and writes a canonical retrospective artifact. Use to turn execution experience into institutional knowledge. Use when you say "run a retrospective", "retro fill", or "extract learnings from this session". Do NOT use for in-conversation correction capture (use the reflect skill).
 license: MIT
 metadata:
   domains: [retrospective, learning-extraction, root-cause-analysis, continuous-improvement]

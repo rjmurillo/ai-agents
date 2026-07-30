@@ -105,86 +105,7 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           LABELS_JSON: ${{ steps.parse-categorize.outputs.labels }}
           PRIORITY: ${{ steps.parse-align.outputs.priority }}
-        run: |
-          $failedLabels = @()
-          $failedCreates = @()
-
-          # Parse labels from JSON array (already validated by Parse Categorization Results)
-          $labels = @()
-          if ($env:LABELS_JSON -and $env:LABELS_JSON -ne '[]') {
-              try {
-                  $labels = $env:LABELS_JSON | ConvertFrom-Json
-              } catch {
-                  Write-Warning "Failed to parse labels JSON: $_"
-              }
-          }
-
-          # Apply category labels with proper quoting
-          foreach ($label in $labels) {
-              # Defense in depth: validate label one more time
-              # Prevents trailing special chars like "bug-" by requiring alphanumeric end
-              if ($label -notmatch '^(?=.{1,50}$)[A-Za-z0-9](?:[A-Za-z0-9 _\.-]*[A-Za-z0-9])?$') {
-                  Write-Warning "Skipping invalid label: $label"
-                  continue
-              }
-
-              # Check if label exists (case-insensitive)
-              $existingRaw = gh label list --search $label --json name -q '.[].name' 2>$null
-              $existing = @($existingRaw) | Where-Object { $_ }
-              $existingLower = $existing | ForEach-Object { $_.ToLowerInvariant() }
-              if ($existingLower -notcontains $label.ToLowerInvariant()) {
-                  Write-Host "Creating label: $label"
-                  $result = gh label create $label --description "Auto-created by AI triage" 2>&1
-                  if ($LASTEXITCODE -ne 0) {
-                      Write-Warning "Failed to create label: $label"
-                      $failedCreates += $label
-                  }
-              }
-
-              Write-Host "Adding label: $label"
-              $result = gh issue edit $env:ISSUE_NUMBER --add-label $label 2>&1
-              if ($LASTEXITCODE -ne 0) {
-                  Write-Warning "Failed to add label '$label' to issue #$($env:ISSUE_NUMBER)"
-                  $failedLabels += $label
-              }
-          }
-
-          # Apply priority label with validation
-          if ($env:PRIORITY -match '^P[0-4]$') {
-              $priorityLabel = "priority:$($env:PRIORITY)"
-
-              $existingRaw = gh label list --search $priorityLabel --json name -q '.[].name' 2>$null
-              $existing = @($existingRaw) | Where-Object { $_ }
-              $existingLower = $existing | ForEach-Object { $_.ToLowerInvariant() }
-              if ($existingLower -notcontains $priorityLabel.ToLowerInvariant()) {
-                  Write-Host "Creating label: $priorityLabel"
-                  $result = gh label create $priorityLabel --description "Priority level" --color "FFA500" 2>&1
-                  if ($LASTEXITCODE -ne 0) {
-                      Write-Warning "Failed to create priority label: $priorityLabel"
-                      $failedCreates += $priorityLabel
-                  }
-              }
-
-              Write-Host "Adding priority label: $priorityLabel"
-              $result = gh issue edit $env:ISSUE_NUMBER --add-label $priorityLabel 2>&1
-              if ($LASTEXITCODE -ne 0) {
-                  Write-Warning "Failed to add priority label '$priorityLabel'"
-                  $failedLabels += $priorityLabel
-              }
-          }
-
-          # Report summary
-          if ($failedLabels.Count -gt 0 -or $failedCreates.Count -gt 0) {
-              Write-Host ""
-              Write-Host "=== LABEL OPERATIONS SUMMARY ==="
-              if ($failedCreates.Count -gt 0) {
-                  Write-Host "Failed to create labels: $($failedCreates -join ', ')"
-              }
-              if ($failedLabels.Count -gt 0) {
-                  Write-Host "Failed to apply labels: $($failedLabels -join ', ')"
-              }
-              Write-Host "==============================="
-          }
+        run: python3 scripts/ci/apply_issue_triage_labels.py
 
       # SEC-FIX: Replaced bash with PowerShell to prevent CWE-78 (Issue #211)
       - name: Assign Milestone
@@ -194,33 +115,7 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           MILESTONE: ${{ steps.parse-align.outputs.milestone }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-        run: |
-          if ($env:MILESTONE -and $env:MILESTONE -ne 'null') {
-              # Defense in depth: validate milestone format
-              # Prevents trailing special chars like "v1.0-" by requiring alphanumeric end
-              if ($env:MILESTONE -notmatch '^(?=.{1,50}$)[A-Za-z0-9](?:[A-Za-z0-9 _\.-]*[A-Za-z0-9])?$') {
-                  Write-Warning "Invalid milestone format: $($env:MILESTONE)"
-                  exit 0
-              }
-
-              # Check if milestone exists
-              # Ensure $milestones is always an array (fixes single-milestone edge case)
-              $milestonesRaw = gh api "repos/$($env:GITHUB_REPOSITORY)/milestones" --jq '.[].title' 2>$null
-              $milestones = @($milestonesRaw) | Where-Object { $_ }
-              # Case-insensitive comparison for milestone matching
-              $milestonesLower = $milestones | ForEach-Object { $_.ToLowerInvariant() }
-              if ($milestonesLower -contains $env:MILESTONE.ToLowerInvariant()) {
-                  Write-Host "Assigning milestone: $($env:MILESTONE)"
-                  $result = gh issue edit $env:ISSUE_NUMBER --milestone $env:MILESTONE 2>&1
-                  if ($LASTEXITCODE -ne 0) {
-                      Write-Warning "Failed to assign milestone '$($env:MILESTONE)' to issue #$($env:ISSUE_NUMBER)"
-                  }
-              } else {
-                  Write-Host "::notice::Milestone not found: $($env:MILESTONE) (skipping assignment)"
-              }
-          } else {
-              Write-Host "No milestone to assign"
-          }
+        run: python3 scripts/ci/assign_issue_triage_milestone.py
 
       - name: 📝 Generate PRD (Escalated Issues)
         id: generate-prd
@@ -250,66 +145,7 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           SERVER_URL: ${{ github.server_url }}
           RUN_ID: ${{ github.run_id }}
-        run: |
-          # Determine PRD depth based on complexity score
-          $complexityScore = [int]$env:COMPLEXITY_SCORE
-          $prdDepth = switch ($true) {
-              ($complexityScore -ge 10) { "Comprehensive" }
-              ($complexityScore -ge 7) { "Detailed" }
-              default { "Standard" }
-          }
-
-          # Build PRD comment template using PowerShell here-string (safe from injection)
-          $prdTemplate = @"
-          <!-- AI-PRD-GENERATION -->
-
-          ## Product Requirements Document
-
-          > [!IMPORTANT]
-          > This PRD was automatically generated based on issue triage escalation.
-          > **Complexity Score**: $($env:COMPLEXITY_SCORE)/12 ($prdDepth)
-          > **Escalation Criteria**: $($env:ESCALATION_CRITERIA)
-
-          <details>
-          <summary>About this PRD</summary>
-
-          This PRD was generated by the **Explainer Agent** after the issue was flagged
-          for detailed analysis. The document is designed to be self-contained - it can
-          be passed to a separate AI agent instance for implementation without additional
-          context.
-
-          **PRD Depth Levels**:
-          - **Standard** (4-6): Brief analysis, clear requirements
-          - **Detailed** (7-9): Research section, blocking questions
-          - **Comprehensive** (10-12): Phased implementation, risk analysis
-
-          </details>
-
-          ---
-
-          "@
-
-          # Append PRD content (PowerShell string handling prevents injection)
-          $prdTemplate += $env:PRD_CONTENT
-
-          # Add footer with replaced placeholders
-          $prdTemplate += @"
-
-          ---
-
-          <sub>Generated by [AI PRD Generation](https://github.com/$($env:GITHUB_REPOSITORY)) | [View Workflow]($($env:SERVER_URL)/$($env:GITHUB_REPOSITORY)/actions/runs/$($env:RUN_ID))</sub>
-          "@
-
-          # Write to temp file
-          $prdTemplate | Set-Content /tmp/prd-comment.md -Encoding UTF8
-
-          # Post comment via Python script (ADR-042 migration)
-          python3 .github/scripts/run_with_retry.py -- `
-            python3 .github/scripts/post_issue_comment.py `
-            --issue $env:ISSUE_NUMBER `
-            --body-file "/tmp/prd-comment.md" `
-            --marker "AI-PRD-GENERATION"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        run: python3 scripts/ci/post_issue_triage_prd_comment.py
 
       - name: Post Triage Summary
         shell: pwsh -NoProfile -Command "& '{0}'"
@@ -328,18 +164,4 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           SERVER_URL: ${{ github.server_url }}
           RUN_ID: ${{ github.run_id }}
-        run: |
-          # Assemble the triage comment. ADR-006: the here-string assembly
-          # logic moved to scripts/ci/build_triage_summary_comment.py
-          # (byte-for-byte tested in
-          # tests/ci/test_build_triage_summary_comment.py).
-          python3 scripts/ci/build_triage_summary_comment.py --output /tmp/triage-comment.md
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-          # Post comment via Python script (ADR-042 migration)
-          python3 .github/scripts/run_with_retry.py -- `
-            python3 .github/scripts/post_issue_comment.py `
-            --issue $env:ISSUE_NUMBER `
-            --body-file "/tmp/triage-comment.md" `
-            --marker "AI-ISSUE-TRIAGE"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        run: python3 scripts/ci/post_issue_triage_summary_comment.py

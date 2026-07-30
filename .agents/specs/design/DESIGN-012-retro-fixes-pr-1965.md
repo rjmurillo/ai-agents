@@ -35,7 +35,7 @@ Four targeted file edits plus three new test files address each RCA without refa
 
 | File | Type | Action | RCA addressed |
 |------|------|--------|--------------|
-| `tests/skills/github/test_get_unresolved_review_threads.py` | Test | Create | RCA-1 |
+| `tests/test_get_unresolved_review_threads.py` | Test | Create | RCA-1 |
 | `.claude/rules/canonical-source-mirror.md` | Rule | Edit (applyTo only) | RCA-2 |
 | `tests/build_scripts/test_canonical_source_mirror.py` | Test | Create | RCA-2 |
 | `.claude/commands/spec.md` | Command | Edit (Step 6 section) | RCA-3a |
@@ -57,7 +57,7 @@ No files are deleted. No new directories are created (all parent directories alr
 
 ### REQ-012-01, REQ-012-02: Pagination Contract Test
 
-**Component:** `tests/skills/github/test_get_unresolved_review_threads.py`
+**Component:** `tests/test_get_unresolved_review_threads.py`
 
 **Responsibility:** Stub the GitHub GraphQL endpoint and assert the script's pagination behavior at two boundary conditions.
 
@@ -177,7 +177,7 @@ PR #1965 had scan.py touched 56 times. The retrospective identifies 6+ as the bo
 
 | Test file | What it pins |
 |-----------|-------------|
-| `tests/skills/github/test_get_unresolved_review_threads.py` | Pagination contract: all threads returned on multi-page response; exactly one HTTP call on single-page response. |
+| `tests/test_get_unresolved_review_threads.py` | Pagination contract: all threads returned on multi-page response; exactly one HTTP call on single-page response. |
 | `tests/build_scripts/test_canonical_source_mirror.py` | `applyTo` glob coverage: both axis and prompt paths match after the rule edit. |
 | `tests/skills/session-end/test_rework_warning.py` | Rework threshold: 6-commit file appears in warning; 3-commit file does not; format is `rework-warning: {path} edited {n} times`. |
 
