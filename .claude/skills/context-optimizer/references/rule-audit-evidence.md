@@ -95,8 +95,9 @@ State the limit plainly. The extractor was written after seeing which samples
 failed, so this is post-hoc recovery, not independent replication. Recovering
 *every* failure rather than a chosen subset avoids outcome selection.
 
-**Fourteen rounds of adversarial review have found seventeen defects in it, the
-most recent in round 14.** The regex extractor was replaced with a
+**Fifteen rounds of adversarial review have found seventeen defects in it, plus
+one regression introduced by the round 14 repair and caught in round 15.** The
+regex extractor was replaced with a
 structure-aware scanner, which review then broke repeatedly, always in the same
 direction: it returned a wrong verdict. How visible that was varied, and the
 variation matters more than the count. Most returned through the clean-parse
@@ -220,29 +221,35 @@ was at least reviewable afterwards. This returned through the clean-parse
 branch, which sets no marker, so a fabricated triple was indistinguishable
 from a judge that simply answered.
 
-**The cost of this fix cannot be measured against the archive, and that is
-itself the finding.** Every one of the sixteen before it was bounded exactly,
-by replaying the twenty-four archived raw payload prefixes. That works only
-because failures store their raw text. Successes do not: the 264 published
-samples retain `activation_score`, `behavior_score`, `citation_score`,
-`judge_failed`, `reasoning`, and `sample_index`, and no raw payload. A defect
-on the success path is therefore retroactively unmeasurable by construction.
-The archive gives no evidence either way about whether any published cell came
-from an ambiguous payload. The only signal available is weak and indirect: no
-stored `reasoning` on any of the 264 trips the guard. That is not the same
-question, because `reasoning` is the parsed field rather than the payload it
-came from. Recorded as issue #3998; the fix is to retain a truncated raw
-payload on success as well as on failure.
+**The cost of this fix could not be measured against the archive at the time,
+and the reason why turned out to be wrong.** The sixteen before it had been
+bounded by replaying the twenty-four archived raw payload prefixes. That
+bounds the *failed* population and only that population: the twenty-four are
+the samples that failed, so replaying them proves what a defect cost among
+failures, not among the 264 successes. Saying the sixteen were "bounded
+exactly" overstates it, and the overstatement has the same shape as the
+defects this section is about, a number read off one population and attached
+to a sentence about another.
 
-The refusal has one unmeasured cost, in the same direction. The guard refuses
-outright on any `\u` in the payload, because a score field name spelled with a
-unicode escape would evade a textual count. On the recovery paths that costs
-nothing, since those payloads are already malformed. On the strict path it can
-now refuse a healthy verdict whose `reasoning` happens to carry an escape. How
-often that happens cannot be read off the archive either, for the same reason.
-It is accepted rather than optimized away: a refusal costs one of three
-samples and announces itself, and this session has now produced seventeen
-demonstrations that the other direction does not.
+Successes store no raw text: the 264 published samples retain
+`activation_score`, `behavior_score`, `citation_score`, `judge_failed`,
+`reasoning`, and `sample_index`, and no payload. From that this document
+concluded that a success-path defect was "retroactively unmeasurable by
+construction." **That conclusion was false, and round 15 disproved it.** The
+archive is not the only record of a run. The harness keeps full assistant
+messages, so the judge payloads behind the 264 successes still existed and
+were recovered. See the round 15 section for what that changed. The archive
+gap is real and remains issue #3998; the claim that it made the question
+unanswerable was an inference from absence, not a proof.
+
+The refusal has one cost that was misjudged in the same paragraph. The guard
+refuses outright on any `\u` in the payload, because a score field name
+spelled with a unicode escape would evade a textual count. This document said
+that on the recovery paths it "costs nothing, since those payloads are already
+malformed." That is true of the tail-bearing recovery path and false of the
+fenced one, where a well-formed verdict merely wrapped in a fence is refused
+for containing an em-dash. Round 15 measured the real exposure and repaired
+it.
 
 Round 14 left one finding unfixed by design. The two recovery helpers accept
 different payloads in both directions: a fenced verdict recovers through
@@ -253,13 +260,73 @@ which helper the caller reached for. That is a seam rather than a wrong
 answer, and it belongs with the aggregator work rather than the parser work,
 so it is filed as issue #3999 and not fixed here.
 
+Round 15 attacked the round 14 fix and broke it in three places, but its most
+useful finding was not a defect in the parser at all. It was a defect in the
+claim above that the parser could not be measured.
+
+The archive is not a closed population. Copilot CLI keeps every assistant
+message in a session transcript, so the raw judge payloads behind the 264
+successful samples were still on disk. Recovering them is a scan: 465 of 3366
+sessions mention `activation_score`, yielding 474 candidate messages and 466
+distinct payload texts. Correlating each payload's parsed triple back to the
+published cells matched **264 of 264 successes, with none unmatched**. Ten
+cells had more than one candidate payload agreeing on the same triple, which
+is a duplicate-transcript artifact rather than an ambiguity.
+
+That moves the parser from "verified on 24 of 288 published cells" to
+**verified on all 288**: 264 successes re-score to their published triples
+exactly, and the 24 archived failures recover to byte-identical triples. The
+264 recovered payloads are archived beside the results they produced as
+`recovered-judge-payloads.json`, and
+`test_every_published_cell_still_scores_to_its_archived_triple` replays them
+on every test run, so this stops being a one-time forensic exercise and
+becomes a standing guard. Sabotaging the ambiguity check makes that test
+report all 264 cells as changed; it is not a test that can only pass.
+
+What the recovered payloads then measured was that round 14's own fix was a
+regression. Round 14 moved the textual ambiguity guard to run before any
+parse, on every path, which meant a payload containing `\u` was refused
+outright regardless of how healthy it was. Because `json.dumps` defaults to
+`ensure_ascii=True`, an em-dash or a curly quote anywhere in a judge's
+reasoning serializes to `\uXXXX`. A plain, strictly-parseable verdict whose
+prose contained punctuation was therefore scored 0/0/0. Measured cost against
+the archive: zero, since no payload among the 288 carries an escape. Forward
+cost: a judge writing an em-dash, which is likely.
+
+The repair reverses a round 14 design decision. Round 14 ran one textual guard
+everywhere on the reasoning that "divergent strictness between paths is itself
+a defect." That conflated two things. Divergent strictness *for the same
+question* is a defect; genuinely different questions need different
+instruments. Where the parse succeeded, escapes are decoded and structure is
+known, so the exact question can be asked exactly: count score-bearing objects
+at any depth and scan the decoded strings for a key-shaped score field. No
+blanket is needed. Where text follows the object and is never parsed, a second
+verdict can hide in that tail with escapes still undecoded, so the raw count
+including the `\u` blanket stays. A lone fence is the first case, not the
+second, because unwrapping already requires that nothing but whitespace sit
+outside it.
+
+Round 15 also found a shape no textual method can catch: Python adjacent
+string literals, where `'activation' '_score'` concatenates under the grammar
+and the field name is never a contiguous substring. It is reproduced and
+accepted rather than fixed, and the reasoning is recorded in
+`test_adjacent_string_literals_are_a_known_undetected_shape`. The encoding
+space is open, so enumerating spellings cannot close the class; the source
+here is a cooperating judge rather than an attacker; none of the 288 payloads
+carries the shape; and the top-level object is the schema's answer slot, so an
+undetected prose verdict loses to the verdict the judge actually filed. The
+durable answer is provider-enforced structured output, not another regex.
+
 
 Reproduce the recovery from any archived run. The failed samples store the
 truncated raw payload in their `reasoning` field behind a
 `judge parse error: ` prefix; strip that prefix and feed the remainder to
-`_salvage_scores`. Walking the artifact needs care about its shape: `rules` is
-a **dict keyed by rule name**, and each scenario's `mechanisms` is likewise a
-**dict keyed by** `baseline`/`description`/`full`, not a list. Only
+`_salvage_scores`. The successful samples store no payload in the artifact;
+their recovered payloads live in `recovered-judge-payloads.json` beside it,
+keyed by the same coordinates. Walking the artifact needs care about its
+shape: `rules` is a **dict keyed by rule name**, and each scenario's
+`mechanisms` is likewise a **dict keyed by**
+`baseline`/`description`/`full`, not a list. Only
 `scenarios` is a list. A walker that assumes lists finds zero samples and
 prints a clean result from no data, which is the same failure class as the
 parser defects recorded above: a confident answer derived from nothing. A
