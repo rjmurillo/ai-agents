@@ -28,7 +28,17 @@
 
 ## Context
 
-Knowledge -> context (<8KB). Actions -> skills.
+Always-on context is for what the model can't know: repo gotchas, local conventions, non-obvious tool behavior. Pre-trained engineering knowledge doesn't earn a slot; restating it bills every edit forever. Depth -> progressive disclosure. Actions -> skills.
+Budget is measured, not asserted: `python3 scripts/validation/instruction_budget.py`. This line used to claim <8KB, which was Vercel's compressed-context figure adopted in #1022; the always-on corpus is now ~95KB on a `.py` edit, roughly 12x that. Ceilings ratchet to measured size, so a passing gate is not evidence the corpus is small.
+
+## Gotchas
+
+Non-obvious, cost real time to learn, cannot be inferred from the code.
+
+|Session log: create it untracked in the worktree BEFORE the first commit. `branch-context-policy` reads the worktree; `session-policy` rejects a staged log with incomplete `sessionEnd`. Stage it only at session end. Following the protocol literally (create + stage at start) cannot pass both.
+|Copilot CLI token counts are non-monotonic (109k reported from `/tmp` vs 96k in-repo for the same trivial prompt). Not a measurement. Use `instruction_budget.py`.
+|Evals without an API key: `EVAL_PROVIDER=copilot-cli`. The provider must run in an empty cwd, because the CLI loads `AGENTS.md`, `CLAUDE.md`, and `.github/instructions/**` from its working directory and would contaminate the control cell.
+|Instruction-budget ceilings ratchet to measured size, so a passing gate is not evidence the corpus is small. Compare against the goal, not the ceiling.
 
 ## Skill-First
 
