@@ -7,17 +7,17 @@ the enforcer always agree (issue #3951).
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import pytest
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(_PROJECT_ROOT))
-
-from scripts.validate_workspace_budget import (  # noqa: E402, I001
+from scripts.validate_workspace_budget import (
     PER_FILE_BUDGET_BYTES as MAX_PER_FILE,
+)
+from scripts.validate_workspace_budget import (
     TOTAL_BUDGET_BYTES as MAX_TOTAL,
+)
+from scripts.validate_workspace_budget import (
     WORKSPACE_FILES,
 )
 

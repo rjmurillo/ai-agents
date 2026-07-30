@@ -103,13 +103,17 @@ def test_lister_not_called_on_ok(tmp_path, capsys):
     args = _make_args(tmp_path, baseline_value=10)
     called: list[bool] = []
 
+    def _recording_lister(_root: Path) -> list[str] | None:
+        called.append(True)
+        return ["oops"]
+
     rc = count_ratchet.run(
         args,
         label="test",
         counter=lambda _root: 10,  # equal to baseline => ok
         scan_error="scan failed",
         regression_advice="fix it",
-        lister=lambda _root: called.append(True) or ["oops"],  # type: ignore[return-value]
+        lister=_recording_lister,
     )
 
     assert rc == count_ratchet.EXIT_OK

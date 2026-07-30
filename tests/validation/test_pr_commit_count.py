@@ -11,16 +11,15 @@ from __future__ import annotations
 import ast
 import json
 import subprocess
-import sys
 from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(_PROJECT_ROOT))
+from scripts.validation import pr_commit_count as mod
+from scripts.validation.pr_commit_count import _authored_commit_count as _authored
 
-from scripts.validation import pr_commit_count as mod  # noqa: E402
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -1081,7 +1080,7 @@ def test_authored_commit_count(label: str, specs: list[int] | None, expected: in
         commits = [{"sha": f"{i:040x}"} for i, _ in enumerate(specs)]
     else:
         commits = _commits_with_parents(specs)
-    assert mod._authored_commit_count(commits) == expected, label  # noqa: SLF001
+    assert _authored(commits) == expected, label
 
 
 def test_authored_count_excludes_merges_from_classification(
