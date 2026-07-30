@@ -1,348 +1,233 @@
 # Confidence Scoring Guide
 
-Understanding how memory confidence scores are calculated, interpreted, and maintained.
+How the `memory_enhancement` confidence score is calculated, what it does and
+does not mean, and how to act on it.
+
+Source of truth: `scripts/memory_enhancement/confidence.py`. If this guide and
+that module disagree, the module is right and this guide is a bug.
 
 ## Table of Contents
 
 1. [Formula](#formula)
 2. [Interpretation](#interpretation)
-3. [When to Update](#when-to-update)
-4. [Historical Tracking](#historical-tracking)
-5. [Best Practices](#best-practices)
+3. [Reading a Score Honestly](#reading-a-score-honestly)
+4. [When to Recalculate](#when-to-recalculate)
+5. [Persistence](#persistence)
+6. [Best Practices](#best-practices)
 
 ## Formula
 
-Confidence is calculated as the ratio of valid citations to total citations:
+Confidence is a weighted blend of four factors, clamped to `0.0-1.0`:
 
 ```text
-confidence = valid_citations / total_citations
+confidence = 0.50 * validity
+           + 0.25 * recency
+           + 0.15 * links
+           + 0.10 * freshness
 ```
 
-**Where:**
+| Factor | Weight | Definition |
+|--------|--------|------------|
+| `validity` | 0.50 | valid citations / total citations. **Returns 1.0 when the memory has no citations.** |
+| `recency` | 0.25 | `1 - (days since updated_at / 90)`, floored at 0 |
+| `links` | 0.15 | `outgoing links / 10`, capped at 1.0 |
+| `freshness` | 0.10 | `1 - (days since created_at / 365)`, floored at 0 |
 
-- `valid_citations` = Number of citations where file exists, line is in bounds, and snippet matches
-- `total_citations` = Total number of citations in memory frontmatter
+Constants live in `confidence.py`: `_WEIGHT_VALIDITY`, `_WEIGHT_RECENCY`,
+`_WEIGHT_LINKS`, `_WEIGHT_FRESHNESS`, `_MAX_RECENCY_DAYS` (90),
+`_MAX_AGE_DAYS` (365), `_MAX_LINKS` (10).
 
-**Special Cases:**
-
-| Scenario | Confidence | Reasoning |
-|----------|------------|-----------|
-| No citations | 0.5 (default) | Neutral confidence (no verification data) |
-| All citations valid | 1.0 | Maximum confidence |
-| All citations invalid | 0.0 | Minimum confidence |
-
-**Example Calculations:**
+### Worked Examples
 
 ```text
-# Memory with 3 citations: 2 valid, 1 stale
-confidence = 2 / 3 = 0.6667 (66.7%)
+# Written today, 3 citations all valid, 5 links
+0.50*1.00 + 0.25*1.00 + 0.15*0.50 + 0.10*1.00 = 0.925
 
-# Memory with 5 citations: all valid
-confidence = 5 / 5 = 1.0 (100%)
+# Written today, 3 citations with 1 broken, 5 links
+0.50*0.67 + 0.25*1.00 + 0.15*0.50 + 0.10*1.00 = 0.760
 
-# Memory with 4 citations: all stale
-confidence = 0 / 4 = 0.0 (0%)
+# Written today, no citations, no links
+0.50*1.00 + 0.25*1.00 + 0.15*0.00 + 0.10*1.00 = 0.850
 
-# Memory with no citations
-confidence = 0.5 (default)
+# 200 days old, never updated, no citations, no links
+0.50*1.00 + 0.25*0.00 + 0.15*0.00 + 0.10*0.45 = 0.545
 ```
+
+The third example is the one that matters. **A memory with zero citations
+scores 0.85**, higher than a well-cited memory with one broken reference. The
+score rewards recency and link density, and a memory that cites nothing has
+nothing that can be found broken.
 
 ## Interpretation
 
-### Confidence Ranges
+| Score Range | Meaning | Action |
+|-------------|---------|--------|
+| 0.85 - 1.00 | Recent, well linked, nothing known broken | Usable, but check whether it has citations at all |
+| 0.70 - 0.85 | Recent, or well cited, rarely both | Read the citations before relying on it |
+| 0.50 - 0.70 | Aging, or a broken citation is dragging validity down | Re-verify before use |
+| 0.00 - 0.50 | Old and uncited, or most citations broken | Update or retire |
 
-| Score Range | Label | Interpretation | Recommended Action |
-|-------------|-------|----------------|-------------------|
-| **0.9 - 1.0** | High Confidence | All or nearly all citations valid | Trust memory, use in decisions |
-| **0.7 - 0.9** | Medium Confidence | Most citations valid, some stale | Review stale citations, consider updating |
-| **0.5 - 0.7** | Low Confidence | Many stale citations | Update memory or mark obsolete |
-| **0.0 - 0.5** | Very Low Confidence | Most citations invalid | Memory likely outdated, needs review |
-| **0.5** | No Data | No citations to verify | Add citations to improve confidence |
+These bands are guidance for a reader, not thresholds enforced anywhere in the
+code. The only threshold in the package is `_SKILL_CONFIDENCE_THRESHOLD = 0.8`
+in `scripts/memory_enhancement/reflection.py`, used to nominate skill
+candidates.
 
-### What Confidence Tells You
+## Reading a Score Honestly
 
-**High Confidence (0.9-1.0):**
+A confidence score answers "how fresh and connected is this memory, and is
+anything it points at known to be broken?" It does not answer "is this memory
+true."
 
-- Citations point to valid code locations
-- Code references are up-to-date
-- Memory reflects current codebase state
-- Safe to rely on this memory for decisions
+Three failure modes to keep in mind:
 
-**Medium Confidence (0.7-0.9):**
+1. **A high score can mean no data.** Zero citations gives `validity = 1.0`.
+   Check the citation count before treating a high score as verification.
+2. **Recency dominates early.** A memory written today starts at 0.75 before
+   any citation or link is considered. Age alone will pull it down over 90
+   days with no content change.
+3. **Link count is gameable.** Ten links maxes the link factor regardless of
+   whether the targets exist. Graph traversal (`graph --start ID`) checks
+   reachability; the confidence score does not.
 
-- Majority of citations are valid
-- Some code has moved or changed
-- Memory mostly accurate but needs attention
-- Review before using in critical decisions
+To find out whether a memory is actually verified, run `verify` and read the
+citation results, not the confidence number.
 
-**Low Confidence (0.5-0.7):**
+## When to Recalculate
 
-- Half or more citations are stale
-- Significant code changes since memory created
-- Memory may contain outdated information
-- Update memory or mark obsolete
-
-**Very Low Confidence (0.0-0.5):**
-
-- Most or all citations are invalid
-- Codebase has diverged significantly
-- Memory likely no longer relevant
-- Strong candidate for deletion or complete rewrite
-
-**No Data (0.5 default):**
-
-- Memory has no citations to verify
-- Cannot assess accuracy programmatically
-- Neutral confidence (neither trusted nor distrusted)
-- Consider adding citations to improve trackability
-
-## When to Update
-
-### Automatic Updates
-
-Confidence is automatically recalculated when:
-
-1. **Adding citations**: `python -m memory_enhancement add-citation`
-2. **Batch verification**: `python -m memory_enhancement verify-all`
-3. **Explicit update**: `python -m memory_enhancement update-confidence`
-
-### Manual Updates
-
-Run explicit updates after:
-
-1. **Major refactoring**: Code structure changes significantly
-2. **File moves/renames**: Citations may point to old paths
-3. **Code deletion**: Referenced code removed from codebase
-4. **Periodic review**: Weekly/monthly health checks
-
-**Example Workflow:**
+Scores are computed on demand. There is no stored value to go stale, so
+"recalculating" means running the command again:
 
 ```bash
-# After refactoring src/ directory
-python -m memory_enhancement verify-all
+python -m memory_enhancement confidence
+```
 
-# Review stale memories
-python -m memory_enhancement health
+Output is one `<memory-id>: <score>` line per memory, for every memory. There
+is no single-memory filter.
 
-# Update specific memories
-python -m memory_enhancement update-confidence memory-001
-python -m memory_enhancement update-confidence memory-002
+Run it after:
+
+1. Major refactoring, which can invalidate file and function citations
+2. File moves or renames
+3. Code deletion
+4. Periodic review
+
+Pair it with verification to see which citations moved:
+
+```bash
+python -m memory_enhancement verify-all --json
+python -m memory_enhancement health --markdown
 ```
 
 ### CI Integration
 
-Automate confidence updates in pull requests:
-
 ```yaml
 # .github/workflows/memory-validation.yml
-- name: Update Confidence Scores
+- name: Verify memory citations
   run: python -m memory_enhancement verify-all --json
   continue-on-error: true
 
-- name: Report Stale Memories
+- name: Report memory health
   if: failure()
-  run: python -m memory_enhancement health --format markdown > memory-health.md
+  run: python -m memory_enhancement health --markdown > memory-health.md
 ```
 
-This ensures confidence scores are updated whenever code changes affect citations.
+`verify-all` exits 1 when any citation is invalid. `health` exits 1 when any
+citation is broken or a memory is stale.
 
-## Historical Tracking
+## Persistence
 
-### Current Implementation
+**The `confidence` subcommand does not write anything.** It loads memories,
+computes scores, prints them, and exits 0. Running it leaves the working tree
+unchanged.
 
-The current version tracks:
+A `confidence:` value in YAML frontmatter *is* read back by
+`_parse_confidence` in `serena_integration.py` and clamped to `0.0-1.0`, so a
+hand-written value is honoured as the memory's stored confidence. Nothing on
+the CLI path updates it.
 
-- **Latest confidence score** - Stored in YAML frontmatter `confidence` field
-- **Last verification timestamp** - Stored in `last_verified` field
-- **Per-citation verification** - Each citation tracks its own `verified` timestamp
+The library function `reinforce_memories()` in
+`scripts/memory_enhancement/reflection.py` does persist scores through
+`save_memory`. Its only non-test caller is
+`scripts/memory_enhancement/hooks/session_end_memory.py`, which is not
+registered under any hook event in `.claude/settings.json`. Treat persisted
+confidence as an unwired capability, not a running one.
 
-**Example Frontmatter:**
-
-```yaml
----
-subject: Input Validation Best Practices
-tags: [security, validation]
-confidence: 0.67
-last_verified: 2026-01-24T15:30:00
-citations:
-  - path: src/api/validate.py
-    line: 42
-    snippet: "def validate_input"
-    verified: 2026-01-24T15:30:00
-    valid: true
-  - path: src/api/sanitize.py
-    line: 20
-    snippet: "sanitize"
-    verified: 2026-01-24T15:30:00
-    valid: true
-  - path: src/old/validator.py
-    line: 10
-    verified: 2026-01-24T15:30:00
-    valid: false
-    mismatch_reason: "File not found: src/old/validator.py"
----
-
-# Content here...
-```
-
-### Future: Historical Tracking
-
-Planned enhancement to track confidence over time:
-
-```yaml
-confidence_history:
-  - timestamp: 2026-01-20T10:00:00
-    score: 1.0
-    valid_count: 3
-    total_count: 3
-  - timestamp: 2026-01-22T14:00:00
-    score: 0.67
-    valid_count: 2
-    total_count: 3
-  - timestamp: 2026-01-24T15:30:00
-    score: 0.67
-    valid_count: 2
-    total_count: 3
-```
-
-This would enable:
-
-- Trending analysis (is confidence improving or degrading?)
-- Decay detection (memories becoming stale over time)
-- Maintenance prioritization (focus on memories with declining confidence)
+Practical consequence: do not expect a `confidence:` field to reflect a recent
+run. Read the command output instead.
 
 ## Best Practices
 
-### 1. Add Citations Early
+### 1. Cite in the Body, Not the Frontmatter
 
-Don't wait for confidence to drop - add citations when creating memories:
+Only the inline form is parsed:
 
-```bash
-# When documenting a bug fix
-python -m memory_enhancement add-citation bug-fix-memory \
-  --file src/api.py \
-  --line 42 \
-  --snippet "fixed off-by-one error"
+```markdown
+[cite:file](src/api/validate.py) - input validation entry point
 ```
+
+Valid `source_type` values are `file`, `function`, `issue`, `pr`, `adr`,
+`memory`, `url`. An unrecognized type prints a warning to stderr and the
+citation is skipped. A `citations:` list in YAML frontmatter is never read.
 
 ### 2. Verify Regularly
 
-Schedule periodic verification to catch stale citations early:
-
 ```bash
-# Weekly cron job
-0 9 * * 1 cd /repo && python -m memory_enhancement verify-all
-```
-
-### 3. Prioritize by Confidence
-
-Focus maintenance on low-confidence memories first:
-
-```bash
-# Generate health report
-python -m memory_enhancement health
-
-# Review critical memories (confidence < 0.5)
-# Update or mark obsolete
-```
-
-### 4. Update After Refactoring
-
-Always verify after major code changes:
-
-```bash
-# After merge
 python -m memory_enhancement verify-all
-
-# Review and fix stale citations
-python -m memory_enhancement list-citations <memory-id>
 ```
 
-### 5. Use Confidence in Decisions
+Exit code 1 means at least one citation no longer resolves.
 
-Check confidence before relying on memories:
+### 3. Prioritize by Health, Not by Score
 
-```python
-# Pseudo-code
-memory = load_memory("best-practices")
-if memory.confidence < 0.7:
-    warn("Memory may be outdated, verify manually")
+```bash
+python -m memory_enhancement health --json
 ```
 
-### 6. Don't Over-Optimize
+The report names broken citations and stale memories directly. That is more
+actionable than a blended score, because it tells you which line to fix.
 
-Confidence is a guideline, not an absolute truth:
+### 4. Link Deliberately
 
-- **0.8 is often good enough** - Don't chase 1.0 at all costs
-- **Some staleness is acceptable** - Code moves, memories adapt
-- **Focus on high-value memories** - Not every memory needs 100% confidence
+Links feed 15% of the score and drive graph traversal. Use the inline form at
+the end of a line:
 
-### 7. Balance Citation Quantity
+```markdown
+[link:supersedes](security/old-auth-pattern) - replaced in the v2 migration
+```
 
-More citations ≠ better:
+Valid `link_type` values are `depends_on`, `related_to`, `supersedes`,
+`contradicts`, `refines`.
 
-**Good:**
+### 5. Balance Citation Quantity
 
-- 2-3 citations to key code locations
-- Citations to stable, core functionality
+More citations is not better. Each one is a maintenance obligation, and each
+broken one costs 1/N of the validity factor.
+
+**Prefer:**
+
+- Two or three citations to stable, load-bearing code
 - File-level citations for broad concepts
+- Function citations only where the function name is the contract
 
 **Avoid:**
 
-- 20+ citations to every line of code
-- Citations to volatile test code
-- Redundant citations to same area
+- Twenty citations to consecutive lines of one file
+- Citations into volatile test fixtures
+- Redundant citations to the same area
 
-**Example:**
+### 6. Do Not Chase 1.0
 
-```yaml
-# Good - focused citations
-citations:
-  - path: src/api/auth.py
-    line: 42
-    snippet: "validate_token"
-  - path: src/middleware/auth.ts
-    line: 15
-    snippet: "authenticate"
-
-# Avoid - over-cited
-citations:
-  - path: src/api/auth.py
-    line: 42
-  - path: src/api/auth.py
-    line: 43
-  - path: src/api/auth.py
-    line: 44
-  # ... 15 more lines from same file
-```
-
-### 8. Document Intentional Low Confidence
-
-Some memories should have low confidence:
-
-```markdown
-<!-- Memory: deprecated-pattern-001 -->
----
-subject: Deprecated Authentication Pattern
-confidence: 0.2
-last_verified: 2026-01-24
-citations:
-  - path: old/auth_v1.py  # Intentionally stale
-    valid: false
-    mismatch_reason: "File removed in v2 migration"
----
-
-**Note**: This pattern is deprecated. Low confidence is expected.
-See: modern-auth-pattern-001 for current approach.
-```
+The maximum is unreachable for an aging memory: after 90 days without an
+update, the recency factor is 0 and the ceiling drops to 0.75. A stable,
+correct memory is supposed to decay on this scale. Decay is a prompt to
+re-verify, not evidence of a defect.
 
 ## Summary
 
-**Key Takeaways:**
-
-1. Confidence = valid_citations / total_citations
-2. 0.9-1.0 = high trust, 0.0-0.5 = needs attention
-3. Update after refactoring, deletions, or major changes
-4. Use health reports to prioritize maintenance
-5. Balance citation quantity with quality
-6. Historical tracking (planned) will enable trend analysis
+1. Confidence is a weighted blend of validity, recency, links, and freshness,
+   not a citation ratio.
+2. Zero citations scores **high** (1.0 validity), so a high score can mean
+   "unverified" rather than "verified".
+3. The `confidence` subcommand prints and never writes.
+4. `verify` and `health` tell you what is actually broken; use them to act.
+5. Citations and links must be inline in the body to be parsed at all.
