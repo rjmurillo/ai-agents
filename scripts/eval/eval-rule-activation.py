@@ -262,6 +262,47 @@ def _build_routed_reference_prompt(
 # ---------------------------------------------------------------------------
 
 
+def _extract_json_object(text: str) -> str | None:
+    """Return the first complete top-level JSON object embedded in ``text``.
+
+    The judge is told to answer with JSON only, and the Anthropic path obeys.
+    Agentic CLI providers do not: they interleave tool-call traces and stray
+    prose into stdout around the answer, so a whole-string ``json.loads`` fails
+    on output that plainly contains a valid object. Scanning for a balanced
+    object recovers it without loosening the contract for providers that
+    already comply, because callers only reach this after a strict parse fails.
+
+    String contents are skipped so that braces or escaped quotes inside the
+    ``reasoning`` value cannot terminate the scan early. Returns ``None`` when
+    no balanced object exists.
+    """
+    start = text.find("{")
+    while start != -1:
+        depth = 0
+        in_string = False
+        escaped = False
+        for index in range(start, len(text)):
+            char = text[index]
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == '"':
+                    in_string = False
+                continue
+            if char == '"':
+                in_string = True
+            elif char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    return text[start : index + 1]
+        start = text.find("{", start + 1)
+    return None
+
+
 def score_response(
     api_key: str,
     scenario: dict[str, Any],
@@ -339,13 +380,25 @@ Respond in JSON only, no other text:
     try:
         parsed = json.loads(text)
     except json.JSONDecodeError:
-        return {
-            "activation_score": 0,
-            "citation_score": 0,
-            "behavior_score": 0,
-            "reasoning": f"judge parse error: {text[:200]}",
-            "judge_failed": True,
-        }
+        embedded = _extract_json_object(text)
+        if embedded is None:
+            return {
+                "activation_score": 0,
+                "citation_score": 0,
+                "behavior_score": 0,
+                "reasoning": f"judge parse error: {text[:200]}",
+                "judge_failed": True,
+            }
+        try:
+            parsed = json.loads(embedded)
+        except json.JSONDecodeError:
+            return {
+                "activation_score": 0,
+                "citation_score": 0,
+                "behavior_score": 0,
+                "reasoning": f"judge parse error: {text[:200]}",
+                "judge_failed": True,
+            }
     if not isinstance(parsed, dict):
         return {
             "activation_score": 0,

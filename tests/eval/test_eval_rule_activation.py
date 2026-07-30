@@ -953,3 +953,82 @@ class TestJudgeSampleReduction:
         captured = capsys.readouterr()
         assert code == 2
         assert "--judge-repeats must be positive" in captured.err
+
+
+# ---------------------------------------------------------------------------
+# _extract_json_object: recovering judge scores from agentic CLI output
+#
+# The judge is told to answer with JSON only. The Anthropic path obeys, so a
+# whole-string json.loads succeeds and the extractor is never consulted.
+# Agentic CLI providers interleave tool-call traces and trailing prose around
+# the answer, which made every such judge call score 0 and flip mechanism
+# rankings. These cover the recovery path, the refusals, and the string-scan
+# edges that a naive brace count gets wrong.
+# ---------------------------------------------------------------------------
+
+
+_JUDGE = '{"activation_score": 5, "citation_score": 4, "behavior_score": 5}'
+
+
+def test_extract_json_object_returns_plain_object_unchanged():
+    assert eval_mod._extract_json_object(_JUDGE) == _JUDGE
+
+
+def test_extract_json_object_skips_leading_cli_tool_trace():
+    text = (
+        "\u25cf List working directory contents (shell)\n"
+        "  \u2502 ls -la /tmp/eval-copilot-abc 2>&1 | head -50\n"
+        "  \u2514 4 lines\u2026\n\n" + _JUDGE
+    )
+    assert eval_mod._extract_json_object(text) == _JUDGE
+
+
+def test_extract_json_object_drops_trailing_prose():
+    assert (
+        eval_mod._extract_json_object(_JUDGE + "\n\nLet me know if you want more.")
+        == _JUDGE
+    )
+
+
+def test_extract_json_object_handles_nested_objects():
+    text = 'noise {"a": {"b": 1}, "c": 2} tail'
+    assert eval_mod._extract_json_object(text) == '{"a": {"b": 1}, "c": 2}'
+
+
+def test_extract_json_object_returns_none_without_any_brace():
+    assert eval_mod._extract_json_object("I cannot score this response.") is None
+
+
+def test_extract_json_object_returns_none_on_unbalanced_object():
+    assert eval_mod._extract_json_object('{"activation_score": 5') is None
+
+
+def test_extract_json_object_returns_none_on_empty_input():
+    assert eval_mod._extract_json_object("") is None
+
+
+def test_extract_json_object_ignores_braces_inside_strings():
+    text = '{"reasoning": "avoid {} literals here", "activation_score": 3}'
+    assert eval_mod._extract_json_object(text) == text
+
+
+def test_extract_json_object_ignores_escaped_quotes_inside_strings():
+    text = '{"reasoning": "the model said \\"do not extract\\" here", "s": 1}'
+    assert eval_mod._extract_json_object(text) == text
+
+
+def test_extract_json_object_ignores_escaped_backslash_before_quote():
+    text = '{"reasoning": "trailing backslash \\\\", "s": 1}'
+    assert eval_mod._extract_json_object(text) == text
+
+
+def test_extract_json_object_advances_past_unbalanced_leading_candidate():
+    text = '{ unterminated\n' + _JUDGE
+    assert eval_mod._extract_json_object(text) == _JUDGE
+
+
+def test_extract_json_object_result_parses_as_json():
+    text = "trace line\n" + _JUDGE + "\ntrailing"
+    extracted = eval_mod._extract_json_object(text)
+    assert extracted is not None
+    assert json.loads(extracted)["activation_score"] == 5
