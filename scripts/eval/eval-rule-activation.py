@@ -73,6 +73,12 @@ MECHANISMS = ("baseline", "description", "full")
 # AND that mechanism beats baseline by >= MIN_DELTA_VS_BASELINE.
 MIN_ACTIVATION_SCORE = 3.5
 MIN_DELTA_VS_BASELINE = 0.5
+# Negative scenarios grade restraint on an inverted rubric: 5 means the
+# response correctly did NOT activate the rule, 1 means it fired where it must
+# not. So this is a floor and a LOW score is the failure. Set symmetric with
+# MIN_ACTIVATION_SCORE: the same 3.5 that counts as "activated well enough" on
+# the positive side counts as "held back well enough" here.
+MIN_RESTRAINT_SCORE = 3.5
 DEFAULT_SEED = 0
 DEFAULT_JUDGE_REPEATS = 3
 DEFAULT_JUDGE_REDUCER = "median"
@@ -582,6 +588,15 @@ def _reduce_score_samples(
     reduced: dict[str, Any] = {
         key: reducer([float(sample[key]) for sample in graded]) for key in _SCORE_KEYS
     }
+    # Reducing each field on its own is a coordinate-wise reduction: the triple
+    # it produces need not be one any judge gave, and can be strictly better
+    # than every one of them. Three samples of 5/5/1, 5/1/5 and 1/5/5 each
+    # average 3.67, and per-field medians publish 5/5/5. Reduce each sample to
+    # its own scalar first so the cell is a real observation, or the midpoint
+    # of two. The per-field values stay as the per-axis diagnostic.
+    reduced["cell_score"] = reducer(
+        [_sample_scalar(sample) for sample in graded]
+    )
     reduced["judge_failed"] = failed_count > 0
     reduced["graded"] = True
     reduced["score_reducer"] = reducer_name
@@ -589,6 +604,11 @@ def _reduce_score_samples(
     reduced["graded_sample_count"] = len(graded)
     reduced["failed_sample_count"] = failed_count
     return reduced
+
+
+def _sample_scalar(sample: dict[str, Any]) -> float:
+    """Collapse one judge sample's three fields to the score it stands for."""
+    return sum(float(sample[key]) for key in _SCORE_KEYS) / len(_SCORE_KEYS)
 
 _SCORE_FIELDS = ("activation_score", "citation_score", "behavior_score")
 
@@ -1576,12 +1596,18 @@ def eval_one_scenario(
 
 
 def _scenario_score_triple(scenario: dict[str, Any], mech: str) -> tuple[float | None, bool]:
-    """Return (mean_score, judge_failed) for one scenario at one mechanism.
+    """Return (cell_score, judge_failed) for one scenario at one mechanism.
 
     Returns `None` for the score when the cell was never graded (every judge
     sample failed, or the API call errored). `None` means "no measurement",
     which is different from a measured zero; callers must exclude it from the
     average instead of averaging in a number the judge never produced.
+
+    Prefers `cell_score`, which reduces each judge sample to a scalar before
+    reducing across samples. Artifacts written before that field existed carry
+    only the per-field reduction, so those fall back to averaging the triple.
+    That reproduces the number the run published rather than silently restating
+    an archived result under a rule it was not computed with.
     """
     mech_data = scenario["mechanisms"].get(mech, {})
     sc = mech_data.get("scores", {})
@@ -1589,8 +1615,11 @@ def _scenario_score_triple(scenario: dict[str, Any], mech: str) -> tuple[float |
     ungraded = "error" in mech_data or sc.get("graded") is False
     if ungraded or any(sc.get(key) is None for key in _SCORE_KEYS):
         return None, failed
+    cell = sc.get("cell_score")
+    if isinstance(cell, (int, float)) and not isinstance(cell, bool):
+        return float(cell), failed
     triple = [sc.get(key, 0) for key in _SCORE_KEYS]
-    return sum(triple) / 3, failed
+    return sum(triple) / len(_SCORE_KEYS), failed
 
 
 def _mechanism_summary(
@@ -1661,8 +1690,35 @@ def aggregate(scenarios: list[dict[str, Any]]) -> dict[str, Any]:
     summary["delta_description_vs_baseline"] = round(desc_avg - baseline_avg, 2)
     summary["total_judge_failures"] = total_judge_failures
 
+    # Negative scenarios were measured but never gated: a rule that fired on
+    # every case it was written to stay out of still returned PASS. Their
+    # rubric is inverted (5 = correctly did not activate), so the gate is a
+    # FLOOR and a low score is the failure.
+    #
+    # The positive gate reads `description` alone so `full` cannot rescue a
+    # broken front door. The negative gate reads the WORST rule-enhanced
+    # mechanism instead. A benefit has to be earned at the front door; a harm
+    # counts no matter which surface produced it. `baseline` is excluded
+    # because it carries no rule, so what it does is not the rule's doing.
+    #
+    # Only mechanisms with a graded negative cell contribute. `_mechanism_summary`
+    # returns avg_score 0.0 for an empty pool, and 0.0 is below every floor, so
+    # gating on that number unguarded would fail every rule in a suite that has
+    # no negative scenarios at all.
+    graded_neg = [
+        summary["negative_case_per_mechanism"][m]["avg_score"]
+        for m in rule_enhanced
+        if summary["negative_case_per_mechanism"][m]["graded_count"] > 0
+    ]
+    worst_neg_avg = min(graded_neg) if graded_neg else None
+    summary["worst_negative_avg"] = worst_neg_avg
+
     if total_judge_failures > 0:
         summary["verdict"] = "FAIL_JUDGE_ERRORS"
+    elif worst_neg_avg is not None and worst_neg_avg < MIN_RESTRAINT_SCORE:
+        # Checked ahead of the positive gates: a rule that fires where it must
+        # not is actively harmful, while one that under-fires is merely useless.
+        summary["verdict"] = "FAIL_OVER_ACTIVATION"
     elif not pos_scenarios:
         summary["verdict"] = "NO_POSITIVE_CASES"
     else:
@@ -1684,17 +1740,27 @@ def aggregate(scenarios: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def render_table(rule_id: str, summary: dict[str, Any]) -> str:
+    worst_neg = summary.get("worst_negative_avg")
+    restraint = (
+        "not measured"
+        if worst_neg is None
+        else f"worst rule mechanism {worst_neg} (floor {MIN_RESTRAINT_SCORE})"
+    )
     rows = [
         f"\nRule: {rule_id}",
         f"Verdict: {summary['verdict']}",
         f"Best mechanism: {summary['best_mechanism']} (avg {summary['best_avg_score']})",
+        f"Restraint on negative cases: {restraint}",
         "",
         "| Mechanism    | Pos avg | Neg avg | Δ vs baseline | Graded |",
         "|--------------|---------|---------|---------------|--------|",
     ]
     for mech in MECHANISMS:
         pos = summary["per_mechanism"][mech]["avg_score"]
-        neg = summary["negative_case_per_mechanism"][mech]["avg_score"]
+        neg_stats = summary["negative_case_per_mechanism"][mech]
+        # An empty or wholly ungraded pool averages to 0.0, and printing that
+        # as a score reads as total over-activation. Report the absence.
+        neg = neg_stats["avg_score"] if neg_stats["graded_count"] else "-"
         pos_stats = summary["per_mechanism"][mech]
         graded = (
             f"{pos_stats.get('graded_count', pos_stats['scenario_count'])}"

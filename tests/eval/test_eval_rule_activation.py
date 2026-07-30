@@ -3527,3 +3527,278 @@ def test_a_field_name_spelled_in_another_encoding_is_a_known_undetected_shape():
 
     assert names_two({**verdict, "reasoning": "activation_sc\u043ere: 5"}) is False
     assert names_two({**verdict, "reasoning": "activation\u200b_score: 5"}) is False
+
+
+# ---------------------------------------------------------------------------
+# Coordinate-wise reduction publishes a triple no judge gave (issue #3989)
+# ---------------------------------------------------------------------------
+
+
+def _mixed(activation: int, citation: int, behavior: int) -> dict[str, object]:
+    """One judge sample whose three fields disagree."""
+    return {
+        "activation_score": activation,
+        "citation_score": citation,
+        "behavior_score": behavior,
+        "judge_failed": False,
+    }
+
+
+def _mech_from(samples: list[dict[str, object]], reducer: str = "median") -> dict[str, object]:
+    """A mechanism cell built the way a real run builds it."""
+    return {"scores": eval_mod._reduce_score_samples(samples, reducer)}
+
+
+def _scenario_from(mech: dict[str, object], negative: bool = False) -> dict[str, object]:
+    """A scenario carrying the same cell at every mechanism."""
+    return {
+        "negative_case": negative,
+        "mechanisms": {name: mech for name in eval_mod.MECHANISMS},
+    }
+
+
+class TestCellScoreReduction:
+    """The published cell must be a score some judge could have given."""
+
+    def test_per_field_medians_can_beat_every_sample(self):
+        # The issue's case. No judge gave better than 3.67, yet reducing each
+        # field on its own publishes a perfect 5/5/5.
+        samples = [_mixed(5, 5, 1), _mixed(5, 1, 5), _mixed(1, 5, 5)]
+        reduced = eval_mod._reduce_score_samples(samples, "median")
+
+        assert reduced["activation_score"] == 5
+        assert reduced["citation_score"] == 5
+        assert reduced["behavior_score"] == 5
+        # Every sample's own mean, for contrast.
+        assert [round(eval_mod._sample_scalar(s), 2) for s in samples] == [3.67] * 3
+        assert round(reduced["cell_score"], 2) == 3.67
+
+    def test_scenario_score_prefers_the_cell_score(self):
+        scenario = _scenario_from(_mech_from([_mixed(5, 5, 1), _mixed(5, 1, 5), _mixed(1, 5, 5)]))
+        score, failed = eval_mod._scenario_score_triple(scenario, "full")
+
+        assert failed is False
+        assert round(score, 2) == 3.67, "must not read the 5/5/5 the fields reduce to"
+
+    def test_legacy_cell_without_cell_score_falls_back_to_the_triple_mean(self):
+        # Artifacts written before cell_score existed carry only the per-field
+        # reduction. Reading those must reproduce what the run published, not
+        # restate an archived result under a rule it was not computed with.
+        legacy = {
+            "negative_case": False,
+            "mechanisms": {
+                "full": {
+                    "scores": {
+                        "activation_score": 5,
+                        "citation_score": 5,
+                        "behavior_score": 2,
+                        "judge_failed": False,
+                        "graded": True,
+                    }
+                }
+            },
+        }
+        score, failed = eval_mod._scenario_score_triple(legacy, "full")
+
+        assert failed is False
+        assert round(score, 2) == 4.0
+
+    def test_a_non_numeric_cell_score_falls_back_rather_than_crashing(self):
+        # `True` is an int in Python. A bool here means a corrupt artifact, not
+        # a score of 1, so it must not be read as one.
+        for corrupt in (True, None, "4.0", []):
+            scenario = {
+                "negative_case": False,
+                "mechanisms": {
+                    "full": {
+                        "scores": {
+                            "activation_score": 3,
+                            "citation_score": 3,
+                            "behavior_score": 3,
+                            "cell_score": corrupt,
+                            "graded": True,
+                        }
+                    }
+                },
+            }
+            score, _ = eval_mod._scenario_score_triple(scenario, "full")
+            assert score == 3.0, f"corrupt cell_score {corrupt!r} was read as a score"
+
+    def test_single_sample_publishes_that_sample_exactly(self):
+        reduced = eval_mod._reduce_score_samples([_mixed(4, 2, 3)], "median")
+
+        assert round(reduced["cell_score"], 2) == 3.0
+
+    def test_an_ungraded_cell_carries_no_cell_score(self):
+        reduced = eval_mod._reduce_score_samples([_sample(0, judge_failed=True)], "median")
+
+        assert reduced["graded"] is False
+        assert "cell_score" not in reduced
+
+    def test_the_mean_reducer_agrees_with_the_per_field_mean(self):
+        # Averaging commutes, so under `mean` the two orders coincide. The
+        # divergence is a property of order statistics, not of reducing twice.
+        samples = [_mixed(5, 5, 1), _mixed(5, 1, 5), _mixed(1, 5, 5)]
+        reduced = eval_mod._reduce_score_samples(samples, "mean")
+        per_field = [reduced[key] for key in eval_mod._SCORE_KEYS]
+
+        assert round(reduced["cell_score"], 2) == round(sum(per_field) / 3, 2) == 3.67
+
+
+# ---------------------------------------------------------------------------
+# Negative scenarios must be able to fail a verdict (issue #3933)
+# ---------------------------------------------------------------------------
+
+
+def _ungraded_negative() -> dict[str, object]:
+    """A negative scenario nobody graded, with no judge failure to explain it."""
+    cell = {
+        "scores": {
+            "activation_score": None,
+            "citation_score": None,
+            "behavior_score": None,
+            "graded": False,
+            "judge_failed": False,
+        }
+    }
+    return {
+        "negative_case": True,
+        "mechanisms": {name: cell for name in eval_mod.MECHANISMS},
+    }
+
+
+class TestNegativeCaseGate:
+    """Negative scenarios grade restraint on an inverted rubric: 5 is good."""
+
+    def test_a_rule_that_fires_where_it_must_not_fails(self):
+        scenarios = [
+            _make_scenario(baseline=1, description=5, full=5),
+            _make_scenario(baseline=5, description=1, full=1, negative=True),
+        ]
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["verdict"] == "FAIL_OVER_ACTIVATION"
+        assert summary["worst_negative_avg"] == 1.0
+
+    def test_the_gate_outranks_the_positive_gates(self):
+        # The positive side of this suite passes outright. Over-activation has
+        # to win anyway: firing where it must not is harmful, under-firing is
+        # merely useless.
+        scenarios = [_make_scenario(baseline=1, description=5, full=5)]
+        assert eval_mod.aggregate(scenarios)["verdict"] == "PASS"
+
+        scenarios.append(_make_scenario(baseline=5, description=1, full=1, negative=True))
+        assert eval_mod.aggregate(scenarios)["verdict"] == "FAIL_OVER_ACTIVATION"
+
+    def test_judge_errors_still_outrank_over_activation(self):
+        # A broken judge means there is no trustworthy number to gate on, so
+        # that verdict has to stay first.
+        scenarios = [
+            _make_scenario(baseline=1, description=5, full=5, judge_failed=True),
+            _make_scenario(baseline=5, description=1, full=1, negative=True),
+        ]
+
+        assert eval_mod.aggregate(scenarios)["verdict"] == "FAIL_JUDGE_ERRORS"
+
+    def test_restraint_at_the_floor_passes(self):
+        # 3.5 is the floor, not the first failing value. No single triple of
+        # integer scores averages 3.5, so this is the midpoint of two: 10/3
+        # and 11/3 straddle it.
+        scenarios = [
+            _make_scenario(baseline=1, description=5, full=5),
+            _scenario_from(_mech_from([_mixed(4, 3, 3), _mixed(4, 4, 3)]), negative=True),
+        ]
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["worst_negative_avg"] == eval_mod.MIN_RESTRAINT_SCORE
+        assert summary["verdict"] == "PASS"
+
+    def test_restraint_just_under_the_floor_fails(self):
+        # One notch below the case above, to pin the boundary from both sides.
+        scenarios = [
+            _make_scenario(baseline=1, description=5, full=5),
+            _scenario_from(_mech_from([_mixed(4, 3, 3), _mixed(3, 3, 4)]), negative=True),
+        ]
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["worst_negative_avg"] < eval_mod.MIN_RESTRAINT_SCORE
+        assert summary["verdict"] == "FAIL_OVER_ACTIVATION"
+
+    def test_a_rule_that_holds_back_is_not_failed(self):
+        # The negative control. A gate that fires here would fail every rule.
+        scenarios = [
+            _make_scenario(baseline=1, description=5, full=5),
+            _make_scenario(baseline=1, description=5, full=5, negative=True),
+        ]
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["verdict"] == "PASS"
+        assert summary["worst_negative_avg"] == 5.0
+
+    def test_baseline_restraint_is_not_the_rules_doing(self):
+        # baseline carries no rule, so its behaviour cannot indict one. Were it
+        # counted, this suite's worst would be 1.0 and the gate would fire.
+        scenarios = [
+            _make_scenario(baseline=1, description=5, full=5),
+            _make_scenario(baseline=1, description=5, full=5, negative=True),
+        ]
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["negative_case_per_mechanism"]["baseline"]["avg_score"] == 1.0
+        assert summary["worst_negative_avg"] == 5.0
+        assert summary["verdict"] == "PASS"
+
+    def test_the_worst_rule_mechanism_decides_not_the_front_door(self):
+        # `description` holds back perfectly; `full` does not. A benefit has to
+        # be earned at the front door, but a harm counts wherever it appears.
+        scenarios = [
+            _make_scenario(baseline=1, description=5, full=5),
+            _make_scenario(baseline=5, description=5, full=1, negative=True),
+        ]
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["negative_case_per_mechanism"]["description"]["avg_score"] == 5.0
+        assert summary["worst_negative_avg"] == 1.0
+        assert summary["verdict"] == "FAIL_OVER_ACTIVATION"
+
+    def test_a_suite_with_no_negative_scenarios_is_not_failed(self):
+        # `_mechanism_summary` reports avg_score 0.0 for an empty pool, and 0.0
+        # sits below every floor. Gating on it unguarded fails every rule.
+        summary = eval_mod.aggregate([_make_scenario(baseline=1, description=5, full=5)])
+
+        assert summary["negative_case_per_mechanism"]["full"]["avg_score"] == 0.0
+        assert summary["worst_negative_avg"] is None
+        assert summary["verdict"] == "PASS"
+
+    def test_negative_scenarios_nobody_graded_are_not_failed(self):
+        # Same trap one step in: the pool is non-empty but nothing in it was
+        # measured, so there is still no number to gate on.
+        scenarios = [
+            _make_scenario(baseline=1, description=5, full=5),
+            _ungraded_negative(),
+        ]
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["negative_case_per_mechanism"]["full"]["graded_count"] == 0
+        assert summary["worst_negative_avg"] is None
+        assert summary["total_judge_failures"] == 0
+        assert summary["verdict"] == "PASS"
+
+
+class TestRenderTableRestraint:
+    def test_an_unmeasured_negative_pool_is_not_printed_as_a_zero(self):
+        summary = eval_mod.aggregate([_make_scenario(baseline=1, description=5, full=5)])
+        table = eval_mod.render_table("some-rule", summary)
+
+        assert "Restraint on negative cases: not measured" in table
+        assert "| full         |     5.0 |       - |" in table
+
+    def test_a_measured_negative_pool_is_printed_with_its_floor(self):
+        scenarios = [
+            _make_scenario(baseline=1, description=5, full=5),
+            _make_scenario(baseline=5, description=5, full=1, negative=True),
+        ]
+        table = eval_mod.render_table("some-rule", eval_mod.aggregate(scenarios))
+
+        assert "worst rule mechanism 1.0 (floor 3.5)" in table
+        assert "| full         |     5.0 |     1.0 |" in table
