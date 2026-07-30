@@ -7544,7 +7544,59 @@ def test_the_commit_ceilings_come_from_the_shared_module() -> None:
     )
 
 
-<<<<<<< HEAD
+def test_taste_findings_stay_advisory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Exit 10 is the linter reporting violations. Local scope is the staged
+    set, so blocking here would fail a contributor for debt they inherited by
+    touching one line of a large file. Enforcement is the whole-tree ratchet in
+    CI (scripts/ci/taste_count_ratchet.py) instead.
+    """
+    monkeypatch.setattr(
+        policy,
+        "_run_command",
+        lambda *_args, **_kwargs: _completed(10, "findings\n", ""),
+    )
+    assert policy.run_taste_advisory(["source.py"], tmp_path) == 0
+    assert "advisory" in capsys.readouterr().err
+
+
+def test_a_crashed_taste_lint_is_not_reported_as_advisory_findings(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The isolating control for the wrapper half of issue #3779.
+
+    taste_lints.py exits 1 on a script error and 10 on violations. Treating
+    both as findings meant a linter that could not run printed the same
+    reassuring line as a clean one, so nothing was checked and nothing said so.
+    """
+    monkeypatch.setattr(
+        policy,
+        "_run_command",
+        lambda *_args, **_kwargs: _completed(1, "", "Traceback\n"),
+    )
+    assert policy.run_taste_advisory(["source.py"], tmp_path) == 2
+    err = capsys.readouterr().err
+    assert "not a scan result" in err
+    assert "advisory" not in err
+
+
+def test_a_clean_taste_lint_says_nothing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        policy,
+        "_run_command",
+        lambda *_args, **_kwargs: _completed(0, "", ""),
+    )
+    assert policy.run_taste_advisory(["source.py"], tmp_path) == 0
+    assert "advisory" not in capsys.readouterr().err
 # ---------------------------------------------------------------------------
 # Issue #3770: the conflict-marker gate needs a backstop that survives every
 # route which skips local hooks
@@ -7776,59 +7828,3 @@ def test_the_tracked_scan_reports_a_git_failure_as_a_config_error(
     not_a_repo.mkdir()
 
     assert policy.check_tracked_conflict_markers(not_a_repo) == 2
-||||||| db2ed7ea
-=======
-def test_taste_findings_stay_advisory(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Exit 10 is the linter reporting violations. Local scope is the staged
-    set, so blocking here would fail a contributor for debt they inherited by
-    touching one line of a large file. Enforcement is the whole-tree ratchet in
-    CI (scripts/ci/taste_count_ratchet.py) instead.
-    """
-    monkeypatch.setattr(
-        policy,
-        "_run_command",
-        lambda *_args, **_kwargs: _completed(10, "findings\n", ""),
-    )
-    assert policy.run_taste_advisory(["source.py"], tmp_path) == 0
-    assert "advisory" in capsys.readouterr().err
-
-
-def test_a_crashed_taste_lint_is_not_reported_as_advisory_findings(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """The isolating control for the wrapper half of issue #3779.
-
-    taste_lints.py exits 1 on a script error and 10 on violations. Treating
-    both as findings meant a linter that could not run printed the same
-    reassuring line as a clean one, so nothing was checked and nothing said so.
-    """
-    monkeypatch.setattr(
-        policy,
-        "_run_command",
-        lambda *_args, **_kwargs: _completed(1, "", "Traceback\n"),
-    )
-    assert policy.run_taste_advisory(["source.py"], tmp_path) == 2
-    err = capsys.readouterr().err
-    assert "not a scan result" in err
-    assert "advisory" not in err
-
-
-def test_a_clean_taste_lint_says_nothing(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    monkeypatch.setattr(
-        policy,
-        "_run_command",
-        lambda *_args, **_kwargs: _completed(0, "", ""),
-    )
-    assert policy.run_taste_advisory(["source.py"], tmp_path) == 0
-    assert "advisory" not in capsys.readouterr().err
->>>>>>> origin/main
