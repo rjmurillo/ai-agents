@@ -452,22 +452,39 @@ def _reduce_score_samples(
     samples: list[dict[str, Any]],
     reducer_name: str,
 ) -> dict[str, Any]:
+    """Reduce judge samples, ignoring the ones that failed to parse.
+
+    A failed sample carries no score, so folding it in as a zero would drag
+    the cell toward zero and invert rankings between mechanisms that happened
+    to fail at different rates. Reduce over the graded samples only and report
+    how many were graded. `judge_failed` still flips when any sample failed,
+    so the caller keeps failing loudly; it just no longer reads a fabricated
+    zero as if the judge had scored it.
+    """
     reducer = _SCORE_REDUCERS[reducer_name]
-    if any(sample.get("judge_failed") for sample in samples):
+    graded = [s for s in samples if not s.get("judge_failed")]
+    failed_count = len(samples) - len(graded)
+    if not graded:
         return {
-            "activation_score": 0,
-            "citation_score": 0,
-            "behavior_score": 0,
+            "activation_score": None,
+            "citation_score": None,
+            "behavior_score": None,
             "judge_failed": True,
+            "graded": False,
             "score_reducer": reducer_name,
             "sample_count": len(samples),
+            "graded_sample_count": 0,
+            "failed_sample_count": failed_count,
         }
     reduced: dict[str, Any] = {
-        key: reducer([float(sample[key]) for sample in samples]) for key in _SCORE_KEYS
+        key: reducer([float(sample[key]) for sample in graded]) for key in _SCORE_KEYS
     }
-    reduced["judge_failed"] = False
+    reduced["judge_failed"] = failed_count > 0
+    reduced["graded"] = True
     reduced["score_reducer"] = reducer_name
     reduced["sample_count"] = len(samples)
+    reduced["graded_sample_count"] = len(graded)
+    reduced["failed_sample_count"] = failed_count
     return reduced
 
 def _judge_score_shape_error(parsed: dict[str, Any]) -> str | None:
@@ -618,39 +635,41 @@ def eval_one_scenario(
     return result
 
 
-def _scenario_score_triple(scenario: dict[str, Any], mech: str) -> tuple[float, bool]:
+def _scenario_score_triple(scenario: dict[str, Any], mech: str) -> tuple[float | None, bool]:
     """Return (mean_score, judge_failed) for one scenario at one mechanism.
 
-    Every scenario contributes to the average, including failed evaluations.
-    A failed judge or API call yields mean=0 and judge_failed=True so callers
-    can surface failures rather than silently filtering them.
+    Returns `None` for the score when the cell was never graded (every judge
+    sample failed, or the API call errored). `None` means "no measurement",
+    which is different from a measured zero; callers must exclude it from the
+    average instead of averaging in a number the judge never produced.
     """
     mech_data = scenario["mechanisms"].get(mech, {})
     sc = mech_data.get("scores", {})
-    triple = [
-        sc.get("activation_score", 0),
-        sc.get("citation_score", 0),
-        sc.get("behavior_score", 0),
-    ]
     failed = bool(sc.get("judge_failed")) or "error" in mech_data
+    ungraded = "error" in mech_data or sc.get("graded") is False
+    if ungraded or any(sc.get(key) is None for key in _SCORE_KEYS):
+        return None, failed
+    triple = [sc.get(key, 0) for key in _SCORE_KEYS]
     return sum(triple) / 3, failed
 
 
 def _mechanism_summary(
     pool: list[dict[str, Any]], mech: str
 ) -> dict[str, Any]:
-    """Compute avg_score across every scenario for one mechanism."""
+    """Compute avg_score over the graded scenarios for one mechanism."""
     scores: list[float] = []
     failures = 0
     for s in pool:
         score, failed = _scenario_score_triple(s, mech)
-        scores.append(score)
+        if score is not None:
+            scores.append(score)
         if failed:
             failures += 1
     avg = round(sum(scores) / len(scores), 2) if scores else 0.0
     return {
         "avg_score": avg,
-        "scenario_count": len(scores),
+        "scenario_count": len(pool),
+        "graded_count": len(scores),
         "judge_failures": failures,
     }
 
@@ -658,10 +677,15 @@ def _mechanism_summary(
 def aggregate(scenarios: list[dict[str, Any]]) -> dict[str, Any]:
     """Aggregate per-mechanism averages across scenarios.
 
-    Counts every scenario in the average. Failed evaluations contribute their
-    zero scores rather than being filtered, preventing false PASS verdicts when
-    the judge or API breaks. The summary exposes per-mechanism judge_failures
-    so the caller can fail loudly when failures are non-zero.
+    Averages only the scenarios the judge actually graded. Ungraded cells are
+    excluded rather than counted as zero: a zero is a measurement, and folding
+    a non-measurement in as one biases the mean toward whichever mechanism
+    happened to fail more often, which can invert the ranking outright.
+
+    This does not soften the failure signal. `judge_failures` still counts
+    every failure and any non-zero count still forces the FAIL_JUDGE_ERRORS
+    verdict below, so a broken judge can never yield a PASS. `graded_count`
+    exposes how many scenarios each average actually rests on.
     """
     summary: dict[str, Any] = {"per_mechanism": {}, "negative_case_per_mechanism": {}}
     pos_scenarios = [s for s in scenarios if not s["negative_case"]]
@@ -725,18 +749,25 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
         f"Verdict: {summary['verdict']}",
         f"Best mechanism: {summary['best_mechanism']} (avg {summary['best_avg_score']})",
         "",
-        "| Mechanism    | Pos avg | Neg avg | Δ vs baseline |",
-        "|--------------|---------|---------|---------------|",
+        "| Mechanism    | Pos avg | Neg avg | Δ vs baseline | Graded |",
+        "|--------------|---------|---------|---------------|--------|",
     ]
     for mech in MECHANISMS:
         pos = summary["per_mechanism"][mech]["avg_score"]
         neg = summary["negative_case_per_mechanism"][mech]["avg_score"]
+        pos_stats = summary["per_mechanism"][mech]
+        graded = (
+            f"{pos_stats.get('graded_count', pos_stats['scenario_count'])}"
+            f"/{pos_stats['scenario_count']}"
+        )
         if mech == "baseline":
             delta = ""
         else:
             delta_val = round(pos - summary["baseline_avg"], 2)
             delta = f"{delta_val:+}"
-        rows.append(f"| {mech:<12} | {pos:>7} | {neg:>7} | {delta:>13} |")
+        rows.append(
+            f"| {mech:<12} | {pos:>7} | {neg:>7} | {delta:>13} | {graded:>6} |"
+        )
     return "\n".join(rows)
 
 

@@ -1032,3 +1032,152 @@ def test_extract_json_object_result_parses_as_json():
     extracted = eval_mod._extract_json_object(text)
     assert extracted is not None
     assert json.loads(extracted)["activation_score"] == 5
+
+
+# ---------------------------------------------------------------------------
+# Judge failures must not be scored as zero (issue #3915)
+# ---------------------------------------------------------------------------
+
+
+def _sample(score: int, judge_failed: bool = False) -> dict[str, object]:
+    return {
+        "activation_score": score,
+        "citation_score": score,
+        "behavior_score": score,
+        "judge_failed": judge_failed,
+    }
+
+
+def _ungraded_mech() -> dict[str, object]:
+    """A cell where every judge sample failed, as the reducer emits it."""
+    return {
+        "scores": eval_mod._reduce_score_samples(
+            [_sample(0, judge_failed=True)], "median"
+        )
+    }
+
+
+class TestReduceScoreSamples:
+    def test_all_samples_graded_reduces_normally(self):
+        reduced = eval_mod._reduce_score_samples(
+            [_sample(5), _sample(3), _sample(4)], "median"
+        )
+        assert reduced["activation_score"] == 4
+        assert reduced["judge_failed"] is False
+        assert reduced["graded"] is True
+        assert reduced["graded_sample_count"] == 3
+        assert reduced["failed_sample_count"] == 0
+
+    def test_partial_failure_reduces_over_graded_samples_only(self):
+        # The live regression: 2 of 3 samples scored 5, one failed to parse.
+        # Folding the failure in as a zero reported the cell as 0/0/0.
+        reduced = eval_mod._reduce_score_samples(
+            [_sample(0, judge_failed=True), _sample(5), _sample(5)], "median"
+        )
+        assert reduced["activation_score"] == 5
+        assert reduced["citation_score"] == 5
+        assert reduced["behavior_score"] == 5
+        assert reduced["graded"] is True
+        assert reduced["graded_sample_count"] == 2
+        assert reduced["failed_sample_count"] == 1
+
+    def test_partial_failure_still_flags_judge_failed(self):
+        reduced = eval_mod._reduce_score_samples(
+            [_sample(0, judge_failed=True), _sample(5)], "median"
+        )
+        assert reduced["judge_failed"] is True
+
+    def test_all_samples_failed_yields_ungraded_cell(self):
+        reduced = eval_mod._reduce_score_samples(
+            [_sample(0, judge_failed=True), _sample(0, judge_failed=True)], "median"
+        )
+        assert reduced["graded"] is False
+        assert reduced["judge_failed"] is True
+        assert reduced["activation_score"] is None
+        assert reduced["citation_score"] is None
+        assert reduced["behavior_score"] is None
+        assert reduced["graded_sample_count"] == 0
+        assert reduced["failed_sample_count"] == 2
+
+    def test_single_graded_sample_survives(self):
+        reduced = eval_mod._reduce_score_samples([_sample(2)], "median")
+        assert reduced["activation_score"] == 2
+        assert reduced["graded_sample_count"] == 1
+
+
+class TestUngradedCellsExcludedFromAverage:
+    def test_ungraded_cell_does_not_drag_mean_to_zero(self):
+        scenarios = [
+            _make_scenario(baseline=5, description=5, full=5),
+            _make_scenario(baseline=5, description=5, full=5),
+        ]
+        scenarios[1]["mechanisms"]["full"] = _ungraded_mech()
+
+        summary = eval_mod.aggregate(scenarios)
+
+        # Averaging the ungraded cell as zero would report 2.5.
+        assert summary["per_mechanism"]["full"]["avg_score"] == 5.0
+        assert summary["per_mechanism"]["full"]["graded_count"] == 1
+        assert summary["per_mechanism"]["full"]["scenario_count"] == 2
+
+    def test_uneven_failure_rates_do_not_invert_ranking(self):
+        # full genuinely outscores description, but fails the judge more often.
+        # Scoring failures as zero ranked description above full.
+        scenarios = [
+            _make_scenario(baseline=1, description=2, full=5),
+            _make_scenario(baseline=1, description=2, full=5),
+        ]
+        scenarios[1]["mechanisms"]["full"] = _ungraded_mech()
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["per_mechanism"]["full"]["avg_score"] == 5.0
+        assert summary["per_mechanism"]["description"]["avg_score"] == 2.0
+        assert summary["best_mechanism"] == "full"
+
+    def test_ungraded_cell_still_counts_as_a_judge_failure(self):
+        scenarios = [_make_scenario(baseline=5, description=5, full=5)]
+        scenarios[0]["mechanisms"]["full"] = _ungraded_mech()
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["per_mechanism"]["full"]["judge_failures"] == 1
+        assert summary["total_judge_failures"] >= 1
+        assert summary["verdict"] == "FAIL_JUDGE_ERRORS"
+
+    def test_every_cell_ungraded_yields_zero_average_not_a_pass(self):
+        scenarios = [_make_scenario(baseline=5, description=5, full=5)]
+        for mech in ("baseline", "description", "full"):
+            scenarios[0]["mechanisms"][mech] = _ungraded_mech()
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["per_mechanism"]["description"]["avg_score"] == 0.0
+        assert summary["per_mechanism"]["description"]["graded_count"] == 0
+        assert summary["verdict"] == "FAIL_JUDGE_ERRORS"
+
+    def test_api_error_cell_is_excluded_and_counted(self):
+        scenarios = [
+            _make_scenario(baseline=5, description=5, full=5),
+            _make_scenario(baseline=5, description=5, full=5),
+        ]
+        scenarios[1]["mechanisms"]["full"] = {"error": "API network error", "scores": {}}
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["per_mechanism"]["full"]["avg_score"] == 5.0
+        assert summary["per_mechanism"]["full"]["graded_count"] == 1
+        assert summary["per_mechanism"]["full"]["judge_failures"] == 1
+
+    def test_graded_count_appears_in_rendered_table(self):
+        scenarios = [
+            _make_scenario(baseline=5, description=5, full=5),
+            _make_scenario(baseline=5, description=5, full=5),
+        ]
+        scenarios[1]["mechanisms"]["full"] = _ungraded_mech()
+
+        table = eval_mod.render_table("r", eval_mod.aggregate(scenarios))
+
+        assert "Graded" in table
+        assert "1/2" in table
+        assert "2/2" in table
