@@ -104,6 +104,21 @@ _WALKING_PARENTS = (ast.For, ast.AsyncFor, ast.comprehension)
 # The nodes that only look at what they are given. A comparison answers a
 # question about the mapping; an interpolation renders it.
 _INSPECTING_PARENTS = (ast.Compare, ast.FormattedValue)
+# The keyword the pin is bound under. A store or a delete that spells out some
+# other key cannot reach it.
+_ENCODING = "encoding"
+# The builtin that fetches an attribute by name. It reaches a partial's
+# keyword mapping exactly as the attribute does.
+_GETATTR = "getattr"
+# The builtins that consume a mapping without the means to change it. Every
+# other callee can hand it on, so the mapping is treated as at risk.
+_MAPPING_READERS = frozenset(
+    {
+        "all", "any", "bool", "dict", "frozenset", "id", "iter", "len",
+        "list", "max", "min", "print", "repr", "reversed", "set", "sorted",
+        "str", "sum", "tuple",
+    }
+)
 _UNKNOWN = object()
 _PARTIAL = "functools.partial"
 # Marks the null sink. Held beside the entry points so an imported ``DEVNULL``
@@ -1229,24 +1244,38 @@ def _owner_module(node: ast.expr, modules: dict[str, str]) -> str | None:
     return None if key is None else modules.get(key)
 
 
-def _reads_only(node: ast.AST, parent: ast.AST | None) -> bool:
-    """Report whether the keywords mapping at *node* is only being read.
+def _names_other_key(parent: ast.Subscript) -> bool:
+    """Report whether a subscript spells out a key that is not the codec.
 
-    Five shapes are provably harmless: one of the dict methods that cannot
-    change the mapping, a subscript being loaded rather than stored or
-    deleted, a walk that yields the keys, a double-star splat that fills a
-    fresh mapping for someone else, and a comparison or an interpolation.
-    Everything else counts as a write, including handing the mapping to
-    another function, which can change it out of sight.
+    ``runner.keywords["timeout"] = 1`` reaches the mapping but cannot reach
+    the pin. A key the source does not spell out could be any key, so only a
+    literal answers here.
+    """
+    key = parent.slice
+    return isinstance(key, ast.Constant) and key.value != _ENCODING
+
+
+def _spares_pin(node: ast.AST, parent: ast.AST | None) -> bool:
+    """Report whether the keywords mapping at *node* leaves its codec standing.
+
+    Six shapes are provably harmless: one of the dict methods that cannot
+    change the mapping, a subscript that either loads or names some other
+    key, a walk that yields the keys, a double-star splat that fills a fresh
+    mapping for someone else, a builtin that only consumes the mapping, and a
+    comparison or an interpolation. Everything else counts against the pin,
+    including handing the mapping to a function that could pass it on, which
+    can change it out of sight.
     """
     if isinstance(parent, ast.Attribute):
         return parent.attr in _KEYWORD_READERS
     if isinstance(parent, ast.Subscript):
-        return isinstance(parent.ctx, ast.Load)
+        return isinstance(parent.ctx, ast.Load) or _names_other_key(parent)
     if isinstance(parent, _WALKING_PARENTS):
         return parent.iter is node
     if isinstance(parent, ast.keyword):
         return parent.arg is None
+    if isinstance(parent, ast.Call):
+        return isinstance(parent.func, ast.Name) and parent.func.id in _MAPPING_READERS
     return isinstance(parent, _INSPECTING_PARENTS)
 
 
@@ -1266,6 +1295,30 @@ def _partial_roots(
         if isinstance(value, ast.Call) and _is_partial(_call_label(value), functions)
     }
     return _settle(bindings, seed)
+
+
+def _fetched_keywords(node: ast.AST) -> ast.expr | None:
+    """Return the owner in ``getattr(x, "keywords")``, or None."""
+    if not isinstance(node, ast.Call) or len(node.args) != 2:
+        return None
+    if not isinstance(node.func, ast.Name) or node.func.id != _GETATTR:
+        return None
+    name = node.args[1]
+    if not isinstance(name, ast.Constant) or name.value != _KEYWORDS:
+        return None
+    return node.args[0]
+
+
+def _keyword_mapping(node: ast.AST) -> ast.expr | None:
+    """Return the expression whose keywords mapping *node* reaches, if any.
+
+    Two spellings arrive at the same dict. ``runner.keywords`` reads the
+    attribute directly; ``getattr(runner, "keywords")`` asks for it by name.
+    A scan that knows only the first lets the second undo a pin in silence.
+    """
+    if isinstance(node, ast.Attribute) and node.attr == _KEYWORDS:
+        return node.value
+    return _fetched_keywords(node)
 
 
 def _undone_pins(tree: ast.AST, roots: dict[str, str]) -> set[str]:
@@ -1289,11 +1342,10 @@ def _undone_pins(tree: ast.AST, roots: dict[str, str]) -> set[str]:
     }
     undone: set[str] = set()
     for node in ast.walk(tree):
-        if not isinstance(node, ast.Attribute) or node.attr != _KEYWORDS:
+        owner = _keyword_mapping(node)
+        if owner is None or _spares_pin(node, parents.get(id(node))):
             continue
-        if _reads_only(node, parents.get(id(node))):
-            continue
-        name = _owner_name(node.value)
+        name = _owner_name(owner)
         if name is not None and name in roots:
             undone.add(roots[name])
     return undone
@@ -1353,14 +1405,23 @@ def _prepinned(
 
     A construction site the source can undo supplies no pin at all, which is
     what keeps ``del runner.keywords["encoding"]`` reported at both ends.
+
+    A name is only trusted when every binding it carries pins the codec. One
+    name can be bound in two scopes, and a pinned partial built inside some
+    unrelated function says nothing about the runner called out here.
     """
+    pinning: dict[str, bool] = {}
+    for name, value in bindings:
+        pins = (
+            isinstance(value, ast.Call)
+            and _is_partial(_call_label(value), functions)
+            and _pins_utf8(value)
+        )
+        pinning[name] = pinning.get(name, True) and pins
     seed = {
         name: name
-        for name, value in bindings
-        if isinstance(value, ast.Call)
-        and _is_partial(_call_label(value), functions)
-        and _pins_utf8(value)
-        and name not in undone
+        for name, pins in pinning.items()
+        if pins and name not in undone
     }
     return set(_settle(bindings, seed))
 
@@ -2267,6 +2328,33 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             '    print(key)\n'
             'runner(["x"], text=True)',
             "a walked mapping still answers for a call site that adds the text",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'runner.keywords["timeout"] = 1\n'
+            'runner(["x"], text=True)',
+            "storing under some other key leaves the bound codec where it was",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'del runner.keywords["timeout"]\n'
+            'runner(["x"], text=True)',
+            "deleting some other key leaves the bound codec where it was",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'seen = len(runner.keywords)\n'
+            'runner(["x"], text=True)',
+            "a builtin that only measures the mapping cannot change it",
         ),
         (
             'import functools, subprocess\n'
@@ -3362,6 +3450,43 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             "import subprocess\n"
             'methodcaller("run", ["x"], capture_output=True, text=True)(subprocess)',
             "a directly imported methodcaller needs no module name at all",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'getattr(runner, "keywords")["encoding"] = None\n'
+            'runner(["x"], text=True)',
+            "getattr reaches the same mapping the attribute does",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'getattr(runner, "keywords").pop("encoding")\n'
+            'runner(["x"], text=True)',
+            "a mapping fetched by getattr can be emptied by any of its methods",
+        ),
+        (
+            'import functools, subprocess\n'
+            'key = "encoding"\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'runner.keywords[key] = None\n'
+            'runner(["x"], text=True)',
+            "a key that is not spelled out could be any key, including the codec",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = subprocess.run\n'
+            'def unrelated():\n'
+            '    runner = functools.partial(print, encoding="utf-8")\n'
+            '    return runner\n'
+            'runner(["x"], capture_output=True, text=True)',
+            "a pin bound to the same name somewhere else answers for nothing here",
         ),
     ],
 )
