@@ -1,4 +1,8 @@
 # Memory Router
+<!-- # taste-lint: ignore file-size -->
+<!-- file-size rationale: reference doc for the memory API; every entry
+documents a real entry point verified by test_reference_docs_resolve.py,
+and splitting the reference breaks lookup by single file. -->
 
 ## Overview
 

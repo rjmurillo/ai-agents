@@ -1,4 +1,8 @@
 # Reflexion Memory
+<!-- # taste-lint: ignore file-size -->
+<!-- file-size rationale: reference doc for the memory API; every entry
+documents a real entry point verified by test_reference_docs_resolve.py,
+and splitting the reference breaks lookup by single file. -->
 
 <!-- vendor-portability: declared. This reference documents upstream memory artifact paths under .agents/memory/ for the episodic memory schema. It is reference material only; runtime writes stay in the canonical memory scripts and their path helpers. Issue #2050. -->
 
