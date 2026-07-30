@@ -194,9 +194,9 @@ the repo on that date. Re-verify volatile facts before trusting them:
 | PyYAML 6.0.3 pin | `pyproject.toml:13` | `grep -n PyYAML pyproject.toml` |
 | `uv sync --frozen --extra dev` is the canonical sync | `scripts/bootstrap-vm.sh:114` | `grep -n "uv sync --frozen" scripts/bootstrap-vm.sh` |
 | Node 22 LTS | `scripts/bootstrap-vm.sh:40` | `grep -n NODE_MAJOR scripts/bootstrap-vm.sh` |
-| pwsh 7.5.4+, gh 2.60+ floors | AGENTS.md Stack section | `grep -n "gh 2.60" AGENTS.md` |
+| PowerShell 7.5+, gh 2.60+ floors | AGENTS.md Stack section | `grep -n "floor:" AGENTS.md` prints every floor on one line |
 | Zero .ps1 files (ADR-042) | repo tree | `git ls-files "*.ps1"` prints nothing |
-| Stale pwsh commands | `CONTRIBUTING.md:155,741` | `grep -n pwsh CONTRIBUTING.md` |
+| No pwsh commands left in CONTRIBUTING (removed in b320f4ac1) | `CONTRIBUTING.md` | `grep -c pwsh CONTRIBUTING.md` prints 0 |
 | Git hook jobs, filters, and validators | `lefthook.yml` | `uv run --frozen lefthook validate` |
 | MCP servers serena/deepwiki/forgetful | `.mcp.json` | `cat .mcp.json` |
 | .env key names | `.env.example` | `cat .env.example` |
