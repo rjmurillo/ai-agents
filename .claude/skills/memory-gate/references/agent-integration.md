@@ -78,7 +78,7 @@ python3 .claude/skills/memory/scripts/search_memory.py \
     --query "authentication" --max-results 10
 
 # Extract episodes
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" \
+python3 .claude/skills/memory/scripts/extract_session_episode.py \
     ".agents/sessions/2026-01-01-session-130.json"
 
 ```
@@ -162,8 +162,8 @@ At session end, extract and persist learnings:
 ┌─────────────────────────────────────────────────────────────┐
 │  Step 1: Extract Episode                                     │
 │                                                              │
-│  extract_session_episode.py \                                │
-│      ".agents/sessions/[session].json"                       │
+│  python3 scripts/extract_session_episode.py \                │
+│      ".agents/sessions/[session].md"      │
 │                                                              │
 │  → Structured episode from session transcript                │
 └───────────────────────────┬─────────────────────────────────┘
@@ -256,7 +256,7 @@ The retrospective agent captures learnings:
 
 ```bash
 # Extract session episode
-result=$(python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" "[log]")
+result=$(python3 scripts/extract_session_episode.py "[log]")
 
 ```
 
@@ -283,7 +283,7 @@ Per SESSION-PROTOCOL.md, agents MUST:
 
 ```bash
 # 1. Extract episode from session log
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" "[log]"
+python3 scripts/extract_session_episode.py "[log]"
 
 # 2. Store cross-session context
 mcp__serena__write_memory(memory_file_name="[relevant-memory]", content="...")
@@ -334,7 +334,7 @@ catch {
 
 ```bash
 # Check if episode exists, extract if not
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" "[log]"
+python3 scripts/extract_session_episode.py "[log]"
 ```
 
 
