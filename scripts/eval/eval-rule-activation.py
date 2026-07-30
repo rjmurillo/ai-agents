@@ -1642,7 +1642,14 @@ def _scenario_score_triple(
     ungraded = "error" in mech_data or sc.get("graded") is False
     if ungraded:
         return None, failed, False
-    if "cell_score" in sc and sc["cell_score"] is not None:
+    if "cell_score" in sc:
+        # Presence is the signal, not the value. `_reduce_score_samples` writes
+        # this key only on a graded cell and always from a reducer over a
+        # non-empty list, so it never emits null. A present null therefore came
+        # from something other than the writer, which makes it damage in the
+        # same way an off-rubric number is. Falling back to the triple there
+        # would restate a corrupt cell under a second reduction rule and label
+        # it legacy, which is a claim about the artifact's age that is false.
         cell = sc["cell_score"]
         if _is_valid_score(cell):
             return float(cell), failed, False
@@ -1651,6 +1658,19 @@ def _scenario_score_triple(
     if not all(_is_valid_score(value) for value in triple):
         return None, failed, False
     return sum(triple) / len(_SCORE_KEYS), failed, True
+
+
+def _incomplete_mechanisms(
+    per_mech: dict[str, dict[str, Any]], mechs: list[str], pool_size: int
+) -> list[str]:
+    """Mechanisms whose average rests on fewer cells than the pool holds.
+
+    An average over a subset of a pool, published beside a verdict that names
+    the whole pool, is a number attached to a population it was never computed
+    over. That is the defect this instrument keeps re-growing, so the check
+    lives in one place and both pools call it.
+    """
+    return sorted(m for m in mechs if per_mech[m]["graded_count"] < pool_size)
 
 
 def _mechanism_summary(
@@ -1724,6 +1744,20 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
         summary["negative_case_per_mechanism"][m]["judge_failures"]
         for m in MECHANISMS
     )
+    # `total_judge_failures` stays the whole-run count, because it is the
+    # published record of how the judge behaved. The verdict reads a narrower
+    # count: for a routed target `full` is a treatment no deployment performs,
+    # so a judge error there says nothing about a surface a user can reach.
+    # Failing on it would fail a rule for a broken measurement of something
+    # that is not shipped. The two counts are equal whenever nothing is
+    # excluded, which is every always-on rule.
+    measured_mechs = [m for m in MECHANISMS if not (routed and m == "full")]
+    gating_judge_failures = sum(
+        summary["per_mechanism"][m]["judge_failures"] for m in measured_mechs
+    ) + sum(
+        summary["negative_case_per_mechanism"][m]["judge_failures"]
+        for m in measured_mechs
+    )
 
     summary["best_mechanism"] = best_mech
     summary["best_avg_score"] = best_avg
@@ -1731,6 +1765,10 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     summary["delta_full_vs_baseline"] = round(full_avg - baseline_avg, 2)
     summary["delta_description_vs_baseline"] = round(desc_avg - baseline_avg, 2)
     summary["total_judge_failures"] = total_judge_failures
+    summary["gating_judge_failures"] = gating_judge_failures
+    summary["unreachable_mechanisms"] = [
+        m for m in MECHANISMS if m not in measured_mechs
+    ]
 
     # Negative scenarios were measured but never gated: a rule that fired on
     # every case it was written to stay out of still returned PASS. Their
@@ -1758,11 +1796,35 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     # the negative scenarios, reported as if it covered them all, is the defect
     # this whole change exists to remove.
     summary["negative_gate_mechanisms"] = gate_mechs
-    summary["negative_gate_incomplete"] = sorted(
-        m for m, c in gate_cells.items() if c["graded_count"] < len(neg_scenarios)
+    summary["negative_gate_incomplete"] = _incomplete_mechanisms(
+        summary["negative_case_per_mechanism"], gate_mechs, len(neg_scenarios)
+    )
+    # Name which mechanism produced the worst average and how many cells it
+    # rests on. `worst_negative_avg` is a min across mechanisms that need not
+    # have graded the same scenarios, so the number alone does not say what it
+    # covers, and a reader cannot recover it from the verdict.
+    worst_neg_mech = min(
+        (m for m in gate_mechs if gate_cells[m]["graded_count"] > 0),
+        key=lambda m: gate_cells[m]["avg_score"],
+        default=None,
+    )
+    summary["worst_negative_mechanism"] = worst_neg_mech
+    summary["worst_negative_graded"] = (
+        gate_cells[worst_neg_mech]["graded_count"] if worst_neg_mech else 0
     )
 
-    if total_judge_failures > 0:
+    # The positive verdict is read off `description` and `baseline`, so those
+    # are the two that must be fully measured. The same partial-pool hole the
+    # negative gate just closed was open here: an off-rubric positive cell is
+    # dropped from the average without setting `judge_failed`, so a PASS could
+    # be published over a subset of the scenarios the verdict names.
+    pos_gate_mechs = ["baseline", "description"]
+    summary["positive_gate_mechanisms"] = pos_gate_mechs
+    summary["positive_gate_incomplete"] = _incomplete_mechanisms(
+        summary["per_mechanism"], pos_gate_mechs, len(pos_scenarios)
+    )
+
+    if gating_judge_failures > 0:
         summary["verdict"] = "FAIL_JUDGE_ERRORS"
     elif worst_neg_avg is not None and worst_neg_avg < MIN_RESTRAINT_SCORE:
         # Checked ahead of the positive gates: a rule that fires where it must
@@ -1778,6 +1840,11 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
         summary["verdict"] = "FAIL_NEGATIVE_INCOMPLETE"
     elif not pos_scenarios:
         summary["verdict"] = "NO_POSITIVE_CASES"
+    elif summary["positive_gate_incomplete"]:
+        # Ranked under the negative gates on purpose. An unproven harm outranks
+        # an unproven benefit: shipping a rule that might fire where it must not
+        # costs more than withholding one that might have helped.
+        summary["verdict"] = "FAIL_POSITIVE_INCOMPLETE"
     else:
         passes_threshold = desc_avg >= MIN_ACTIVATION_SCORE
         beats_baseline = (desc_avg - baseline_avg) >= MIN_DELTA_VS_BASELINE
@@ -1802,9 +1869,18 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
     if worst_neg is None:
         restraint = "not measured"
     else:
+        # `worst_neg` is a min across mechanisms that need not have graded the
+        # same scenarios, so printing the mechanism list alone leaves the reader
+        # unable to say which one the number came from or how much it covers.
         population = ", ".join(gate_mechs) if gate_mechs else "rule mechanisms"
+        source = summary.get("worst_negative_mechanism") or "?"
+        graded = summary.get("worst_negative_graded", 0)
+        neg_total = summary["negative_case_per_mechanism"][source]["scenario_count"] if (
+            source in summary.get("negative_case_per_mechanism", {})
+        ) else 0
         restraint = (
-            f"worst of [{population}] {worst_neg} (floor {MIN_RESTRAINT_SCORE})"
+            f"worst of [{population}] {worst_neg} (floor {MIN_RESTRAINT_SCORE}), "
+            f"from {source} over {graded}/{neg_total} negative scenario(s)"
         )
     rows = [
         f"\nRule: {rule_id}",
@@ -1812,10 +1888,22 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
         f"Best mechanism: {summary['best_mechanism']} (avg {summary['best_avg_score']})",
         f"Restraint on negative cases: {restraint}",
     ]
-    incomplete = summary.get("negative_gate_incomplete") or []
-    if incomplete:
+    for label, key in (
+        ("Negative", "negative_gate_incomplete"),
+        ("Positive", "positive_gate_incomplete"),
+    ):
+        incomplete = summary.get(key) or []
+        if incomplete:
+            rows.append(f"{label} pool incomplete at: " + ", ".join(incomplete))
+    unreachable = summary.get("unreachable_mechanisms") or []
+    if unreachable:
+        # Say it out loud. Otherwise a reader sees judge failures in the record
+        # and a verdict that ignored them, with nothing explaining the gap.
         rows.append(
-            "Negative pool incomplete at: " + ", ".join(incomplete)
+            "Excluded as unreachable for a routed target: "
+            + ", ".join(unreachable)
+            + f" ({summary.get('total_judge_failures', 0)} judge failure(s) in the "
+            f"record, {summary.get('gating_judge_failures', 0)} on gating surfaces)"
         )
     legacy = sum(
         summary["per_mechanism"][m].get("legacy_reduced_count", 0)
