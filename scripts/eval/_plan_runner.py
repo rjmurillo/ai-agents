@@ -14,7 +14,7 @@ from _eval_common import (
     EST_TOKENS_PER_CALL,
     MODEL_PRICING_RATES_USD_PER_1K_TOKENS,
     PRICING_RATE_AS_OF,
-    QUOTA_BILLED_PROVIDERS,
+    cost_basis,
 )
 
 # Default variants for the v1 spike (ADR-058): one agent prompt vs. one
@@ -59,22 +59,6 @@ def _estimate_cost_usd(model_id: str, tokens_in: int, tokens_out: int) -> float:
     return (tokens_in * rates["input"] + tokens_out * rates["output"]) / 1000.0
 
 
-def _cost_basis(provider: str | None) -> str:
-    """Return how *provider* bills: ``"usd"`` per token or ``"requests"``.
-
-    The biller is the provider, not the model. The same model id served
-    through GitHub Models is metered against a request allowance, and served
-    through a per-token vendor is metered in dollars, so the basis has to
-    follow the transport that will actually be charged.
-
-    An unrecognized or absent provider answers ``"usd"``. That keeps the
-    default Anthropic path, and any per-token vendor added later, on the
-    existing rule: a missing rate is a real gap an operator must fill, not a
-    licence to print a price.
-    """
-    return "requests" if (provider or "") in QUOTA_BILLED_PROVIDERS else "usd"
-
-
 class PlanRunner:
     """Compute the planned execution scope and cost estimate."""
 
@@ -104,7 +88,7 @@ class PlanRunner:
 
         planned_calls = len(fixtures) * len(variants) * n_runs
         tokens_in, tokens_out = _estimate_tokens(planned_calls)
-        basis = _cost_basis(provider)
+        basis = cost_basis(provider)
         cost_usd = (
             None if basis == "requests"
             else _estimate_cost_usd(model_id, tokens_in, tokens_out)

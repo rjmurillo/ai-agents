@@ -2048,6 +2048,34 @@ class TestReportAggregatorCost:
         assert result.cost_estimate_usd == pytest.approx(0.0063)
         assert result.pricing_rate_as_of == "2026-07-08"
 
+    def test_quota_provider_reports_no_usd_cost(self):
+        """A completed quota-billed run must produce a report, not an exception."""
+        records = _build_records(
+            ["F001"], agent_passed=True, baseline_passed=True
+        )
+        result = ReportAggregator(
+            records, model_id="openai/gpt-4o-mini", provider="github-models"
+        ).aggregate()
+        assert result.cost_estimate_usd is None
+        assert result.cost_basis == "requests"
+
+    def test_usd_provider_still_raises_on_an_unpriced_model(self):
+        records = _build_records(
+            ["F001"], agent_passed=True, baseline_passed=True
+        )
+        with pytest.raises(UnsupportedModelError):
+            ReportAggregator(
+                records, model_id="gpt-4o-mini", provider="openai"
+            ).aggregate()
+
+    def test_absent_provider_keeps_the_usd_basis(self):
+        records = _build_records(
+            ["F001"], agent_passed=True, baseline_passed=True
+        )
+        result = ReportAggregator(records, model_id="claude-sonnet-4-6").aggregate()
+        assert result.cost_basis == "usd"
+        assert result.cost_estimate_usd == pytest.approx(0.0063)
+
 
 # ===========================================================================
 # T4-3: ReportWriter

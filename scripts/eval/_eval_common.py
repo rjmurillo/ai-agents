@@ -43,6 +43,22 @@ PRICING_RATE_AS_OF = "2026-07-08"
 QUOTA_BILLED_PROVIDERS: frozenset[str] = frozenset({"github", "github-models"})
 
 
+def cost_basis(provider: str | None) -> str:
+    """Return how *provider* bills: ``"usd"`` per token or ``"requests"``.
+
+    The biller is the provider, not the model. The same model id served
+    through GitHub Models is metered against a request allowance, and served
+    through a per-token vendor is metered in dollars, so the basis has to
+    follow the transport that will actually be charged.
+
+    An unrecognized or absent provider answers ``"usd"``. That keeps the
+    default Anthropic path, and any per-token vendor added later, on the
+    existing rule: a missing rate is a real gap an operator must fill, not a
+    licence to print a price.
+    """
+    return "requests" if (provider or "") in QUOTA_BILLED_PROVIDERS else "usd"
+
+
 def aggregate_multi_run_scores(
     run_scores: list[dict[str, Any]],
     dimensions: list[str],
