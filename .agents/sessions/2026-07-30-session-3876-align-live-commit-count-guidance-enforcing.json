@@ -136,6 +136,27 @@
     },
     {
       "step": "Rejected the suggested AGENTS.md restore on measurement, not caution. The proposed line is 2997 bytes, 3 under the cap, and open PR #3953 grows AGENTS.md from 2991 to 2995. Both merged would reach 3001 and fail the strict comparison, so the 18-byte slack stays."
+    },
+    {
+      "step": "Read the gpt-5.6-sol adversarial review of the protocol fix: three Required findings, none accepted on trust."
+    },
+    {
+      "step": "Reproduced the off-by-one: executed classify_count across counts 0-45 at limits 20 and 40; BLOCKED first appears at 21 and 41, so exactly 20 and 40 are ALERT and 'block at 20' is wrong."
+    },
+    {
+      "step": "Proved CI applies the main-merge relief with a positive and negative control on contains_base_merge: a 25-commit payload with no merge classifies BLOCKED at limit 20, the same payload carrying a merge classifies ALERT at limit 40."
+    },
+    {
+      "step": "Measured five AGENTS.md wordings against the 3000-byte budget and against open PR #3953's measured +4 delta; rejected the reviewer's exact wording at 2996 because it leaves zero slack once #3953 lands, and chose <=20/40(main) at 2991 with 5 bytes of slack remaining."
+    },
+    {
+      "step": "Regenerated the copilot-cli mirrors with build_all.py and verified line-level parity on both changed skill files; confirmed no new manifest bump was needed because the branch already sits at 0.6.5427 over main's 0.6.5426."
+    },
+    {
+      "step": "Carried the 40-commit relief into the two remaining live display sites, FAILURE-MODES.md and the session-protocol Serena memory, leaving the dated PR #908 evidence lines untouched."
+    },
+    {
+      "step": "Caught myself appending these entries to another session's log because a glob picked the wrong file; reverted that log to HEAD and wrote to the correct one."
     }
   ],
   "endingCommit": "",

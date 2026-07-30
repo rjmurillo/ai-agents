@@ -10,9 +10,9 @@
 - Verify no BLOCKING synthesis issues before PR creation - architect blocks MUST be enforced (PR #908, 2026-01-15)
   - Evidence: PR #908 created despite architect P1 BLOCKING review in DESIGN-REVIEW-skill-reflect.md, leading to 228+ comments
   - Reference: Issue #934 (pre-PR validation)
-- Check commit count during session against the enforced limit (block above 20 commits per PR, warn at 10) (PR #908, 2026-01-15)
+- Check commit count during session against the enforced limit (block above 20 commits per PR, or above 40 once the branch merges main, warn at 10) (PR #908, 2026-01-15)
   - Evidence: PR #908 reached 59 commits (3× limit) without agent awareness, no visibility of limit during session
-  - Actionable: Display "Commit X/20" after each commit; thresholds live in `scripts/validation/pr_commit_count.py`
+  - Actionable: Display "Commit X/20", or "X/40" once the branch merges main, after each commit; thresholds live in `scripts/validation/pr_commit_count.py`
 - Run scoped markdownlint on changed files only, not entire repository (PR #908, 2026-01-15)
   - Evidence: `markdownlint --fix **/*.md` reformatted 53 memory files in PR #908 that were unrelated to the feature
   - Actionable: Use `markdownlint --fix $(git diff --name-only '*.md')` instead
