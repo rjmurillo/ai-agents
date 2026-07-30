@@ -11,7 +11,7 @@ Reference document linking all cost avoidance skills with quick comparison.
 | Skill ID | Focus Area | Savings % | Impact | RFC Level | Notes |
 |----------|-----------|-----------|--------|-----------|-------|
 | ~~Skill-Cost-001~~ | ~~ARM Runners~~ | ~~37.5%~~ | ~~9/10~~ | ~~MUST~~ | **N/A for public repos** |
-| Skill-Cost-002 | No Artifacts Default | 60-80% | 8/10 | MUST | ✅ Still applies |
+| Skill-Cost-002 | Artifacts Earn Their Retention | 60-80% | 8/10 | MUST | ✅ Still applies |
 | Skill-Cost-003 | Path Filters | Reduce noise | 7/10 | SHOULD | ✅ Reduces bot runs |
 | Skill-Cost-004 | Concurrency Cancel | Reduce noise | 6/10 | SHOULD | ✅ Reduces bot runs |
 | Skill-Cost-005 | Serena Symbolic | 80%+ | 10/10 | MUST | ✅ Token savings |
