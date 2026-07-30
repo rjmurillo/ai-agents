@@ -127,7 +127,7 @@
       "outcome": "Independent reviewer found no blockers. Ruff and full pre-PR validation passed."
     }
   ],
-  "endingCommit": "a104d29c82de9924b87a694e74506071ef152282",
+  "endingCommit": "a104d29c8b11b186a94614668615da4cfc68ce97",
   "nextSteps": [
     "Push the autofix commit to feat/guard-operator-iterator-resolution.",
     "Reply to and resolve the three review threads.",
