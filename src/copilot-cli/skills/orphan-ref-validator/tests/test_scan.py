@@ -2047,10 +2047,150 @@ class TestKebabTokensNeedEvidence:
         )
         assert (findings, checked) == ([], 0)
 
-    # -- the denylist still wins, even against a type claim --
+    # -- a hyphenated token is reachable once prose calls it a skill --
 
-    def test_a_denylisted_token_is_not_flagged_even_when_typed(self, fake_repo):
-        write(fake_repo / "notes" / "s.md", "Run the `pre-commit` skill.\n")
+    def test_a_hyphenated_non_skill_is_flagged_when_typed(self, fake_repo):
+        write(fake_repo / "notes" / "s.md", "Run the `read-only` skill.\n")
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == {"read-only"}
+
+    def test_a_hyphenated_non_skill_is_silent_without_a_type_claim(
+        self, fake_repo
+    ):
+        write(fake_repo / "notes" / "s.md", "The file is `read-only` here.\n")
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == set()
+
+    def test_a_model_identifier_is_never_a_candidate(self, fake_repo):
+        write(fake_repo / "notes" / "s.md", "Run the `claude-opus-5` skill.\n")
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == set()
+
+    # -- a field noun after the token makes it a noun adjunct, not a name --
+
+    def test_a_field_noun_after_the_token_is_not_a_type_claim(self, fake_repo):
+        write(
+            fake_repo / "notes" / "s.md",
+            "Iterate on the skill `description` field until it passes.\n",
+        )
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == set()
+
+    def test_the_same_token_without_the_field_noun_is_still_a_claim(
+        self, fake_repo
+    ):
+        write(fake_repo / "notes" / "s.md", "Run the skill `description`.\n")
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == {
+            "description"
+        }
+
+    @pytest.mark.parametrize(
+        "head_noun", ["name", "names", "file", "files", "directory", "directories"]
+    )
+    def test_every_head_noun_issue_3727_names_is_guarded(self, fake_repo, head_noun):
+        """Issue #3727 lists these head nouns; each must defeat the type claim.
+
+        Parametrized rather than merged into one fixture so a regression names
+        the single noun that broke instead of failing on the whole set.
+        """
+        write(
+            fake_repo / "notes" / "s.md",
+            f"Check the skill `description` {head_noun} before shipping.\n",
+        )
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == set()
+
+    # -- a skill owned by another catalog is a correct reference --
+
+    def test_a_catalog_qualified_foreign_skill_is_not_an_orphan(self, fake_repo):
+        write(
+            fake_repo / "notes" / "s.md",
+            "gstack `claim-verification-before-ingest` skill\n",
+        )
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == set()
+
+    def test_an_unqualified_foreign_skill_is_still_an_orphan(self, fake_repo):
+        """Issue #3728 exempts the qualified form only; the bare token stays a finding.
+
+        Without this the two-entry allowlist would swallow every future mention
+        of those tokens, including one that names a local skill gone missing.
+        """
+        write(
+            fake_repo / "notes" / "s.md",
+            "`claim-verification-before-ingest` skill\n",
+        )
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == {
+            "claim-verification-before-ingest"
+        }
+
+    def test_a_wrongly_qualified_foreign_skill_is_still_an_orphan(self, fake_repo):
+        """A qualifier that is not the owning catalog is not a qualifier."""
+        write(
+            fake_repo / "notes" / "s.md",
+            "gizmo `claim-verification-before-ingest` skill\n",
+        )
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == {
+            "claim-verification-before-ingest"
+        }
+
+    def test_an_unknown_foreign_looking_skill_is_still_an_orphan(
+        self, fake_repo
+    ):
+        write(
+            fake_repo / "notes" / "s.md",
+            "gstack `not-a-foreign-skill` skill\n",
+        )
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == {
+            "not-a-foreign-skill"
+        }
+
+    def test_the_owning_catalog_qualifies_only_its_own_token(self, fake_repo):
+        """Both tokens are gstack's, so each must accept the same qualifier."""
+        write(
+            fake_repo / "notes" / "s.md",
+            "gstack `front-gate-before-pipeline` skill\n",
+        )
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == set()
+
+    def test_a_catalog_name_embedded_in_a_longer_word_is_not_a_qualifier(
+        self, fake_repo
+    ):
+        """The qualifier pattern is word-bounded, so a substring must not count.
+
+        Without the boundaries ``gstack`` would match inside ``gstackoverflow``
+        and silently exempt a token that nothing in the sentence actually
+        attributes to the owning catalog.
+        """
+        write(
+            fake_repo / "notes" / "s.md",
+            "gstackoverflow `front-gate-before-pipeline` skill\n",
+        )
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == {
+            "front-gate-before-pipeline"
+        }
+
+    def test_every_catalog_name_has_a_compiled_qualifier_pattern(self):
+        """The qualifier lookup indexes directly, so the table must be total.
+
+        ``is_qualified_foreign_skill`` reads
+        ``_CATALOG_QUALIFIER_PATTERNS[catalog]`` without a fallback, which is
+        safe only while the pattern table covers every value in
+        ``FOREIGN_SKILL_CATALOGS``. Adding a catalog entry without rebuilding
+        the table would raise ``KeyError`` on the first reference instead of
+        returning a finding, so pin the invariant here rather than discover it
+        from a traceback.
+        """
+        filters = _filters_module()
+        assert set(filters._CATALOG_QUALIFIER_PATTERNS) == set(
+            filters.FOREIGN_SKILL_CATALOGS.values()
+        )
+
+    def test_a_catalog_qualifier_still_matches_case_insensitively(self, fake_repo):
+        """``re.IGNORECASE`` moved from the call site into the compiled pattern.
+
+        Prose capitalizes a catalog name at the start of a sentence, so losing
+        the flag during that move would turn every sentence-initial mention
+        back into a finding while the lowercase tests kept passing.
+        """
+        write(
+            fake_repo / "notes" / "s.md",
+            "GStack `front-gate-before-pipeline` skill\n",
+        )
         assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == set()
 
     # -- sibling resolution is unchanged --
@@ -2062,6 +2202,73 @@ class TestKebabTokensNeedEvidence:
     def test_a_typed_sibling_artifact_is_still_flagged(self, fake_repo):
         write(fake_repo / "notes" / "s.md", "Run the `agent-one` skill.\n")
         assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == {"agent-one"}
+
+
+class TestFindingsAreDeduplicated:
+    """Issue #3727: identical findings must not each spend a budget slot."""
+
+    def _finding(self, **over):
+        base = dict(
+            kind="skill_name",
+            severity="critical",
+            target_file="a.md",
+            line=7,
+            referenced_entity="ghost",
+            recommendation="anything",
+        )
+        base.update(over)
+        return _scan.Finding(**base)
+
+    def test_an_identical_repeat_is_dropped(self):
+        findings = [self._finding(), self._finding()]
+        _scan._deduplicate_findings(findings)
+        assert len(findings) == 1
+
+    def test_a_differing_recommendation_still_counts_as_a_repeat(self):
+        findings = [self._finding(), self._finding(recommendation="other")]
+        _scan._deduplicate_findings(findings)
+        assert len(findings) == 1
+
+    def test_findings_differing_in_any_key_field_are_both_kept(self):
+        for field, value in (
+            ("target_file", "b.md"),
+            ("line", 8),
+            ("kind", "script_path"),
+            ("referenced_entity", "other"),
+        ):
+            findings = [self._finding(), self._finding(**{field: value})]
+            _scan._deduplicate_findings(findings)
+            assert len(findings) == 2, field
+
+    def test_the_first_of_a_repeat_pair_is_the_one_kept(self):
+        findings = [self._finding(), self._finding(recommendation="second")]
+        _scan._deduplicate_findings(findings)
+        assert findings[0].recommendation == "anything"
+
+    def test_one_line_naming_a_token_twice_yields_one_finding(self, fake_repo):
+        """End to end: proves ``scan`` calls the deduplicator.
+
+        A token written twice on one line is extracted twice, so before
+        issue #3727 the same finding was appended twice and spent two slots
+        of the ``MAX_FINDINGS`` budget. Real instances of this shape include
+        ADR-040 line 232 and the scanner's own ``patterns.py`` line 65.
+        """
+        write(
+            fake_repo / "notes" / "s.md",
+            "The `ghost` skill replaced the `ghost` skill.\n",
+        )
+        findings = [
+            f
+            for f in scan([fake_repo / "notes"], fake_repo).findings
+            if f.referenced_entity == "ghost"
+        ]
+        assert len(findings) == 1
+
+    def test_deduplication_runs_before_the_budget_is_spent(self, fake_repo):
+        """A repeat must not push a real finding past ``max_findings``."""
+        findings = [self._finding(), self._finding(), self._finding(line=9)]
+        _scan._deduplicate_findings(findings)
+        assert [f.line for f in findings] == [7, 9]
 
 
 class TestRetiredKebabSkillsStayHonest:
@@ -2084,6 +2291,13 @@ class TestRetiredKebabSkillsStayHonest:
         while it is live canonically, so asserting against it would fail for a
         reason that has nothing to do with skill retirement.
 
+        Walks ``HEAD`` rather than ``--all``. ``--all`` reads every ref the
+        clone happens to hold, including ``refs/remotes/pr/*`` caches of
+        unmerged pull request heads and any local branch. Those are properties
+        of the clone, not of the repository, so the same commit passed in CI
+        and failed locally (issue #3753). ``HEAD`` is the history of the commit
+        under test, which is what the curated set describes.
+
         Skipped on a shallow clone, where the deletion history is absent and
         the derived set would be empty for the wrong reason.
         """
@@ -2098,7 +2312,7 @@ class TestRetiredKebabSkillsStayHonest:
             pytest.skip("shallow clone: deletion history unavailable")
         rel = _catalog().relative_to(repo_root).as_posix()
         log = subprocess.run(
-            ["git", "-C", str(repo_root), "log", "--all", "--diff-filter=D",
+            ["git", "-C", str(repo_root), "log", "HEAD", "--diff-filter=D",
              "--name-only", "--format=", "--", f"{rel}/*/SKILL.md"],
             capture_output=True, text=True, check=False,
         )
