@@ -52,6 +52,7 @@ fail towards a redundant keyword, never towards a missed decode.
 from __future__ import annotations
 
 import ast
+import codecs
 import time
 from collections import Counter
 from pathlib import Path
@@ -78,6 +79,16 @@ _ALWAYS_CAPTURING_ATTRS = frozenset({"check_output"})
 
 _PINNED_CODEC = "utf-8"
 _OS_POPEN = "os.popen"
+
+# Modules whose aliases have to be followed. Held as a table rather than a
+# hardcoded owner check, so ``import os as myos`` cannot disagree with
+# ``import subprocess as sp`` about which module a name stands for.
+_TRACKED_MODULES = frozenset({"subprocess", "os"})
+
+# Attributes that hand back the callable they are read from. ``__get__`` is
+# deliberately absent: it returns a fresh binding rather than the callable, so
+# calling its result starts no process and flagging it would be noise.
+_FORWARDING_ATTRS = frozenset({"__call__", "__func__", "__wrapped__"})
 # Stands for a subprocess entry point selected at runtime, which no static
 # scan can name. Because it may be getoutput, which decodes with no flag to
 # read, invoking one counts as decoding text whatever keywords are present.
@@ -89,11 +100,54 @@ _DYNAMIC = "subprocess.<dynamic>"
 _ATTRIBUTE = "."
 _UNKNOWN = object()
 _PARTIAL = "functools.partial"
+# Marks the null sink. Held beside the entry points so an imported ``DEVNULL``
+# is recognised at a call site, and filtered out of every path that answers
+# "is this a subprocess entry point".
+_DEVNULL = "subprocess.DEVNULL"
+# The two sentinels that ask for a pipe. Recognised by value so a positional
+# capture argument can be found without reading which slot it sits in, since
+# slot order is a property of one CPython release rather than of the API.
+_PIPE = "subprocess.PIPE"
+_STDOUT = "subprocess.STDOUT"
+_CAPTURE_SENTINELS = frozenset({_PIPE, _STDOUT})
+_NOT_ENTRY_POINTS = frozenset({_PARTIAL, _DEVNULL, _PIPE, _STDOUT})
+
+# Calls that hand back the object they were given. Each one is a place a
+# subprocess reference can pass through with no assignment statement to find.
+# ``classmethod`` is deliberately absent: it binds the owning class as the
+# first argument, so what comes out is not the callable that went in.
+_PASSTHROUGH = frozenset({"nullcontext", "staticmethod", "enter_context"})
+
+# Methods that hand back an element of their receiver. The index is not
+# modelled, so the receiver is read whole, exactly as a subscript is.
+_ELEMENT_METHODS = frozenset({"get", "setdefault", "pop", "popleft", "popitem"})
+
+# Of those, the ones whose second argument is a fallback the receiver may
+# never hold. That argument is a second path to the value and is read too.
+_DEFAULTING_METHODS = frozenset({"get", "setdefault"})
+
+# Builtins that select from or rebuild a container handed to them.
+_ELEMENT_BUILTINS = frozenset(
+    {"min", "max", "sorted", "reversed", "next", "iter", "list", "tuple", "set"}
+)
 
 # The literal container shapes an index can be read out of. Named so the
 # non-mapping branch of _element is known to carry elts.
 _Container = ast.Dict | ast.List | ast.Tuple
 _Assign = ast.Assign | ast.AnnAssign | ast.NamedExpr | ast.AugAssign
+
+# Nodes that open a namespace of their own. A walrus inside one of these binds
+# there, not in the body that holds it.
+_SCOPED = (
+    ast.FunctionDef,
+    ast.AsyncFunctionDef,
+    ast.ClassDef,
+    ast.Lambda,
+    ast.ListComp,
+    ast.SetComp,
+    ast.DictComp,
+    ast.GeneratorExp,
+)
 
 # Entry points that hand back str no matter what keywords a call passes.
 _DECODES_UNCONDITIONALLY = _ALWAYS_TEXT_ATTRS | frozenset({_DYNAMIC})
@@ -102,8 +156,10 @@ _DECODES_UNCONDITIONALLY = _ALWAYS_TEXT_ATTRS | frozenset({_DYNAMIC})
 # one resolves to. A table rather than a branch per module, so a new source of
 # subprocess entry points is one row.
 _IMPORTED_NAMES: dict[str, dict[str, str]] = {
-    "subprocess": {attr: attr for attr in _SUBPROCESS_ATTRS},
+    "subprocess": {attr: attr for attr in _SUBPROCESS_ATTRS}
+    | {"DEVNULL": _DEVNULL, "PIPE": _PIPE, "STDOUT": _STDOUT},
     "functools": {"partial": _PARTIAL},
+    "os": {"popen": _OS_POPEN},
 }
 
 
@@ -125,9 +181,33 @@ def _has_splat(call: ast.Call) -> bool:
     return any(keyword.arg is None for keyword in call.keywords)
 
 
-def _is_literal_false(node: ast.expr | None) -> bool:
-    """Report whether *node* is the literal ``False``."""
-    return isinstance(node, ast.Constant) and node.value is False
+def _is_falsy_literal(node: ast.expr | None) -> bool:
+    """Report whether *node* is a constant Python reads as false.
+
+    ``subprocess`` tests these keywords for truth, not against ``False``, so
+    ``capture_output=0`` captures nothing and ``text=None`` decodes nothing.
+    Only a constant qualifies: a name could hold anything, and reading it as
+    off would be the quiet direction.
+    """
+    return isinstance(node, ast.Constant) and not node.value
+
+
+def _constant_str(node: ast.expr | None) -> str | None:
+    """Return the string *node* spells at parse time, or ``None``.
+
+    An f-string with no placeholders and a concatenation of literals are both
+    ordinary ways to write a codec name, and both reach the runtime as the
+    same string. Refusing them flags a call that is already correct.
+    """
+    if isinstance(node, ast.Constant):
+        return node.value if isinstance(node.value, str) else None
+    if isinstance(node, ast.JoinedStr):
+        parts = [_constant_str(value) for value in node.values]
+        return None if None in parts else "".join(part for part in parts if part)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left, right = _constant_str(node.left), _constant_str(node.right)
+        return None if left is None or right is None else left + right
+    return None
 
 
 def _call_label(call: ast.Call) -> str:
@@ -151,7 +231,7 @@ def _is_partial(label: str, functions: dict[str, str]) -> bool:
 
 
 def _resolve_indirect(
-    call: ast.Call, modules: set[str], functions: dict[str, str]
+    call: ast.Call, modules: dict[str, str], functions: dict[str, str]
 ) -> str | None:
     """Resolve a wrapper call that yields a subprocess entry point.
 
@@ -162,22 +242,43 @@ def _resolve_indirect(
     label = _call_label(call)
     if _is_partial(label, functions) and call.args:
         return _resolve_callable(call.args[0], modules, functions)
+    if label in _PASSTHROUGH and call.args:
+        # ``nullcontext(subprocess.run)`` and ``staticmethod(subprocess.run)``
+        # hand the reference straight back out, so the wrapper is not a wall.
+        return _resolve_callable(call.args[0], modules, functions)
+    if label in _ELEMENT_METHODS and isinstance(call.func, ast.Attribute):
+        # ``TABLE.get("run")`` selects an element exactly as ``TABLE["run"]``
+        # does, and the fallback of ``get`` and ``setdefault`` is a second
+        # path to a value the receiver may never hold.
+        reached = [call.func.value]
+        if label in _DEFAULTING_METHODS:
+            reached.extend(call.args[1:])
+        return _resolve_elements(reached, modules, functions)
+    if label in _ELEMENT_BUILTINS and call.args:
+        return _resolve_elements(list(call.args), modules, functions)
     if label == "getattr" and len(call.args) >= 2:
         owner, attr = call.args[0], call.args[1]
-        if not (isinstance(owner, ast.Name) and owner.id in modules):
+        if isinstance(attr, ast.Constant) and attr.value in _FORWARDING_ATTRS:
+            # ``getattr(subprocess.run, "__call__")`` composes the two shapes
+            # below, so resolving the owner answers for the pair.
+            return _resolve_callable(owner, modules, functions)
+        held = modules.get(owner.id) if isinstance(owner, ast.Name) else None
+        if held is None:
             return None
         if not isinstance(attr, ast.Constant):
             # ``getattr(subprocess, name)`` hides which entry point it reaches.
             # Nothing in this repository needs that, so the safe reading is
             # that it reaches one of them.
             return _DYNAMIC
-        if attr.value in _SUBPROCESS_ATTRS:
+        if held == "subprocess" and attr.value in _SUBPROCESS_ATTRS:
             return str(attr.value)
+        if held == "os" and attr.value == "popen":
+            return _OS_POPEN
     return None
 
 
 def _resolve_elements(
-    values: list[ast.expr], modules: set[str], functions: dict[str, str]
+    values: list[ast.expr], modules: dict[str, str], functions: dict[str, str]
 ) -> str | None:
     """Return the entry point a container of *values* yields when subscripted.
 
@@ -259,15 +360,19 @@ def _element(node: ast.Subscript, containers: dict[str, _Container]) -> ast.expr
 
 
 def _attribute(
-    node: ast.Attribute, modules: set[str], functions: dict[str, str]
+    node: ast.Attribute, modules: dict[str, str], functions: dict[str, str]
 ) -> str | None:
     """Return the subprocess entry point ``owner.attr`` names, or ``None``."""
     if isinstance(node.value, ast.Name):
-        owner, attr = node.value.id, node.attr
-        if owner in modules and attr in _SUBPROCESS_ATTRS:
+        owner, attr = modules.get(node.value.id), node.attr
+        if owner == "subprocess" and attr in _SUBPROCESS_ATTRS:
             return attr
         if owner == "os" and attr == "popen":
             return _OS_POPEN
+    if node.attr in _FORWARDING_ATTRS:
+        # ``subprocess.run.__call__`` is the same callable read through an
+        # attribute that hands it back, so the owner answers for it.
+        return _resolve_callable(node.value, modules, functions)
     # No partial filter here, unlike the bare-name branch in the caller. The
     # sentinel is only ever written for an imported name, and every attribute
     # binding is resolved through that branch, which drops it.
@@ -276,7 +381,7 @@ def _attribute(
 
 def _resolve_callable(
     node: ast.expr,
-    modules: set[str],
+    modules: dict[str, str],
     functions: dict[str, str],
     containers: dict[str, _Container] | None = None,
 ) -> str | None:
@@ -293,9 +398,30 @@ def _resolve_callable(
         node = node.value if selected is None else selected
     if isinstance(node, ast.Name):
         resolved = functions.get(node.id)
-        return None if resolved == _PARTIAL else resolved
+        return None if resolved in _NOT_ENTRY_POINTS else resolved
     if isinstance(node, ast.Attribute):
         return _attribute(node, modules, functions)
+    if isinstance(node, ast.Starred):
+        # ``(*RUNNERS,)[0]`` spreads a container into another one, and the
+        # element that lands there is whatever the spread held.
+        return _resolve_callable(node.value, modules, functions, containers)
+    if isinstance(node, ast.BinOp):
+        # ``([subprocess.run] + others)[0]`` and ``([subprocess.run] * 2)[0]``
+        # both build a container holding what either side held.
+        return _resolve_elements([node.left, node.right], modules, functions)
+    if isinstance(node, ast.BoolOp):
+        # ``cached or subprocess.run`` evaluates to either operand.
+        return _resolve_elements(list(node.values), modules, functions)
+    if isinstance(node, ast.IfExp):
+        # ``subprocess.run if flag else None`` picks a branch at runtime, so
+        # both branches are values the name can take.
+        return _resolve_elements([node.body, node.orelse], modules, functions)
+    if isinstance(node, (ast.ListComp, ast.SetComp, ast.GeneratorExp)):
+        # A comprehension yields whatever its element expression evaluates to,
+        # and the index that selects one of them is not modelled.
+        return _resolve_callable(node.elt, modules, functions, containers)
+    if isinstance(node, ast.DictComp):
+        return _resolve_callable(node.value, modules, functions, containers)
     if isinstance(node, ast.Call):
         return _resolve_indirect(node, modules, functions)
     if isinstance(node, ast.NamedExpr):
@@ -327,12 +453,8 @@ def _unpack(target: ast.expr, value: ast.expr) -> list[tuple[str, ast.expr]]:
         # name alone carries the binding. The leading dot cannot appear in an
         # identifier, so these keys never collide with a plain name.
         return [(_ATTRIBUTE + target.attr, value)]
-    if isinstance(target, ast.Subscript) and isinstance(target.value, ast.Name):
-        # ``H[0] = subprocess.run`` puts the value into H without rebinding
-        # the name, so the base takes the binding. Which slot it lands in
-        # does not matter: the write is what stops H being read from its
-        # literal, so the whole container has to answer for it.
-        return [(target.value.id, value)]
+    if isinstance(target, ast.Subscript):
+        return _subscripted(target, value)
     if not isinstance(target, (ast.Tuple, ast.List)):
         return []
     if isinstance(value, (ast.Tuple, ast.List)) and len(value.elts) == len(target.elts):
@@ -342,6 +464,28 @@ def _unpack(target: ast.expr, value: ast.expr) -> list[tuple[str, ast.expr]]:
             for pair in _unpack(sub, item)
         ]
     return [pair for sub in target.elts for pair in _unpack(sub, value)]
+
+
+def _subscripted(target: ast.Subscript, value: ast.expr) -> list[tuple[str, ast.expr]]:
+    """Pair the name a subscript write binds with the value it receives.
+
+    Two shapes bind through a subscript, and which one this is depends on what
+    the base of the subscript holds rather than on the subscript itself.
+    """
+    if isinstance(target.value, ast.Call):
+        # ``globals()["runner"] = subprocess.run`` binds a module-level name
+        # with no name anywhere on the left of the assignment to read.
+        if _call_label(target.value) not in {"globals", "vars"}:
+            return []
+        key = _literal(target.slice)
+        return [(key, value)] if isinstance(key, str) else []
+    if isinstance(target.value, ast.Name):
+        # ``H[0] = subprocess.run`` puts the value into H without rebinding
+        # the name, so the base takes the binding. Which slot it lands in
+        # does not matter: the write is what stops H being read from its
+        # literal, so the whole container has to answer for it.
+        return [(target.value.id, value)]
+    return []
 
 
 def _iterated(target: ast.expr, iterable: ast.expr) -> list[tuple[str, ast.expr]]:
@@ -377,6 +521,34 @@ def _defaults(spec: ast.arguments) -> list[tuple[str, ast.expr]]:
         if default is not None
     )
     return found
+
+
+def _installed(call: ast.Call) -> list[tuple[str, ast.expr]]:
+    """Pair the attribute ``setattr`` writes with the value handed to it.
+
+    ``setattr(holder, "runner", subprocess.run)`` is an attribute assignment
+    spelled as a call, and it binds under the same dotted key one written with
+    an equals sign would.
+    """
+    if _call_label(call) != "setattr" or len(call.args) != 3:
+        return []
+    name = _literal(call.args[1])
+    return [(_ATTRIBUTE + name, call.args[2])] if isinstance(name, str) else []
+
+
+def _entered(node: ast.With | ast.AsyncWith) -> list[tuple[str, ast.expr]]:
+    """Pair each ``with`` target with the expression it takes its value from.
+
+    ``with nullcontext(subprocess.run) as runner:`` binds a name with no
+    assignment statement in sight, and the passthrough table is what decides
+    whether the context manager hands the reference back out.
+    """
+    return [
+        pair
+        for item in node.items
+        if item.optional_vars is not None
+        for pair in _unpack(item.optional_vars, item.context_expr)
+    ]
 
 
 def _receives(call: ast.Call) -> list[tuple[str, ast.expr]]:
@@ -425,14 +597,41 @@ def _written(tree: ast.AST) -> set[str]:
     return found
 
 
+def _class_walrus(statement: ast.stmt) -> list[tuple[str, ast.expr]]:
+    """Pair every class attribute a walrus binds inside one statement.
+
+    A walrus binds wherever it appears, not only where it stands alone as a
+    statement, so ``if (runner := subprocess.run):`` in a class body sets a
+    class attribute exactly as a plain assignment would. The walk stops at any
+    node that opens a namespace of its own, because a walrus inside a nested
+    function or class binds there rather than here.
+    """
+    found: list[tuple[str, ast.expr]] = []
+    if isinstance(statement, _SCOPED):
+        return found
+    stack: list[ast.AST] = [statement]
+    while stack:
+        node = stack.pop()
+        if isinstance(node, ast.NamedExpr) and isinstance(node.target, ast.Name):
+            found.append((_ATTRIBUTE + node.target.id, node.value))
+        stack.extend(
+            child for child in ast.iter_child_nodes(node)
+            if not isinstance(child, _SCOPED)
+        )
+    return found
+
+
 def _class_bindings(node: ast.ClassDef) -> list[tuple[str, ast.expr]]:
     """Pair every attribute a class body binds with the value it receives.
 
     A class body binds attributes without ever naming ``self``, so the names
-    are recorded under the attribute prefix and read back the same way.
+    are recorded under the attribute prefix and read back the same way. The
+    walrus pass is additive rather than an arm of the same branch, because
+    ``x = (runner := subprocess.run)`` binds two attributes at once.
     """
     found: list[tuple[str, ast.expr]] = []
     for statement in node.body:
+        found.extend(_class_walrus(statement))
         if not isinstance(statement, ast.Assign):
             continue
         for target in statement.targets:
@@ -507,15 +706,18 @@ def _bindings(tree: ast.Module) -> list[tuple[str, ast.expr]]:
             found.extend(_assigned(node))
         elif isinstance(node, ast.Call):
             found.extend(_receives(node))
+            found.extend(_installed(node))
         elif isinstance(node, ast.Match):
             found.extend(_captured(node))
+        elif isinstance(node, (ast.With, ast.AsyncWith)):
+            found.extend(_entered(node))
         elif isinstance(node, (ast.For, ast.AsyncFor, ast.comprehension)):
             # ``for runner in (subprocess.run,)`` binds a name with no
             # assignment statement anywhere in sight.
             found.extend(_iterated(node.target, node.iter))
         elif isinstance(node, ast.ClassDef):
             found.extend(_class_bindings(node))
-        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
             found.extend(_defaults(node.args))
     return found
 
@@ -554,24 +756,30 @@ def _containers(
     return found
 
 
-def _imports(tree: ast.AST) -> tuple[set[str], dict[str, str]]:
-    """Collect the module aliases and imported names that reach subprocess.
+def _imports(tree: ast.AST) -> tuple[dict[str, str], dict[str, str]]:
+    """Collect the module aliases and imported names that reach a spawn point.
 
-    ``import subprocess as sp`` and ``from subprocess import run`` are both
-    ordinary Python, and an owner-name check that only knows the literal word
-    ``subprocess`` misses each of them.
+    ``import subprocess as sp``, ``import os as myos``, and
+    ``from subprocess import run`` are all ordinary Python, and an owner-name
+    check that only knows the literal words misses every one of them. Aliases
+    map to the module they name rather than to a bare set, so ``os`` and
+    ``subprocess`` cannot be confused for one another.
     """
-    modules = {"subprocess"}
+    modules = {"subprocess": "subprocess", "os": "os"}
     functions: dict[str, str] = {}
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
-                if alias.name == "subprocess":
-                    modules.add(alias.asname or alias.name)
+                if alias.name in _TRACKED_MODULES:
+                    modules[alias.asname or alias.name] = alias.name
         elif isinstance(node, ast.ImportFrom):
             wanted = _IMPORTED_NAMES.get(node.module or "", {})
             for alias in node.names:
-                if alias.name in wanted:
+                if alias.name == "*":
+                    # ``from subprocess import *`` binds every public name,
+                    # entry points included, with none of them written down.
+                    functions.update(wanted)
+                elif alias.name in wanted:
                     functions[alias.asname or alias.name] = wanted[alias.name]
     return modules, functions
 
@@ -587,9 +795,133 @@ def _dependents(groups: dict[int, tuple[ast.expr, list[str]]]) -> dict[str, list
     return found
 
 
+def _rebound_modules(
+    bindings: list[tuple[str, ast.expr]], modules: dict[str, str]
+) -> dict[str, str]:
+    """Grow *modules* with every name bound to a module already in it.
+
+    ``sp = subprocess`` needs no import statement and leaves an owner name an
+    import scan never sees. A chain of them settles because each pass can only
+    add names, and there are finitely many.
+    """
+    grown = dict(modules)
+    changed = True
+    while changed:
+        changed = False
+        for name, value in bindings:
+            if isinstance(value, ast.Name) and value.id in grown and name not in grown:
+                grown[name] = grown[value.id]
+                changed = True
+    return grown
+
+
+def _supplies_capture(
+    call: ast.Call, modules: dict[str, str], functions: dict[str, str]
+) -> bool:
+    """Report whether *call* pre-binds the keywords that route output back."""
+    capture = _keyword(call, "capture_output")
+    if capture is not None and not _is_falsy_literal(capture):
+        return True
+    return _is_capturing_stream(
+        _keyword(call, "stdout"), modules, functions
+    ) or _is_capturing_stream(_keyword(call, "stderr"), modules, functions)
+
+
+def _presupplied(
+    bindings: list[tuple[str, ast.expr]],
+    modules: dict[str, str],
+    functions: dict[str, str],
+) -> set[str]:
+    """Name every callable whose capture keywords were fixed where it was built.
+
+    ``partial(subprocess.run, capture_output=True)`` decides capture at the
+    construction site, and the call site that adds ``text=True`` carries no
+    capture keyword for :func:`_captures_text` to find. Without this the two
+    halves of one decoding call read as compliant apart. An alias inherits the
+    mark, because rebinding the name changes nothing about what it holds.
+    """
+    marked: set[str] = set()
+    changed = True
+    while changed:
+        changed = False
+        for name, value in bindings:
+            if name in marked:
+                continue
+            if isinstance(value, ast.Call) and _is_partial(
+                _call_label(value), functions
+            ):
+                found = _supplies_capture(value, modules, functions)
+            else:
+                found = isinstance(value, ast.Name) and value.id in marked
+            if found:
+                marked.add(name)
+                changed = True
+    return marked
+
+
+def _parameter_bindings(tree: ast.Module) -> list[tuple[str, ast.expr]]:
+    """Pair each function parameter with every value a call site hands it.
+
+    Every other resolution arm reads a binding visible in the same scope as
+    the use. A parameter is not: its value arrives from a call site elsewhere
+    in the module. Pairing the parameter name with each argument feeds those
+    values to the same fixpoint that resolves assignments, so a runner passed
+    in resolves exactly as one assigned in would, including through a chain of
+    definitions that forward it.
+
+    The join is a union: any call site that hands a runner in makes the
+    parameter a runner, because a parameter that is a runner at one call site
+    and something else at another still decodes at runtime. Call sites are
+    matched by name within the module only, so a function reached from another
+    module or through a     reference is not covered. Call sites are indexed in the same walk that
+    finds the definitions, because walking the tree once per definition is
+    quadratic in a file that holds many of both.
+    """
+    definitions: dict[str, ast.arguments] = {}
+    sites: dict[str, list[ast.Call]] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+            definitions.setdefault(node.name, node.args)
+        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            sites.setdefault(node.func.id, []).append(node)
+
+    found: list[tuple[str, ast.expr]] = []
+    for name, spec in definitions.items():
+        positional = [argument.arg for argument in spec.posonlyargs + spec.args]
+        named = {
+            argument.arg
+            for argument in spec.posonlyargs + spec.args + spec.kwonlyargs
+        }
+        for site in sites.get(name, ()):
+            found.extend(_matched(site, positional, named))
+    return found
+
+
+def _matched(
+    site: ast.Call, positional: list[str], named: set[str]
+) -> list[tuple[str, ast.expr]]:
+    """Pair one call site's arguments with the parameters they land in."""
+    found: list[tuple[str, ast.expr]] = []
+    for index, argument in enumerate(site.args):
+        if isinstance(argument, ast.Starred):
+            # A splat fills an unknown run of slots, so every parameter it
+            # could reach reads it, exactly as an unindexed container is read
+            # whole elsewhere in this scan.
+            found.extend((parameter, argument.value) for parameter in positional[index:])
+            break
+        if index < len(positional):
+            found.append((positional[index], argument))
+    for keyword in site.keywords:
+        if keyword.arg is None:
+            found.extend((parameter, keyword.value) for parameter in named)
+        elif keyword.arg in named:
+            found.append((keyword.arg, keyword.value))
+    return found
+
+
 def _subprocess_names(
     tree: ast.Module,
-) -> tuple[set[str], dict[str, str], dict[str, _Container]]:
+) -> tuple[dict[str, str], dict[str, str], dict[str, _Container], set[str]]:
     """Collect every name in *tree* that reaches a subprocess entry point.
 
     Imports seed the search, and every binding is then resolved against what
@@ -614,7 +946,8 @@ def _subprocess_names(
     # it, so one node can be shared by thousands of names, and reading it once
     # per name is quadratic: 4000 names took 17.76 seconds that way. Every
     # name in a group reads the same node, so one read answers for all of them.
-    bindings = _bindings(tree)
+    bindings = _bindings(tree) + _parameter_bindings(tree)
+    modules = _rebound_modules(bindings, modules)
     containers = _containers(tree, bindings)
     groups: dict[int, tuple[ast.expr, list[str]]] = {}
     for name, value in bindings:
@@ -642,12 +975,12 @@ def _subprocess_names(
                 continue
             functions[name] = resolved
             queue.extend(dependents.get(name, ()))
-    return modules, functions, containers
+    return modules, functions, containers, _presupplied(bindings, modules, functions)
 
 
 def _target(
     call: ast.Call,
-    modules: set[str],
+    modules: dict[str, str],
     functions: dict[str, str],
     containers: dict[str, _Container] | None = None,
 ) -> str | None:
@@ -667,7 +1000,43 @@ def _target(
     return fallback
 
 
-def _captures_text(call: ast.Call, functions: dict[str, str], target: str) -> bool:
+def _positional_capture(
+    call: ast.Call, modules: dict[str, str], functions: dict[str, str]
+) -> bool:
+    """Say whether a positional argument asks for a pipe.
+
+    Capture can be requested without naming a parameter, and reading which
+    slot holds it would pin this scan to one release's signature. Matching the
+    sentinel by value instead asks the version-independent question: does any
+    argument past the command name a pipe? The command itself is skipped
+    because it is the one slot whose meaning never moves.
+    """
+    return any(
+        _sentinel(argument, modules, functions) in _CAPTURE_SENTINELS
+        for argument in call.args[1:]
+    )
+
+
+def _sentinel(
+    node: ast.expr, modules: dict[str, str], functions: dict[str, str]
+) -> str | None:
+    """Name the subprocess constant an expression stands for, if any."""
+    if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+        if modules.get(node.value.id) == "subprocess":
+            return _IMPORTED_NAMES["subprocess"].get(node.attr)
+        return None
+    if isinstance(node, ast.Name):
+        return functions.get(node.id)
+    return None
+
+
+def _captures_text(
+    call: ast.Call,
+    functions: dict[str, str],
+    target: str,
+    modules: dict[str, str],
+    presupplied: set[str],
+) -> bool:
     """Report whether *call* may decode captured output into ``str``.
 
     Deliberately conservative. Anything other than a literal ``False`` counts,
@@ -687,24 +1056,57 @@ def _captures_text(call: ast.Call, functions: dict[str, str], target: str) -> bo
     """
     if _has_splat(call):
         return True
+    if _positional_capture(call, modules, functions):
+        # ``subprocess.run(cmd, -1, None, None, subprocess.PIPE, text=True)``
+        # asks for a pipe without naming the parameter. Once capture arrives
+        # positionally the mode flags sit in unread slots beside it, so text
+        # mode cannot be ruled out and the decoding reading is the safe one.
+        return True
     text = _keyword(call, "text")
     legacy = _keyword(call, "universal_newlines")
-    if (text is None or _is_literal_false(text)) and (
-        legacy is None or _is_literal_false(legacy)
+    if (text is None or _is_falsy_literal(text)) and (
+        legacy is None or _is_falsy_literal(legacy)
     ):
         return False
     if _is_partial(_call_label(call), functions):
         # A partial can select text mode here and be handed capture_output at
         # the eventual call site, which this scan has no way to reach.
         return True
+    if _call_label(call) in presupplied:
+        # The mirror image: capture was fixed where the partial was built, so
+        # this site adding text mode completes a decoding call between them.
+        return True
     if target in _ALWAYS_CAPTURING_ATTRS:
         # The callee captures on its own behalf, so there is no capture
         # keyword for this scan to find and none is needed.
         return True
     capture = _keyword(call, "capture_output")
-    if capture is not None and not _is_literal_false(capture):
+    if capture is not None and not _is_falsy_literal(capture):
         return True
-    return _keyword(call, "stdout") is not None or _keyword(call, "stderr") is not None
+    return _is_capturing_stream(_keyword(call, "stdout"), modules, functions) or (
+        _is_capturing_stream(_keyword(call, "stderr"), modules, functions)
+    )
+
+
+def _is_capturing_stream(
+    node: ast.expr | None, modules: dict[str, str], functions: dict[str, str]
+) -> bool:
+    """Report whether a ``stdout``/``stderr`` value routes output back here.
+
+    Absent means inherit, and ``DEVNULL`` throws the stream away. Neither
+    decodes anything, so neither can raise. Every other value is treated as a
+    capture, including a file object, because whether its mode decodes is not
+    visible to this scan and the loud reading is the safe one.
+    """
+    if node is None or _is_falsy_literal(node):
+        return False
+    if isinstance(node, ast.Attribute) and node.attr == "DEVNULL":
+        return modules.get(node.value.id) != "subprocess" if (
+            isinstance(node.value, ast.Name)
+        ) else True
+    if isinstance(node, ast.Name) and functions.get(node.id) == _DEVNULL:
+        return False
+    return True
 
 
 def _pins_utf8(call: ast.Call) -> bool:
@@ -712,18 +1114,31 @@ def _pins_utf8(call: ast.Call) -> bool:
 
     ``encoding=None`` is an explicit request for the locale codec, a name or
     attribute cannot be resolved statically, and ``utf-8-sig`` quietly strips a
-    byte order mark, so only the literal string counts.
+    byte order mark, so only a string the parser can spell out counts.
+
+    The spelling is normalised the way Python normalises it. ``UTF-8``,
+    ``utf8``, ``UTF_8``, and ``u8`` all reach the same codec as ``utf-8``, so
+    flagging them would be noise. ``utf-8-sig`` normalises to itself and stays
+    excluded, and an unknown name raises, which leaves the call flagged.
     """
     encoding = _keyword(call, "encoding")
     if encoding is None:
         return False
-    return isinstance(encoding, ast.Constant) and encoding.value == _PINNED_CODEC
+    spelled = _constant_str(encoding)
+    if spelled is None:
+        return False
+    try:
+        return codecs.lookup(spelled).name == _PINNED_CODEC
+    except LookupError:
+        # A codec name Python cannot resolve raises at the first decode, so
+        # the call is not pinned to anything and stays flagged.
+        return False
 
 
 def unpinned_lines(source: str) -> list[int]:
     """Return the line numbers of text-capturing calls that do not pin UTF-8."""
     tree = ast.parse(source)
-    modules, functions, containers = _subprocess_names(tree)
+    modules, functions, containers, presupplied = _subprocess_names(tree)
     offenders: list[int] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
@@ -737,7 +1152,7 @@ def unpinned_lines(source: str) -> list[int]:
             offenders.append(node.lineno)
             continue
         if target not in _DECODES_UNCONDITIONALLY and not _captures_text(
-            node, functions, target
+            node, functions, target, modules, presupplied
         ):
             continue
         if not _pins_utf8(node):
@@ -1020,6 +1435,119 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             'runner = subprocess.run\n'
             'runner(["x"], text=True)',
             "the first binding of a name wins over a later group it shares",
+        ),
+        (
+            'import subprocess\n'
+            'subprocess.run(["ls"], capture_output=True, text=True, encoding=f"utf-8")',
+            "an f-string with no placeholder reaches the runtime as the same codec",
+        ),
+        (
+            'import subprocess\n'
+            'subprocess.run(["x"], capture_output=True, text=True, '
+            'encoding="utf" + "-8")',
+            "a concatenation of literals reaches the runtime as the same codec",
+        ),
+        (
+            'import subprocess\n'
+            'subprocess.run(["ls"], capture_output=0, text=True)',
+            "subprocess tests capture_output for truth, and zero is false",
+        ),
+        (
+            'import subprocess\n'
+            'subprocess.run(["x"], stdout=subprocess.DEVNULL, text=True)',
+            "DEVNULL throws the stream away, so nothing is decoded",
+        ),
+        (
+            'import subprocess\n'
+            'from subprocess import DEVNULL\n'
+            'subprocess.run(["x"], stderr=DEVNULL, text=True)',
+            "an imported DEVNULL is the same null sink under a shorter name",
+        ),
+        (
+            'import subprocess\n'
+            'subprocess.run(["x"], capture_output=True, text=True, encoding="UTF-8")',
+            "codec names are case folded before they reach a codec",
+        ),
+        (
+            'import subprocess\n'
+            'subprocess.run(["x"], capture_output=True, text=True, encoding="utf8")',
+            "utf8 resolves to the same codec as utf-8",
+        ),
+        (
+            'import subprocess\n'
+            'subprocess.run(["x"], capture_output=True, text=True, encoding="UTF_8")',
+            "an underscore spelling resolves to the same codec",
+        ),
+        (
+            'import subprocess\n'
+            'r = subprocess.run.__get__\n'
+            'r(["x"], capture_output=True, text=True)',
+            "__get__ returns a binding rather than the callable it was read from",
+        ),
+        (
+            'import subprocess\n'
+            'subprocess.run(["x"], stdout=None, text=True)',
+            "an explicit stdout of None inherits the handle and decodes nothing",
+        ),
+        (
+            'import subprocess\n'
+            'subprocess.run(["x"], stderr=None, text=True)',
+            "an explicit stderr of None inherits the handle and decodes nothing",
+        ),
+        (
+            'import subprocess\n'
+            'subprocess.run(["x"], capture_output=None, text=True)',
+            "subprocess tests capture_output for truth, and None is false",
+        ),
+        (
+            'import subprocess\n'
+            'subprocess.run(["x"], check=True)',
+            "one positional argument is the command, and nothing here decodes",
+        ),
+        (
+            'import subprocess\n'
+            'runner = {}.get("run", subprocess.run)\n'
+            'runner(["x"], -1)',
+            "a lookup that merely fetches a reference is not a spawn point",
+        ),
+        (
+            'import subprocess\n'
+            'class C:\n'
+            '    def make(self):\n'
+            '        return (runner := subprocess.run)\n'
+            'C.runner(["x"], capture_output=True, text=True)',
+            "a walrus inside a method binds a local, never a class attribute",
+        ),
+        (
+            'import subprocess\n'
+            'class C:\n'
+            '    make = lambda self: (runner := subprocess.run)\n'
+            'C.runner(["x"], capture_output=True, text=True)',
+            "a walrus inside a lambda binds there, not in the class body",
+        ),
+        (
+            'import subprocess\n'
+            'import mymod\n'
+            'subprocess.run(["x"], -1, None, None, mymod.PIPE)',
+            "a pipe sentinel belongs to subprocess, not to any module spelling it",
+        ),
+        (
+            'import subprocess\n'
+            'subprocess.run(subprocess.PIPE)',
+            "the command slot holds what to run, so a sentinel there captures nothing",
+        ),
+        (
+            'def go(runner):\n'
+            '    runner(["x"], capture_output=True, text=True)\n'
+            'go(print)',
+            "a parameter that never receives a runner starts no process",
+        ),
+        (
+            'import subprocess\n'
+            'def go(runner):\n'
+            '    runner(["x"], capture_output=True, text=True, encoding="utf-8")\n'
+            'go(subprocess.run)',
+            "a runner handed in is still pinned by the call site that uses it",
         ),
     ],
 )
@@ -1432,6 +1960,346 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'def go(runner=subprocess.run, /):\n'
             '    runner(["x"], capture_output=True, text=True)',
             "a positional-only parameter takes a default like any other",
+        ),
+        (
+            'import functools, subprocess\n'
+            'run_cmd = functools.partial(subprocess.run, capture_output=True)\n'
+            'run_cmd(["ls"], text=True)',
+            "a partial fixes capture where it is built and text where it is called",
+        ),
+        (
+            'from functools import partial\n'
+            'import subprocess\n'
+            'capturing = partial(subprocess.run, capture_output=True)\n'
+            'alias = capturing\n'
+            'alias(["x"], text=True)',
+            "an alias inherits the capture its partial already fixed",
+        ),
+        (
+            'import subprocess\n'
+            '(*[subprocess.run],)[0](["ls"], capture_output=True, text=True)',
+            "a starred element spreads into the container it is read from",
+        ),
+        (
+            'import subprocess\n'
+            'f = lambda r=subprocess.run: r(["ls"], capture_output=True, text=True)',
+            "a lambda takes a default like any other callable",
+        ),
+        (
+            'import subprocess\n'
+            'sp = subprocess\n'
+            'sp.run(["x"], capture_output=True, text=True)',
+            "a module rebound by assignment leaves no import to read",
+        ),
+        (
+            'from subprocess import *\n'
+            'run(["x"], capture_output=True, text=True)',
+            "a star import binds every entry point and names none of them",
+        ),
+        (
+            'import subprocess\n'
+            'runner = {"run": subprocess.run}.get("run")\n'
+            'runner(["x"], capture_output=True, text=True)',
+            "get selects an element exactly as a subscript does",
+        ),
+        (
+            'import subprocess\n'
+            'runners = {}\n'
+            'runners.setdefault("run", subprocess.run)(["x"], capture_output=True, text=True)',
+            "the fallback of setdefault is a path to a value the receiver lacks",
+        ),
+        (
+            'import subprocess\n'
+            '{}.get("run", subprocess.run)(["x"], capture_output=True, text=True)',
+            "the fallback of get is a path to a value the receiver lacks",
+        ),
+        (
+            'import subprocess\n'
+            'runner = min([subprocess.run])\n'
+            'runner(["x"], capture_output=True, text=True)',
+            "a builtin that selects from a container yields what it held",
+        ),
+        (
+            'import subprocess\n'
+            '([subprocess.run] + [print])[0](["x"], capture_output=True, text=True)',
+            "concatenation builds a container holding what either side held",
+        ),
+        (
+            'import subprocess\n'
+            '([subprocess.run] * 2)[0](["x"], capture_output=True, text=True)',
+            "repetition builds a container holding what the left side held",
+        ),
+        (
+            'import subprocess\n'
+            'from contextlib import nullcontext\n'
+            'with nullcontext(subprocess.run) as runner:\n'
+            '    runner(["x"], capture_output=True, text=True)',
+            "a with target binds a name with no assignment statement in sight",
+        ),
+        (
+            'import subprocess\n'
+            'from contextlib import nullcontext, ExitStack\n'
+            'with ExitStack() as stack:\n'
+            '    runner = stack.enter_context(nullcontext(subprocess.run))\n'
+            '    runner(["x"], capture_output=True, text=True)',
+            "enter_context hands back the object it was given",
+        ),
+        (
+            'import subprocess\n'
+            'class Holder: pass\n'
+            'holder = Holder()\n'
+            'setattr(holder, "runner", subprocess.run)\n'
+            'holder.runner(["x"], capture_output=True, text=True)',
+            "setattr is an attribute assignment spelled as a call",
+        ),
+        (
+            'import subprocess\n'
+            'globals()["runner"] = subprocess.run\n'
+            'runner(["x"], capture_output=True, text=True)',
+            "a globals write binds a name absent from the left of the assignment",
+        ),
+        (
+            'import subprocess\n'
+            'runner = staticmethod(subprocess.run)\n'
+            'runner(["x"], capture_output=True, text=True)',
+            "staticmethod hands the reference straight back out",
+        ),
+        (
+            'from os import popen\n'
+            'popen("x").read()',
+            "os.popen has no encoding parameter under any spelling",
+        ),
+        (
+            'from os import popen as p\n'
+            'p("x").read()',
+            "an aliased popen import is the same unpinnable call",
+        ),
+        (
+            'import os as myos\n'
+            'myos.popen("x").read()',
+            "an aliased os module still owns popen",
+        ),
+        (
+            'import os\n'
+            'getattr(os, "popen")("x").read()',
+            "getattr reaches popen as directly as an attribute does",
+        ),
+        (
+            'import os\n'
+            'name = "popen"\n'
+            'getattr(os, name)("x").read()',
+            "a computed attribute on a tracked module may name popen",
+        ),
+        (
+            'import subprocess\n'
+            'flag = 1\n'
+            'r = subprocess.run if flag else None\n'
+            'r(["x"], capture_output=True, text=True)',
+            "a conditional expression makes both branches values the name takes",
+        ),
+        (
+            'import subprocess\n'
+            'cached = None\n'
+            'r = cached or subprocess.run\n'
+            'r(["x"], capture_output=True, text=True)',
+            "a boolean fallback makes either operand a value the name takes",
+        ),
+        (
+            'import subprocess\n'
+            'subprocess.run(["x"], capture_output=True, text=True, '
+            'encoding="not-a-codec")',
+            "a codec name Python cannot resolve pins nothing",
+        ),
+        (
+            'import subprocess\n'
+            'subprocess.run(["x"], capture_output=True, text=True, '
+            'encoding="utf-8-sig")',
+            "utf-8-sig normalises to itself and strips a byte order mark",
+        ),
+        (
+            'import subprocess\n'
+            'subprocess.run.__call__(["x"], capture_output=True, text=True)',
+            "__call__ hands back the callable it is read from",
+        ),
+        (
+            'import subprocess as sp\n'
+            'sp.run.__call__(["x"], capture_output=True, text=True)',
+            "a forwarding attribute survives a module alias",
+        ),
+        (
+            'import subprocess\n'
+            'r = subprocess.run\n'
+            'r.__call__(["x"], capture_output=True, text=True)',
+            "a forwarding attribute survives a bound name",
+        ),
+        (
+            'import os\n'
+            'os.popen.__call__("x").read()',
+            "a forwarding attribute reaches popen too",
+        ),
+        (
+            'from os import popen\n'
+            'popen.__call__("x").read()',
+            "a forwarding attribute reaches an imported popen",
+        ),
+        (
+            'import subprocess\n'
+            'subprocess.run.__func__(["x"], capture_output=True, text=True)',
+            "__func__ hands back the same callable",
+        ),
+        (
+            'import subprocess\n'
+            'subprocess.run.__wrapped__(["x"], capture_output=True, text=True)',
+            "__wrapped__ hands back the same callable",
+        ),
+        (
+            'import subprocess\n'
+            'getattr(subprocess.run, "__call__")(["x"], capture_output=True, text=True)',
+            "getattr composed with a forwarding attribute reaches the callable",
+        ),
+        (
+            'import subprocess\n'
+            'subprocess.run(["x"], -1, None, None, subprocess.PIPE, text=True)',
+            "capture selected by position leaves no keyword to read",
+        ),
+        (
+            'import subprocess\n'
+            'subprocess.run(["x"], -1, None, None, subprocess.PIPE, None, None, '
+            'True, False, None, None, True)',
+            "text mode selected by position leaves no keyword to read",
+        ),
+        (
+            'import subprocess\n'
+            'next(r for r in [subprocess.run])(["x"], capture_output=True, text=True)',
+            "a generator yields whatever its element expression evaluates to",
+        ),
+        (
+            'import subprocess\n'
+            '[r for r in [subprocess.run]][0](["x"], capture_output=True, text=True)',
+            "a list comprehension yields its element expression",
+        ),
+        (
+            'import subprocess\n'
+            '{r for r in [subprocess.run]}.pop()(["x"], capture_output=True, text=True)',
+            "a set comprehension yields its element expression",
+        ),
+        (
+            'import subprocess\n'
+            '{k: subprocess.run for k in "a"}["a"](["x"], capture_output=True, text=True)',
+            "a dict comprehension yields its value expression",
+        ),
+        (
+            'import subprocess\n'
+            'list(r for r in [subprocess.run])[0](["x"], capture_output=True, text=True)',
+            "list rebuilds a container holding the same elements",
+        ),
+        (
+            'import subprocess\n'
+            'runner = None or subprocess.run\n'
+            'runner(["x"], capture_output=True, text=True)',
+            "a boolean fallback resolves through its own binding",
+        ),
+        (
+            'import subprocess\n'
+            'class C:\n'
+            '    if (runner := subprocess.run):\n'
+            '        pass\n'
+            'C.runner(["x"], capture_output=True, text=True)',
+            "a class-body walrus binds an attribute from a test position",
+        ),
+        (
+            'import subprocess\n'
+            'class C:\n'
+            '    print(runner := subprocess.run)\n'
+            'C.runner(["x"], capture_output=True, text=True)',
+            "a class-body walrus binds an attribute from an argument position",
+        ),
+        (
+            'import subprocess\n'
+            'class C:\n'
+            '    assert (runner := subprocess.run)\n'
+            'C.runner(["x"], capture_output=True, text=True)',
+            "a class-body walrus binds an attribute from an assert",
+        ),
+        (
+            'import subprocess\n'
+            'class C:\n'
+            '    ok = True and (runner := subprocess.run)\n'
+            'C.runner(["x"], capture_output=True, text=True)',
+            "a class-body walrus binds beside the assignment it sits inside",
+        ),
+        (
+            'import subprocess\n'
+            'class C:\n'
+            '    t = ((runner := subprocess.run), 1)\n'
+            'C.runner(["x"], capture_output=True, text=True)',
+            "a class-body walrus binds from inside a container literal",
+        ),
+        (
+            'import subprocess\n'
+            'class C:\n'
+            '    assert (outer := (runner := subprocess.run))\n'
+            'C.runner(["x"], capture_output=True, text=True)',
+            "a nested class-body walrus binds every name it writes",
+        ),
+        (
+            'import subprocess\n'
+            'import mymod\n'
+            'subprocess.run(["x"], stdout=mymod.DEVNULL, text=True)',
+            "only subprocess owns the null sink, so a lookalike is a real stream",
+        ),
+        (
+            'import subprocess\n'
+            'def go(runner):\n'
+            '    runner(["x"], capture_output=True, text=True)\n'
+            'go(subprocess.run)',
+            "a runner handed in positionally decodes inside the body it reaches",
+        ),
+        (
+            'import subprocess\n'
+            'def go(runner=None):\n'
+            '    runner(["x"], capture_output=True, text=True)\n'
+            'go(runner=subprocess.run)',
+            "a runner handed in by keyword lands in the parameter of that name",
+        ),
+        (
+            'import subprocess\n'
+            'def go(runner=subprocess.run):\n'
+            '    runner(["x"], capture_output=True, text=True)\n'
+            'go()',
+            "a default is the value the parameter takes when a call site omits it",
+        ),
+        (
+            'import subprocess\n'
+            'def go(*, runner):\n'
+            '    runner(["x"], capture_output=True, text=True)\n'
+            'go(runner=subprocess.run)',
+            "a keyword-only parameter receives a runner like any other",
+        ),
+        (
+            'import subprocess\n'
+            'args = (None, subprocess.run)\n'
+            'def go(first, runner):\n'
+            '    runner(["x"], capture_output=True, text=True)\n'
+            'go(*args)',
+            "a splat fills an unknown run of slots, so every one of them reads it",
+        ),
+        (
+            'import subprocess\n'
+            'kw = {"runner": subprocess.run}\n'
+            'def go(runner):\n'
+            '    runner(["x"], capture_output=True, text=True)\n'
+            'go(**kw)',
+            "a keyword splat may name any parameter, so every one of them reads it",
+        ),
+        (
+            'import subprocess\n'
+            'def inner(r):\n'
+            '    r(["x"], capture_output=True, text=True)\n'
+            'def outer(runner):\n'
+            '    inner(runner)\n'
+            'outer(subprocess.run)',
+            "a runner forwarded through a second definition still arrives",
         ),
     ],
 )
