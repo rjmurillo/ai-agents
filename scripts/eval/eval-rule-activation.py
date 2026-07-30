@@ -616,35 +616,28 @@ _KEY_SHAPED_SCORE_FIELDS = tuple(
     for field in _SCORE_FIELDS
 )
 
-# The same key shape, but capturing which field was named and the whole value
-# token that follows it. The count-only patterns above cannot tell a
-# contradiction from a restatement, and the difference decides whether a
-# payload is ambiguous. The value is captured up to the next JSON delimiter
-# rather than as an integer: capturing only a leading integer reads ``1.5`` as
-# ``1``, which agrees with a filed ``1`` and publishes a contradiction as a
-# restatement.
+# The same key shape, capturing which field was named. The count-only patterns
+# above cannot tell a contradiction from a restatement, and the difference
+# decides whether a payload is ambiguous. The match ends at the colon and
+# captures no value: the caller reads the value as a run bounded by
+# ``_VALUE_RUN_TERMINATORS`` instead. A trailing capture group here consumed
+# the rest of the layer, so ``finditer`` returned one match per layer and every
+# field after the first went unexamined.
 _NAMED_SCORE_FIELD_RE = re.compile(
     "(?:\"|\\\\\"|')(" + "|".join(re.escape(f) for f in _SCORE_FIELDS) + ")"
-    + "(?:\"|\\\\\"|')\\s*:\\s*([^\\s,}\\]]+)?([\\s\\S]*)"
+    + "(?:\"|\\\\\"|')\\s*:\\s*"
 )
 
 # Punctuation that can close an English sentence around a number without being
 # part of it. ``I assigned "activation_score": 5.`` states one verdict, and
-# refusing it because the token is ``5.`` rather than ``5`` would drop the most
+# refusing it because the run is ``5.`` rather than ``5`` would drop the most
 # ordinary sentence a judge can write. Stripped only from the end, so ``1.5``
 # keeps its decimal and stays uncomparable.
 _SENTENCE_CLOSERS = ".!?;:)`\"'"
 
-# Characters that can continue an arithmetic expression after a value token.
-# The token stops at whitespace, so ``"activation_score": 5 - 1`` captures
-# ``5``, which equals a filed 5 while the expression means 4. Equality cannot
-# be established through an operator, so the presence of one refuses.
-#
-# ``(`` is deliberately absent. No language continues a bare number into a
-# call or grouping without an operator between them, so ``5 (the rule
-# applied)`` is a judge writing a parenthetical, and refusing it would drop an
-# ordinary sentence to guard against an expression that cannot be written.
-_EXPRESSION_CONTINUATIONS = "-+*/%"
+# Where a restated value ends. A JSON value ends at a delimiter, and a line
+# break ends one in prose.
+_VALUE_RUN_TERMINATORS = ",}]\n\r"
 
 # The escapes a JSON string body can carry. ``\\`` matters most: a value
 # serialized twice spells its escapes with a doubled backslash, and decoding
@@ -1127,32 +1120,47 @@ def _string_contradicts_filed_scores(text: str, filed: dict[str, Any]) -> bool:
     where equality is established **exactly**, and every case where it cannot be
     is refused:
 
-    * a named field with no value token, or a token that is not the exact
-      decimal spelling of the filed value, so ``1.5``, ``1e1``, and ``05`` are
-      all refused rather than read as an integer
-    * a token followed by an arithmetic operator, since ``5 - 1`` beside a
-      filed 5 states 4 and the token alone cannot say so
+    * a named field whose value run is not the exact decimal spelling of the
+      filed value, so ``1.5``, ``1e1``, ``05``, ``5 - 1``, and ``5 ^ 1`` are
+      all refused
     * a field this payload never filed as a top level integer, bools excluded
     * a decode budget exhausted while another layer remained, since the
       remainder is by definition unread
 
-    Comparison is on the decimal spelling, not on ``int(token)``. Converting
+    The run is everything between the colon and the next value terminator, not
+    the leading token. Reading the token alone accepted every expression whose
+    first term matched, and the operators that reach one are unbounded: each
+    of ``-``, ``^``, ``&``, ``<<``, ``and``, and ``if/else`` bypassed a
+    blocklist built from the ones before it.
+
+    What the run must satisfy is an allowlist, so no operator is ever named.
+    It must begin with the filed value's decimal spelling, and whatever
+    follows must contain no digit. A judge continuing in prose writes
+    ``5 because the rule applied``, which carries no second number. An
+    expression needs one: ``5 - 1``, ``5 ^ 1``, ``5 and 0``, and
+    ``5 if False else 1`` are refused by the same clause that admits the
+    prose, and so is any operator not yet invented.
+
+    Comparison is on the decimal spelling, not on ``int(run)``. Converting
     first would accept ``05`` as 5, and CPython refuses to convert an integer
     literal past 4300 digits at all, raising ``ValueError`` where the caller
     catches only ``RuntimeError``: one judge response could end the run.
     """
     for layer, truncated in _escape_layers(text):
         for match in _NAMED_SCORE_FIELD_RE.finditer(layer):
-            field, token, tail = match.group(1), match.group(2), match.group(3)
-            if token is None:
-                return True
-            value = filed.get(field)
+            value = filed.get(match.group(1))
             if not isinstance(value, int) or isinstance(value, bool):
                 return True
-            if token.rstrip(_SENTENCE_CLOSERS) != str(value):
+            rest = layer[match.end() :]
+            cut = min(
+                (i for i, c in enumerate(rest) if c in _VALUE_RUN_TERMINATORS),
+                default=len(rest),
+            )
+            run = rest[:cut].strip().rstrip(_SENTENCE_CLOSERS).strip()
+            spelling = str(value)
+            if not run.startswith(spelling):
                 return True
-            rest = tail.lstrip(_ASCII_SPACE)
-            if rest[:1] in _EXPRESSION_CONTINUATIONS and rest[:1]:
+            if any(char.isdigit() for char in run[len(spelling) :]):
                 return True
         if truncated:
             return True

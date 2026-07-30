@@ -1679,12 +1679,166 @@ def test_a_leading_zero_spelling_is_not_an_exact_restatement(monkeypatch):
     assert result["judge_failed"] is True
 
 
+def test_a_nested_verdict_disagreeing_on_a_later_field_is_still_detected(
+    monkeypatch,
+):
+    """Every named field must stay discoverable, not just the first.
+
+    A greedy tail group in the field pattern consumed the rest of the layer,
+    so ``finditer`` returned one match per layer and the fields after it were
+    never examined. A judge restating ``5/1/1`` beside a filed ``5/4/5`` then
+    agreed on ``activation_score`` and published, because the two fields that
+    disagreed were inside the text the first match had already eaten. The
+    guard checked exactly the field least likely to differ.
+    """
+    payload = json.dumps(
+        {
+            "activation_score": 5,
+            "citation_score": 4,
+            "behavior_score": 5,
+            "reasoning": (
+                'Corrected verdict: {"activation_score":5,'
+                '"citation_score":1,"behavior_score":1}'
+            ),
+        }
+    )
+    monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_k: payload)
+
+    assert len(eval_mod._SCORE_FIELDS) == len(
+        list(
+            eval_mod._NAMED_SCORE_FIELD_RE.finditer(
+                '{"activation_score":5,"citation_score":1,"behavior_score":1}'
+            )
+        )
+    )
+
+    result = eval_mod.score_response(
+        "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
+    )
+
+    assert result["judge_failed"] is True
+
+
+def test_a_nested_object_restating_every_filed_score_still_scores(monkeypatch):
+    """The run has to stop at the JSON delimiter, or agreement never matches.
+
+    A judge that repeats its whole verdict as an object writes
+    ``{"activation_score":5,"citation_score":4,"behavior_score":5}``. Read
+    without a terminator, the run for the first field is the rest of that
+    object, which carries the other two numbers and refuses. The bound is what
+    lets an exact restatement compare equal, and nothing else in the suite
+    fails when it is removed.
+    """
+    payload = json.dumps(
+        {
+            "activation_score": 5,
+            "citation_score": 4,
+            "behavior_score": 5,
+            "reasoning": (
+                'Restating: {"activation_score":5,"citation_score":4,'
+                '"behavior_score":5}'
+            ),
+        }
+    )
+    monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_k: payload)
+
+    result = eval_mod.score_response(
+        "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
+    )
+
+    assert result["judge_failed"] is False
+    assert (
+        result["activation_score"],
+        result["citation_score"],
+        result["behavior_score"],
+    ) == (5, 4, 5)
+
+
+def test_no_arithmetic_form_restates_a_filed_score(monkeypatch):
+    """An operator blocklist is unbounded; the allowlist is what holds.
+
+    ``5 - 1`` motivated a blocklist, and ``^``, ``&``, ``|``, ``<<``, ``>>``,
+    ``and``, ``or``, and ``if/else`` each walked through the list built from
+    the ones before it. The rule that stops all of them names none of them: an
+    expression carries a second number, and prose does not.
+    """
+    for expression in (
+        "5 - 1",
+        "5-1",
+        "5 ^ 1",
+        "5 & 1",
+        "5 | 2",
+        "5 << 1",
+        "5 >> 1",
+        "5 and 0",
+        "5 or 9",
+        "5 if False else 1",
+        "5 ? 0 : 1",
+        "5 * 2",
+        "5 % 3",
+        "int(5) - 1",
+    ):
+        payload = json.dumps(
+            {
+                "activation_score": 5,
+                "citation_score": 4,
+                "behavior_score": 5,
+                "reasoning": f'Corrected: "activation_score": {expression}',
+            }
+        )
+        monkeypatch.setattr(
+            eval_mod, "_call_api", lambda *_a, _p=payload, **_k: _p
+        )
+
+        result = eval_mod.score_response(
+            "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
+        )
+
+        assert result["judge_failed"] is True, expression
+
+
+def test_prose_continuing_past_a_restated_score_still_scores(monkeypatch):
+    """The allowlist must admit prose, or it trades one defect for another.
+
+    These are the sentences the digit clause has to let through. Refusing them
+    would be a visible cost paid on every ordinary judge, to guard against
+    expressions that all carry a second number.
+    """
+    for tail in (
+        "because the rule was explicitly applied",
+        "(the rule clearly applied)",
+        ". The rule fired throughout.",
+        "; the citation was present as well",
+        " and the behavior followed from it",
+    ):
+        payload = json.dumps(
+            {
+                "activation_score": 5,
+                "citation_score": 4,
+                "behavior_score": 5,
+                "reasoning": f'I set "activation_score": 5{tail}',
+            }
+        )
+        monkeypatch.setattr(
+            eval_mod, "_call_api", lambda *_a, _p=payload, **_k: _p
+        )
+
+        result = eval_mod.score_response(
+            "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
+        )
+
+        assert result["judge_failed"] is False, tail
+        assert result["activation_score"] == 5, tail
+
+
 def test_a_parenthetical_after_a_score_is_not_an_expression(monkeypatch):
     """``5 (the rule applied)`` is prose; no language continues a bare number.
 
-    ``(`` is excluded from the operator set for this reason. Including it
-    refused a judge annotating the score, buying nothing: an expression needs
-    an operator between the number and the group.
+    Nothing here names ``(``. An earlier fix did, listing it among the
+    characters that could continue an expression, and that refused every judge
+    who annotated a score. The clause that admits this sentence is the same one
+    that refuses ``5 - 1``: an expression carries a second number and a
+    parenthetical does not.
     """
     payload = json.dumps(
         {

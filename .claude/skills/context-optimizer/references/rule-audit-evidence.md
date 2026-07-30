@@ -457,9 +457,8 @@ whitespace, so `"activation_score": 5 - 1` beside a filed `5` captured `5`,
 compared equal, and would have published a 5 the judge had corrected to 4,
 with nothing in the record marking it. That is the fabrication class this
 whole line of work exists to prevent, reached through the fix that was
-supposed to close it. The comparison now also refuses when the character after
-the token is an arithmetic operator, since equality cannot be established
-across one.
+supposed to close it. Round 19 answered it by naming `-+*/%` as characters
+equality cannot cross, which round 20 then had to withdraw.
 
 The same comparison could also end a run. `int(token)` on a digit run longer
 than 4300 characters raises `ValueError`, which CPython imposes deliberately;
@@ -487,5 +486,34 @@ a control that fails when the fix is reverted, and the budget boundary is
 pinned from both sides. Replaying all 288 archived payloads again produces the
 same 24 divergences by coordinate, so the published table is unmoved by round
 19 as well.
+
+Round 20 found that the operator list was the wrong shape. Naming `-` invited
+the question of what else reaches a token, and the answer was `^`, `&`, `|`,
+`<<`, `>>`, `and`, `or`, `xor`, `if/else`, and `?:`, each of which restated a
+filed 5 and published unmarked. A blocklist has to be right about every
+operator that exists in every notation a judge might borrow from, and it was
+not. What replaced it names none: the value is read as a run bounded by a JSON
+delimiter or a line break, and it agrees only when it begins with the filed
+value's decimal spelling and carries no further digit. An expression needs a
+second number and prose does not, so `5 - 1` and `5 and 0` are refused by the
+same clause that admits `5 because the rule applied`. Operators invented after
+this was written are covered by it.
+
+The same round found a regression introduced by round 19 itself. The pattern
+had grown a trailing group to capture the value, and because that group was
+greedy it consumed the rest of the layer, so `finditer` yielded one match per
+layer and every field after the first went unread. A judge restating `5/1/1`
+beside a filed `5/4/5` agreed on the one field checked and published two
+fabricated scores. The pattern now ends at the colon and captures no value at
+all, which is what makes the run readable and the later fields reachable.
+
+Six negative controls cover round 20, and two were themselves false at first:
+one mutated a comment rather than the pattern, the other invoked a `python`
+absent from PATH, so both reported clean against unmodified code. That is the
+line the whole audit turns on, that a check which cannot fail has not been run.
+Restoring the greedy group, dropping either clause of the comparison, or
+removing the run bound each now fails a named test. Replaying all 288 archived
+payloads produces the same 24 divergences by coordinate, so round 20 closes
+adversarial holes without moving the published table.
 
 <!-- vendor-portability: declared. This file cites .agents/analysis/eval-artifacts/2026-07-29-unified-software-engineering/ as the archive holding the eight runs whose forensics are recorded here, so a reader can re-measure every claim instead of taking it on faith. It is a citation in a narrative, not a path the skill reads or writes. A vendored install loses the ability to re-measure our raw artifacts locally; the forensics still read as a record of what went wrong and what to check for, which is what this file is for. Issue #2050. -->
