@@ -1314,6 +1314,13 @@ def _rebound_builtins(
     spellings, not resolutions, so a file that defines or imports one of
     those spellings can redefine its way past the scan.
 
+    A parameter binds a name the same way, and binds it to whatever the
+    caller supplies. ``def sneak(len): len(runner.keywords)`` reads as the
+    builtin and runs as whatever was passed in, which the file may never
+    spell out: a method reached through an instance, a lambda handed on, a
+    callback the framework calls. Every parameter counts, so the answer does
+    not depend on finding the call site.
+
     Answered for the whole file rather than per scope. A reader shadowed
     anywhere is treated as shadowed throughout, which errs toward flagging.
     """
@@ -1321,6 +1328,8 @@ def _rebound_builtins(
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             found.add(node.name)
+        elif isinstance(node, ast.arg):
+            found.add(node.arg)
     return frozenset(found & (_MAPPING_READERS | _RENDERING_READERS | _COPYING_READERS))
 
 
@@ -2756,6 +2765,26 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             'runner(["x"], text=True)',
             "a splat fills a fresh mapping for someone else, as every splat does",
         ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env=guard\n'
+            ')\n'
+            'def fine(other):\n'
+            '    seen = len(runner.keywords)\n'
+            'runner(["x"], text=True)',
+            "a parameter named for nothing in particular shadows nothing",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env=guard\n'
+            ')\n'
+            'def fine(encoding, timeout):\n'
+            '    seen = sorted(runner.keywords)\n'
+            'runner(["x"], text=True)',
+            "a parameter named for a keyword is not a parameter named for a reader",
+        ),
     ],
 )
 def test_detector_stays_quiet(source: str, why: str) -> None:
@@ -4025,6 +4054,77 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'seen = repr(copied)\n'
             'runner(["x"], text=True)',
             "the copy carries the risk to wherever it is bound, not just to one line",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env=guard\n'
+            ')\n'
+            'def sneak(len):\n'
+            '    len(runner.keywords)\n'
+            'runner(["x"], text=True)',
+            "a parameter named for a reader resolves to whatever the caller passes",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env=guard\n'
+            ')\n'
+            'async def sneak(len):\n'
+            '    len(runner.keywords)\n'
+            'runner(["x"], text=True)',
+            "an async parameter shadows a reader exactly as a plain one does",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env=guard\n'
+            ')\n'
+            'shown = lambda sorted: sorted(runner.keywords)\n'
+            'runner(["x"], text=True)',
+            "a lambda takes parameters too, and they shadow the same names",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env=guard\n'
+            ')\n'
+            'class K:\n'
+            '    def m(self, len):\n'
+            '        len(runner.keywords)\n'
+            'runner(["x"], text=True)',
+            "a method parameter is reached through a call the file never spells out",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env=guard\n'
+            ')\n'
+            'def sneak(*, len):\n'
+            '    len(runner.keywords)\n'
+            'runner(["x"], text=True)',
+            "a keyword-only parameter binds the name the same way a positional one does",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env=guard\n'
+            ')\n'
+            'def sneak(len, /):\n'
+            '    len(runner.keywords)\n'
+            'runner(["x"], text=True)',
+            "a positional-only parameter binds the name the same way as well",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env=guard\n'
+            ')\n'
+            '@app.route\n'
+            'def cb(sorted):\n'
+            '    sorted(runner.keywords)\n'
+            'runner(["x"], text=True)',
+            "a registered callback is called from outside, so its parameters are unknown",
         ),
         (
             'import functools, subprocess\n'
