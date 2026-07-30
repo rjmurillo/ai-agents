@@ -44,7 +44,7 @@ from typing import Any, cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from _anthropic_api import call_api, load_api_key_for_selected_provider  # noqa: E402
+from _anthropic_api import call_api, load_api_key_for_selected_provider
 
 DEFAULT_MODEL = "claude-sonnet-4-5"  # Released model id; 4.6 is a newer variant.
 DEFAULT_TRIALS = 5

@@ -28,9 +28,6 @@ if str(_EVAL_DIR) not in sys.path:
     sys.path.insert(0, str(_EVAL_DIR))
 
 from _anthropic_api import call_api as _call_api  # noqa: E402
-from _anthropic_api import (  # noqa: E402
-    load_api_key_for_selected_provider as _load_api_key_for_selected_provider,
-)
 from _oneshot_bench_core import (  # noqa: E402
     BenchmarkSummary,
     Fixture,
@@ -44,6 +41,12 @@ from _oneshot_bench_core import (  # noqa: E402
     parse_judge_response,
     select_hardest,
 )
+
+
+def _load_api_key_for_selected_provider(*args: object) -> str:
+    from _anthropic_api import load_api_key_for_selected_provider
+
+    return load_api_key_for_selected_provider(*args)
 
 
 def _api_error_verdict(reason: str) -> JudgeVerdict:

@@ -3005,35 +3005,37 @@ def _process_one_rule(
 
 
 def _build_run_provenance(args: argparse.Namespace) -> dict[str, Any]:
-    """Build a provenance record for this run.
-
-    Fields are best-effort: a git or hashing failure returns an empty string
-    rather than crashing the run.
-    """
+    """Collect run metadata so result artifacts are self-describing (issue #3956)."""
     commit_sha = ""
     try:
-        commit_sha = subprocess.check_output(
-            ["git", "rev-parse", "--short", "HEAD"],
-            stderr=subprocess.DEVNULL,
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
             text=True,
-        ).strip()
-    except Exception:  # noqa: BLE001 - provenance is best-effort
+            timeout=5,
+            check=False,
+            cwd=REPO_ROOT,
+        )
+        if result.returncode == 0:
+            commit_sha = result.stdout.strip()
+    except (FileNotFoundError, OSError, subprocess.SubprocessError):
         pass
 
     scenario_hash = ""
     try:
         h = hashlib.sha256()
-        for p in sorted(str(s) for s in getattr(args, "scenarios", [])):
-            if os.path.isfile(p):
-                with open(p, "rb") as fh:
-                    h.update(fh.read())
+        for sf in sorted(args.scenarios):
+            path = Path(sf)
+            if path.exists():
+                h.update(path.read_bytes())
         scenario_hash = h.hexdigest()[:16]
-    except Exception:  # noqa: BLE001 - provenance is best-effort
+    except OSError:
         pass
 
+    provider = os.environ.get("EVAL_PROVIDER") or "anthropic"
     return {
-        "provider": "anthropic",
-        "requested_model": getattr(args, "model", ""),
+        "provider": provider,
+        "requested_model": args.model,
         "timestamp_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "git_commit": commit_sha,
         "scenario_hash": scenario_hash,
