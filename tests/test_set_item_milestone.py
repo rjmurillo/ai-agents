@@ -89,6 +89,12 @@ class TestParseSemverTuple:
     def test_large_numbers(self):
         assert _parse_semver_tuple("10.20.30") == (10, 20, 30)
 
+    def test_v_prefix(self):
+        assert _parse_semver_tuple("v1.2.3") == (1, 2, 3)
+
+    def test_v_prefix_sorts_equal_to_bare(self):
+        assert _parse_semver_tuple("v0.4.0") == _parse_semver_tuple("0.4.0")
+
 
 # ---------------------------------------------------------------------------
 # Tests: get_latest_semantic_milestone
@@ -135,6 +141,33 @@ class TestGetLatestSemanticMilestone:
             result = get_latest_semantic_milestone("o", "r")
         assert result["found"] is True
         assert result["title"] == "1.0.0"
+
+    def test_v_prefixed_milestones(self):
+        milestones = [
+            {"title": "v0.4.0", "number": 1},
+            {"title": "v0.5.0", "number": 2},
+        ]
+        with patch("subprocess.run", return_value=_completed(
+            stdout=json.dumps(milestones),
+        )):
+            result = get_latest_semantic_milestone("o", "r")
+        assert result["found"] is True
+        assert result["title"] == "v0.5.0"
+        assert result["number"] == 2
+
+    def test_mixed_bare_and_v_prefixed_sorts_numerically(self):
+        milestones = [
+            {"title": "0.3.0", "number": 1},
+            {"title": "v0.7.0", "number": 2},
+            {"title": "v0.6.x close-out", "number": 3},
+        ]
+        with patch("subprocess.run", return_value=_completed(
+            stdout=json.dumps(milestones),
+        )):
+            result = get_latest_semantic_milestone("o", "r")
+        assert result["found"] is True
+        assert result["title"] == "v0.7.0"
+        assert result["number"] == 2
 
 
 # ---------------------------------------------------------------------------
