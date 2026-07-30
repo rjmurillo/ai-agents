@@ -105,9 +105,7 @@ def current_count(repo_root: Path) -> int | None:
             sys.stderr.write(f"taste-lints could not be launched: {exc}\n")
             return None
         if proc.returncode not in (_EXIT_CLEAN, _EXIT_VIOLATIONS):
-            sys.stderr.write(
-                f"taste-lints exited {proc.returncode}, which is not a scan result\n"
-            )
+            sys.stderr.write(f"taste-lints exited {proc.returncode}, which is not a scan result\n")
             sys.stderr.write(proc.stderr)
             return None
         try:
@@ -121,6 +119,50 @@ def current_count(repo_root: Path) -> int | None:
             return None
         total += count
     return total
+
+
+def list_violations(repo_root: Path) -> list[str] | None:
+    """Return a human-readable line per error-severity violation, or None.
+
+    Used by the ratchet to show WHICH violations are present on regression so
+    contributors do not need a separate run to find them (issue #3902).
+    """
+    files = tracked_files(repo_root, ("*",))
+    if files is None:
+        return None
+    if not files:
+        return []
+
+    lines: list[str] = []
+    for batch in chunk(files):
+        try:
+            proc = subprocess.run(
+                [sys.executable, str(_LINTER), "--format", "json", "--", *batch],
+                cwd=repo_root,
+                capture_output=True,
+                text=True,
+                errors="replace",
+                encoding="utf-8",
+                check=False,
+            )
+        except (FileNotFoundError, OSError):
+            return None
+        if proc.returncode not in (_EXIT_CLEAN, _EXIT_VIOLATIONS):
+            return None
+        try:
+            report = json.loads(proc.stdout)
+        except json.JSONDecodeError:
+            return None
+        for finding in report.get("findings", []):
+            if not isinstance(finding, dict):
+                continue
+            if finding.get("severity") != "error":
+                continue
+            path = finding.get("path", "?")
+            rule = finding.get("rule", "?")
+            msg = finding.get("message", "")
+            lines.append(f"{path}: [{rule}] {msg}")
+    return lines
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -138,6 +180,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "reasoned `# taste-lint: ignore <rule>` comment in the first 10 lines "
             "of the file explaining why the rule does not apply (issue #3779)."
         ),
+        lister=list_violations,
     )
 
 
