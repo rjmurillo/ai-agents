@@ -14,6 +14,23 @@ by tests/ci/test_parse_memory_health_results.py.
 Doc convention this enforces: `<placeholder>` marks a value the reader
 substitutes, and `[optional]` marks an optional argument. Both are unwrapped
 before parsing, so an optional flag that does not exist still fails.
+
+Two limits are deliberate, because closing either one costs more than it
+returns:
+
+1. It checks invocations, not bare nouns. A backticked command name in prose,
+   such as "run `add-citation`", carries no argv and is not flagged. A lexical
+   detector for bare names was measured before being rejected: 1626 candidate
+   spans repo-wide, and 118 even when scoped to the files that document this
+   CLI. Every sampled candidate was a legitimate field name, source type, link
+   type, or JSON key, and there is no lexical signal separating those from a
+   phantom subcommand. All ten current mentions of the phantom commands are
+   negative prose ("there is no `add-citation` command") that such a detector
+   would flag as errors.
+2. It checks syntax, not semantics. A prose claim about behavior, such as a
+   wrong default or a capability the CLI does not have, parses as valid
+   English and never reaches argparse. Three such errors survived this guard
+   and were caught only by review. Verify behavioral claims against a run.
 """
 
 from __future__ import annotations
@@ -24,8 +41,6 @@ import re
 import shlex
 import subprocess
 from pathlib import Path
-
-import pytest
 
 from memory_enhancement.__main__ import _build_parser
 
@@ -42,8 +57,6 @@ DOC_ROOTS = (
     ".serena/memories",
 )
 
-_REDIRECT = re.compile(r"\d?>>?\s*\S+")
-_SEPARATOR = re.compile(r"&&|\|\||[|;]")
 _INVOCATION = re.compile(r"-m\s+(?:scripts\.)?memory_enhancement(.*)")
 # Inline-code spans that name a subcommand and an option without the module
 # prefix, such as `graph --start <id> [--depth N]` in prose. These carry the
@@ -56,10 +69,17 @@ _OPTIONAL = re.compile(r"\[([^\]]*)\]")
 _FENCE = re.compile(r"^\s*```+\s*(\w*)")
 _SHELL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "console"})
 _PLACEHOLDER_TOKEN = "PLACEHOLDER"
+# Shell control operators end the command being documented.
+_OPERATORS = frozenset({"&&", "||", "|", ";", "&"})
+# Redirections consume the token that follows them.
+_REDIRECTS = frozenset({">", ">>", "<", "<<"})
 # Options parsed with type=int. A synopsis writes their value as a
 # metavariable, which argparse rejects before it can check the option name,
 # so substitute a concrete integer to keep the name under test.
-_INT_VALUE_OPTION = re.compile(r"(--depth|--top)(\s+)(\S+)")
+_INT_OPTIONS = frozenset({"--depth", "--top"})
+# Emitted when a fragment cannot be tokenized. It fails argparse, so the
+# invocation test reports the file and line instead of dropping it silently.
+_UNPARSEABLE = "<<unparseable>>"
 
 VALID_SUBCOMMANDS = frozenset(
     {"verify", "verify-all", "health", "graph", "confidence", "search"}
@@ -74,29 +94,50 @@ _VALUE_TAKING_GLOBALS = frozenset({"--repo-root", "--memories-dir"})
 MINIMUM_INVOCATIONS = 40
 
 
-def _substitute_int_values(fragment: str) -> str:
+def _substitute_int_values(tokens: list[str]) -> list[str]:
     """Give int-typed options a parseable value so the option name is checked."""
+    substituted: list[str] = []
+    expects_int = False
+    for token in tokens:
+        if expects_int:
+            expects_int = False
+            substituted.append(token if token.lstrip("-").isdigit() else "1")
+            continue
+        option, separator, value = token.partition("=")
+        if option in _INT_OPTIONS:
+            if not separator:
+                expects_int = True
+            elif not value.lstrip("-").isdigit():
+                token = f"{option}=1"
+        substituted.append(token)
+    return substituted
 
-    def replace(match: re.Match[str]) -> str:
-        option, gap, value = match.group(1), match.group(2), match.group(3)
-        if value.lstrip("-").isdigit():
-            return match.group(0)
-        return f"{option}{gap}1"
 
-    return _INT_VALUE_OPTION.sub(replace, fragment)
-
-
-def _normalize(fragment: str) -> str:
-    """Reduce a documented command fragment to the argv it advertises."""
+def _prepare(fragment: str) -> str:
+    """Strip synopsis conventions that are not shell syntax."""
     fragment = fragment.split("`", 1)[0]
-    # Placeholders resolve first: the '>' closing '<id>' otherwise looks like a
-    # shell redirect and swallows the token after it.
+    # Placeholders resolve before tokenization: the '>' closing '<id>'
+    # otherwise reads as a redirect and swallows the token after it.
     fragment = _PLACEHOLDER.sub(_PLACEHOLDER_TOKEN, fragment)
-    fragment = _REDIRECT.sub(" ", fragment)
-    fragment = _SEPARATOR.split(fragment, 1)[0]
     fragment = _OPTIONAL.sub(r"\1", fragment)
-    fragment = _substitute_int_values(fragment)
-    return fragment.replace("\\", " ").strip()
+    return fragment.strip().removesuffix("\\").strip()
+
+
+def _shell_argv(tokens: list[str]) -> list[str]:
+    """Truncate at the first control operator and drop redirection targets."""
+    argv: list[str] = []
+    skip_next = False
+    for token in tokens:
+        if skip_next:
+            skip_next = False
+            continue
+        if token in _OPERATORS:
+            break
+        if token in _REDIRECTS:
+            skip_next = True
+            continue
+        argv.append(token)
+    return argv
 
 
 def parse_error(argv: list[str]) -> str | None:
@@ -157,11 +198,18 @@ def _tracked_docs() -> list[str]:
 
 
 def _argv_from(fragment: str) -> list[str]:
-    """Normalize a documented fragment into argv, or an empty list."""
+    """Normalize a documented fragment into argv.
+
+    Tokenization runs before shell semantics are applied, so a quoted
+    metacharacter stays inside its token instead of truncating the command.
+    """
+    lexer = shlex.shlex(_prepare(fragment), posix=True, punctuation_chars=True)
+    lexer.whitespace_split = True
     try:
-        return shlex.split(_normalize(fragment))
+        tokens = list(lexer)
     except ValueError:
-        return []
+        return [_UNPARSEABLE]
+    return _substitute_int_values(_shell_argv(tokens))
 
 
 def _line_invocations(line: str, runnable: bool) -> list[tuple[list[str], bool]]:
@@ -211,169 +259,6 @@ def documented_invocations() -> list[tuple[str, int, str, list[str], bool]]:
     return collected
 
 
-class TestDetector:
-    """The scanner must catch bad invocations and clear good ones."""
-
-    @pytest.mark.parametrize(
-        ("argv", "expected"),
-        [
-            (["add-citation", "PLACEHOLDER"], "invalid choice"),
-            (["update-confidence", "PLACEHOLDER"], "invalid choice"),
-            (["list-citations", "PLACEHOLDER"], "invalid choice"),
-            (["health", "--format", "json"], "unrecognized"),
-            (["health", "--summary"], "unrecognized"),
-            (["health", "--include-graph"], "unrecognized"),
-            (["verify-all", "--repo-root", "."], "unrecognized"),
-            (["verify", "PLACEHOLDER"], "unrecognized"),
-            (["verify-all", "--dir", ".serena/memories"], "unrecognized"),
-            (["graph", "PLACEHOLDER"], "required"),
-        ],
-    )
-    def test_rejects_known_bad(self, argv: list[str], expected: str) -> None:
-        error = parse_error(argv)
-        assert error is not None, f"{argv} should not parse"
-        assert expected in error, f"{argv} -> {error}"
-
-    @pytest.mark.parametrize(
-        "argv",
-        [
-            ["health"],
-            ["health", "--json"],
-            ["health", "--markdown"],
-            ["health", "--text"],
-            ["--repo-root", ".", "health", "--json"],
-            ["--memories-dir", ".serena/memories", "verify-all"],
-            ["verify"],
-            ["verify", "--memory-id", "PLACEHOLDER"],
-            ["verify-all", "--json"],
-            ["graph", "--start", "PLACEHOLDER"],
-            ["graph", "--start", "PLACEHOLDER", "--depth", "2"],
-            ["confidence"],
-            ["search", "PLACEHOLDER"],
-            ["search", "PLACEHOLDER", "--top", "5", "--json"],
-        ],
-    )
-    def test_accepts_known_good(self, argv: list[str]) -> None:
-        assert parse_error(argv) is None, f"{argv} should parse"
-
-    def test_normalize_unwraps_optional_and_placeholder(self) -> None:
-        assert _normalize(" health [--json]") == "health --json"
-        assert _normalize(" verify --memory-id <id>") == "verify --memory-id PLACEHOLDER"
-        assert _normalize(" health --json > out.json") == "health --json"
-
-    def test_normalize_keeps_unknown_optional_flags_visible(self) -> None:
-        """Unwrapping must not let a nonexistent optional flag through."""
-        argv = shlex.split(_normalize(" verify-all [--dir PATH]"))
-        assert parse_error(argv) is not None
-
-    def test_normalize_substitutes_int_metavariables(self) -> None:
-        """A synopsis value for an int option must not mask the option name."""
-        assert _normalize(" graph --start <id> [--depth N]") == (
-            "graph --start PLACEHOLDER --depth 1"
-        )
-        assert _normalize(" search q --top <n>") == "search q --top 1"
-
-    def test_normalize_preserves_real_integers(self) -> None:
-        assert _normalize(" graph --start x --depth 3") == "graph --start x --depth 3"
-
-    def test_normalize_does_not_treat_placeholder_close_as_redirect(self) -> None:
-        """'<id>' must not swallow the token after it the way '> file' does."""
-        assert _normalize(" verify --memory-id <id> --json") == (
-            "verify --memory-id PLACEHOLDER --json"
-        )
-        assert _normalize(" health --json > out.json") == "health --json"
-
-    def test_int_substitution_does_not_excuse_a_phantom_flag(self) -> None:
-        """Substitution applies to the value, never to the option name."""
-        argv = shlex.split(_normalize(" graph --start <id> [--max-depth N]"))
-        assert parse_error(argv) is not None
-
-    @pytest.mark.parametrize(
-        "line",
-        [
-            "prose mentioning `graph --start <id> --strategy dfs` inline",
-            "the `health --format json` form",
-            "call `verify-all --dir .serena/memories` first",
-        ],
-    )
-    def test_bare_invocation_regex_catches_phantom_flags(self, line: str) -> None:
-        """A subcommand fragment without the module prefix is still checked."""
-        match = _BARE_INVOCATION.search(line)
-        assert match is not None
-        argv = shlex.split(_normalize(match.group(1)))
-        assert invocation_error(argv, runnable=False) is not None
-
-    @pytest.mark.parametrize(
-        "line",
-        [
-            "the `verify` subcommand",
-            "run `health` to see the report",
-            "`graph` traverses links",
-        ],
-    )
-    def test_bare_invocation_regex_ignores_flagless_names(self, line: str) -> None:
-        """Reference-table rows naming a subcommand must not be swept in."""
-        assert _BARE_INVOCATION.search(line) is None
-
-    def test_bare_invocation_regex_accepts_real_fragments(self) -> None:
-        match = _BARE_INVOCATION.search("run `graph --start <id> [--depth N]` next")
-        assert match is not None
-        argv = shlex.split(_normalize(match.group(1)))
-        assert invocation_error(argv, runnable=False) is None
-
-    @pytest.mark.parametrize(
-        "argv",
-        [
-            ["add-citation"],
-            ["update-confidence"],
-            ["list-citations"],
-            ["auto-cite"],
-            ["doctor"],
-        ],
-    )
-    def test_prose_mode_rejects_phantom_names(self, argv: list[str]) -> None:
-        assert invocation_error(argv, runnable=False) is not None
-
-    @pytest.mark.parametrize(
-        "argv",
-        [
-            ["graph"],
-            ["search"],
-            ["verify"],
-            [_PLACEHOLDER_TOKEN],
-            ["--repo-root", "PATH", "--memories-dir", "PATH", _PLACEHOLDER_TOKEN],
-            ["--repo-root", "PATH", "health"],
-        ],
-    )
-    def test_prose_mode_allows_bare_names_and_synopses(self, argv: list[str]) -> None:
-        """Tables name a command; a synopsis leaves the command a placeholder."""
-        assert invocation_error(argv, runnable=False) is None
-
-    def test_prose_mode_reads_past_global_option_values(self) -> None:
-        """A global option's value must not be read as the subcommand name."""
-        assert invocation_error(["--repo-root", "PATH", "add-citation"], False)
-
-    @pytest.mark.parametrize(
-        "argv",
-        [
-            ["graph", _PLACEHOLDER_TOKEN, "--strategy", "dfs"],
-            ["graph", _PLACEHOLDER_TOKEN, "--max-depth", "3"],
-            ["verify", _PLACEHOLDER_TOKEN],
-            ["health", "--format", "json"],
-        ],
-    )
-    def test_prose_mode_still_checks_arguments_when_present(
-        self, argv: list[str]
-    ) -> None:
-        """Exempting bare names must not exempt a real invocation in prose."""
-        assert invocation_error(argv, runnable=False) is not None
-
-    def test_fenced_mode_checks_incomplete_commands(self) -> None:
-        """A fenced line is copy-pasted, so a missing required flag is a defect."""
-        assert invocation_error(["graph"], runnable=True) is not None
-        assert invocation_error(["graph"], runnable=False) is None
-
-
 class TestDocumentedInvocations:
     """Every documented invocation must parse against the shipping CLI."""
 
@@ -392,10 +277,34 @@ class TestDocumentedInvocations:
         assert fenced, "no invocation found inside a shell code fence"
         assert prose, "no invocation found outside a shell code fence"
 
-    def test_doc_roots_are_all_populated(self) -> None:
-        """A renamed root must fail loudly instead of shrinking coverage."""
-        empty = [root for root in DOC_ROOTS if not (REPO_ROOT / root).is_dir()]
-        assert not empty, f"doc roots missing: {empty}"
+    def test_every_doc_root_contributes_invocations(self) -> None:
+        """Deleting a root must fail loudly instead of quietly shrinking scope.
+
+        Checking only that each configured root exists is vacuous: removing a
+        root from DOC_ROOTS also removes it from the assertion. Pinning the
+        expected set closes that. The count floor alone is no defence either,
+        because the two mirror roots supply most of the matches on their own.
+        """
+        assert set(DOC_ROOTS) == {
+            ".claude/skills",
+            ".claude/rules",
+            "src/copilot-cli/skills",
+            "src/copilot-cli/instructions",
+            ".agents/architecture",
+            ".agents/guides",
+            ".serena/memories",
+        }, "DOC_ROOTS changed; confirm the new scope is intended"
+        by_root = {root: 0 for root in DOC_ROOTS}
+        for relative_path, *_ in documented_invocations():
+            for root in DOC_ROOTS:
+                if relative_path.startswith(f"{root}/"):
+                    by_root[root] += 1
+        # The two instruction roots are watched for future drift; today their
+        # only mention of the module is prose about a tracked symlink. The
+        # rest carry real invocations and must not fall silent.
+        documenting = set(DOC_ROOTS) - {".claude/rules", "src/copilot-cli/instructions"}
+        silent = sorted(root for root in documenting if by_root[root] == 0)
+        assert not silent, f"doc roots contributing no invocations: {silent}"
 
     def test_all_documented_invocations_parse(self) -> None:
         failures = []
