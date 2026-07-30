@@ -1049,6 +1049,133 @@ class TestRunPersistenceMalformedJsonl:
             list(persistence.iter_records())
 
 
+class TestParseRecordShapeGuard:
+    """A line that is valid JSON but is not a record must still map to
+    EXIT_CONFIG (2).
+
+    `_parse_record` rehydrates untrusted on-disk data. Before the guard,
+    seven distinct corrupt shapes escaped as bare `ValueError`, `KeyError`,
+    or `TypeError`, none of which the CLI catches, so each surfaced as an
+    unhandled traceback instead of the documented operator-repair exit.
+    """
+
+    def _payload(self, **overrides):
+        payload = {
+            "fixture_id": "F001",
+            "variant": "agent",
+            "run_index": 0,
+            "model_id": "claude-sonnet-4-6",
+            "prompt_sha": "p" * 64,
+            "prompt_ref": "<test>",
+            "fixture_sha": "f" * 64,
+            "raw_response": "ok",
+            "assertions": [
+                {
+                    "kind": "verdict",
+                    "expected_value": "IDENTIFY",
+                    "passed": True,
+                    "extracted": "IDENTIFY",
+                }
+            ],
+            "outcome": "success",
+            "latency_ms": 1.0,
+            "tokens_in": 1,
+            "tokens_out": 1,
+            "error_category": None,
+            "attempts": 1,
+            "tokens_estimated": True,
+            "schemaVersion": 1,
+        }
+        payload.update(overrides)
+        return payload
+
+    @pytest.mark.parametrize("kind", ["verdict", "regex"])
+    def test_every_declared_assertion_kind_still_parses(self, kind):
+        """Control: the guard must reject only shapes outside the contract.
+
+        A guard that rejected everything would still pass the cases below.
+        """
+        payload = self._payload()
+        payload["assertions"][0]["kind"] = kind
+
+        record = persistence_mod._parse_record(json.dumps(payload))
+
+        assert record.assertions[0].kind.value == kind
+
+    def test_a_record_with_no_assertions_still_parses(self):
+        """Control: an empty list is a legal shape, not a corrupt one."""
+        record = persistence_mod._parse_record(json.dumps(self._payload(assertions=[])))
+
+        assert record.assertions == []
+
+    def test_a_blank_line_is_still_skipped(self):
+        """Control: the early return must survive the added guard."""
+        assert persistence_mod._parse_record("   \n") is None
+
+    @pytest.mark.parametrize("line", ["[]", '"x"', "1", "null", "true"])
+    def test_a_non_object_top_level_raises_malformed(self, line):
+        """Valid JSON that is not an object is a corrupt record, not a crash.
+
+        Before the guard, `payload.pop` raised a bare `AttributeError` that
+        bypassed the EXIT_CONFIG mapping.
+        """
+        with pytest.raises(MalformedRunRecordError):
+            persistence_mod._parse_record(line)
+
+    @pytest.mark.parametrize(
+        "mutate, leaked",
+        [
+            (lambda p: p["assertions"][0].update({"kind": "nope"}), "ValueError"),
+            # Edge: an unhashable value cannot be looked up in the enum's
+            # value map at all, yet still raises `ValueError` on 3.14.
+            (lambda p: p["assertions"][0].update({"kind": ["regex"]}), "ValueError"),
+            (lambda p: p["assertions"][0].update({"kind": {"a": 1}}), "ValueError"),
+            (lambda p: p["assertions"][0].pop("kind"), "KeyError"),
+            (lambda p: p.update({"assertions": {"a": 1}}), "TypeError"),
+            (lambda p: p.update({"assertions": ["not-a-dict"]}), "TypeError"),
+            # Falsy non-list shapes: `or []` used to coerce these to zero
+            # assertions silently instead of naming the corrupt shape.
+            (lambda p: p.update({"assertions": ""}), "TypeError"),
+            (lambda p: p.update({"assertions": {}}), "TypeError"),
+            (lambda p: p.update({"assertions": 0}), "TypeError"),
+            (lambda p: p.update({"assertions": False}), "TypeError"),
+            (lambda p: p.update({"assertions": None}), "TypeError"),
+            (lambda p: p.update({"surprise": 1}), "TypeError"),
+            (lambda p: p.pop("fixture_id"), "TypeError"),
+        ],
+    )
+    def test_a_corrupt_shape_raises_malformed_not_a_bare_builtin(self, mutate, leaked):
+        payload = self._payload()
+        mutate(payload)
+
+        with pytest.raises(MalformedRunRecordError) as excinfo:
+            persistence_mod._parse_record(json.dumps(payload))
+
+        # The originating builtin is named so an operator can tell the
+        # shapes apart, and chained so the traceback keeps the detail.
+        assert leaked in str(excinfo.value)
+        assert type(excinfo.value.__cause__).__name__ == leaked
+
+    def test_a_corrupt_shape_does_not_echo_an_unbounded_value(self):
+        """A corrupt record is attacker-influenced input to the operator log."""
+        payload = self._payload()
+        payload["assertions"][0]["kind"] = "x" * 9000
+
+        with pytest.raises(MalformedRunRecordError) as excinfo:
+            persistence_mod._parse_record(json.dumps(payload))
+
+        assert len(str(excinfo.value)) < 400
+
+    def test_an_unsupported_schema_version_keeps_its_own_error(self):
+        """Control: the guard must not absorb the sibling schema check.
+
+        `SchemaVersionError` is raised before the guarded block and carries
+        a different operator remedy, so it has to stay distinguishable.
+        """
+        with pytest.raises(SchemaVersionError):
+            persistence_mod._parse_record(json.dumps(self._payload(schemaVersion=99)))
+
+
 # ===========================================================================
 # T4-2: CLI integration with mocked adapter
 # ===========================================================================
