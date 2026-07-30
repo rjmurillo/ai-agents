@@ -1666,6 +1666,29 @@ def check_staged_conflict_markers(paths: Sequence[str], repo_root: Path) -> int:
     return 1
 
 
+def _tracked_file_bytes(full_path: Path) -> bytes | None:
+    """Content to scan, or None when the path has no scannable content.
+
+    Symlinks and gitlink directories are skipped: the tracked object is the
+    link target string or the submodule commit, and following the link could
+    read outside the repo. A missing file is a sparse-checkout concern, not a
+    conflict. Binary detection stops at the sniff window rather than pulling
+    the rest into memory only to discard it: the 26 binary files tracked
+    today are 26.4 MB, 26.8% of the 98.5 MB this walk would otherwise read.
+    Other OSErrors propagate for the caller to map to a config error.
+    """
+    if full_path.is_symlink() or full_path.is_dir():
+        return None
+    try:
+        with full_path.open("rb") as handle:
+            head = handle.read(_BINARY_SNIFF_BYTES)
+            if b"\0" in head:
+                return None
+            return head + handle.read()
+    except FileNotFoundError:
+        return None
+
+
 def check_tracked_conflict_markers(repo_root: Path) -> int:
     """Fail when any tracked file carries a conflict marker (issue #3770).
 
@@ -1706,36 +1729,19 @@ def check_tracked_conflict_markers(repo_root: Path) -> int:
                 file=sys.stderr,
             )
             return 2
-        full_path = repo_root / path
-        if full_path.is_symlink() or full_path.is_dir():
-            # The tracked object for a symlink is the link target string and
-            # for a submodule the gitlink; neither is file content to scan,
-            # and following the link could read outside the repo.
-            continue
         try:
-            with full_path.open("rb") as handle:
-                head = handle.read(_BINARY_SNIFF_BYTES)
-                if b"\0" in head:
-                    # Binary. Stop here rather than pulling the rest into
-                    # memory only to discard it: the 26 binary files tracked
-                    # today are 26.4 MB, 26.8% of the 98.5 MB this walk would
-                    # otherwise read, and that share grows with every asset
-                    # added.
-                    continue
-                content = head + handle.read()
-        except FileNotFoundError:
-            # A tracked path missing from the worktree is a checkout concern,
-            # not a conflict. Sparse checkouts hit this.
-            continue
+            content = _tracked_file_bytes(repo_root / path)
         except OSError as exc:
-            # Anything else (permissions, I/O error) is an environment the
-            # scan cannot vouch for; silently continuing would report clean
-            # on a tree it did not read.
+            # Permissions or I/O errors are an environment the scan cannot
+            # vouch for; silently continuing would report clean on a tree it
+            # did not read.
             print(
                 f"ERROR: could not read tracked file {path}: {exc}",
                 file=sys.stderr,
             )
             return 2
+        if content is None:
+            continue
         violations.extend(_conflict_marker_violations(path, content))
     if not violations:
         return 0
