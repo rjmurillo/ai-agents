@@ -253,7 +253,7 @@ class TestCodeqlIntegrationSummary:
         assert "\u23ed" in text
 
     def test_missing_env_treated_as_failure(self) -> None:
-        results = {}
+        results: dict[str, str] = {}
         text, all_passed = cis.build_summary(results)
         assert not all_passed
 

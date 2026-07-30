@@ -33,6 +33,7 @@ def collect_metrics(since: str, output_format: str, report_path: Path) -> bool:
         [sys.executable, _COLLECT_SCRIPT, "--since", since, "--output", output_format],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
     report_path.write_text(result.stdout, encoding="utf-8")

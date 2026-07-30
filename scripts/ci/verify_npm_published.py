@@ -35,6 +35,7 @@ def get_published_version(package: str, version: str) -> str:
         ["npm", "view", f"{package}@{version}", "version"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
     return result.stdout.strip()

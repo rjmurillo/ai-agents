@@ -35,6 +35,7 @@ def collect_metrics_json(since: int = 7) -> dict[str, Any]:
         [sys.executable, _COLLECT_SCRIPT, "--since", str(since), "--output", "json"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
     if result.returncode != 0:
