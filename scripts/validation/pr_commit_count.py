@@ -120,13 +120,41 @@ def classify_count(count: int, limit: int = BLOCK_THRESHOLD) -> str:
     return "OK"
 
 
+def _run_git(repo_root: Path, argv: list[str]) -> subprocess.CompletedProcess[str]:
+    """Run a git command in repo_root."""
+    return subprocess.run(
+        ["git", *argv],
+        cwd=repo_root,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+
+
+def main_first_parent_shas(repo_root: Path) -> frozenset[str]:
+    """Return the SHAs on origin/main's first-parent lineage (the direct trunk).
+
+    A branch that main has landed through a merge PR is reachable from main but
+    sits on a non-first parent of the landing merge. Merging such a branch does
+    not bring in new history, so it does not qualify for the raised commit limit.
+    Only commits on the first-parent spine count.
+
+    Returns an empty frozenset when git fails or origin/main does not exist,
+    so callers fail closed (no relief) rather than open.
+    """
+    result = _run_git(repo_root, ["rev-list", "--first-parent", "origin/main"])
+    if result.returncode != 0:
+        return frozenset()
+    return frozenset(result.stdout.split())
+
+
 def _is_external_parent(parent: object, own_shas: set[str]) -> bool:
     """Return True only when this parent is a readable sha the branch does not own.
 
-    ``contains_base_merge`` gates an exemption, so an unreadable parent must not
-    buy it. A parent that is not a mapping, carries no ``sha``, or carries a
-    non-string ``sha`` is unreadable and fails closed to False rather than
-    reading as evidence of an external merge.
+    An unreadable parent must not buy relief: a parent that is not a mapping,
+    carries no ``sha``, or carries a non-string ``sha`` is unreadable and fails
+    closed to False.
     """
     if not isinstance(parent, dict):
         return False
@@ -136,14 +164,11 @@ def _is_external_parent(parent: object, own_shas: set[str]) -> bool:
     return sha not in own_shas
 
 
-def contains_base_merge(commits: list[Any]) -> bool:
-    """Return True when the PR carries a merge commit from outside the branch.
+def _external_non_first_parent_shas(commits: list[Any]) -> set[str]:
+    """Collect SHAs of non-first parents that are not in the PR's own commit list.
 
-    The commits endpoint returns exactly the commits unique to the head branch.
-    A merge commit inside that list whose parents are not all in the list merged
-    something the branch did not author, which is the base branch. That is the
-    server-side equivalent of the hook's `merge-base --is-ancestor` check
-    against origin/main.
+    Used by both contains_base_merge (backward-compat approximation) and
+    contains_main_merge (precise check verified against origin/main).
     """
     own_shas: set[str] = set()
     for commit in commits:
@@ -152,15 +177,54 @@ def contains_base_merge(commits: list[Any]) -> bool:
         own_sha = commit.get("sha")
         if isinstance(own_sha, str) and own_sha:
             own_shas.add(own_sha)
+    shas: set[str] = set()
     for commit in commits:
         if not isinstance(commit, dict):
             continue
         parents = commit.get("parents")
         if not isinstance(parents, list) or len(parents) < 2:
             continue
-        if any(_is_external_parent(parent, own_shas) for parent in parents[1:]):
-            return True
-    return False
+        for parent in parents[1:]:
+            if _is_external_parent(parent, own_shas):
+                sha = parent.get("sha")
+                if isinstance(sha, str) and sha:
+                    shas.add(sha)
+    return shas
+
+
+def contains_base_merge(commits: list[Any]) -> bool:
+    """Return True when the PR carries a merge commit from outside the branch.
+
+    BROADER APPROXIMATION: this grants relief for any external merge, not only
+    merges of origin/main's first-parent trunk. Use contains_main_merge when
+    a repo_root is available so the check matches the pre-push hook exactly.
+    """
+    return bool(_external_non_first_parent_shas(commits))
+
+
+def contains_main_merge(commits: list[Any], repo_root: Path) -> bool:
+    """True when the PR carries a merge of origin/main's direct trunk.
+
+    The single shared predicate for the 40-commit-limit relief: a non-first
+    parent of a merge commit in the PR must belong to origin/main's first-parent
+    history. Merging a side branch that main has already landed does not qualify;
+    merging origin/main (or an older commit on its trunk) does.
+
+    This is the server-side counterpart of the pre-push hook's
+    _contains_main_merge in git_hook_policy.py. Both callers call
+    main_first_parent_shas to obtain the trunk frozenset, which is the one
+    shared implementation.
+
+    Fails closed (returns False) when git is unavailable or origin/main does
+    not exist.
+    """
+    external_shas = _external_non_first_parent_shas(commits)
+    if not external_shas:
+        return False
+    trunk = main_first_parent_shas(repo_root)
+    if not trunk:
+        return False
+    return bool(external_shas & trunk)
 
 
 def is_transient_error(stderr: str) -> bool:
@@ -239,7 +303,9 @@ def fetch_commit_count(pr_number: int, owner: str, repo: str) -> CountResult:
         )
 
     count = len(commits)
-    limit = MAIN_MERGE_BLOCK_THRESHOLD if contains_base_merge(commits) else BLOCK_THRESHOLD
+    limit = (
+        MAIN_MERGE_BLOCK_THRESHOLD if contains_main_merge(commits, Path.cwd()) else BLOCK_THRESHOLD
+    )
     return CountResult(classify_count(count, limit), count, transient=False, limit=limit)
 
 

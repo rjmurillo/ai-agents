@@ -22,6 +22,33 @@ sys.path.insert(0, str(_PROJECT_ROOT))
 from scripts.validation import pr_commit_count as mod  # noqa: E402
 
 
+def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        check=True,
+    )
+
+
+def _init_repo(repo: Path) -> None:
+    repo.mkdir(parents=True, exist_ok=True)
+    _git(repo, "init", "-q", "-b", "main")
+    _git(repo, "config", "user.name", "Test User")
+    _git(repo, "config", "user.email", "user@example.com")
+
+
+def _commit(repo: Path, name: str) -> str:
+    f = repo / f"{name}.md"
+    f.write_text(f"{name}\n", encoding="utf-8")
+    _git(repo, "add", "--", str(f.name))
+    _git(repo, "commit", "-qm", f"test: {name}")
+    return _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+
 def _completed(
     returncode: int, stdout: str = "", stderr: str = ""
 ) -> subprocess.CompletedProcess[str]:
@@ -333,9 +360,7 @@ def _merge_commits_json(n: int, external_parent: bool) -> str:
         {"sha": f"{i:040x}", "parents": [{"sha": f"{i - 1:040x}"}]} for i in range(n - 1)
     ]
     second = "f" * 40 if external_parent else f"{0:040x}"
-    commits.append(
-        {"sha": f"{n - 1:040x}", "parents": [{"sha": f"{n - 2:040x}"}, {"sha": second}]}
-    )
+    commits.append({"sha": f"{n - 1:040x}", "parents": [{"sha": f"{n - 2:040x}"}, {"sha": second}]})
     return json.dumps(commits)
 
 
@@ -403,9 +428,10 @@ def test_a_branch_merging_main_is_not_blocked_below_forty(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """25 commits with a merge from main passes CI, matching the pre-push hook."""
-    monkeypatch.setattr(
-        mod, "_run_gh", lambda argv: _completed(0, _merge_commits_json(25, True))
-    )
+    external_sha = "f" * 40
+    monkeypatch.setattr(mod, "_run_gh", lambda argv: _completed(0, _merge_commits_json(25, True)))
+    # main_first_parent_shas needs to confirm the external parent is on trunk.
+    monkeypatch.setattr(mod, "main_first_parent_shas", lambda _root: frozenset([external_sha]))
     monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "gh_out"))
     assert mod.main(["--pr-number", "42"]) == 0
     assert "::error::PR exceeds commit limit" not in capsys.readouterr().out
@@ -418,9 +444,7 @@ def test_a_linear_branch_of_twenty_five_is_still_blocked(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """Negative control: the relief must not fire without a merge from the base."""
-    monkeypatch.setattr(
-        mod, "_run_gh", lambda argv: _completed(0, _merge_commits_json(25, False))
-    )
+    monkeypatch.setattr(mod, "_run_gh", lambda argv: _completed(0, _merge_commits_json(25, False)))
     monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "gh_out"))
     assert mod.main(["--pr-number", "42"]) == 0
     assert "::error::PR exceeds commit limit" in capsys.readouterr().out
@@ -467,9 +491,9 @@ def _ceilings_imported_in(source: str) -> set[str]:
 
 def test_the_hook_and_ci_read_the_same_two_ceilings() -> None:
     """Issue #3596: one number in one place. A second literal would drift."""
-    source = (
-        _PROJECT_ROOT / "scripts" / "validation" / "git_hook_policy.py"
-    ).read_text(encoding="utf-8")
+    source = (_PROJECT_ROOT / "scripts" / "validation" / "git_hook_policy.py").read_text(
+        encoding="utf-8"
+    )
 
     assert _ceilings_restated_in(source) == set()
     assert _ceilings_imported_in(source) == set(_CEILING_NAMES)
@@ -540,8 +564,140 @@ def test_malformed_parents_do_not_grant_the_relaxed_ceiling(
         ("empty payload", [], False),
     ],
 )
-def test_contains_base_merge_controls(
-    label: str, payload: list[object], expected: bool
-) -> None:
+def test_contains_base_merge_controls(label: str, payload: list[object], expected: bool) -> None:
     """Behaviour that must survive the malformed-parent narrowing unchanged."""
     assert mod.contains_base_merge(payload) is expected, label
+
+
+# ---------------------------------------------------------------------------
+# contains_main_merge: precise predicate using origin/main first-parent history
+# ---------------------------------------------------------------------------
+
+
+def test_contains_main_merge_grants_relief_when_external_parent_is_on_trunk(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The external parent is on origin/main's trunk: relief is granted."""
+    external_sha = "e" * 40
+    commits = [
+        {"sha": "a" * 40, "parents": [{"sha": "0" * 40}]},
+        {"sha": "b" * 40, "parents": [{"sha": "a" * 40}, {"sha": external_sha}]},
+    ]
+    monkeypatch.setattr(mod, "main_first_parent_shas", lambda _root: frozenset([external_sha]))
+    assert mod.contains_main_merge(commits, tmp_path) is True
+
+
+def test_contains_main_merge_denies_relief_when_external_parent_is_not_on_trunk(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The critical divergence case from issue #3997.
+
+    An external parent that is NOT on origin/main's first-parent history (for
+    example, a side branch that was never merged to main) must NOT grant the
+    40-commit relief. The old contains_base_merge returned True here; the new
+    contains_main_merge returns False, matching the pre-push hook.
+    """
+    external_sha = "e" * 40
+    commits = [
+        {"sha": "a" * 40, "parents": [{"sha": "0" * 40}]},
+        {"sha": "b" * 40, "parents": [{"sha": "a" * 40}, {"sha": external_sha}]},
+    ]
+    # origin/main trunk does not contain the external SHA.
+    monkeypatch.setattr(mod, "main_first_parent_shas", lambda _root: frozenset(["c" * 40]))
+    assert mod.contains_main_merge(commits, tmp_path) is False
+
+
+def test_contains_main_merge_fails_closed_on_empty_trunk(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """No origin/main means no relief: fail closed."""
+    external_sha = "e" * 40
+    commits = [
+        {"sha": "a" * 40, "parents": [{"sha": "0" * 40}, {"sha": external_sha}]},
+    ]
+    monkeypatch.setattr(mod, "main_first_parent_shas", lambda _root: frozenset())
+    assert mod.contains_main_merge(commits, tmp_path) is False
+
+
+def test_contains_main_merge_is_false_for_linear_branch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """No merge commit means no relief."""
+    monkeypatch.setattr(mod, "main_first_parent_shas", lambda _root: frozenset(["m" * 40]))
+    commits = [{"sha": f"{i:040x}", "parents": [{"sha": f"{i - 1:040x}"}]} for i in range(1, 5)]
+    assert mod.contains_main_merge(commits, tmp_path) is False
+
+
+def test_contains_main_merge_is_false_for_internal_merge(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A merge between two commits on the PR branch does not grant relief."""
+    commits = [
+        {"sha": "a" * 40, "parents": [{"sha": "0" * 40}]},
+        {"sha": "b" * 40, "parents": [{"sha": "0" * 40}]},
+        {"sha": "c" * 40, "parents": [{"sha": "a" * 40}, {"sha": "b" * 40}]},
+    ]
+    monkeypatch.setattr(mod, "main_first_parent_shas", lambda _root: frozenset(["m" * 40]))
+    assert mod.contains_main_merge(commits, tmp_path) is False
+
+
+def test_contains_main_merge_fails_closed_on_malformed_payload(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Malformed payload: no external SHAs found, no relief."""
+    monkeypatch.setattr(mod, "main_first_parent_shas", lambda _root: frozenset(["m" * 40]))
+    assert mod.contains_main_merge(["not-a-dict"], tmp_path) is False
+
+
+# ---------------------------------------------------------------------------
+# main_first_parent_shas: git-based trunk reader
+# ---------------------------------------------------------------------------
+
+
+def test_main_first_parent_shas_returns_trunk_commits(tmp_path: Path) -> None:
+    """main_first_parent_shas returns the SHAs on origin/main's trunk."""
+    repo = tmp_path / "main-trunk"
+    _init_repo(repo)
+    sha1 = _commit(repo, "first")
+    sha2 = _commit(repo, "second")
+    _git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+
+    result = mod.main_first_parent_shas(repo)
+
+    assert sha1 in result
+    assert sha2 in result
+
+
+def test_main_first_parent_shas_returns_empty_when_origin_main_missing(
+    tmp_path: Path,
+) -> None:
+    """Fail closed: no origin/main means empty frozenset, no relief."""
+    repo = tmp_path / "no-origin"
+    _init_repo(repo)
+    _commit(repo, "base")
+
+    result = mod.main_first_parent_shas(repo)
+
+    assert result == frozenset()
+
+
+def test_main_first_parent_shas_excludes_non_first_parent_commits(tmp_path: Path) -> None:
+    """A branch that was merged into main is NOT on the trunk.
+
+    Its commits sit on the non-first parent of the landing merge, so they must
+    not be counted as trunk commits.
+    """
+    repo = tmp_path / "landed-branch"
+    _init_repo(repo)
+    _commit(repo, "base")
+    _git(repo, "branch", "side")
+    _git(repo, "checkout", "-q", "side")
+    side_sha = _commit(repo, "side-commit")
+    _git(repo, "checkout", "-q", "main")
+    _git(repo, "merge", "-q", "--no-ff", "-m", "land side", "side")
+    _commit(repo, "after")
+    _git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+
+    result = mod.main_first_parent_shas(repo)
+
+    assert side_sha not in result
