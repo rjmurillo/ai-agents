@@ -36,7 +36,7 @@ Every change belongs to at least one class. A mixed change inherits the union of
 | Workflow | `.github/workflows/*.yml` | No logic in YAML (ADR-006); SHA-pinned actions; run changed workflows before push (AGENTS.md Always list) |
 | ADR / governance | Any `ADR-*.md` or `SESSION-PROTOCOL.md` create or edit | Fires the `adr-review` multi-agent debate gate (AGENTS.md "ADR Review"); governance changes need human approval plus an ADR |
 
-The OPERATIVE investigation-only allowlist is the enforcement module `scripts/modules/investigation_allowlist.py` (docstring: "Single source of truth for investigation artifact path patterns"; consumed by `validate_session_json.py`, the session skill, and `validate_investigation_claims.py`). It allows 9 patterns (display form from `get_investigation_allowlist_display()`):
+The OPERATIVE investigation-only allowlist is the enforcement module `scripts/modules/investigation_allowlist.py` (docstring: "Single source of truth for investigation artifact path patterns"; consumed by `validate_session_json.py`, the session skill, and `validate_investigation_claims.py`). It allows 8 patterns as of 2026-07-30 (display form from `get_investigation_allowlist_display()`):
 
 - `.agents/sessions/` (session logs)
 - `.agents/analysis/` (investigation outputs)
@@ -46,9 +46,8 @@ The OPERATIVE investigation-only allowlist is the enforcement module `scripts/mo
 - `.agents/memory/` (memory artifacts)
 - `.agents/architecture/REVIEW-*` (review artifacts)
 - `.agents/critique/` (critique outputs)
-- `.agents/memory/episodes/` (listed separately in the module; subsumed by `.agents/memory/`)
 
-Known divergence, surfaced here, not resolved: the ADR-034 text (`.agents/architecture/ADR-034-investigation-session-qa-exemption.md:79-83`) lists only the first 5 paths, so the code has drifted wider than the ADR. Reconciling that requires an ADR-034 amendment; until one lands, the code list is what the gate enforces.
+Former divergence, now closed: the ADR-034 text (`.agents/architecture/ADR-034-investigation-session-qa-exemption.md:78-87`) once listed only the first 5 paths, and #2958 reconciled it to the same 8 the module enforces. The code list is still what the gate enforces, so re-check the module rather than the ADR when they disagree.
 
 One staged file outside the enforced list voids the exemption. The session then needs real QA evidence, or you split the work into two sessions.
 

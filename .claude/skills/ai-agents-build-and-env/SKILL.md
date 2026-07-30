@@ -202,7 +202,7 @@ the repo on that date. Re-verify volatile facts before trusting them:
 | .env key names | `.env.example` | `cat .env.example` |
 | Forgetful fallback table | `ADR-007` (`.agents/architecture/ADR-007-memory-first-architecture.md:108-130`) | `grep -n "Graceful degradation" .agents/architecture/ADR-007-memory-first-architecture.md` |
 | LF enforcement rationale | `.gitattributes:59` and header comments | `grep -n "eol=lf" .gitattributes` |
-| Serena memory file count (158 as of 2026-07-30) | `.serena/memories/` | `ls .serena/memories/ \| wc -l` |
+| Serena memory file count (158 as of 2026-07-30) | `.serena/memories/` | `set -- .serena/memories/*; echo $#` |
 | tests/test_paths.py count (28) | pytest | `uv run pytest tests/test_paths.py --collect-only -q` |
 | uv TLS var rename | uv 0.11.26 runtime warning | `UV_NATIVE_TLS=1 uv run python -c pass 2>&1` prints a deprecation warning naming UV_SYSTEM_CERTS |
 

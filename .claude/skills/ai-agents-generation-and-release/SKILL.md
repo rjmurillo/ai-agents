@@ -216,7 +216,7 @@ Verified 2026-07-29 against the working tree (re-verification pass; the 2026-07-
 | build_all exit codes 0/1/2/3 | build/scripts/build_all.py:16-20 | `sed -n '16,20p' build/scripts/build_all.py` |
 | generate_agents flags and exit codes | build/generate_agents.py:13-16,460-487 | `uv run python build/generate_agents.py --help` |
 | sync pairs scripts to .claude/lib | scripts/sync_plugin_lib.py:27-31 | `grep -n -A4 "SYNC_PAIRS" scripts/sync_plugin_lib.py` |
-| Plugin manifest locations and current values | the three plugin.json files | `git ls-files '*claude-plugin/plugin.json' \| xargs grep -H version` |
+| Plugin manifest locations and current values | the three plugin.json files | `git grep -n version -- "*claude-plugin/plugin.json"` |
 | Strictly-greater bump rule, PR #1942 story | build/scripts/validate_plugin_version_bump.py:1-40 | `head -40 build/scripts/validate_plugin_version_bump.py` |
 | Parity gate #2222 | build/scripts/check_plugin_manifest_parity.py:1-16 | `python3 build/scripts/check_plugin_manifest_parity.py` |
 | Drift CI wiring | .github/workflows/validate-generated-agents.yml:165,174,212,225,239; agent-drift-detection.yml:146,156,159,171 | `grep -n "uv run python" .github/workflows/validate-generated-agents.yml` |
@@ -226,7 +226,7 @@ Verified 2026-07-29 against the working tree (re-verification pass; the 2026-07-
 | npm package, bun build, tag flow | packages/ai-agents-cli/package.json; RELEASING.md:35-54; .github/workflows/publish.yml:13-16 | `grep -n "tags" .github/workflows/publish.yml` |
 | Marketplace count validator retired | no dedicated count validator or marketplace counter YAML should exist | `find . -name "*marketplace*count*" -not -path "./.venv/*"` prints nothing |
 | Audit log path, gitignored | .gitignore:70 | `grep -n "build/audit" .gitignore` |
-| 2025-12-15 direction story | .agents/retrospective/2025-12-15-drift-detection-disaster.md | `ls .agents/retrospective/ \| grep drift` |
+| 2025-12-15 direction story | .agents/retrospective/2025-12-15-drift-detection-disaster.md | `find .agents/retrospective -maxdepth 1 -name "*drift*"` |
 | ADR-036 Accepted, ADR-072 Proposed | .agents/architecture/ADR-036-*.md, ADR-072-*.md | `head -12 .agents/architecture/ADR-072-jtbd-plugin-architecture.md` |
 
 Maintenance: when a generator is added or removed from `GENERATORS`, when a fourth plugin.json appears, or if a marketplace count validator is reintroduced to replace the retired one, update Phase 1/4 tables and re-run every re-verify command above.

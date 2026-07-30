@@ -25,6 +25,6 @@ Verified 2026-07-03 against the working tree. Volatile facts are date-stamped in
 | ruff advisory | `.github/workflows/pytest.yml` (comments near lines 107-119, issue #2194) | `grep -n -i "ruff" .github/workflows/pytest.yml` |
 | testpaths exclude skill tests | `pyproject.toml:41` | `grep -n "testpaths" pyproject.toml` |
 | Verification-based enforcement doctrine | `.agents/SESSION-PROTOCOL.md:30` | `grep -n "verification-based" .agents/SESSION-PROTOCOL.md` |
-| Full history (~1471 commits) with unresolvable retro-cited SHAs | local clone state | `git rev-list --count HEAD; git cat-file -t ddb76e0` (expect "Not a valid object name") |
+| Full history (2014 commits as of 2026-07-30); retro-cited SHAs resolve in this clone | local clone state | `git rev-list --count HEAD; git cat-file -t ddb76e0` (expect a commit count and `commit`) |
 
 Maintenance rule: when any row above fails its re-verify command, fix the skill (SKILL.md and this reference) in the same PR as the change that broke it, and label anything newly Proposed as Proposed.

@@ -161,8 +161,8 @@ working tree on that date. Volatile facts and their re-verification commands:
 
 | Fact | Source | Re-verify |
 |------|--------|-----------|
-| Retro corpus far exceeds INDEX.md coverage (121 files, 9 indexed rows as of 2026-07-30) | `.agents/retrospective/` | `ls .agents/retrospective/*.md \| wc -l; grep -c "^. 20" .agents/retrospective/INDEX.md` |
-| 158 memory files as of 2026-07-30 | `.serena/memories/` | `ls .serena/memories/ \| wc -l` |
+| Retro corpus far exceeds INDEX.md coverage (121 files, 9 indexed rows as of 2026-07-30) | `.agents/retrospective/` | `set -- .agents/retrospective/*.md; echo $#; grep -c "^. 20" .agents/retrospective/INDEX.md` |
+| 158 memory files as of 2026-07-30 | `.serena/memories/` | `set -- .serena/memories/*; echo $#` |
 | Full history present (~1471 commits) but retro-cited SHAs unresolvable | local clone | `git rev-list --count HEAD; git cat-file -t ddb76e0` (expect a count near 1471 and "Not a valid object name") |
 | 11 failure modes | `.agents/governance/FAILURE-MODES.md:16-28` | `grep -c "^. [0-9]" .agents/governance/FAILURE-MODES.md` |
 | Historical SKIP_PREPUSH removal | Session 1187 retrospective | Confirm current Git hook jobs in `lefthook.yml`; do not reintroduce a global bypass |

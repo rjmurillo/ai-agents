@@ -1,6 +1,6 @@
 ---
 name: ai-agents-research-frontier
-description: "Three ranked open research programs for this repo, each with honest current-state evidence, first concrete steps, and a falsifiable milestone. Verified governance (ADR-069, proposed), cross-harness abstraction (ADR-072 and ADR-068, proposed), and the self-improving loop (issue #1345). Use when you say `research frontier`, `open problems`, `what should we research next`. Do NOT use for how to run an experiment here (use `ai-agents-research-methodology`)."
+description: "Three ranked open research programs for this repo, each with honest current-state evidence, first concrete steps, and a falsifiable milestone. Verified governance (ADR-069, proposed), cross-harness abstraction (ADR-072 proposed, ADR-068 accepted), and the self-improving loop (issue #1345). Use when you say `research frontier`, `open problems`, `what should we research next`. Do NOT use for how to run an experiment here (use `ai-agents-research-methodology`)."
 version: 1.0.0
 license: MIT
 ---
@@ -31,7 +31,7 @@ build on it.
 | Rank | Program | Anchor artifacts | Status (as of 2026-07-03) | Falsifiable milestone (short form) |
 |------|---------|------------------|---------------------------|-------------------------------------|
 | 1 | Verified governance | ADR-069, `scripts/eval/eval-rule-activation.py` | ADR-069 is PROPOSED; eval tool exists, 7 rule scenario fixtures exist | Controlled eval shows gated-corpus sessions beat ungated on N scenarios with defensible stats |
-| 2 | Cross-harness abstraction | ADR-072, ADR-068, `build/generate_agents.py`, `tests/build_scripts/test_generate_hooks_runtime_contract.py` | Both ADRs PROPOSED; generators and contract tests exist and run | New harness target added with zero hand-edits to generated trees, contract suite green |
+| 2 | Cross-harness abstraction | ADR-072, ADR-068, `build/generate_agents.py`, `tests/build_scripts/test_generate_hooks_runtime_contract.py` | ADR-072 PROPOSED, ADR-068 ACCEPTED as of 2026-07-30; generators and contract tests exist and run | New harness target added with zero hand-edits to generated trees, contract suite green |
 | 3 | Self-improving loop | issue #1345 hooks, `guard-maturity` tiers, `EVENT=` telemetry | Apply-step hook live; end-to-end consumer pipeline UNVERIFIED | A correction observed once auto-proposes a guard that survives calibration |
 
 ## Process
@@ -45,10 +45,10 @@ issue, or write-up. All commands run from the repo root.
 |-------|-------------------|
 | ADR-069 status is proposed | `head -5 .agents/architecture/ADR-069-context-corpus-is-the-product.md` |
 | ADR-072 status is Proposed with approval conditions | `sed -n '1,15p' .agents/architecture/ADR-072-jtbd-plugin-architecture.md` |
-| ADR-068 status is Proposed | `sed -n '1,10p' .agents/architecture/ADR-068-consolidated-hook-dispatcher.md` |
+| ADR-068 status is Accepted as of 2026-07-30 | `sed -n '1,10p' .agents/architecture/ADR-068-consolidated-hook-dispatcher.md` |
 | Rule-activation eval exists with a no-spend path | `python3 scripts/eval/eval-rule-activation.py --help` |
 | 12 rule scenario fixtures as of 2026-07-30 | `ls tests/evals/rule-scenarios/` |
-| Corpus size (98 skills, 25 rules, 121 retros, 158 memories as of 2026-07-30) | `ls -d .claude/skills/*/ \| wc -l; ls .claude/rules/*.md \| wc -l; ls .agents/retrospective/ \| wc -l; ls .serena/memories/ \| wc -l` |
+| Corpus size (98 skills, 25 rules, 121 retros, 158 memories as of 2026-07-30) | `set -- .claude/skills/*/; echo $#; set -- .claude/rules/*.md; echo $#; set -- .agents/retrospective/*; echo $#; set -- .serena/memories/*; echo $#` |
 | Runtime contract tests pass | `uv run pytest tests/build_scripts/test_generate_hooks_runtime_contract.py -q` |
 | Apply-step hooks unregistered | `uv run pytest -q "tests/build_scripts/test_copilot_dispatcher_artifact.py::TestDispatcherArtifacts::test_retired_hooks_are_absent_and_keepers_are_plugin_only"` |
 
@@ -167,8 +167,8 @@ that would falsify the strong form of ADR-069.
   measured Python cold start per shim on Windows with 40 PreToolUse shims.
 
 Label honestly: ADR-072 is PROPOSED with an explicit "APPROVE WITH CHANGES"
-review and five conditions to reach Accepted; ADR-068 is PROPOSED. No code moves
-on either ADR alone. Nothing in this program may route around
+review and five conditions to reach Accepted; ADR-068 reached ACCEPTED on
+2026-07-30. No code moves on ADR-072 alone. Nothing in this program may route around
 `ai-agents-change-control`.
 
 ### First three steps
@@ -262,7 +262,7 @@ guards for corrections that a human already hand-coded.
 
 | Anti-pattern | Why it fails here | Do instead |
 |--------------|-------------------|------------|
-| Citing ADR-069/ADR-072/ADR-068 as accepted policy | All three are PROPOSED (as of 2026-07-03); ADR-072 has five unmet conditions to reach Accepted | Quote the status line; treat them as research direction, not mandate |
+| Citing ADR-069/ADR-072 as accepted policy | Both are PROPOSED (as of 2026-07-30); ADR-072 has five unmet conditions to reach Accepted. ADR-068 did reach Accepted, so it is policy | Quote the status line before citing; treat the Proposed pair as research direction, not mandate |
 | Shipping a detector or guard without replaying it on real history | #1989 M4 threshold could never fire; #1887 guards prevented 0/35 of their own fixes | Calibrate against roughly the last 5 real PRs first |
 | Trusting vendor docs for harness behavior | Docs were wrong by omission in #2205 and #2290 | Empirical probe with pinned version and negative control (`ai-agents-empirical-probe-toolkit`) |
 | Claiming corpus counts or eval coverage from this file | Counts decay; this file is a snapshot | Re-run the Phase 1 verification commands |
@@ -284,10 +284,12 @@ Before acting on this skill's claims, or after editing it:
 
 ## Provenance and Maintenance
 
-Authored 2026-07-03. All facts verified against the working tree on that date.
-Full local history is present (~1471 commits as of 2026-07-03), but retro-cited
-short SHAs (for example ddb76e0, 01e76615a) may not resolve; use
-`.agents/retrospective/` and `.serena/memories/` for archaeology, not `git log`.
+Authored 2026-07-03, facts re-verified against the working tree on 2026-07-30.
+Full local history is present (2014 commits as of 2026-07-30) and retro-cited
+short SHAs do resolve here (ddb76e0 and 01e76615a are both commits), so `git log`
+is usable for archaeology. Prefer `.agents/retrospective/` and
+`.serena/memories/` for the reasoning behind a change, which commit messages
+rarely carry.
 
 Sources and re-verification:
 
