@@ -701,3 +701,115 @@ def test_main_first_parent_shas_excludes_non_first_parent_commits(tmp_path: Path
     result = mod.main_first_parent_shas(repo)
 
     assert side_sha not in result
+
+
+# ---------------------------------------------------------------------------
+# _run_git: the trunk reader's process hygiene (PR #4030 review)
+#
+# The pre-push hook now shares this module's trunk reader, so this runner sits
+# on a push path as well as a CI path. git_hook_policy's own runner bounds every
+# git call and disables the commit graph; the shared reader has to be at least
+# as careful or unifying the predicate would have traded a correctness bug for a
+# reliability one.
+# ---------------------------------------------------------------------------
+
+
+def _capture_run(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, object]]:
+    """Record the argv and kwargs of every subprocess.run this module makes."""
+    calls: list[dict[str, object]] = []
+
+    def spy(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append({"argv": list(args), **kwargs})
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(mod.subprocess, "run", spy)
+    return calls
+
+
+def test_run_git_bounds_the_call_with_a_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An unbounded `git rev-list` in a pre-push hook can wedge a push."""
+    calls = _capture_run(monkeypatch)
+
+    mod._run_git(Path("/repo"), ["rev-list", "--first-parent", "origin/main"])
+
+    assert calls[0]["timeout"] == mod._GIT_TIMEOUT_SECONDS
+    assert mod._GIT_TIMEOUT_SECONDS > 0
+
+
+def test_run_git_disables_the_commit_graph(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A stale commit-graph can report a trunk the repository does not have.
+
+    git_hook_policy reads every commit this way. The relief decision must not
+    depend on which of the two gates happened to warm a cache.
+    """
+    calls = _capture_run(monkeypatch)
+
+    mod._run_git(Path("/repo"), ["rev-list", "--first-parent", "origin/main"])
+
+    assert calls[0]["argv"] == [
+        "git",
+        "-c",
+        "core.commitGraph=false",
+        "rev-list",
+        "--first-parent",
+        "origin/main",
+    ]
+
+
+def test_run_git_reports_a_timeout_instead_of_raising(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Negative: a hung git denies relief; it does not crash the gate."""
+
+    def hang(args: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise subprocess.TimeoutExpired(args, mod._GIT_TIMEOUT_SECONDS)
+
+    monkeypatch.setattr(mod.subprocess, "run", hang)
+
+    result = mod._run_git(Path("/repo"), ["rev-list"])
+
+    assert result.returncode != 0
+    assert mod.main_first_parent_shas(Path("/repo")) == frozenset()
+
+
+def test_run_git_reports_a_missing_binary_instead_of_raising(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Negative: the docstring promises fail-closed, so absent git cannot raise."""
+
+    def absent(args: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr(mod.subprocess, "run", absent)
+
+    result = mod._run_git(Path("/repo"), ["rev-list"])
+
+    assert result.returncode != 0
+    assert mod.main_first_parent_shas(Path("/repo")) == frozenset()
+
+
+def test_main_first_parent_shas_uses_an_injected_runner(tmp_path: Path) -> None:
+    """The hook supplies its own runner; the traversal stays shared.
+
+    Positive control for the seam that lets a hook keep its scrubbed git
+    environment without restating the first-parent walk.
+    """
+    seen: list[list[str]] = []
+
+    def fake_runner(_root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+        seen.append(list(args))
+        return subprocess.CompletedProcess(["git", *args], 0, "sha-a sha-b\n", "")
+
+    result = mod.main_first_parent_shas(tmp_path, run_git=fake_runner)
+
+    assert result == frozenset({"sha-a", "sha-b"})
+    assert seen == [["rev-list", "--first-parent", "origin/main"]]
+
+
+def test_main_first_parent_shas_fails_closed_on_an_injected_runner_failure(
+    tmp_path: Path,
+) -> None:
+    """Negative: an injected runner that fails buys no relief either."""
+
+    def failing_runner(_root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(["git", *args], 1, "", "fatal: bad revision")
+
+    assert mod.main_first_parent_shas(tmp_path, run_git=failing_runner) == frozenset()

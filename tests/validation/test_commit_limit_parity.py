@@ -193,3 +193,72 @@ def test_both_gates_deny_relief_when_branch_merges_only_landed_side(tmp_path: Pa
     assert ci_grants is False, (
         "CI must deny relief for a merge of a landed side branch (issue #3997)"
     )
+
+
+# ---------------------------------------------------------------------------
+# Environment parity: the gates must also agree about the repository they read
+#
+# PR #4030 review: unifying the predicate on origin/main's first-parent trunk
+# only unifies the decision if both gates can actually read that ref. The hook
+# runs in a developer clone that has it; CI runs in whatever actions/checkout
+# produced. A shallow checkout has no origin/main, the trunk read fails closed,
+# and the same history gets 20 commits in CI and 40 at the hook: issue #3997's
+# divergence, reintroduced with the signs flipped.
+# ---------------------------------------------------------------------------
+
+
+def _strip_origin_main(repo: Path) -> None:
+    """Reproduce the CI checkout shape: a clone with no refs/remotes/origin/main."""
+    _git(repo, "update-ref", "-d", "refs/remotes/origin/main")
+
+
+def test_ci_denies_relief_for_a_real_main_merge_without_origin_main(tmp_path: Path) -> None:
+    """NEGATIVE CONTROL for the environment, not the predicate.
+
+    This is the failure the ref guarantee exists to prevent: identical history,
+    identical predicate, opposite answers, decided only by whether the checkout
+    populated origin/main. It pins why pr-validation.yml carries fetch-depth: 0.
+    """
+    repo, _base, head = _repo_branch_merges_main(tmp_path, "ci-shallow")
+    api_commits = _api_commits(repo, head)
+
+    assert commit_count.contains_main_merge(api_commits, repo) is True
+
+    _strip_origin_main(repo)
+
+    assert commit_count.main_first_parent_shas(repo) == frozenset()
+    assert commit_count.contains_main_merge(api_commits, repo) is False
+
+
+def test_the_hook_reads_the_trunk_through_its_own_hardened_runner(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    """The hook shares the traversal, not the process invocation.
+
+    git_hook_policy bounds every git call and clears GIT_DIR and friends, which
+    git sets while a hook runs. Sharing the trunk reader must not quietly move a
+    hook's git call onto an unbounded runner with an inherited environment.
+    """
+    repo, _base, head = _repo_branch_merges_main(tmp_path, "hook-runner")
+    update = _push_update_for_feature(repo, _base, head)
+
+    runners: list[str] = []
+    real_policy_run_git = policy._run_git
+    real_module_run_git = commit_count._run_git
+
+    def spy_policy(root: Path, args: Any) -> subprocess.CompletedProcess[str]:
+        if list(args)[:1] == ["rev-list"] and "--first-parent" in list(args):
+            runners.append("git_hook_policy")
+        return real_policy_run_git(root, args)
+
+    def spy_module(root: Path, args: Any) -> subprocess.CompletedProcess[str]:
+        runners.append("pr_commit_count")
+        return real_module_run_git(root, args)
+
+    monkeypatch.setattr(policy, "_run_git", spy_policy)
+    monkeypatch.setattr(commit_count, "_run_git", spy_module)
+
+    assert policy._contains_main_merge(update, repo) is True
+    assert runners.count("git_hook_policy") == 1
+    assert "pr_commit_count" not in runners

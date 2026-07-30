@@ -41,6 +41,7 @@ import json
 import os
 import subprocess
 import sys
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -65,6 +66,17 @@ MAIN_MERGE_BLOCK_THRESHOLD = 40
 
 # Sentinel status emitted when a transient API failure prevents a real count.
 STATUS_UNKNOWN = "UNKNOWN"
+
+# Wall-clock bound on this module's git calls. The trunk read is one
+# `rev-list --first-parent`, so seconds is generous; the bound exists so a
+# wedged git cannot hold the CI step open until the job timeout, or hold a
+# push open in the pre-push hook that shares this module's trunk reader.
+_GIT_TIMEOUT_SECONDS = 30
+
+# A git runner: given a repo root and git arguments, return the finished
+# process. `git_hook_policy` supplies its own so a trunk read inside a hook
+# keeps that module's scrubbed environment and timeout reporting.
+GitRunner = Callable[[Path, Sequence[str]], subprocess.CompletedProcess[str]]
 
 # Substrings that mark a GitHub API failure as transient transport noise rather
 # than a real error. Matched case-insensitively against gh's stderr. Kept
@@ -120,19 +132,40 @@ def classify_count(count: int, limit: int = BLOCK_THRESHOLD) -> str:
     return "OK"
 
 
-def _run_git(repo_root: Path, argv: list[str]) -> subprocess.CompletedProcess[str]:
-    """Run a git command in repo_root."""
-    return subprocess.run(
-        ["git", *argv],
-        cwd=repo_root,
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
+def _run_git(repo_root: Path, argv: Sequence[str]) -> subprocess.CompletedProcess[str]:
+    """Run a git command in repo_root, failing closed instead of raising or hanging.
+
+    ``core.commitGraph=false`` mirrors the pre-push hook's runner
+    (``git_hook_policy._git_command``). A stale or corrupt commit-graph file can
+    make ``rev-list`` report a trunk the repository does not actually have, and
+    a governance decision must not rest on a cache this gate cannot verify.
+
+    Every failure mode is returned rather than raised: a timeout comes back as
+    returncode 124 and a missing or unusable git binary as 127, so callers read
+    a non-zero returncode and deny relief. Without the timeout a wedged
+    ``rev-list`` would hang the CI step until the job timeout, and, since the
+    pre-push hook shares this module's trunk reader, could wedge a push.
+    """
+    command = ["git", "-c", "core.commitGraph=false", *argv]
+    try:
+        return subprocess.run(
+            command,
+            cwd=repo_root,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=_GIT_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(command, 124, "", "timeout was reached")
+    except OSError:
+        # FileNotFoundError (git absent) and its OSError siblings are config
+        # problems, not merge evidence. Fail closed to the 20-commit ceiling.
+        return subprocess.CompletedProcess(command, 127, "", "git is not available")
 
 
-def main_first_parent_shas(repo_root: Path) -> frozenset[str]:
+def main_first_parent_shas(repo_root: Path, run_git: GitRunner | None = None) -> frozenset[str]:
     """Return the SHAs on origin/main's first-parent lineage (the direct trunk).
 
     A branch that main has landed through a merge PR is reachable from main but
@@ -140,10 +173,21 @@ def main_first_parent_shas(repo_root: Path) -> frozenset[str]:
     not bring in new history, so it does not qualify for the raised commit limit.
     Only commits on the first-parent spine count.
 
+    ``run_git`` lets a caller supply its own vetted git runner. The pre-push hook
+    passes ``git_hook_policy._run_git`` so a trunk read taken inside a hook keeps
+    that module's scrubbed git environment (``GIT_DIR``, ``GIT_SHALLOW_FILE`` and
+    the rest of ``GIT_ENV_KEYS`` are unset there, and git sets several of them
+    while a hook runs) along with its timeout diagnostics. CI takes this module's
+    ``_run_git``. Only the process invocation varies; the traversal stays one
+    implementation, which is what issue #3997 requires.
+
     Returns an empty frozenset when git fails or origin/main does not exist,
-    so callers fail closed (no relief) rather than open.
+    so callers fail closed (no relief) rather than open. CI therefore requires a
+    checkout that populates ``refs/remotes/origin/main``; ``pr-validation.yml``
+    pins ``fetch-depth: 0`` for that reason.
     """
-    result = _run_git(repo_root, ["rev-list", "--first-parent", "origin/main"])
+    runner = _run_git if run_git is None else run_git
+    result = runner(repo_root, ["rev-list", "--first-parent", "origin/main"])
     if result.returncode != 0:
         return frozenset()
     return frozenset(result.stdout.split())

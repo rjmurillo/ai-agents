@@ -5262,8 +5262,11 @@ def test_commit_limit_relaxes_for_merge_from_main(
     monkeypatch.setattr(policy, "_run_git", fake_git)
     # main_first_parent_shas is imported into git_hook_policy's namespace; patch
     # there so _contains_main_merge sees the correct trunk without a real git repo.
+    # The double takes run_git because the hook passes its own hardened runner.
     monkeypatch.setattr(
-        policy, "main_first_parent_shas", lambda _root: frozenset(["main-parent", "older-main"])
+        policy,
+        "main_first_parent_shas",
+        lambda _root, run_git=None: frozenset(["main-parent", "older-main"]),
     )
 
     assert policy._check_commit_limit(update, tmp_path) == 0
@@ -5293,7 +5296,9 @@ def test_commit_limit_holds_when_the_merged_parent_is_off_main_trunk(
     # Trunk contains a different commit; "landed-parent" is not on first-parent
     # history, so the wider limit must be refused.
     monkeypatch.setattr(
-        policy, "main_first_parent_shas", lambda _root: frozenset(["some-other-main-commit"])
+        policy,
+        "main_first_parent_shas",
+        lambda _root, run_git=None: frozenset(["some-other-main-commit"]),
     )
     monkeypatch.setattr(
         policy,
@@ -5534,7 +5539,7 @@ def test_the_main_trunk_is_read_once_for_one_push(
     update = _push_update()
     trunk_reads: list[None] = []
 
-    def fake_first_parent_shas(_root: Path) -> frozenset[str]:
+    def fake_first_parent_shas(_root: Path, run_git: object = None) -> frozenset[str]:
         trunk_reads.append(None)
         return frozenset(["a-main-commit"])
 

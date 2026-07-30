@@ -4346,8 +4346,10 @@ def _contains_main_merge(update: PushUpdate, repo_root: Path) -> bool:
     # Every merge is read against the same trunk, and a push may carry many.
     # Reading it here keeps the walk once per push rather than once per merge.
     # main_first_parent_shas is the shared implementation; contains_main_merge
-    # in pr_commit_count uses it too so both gates use the same predicate.
-    trunk = main_first_parent_shas(repo_root)
+    # in pr_commit_count uses it too so both gates use the same predicate. This
+    # module's _run_git goes with it so a hook keeps the scrubbed git env and
+    # the timeout it applies to every other git call it makes.
+    trunk = main_first_parent_shas(repo_root, run_git=_run_git)
     return any(_merge_has_main_parent(merge_sha, repo_root, trunk) for merge_sha in merges)
 
 
@@ -4370,7 +4372,7 @@ def _merge_has_main_parent(
         return False
     parents = result.stdout.split()[1:]
     if trunk is None:
-        trunk = main_first_parent_shas(repo_root)
+        trunk = main_first_parent_shas(repo_root, run_git=_run_git)
     return any(parent in trunk for parent in parents)
 
 
