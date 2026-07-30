@@ -56,10 +56,17 @@ def review_comment_count(raw: str | None) -> int:
     ``set -e`` does not abort because the test sits in an ``if`` condition.
     This port reaches the same verdict without the stderr noise. An unreadable
     count skips one escalation heuristic, it does not fail the gate.
+
+    ``None`` means the workflow supplied no value at all, which is the same
+    "cannot tell" state as a non-numeric one. It is handled up front rather
+    than through ``TypeError`` so the intent is visible to a reader and to the
+    type checker.
     """
+    if raw is None:
+        return 0
     try:
         return int(raw)
-    except (TypeError, ValueError):
+    except ValueError:
         return 0
 
 
