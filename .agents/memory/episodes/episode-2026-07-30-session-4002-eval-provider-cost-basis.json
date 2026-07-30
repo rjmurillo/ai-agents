@@ -5,7 +5,18 @@
   "causal_order_version": 2,
   "outcome": "success",
   "task": "Fix issue 4002: eval-agent-vs-baseline --provider is a dead flag because the plan-time USD gate rejects every model absent from the Anthropic-only pricing table, before any provider dispatch",
-  "decisions": [],
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "design",
+      "context": "Decided the biller is the provider, not the model",
+      "chosen": "Design fixed before code, with the no-fabrication rule explicit",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
   "events": [
     {
       "id": "e001",
@@ -77,7 +88,7 @@
       "type": "test",
       "content": "29 passed, ruff clean, both workflows parse as valid YAML",
       "caused_by": [
-        "e012"
+        "e023"
       ],
       "leads_to": []
     },
@@ -104,6 +115,98 @@
       "content": "Commit: 64800b5d9",
       "caused_by": [],
       "leads_to": [
+        "e023"
+      ]
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced the dead flag on the real fixture corpus",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Decided the biller is the provider, not the model",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "TDD red, then three atomic commits",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Caught a defect I introduced, before pushing",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Proved the fix end to end with a before, after, and control triple",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran a live eval through GitHub Models",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the optimizer loop on that live report",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran an adversarial review on a different model family",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed findings 1 and 3 with one root change",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed finding 2 in the model sweep",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 04fde6ebf",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
         "e009"
       ]
     }
@@ -113,7 +216,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 6
   },
   "lessons": []

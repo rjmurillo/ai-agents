@@ -42,27 +42,27 @@
       "constraintsRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md, .claude/rules/testing.md, and .claude/rules/ci-scripts.md read. scripts/eval is a cost-reporting path, so the external-claims rule against inventing third-party prices applies."
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md, .claude/rules/testing.md, and .claude/rules/ci-scripts.md read. scripts/eval is a cost-reporting path, so the external-claims rule against inventing third-party prices applies directly to this fix."
       },
       "memoriesLoaded": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Prior session context on the 2aeb4fddd package move and issue 2808 bash -eo pipefail exit_code defect carried forward."
+        "Evidence": "Prior session context carried forward: the Anthropic account is budget-capped until 2026-08-01, which is what makes a working --provider the only path back to running evals before then."
       },
       "branchVerified": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "rjmurillo/fix-memory-health-workflow, branched from origin/main at 9ea1bea51 so the fix can merge independently of the three PRs it unblocks."
+        "Evidence": "fix/eval-provider-cost-basis, branched from origin/main at 9ea1bea51. Work was started on an unrelated branch and relocated with git stash before the first commit."
       },
       "notOnMain": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "On rjmurillo/fix-memory-health-workflow"
+        "Evidence": "On fix/eval-provider-cost-basis"
       },
       "gitStatusVerified": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "Worktree clean at 9ea1bea51 before the first edit."
+        "Evidence": "Worktree clean at 9ea1bea51 before the first commit."
       },
       "startingCommitNoted": {
         "level": "SHOULD",
@@ -74,7 +74,7 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All four defects in issue 3971 reproduced against the real CLI, fixed, and verified end to end. The producer has_issues mismatch found during the fix was folded in."
+        "Evidence": "The dead flag is reproduced, fixed, and proven by a live eval run through GitHub Models. Three further defects found by an adversarial review on a different model family were each reproduced and fixed."
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -84,27 +84,27 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "The durable lesson is now enforced in code rather than memory. TestProducerContract parses every workflow invocation through the real argparse parser, so the next drift of this shape fails a test instead of relying on recall."
+        "Evidence": "The durable lesson is enforced in code rather than memory. cost_basis now resolves the provider with the same expression the transport uses, and eight tests fail the next time the two drift apart."
       },
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "No Markdown authored. Changes are two workflow YAML files, one Python script, and one test module."
+        "Evidence": "No Markdown authored in the diff. Changes are six Python modules under scripts/eval, three test modules, and this log."
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Single conventional commit scoped to the four files plus this log."
+        "Evidence": "Six conventional commits: three for the original fix (plan, report, CLI), one recording this log's ending commit, and two for the adversarial review findings."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "29 of 29 tests pass in tests/ci/test_parse_memory_health_results.py. ruff check clean on both changed Python files. The real command 'uv run --frozen python3 -m memory_enhancement --repo-root . health --json' now exits 1 with all nine keys present, and the parser reads it to has_stale=true, stale_memory_count=7."
+        "Evidence": "1763 passed, 4 skipped across tests/eval and tests/evals. ruff check clean on every changed file. Zero em or en dashes, byte verified. A live run against GitHub Models completed with two successful API calls and exit 0 while the Anthropic account is budget-capped."
       },
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "Defects A through D from the issue plus the undocumented producer mismatch each addressed and recorded in the work log below."
+        "Evidence": "Issue 4002 plus the three adversarial review findings each addressed and recorded in the work log below."
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
@@ -116,74 +116,82 @@
   "workLog": [
     {
       "phase": "diagnosis",
-      "action": "Reproduced the CI failure locally",
-      "detail": "The job failed with 'memory_enhancement: error: unrecognized arguments: --repo-root .'. --repo-root is a top-level parser flag; the workflow passed it after the health subcommand. argparse exited 2 while the step redirect still created an empty report file, so the visible failure appeared two steps later as an unreadable report. citation-verify.yml line 67 already had the correct order.",
-      "outcome": "Defect A confirmed"
+      "action": "Reproduced the dead flag on the real fixture corpus",
+      "detail": "eval-agent-vs-baseline --provider github-models --model openai/gpt-4o-mini exited 2 with \"No pricing rate for model_id='openai/gpt-4o-mini'\" before any API call. _plan_runner._estimate_cost_usd raises UnsupportedModelError for any id absent from MODEL_PRICING_RATES_USD_PER_1K_TOKENS, which is Anthropic-only, and that raise happens inside build_plan ahead of provider dispatch. The CLI already wrote args.provider into os.environ at line 1134, twenty lines before the build_plan call, so the seam existed and the plan simply never consulted it.",
+      "outcome": "Issue 4002 filed with the reproduction and root cause"
     },
     {
-      "phase": "diagnosis",
-      "action": "Compared the parser's expected schema against the producer's real output",
-      "detail": "scripts/ci/parse_memory_health_results.py read payload['summary'] with keys total, healthy, stale, exempt, errors. _cmd_health in scripts/memory_enhancement/__main__.py emits nine flat top-level keys: total_memories, total_citations, valid_citations, stale_citations, broken_citations, unverified_citations, health_score, stale_memories, recommendations. Every rendered field was null and has_stale was permanently false.",
-      "outcome": "Defect B confirmed"
+      "phase": "design",
+      "action": "Decided the biller is the provider, not the model",
+      "detail": "GitHub Models meters requests against an account allowance and publishes no per-token price. Inventing a USD rate would surface a fabricated number in an operator-facing cost report as though it were real, so no third-party rate was added. Printing $0.00 was rejected for the reason the aggregator's own docstring already gave: zero renders a free run and hides the missing price. cost_basis(provider) answers \"requests\" only for quota-billed providers and \"usd\" for everything else, so any per-token vendor added later inherits the strict raise-on-unpriced rule unchanged.",
+      "outcome": "Design fixed before code, with the no-fabrication rule explicit"
     },
     {
-      "phase": "diagnosis",
-      "action": "Traced the dead PYTHONPATH and the dead path filters",
-      "detail": "PYTHONPATH pointed at .claude/skills/memory-enhancement/src, deleted by 2aeb4fddd, so it was inert. The same deleted path was used as a workflow path filter in both memory-health.yml and memory-validation.yml, so neither workflow could react to a change in the tool it runs.",
-      "outcome": "Defects C and D confirmed"
+      "phase": "implementation",
+      "action": "TDD red, then three atomic commits",
+      "detail": "Nine tests written first: six plan-side, three aggregator-side. Confirmed red at 9 failed, 153 passed. Blast radius was seven files, over the five-file atomic ceiling, so the work was split: plan-time basis, then report-time basis, then CLI wiring and writer rendering. The basis helper moved into _eval_common the moment it gained a second consumer, because that module documents itself as the owner of pricing knowledge and a peer should not import an underscore-prefixed name from _plan_runner.",
+      "outcome": "Commits 8f29248a4, 73dadb58d, 64800b5d9"
     },
     {
-      "phase": "diagnosis",
-      "action": "Found a producer mismatch not recorded in the issue",
-      "detail": "_cmd_health returns 1 when broken_citations, stale_citations, or len(stale_memories) is positive. This repository currently reports stale_citations=0 but stale_memories has seven entries. A citation-only has_stale would post 'Pass' on a run where the tool itself exits 1.",
-      "outcome": "Fifth defect found and fixed"
+      "phase": "verification",
+      "action": "Caught a defect I introduced, before pushing",
+      "detail": "The new in-process CLI test called cli_main, which mutates global process environment. That value leaked into the pytest session and broke 10 downstream tests in a different module. Proven by isolation: that file alone passed 106, and with the new test running first it failed 10 and passed 97. Fixed by pinning EVAL_PROVIDER with monkeypatch in both new CLI tests. The underlying sharp edge is unchanged and real for any future in-process CLI test.",
+      "outcome": "Self-caught before push; no downstream breakage shipped"
     },
     {
-      "phase": "fix",
-      "action": "Corrected the CLI invocation and removed the dead wiring",
-      "detail": "Moved --repo-root . ahead of the subcommand in both health invocations. Switched to uv run --frozen python3 so project dependencies resolve deterministically. Deleted the inert PYTHONPATH. Deleted the exit_code step output and its id: the echo after a command that exits 1 under bash -eo pipefail never runs (issue 2808), and nothing consumed the value. Repointed both path filters to scripts/memory_enhancement/**.",
-      "outcome": ".github/workflows/memory-health.yml, .github/workflows/memory-validation.yml"
+      "phase": "verification",
+      "action": "Proved the fix end to end with a before, after, and control triple",
+      "detail": "On the real 16-fixture security corpus. Before: exit 2 with the pricing error. After: planned_calls=96, cost_estimate_requests=96, basis=quota, exit 0. Control on the Anthropic default: cost_estimate_usd=2.22 with rate_as_of=2026-07-08, byte identical to the figure measured before any of these commits. The USD path did not move.",
+      "outcome": "Fix proven without disturbing the priced path"
     },
     {
-      "phase": "fix",
-      "action": "Rewrote the parser against the producer's real schema",
-      "detail": "_SUMMARY_FIELDS became _REPORT_FIELDS over the seven scalar keys the producer emits. Added _count for defensive scalar reads and _has_issues, which mirrors the producer's own exit condition rather than approximating it. The missing-report default now emits total_memories=0. The PR comment body was rewritten to the real eight-field vocabulary.",
-      "outcome": "scripts/ci/parse_memory_health_results.py"
+      "phase": "verification",
+      "action": "Ran a live eval through GitHub Models",
+      "detail": "Plan-time success was not sufficient evidence, because the whole point of the fix is to make evals runnable while the Anthropic account is capped. A one-fixture, one-run evaluation produced two successful API calls (agent 7066 tokens in and 103 out, baseline 105 and 106), zero errors, a written report, and exit 0. The report carried cost_estimate_usd=null with cost_basis=requests and the line \"metered as requests, not billed per token\". No fabricated dollar figure appeared anywhere.",
+      "outcome": "Evals are runnable again despite the budget cap"
     },
     {
-      "phase": "test",
-      "action": "Replaced the test module and added two class-level contract gates",
-      "detail": "Both defects were the same shape: this repository invoked a tool with arguments it no longer accepted and read keys it no longer emitted. TestProducerContract catches that class rather than the two instances. test_every_workflow_invocation_is_accepted_by_the_real_cli walks every run block in .github/workflows/*.yml, extracts each -m memory_enhancement argv, and parses it through the real _build_parser(). test_the_parser_reads_only_keys_the_producer_emits runs the real health command and asserts the parser consumes a subset of the emitted keys. Each gate has a negative control proving it can fail.",
-      "outcome": "tests/ci/test_parse_memory_health_results.py, 29 tests"
+      "phase": "verification",
+      "action": "Closed the optimizer loop on that live report",
+      "detail": "optimize-artifact.py extract --kind agent parsed the live report into optimizer results carrying upstream_model=openai/gpt-4o-mini in its provenance, so the new provider path and the optimizer compose correctly.",
+      "outcome": "Live eval to optimizer pipeline proven on real data"
     },
     {
-      "phase": "verify",
-      "action": "Ran the real command and the real parser end to end",
-      "detail": "The health command now exits 1 and emits all nine keys. The parser reads that report to total_memories=878, stale_memory_count=7, has_stale=true. Under the old citation-only logic the same report produced has_stale=false, which is the reversal the fifth defect describes.",
-      "outcome": "29 passed, ruff clean, both workflows parse as valid YAML"
+      "phase": "review",
+      "action": "Ran an adversarial review on a different model family",
+      "detail": "The review returned three findings and all three reproduced. One: the plan read args.provider while the report read EVAL_PROVIDER, so selecting a provider through the environment alone made one run report two different bases. Two: eval-model-sweep crashed with a TypeError on float(None) when parsing a quota-billed child report. Three: cost_basis compared raw strings while resolve_provider normalizes with strip and lower, so GitHub-Models routed to GitHub Models but still printed a USD estimate. All three were regressions introduced earlier on this branch.",
+      "outcome": "Three real regressions found by an outside model"
     },
     {
-      "step": "Bot review found the workflow comment claimed health exits 1 only on stale citations. Verified against __main__.py: it exits 1 on broken citations, stale citations, or stale memories. Comment corrected.",
-      "timestamp": "2026-07-30T14:19:21.686896Z"
+      "phase": "implementation",
+      "action": "Fixed findings 1 and 3 with one root change",
+      "detail": "Both symptoms had the same cause: cost_basis invented its own resolution rule instead of using the one that decides who gets billed. It now resolves provider exactly as _providers.resolve_provider does, (name or EVAL_PROVIDER or \"anthropic\").strip().lower(). Eight tests written first, four red. After the fix, env-only selection and the GitHub-Models spelling both report basis=quota, while the Anthropic control still prints cost_estimate_usd=2.22.",
+      "outcome": "Commit 42b9154da"
     },
     {
-      "step": "Bot review found the PR summary labelled HEALTH_STALE_MEMORIES as 'Memories with stale citations' while the value is stale_memory_count. Relabelled 'Stale memories' so it does not collide with the citation-level Stale row below it.",
-      "timestamp": "2026-07-30T14:19:21.686896Z"
+      "phase": "implementation",
+      "action": "Fixed finding 2 in the model sweep",
+      "detail": "dict.get's default could not cover the case: the key is present and holds None, so the default never fires and float(None) raises. The sweep now carries the child's null through unchanged and records the child's own cost_basis beside it, rather than re-deriving an answer the child already settled. Serialization renders the null instead of substituting 0.0. Reports predating cost_basis read as usd, so old artifacts parse as before. Four tests written first, all four red with the TypeError.",
+      "outcome": "Commit 04fde6ebf"
     }
   ],
   "outcomes": {
-    "summary": "The memory health job can run. The workflow now calls memory_enhancement in a form its CLI accepts and reads the keys the tool actually emits, and two class-level contract tests fail the next time either drifts.",
-    "filesChanged": 5,
-    "testsAdded": 29
+    "summary": "--provider works. A non-Anthropic provider now plans, runs, and reports, proven by a live eval through GitHub Models while the Anthropic account is budget-capped. The cost basis follows the transport that actually gets billed, so no fabricated USD figure can reach an operator-facing report, and no third-party price was invented to achieve it.",
+    "filesChanged": 9,
+    "testsAdded": 24
   },
   "learnings": {
-    "primary": "A workflow that shells out to a first-party tool has an untested interface with it. Both defects here lived in that gap: argparse rejected the argv, and the parser read a schema the producer had stopped emitting. Neither is visible to a unit test of either side alone. The durable fix is a contract test that runs the real parser and the real producer, not a fixture of what they were once believed to do.",
-    "secondary": "When a step redirects stdout to a file, a non-zero exit from the command still leaves an empty file behind. The failure then surfaces at the consumer, several steps away from its cause. Reading the annotation at the point of failure would have pointed at the wrong script."
+    "primary": "When two pieces of code answer the same question, the one that decides the consequence is the authority. cost_basis and resolve_provider both answered \"which provider is this\", and cost_basis answered differently. Because resolve_provider picks the transport that actually gets charged, any disagreement makes cost_basis wrong by construction, not merely inconsistent. The fix was not to add cases to a lookup but to delete the second answer and defer to the first.",
+    "secondary": [
+      "dict.get's default does not fire when the key exists and holds None. Making a field nullable silently breaks every consumer that relied on that default, and those consumers do not appear in a grep of the diff.",
+      "An adversarial review on a different model family found three real regressions that my own None-safety audit missed, including a consumer in a module I never opened. All three reproduced; none was taken on the reviewer's word.",
+      "Proving a plan-time gate opens is not proving the capability works. The live run was the evidence that mattered, and it was cheap to get once the gate was open."
+    ]
   },
-  "endingCommit": "64800b5d9",
+  "endingCommit": "04fde6ebf",
   "nextSteps": [
-    "Open the PR for this branch and check the security review boxes: .github/workflows is a security-critical path under .claude/rules/security.md.",
-    "Re-check PR 3983, PR 3638, and the third red PR once this merges: all three were failing only on this job.",
-    "Consider whether the remaining seven stale memories should be refreshed or exempted, since the job will now correctly report Warning until they are."
+    "Drive PR 4005 to closure and answer any bot review threads.",
+    "eval-skill-overlap.py line 158 carries the same Anthropic-only raise, but that script has no provider flag or plumbing at all, so giving it provider support is new scope rather than a bug fix. Decide whether to file it.",
+    "cli_main mutating global process environment is a latent trap for every future in-process CLI test. Not yet filed."
   ]
 }
