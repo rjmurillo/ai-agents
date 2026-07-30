@@ -130,7 +130,6 @@ _IMPORTED_NAMES: dict[str, dict[str, str]] = {
     "functools": {"partial": _PARTIAL},
     "os": {"popen": _OS_POPEN},
 }
-
 # Modules whose attributes name an entry point. An alias is recorded against
 # the module it stands for, so ``import os as system`` still reaches popen.
 _ENTRY_MODULES = ("subprocess", "os")
@@ -153,6 +152,13 @@ _ELEMENT_METHODS = frozenset({"pop", "popleft", "popitem", "get", "setdefault"})
 #: is missing. ``{}.get("run", subprocess.run)`` never touches the mapping, so
 #: resolving the owner alone reaches nothing and the default is the runner.
 _DEFAULTING_METHODS = frozenset({"get", "setdefault"})
+
+#: Dict methods that only read. A call to one of these on a partial's
+#: ``keywords`` changes nothing, so it must not be read as a rewrite that
+#: drops the pin the construction recorded.
+_READING_METHODS = frozenset(
+    {"get", "keys", "values", "items", "copy", "__contains__", "__len__", "__getitem__"}
+)
 
 #: Binary operators whose result is a container built out of its operands, so
 #: an element of either side may be the value a later lookup hands back. Add
@@ -219,6 +225,17 @@ _OPERATOR_GETTERS = frozenset({"attrgetter", "methodcaller"})
 #: halves swapped: the index is bound to the factory and the container is the
 #: argument, so what it returns is whatever the container holds.
 _OPERATOR_SELECTOR = "itemgetter"
+
+#: Marks a local spelling of an :mod:`operator` factory. ``from operator
+#: import itemgetter as pick`` renames the factory without changing what it
+#: builds, so matching on the written name alone left ``pick(0)(HOLDER)``
+#: unresolved. Kept behind a prefix rather than written into ``functions``
+#: under the bare name, because these are not subprocess entry points and a
+#: resolver reading one as such would answer for a call that starts nothing.
+_OPERATOR_ALIAS = "*op*"
+
+#: Every :mod:`operator` factory this scan reads, under its canonical name.
+_OPERATOR_FACTORIES = _OPERATOR_GETTERS | frozenset({_OPERATOR_SELECTOR})
 
 #: Marks the place in a merged mapping that could not be read. It sits where
 #: the unreadable segment sat, so position still decides: a codec spelled
@@ -431,7 +448,13 @@ def _reaches_partial(label: str, functions: dict[str, str]) -> bool:
     return _is_partial(label, functions) or _VIA_PARTIAL + label in functions
 
 
-def _carry_partial(name: str, value: ast.expr, functions: dict[str, str], resolved: str) -> None:
+def _carry_partial(
+    name: str,
+    value: ast.expr,
+    functions: dict[str, str],
+    resolved: str,
+    containers: dict[str, _Container] | None = None,
+) -> None:
     """Record what a call site cannot see about the partial behind *name*.
 
     Two facts travel with a partial and neither is legible where it is called.
@@ -442,12 +465,16 @@ def _carry_partial(name: str, value: ast.expr, functions: dict[str, str], resolv
 
     An alias copies both. ``alias = runner`` is the same object under a second
     name, so reading the markers off the source name is what keeps the alias
-    from looking like a bare callable with no keywords at all.
+    from looking like a bare callable with no keywords at all. A container
+    holds the object just as an alias does, so ``holders[0]`` copies the same
+    markers from whichever name the element was built under. Reading only the
+    bare-name spelling left a partial taken out of a list looking like a
+    callable that pre-bound nothing.
     """
-    if isinstance(value, ast.Name):
+    for source in _alias_sources(value, containers or {}):
         for marker in (_VIA_PARTIAL, _PINNED_PARTIAL, _CAPTURING_PARTIAL):
-            if marker + value.id in functions:
-                functions[marker + name] = functions[marker + value.id]
+            if marker + source in functions:
+                functions[marker + name] = functions[marker + source]
         return
     if not isinstance(value, ast.Call) or not _is_partial(_call_label(value), functions):
         return
@@ -457,6 +484,13 @@ def _carry_partial(name: str, value: ast.expr, functions: dict[str, str], resolv
     supplied = _capture_keywords(value)
     if supplied:
         functions[_CAPTURING_PARTIAL + name] = ",".join(supplied)
+
+
+def _alias_sources(value: ast.expr, containers: dict[str, _Container]) -> list[str]:
+    """Return the names *value* is the same object as, bare or through a container."""
+    if isinstance(value, ast.Name):
+        return [value.id]
+    return _module_source(value, containers) if isinstance(value, ast.Subscript) else []
 
 
 def _capture_keywords(call: ast.Call) -> list[str]:
@@ -527,9 +561,22 @@ def _resolve_element_method(
         return owned
     if method.attr in _DEFAULTING_METHODS and len(call.args) >= 2:
         # A missing key hands the default straight back, so the second
-        # argument is the other place the runner can be hiding.
+        # argument is the other place the runner can be hiding. A literal
+        # receiver that already holds the key never reaches the default, and
+        # reading it anyway flagged a lookup that resolves to something else
+        # entirely.
+        if _mapping_holds(method.value, call.args[0]):
+            return None
         return _resolve_callable(call.args[1], modules, functions)
     return None
+
+
+def _mapping_holds(receiver: ast.expr, key: ast.expr) -> bool:
+    """Report whether *receiver* is a literal mapping proven to carry *key*."""
+    wanted = _literal_string(key)
+    if wanted is None or not isinstance(receiver, ast.Dict):
+        return False
+    return any(_literal_string(spelled) == wanted for spelled in receiver.keys)
 
 
 def _resolve_getattr(
@@ -575,7 +622,7 @@ def _resolve_operator_getter(
     if not isinstance(factory, ast.Call) or not call.args:
         return None
     owner = call.args[0]
-    label = _call_label(factory)
+    label = _operator_label(factory, functions)
     if label == _OPERATOR_SELECTOR:
         return _resolve_callable(owner, modules, functions)
     if label not in _OPERATOR_GETTERS or not factory.args:
@@ -587,6 +634,19 @@ def _resolve_operator_getter(
     if not isinstance(attr, ast.Constant):
         return _DYNAMIC
     return _entry_point(origin, attr.value)
+
+
+def _operator_label(factory: ast.Call, functions: dict[str, str]) -> str:
+    """Return the canonical :mod:`operator` factory *factory* builds with.
+
+    An import alias renames the factory and nothing else, so the local
+    spelling has to be translated back before any table can be consulted.
+    A name that was never imported from :mod:`operator` answers with itself,
+    which leaves ``operator.itemgetter(0)`` and every unrelated call reading
+    exactly as they did.
+    """
+    label = _call_label(factory)
+    return functions.get(_OPERATOR_ALIAS + label, label)
 
 
 def _resolve_elements(
@@ -688,17 +748,32 @@ def _entry_point(origin: str | None, attr: object) -> str | None:
 def _attribute(
     node: ast.Attribute, modules: dict[str, str], functions: dict[str, str]
 ) -> str | None:
-    """Return the entry point ``owner.attr`` names, or ``None``."""
+    """Return the entry point ``owner.attr`` names, or ``None``.
+
+    An attribute owner answers with its own attribute name, because a module
+    parked on a class attribute is reached that way: ``Holder.sp.run`` is
+    ``subprocess.run`` whenever ``sp`` is bound to the module. Reading only a
+    bare owner left that spelling unresolved, and the same reasoning already
+    governs :func:`_keywords_owner`.
+    """
     if node.attr in _CALLABLE_ALIASES:
         return _resolve_callable(node.value, modules, functions)
-    if isinstance(node.value, ast.Name):
-        found = _entry_point(modules.get(node.value.id), node.attr)
+    spelling = _owner_spelling(node.value)
+    if spelling is not None:
+        found = _entry_point(modules.get(spelling), node.attr)
         if found is not None:
             return found
     # No partial filter here, unlike the bare-name branch in the caller. The
     # sentinel is only ever written for an imported name, and every attribute
     # binding is resolved through that branch, which drops it.
     return functions.get(_ATTRIBUTE + node.attr)
+
+
+def _owner_spelling(node: ast.expr) -> str | None:
+    """Return the name an owner expression is spelled with, or ``None``."""
+    if isinstance(node, ast.Name):
+        return node.id
+    return node.attr if isinstance(node, ast.Attribute) else None
 
 
 def _resolve_callable(
@@ -1131,6 +1206,8 @@ def _imports(tree: ast.AST) -> tuple[dict[str, str], dict[str, str]]:
                     functions.update(wanted)
                 elif alias.name in wanted:
                     functions[alias.asname or alias.name] = wanted[alias.name]
+                elif node.module == "operator" and alias.name in _OPERATOR_FACTORIES:
+                    functions[_OPERATOR_ALIAS + (alias.asname or alias.name)] = alias.name
     return modules, functions
 
 
@@ -1264,15 +1341,44 @@ def _subprocess_names(
             if name in functions:
                 continue
             functions[name] = resolved
-            _carry_partial(name, value, functions, resolved)
+            _carry_partial(name, value, functions, resolved, containers)
             queue.extend(dependents.get(name, ()))
-    rewritten = _keyword_writes(tree)
+    rewritten = _aliased_writes(_keyword_writes(tree), bindings, containers)
     for name in rewritten:
         # A pin recorded at construction only answers for the partial while
         # the keywords it recorded are still the ones the partial holds.
         functions.pop(_PINNED_PARTIAL + name, None)
     repinned = frozenset(id(value) for name, value in bindings if name in rewritten)
     return modules, functions, containers, repinned
+
+
+def _aliased_writes(
+    written: set[str], bindings: list[tuple[str, ast.expr]], containers: dict[str, _Container]
+) -> set[str]:
+    """Extend *written* with every other name for the same object.
+
+    ``alias = runner`` binds one partial under two names, and
+    ``alias.keywords["encoding"] = None`` rewrites the object, not the
+    spelling. Invalidating only the name the write was spelled with left the
+    pin recorded under the other name intact, so a call through the original
+    still read as pinned while the codec had already been replaced.
+
+    The relation is symmetric and transitive: the write may be spelled with
+    either name, so both directions are linked and the closure is taken.
+    """
+    linked: dict[str, set[str]] = {}
+    for name, value in bindings:
+        for source in _alias_sources(value, containers):
+            linked.setdefault(name, set()).add(source)
+            linked.setdefault(source, set()).add(name)
+    found = set(written)
+    queue = list(found)
+    while queue:
+        for peer in linked.get(queue.pop(), ()):
+            if peer not in found:
+                found.add(peer)
+                queue.append(peer)
+    return found
 
 
 def _keyword_writes(tree: ast.AST) -> set[str]:
@@ -1313,10 +1419,11 @@ def _write_targets(node: ast.AST) -> list[ast.expr]:
     if isinstance(node, ast.Delete):
         return [t.value if isinstance(t, ast.Subscript) else t for t in node.targets]
     if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
-        # ``runner.keywords.update(...)`` and its siblings all mutate through
-        # the receiver. Which methods write is a question about dict, not
-        # about this file, so the receiver answers for every one of them.
-        return [node.func.value]
+        # ``runner.keywords.update(...)`` and its siblings mutate through the
+        # receiver. The read-only half of the dict interface does not, and
+        # treating a lookup as a rewrite dropped a pin the file never touched,
+        # which asked a correct call to spell the codec twice.
+        return [] if node.func.attr in _READING_METHODS else [node.func.value]
     return []
 
 
@@ -1398,13 +1505,16 @@ def _captures_text(
     *target* has to be known here rather than inferred from the spelling at
     the call site.
 
-    A ``**kwargs`` splat is treated as text mode outright. The keywords it
-    carries are not visible here, so ``text`` may be among them, and reading
-    the absence of a literal keyword as proof of bytes mode is the hole an
-    adversarial review walked through. A splat this scan opened and found
-    empty is the one exception: ``**{}`` supplies nothing at all, so it can
-    hide neither the capture nor the mode.
+    A ``**kwargs`` splat is treated as text mode outright when it cannot be
+    read. The keywords it carries are not visible here, so ``text`` may be
+    among them, and reading the absence of a literal keyword as proof of bytes
+    mode is the hole an adversarial review walked through. One this scan can
+    open answers for itself instead: ``**{"cwd": "."}`` spells a directory and
+    nothing else, so flagging it asked a call that decodes nothing to pin a
+    codec. Its readable keywords are folded in beside the written ones, which
+    is what lets ``**{"text": True}`` still count.
     """
+    call = _with_readable_splats(call, containers or {})
     if _splat_items(call, containers or {}):
         return True
     if len(call.args) > 1:
@@ -1572,6 +1682,69 @@ def _keyword_items(
     return items
 
 
+def _with_readable_splats(call: ast.Call, containers: dict[str, _Container]) -> ast.Call:
+    """Return *call* with every fully readable mapping splat written out.
+
+    A splat this scan can open is not an unknown. Rewriting it into ordinary
+    keywords lets every reader below work on one shape instead of asking each
+    of them to open the mapping again, and it keeps an unreadable splat in
+    place so the callers that refuse one still see it.
+    """
+    if not any(keyword.arg is None for keyword in call.keywords):
+        return call
+    keywords: list[ast.keyword] = []
+    for keyword in call.keywords:
+        if keyword.arg is not None:
+            keywords.append(keyword)
+            continue
+        items = _mapping_items(keyword.value, containers)
+        if any(name == _OPAQUE_KEY for name, _ in items):
+            keywords.append(keyword)
+            continue
+        keywords.extend(ast.keyword(arg=name, value=value) for name, value in items)
+    opened = ast.Call(func=call.func, args=call.args, keywords=keywords)
+    return ast.copy_location(opened, call)
+
+
+def _splat_groups(
+    call: ast.Call, containers: dict[str, _Container]
+) -> list[list[tuple[str, ast.expr]]]:
+    """Return each mapping splat on *call* separately, in the order written.
+
+    Kept apart rather than flattened, because the two levels merge under
+    different rules. Inside one mapping display the later key wins silently,
+    which is why :func:`_mapping_items` records position. Across two splats on
+    the same call a repeated key raises ``TypeError`` before anything runs, so
+    a later splat can never be the one that overwrote an earlier key in a
+    program that executes at all.
+    """
+    return [
+        _mapping_items(keyword.value, containers)
+        for keyword in call.keywords
+        if keyword.arg is None
+    ]
+
+
+def _splat_value(
+    groups: list[list[tuple[str, ast.expr]]], key: str
+) -> tuple[ast.expr | None, bool]:
+    """Return the value *key* survives with across *groups*, and whether it is hidden.
+
+    A readable spelling wins over an unreadable splat written after it. The
+    interpreter would raise on the duplicate, so the only program that runs is
+    the one where the unreadable splat does not carry *key* at all.
+    """
+    found: ast.expr | None = None
+    hidden = False
+    for group in groups:
+        value = _last_value(group, key)
+        if value is not None:
+            found = value
+        elif _shadows(group, key):
+            hidden = True
+    return found, (hidden and found is None)
+
+
 def _splat_items(call: ast.Call, containers: dict[str, _Container]) -> list[tuple[str, ast.expr]]:
     """Return the keywords every mapping splat on *call* carries, in order.
 
@@ -1650,17 +1823,19 @@ def _codec_is_pinned(
     A splat is opened rather than refused outright. ``**{"encoding": "utf-8"}``
     reaches the interpreter as the keyword it spells, so reading it as proof
     of nothing asks a compliant call to repeat itself. One that cannot be
-    opened blocks only what it can still overwrite: a codec spelled after it
-    survives, because the interpreter applies the merges left to right.
+    opened blocks only what it can still overwrite, and at a call site that is
+    nothing spelled in another splat: ``f(**a, **b)`` sharing a key raises
+    ``TypeError`` before ``f`` is entered, so any program that runs at all has
+    a readable codec no later splat overrode. Inside one display the ordinary
+    left-to-right merge still applies, which is why the splats are read apart.
     """
     if id(call) in repinned:
         return False
     if _pins_utf8(call):
         return True
-    carried = _splat_items(call, containers or {})
-    if _shadows(carried, "encoding"):
+    splatted, hidden = _splat_value(_splat_groups(call, containers or {}), "encoding")
+    if hidden:
         return False
-    splatted = _last_value(carried, "encoding")
     if splatted is not None:
         return _names_utf8(splatted)
     if _keyword(call, "encoding") is not None:
@@ -1668,7 +1843,7 @@ def _codec_is_pinned(
     return _PINNED_PARTIAL + _call_label(call) in functions
 
 
-def _arguments_reaching(call: ast.Call) -> ast.Call:
+def _arguments_reaching(call: ast.Call, functions: dict[str, str]) -> ast.Call:
     """Return the call whose arguments reach the entry point *call* runs.
 
     ``methodcaller("run", cmd, text=True)(subprocess)`` stores its arguments on
@@ -1681,7 +1856,7 @@ def _arguments_reaching(call: ast.Call) -> ast.Call:
     arguments. Every other shape likewise answers for itself.
     """
     factory = call.func
-    if not isinstance(factory, ast.Call) or _call_label(factory) != "methodcaller":
+    if not isinstance(factory, ast.Call) or _operator_label(factory, functions) != "methodcaller":
         return call
     reaching = ast.Call(func=factory.func, args=factory.args[1:], keywords=factory.keywords)
     return ast.copy_location(reaching, call)
@@ -1703,7 +1878,7 @@ def unpinned_lines(source: str) -> list[int]:
             # move is to not use it.
             offenders.append(node.lineno)
             continue
-        reading = _arguments_reaching(node)
+        reading = _arguments_reaching(node, functions)
         if target not in _DECODES_UNCONDITIONALLY and not _captures_text(
             reading, functions, target, modules, containers
         ):
@@ -2293,6 +2468,38 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             "runner = functools.partial(subprocess.run, encoding='utf-8')\n"
             "runner(['x'], capture_output=True, text=True)",
             "a pin nothing rewrites survives to the site that calls it",
+        ),
+        (
+            'import subprocess\nsubprocess.run([1], **{"cwd": "."})',
+            "a splat this scan opened and read carries neither capture nor mode",
+        ),
+        (
+            "import subprocess\n"
+            "def options():\n"
+            "    return {}\n"
+            "opts = options()\n"
+            'subprocess.run([1], capture_output=True, text=True, **{"encoding": "utf-8"}, **opts)',
+            "a later splat cannot overwrite a call keyword without raising first",
+        ),
+        (
+            "import subprocess\n"
+            'subprocess.run([1], capture_output=True, text=True, **{"encoding": "utf-8"}, **KW)',
+            "an unbound later splat cannot overwrite the codec either",
+        ),
+        (
+            "import subprocess\n"
+            "def safe(*args, **kwargs):\n"
+            "    return None\n"
+            'runner = {"run": safe}.get("run", subprocess.run)\n'
+            "runner([1], capture_output=True, text=True)",
+            "a literal mapping that holds the key never reaches the default",
+        ),
+        (
+            "import functools, subprocess\n"
+            "runner = functools.partial(subprocess.run, capture_output=True, encoding='utf-8')\n"
+            "assert runner.keywords.get('encoding') == 'utf-8'\n"
+            "runner([1], text=True)",
+            "reading a partial's keywords leaves the codec it pinned in place",
         ),
     ],
 )
@@ -3256,12 +3463,6 @@ def test_detector_reports_every_offender_in_one_file() -> None:
         ),
         (
             "import subprocess\n"
-            'subprocess.run([1], capture_output=True, text=True, **{"encoding": "utf-8"}, '
-            "**KW)",
-            "an unreadable merge after the codec can still override it",
-        ),
-        (
-            "import subprocess\n"
             "def go(**opts):\n"
             "    subprocess.run([1], capture_output=True, text=True, "
             '**{"encoding": "utf-8", **opts})',
@@ -3311,6 +3512,36 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             "runner = functools.partial(subprocess.run, capture_output=True)\n"
             "runner([1], capture_output=True, text=True)",
             "repeating a capture keyword with the same value changes nothing",
+        ),
+        (
+            "import subprocess\n"
+            "class Holder:\n"
+            "    sp = subprocess\n"
+            "Holder.sp.run([1], capture_output=True, text=True)",
+            "a module parked on a class attribute still names the module",
+        ),
+        (
+            "import functools, subprocess\n"
+            "base = functools.partial(subprocess.run, capture_output=True)\n"
+            "holders = [base]\n"
+            "runner = holders[0]\n"
+            "runner([1], text=True)",
+            "a partial taken out of a container keeps the capture it pre-bound",
+        ),
+        (
+            "import functools, subprocess\n"
+            "runner = functools.partial(subprocess.run, capture_output=True, encoding='utf-8')\n"
+            "alias = runner\n"
+            "alias.keywords['encoding'] = None\n"
+            "runner([1], text=True)",
+            "rewriting a partial through one alias undoes the pin under every name",
+        ),
+        (
+            "import subprocess\n"
+            "from operator import itemgetter as pick\n"
+            "runner = pick(0)([subprocess.run])\n"
+            "runner([1], capture_output=True, text=True)",
+            "an operator selector imported under an alias is still that selector",
         ),
     ],
 )
