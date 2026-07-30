@@ -1360,6 +1360,21 @@ class TestSingleWordSkillRefs:
         assert [f for f in result.findings if f.kind == "skill_name"] == []
         assert result.verdict == "PASS"
 
+    @pytest.mark.parametrize("token", ["x", "y", "foo", "bar", "baz", "name"])
+    def test_metasyntactic_placeholder_type_claim_not_flagged(self, fake_repo, token):
+        """Documentation of the scanner syntax must not become an orphan finding.
+
+        Issue #3833: prose such as ``Skill: `x``` documents the key-value
+        route syntax. The explicit type claim makes the token look like a
+        skill reference, but these conventional placeholders are examples.
+        """
+        target = fake_repo / "docs" / "syntax.md"
+        write(target, f"The scanner reads Skill: `{token}` as a route name.\n")
+        result = scan([target], fake_repo)
+        assert [f for f in result.findings if f.kind == "skill_name"] == []
+        assert result.refs_checked == 0
+        assert result.verdict == "PASS"
+
     def test_live_single_word_skill_not_flagged(self, repo_with_single_word_skill):
         """A single-word skill present in the catalog is a valid reference and
         produces no finding, even though `review` is also a common word."""
