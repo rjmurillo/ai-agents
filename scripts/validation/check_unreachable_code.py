@@ -48,6 +48,7 @@ def _tracked_python_files(repo_root: Path) -> list[Path]:
             cwd=repo_root,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         )
         return [repo_root / line for line in result.stdout.splitlines() if line]

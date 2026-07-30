@@ -100,19 +100,19 @@ def _read_identity(module_path: Path, env: dict[str, str] | None = None) -> str:
 
 
 def test_before__stale_cache_hides_mutation(tmp_path: Path) -> None:
-    """Without a fix, a same-length mutation within one second uses stale bytecode.
+    """Without a fix, a same-length mutation with matching mtime uses stale bytecode.
 
     The child subprocess reads the ORIGINAL return value ("a") even though the
     source was mutated to return "b", because mtime and size both match.
 
-    NOTE: This test is timing-sensitive. The module is written, cached, and
-    mutated in the same interpreter session, which typically completes in under
-    1ms. If the OS clock ticks a full second between _prime_cache and the
-    mutation write, the defect will not manifest and the test skips.
+    The mtime match is forced deterministically with ``os.utime`` so the test
+    passes regardless of system clock resolution or load.
     """
     module = tmp_path / "subject.py"
     _write_module(module, "a")  # original: identity() -> "a"
-    _prime_cache(module)  # create .pyc
+    # Record the source mtime BEFORE priming so we can restore it after mutating.
+    original_mtime = os.stat(module).st_mtime
+    _prime_cache(module)  # .pyc records original_mtime
 
     # Verify .pyc was created
     pycache = module.parent / "__pycache__"
@@ -121,6 +121,10 @@ def test_before__stale_cache_hides_mutation(tmp_path: Path) -> None:
 
     # Mutate same-length: "a" -> "b" (st_size unchanged)
     _write_module(module, "b")
+    # Force the mtime back to original so the .pyc header still matches.
+    # This reproduces the defect deterministically without relying on the write
+    # landing in the same wall-clock second as the cache prime.
+    os.utime(module, (original_mtime, original_mtime))
 
     # Run WITHOUT the fix
     result = _read_identity(module)
@@ -128,8 +132,7 @@ def test_before__stale_cache_hides_mutation(tmp_path: Path) -> None:
     # With stale bytecode the child still sees "a" (the pre-mutation value).
     assert result == "a", (
         f"Expected stale cache to return 'a' but got {result!r}. "
-        "Either the .pyc was invalidated (mtime crossed a second boundary) or "
-        "something else cleared the cache before the read."
+        "The stale-bytecode defect was not reproduced."
     )
 
 
@@ -147,6 +150,7 @@ def test_pythondontwritebytecode_alone_insufficient(tmp_path: Path) -> None:
     """
     module = tmp_path / "subject.py"
     _write_module(module, "a")
+    original_mtime = os.stat(module).st_mtime
     _prime_cache(module)
 
     pycache = module.parent / "__pycache__"
@@ -154,6 +158,7 @@ def test_pythondontwritebytecode_alone_insufficient(tmp_path: Path) -> None:
         return  # no .pyc, can't show this edge case
 
     _write_module(module, "b")
+    os.utime(module, (original_mtime, original_mtime))
 
     # Flag set, but existing .pyc still wins
     result = _read_identity(module, env={"PYTHONDONTWRITEBYTECODE": "1"})
