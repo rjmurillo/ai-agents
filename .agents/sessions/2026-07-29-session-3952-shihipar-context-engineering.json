@@ -3,7 +3,7 @@
   "session": {
     "number": 3952,
     "date": "2026-07-29",
-    "branch": "rjmurillo/shihipar-context-engineering",
+    "branch": "rjmurillo/eval-salvage-anchor",
     "startingCommit": "c875f5e8b3",
     "objective": "Apply the Shihipar context-engineering doctrine to this repository's own authoring surfaces, so that the instruction corpus stops paying for text that no longer earns its slot. Anthropic deleted more than 80 percent of Claude Code's system prompt for Opus 5 with no measurable coding-eval loss, naming overconstraint as the failure mode. This repository loads roughly 95 kilobytes of always-on rules on a single Python edit, carries the same concept in as many as four places, and states a context budget in AGENTS.md that the enforced gate contradicts by about twelve times. Every cut must be gated by an eval run against claude-opus-5 and gpt-5.6-sol, the two models this repository is actually operated in."
   },
@@ -185,20 +185,110 @@
     },
     {
       "step": "Fixed three self-contradictions I had introduced myself. The contamination probe told readers to use the CLI token counter the same document lists as unusable and omitted --disable-builtin-mcps. The claim that ambient context compresses deltas toward zero was asserted, but substitution and priming cut the other way, so bias direction is now stated as unknown with a 2x2 experiment named as the way to settle it. The 94,088 and 75,528 byte figures were both called the always-on corpus; they are now the .py effective context and the strict always-on corpus."
+    },
+    {
+      "step": "Ran adversarial review round 4 with GPT-5.6 Sol. It confirmed the corrected arithmetic and found no over-hedging, then returned 12 new findings, 2 CRITICAL, both against the salvage parser. Reproduced both before accepting: a nested rubric with its own reasoning key ended the search window early and returned the exemplar's zeros as the verdict, and two disjoint objects each satisfied the exactly-once check with a different field, producing a triple present in neither."
+    },
+    {
+      "step": "Replaced the regex salvage with a structure-aware scanner rather than patching it, because patching preserves the class of defect. The scanner tracks string state and nesting depth and returns only depth-1 scalar members of the first object, so nested rubrics are skipped whole and a second root object is never reached. Values must match the JSON integer grammar in full, closing 5junk, 05, 5., 5e, +5, and NBSP-prefixed digits."
+    },
+    {
+      "step": "Answered Sol's closing question with data instead of judgment. Re-ran the eight archived artifacts through the stricter parser: 24 of 24 failed samples still recover and every published cell reproduces to two decimals. The salvaged samples do not need to be excluded. Not a blind test, since the same author wrote both parsers, but it rules out the specific failure mode where a permissive regex manufactured the numbers."
+    },
+    {
+      "step": "Archived the eight eval artifacts into .agents/analysis/eval-artifacts/ with a provenance README. They had been cited from /tmp, so the analysis was uncheckable and one reboot from gone."
+    },
+    {
+      "step": "Fixed the remaining round-4 doc findings. Separated the two byte figures everywhere (75,528 always-on at 9.2x the 8KB threshold, 94,088 Python-edit effective at 11.5x). Renamed the mechanism table column from System prompt to Treatment text and stated that the Copilot provider injects into the user message. Deleted a reference to a negative control that did not exist. Marked the effort-tier claim as unmeasured convention. Resolved the cut-versus-keep threshold contradiction: a cut succeeds on absence of replicated degradation, since demanding a cut clear the noise floor is incoherent."
+    },
+    {
+      "step": "Sol adversarial round 5 found a CRITICAL score-fabrication defect plus two duplicate-key bypasses in _salvage_scores. Fixed, then self-attacked the fixes with 30 constructed payloads and found a sixth defect of the same class: two disjoint score objects returned the exemplar's values as a clean parse."
+    },
+    {
+      "step": "Discovered a second Copilot session (0006555b) pushing to this same branch. A push that reported success had actually been rejected non-fast-forward. Always git fetch and compare tips before believing a push landed."
+    },
+    {
+      "step": "That session's e3e60dc9 had replaced the structure-aware salvage scanner with a regex. Compared both against the same four payloads before overriding: the regex fabricated 1/1/1 on all three attack payloads and also rejected the one legitimate recovery. Strictly worse on both axes, so the scanner was kept and the evidence recorded in the merge commit."
+    },
+    {
+      "step": "Merged the concurrent work rather than discarding it. Its stricter tests immediately earned their keep by exposing a SEVENTH fabrication defect in this session's own code: salvage ran after the shape gate and re-admitted out-of-range scores the gate had just rejected, so a judge answer of 6 came back as a clean 5."
+    },
+    {
+      "step": "Replaced the round-6 global field-name count with a root-object walk requiring exactly one complete verdict, and added the missing 1-5 bound. The two designs each fixed what the other missed; combining them is strictly better on both axes rather than trading recovery for safety. It recovers the agentic tool-trace case AND rejects the decoy-pair case."
+    },
+    {
+      "step": "Consolidated the 1-5 range rule into a single _SCORE_RANGE constant. It had been triplicated across _clamp_score, _judge_score_shape_error and the new checker, and the three had already disagreed once, which is how defect seven survived."
+    },
+    {
+      "step": "Sol adversarial round 6 returned four blocking findings, all fixed and each verified against its own payload: _iter_json_objects descended INSIDE an unbalanced object; json.loads silently kept the last duplicate key and compared keys after unescaping, so \\u0061ctivation_score collided; a malformed scalar swallowed its separator and promoted depth-2 scores to depth 1; and knowledge-persistence.md declares paths:['**'] and had been omitted from the always-on corpus."
+    },
+    {
+      "step": "Round 6 also ran an independent numeric audit that reproduced every published table cell. The headline stands: the always-on book-rule cut is NOT justified. Two-tailed sign p = 0.0703, and only 3 of 8 per-run full-versus-description deltas clear the noise floor."
+    },
+    {
+      "step": "Corrected the published corpus numbers. Always-on status is declared THREE ways, not two, and the docs had counted two and reported 8 rules. It is 9. The docs also mixed two measurement bases in adjacent sentences: 75,528 was .claude/rules/ minus knowledge-persistence while 94,088 was the generated-mirror basis. Both bases are now named, and hardcoded sizes are replaced with the existing CI-gated instruction_budget.py command so the figures stay reproducible."
+    },
+    {
+      "step": "Retracted the failure-cause claim. The docs said all 24 lost judge samples were unescaped quotes and that verbose models trip it more often. The archive cannot support either: every stored prefix is exactly 200 characters, so re-parsing reports Unterminated string for 19 of 24 purely from truncation, and only 5 show a stray quote in the window. Filed #3975, because the truncation does not merely hide the cause, it supplies a convincing wrong one."
+    },
+    {
+      "step": "Verified the Vercel source date against the post itself: January 27, 2026, by Jude Gao. The 2026-02-08 in the local analysis is when this repo wrote the analysis. The two had been conflated."
+    },
+    {
+      "step": "Rewrote nine tests the round-7 change reversed, and added tests pinning every round-6 payload. Suite is 1520 passed, 4 skipped. All 24 archived recoveries still return identical values."
+    },
+    {
+      "step": "Sol adversarial round 8 reported four more salvage defects (8 through 11). A second Opus 5 reviewer confirmed all four independently. Root cause was shared: both root-object walkers counted only braces and never brackets, so an object nested inside a top-level array read as root level and became a salvage candidate."
+    },
+    {
+      "step": "Chose a structural fix over a fifth point patch. Eleven defects were all disagreements about which candidate object was the verdict, so the search itself was the defect. Deleted the search: _salvage_anchor now requires the payload to start with an opening brace after lstrip and anchors at offset zero, with no candidate iteration."
+    },
+    {
+      "step": "Added _names_a_score_field_twice, which counts the quoted field name in the raw text and refuses on any count above one. It also refuses when a unicode escape appears anywhere, because a unicode-escaped key would evade the count."
+    },
+    {
+      "step": "Added _iter_root_brace_positions, which tracks brace depth and bracket depth outside string literals and yields only braces at depth zero on both. It fixes the strict _extract_json_object path as well as salvage."
+    },
+    {
+      "step": "Measured the cost of the fix instead of assuming it. Leading tool traces, nested rubric exemplars, and prose that quotes a field name are no longer salvaged. All 24 archived recoveries return identical values, so no published cell changes."
+    },
+    {
+      "step": "Rewrote eight tests whose recoveries were deliberately given up, and added the first array-rooted coverage the suite has ever had plus a property-style invariant test that a second candidate can only withdraw a salvage."
+    },
+    {
+      "step": "A new test caught a real distinction worth pinning. A bare prose mention of a field name cannot be a JSON key, so it creates no ambiguity and still recovers. A quoted mention is indistinguishable from a duplicate key and refuses."
+    },
+    {
+      "step": "Diagnosed the blocked push correctly on the second attempt. The pre-existing assumption that rule-audit-procedure.md crossing 500 lines was the blocker was wrong. A worktree diff of taste-lint errors against origin/main showed the two extra errors were authored complexity on the two new scanner functions. Decomposed both."
+    },
+    {
+      "step": "Introduced and caught an infinite recursion. A bulk string replace rewrote the body of _members_read_so_far into a call to itself. pytest reported recursion with identical locals and position. When bulk-replacing a pattern into a helper call, exclude the helper's own definition."
+    },
+    {
+      "step": "Discovered PR #3953 was squash-merged as f811adbb while rounds 5 through 8 were still local, and the remote branch was deleted. Main is therefore shipping the fabricating instrument."
+    },
+    {
+      "step": "Measured main's shipped instrument against the six traced attack payloads rather than asserting it was broken. It fabricates on four of six shapes. The worst returns 5/5/5 for a judge that explicitly wrote that it cannot score the response, with no judge_salvaged marker, so no post-hoc audit can surface it."
+    },
+    {
+      "step": "Merged origin/main into the branch. The squash left no shared commit, so every file both sides touched conflicted. Resolution was uniform toward this branch, which carries the squashed snapshot plus rounds 5 through 8. Both plugin manifests go to 0.6.5430, strictly above main's 0.6.5428."
+    },
+    {
+      "step": "Verified the merge result: 1530 passed and 4 skipped, six attacks refuse, two negative controls recover, and all 24 archived recoveries return identical values."
+    },
+    {
+      "step": "Rebuilt the change as a focused branch off current main. The push gate blocks at 40 commits and the branch carried 48; the commit-by-commit trail of eleven defects is already preserved in rule-audit-procedure.md and in this log, so the git history was redundant with both. Full history retained locally under tag shihipar-full-history."
     }
   ],
-  "endingCommit": "d73ee09796",
+  "endingCommit": "33ed7df6",
   "nextSteps": [
-    "Run Sol adversarial round 3 against the corrected documents and the salvage code path. Round 2 produced one finding whose supporting evidence was wrong but whose conclusion was right, so verify every claim independently before acting on it",
-    "Add run provenance to eval artifacts (#3956). Model attribution for the eight archived headline runs currently rests on the operator's choice of filename in /tmp, which cannot be audited",
-    "Write rule scenarios for code-quality.md and pragmatic-programmer.md (#3935). Roughly 26KB of always-on content still cannot be evaluated by the tool built to evaluate always-on content",
-    "Fix the copilot-cli provider to load treatments through a sandbox instruction file rather than the user prompt (#3934). Until it lands no copilot-cli result should be cited as passive-context evidence",
-    "Gate the verdict on negative scenarios (#3933). Over-activation is the failure mode this doctrine warns about and the instrument cannot currently see it",
-    "Surface transcript read failures instead of silently falling back to stdout parsing (#3959), which skips the only check confirming which model served the request",
-    "Re-run the audit under the corrected instrument once the above land. The archived deltas are lower bounds, not point estimates",
-    "Read Sol adversarial round 4 and apply or rebut each finding. Rounds 3 and 4 both target the same two reference docs plus the salvage diff.",
-    "Settle the ambient-context bias direction with the 2x2 experiment named in rule-audit-procedure.md: ambient on and off crossed with description and full.",
-    "Isolate arbitration from restatement. The current full cell varies arbitration content, length, ordering, and examples at once, so the tiebreaker explanation is unfalsified."
+    "Run Sol adversarial round 7 against the root-object walk, _strict_json_loads, and the corrected corpus numbers. Six rounds have each found a distinct fabrication defect in one function; assume an eighth exists rather than declaring convergence.",
+    "Act on Sol's structural recommendation: stop implementing a general malformed-JSON parser and salvage only the narrow prefix the judge actually emits. Seven defects of one class is evidence the approach, not the implementation, is wrong.",
+    "Add property-based tests asserting that adding a second candidate verdict to any payload can only change acceptance to rejection, never change the returned values. This is the invariant every one of the seven defects violated.",
+    "Widen the stored judge-failure prefix (#3975) so a cause claim becomes checkable at all.",
+    "Add run provenance to eval artifacts (#3956). Model attribution still rests on filenames.",
+    "Write rule scenarios for code-quality.md and pragmatic-programmer.md (#3935). Roughly 26KB of always-on content still cannot be evaluated by the tool built to evaluate it.",
+    "Salvage verification is still not blind: the same agent writes the salvage and checks its output. No true passive-context condition exists (#3934), and arbitration versus restatement was never isolated."
   ],
   "sessionEnd": "2026-07-29"
 }
