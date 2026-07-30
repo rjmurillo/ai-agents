@@ -44,7 +44,9 @@
       "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "error",
       "content": "TDD red: added TestScoreRangeIsEnforced (7 out-of-range negative/edge cases, 4 boundary-inclusive edge cases) to tests/ci/test_parse_memory_health_results.py; confirmed 7 failures against pre-fix code",
-      "caused_by": [],
+      "caused_by": [
+        "e012"
+      ],
       "leads_to": []
     },
     {
@@ -68,7 +70,9 @@
       "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "test",
       "content": "TDD green: uv run pytest tests/ci/test_parse_memory_health_results.py -q -> 69 passed (58 original + 11 new)",
-      "caused_by": [],
+      "caused_by": [
+        "e012"
+      ],
       "leads_to": []
     },
     {
@@ -86,6 +90,25 @@
       "content": "Ran full (non-quick) pre_pr.py gate",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Committed fix + tests",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 5ea35eddb012ea78eedef4c6d8ac8f0b959da89f",
+      "caused_by": [],
+      "leads_to": [
+        "e005",
+        "e008"
+      ]
     }
   ],
   "metrics": {
@@ -93,7 +116,7 @@
     "tool_calls": 0,
     "errors": 7,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 4
   },
   "lessons": []
