@@ -1,5 +1,5 @@
 # Vendor-portability baseline (Issue #2050).
-# Pre-existing scripts that hard-code .agents/ or .claude/lib/ paths.
+# Pre-existing scripts that hard-code .agents/, .claude/lib/, or scripts/ paths.
 # check_vendor_portability.py allows these but fails on NEW offenders.
 # Regenerate: python3 scripts/validation/check_vendor_portability.py --update-baseline
 

@@ -640,3 +640,69 @@ def test_scripts_as_word_suffix_is_not_offender(fake_repo: Path) -> None:
     )
 
     assert cvp.collect_offenders(fake_repo) == []
+
+
+def test_dot_slash_scripts_path_is_offender(fake_repo: Path) -> None:
+    """./scripts/x.py is flagged; the ./ prefix does not launder the reference.
+
+    Regression test for the bypass found in PR #4029 review. The lookbehind
+    alone (`(?<![/\\\\\\w])`) saw the slash in `./` and rejected the match, so a
+    shell-style invocation string sailed past the gate while the bare form was
+    caught. Isolating negative control: dropping `(?:\\.[\\\\/])?` from
+    _BANNED_PATH makes this assertion fail.
+    """
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/bad.py",
+        'subprocess.run(["python3", "./scripts/validation/pre_pr.py"])\n',
+    )
+
+    offenders = cvp.collect_offenders(fake_repo)
+
+    assert len(offenders) == 1
+    assert offenders[0].relpath == ".claude/skills/foo/scripts/bad.py"
+
+
+def test_dot_backslash_scripts_path_is_offender(fake_repo: Path) -> None:
+    """.\\scripts\\x.py (Windows current-dir prefix) is flagged like ./scripts/."""
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/bad.py",
+        r"path = r'.\scripts\validation\pre_pr.py'" + "\n",
+    )
+
+    offenders = cvp.collect_offenders(fake_repo)
+
+    assert len(offenders) == 1
+    assert offenders[0].relpath == ".claude/skills/foo/scripts/bad.py"
+
+
+def test_parent_relative_scripts_path_is_not_offender(fake_repo: Path) -> None:
+    """../scripts/x.py is not flagged.
+
+    Bounding case for the current-directory prefix: a parent-relative path can
+    legitimately name a skill-internal sibling directory rather than the
+    upstream tree, so the `.` in the lookbehind class keeps it out of scope.
+    """
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/ok.py",
+        "path = '../scripts/x.py'\n",
+    )
+
+    assert cvp.collect_offenders(fake_repo) == []
+
+
+def test_nested_dot_slash_scripts_path_is_not_offender(fake_repo: Path) -> None:
+    """build/./scripts/x.py is not flagged; scripts is still not at the path root.
+
+    Negative control proving the current-directory prefix did not widen the
+    match to nested paths: the slash before `./` still rejects it.
+    """
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/ok.py",
+        "path = 'build/./scripts/generate_rules.py'\n",
+    )
+
+    assert cvp.collect_offenders(fake_repo) == []
