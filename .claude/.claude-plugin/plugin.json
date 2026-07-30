@@ -1,7 +1,13 @@
 {
   "name": "project-toolkit",
   "description": "Complete project development toolkit: agents, slash commands, lifecycle hooks, and reusable skills for Claude Code workflows",
+<<<<<<< HEAD
   "version": "0.6.2441",
+||||||| db2ed7ea
+  "version": "0.6.1989",
+=======
+  "version": "0.6.2442",
+>>>>>>> origin/main
   "author": {
     "name": "rjmurillo"
   }
