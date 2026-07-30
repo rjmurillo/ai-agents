@@ -203,7 +203,9 @@
         "e107",
         "e117",
         "e127",
-        "e141"
+        "e141",
+        "e148",
+        "e153"
       ]
     },
     {
@@ -255,7 +257,9 @@
         "e107",
         "e117",
         "e127",
-        "e141"
+        "e141",
+        "e148",
+        "e153"
       ]
     },
     {
@@ -675,7 +679,9 @@
         "e107",
         "e117",
         "e127",
-        "e141"
+        "e141",
+        "e148",
+        "e153"
       ]
     },
     {
@@ -1269,12 +1275,116 @@
         "e071"
       ],
       "leads_to": []
+    },
+    {
+      "id": "e142",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Sol round 16 finding 1 reproduced: the round 15 structural ambiguity check walked dict.values() only, so a second verdict serialized into a JSON object KEY passed as a clean 1/1/1 on the plain path and a salvaged 1/1/1 on the fenced path. The raw guard it replaced caught that shape, so the replacement was a regression on the exact case it exists to stop.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e143",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed _string_values to yield object keys as well as values. All three shapes (plain, fenced, tail) now refuse, while the control payload whose reasoning carries an em-dash still scores 5/4/5, proving the fix is not a restored blanket text scan.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e144",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Sol round 16 finding 2 reproduced: the round 15 payload-to-cell correlation matched by parsed triple and then verified by parsed triple, which is circular. Measured 264 coordinates drawing on only 258 distinct source events, with 4 events assigned across 10 coordinates, so 6 coordinates carried a payload that was not theirs.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e145",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Built an independent oracle from the judge prompt's **Actual response** block matched against each mechanism's response_preview, which ties a payload to a cell by its INPUT rather than its score. First pass returned 0 of 474 because it tested for a real newline against JSON-escaped transcript text; caught the instrument error instead of concluding the prompts were absent, and the corrected pass recovered 448 of 474.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e146",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-correlated on the input oracle: every published mechanism matched exactly its own judge repeats, chronological ordering assigned every sample, and the result is 288 coordinates on 288 distinct source events with zero reuse. Exactly 6 attributions changed, matching the count the circularity analysis predicted.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e147",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebuilt recovered-judge-payloads.json from the input-based correlation with the oracle recorded in the file, and extended it to the 24 failures so their full payloads are archived instead of the 200-character reasoning prefix, retiring that truncation limit for this run.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e148",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "error",
+      "content": "Rebuilt recovered-judge-payloads.json from the input-based correlation with the oracle recorded in the file, and extended it to the 24 failures so their full payloads are archived instead of the 200-character reasoning prefix, retiring that truncation limit for this run.",
+      "caused_by": [
+        "e017",
+        "e022",
+        "e071"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e149",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured the recovery divergence exactly: all 24 samples the published run refused are recovered by the current parser, each to a triple whose three values appear literally in its raw payload as score fields. Pinned those as recovered_triple since they were never published. That is the concrete size of issue #3999 for this run: 24 of 288 cells.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e150",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Strengthened the replay test with the two assertions Sol identified as missing: coordinate-set equality against the published table and source-event uniqueness. Negative-controlled both by dropping an archive entry and by duplicating a source event; each fires.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e151",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Process failure worth recording: negative-controlling a source fix with git checkout on the file destroyed both uncommitted fixes in it. The deep-nesting tests written minutes earlier caught the loss at 7 of 9 failing. Rebuilt both fixes and switched to copying the file aside instead.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e152",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added test_a_verdict_hidden_in_an_object_key_is_two_verdicts as a standing regression guard, negative-controlled by reverting only the key-walking change. Verification: ruff clean, mypy clean, 0 em/en dashes, mirrors byte-identical, full suite 19029 passed and 30 skipped.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e153",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "content": "Added test_a_verdict_hidden_in_an_object_key_is_two_verdicts as a standing regression guard, negative-controlled by reverting only the key-walking change. Verification: ruff clean, mypy clean, 0 em/en dashes, mirrors byte-identical, full suite 19029 passed and 30 skipped.",
+      "caused_by": [
+        "e017",
+        "e022",
+        "e071"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 48,
+    "errors": 72,
     "recoveries": 0,
     "commits": 4,
     "files_changed": 14
