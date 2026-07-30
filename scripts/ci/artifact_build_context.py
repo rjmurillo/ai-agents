@@ -38,7 +38,7 @@ def write_github_output(key: str, value: str) -> None:
 _MAX_LINES_PER_FILE = 500
 
 
-def run(argv: list[str] | None = None) -> int:  # noqa: ARG001
+def run(_argv: list[str] | None = None) -> int:
     """Build context markdown from the artifact list."""
     artifact_file_path = os.environ.get("ARTIFACT_FILE", "")
     if not artifact_file_path:

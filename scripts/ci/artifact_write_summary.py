@@ -47,7 +47,7 @@ def build_summary(
     return "\n".join(lines) + "\n"
 
 
-def run(argv: list[str] | None = None) -> int:  # noqa: ARG001
+def run(_argv: list[str] | None = None) -> int:
     """Write the summary to GITHUB_STEP_SUMMARY."""
     artifact_count = os.environ.get("ARTIFACT_COUNT", "0")
     finding_count = os.environ.get("FINDING_COUNT", "0")

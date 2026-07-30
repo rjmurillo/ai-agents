@@ -80,7 +80,7 @@ def _build_footer(server_url: str, repository: str, run_id: str, source: str) ->
     )
 
 
-def run(argv: list[str] | None = None) -> int:  # noqa: ARG001
+def run(_argv: list[str] | None = None) -> int:
     """Create issues for each non-duplicate finding."""
     findings_json = os.environ.get("FINDINGS_JSON", "")
     if not findings_json:

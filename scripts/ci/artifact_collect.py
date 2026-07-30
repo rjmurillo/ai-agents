@@ -64,7 +64,7 @@ def collect_artifacts(scan_depth_days: int) -> list[str]:
     return sorted(found)
 
 
-def run(argv: list[str] | None = None) -> int:  # noqa: ARG001
+def run(_argv: list[str] | None = None) -> int:
     """Collect artifacts and set outputs."""
     scan_depth_days = int(os.environ.get("SCAN_DEPTH_DAYS", "7"))
     runner_temp = os.environ.get("RUNNER_TEMP", ".")
