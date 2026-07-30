@@ -47,10 +47,10 @@ issue, or write-up. All commands run from the repo root.
 | ADR-072 status is Proposed with approval conditions | `sed -n '1,15p' .agents/architecture/ADR-072-jtbd-plugin-architecture.md` |
 | ADR-068 status is Proposed | `sed -n '1,10p' .agents/architecture/ADR-068-consolidated-hook-dispatcher.md` |
 | Rule-activation eval exists with a no-spend path | `python3 scripts/eval/eval-rule-activation.py --help` |
-| 7 rule scenario fixtures | `ls tests/evals/rule-scenarios/` |
-| Corpus size (92 skills, 30 rules, 95 retros, 122 memories) | `ls -d .claude/skills/*/ \| wc -l; ls .claude/rules/*.md \| wc -l; ls .agents/retrospective/ \| wc -l; ls .serena/memories/ \| wc -l` |
+| 12 rule scenario fixtures as of 2026-07-30 | `ls tests/evals/rule-scenarios/` |
+| Corpus size (98 skills, 25 rules, 121 retros, 158 memories as of 2026-07-30) | `ls -d .claude/skills/*/ \| wc -l; ls .claude/rules/*.md \| wc -l; ls .agents/retrospective/ \| wc -l; ls .serena/memories/ \| wc -l` |
 | Runtime contract tests pass | `uv run pytest tests/build_scripts/test_generate_hooks_runtime_contract.py -q` |
-| Apply-step hooks unregistered | `uv run pytest -q tests/build_scripts/test_copilot_dispatcher_artifact.py::test_only_advisory_pretooluse_registrations_are_absent` |
+| Apply-step hooks unregistered | `uv run pytest -q "tests/build_scripts/test_copilot_dispatcher_artifact.py::TestDispatcherArtifacts::test_retired_hooks_are_absent_and_keepers_are_plugin_only"` |
 
 ### Phase 2: Pick a program
 

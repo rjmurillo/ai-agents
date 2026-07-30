@@ -194,17 +194,17 @@ the repo on that date. Re-verify volatile facts before trusting them:
 | PyYAML 6.0.3 pin | `pyproject.toml:13` | `grep -n PyYAML pyproject.toml` |
 | `uv sync --frozen --extra dev` is the canonical sync | `scripts/bootstrap-vm.sh:114` | `grep -n "uv sync --frozen" scripts/bootstrap-vm.sh` |
 | Node 22 LTS | `scripts/bootstrap-vm.sh:40` | `grep -n NODE_MAJOR scripts/bootstrap-vm.sh` |
-| pwsh 7.5.4+, gh 2.60+ floors | AGENTS.md Stack section | `grep -n "gh 2.60" AGENTS.md` |
+| PowerShell 7.5+, gh 2.60+ floors | AGENTS.md Stack section | `grep -n "floor:" AGENTS.md` prints every floor on one line |
 | Zero .ps1 files (ADR-042) | repo tree | `git ls-files "*.ps1"` prints nothing |
-| Stale pwsh commands | `CONTRIBUTING.md:155,741` | `grep -n pwsh CONTRIBUTING.md` |
+| No pwsh commands left in CONTRIBUTING (removed in b320f4ac1) | `CONTRIBUTING.md` | `grep -c pwsh CONTRIBUTING.md` prints 0 |
 | Git hook jobs, filters, and validators | `lefthook.yml` | `uv run --frozen lefthook validate` |
 | MCP servers serena/deepwiki/forgetful | `.mcp.json` | `cat .mcp.json` |
 | .env key names | `.env.example` | `cat .env.example` |
 | Forgetful fallback table | `ADR-007` (`.agents/architecture/ADR-007-memory-first-architecture.md:108-130`) | `grep -n "Graceful degradation" .agents/architecture/ADR-007-memory-first-architecture.md` |
 | LF enforcement rationale | `.gitattributes:59` and header comments | `grep -n "eol=lf" .gitattributes` |
-| Serena memory file count (122) | `.serena/memories/` | `ls .serena/memories/ | wc -l` |
+| Serena memory file count (158 as of 2026-07-30) | `.serena/memories/` | `ls .serena/memories/ \| wc -l` |
 | tests/test_paths.py count (28) | pytest | `uv run pytest tests/test_paths.py --collect-only -q` |
-| uv TLS var rename | uv 0.11.26 runtime warning | `uv run python -c pass` under `UV_NATIVE_TLS` |
+| uv TLS var rename | uv 0.11.26 runtime warning | `UV_NATIVE_TLS=1 uv run python -c pass 2>&1` prints a deprecation warning naming UV_SYSTEM_CERTS |
 
 Maintenance rule: if any re-verify command disagrees with this file, the repo
 won. Update this skill in the same PR that changes the underlying fact, and bump
