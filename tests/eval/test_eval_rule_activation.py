@@ -16,6 +16,7 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -164,9 +165,7 @@ class TestScoreResponseJudgeShape:
             '{"activation_score": 5e0, "citation_score": 5, "behavior_score": 5}',
         ],
     )
-    def test_malformed_judge_score_object_sets_judge_failed(
-        self, monkeypatch, judge_json
-    ):
+    def test_malformed_judge_score_object_sets_judge_failed(self, monkeypatch, judge_json):
         monkeypatch.setattr(eval_mod, "_call_api", lambda *_args, **_kwargs: judge_json)
 
         scores = eval_mod.score_response(
@@ -302,9 +301,7 @@ class TestLoadScenariosFile:
         # Even within .claude/rules/, non-.md files must be rejected.
         f = tmp_path / "non_md.json"
         f.write_text(
-            json.dumps(
-                {"rule_path": ".claude/rules/", "scenarios": []}
-            ),
+            json.dumps({"rule_path": ".claude/rules/", "scenarios": []}),
             encoding="utf-8",
         )
         result = eval_mod._load_scenarios_file(str(f))
@@ -387,9 +384,7 @@ def _assert_fixture_routes_to_library(rule_id: str) -> None:
     data, target_paths = loaded
     skill_path, reference_path = target_paths
     assert data["rule_id"] == rule_id
-    expected_skill = (
-        REPO_ROOT / ".claude" / "skills" / "software-engineering-library" / "SKILL.md"
-    )
+    expected_skill = REPO_ROOT / ".claude" / "skills" / "software-engineering-library" / "SKILL.md"
     assert skill_path == expected_skill
     assert reference_path == (
         REPO_ROOT
@@ -924,9 +919,7 @@ class TestJudgeSampleReduction:
             },
         )()
 
-        _rule_id, result, calls = eval_mod._process_one_rule(
-            "key", scenarios_data, rule_path, args
-        )
+        _rule_id, result, calls = eval_mod._process_one_rule("key", scenarios_data, rule_path, args)
 
         assert result is None
         assert calls == len(eval_mod.MECHANISMS) * 4
@@ -980,22 +973,19 @@ def test_extract_json_object_returns_plain_object_unchanged():
     assert eval_mod._extract_json_object(_JUDGE) == _JUDGE
 
 
-def _score_with_judge_text(judge_text: str) -> dict:
+def _score_with_judge_text(monkeypatch: pytest.MonkeyPatch, judge_text: str) -> dict[str, Any]:
     """Run ``score_response`` against a fixed judge payload.
 
-    Restores the real ``_call_api`` so a failure inside the call under test
-    cannot leak a stub into the tests that follow.
+    Takes ``monkeypatch`` rather than assigning the attribute directly so the
+    stub is torn down even when the call under test raises, and so the module
+    attribute is set the way the rest of this file sets it.
     """
-    original = eval_mod._call_api
-    eval_mod._call_api = lambda *_args, **_kwargs: judge_text
-    try:
-        return eval_mod.score_response(
-            "sk-test",
-            {"input": "x", "expected_gate": "apply-rule"},
-            "response",
-        )
-    finally:
-        eval_mod._call_api = original
+    monkeypatch.setattr(eval_mod, "_call_api", lambda *_args, **_kwargs: judge_text)
+    return eval_mod.score_response(
+        "sk-test",
+        {"input": "x", "expected_gate": "apply-rule"},
+        "response",
+    )
 
 
 def test_extract_json_object_refuses_a_leading_cli_tool_trace():
@@ -1018,10 +1008,7 @@ def test_extract_json_object_refuses_a_leading_cli_tool_trace():
 
 
 def test_extract_json_object_drops_trailing_prose():
-    assert (
-        eval_mod._extract_json_object(_JUDGE + "\n\nLet me know if you want more.")
-        == _JUDGE
-    )
+    assert eval_mod._extract_json_object(_JUDGE + "\n\nLet me know if you want more.") == _JUDGE
 
 
 def test_extract_json_object_handles_nested_objects():
@@ -1043,7 +1030,9 @@ def test_extract_json_object_returns_none_on_unbalanced_object():
     assert eval_mod._extract_json_object('{"activation_score": 5') is None
 
 
-def test_a_leading_tool_result_is_refused_rather_than_searched_past():
+def test_a_leading_tool_result_is_refused_rather_than_searched_past(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """The verdict is never taken from past a leading object.
 
     The searching version checked each candidate against the score shape and
@@ -1056,7 +1045,7 @@ def test_a_leading_tool_result_is_refused_rather_than_searched_past():
 
     assert eval_mod._extract_json_object(text) == '{"command": "ls", "exit_code": 0}'
     assert eval_mod._salvage_scores(text) is None
-    assert _score_with_judge_text(text)["judge_failed"] is True
+    assert _score_with_judge_text(monkeypatch, text)["judge_failed"] is True
 
 
 def test_extract_json_object_refuses_an_unparseable_leading_object():
@@ -1066,7 +1055,9 @@ def test_extract_json_object_refuses_an_unparseable_leading_object():
     assert eval_mod._extract_json_object(text) is None
 
 
-def test_extract_json_object_refuses_a_partial_object_followed_by_a_full_one():
+def test_extract_json_object_refuses_a_partial_object_followed_by_a_full_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A near-miss must not win, and the search that found it is gone.
 
     Two objects each naming ``activation_score`` is exactly the ambiguity the
@@ -1078,10 +1069,12 @@ def test_extract_json_object_refuses_a_partial_object_followed_by_a_full_one():
     text = partial + "\n\n" + _JUDGE
 
     assert eval_mod._extract_json_object(text) is None
-    assert _score_with_judge_text(text)["judge_failed"] is True
+    assert _score_with_judge_text(monkeypatch, text)["judge_failed"] is True
 
 
-def test_extract_json_object_returns_a_partial_object_for_the_caller_to_refuse():
+def test_extract_json_object_returns_a_partial_object_for_the_caller_to_refuse(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """The extractor no longer judges shape; the caller still does.
 
     With no second copy of a score field there is no ambiguity, so the leading
@@ -1092,7 +1085,7 @@ def test_extract_json_object_returns_a_partial_object_for_the_caller_to_refuse()
     text = partial + "\n\nthat is all"
 
     assert eval_mod._extract_json_object(text) == partial
-    assert _score_with_judge_text(text)["judge_failed"] is True
+    assert _score_with_judge_text(monkeypatch, text)["judge_failed"] is True
 
 
 def test_extract_json_object_falls_back_to_the_first_parseable_object():
@@ -1267,13 +1260,10 @@ def test_judge_parse_failure_rejects_a_non_numeric_score():
     assert result["judge_failed"] is True
 
 
-@pytest.mark.parametrize(
-    "activation_score", ["0", "6", "-1", "05", "5.0", "5e0", "5junk"]
-)
+@pytest.mark.parametrize("activation_score", ["0", "6", "-1", "05", "5.0", "5e0", "5junk"])
 def test_salvage_scores_rejects_an_invalid_value(activation_score):
     salvaged = eval_mod._judge_parse_failure(
-        f'{{"activation_score": {activation_score}, '
-        '"citation_score": 4, "behavior_score": 3} "',
+        f'{{"activation_score": {activation_score}, "citation_score": 4, "behavior_score": 3}} "',
         "parse error",
     )
 
@@ -1376,10 +1366,7 @@ def test_salvage_rejects_scores_found_only_inside_reasoning():
 
 def test_salvage_requires_an_object_to_anchor_on():
     assert (
-        eval_mod._salvage_scores(
-            "activation_score: 4 citation_score: 3 behavior_score: 5"
-        )
-        is None
+        eval_mod._salvage_scores("activation_score: 4 citation_score: 3 behavior_score: 5") is None
     )
 
 
@@ -1410,8 +1397,7 @@ def test_salvage_rejects_fields_completed_by_a_second_root_object():
     incomplete first object fails."""
     assert (
         eval_mod._salvage_scores(
-            '{"activation_score": 1} '
-            '{"citation_score": 2, "behavior_score": 3, "reasoning": "x"}'
+            '{"activation_score": 1} {"citation_score": 2, "behavior_score": 3, "reasoning": "x"}'
         )
         is None
     )
@@ -1628,8 +1614,7 @@ def test_salvage_rejects_keys_that_defeat_duplicate_detection(label, payload):
         ),
         (
             "empty_nested_object",
-            '{"n":{},"activation_score":5,"citation_score":3,'
-            '"behavior_score":4,"reasoning":"y"}',
+            '{"n":{},"activation_score":5,"citation_score":3,"behavior_score":4,"reasoning":"y"}',
         ),
     ],
 )
@@ -1651,8 +1636,12 @@ def test_salvage_still_skips_well_formed_nested_structures(label, payload):
 def test_salvage_handles_deep_nesting_without_recursion():
     """`_skip_balanced` iterates, but the span re-parse calls `json.loads`,
     which recurses. Deep nesting must skip cleanly rather than raise."""
-    deep = '{"n":' + '{"a":' * 50 + "1" + "}" * 50 + (
-        ',"activation_score":5,"citation_score":3,"behavior_score":4}'
+    deep = (
+        '{"n":'
+        + '{"a":' * 50
+        + "1"
+        + "}" * 50
+        + (',"activation_score":5,"citation_score":3,"behavior_score":4}')
     )
     assert eval_mod._salvage_scores(deep) == {
         "activation_score": 5,
@@ -1776,7 +1765,9 @@ def test_salvage_refuses_a_second_verdict_serialized_inside_a_string():
     assert eval_mod._salvage_scores(payload) is None
 
 
-def test_a_prematurely_closed_rubric_is_refused_by_both_paths():
+def test_a_prematurely_closed_rubric_is_refused_by_both_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Trailing root-level score fields make the payload ambiguous.
 
     This payload closes a complete object and then continues with bare
@@ -1797,7 +1788,7 @@ def test_a_prematurely_closed_rubric_is_refused_by_both_paths():
 
     assert eval_mod._extract_json_object(payload) is None
     assert eval_mod._salvage_scores(payload) is None
-    assert _score_with_judge_text(payload)["judge_failed"] is True
+    assert _score_with_judge_text(monkeypatch, payload)["judge_failed"] is True
 
 
 def test_salvage_survives_trailing_content_carrying_no_scores():
@@ -1846,7 +1837,7 @@ def test_extract_json_object_stops_at_an_unbalanced_leading_candidate():
     land on. So the recovery is given up. The cost is one judge sample; the
     alternative cost is a fabricated score in a published mean.
     """
-    text = '{ unterminated\n' + _JUDGE
+    text = "{ unterminated\n" + _JUDGE
     assert eval_mod._extract_json_object(text) is None
     assert eval_mod._salvage_scores(text) is None
 
@@ -1858,7 +1849,9 @@ def test_extract_json_object_result_parses_as_json():
     assert json.loads(extracted)["activation_score"] == 5
 
 
-def test_a_verdict_recovered_from_the_prefix_is_marked_salvaged():
+def test_a_verdict_recovered_from_the_prefix_is_marked_salvaged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Every recovery must be auditable after the run.
 
     A whole-payload parse failure followed by a prefix recovery used to return
@@ -1867,16 +1860,16 @@ def test_a_verdict_recovered_from_the_prefix_is_marked_salvaged():
     read past a broken payload, which is why twelve defects of one class went
     twelve rounds without the archive showing a single one.
     """
-    result = _score_with_judge_text(_JUDGE + "\ntrailing prose")
+    result = _score_with_judge_text(monkeypatch, _JUDGE + "\ntrailing prose")
 
     assert result["judge_failed"] is False
     assert result["judge_salvaged"] is True
     assert result["activation_score"] == 5
 
 
-def test_a_clean_payload_is_not_marked_salvaged():
+def test_a_clean_payload_is_not_marked_salvaged(monkeypatch: pytest.MonkeyPatch) -> None:
     """Negative control: the marker must distinguish, not decorate."""
-    result = _score_with_judge_text(_JUDGE)
+    result = _score_with_judge_text(monkeypatch, _JUDGE)
 
     assert result["judge_failed"] is False
     assert "judge_salvaged" not in result
@@ -1898,18 +1891,12 @@ def _sample(score: int, judge_failed: bool = False) -> dict[str, object]:
 
 def _ungraded_mech() -> dict[str, object]:
     """A cell where every judge sample failed, as the reducer emits it."""
-    return {
-        "scores": eval_mod._reduce_score_samples(
-            [_sample(0, judge_failed=True)], "median"
-        )
-    }
+    return {"scores": eval_mod._reduce_score_samples([_sample(0, judge_failed=True)], "median")}
 
 
 class TestReduceScoreSamples:
     def test_all_samples_graded_reduces_normally(self):
-        reduced = eval_mod._reduce_score_samples(
-            [_sample(5), _sample(3), _sample(4)], "median"
-        )
+        reduced = eval_mod._reduce_score_samples([_sample(5), _sample(3), _sample(4)], "median")
         assert reduced["activation_score"] == 4
         assert reduced["judge_failed"] is False
         assert reduced["graded"] is True
@@ -2032,8 +2019,7 @@ class TestUngradedCellsExcludedFromAverage:
 
 
 _ARRAY_EXEMPLAR = (
-    '{"activation_score": 5, "citation_score": 5, "behavior_score": 5, '
-    '"reasoning": "exemplar"}'
+    '{"activation_score": 5, "citation_score": 5, "behavior_score": 5, "reasoning": "exemplar"}'
 )
 
 
@@ -2048,8 +2034,7 @@ _ARRAY_EXEMPLAR = (
         ),
         (
             "prose_then_array_exemplar_then_refusal",
-            f"Here is the rubric example:\n[{_ARRAY_EXEMPLAR}]\n"
-            "I cannot score the response.",
+            f"Here is the rubric example:\n[{_ARRAY_EXEMPLAR}]\nI cannot score the response.",
         ),
         (
             "array_exemplar_with_a_broken_string",
