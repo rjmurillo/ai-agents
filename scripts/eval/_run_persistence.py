@@ -113,6 +113,12 @@ def _parse_record(line: str) -> RunRecord | None:
 
     Raises `SchemaVersionError` on incompatible `schemaVersion`. Version 1 is
     read for compatibility and normalized with v2 optional provenance defaults.
+
+    Raises `MalformedRunRecordError` when the line parses as JSON but does not
+    describe a record. Everything below the `json.loads` is decoding untrusted
+    on-disk data, so a wrong shape is an operator-repair problem, which the CLI
+    maps to EXIT_CONFIG. Without the guard those shapes escaped as bare
+    `ValueError`, `KeyError`, or `TypeError` and bypassed that contract.
     """
     line = line.strip()
     if not line:
@@ -127,18 +133,25 @@ def _parse_record(line: str) -> RunRecord | None:
     payload["schema_version"] = schema_version
     payload.setdefault("system_fingerprint", None)
     payload.setdefault("seed", None)
-    raw_assertions = payload.get("assertions", []) or []
-    payload["assertions"] = [
-        AssertionResult(
-            kind=AssertionKind(a["kind"]),
-            pattern=a.get("pattern"),
-            expected_value=a.get("expected_value"),
-            passed=bool(a.get("passed")),
-            extracted=a.get("extracted"),
-        )
-        for a in raw_assertions
-    ]
-    return RunRecord(**payload)
+    try:
+        raw_assertions = payload.get("assertions", []) or []
+        payload["assertions"] = [
+            AssertionResult(
+                kind=AssertionKind(a["kind"]),
+                pattern=a.get("pattern"),
+                expected_value=a.get("expected_value"),
+                passed=bool(a.get("passed")),
+                extracted=a.get("extracted"),
+            )
+            for a in raw_assertions
+        ]
+        return RunRecord(**payload)
+    except (ValueError, KeyError, TypeError) as exc:
+        # The rejected detail is echoed for diagnosis and capped, because a
+        # corrupt record is attacker-influenced input to the operator's log.
+        raise MalformedRunRecordError(
+            f"record does not describe a run: {type(exc).__name__}: {str(exc)!r:.160}"
+        ) from exc
 
 
 @dataclasses.dataclass
