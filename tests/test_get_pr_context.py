@@ -601,7 +601,8 @@ class TestExtendedMetadata:
     def test_auto_merge_method_extracted(self, capsys):
         """auto_merge_method is populated when autoMergeRequest is set."""
         auth_patch, repo_patch = _patch_auth_and_repo()
-        pr = _pr_json(autoMergeRequest={"mergeMethod": "SQUASH", "enabledAt": "2025-01-01T00:00:00Z"})
+        auto_merge = {"mergeMethod": "SQUASH", "enabledAt": "2025-01-01T00:00:00Z"}
+        pr = _pr_json(autoMergeRequest=auto_merge)
         with auth_patch, repo_patch, patch(
             "subprocess.run",
             return_value=_completed(stdout=pr, rc=0),
