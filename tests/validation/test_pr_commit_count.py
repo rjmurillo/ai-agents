@@ -187,7 +187,7 @@ def test_is_transient_error_false(stderr: str) -> None:
 def test_fetch_healthy_below_threshold(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(mod, "_run_gh", lambda argv: _completed(0, _commits_json(3)))
     result = mod.fetch_commit_count(42, "o", "r")
-    assert result == mod.CountResult("OK", 3, transient=False)
+    assert result == mod.CountResult("OK", 3, transient=False, total_count=3)
 
 
 def test_fetch_healthy_blocked(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -211,7 +211,7 @@ def test_fetch_empty_list_is_ok_not_error(monkeypatch: pytest.MonkeyPatch) -> No
     # the limit. The old inline step hard-failed here; the new contract is OK.
     monkeypatch.setattr(mod, "_run_gh", lambda argv: _completed(0, "[]"))
     result = mod.fetch_commit_count(42, "o", "r")
-    assert result == mod.CountResult("OK", 0, transient=False)
+    assert result == mod.CountResult("OK", 0, transient=False, total_count=0)
 
 
 # ---------------------------------------------------------------------------
@@ -373,15 +373,24 @@ def test_main_invalid_pr_number_returns_2(monkeypatch: pytest.MonkeyPatch) -> No
     assert mod.main(["--pr-number", "0"]) == 2
 
 
-def test_main_blocked_emits_error_annotation(
+def test_main_blocked_emits_warning_not_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    """BLOCKED status must emit ::warning:: at this stage, not ::error::.
+
+    The final enforcement decision (with bypass-label check) lives in
+    enforce_pr_validation.py. Emitting ::error:: here fires before the bypass
+    check and creates a false red annotation on PRs that carry
+    commit-limit-bypass (issue #3901).
+    """
     _stub_repo(monkeypatch)
     monkeypatch.setattr(mod, "_run_gh", lambda argv: _completed(0, _commits_json(25)))
     monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "gh_out"))
     rc = mod.main(["--pr-number", "42"])
+    out = capsys.readouterr().out
     assert rc == 0
-    assert "::error::PR exceeds commit limit" in capsys.readouterr().out
+    assert "::warning::" in out
+    assert "::error::" not in out
 
 
 # ---------------------------------------------------------------------------
@@ -487,7 +496,7 @@ def test_a_branch_merging_main_is_not_blocked_below_forty(
     )
     monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "gh_out"))
     assert mod.main(["--pr-number", "42"]) == 0
-    assert "::error::PR exceeds commit limit" not in capsys.readouterr().out
+    assert "::error::" not in capsys.readouterr().out
     written = (tmp_path / "gh_out").read_text(encoding="utf-8")
     assert "status=ALERT" in written
     assert f"commit_limit={mod.MAIN_MERGE_BLOCK_THRESHOLD}" in written
@@ -500,7 +509,9 @@ def test_a_linear_branch_of_twenty_five_is_still_blocked(
     monkeypatch.setattr(mod, "_run_gh", lambda argv: _completed(0, _merge_commits_json(25, False)))
     monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "gh_out"))
     assert mod.main(["--pr-number", "42"]) == 0
-    assert "::error::PR exceeds commit limit" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "::warning::" in out
+    assert "::error::" not in out
     written = (tmp_path / "gh_out").read_text(encoding="utf-8")
     assert "status=BLOCKED" in written
     assert f"commit_limit={mod.BLOCK_THRESHOLD}" in written
@@ -1033,3 +1044,88 @@ def test_a_git_timeout_is_not_reported_in_the_transient_vocabulary() -> None:
 
     assert result.returncode != 0
     assert mod.is_transient_error(result.stderr) is False
+# Issue #3920: authored commit count excludes branch-maintenance merge commits
+# ---------------------------------------------------------------------------
+
+
+def _commits_with_parents(specs: list[int]) -> list[dict]:
+    """Build a commits list. Each spec is the number of parents for that commit."""
+    return [
+        {
+            "sha": f"{i:040x}",
+            "parents": [{"sha": f"p{i}{j:040x}"} for j in range(n_parents)],
+        }
+        for i, n_parents in enumerate(specs)
+    ]
+
+
+@pytest.mark.parametrize(
+    ("label", "specs", "expected"),
+    [
+        ("all regular (1 parent each)", [1, 1, 1], 3),
+        ("all initial/orphan (0 parents)", [0, 0], 2),
+        ("all merge commits (2 parents each)", [2, 2, 2], 0),
+        ("mixed: 4 authored + 25 merges", [1] * 4 + [2] * 25, 4),
+        ("commit missing parents key is counted (fail-closed)", [None], 1),
+        ("commit is not a dict (fail-closed)", None, 1),  # handled below
+        ("empty list", [], 0),
+    ],
+)
+def test_authored_commit_count(label: str, specs: list[int] | None, expected: int) -> None:
+    """_authored_commit_count counts authored commits, fail-closed on malformed input."""
+    if specs is None:
+        # Non-dict entry: the function should count it as authored
+        commits: list = ["bare-string"]
+    elif any(s is None for s in specs):
+        # None spec means missing the parents key entirely
+        commits = [{"sha": f"{i:040x}"} for i, _ in enumerate(specs)]
+    else:
+        commits = _commits_with_parents(specs)
+    assert mod._authored_commit_count(commits) == expected, label  # noqa: SLF001
+
+
+def test_authored_count_excludes_merges_from_classification(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """PR #3780 scenario: 25 merge + 4 authored = 4 classified, not 29.
+
+    The authored count (4) must be used for classification; the total count
+    (29) must appear in the GITHUB_OUTPUT for audit but must not trigger BLOCKED
+    (issue #3920).
+    """
+    from scripts.github_core.api import RepoInfo
+
+    payload = json.dumps(_commits_with_parents([2] * 25 + [1] * 4))
+    monkeypatch.setattr(mod, "_run_gh", lambda argv: _completed(0, payload))
+    monkeypatch.setattr(mod, "resolve_repo_params", lambda *a: RepoInfo(owner="o", repo="r"))
+    monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "gh_out"))
+    rc = mod.main(["--pr-number", "42", "--owner", "o", "--repo", "r"])
+    assert rc == 0
+    written = (tmp_path / "gh_out").read_text(encoding="utf-8")
+    assert "status=OK" in written or "status=WARNING" in written
+    assert "status=BLOCKED" not in written
+    assert "commit_count=4" in written
+
+
+def test_total_count_field_in_count_result() -> None:
+    """CountResult.total_count stores raw total for audit while count stores authored."""
+    r = mod.CountResult(status="OK", count=4, transient=False, total_count=29)
+    assert r.total_count == 29
+    assert r.count == 4
+
+
+def test_total_count_shown_in_output_when_different(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """When total != authored, both counts must appear in the summary line."""
+    from scripts.github_core.api import RepoInfo
+
+    payload = json.dumps(_commits_with_parents([2] * 25 + [1] * 4))
+    monkeypatch.setattr(mod, "_run_gh", lambda argv: _completed(0, payload))
+    monkeypatch.setattr(mod, "resolve_repo_params", lambda *a: RepoInfo(owner="o", repo="r"))
+    monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "gh_out"))
+    mod.main(["--pr-number", "1", "--owner", "o", "--repo", "r"])
+    out = capsys.readouterr().out
+    # The line must include the authored count (4) and total (29)
+    assert "29" in out
+    assert "4" in out
