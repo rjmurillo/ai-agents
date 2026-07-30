@@ -236,11 +236,12 @@ Tracked as issue #3989. Do not reproduce this reduction in a new instrument.
 Seventeen of the 48 Opus cells were averaged over one or two judge samples
 instead of three, and all 24 lost samples are in the four Opus artifacts.
 Recovering them moved one cell (`fx-opus5` baseline, 3.83 to 3.89) and left
-the sign count unchanged. Seven published cells rest on a single graded
-sample, all seven Opus.
+the sign count unchanged. The table above is the post-recovery one, so every
+published cell uses three samples; seventeen of them get at least one of those
+three from post-hoc recovery of a truncated prefix, and seven get two.
 
 The full accounting, the confounds it creates for the table above, and the
-thirteen defects found in the recovery code across ten review rounds are in
+fourteen defects found in the recovery code across eleven review rounds are in
 `rule-audit-evidence.md`. Read it before citing a cell from this table.
 
 **Provenance for the eight runs, recorded by hand because the artifacts do not
@@ -384,6 +385,16 @@ number are not. The shapes recur either way.
   Because failures are not evenly distributed across mechanisms, this could
   invert the ranking. Fixed on 2026-07-29. Any result file older than that with
   a non-zero `total_judge_failures` has a biased table.
+- **A four-backtick fence is miscounted and refused.** `_FENCE_RE` matches runs
+  of exactly three backticks, so a payload fenced with four (legal Markdown,
+  and what a judge emits when its own reasoning quotes a three-backtick block)
+  closes at the inner three and yields a truncated body that will not parse.
+  The sample is dropped. This fails in the safe direction, costing one of three
+  judge samples rather than publishing a wrong one, and no archived payload
+  contains a four-backtick run (measured: 0 of 24 stored prefixes), so it is
+  recorded rather than fixed. Widening the fence regex would re-introduce the
+  candidate-selection choice that the exactly-one-fence rule exists to remove.
+  Found by adversarial review round 11.
 - **Agentic CLI output is not clean JSON.** The provider reads
   `~/.copilot/session-state/<uuid>/events.jsonl` and correlates by the sandbox
   working directory, which is race-free. Falling back to stdout parsing mixes

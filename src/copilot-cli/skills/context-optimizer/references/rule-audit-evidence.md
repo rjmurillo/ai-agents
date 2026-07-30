@@ -2,7 +2,7 @@
 
 Companion to `rule-audit-procedure.md`. That document is the procedure and
 carries the published table; this one carries the forensics behind it: which
-judge samples were lost, what recovering them changed, and what thirteen
+judge samples were lost, what recovering them changed, and what fourteen
 rounds of adversarial review found in the recovery code.
 
 Read this before citing a number from the procedure document, and before
@@ -28,11 +28,17 @@ rows are also the rows carrying the large positive delta-full (+1.11, +1.22,
 are the runs the conclusion leans on. An earlier draft placed all 24 in
 `var-opus-*.json`, which is wrong; a sixth of them are in `fx-opus5.json`.
 
-**Seven published cells rest on a single graded sample**, and all seven are
-Opus: `fx-opus5` S1/description and S3/full, `var-opus-1` S3/baseline and
-S3/full, `var-opus-2` S1/description, `var-opus-3` S1/description and
-S3/description. A median of one sample is one observation. Across all 96
-cells: 7 at n=1, 10 at n=2, 79 at n=3.
+**Seventeen published cells carry a recovered sample**, and all seventeen are
+Opus. Pre-recovery the archive holds 7 cells at n=1, 10 at n=2, and 79 at n=3;
+the 7 and the 10 account for exactly the 24 lost samples. The published table
+is the post-recovery one, so all 96 cells use three samples, and no published
+cell rests on a single observation. What the seventeen rest on instead is
+post-hoc recovery: seven of them (`fx-opus5` S1/description and S3/full,
+`var-opus-1` S3/baseline and S3/full, `var-opus-2` S1/description,
+`var-opus-3` S1/description and S3/description) take two of their three
+samples from recovered prefixes, and ten take one. An earlier draft called
+these "seven published cells resting on a single graded sample," which read
+the pre-recovery population and attached it to the post-recovery table.
 
 A cell reduced to two samples takes the median of an even count, so its score
 can land on a half-integer and the scenario average can leave the 1/9 grid a
@@ -48,13 +54,31 @@ trip it more often. The first is unmeasurable at 200 characters; the second is
 a mechanism the artifacts never recorded. Widen the prefix before claiming a
 cause again (issue #3975).
 
-**All 24 were recovered**, each yielding three top-level integers ahead of the
-prose that broke the parse. Recovery is all-or-nothing: a payload missing any
-of the three fails rather than recovering a partial verdict. A salvaged sample
-counts as graded and is marked `judge_salvaged`. The published table in
-`rule-audit-procedure.md` is recomputed with all 24 recovered; that moved one
-cell (`fx-opus5` baseline, 3.83 to 3.89) and left the sign count unchanged,
-with the pooled description delta shifting from -0.13 to -0.14.
+**All 24 stored prefixes recover**, each yielding three top-level integers
+ahead of the prose that broke the parse. Recovery is all-or-nothing: a payload
+missing any of the three fails rather than recovering a partial verdict. A
+salvaged sample counts as graded and is marked `judge_salvaged`. The published
+table in `rule-audit-procedure.md` is recomputed with all 24 recovered; that
+moved one cell (`fx-opus5` baseline, 3.83 to 3.89) and left the sign count
+unchanged, with the pooled description delta shifting from -0.13 to -0.14.
+
+**That is a claim about the prefixes, not about what the judge emitted.** All
+24 stored prefixes are exactly 200 characters, the truncation ceiling, so
+every one of them is cut. The same 200-character limit that makes the cause
+unrecoverable two paragraphs above makes the originals unrecoverable here, and
+an earlier draft applied it to the cause and forgot it for the recovery. A
+longer original whose discarded tail named the score fields a second time
+would produce a byte-identical stored prefix and would be refused by the
+duplicate-name guard rather than recovered. The recomputed table therefore
+assumes no discarded tail would have changed the verdict, and the archive
+cannot check that assumption. The error has a direction: the recovered values
+are a genuine prefix of what the judge wrote, so they cannot be wrong, but a
+sample the real parser would have refused can be present. Widen the prefix
+(issue #3975) before treating the recomputed cells as measured.
+
+The headline survives all of it. The sign test is 7 positive to 1 negative,
+p = 0.0703125, identically under the pre-recovery table, the post-recovery
+table, and either reduction in issue #3989.
 
 State the limit plainly. The extractor was written after seeing which samples
 failed, so this is post-hoc recovery, not independent replication. Recovering
@@ -65,7 +89,7 @@ nine.** The regex extractor was replaced with a structure-aware scanner, which
 review then broke repeatedly, always in the same direction: it returned a
 wrong verdict and reported it as a clean parse.
 
-Thirteen defects, all one class. A scan desynchronized by a quote inside a
+Fourteen defects, all one class. A scan desynchronized by a quote inside a
 nested object; a second root object that *was* the real verdict; salvage
 running after the range gate, re-admitting a `6` as a clean `5`; brace
 counting that ignored brackets, so `[{5/5/5 exemplar}]` read as root; the same
@@ -73,7 +97,10 @@ search alive on the *success* path, returning an offset-past-zero verdict
 indistinguishable from a clean parse; and finally a four-line Markdown-fence
 stripper one layer upstream that replaced the whole payload with the first
 fence it found, so a verdict followed by a fenced rubric exemplar was answered
-with the exemplar, unmarked. Full round-by-round history is in issue #3988.
+with the exemplar, unmarked; and a duplicate-name guard that recognized a
+key spelled with double quotes or escaped double quotes but not the
+single-quote dialect a lenient model emits, so a stated second verdict was
+invisible to it. Full round-by-round history is in issue #3988.
 
 Each round hardened the structural reading and each left the class standing,
 because **the defect is selection, not location**: every fix added a
@@ -103,9 +130,9 @@ raw counts and for what they cannot answer.
 That is not a blind test, because the same author wrote all six parsers.
 Falsifying it properly still takes one of: blinded manual transcription of the
 failed payloads, a second parser written by someone who has not seen them, or
-held-out malformed output. None has been done. Ten rounds each hardened this
+held-out malformed output. None has been done. Eleven rounds each hardened this
 function and each missed what the next found, so "it survived review" is
-weaker evidence here than the round count suggests. Thirteen defects of one
+weaker evidence here than the round count suggests. Fourteen defects of one
 class is evidence against hand-writing the parser at all (issue #3988).
 
 
@@ -121,3 +148,5 @@ parser defects recorded above: a confident answer derived from nothing. A
 walker that reads
 `rules[<name>].scenarios[].mechanisms[<mech>].score_samples[]` and re-medians
 each cell reproduces the published table exactly.
+
+<!-- vendor-portability: declared. This file cites .agents/analysis/eval-artifacts/2026-07-29-unified-software-engineering/ as the archive holding the eight runs whose forensics are recorded here, so a reader can re-measure every claim instead of taking it on faith. It is a citation in a narrative, not a path the skill reads or writes. A vendored install loses the ability to re-measure our raw artifacts locally; the forensics still read as a record of what went wrong and what to check for, which is what this file is for. Issue #2050. -->

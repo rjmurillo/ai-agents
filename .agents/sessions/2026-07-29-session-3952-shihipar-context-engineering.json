@@ -338,6 +338,26 @@
     },
     {
       "step": "Verified the split: taste-lints file-size clean on both files, orphan-ref scan PASS on 9 refs, vendor-portability no new offenders, skill-portability no drift, zero em or en dashes byte-checked, copilot-cli mirror byte-identical by diff -rq, both plugin manifests bumped to 0.6.5431. Full eval suite 1539 passed 4 skipped, ruff clean."
+    },
+    {
+      "step": "Diagnosed the rejected push on PR #3983. Three causes, none of them a non-fast-forward: mypy reported one new error (Returning Any from _unwrap_lone_fence, because re.findall types as list[Any]), check_skill_md_portability.py found the new rule-audit-evidence.md carried an undeclared upstream path reference, and the review-marker FAIL is advisory. Fixed the first with a list[str] annotation on the local, the idiomatic fix rather than a suppression, and the second by adding the vendor-portability HTML marker the sibling procedure file already carries. Recorded the gotcha: three portability checkers exist with similar names (check_vendor_portability, check_skill_portability, check_skill_md_portability) and running the first two is not running the third.",
+      "timestamp": "2026-07-29T00:00:00Z"
+    },
+    {
+      "step": "Ran adversarial review round 11 with GPT-5.6 Sol and independently reproduced all four findings before accepting any. Finding 1, the duplicate-name guard recognizes double-quoted and escaped-double-quoted keys but not the single-quote JSON5 dialect, so a payload stating two conflicting triples returned the first one silently. Confirmed and fixed; it is the fourteenth defect and the same selection class as the thirteen before it. Finding 2, a four-backtick fence is miscounted by _FENCE_RE and refused. Confirmed; it fails in the safe direction and no archived payload contains a four-backtick run, so it is recorded as a known limit rather than fixed, because widening the fence regex would restore the candidate-selection choice the exactly-one-fence rule removes.",
+      "timestamp": "2026-07-29T00:00:00Z"
+    },
+    {
+      "step": "Findings 3 and 4 were both false claims in documents I wrote, and both are the same shape as the two I corrected last segment. Finding 3: the evidence doc said seven published cells rest on a single graded sample, then said three paragraphs later that the published table is recomputed with all 24 recovered. Those contradict. Measured: pre-recovery the archive holds 7 cells at n=1, 10 at n=2, 79 at n=3, and 7 times 2 plus 10 equals exactly the 24 lost samples; post-recovery all 96 cells are n=3. The honest statement is that seventeen published cells carry a recovered sample, seven of them two. Finding 4: all 24 stored prefixes are exactly 200 characters, the truncation ceiling, so all 24 are cut. Recovering a truncated prefix does not establish that the original payload was recoverable, and a longer original whose discarded tail named the score fields again would produce a byte-identical prefix and be refused. The same 200-character limit the document already applies to the failure cause was omitted from the recovery claim. Both corrected in place, naming the wrong inference rather than quietly replacing it.",
+      "timestamp": "2026-07-29T00:00:00Z"
+    },
+    {
+      "step": "Verified the round 11 fix does not regress. Eval suite 1541 passed and 4 skipped, up 2 for the new tests. Round 8 regression holds with A, B, C, E, F, G refusing and the D and H negative controls recovering. Round 9 escaped-quote duplicate still refuses and the clean control still parses. Round 10 F1, F2, F5 hold; F3 and F4 still diverge by design as issues #3989 and #3933. All 24 archived prefixes still recover with identical triples, 17 at 5/4/5, 5 at 5/5/5, one 2/2/1, one 2/3/1. Measured the false-refusal cost of the wider guard directly: 0 of the 264 graded reasonings and 0 of the 24 failure prefixes spell a score key with single quotes, so the cost is measured-at-zero on this corpus rather than free, which is one judge, one prompt, one provider. ruff clean, mypy clean, taste-lint file-size 0 errors, mirror byte-identical, zero em or en dashes.",
+      "timestamp": "2026-07-29T00:00:00Z"
+    },
+    {
+      "step": "Filed issue #3991. .github/copilot-instructions.md is injected into every Copilot session at 6351 bytes and no gate measures it: validate_workspace_budget.py covers only CLAUDE.md, AGENTS.md, and .claude/CLAUDE.md at 3000 bytes each, and instruction_budget.py covers only .github/instructions/*.instructions.md. The Copilot entry point sits in the gap at 2.1 times the ceiling its Claude-side equivalents are held to. AGENTS.md has one byte of headroom, so the gate shape actively steers new always-on guidance into the unmeasured file. Observed symptom: its Gotchas section duplicates .agents/governance/GOTCHAS.md, which exists so that detail is not paid for on every turn.",
+      "timestamp": "2026-07-29T00:00:00Z"
     }
   ],
   "endingCommit": "",
