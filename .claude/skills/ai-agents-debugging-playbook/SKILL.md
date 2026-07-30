@@ -131,7 +131,7 @@ Verified against the working tree on 2026-07-03. Retro-cited short SHAs do not r
 | Fact | Source | Re-verify with |
 |------|--------|----------------|
 | EVENT= stderr telemetry schema | `.claude/hooks/PreToolUse/push_guard_base.py:19,49-53,421` | `grep -n "EVENT=" .claude/hooks/PreToolUse/push_guard_base.py` |
-| 4 drift surfaces run in CI | `.github/workflows/validate-generated-agents.yml:165-225` | `grep -n "run_install_parity\|sync_plugin_lib\|build_all\|generate_agents" .github/workflows/validate-generated-agents.yml` |
+| 4 drift surfaces run in CI | `.github/workflows/validate-generated-agents.yml:165-225` | `grep -n -e "run_install_parity" -e "sync_plugin_lib" -e "build_all" -e "generate_agents" .github/workflows/validate-generated-agents.yml` |
 | `[skip-drift-check]` bypass marker | `.github/workflows/agent-drift-detection.yml:17,65-69` | `grep -n "skip-drift-check" .github/workflows/agent-drift-detection.yml` |
 | Strictly-greater plugin bump rule | `build/scripts/validate_plugin_version_bump.py:20,46` | `grep -n "strictly greater" build/scripts/validate_plugin_version_bump.py` |
 | Plugin versions (volatile) | three `.claude-plugin/plugin.json` files | `grep -m1 version .claude/.claude-plugin/plugin.json src/claude/.claude-plugin/plugin.json src/copilot-cli/.claude-plugin/plugin.json` |
