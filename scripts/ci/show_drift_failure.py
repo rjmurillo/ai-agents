@@ -49,6 +49,7 @@ _REMEDIATION_GUIDE = """\
 
 
 def _run(cmd: list[str]) -> int:
+    sys.stdout.flush()
     return subprocess.run(cmd, check=False).returncode
 
 
@@ -81,6 +82,7 @@ def show_drift_failure(
         ["git", "diff", "--name-only"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
     changed_files = result.stdout.strip()
@@ -93,6 +95,7 @@ def show_drift_failure(
         print(_REMEDIATION_GUIDE)
         print("--- Detailed diff ---")
         print()
+        sys.stdout.flush()
         subprocess.run(["git", "diff"], check=False)
 
 

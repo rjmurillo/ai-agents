@@ -23,6 +23,7 @@ _BUILD_SCRIPT = "build/scripts/build_all.py"
 def run_check(script: str, description: str) -> int:
     """Run a python3 --check script and return its exit code."""
     print(description)
+    sys.stdout.flush()
     result = subprocess.run(
         [sys.executable, script, "--check"],
         check=False,
