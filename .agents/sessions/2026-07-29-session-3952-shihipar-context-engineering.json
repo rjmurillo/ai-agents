@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0",
   "session": {
-    "number": 3876,
+    "number": 3952,
     "date": "2026-07-29",
     "branch": "rjmurillo/shihipar-context-engineering",
     "startingCommit": "c875f5e8b3",
@@ -145,7 +145,7 @@
       "step": "Two workspace-budget gates disagree on the limit: tests/test_workspace_limits.py allows 3072 bytes per file and 6758 total, scripts/validate_workspace_budget.py allows 3000 and 6600. A file can pass one and fail the other, which is what happened here. Filed for reconciliation."
     }
   ],
-  "endingCommit": "fff763ba1a",
+  "endingCommit": "d73ee09796",
   "nextSteps": [
     "Write rule scenarios for code-quality.md and pragmatic-programmer.md (#3935). Roughly 26KB of always-on content currently cannot be evaluated by the tool built to evaluate always-on content, which is the mechanism by which the corpus grew unchallenged",
     "Fix the copilot-cli provider to load treatments through a sandbox instruction file rather than the user prompt (#3934). The sandbox and the CLI's cwd-loading behavior already exist, so the real fix is close to free, and until it lands no copilot-cli result should be cited as passive-context evidence",

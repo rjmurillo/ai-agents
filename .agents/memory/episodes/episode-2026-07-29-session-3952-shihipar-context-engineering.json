@@ -1,6 +1,6 @@
 {
-  "id": "episode-2026-07-29-session-3876-shihipar-context-engineering",
-  "session": "2026-07-29-session-3876-shihipar-context-engineering",
+  "id": "episode-2026-07-29-session-3952-shihipar-context-engineering",
+  "session": "2026-07-29-session-3952-shihipar-context-engineering",
   "timestamp": "2026-07-29T00:00:00+00:00",
   "outcome": "success",
   "task": "Apply the Shihipar context-engineering doctrine to this repository's own authoring surfaces, so that the instruction corpus stops paying for text that no longer earns its slot. Anthropic deleted more than 80 percent of Claude Code's system prompt for Opus 5 with no measurable coding-eval loss, naming overconstraint as the failure mode. This repository loads roughly 95 kilobytes of always-on rules on a single Python edit, carries the same concept in as many as four places, and states a context budget in AGENTS.md that the enforced gate contradicts by about twelve times. Every cut must be gated by an eval run against claude-opus-5 and gpt-5.6-sol, the two models this repository is actually operated in.",
@@ -260,6 +260,18 @@
       "caused_by": [
         "e017"
       ],
+      "leads_to": [
+        "e023"
+      ]
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: d73ee09796",
+      "caused_by": [
+        "e022"
+      ],
       "leads_to": []
     }
   ],
@@ -268,7 +280,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 4
   },
   "lessons": []
