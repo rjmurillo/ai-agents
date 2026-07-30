@@ -13,6 +13,7 @@ import pytest
 
 from scripts.validation import skill_size as _skill_size_mod
 from scripts.validation.skill_size import (
+    _SKILL_TREE_PREFIXES,
     RATIONALE_MIN_CHARS,
     RATIONALE_SEARCH_LINES,
     SKILL_BYTE_LIMIT,
@@ -23,6 +24,7 @@ from scripts.validation.skill_size import (
     StagedBlobError,
     StagedDiscoveryError,
     check_skill_size,
+    get_skill_files,
     get_staged_skill_files,
     has_exception_rationale,
     has_size_exception,
@@ -1090,3 +1092,78 @@ class TestExceptionRequiresRationale:
             content = (root / relative).read_text(encoding="utf-8")
             assert has_size_exception(content), relative
             assert has_exception_rationale(content), relative
+
+
+class TestGetSkillFilesDefaultScansAllTrees:
+    """Issue #4015: full-scan default must cover both skill trees, not just one."""
+
+    def test_default_path_returns_files_from_both_trees(self, tmp_path: Path) -> None:
+        # Create SKILL.md in both tree locations under a temp root.
+        for prefix in _SKILL_TREE_PREFIXES:
+            skill_dir = tmp_path / prefix / "my-skill"
+            skill_dir.mkdir(parents=True)
+            (skill_dir / "SKILL.md").write_text("# skill", encoding="utf-8")
+
+        import os
+        original_cwd = Path.cwd()
+        os.chdir(tmp_path)
+        try:
+            files = get_skill_files(path=None)
+        finally:
+            os.chdir(original_cwd)
+
+        paths_str = [str(f) for f in files]
+        assert any(_SKILL_TREE_PREFIXES[0] in p for p in paths_str), (
+            f"Default scan must include {_SKILL_TREE_PREFIXES[0]}"
+        )
+        assert any(_SKILL_TREE_PREFIXES[1] in p for p in paths_str), (
+            f"Default scan must include {_SKILL_TREE_PREFIXES[1]}"
+        )
+
+    def test_main_with_no_path_arg_scans_both_trees(self, tmp_path: Path) -> None:
+        # main() with no --path argument must also scan both trees.
+        # This test catches regressions in build_parser's default value.
+        for prefix in _SKILL_TREE_PREFIXES:
+            skill_dir = tmp_path / prefix / "my-skill"
+            skill_dir.mkdir(parents=True)
+            (skill_dir / "SKILL.md").write_text("# skill", encoding="utf-8")
+
+        import os
+        original_cwd = Path.cwd()
+        os.chdir(tmp_path)
+        try:
+            # No --path arg; if the default reverts to single-tree, only 1 file is found.
+            # We capture this by patching print and checking Found N SKILL.md.
+            captured: list[str] = []
+            original_print = __builtins__["print"] if isinstance(__builtins__, dict) else print
+
+            import builtins
+            original_print = builtins.print
+            def capturing_print(*args: object, **kwargs: object) -> None:
+                captured.append(" ".join(str(a) for a in args))
+                original_print(*args, **kwargs)
+
+            builtins.print = capturing_print
+            try:
+                main([])
+            finally:
+                builtins.print = original_print
+        finally:
+            os.chdir(original_cwd)
+
+        found_lines = [l for l in captured if "Found" in l and "SKILL.md" in l]
+        assert found_lines, "main() must print a 'Found N SKILL.md' summary"
+        count_str = found_lines[0].split()[1]
+        assert int(count_str) == 2, (
+            f"main() with no --path must find skills in both trees (expected 2, got {count_str})"
+        )
+
+    def test_explicit_path_scans_only_that_tree(self, tmp_path: Path) -> None:
+        # An explicit --path must not expand to both trees.
+        skill_dir = tmp_path / "my-skill"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text("# skill", encoding="utf-8")
+
+        files = get_skill_files(path=str(tmp_path))
+        assert len(files) == 1
+        assert files[0].name == "SKILL.md"

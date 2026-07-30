@@ -458,7 +458,7 @@ def read_staged_blob_bytes(path: Path) -> bytes:
 
 
 def get_skill_files(
-    path: str,
+    path: str | None,
     staged_only: bool = False,
     changed_files: list[str] | None = None,
 ) -> list[Path]:
@@ -471,6 +471,17 @@ def get_skill_files(
 
     if staged_only:
         return get_staged_skill_files()
+
+    if path is None:
+        # Default: scan all known skill trees so a full audit covers the same
+        # set as the staged-file gate. Issue #4015: a single-tree default left
+        # src/copilot-cli/skills unmeasured on full scans.
+        results: list[Path] = []
+        for prefix in _SKILL_TREE_PREFIXES:
+            target = Path(prefix)
+            if target.exists():
+                results.extend(target.rglob("SKILL.md"))
+        return sorted(results)
 
     target = Path(path)
     if not target.exists():
@@ -489,8 +500,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--path",
-        default=os.environ.get("SKILL_PATH", ".claude/skills"),
-        help="Path to SKILL.md file or directory (default: .claude/skills)",
+        default=os.environ.get("SKILL_PATH"),
+        help=(
+            "Path to SKILL.md file or directory. "
+            "Defaults to scanning both .claude/skills and src/copilot-cli/skills."
+        ),
     )
     parser.add_argument(
         "--ci",
