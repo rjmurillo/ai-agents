@@ -137,6 +137,17 @@ def _git_failure_reason(exit_code: int, stderr: str, operation: str) -> str:
     return f"{operation} exited with {exit_code}"
 
 
+def _with_reason(message: str, error: str | None) -> str:
+    """Append git's own diagnostic to an outcome message when there is one.
+
+    Every reader in this module returns ``(value, error)``. Flattening the
+    error into a generic "git could not read X" sends the developer to run the
+    same command by hand, where a lenient terminal decodes what the gate could
+    not, and the real cause stays hidden.
+    """
+    return f"{message}: {error}" if error else message
+
+
 def _is_option_like_ref(ref: str) -> bool:
     """Return true when ``ref`` would be parsed by git as an option."""
     return ref.startswith("-")
@@ -162,9 +173,15 @@ def resolve_sha(ref: str, repo_root: Path) -> str | None:
 def read_marker_values(ref: str, repo_root: Path) -> tuple[list[str] | None, str | None]:
     """Read all ``Reviewed-By`` trailer values from the commit at ``ref``.
 
-    Returns the list of trailer values (one per ``Reviewed-By:`` line in the
-    commit's last paragraph), an empty list when the commit carries none, or
-    ``(None, reason)`` when git could not read the commit.
+    This is the one call in the gate whose stdout is commit trailer text
+    rather than hex SHAs, so it is the one most likely to fail on a decode.
+    The reason travels with the result.
+
+    Returns:
+        ``(values, None)`` on success, where ``values`` is one entry per
+        ``Reviewed-By:`` line and may be empty. ``(None, reason)`` when git
+        could not read the commit; ``reason`` is git's own message when it
+        produced one.
     """
     if _is_option_like_ref(ref):
         return None, f"invalid ref '{ref}': refs must not start with '-'"
@@ -183,7 +200,7 @@ def read_marker_values(ref: str, repo_root: Path) -> tuple[list[str] | None, str
 
 
 def read_parent_shas(commit_sha: str, repo_root: Path) -> tuple[list[str] | None, str | None]:
-    """Read the direct parent SHAs for ``commit_sha``."""
+    """Read the direct parent SHAs for ``commit_sha``, preserving git's error."""
     exit_code, stdout, stderr = _run_git(["show", "-s", "--format=%P", commit_sha], repo_root)
     if exit_code != 0:
         return None, _git_failure_reason(exit_code, stderr, "git show parents")
@@ -191,7 +208,7 @@ def read_parent_shas(commit_sha: str, repo_root: Path) -> tuple[list[str] | None
 
 
 def resolve_tree_sha(commit_sha: str, repo_root: Path) -> tuple[str | None, str | None]:
-    """Resolve ``commit_sha`` to the tree SHA it points at."""
+    """Resolve ``commit_sha`` to its tree SHA, preserving git's error."""
     exit_code, stdout, stderr = _run_git(["show", "-s", "--format=%T", commit_sha], repo_root)
     if exit_code != 0:
         return None, _git_failure_reason(exit_code, stderr, "git show tree")
@@ -235,11 +252,10 @@ def validate_parent_shas(
 ) -> ValidationOutcome | None:
     """Return an error outcome when parent data is missing or invalid."""
     if parent_shas is None:
-        reason = f": {read_error}" if read_error else ""
         return ValidationOutcome(
             ok=False,
             exit_code=2,
-            message=f"git could not read parent commits for '{ref}'{reason}",
+            message=_with_reason(f"git could not read parent commits for '{ref}'", read_error),
         )
 
     if not parent_shas:
@@ -278,11 +294,13 @@ def validate_marker_commit_shape(
     head_tree_sha, head_tree_error = resolve_tree_sha(head_sha, repo_root)
     parent_tree_sha, parent_tree_error = resolve_tree_sha(parent_sha, repo_root)
     if head_tree_sha is None or parent_tree_sha is None:
-        reason = head_tree_error or parent_tree_error or "tree SHA was empty"
         return ValidationOutcome(
             ok=False,
             exit_code=2,
-            message=f"git could not compare commit trees for '{ref}': {reason}",
+            message=_with_reason(
+                f"git could not compare commit trees for '{ref}'",
+                head_tree_error or parent_tree_error or "tree SHA was empty",
+            ),
         )
 
     if head_tree_sha != parent_tree_sha:
@@ -314,11 +332,10 @@ def validate_ref(ref: str, repo_root: Path) -> ValidationOutcome:
 
     head_sha, resolve_error = resolve_sha_with_error(ref, repo_root)
     if head_sha is None:
-        reason = f": {resolve_error}" if resolve_error else ""
         return ValidationOutcome(
             ok=False,
             exit_code=2,
-            message=f"could not resolve ref '{ref}' to a commit{reason}",
+            message=_with_reason(f"could not resolve ref '{ref}' to a commit", resolve_error),
         )
 
     parent_shas, parent_read_error = read_parent_shas(head_sha, repo_root)
@@ -334,11 +351,10 @@ def validate_ref(ref: str, repo_root: Path) -> ValidationOutcome:
     parent_sha = parent_shas[0]
     values, marker_read_error = read_marker_values(head_sha, repo_root)
     if values is None:
-        reason = f": {marker_read_error}" if marker_read_error else ""
         return ValidationOutcome(
             ok=False,
             exit_code=2,
-            message=f"git could not read commit '{ref}'{reason}",
+            message=_with_reason(f"git could not read commit '{ref}'", marker_read_error),
         )
 
     if not values:
