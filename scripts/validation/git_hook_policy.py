@@ -312,6 +312,10 @@ SKIPPED_DASH_PREFIXES = (
 # not a signal: reStructuredText section underlines and markdown setext headings
 # produce it legitimately, and every real conflict carries a labelled marker too.
 CONFLICT_MARKER_RE = re.compile(r"^(?:<{7}|\|{7}|>{7}) \S")
+
+# taste_lints.py exit contract: 0 clean, 1 script error, 10 violations found.
+# Only 10 means the lint ran and had something to say (issue #3779).
+_TASTE_LINT_EXIT_VIOLATIONS = 10
 MARKDOWN_FENCE_RE = re.compile(r"^\s*(?:`{3,}|~{3,})")
 GIT_ENV_KEYS = (
     "GIT_DIR",
@@ -4327,6 +4331,21 @@ def run_planning_advisory(repo_root: Path) -> int:
 
 
 def run_taste_advisory(paths: Sequence[str], repo_root: Path) -> int:
+    """Report taste-lint findings locally; block only when the lint cannot run.
+
+    Findings never block. A lint that failed to produce findings does, because
+    "no findings" and "no scan" are indistinguishable to the caller otherwise.
+    Local scope is the staged set, so a contributor who touches one line of a
+    900-line file would be blocked for a size violation they did not create.
+    That is the "inherit latent debt on contact" failure issue #2993 recorded
+    for ruff, and it is why enforcement lives in CI as a whole-tree ratchet
+    (scripts/ci/taste_count_ratchet.py, issue #3779) instead of here.
+
+    Advisory covers findings, not failures. taste_lints.py exits 10 for
+    violations and 1 for a script error; treating both as "advisory findings"
+    meant a linter that crashed reported the same thing as a clean run, and the
+    CI ratchet would then be the first thing to notice. A crash is surfaced.
+    """
     if not paths:
         return 0
     result = _run_command(
@@ -4338,8 +4357,16 @@ def run_taste_advisory(paths: Sequence[str], repo_root: Path) -> int:
         repo_root,
     )
     _print_process_output(result)
-    if result.returncode != 0:
+    if result.returncode == _TASTE_LINT_EXIT_VIOLATIONS:
         print("WARNING: taste lint findings are advisory", file=sys.stderr)
+        return 0
+    if result.returncode != 0:
+        print(
+            f"ERROR: taste-lints exited {result.returncode}, which is not a scan "
+            f"result. The lint did not run, so nothing was checked.",
+            file=sys.stderr,
+        )
+        return 2
     return 0
 
 
