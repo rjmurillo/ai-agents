@@ -458,7 +458,7 @@ def _module_attribute(
         # ``getattr(subprocess.run, "__call__")`` composes the two shapes
         # below, so resolving the owner answers for the pair.
         return _resolve_callable(owner, modules, functions)
-    held = modules.get(owner.id) if isinstance(owner, ast.Name) else None
+    held = _owner_module(owner, modules)
     if held is None:
         return None
     if not isinstance(attr, ast.Constant):
@@ -602,12 +602,11 @@ def _attribute(
     node: ast.Attribute, modules: dict[str, str], functions: dict[str, str]
 ) -> str | None:
     """Return the subprocess entry point ``owner.attr`` names, or ``None``."""
-    if isinstance(node.value, ast.Name):
-        owner, attr = modules.get(node.value.id), node.attr
-        if owner == "subprocess" and attr in _SUBPROCESS_ATTRS:
-            return attr
-        if owner == "os" and attr == "popen":
-            return _OS_POPEN
+    owner, attr = _owner_module(node.value, modules), node.attr
+    if owner == "subprocess" and attr in _SUBPROCESS_ATTRS:
+        return attr
+    if owner == "os" and attr == "popen":
+        return _OS_POPEN
     if node.attr in _FORWARDING_ATTRS:
         # ``subprocess.run.__call__`` is the same callable read through an
         # attribute that hands it back, so the owner answers for it.
@@ -1125,24 +1124,82 @@ def _dependents(groups: dict[int, tuple[ast.expr, list[str]]]) -> dict[str, list
     return found
 
 
+def _module_sources(value: ast.expr) -> list[str]:
+    """Return every name *value* may evaluate to, unwinding containers.
+
+    A module reference reaches a name through a container as easily as
+    through a plain assignment: ``[subprocess][0]`` and ``HOLDER[0]`` both
+    hand the module back with no name on the right to match against. The
+    index is not modelled, exactly as for a subscript elsewhere, so every
+    element answers, breadth-first so the answer follows source order.
+
+    Only the node handed in is unwound. A name bound to another binding is
+    left to the caller's fixpoint, which already settles those, and keeping
+    the walk inside one expression is what bounds it: chasing bindings from
+    here re-walks a chain of length N once per link and costs N squared.
+    """
+    queue = [value]
+    found: list[str] = []
+    while queue:
+        node = queue.pop(0)
+        if isinstance(node, ast.Name):
+            found.append(node.id)
+        elif isinstance(node, ast.Subscript):
+            queue.append(node.value)
+        elif isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+            queue.extend(node.elts)
+    return found
+
+
 def _rebound_modules(
     bindings: list[tuple[str, ast.expr]], modules: dict[str, str]
 ) -> dict[str, str]:
     """Grow *modules* with every name bound to a module already in it.
 
     ``sp = subprocess`` needs no import statement and leaves an owner name an
-    import scan never sees. A chain of them settles because each pass can only
-    add names, and there are finitely many.
+    import scan never sees, and so does ``sp = [subprocess][0]``. A chain of
+    them settles because each pass can only add names, and there are finitely
+    many. The sources each binding may name do not depend on what has settled
+    so far, so they are read once per value node rather than once per name.
+    An unpacking that does not line up pairs every name with the whole right
+    side, so one node can back thousands of bindings; reading it per name is
+    quadratic and measurably so.
     """
     grown = dict(modules)
+    groups: dict[int, tuple[list[str], list[str]]] = {}
+    for name, value in bindings:
+        key = id(value)
+        if key not in groups:
+            groups[key] = (_module_sources(value), [])
+        groups[key][1].append(name)
     changed = True
     while changed:
         changed = False
-        for name, value in bindings:
-            if isinstance(value, ast.Name) and value.id in grown and name not in grown:
-                grown[name] = grown[value.id]
-                changed = True
+        for candidates, names in groups.values():
+            pending = [one for one in names if one not in grown]
+            if not pending:
+                continue
+            source = next((one for one in candidates if one in grown), None)
+            if source is None:
+                continue
+            for one in pending:
+                grown[one] = grown[source]
+            changed = True
     return grown
+
+
+def _owner_module(node: ast.expr, modules: dict[str, str]) -> str | None:
+    """Return the module the owner expression *node* names, or ``None``.
+
+    A class body binds its attributes under the attribute prefix, the same
+    way the function table records them, so ``Holder.sp`` reads back exactly
+    as a plain ``sp`` does.
+    """
+    if isinstance(node, ast.Name):
+        return modules.get(node.id)
+    if isinstance(node, ast.Attribute):
+        return modules.get(_ATTRIBUTE + node.attr)
+    return None
 
 
 def _supplies_capture(
@@ -1906,6 +1963,25 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             'import operator, subprocess\n'
             'operator.attrgetter("Popen")(subprocess)(["x"])',
             "a spawn with neither capture nor text decodes nothing",
+        ),
+        (
+            'import shutil\n'
+            'module = [shutil][0]\n'
+            'module.which("x", capture_output=True, text=True)',
+            "a container holding a module we do not track holds no entry point",
+        ),
+        (
+            'import subprocess\n'
+            'class Holder:\n'
+            '    sp = subprocess\n'
+            'Holder.sp.run(["x"], capture_output=True, text=True, encoding="utf-8")',
+            "a module reached through a class body is still pinned at its call site",
+        ),
+        (
+            'import subprocess\n'
+            'module = [subprocess][0]\n'
+            'module.run(["x"])',
+            "a module reached through a container still decodes nothing untold",
         ),
     ],
 )
@@ -2816,6 +2892,26 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'getitem([subprocess.run], 0)(["x"], capture_output=True, text=True)',
             "getitem is the subscript spelled as a call",
         ),
+        (
+            'import subprocess\n'
+            'module = [subprocess][0]\n'
+            'module.run(["x"], capture_output=True, text=True)',
+            "a module reaches a name through a container with no name to match",
+        ),
+        (
+            'import subprocess\n'
+            'HOLDER = (subprocess,)\n'
+            'module = HOLDER[0]\n'
+            'module.run(["x"], capture_output=True, text=True)',
+            "the container holding the module can itself be behind a name",
+        ),
+        (
+            'import subprocess\n'
+            'class Holder:\n'
+            '    sp = subprocess\n'
+            'Holder.sp.run(["x"], capture_output=True, text=True)',
+            "a class body binds a module alias that no import statement shows",
+        ),
     ],
 )
 def test_detector_closes_the_evasions(source: str, why: str) -> None:
@@ -2928,6 +3024,34 @@ def test_unpacking_a_wide_container_stays_linear() -> None:
 
 
 def test_one_value_reading_many_names_stays_linear() -> None:
+    """A module chained through containers is found, and the chain stays cheap.
+
+    Each link wraps the next in a container, so settling the chain needs both
+    the fixpoint that resolves names and the unwinding that reads through a
+    subscript. Reading the sources of a link once per pass rather than once
+    per node turns that into a walk per pass per link: 20000 plain links took
+    83.2 seconds that way against a 10 second budget.
+
+    The spawn at the end is what makes this a correctness test and not only a
+    timing one. A chain that settles fast but loses the module answers
+    nothing.
+    """
+    depth = 2000
+    lines = ["import subprocess"]
+    lines += [f"m{index} = [m{index + 1}][0]" for index in range(depth)]
+    lines.append(f"m{depth} = subprocess")
+    lines.append('m0.run(["x"], capture_output=True, text=True)')
+    source = "\n".join(lines)
+
+    started = time.perf_counter()
+    flagged = unpinned_lines(source)
+    elapsed = time.perf_counter() - started
+
+    assert flagged == [depth + 3], "the module survives every container on the way"
+    assert elapsed < 3.0, f"chain resolution took {elapsed:.1f}s for {depth} links"
+
+
+def test_a_value_reading_many_names_stays_linear() -> None:
     """A value node that reads N names must be walked once, not once per name.
 
     The mirror of the wide-unpack shape. One list literal reading ``width``
