@@ -16,11 +16,11 @@ Tooling suite for optimizing Claude Code context placement. Passive context (AGE
 
 ## Triggers
 
-- `analyze skill placement` - classify content as Skill vs Passive Context
+- `analyze skill placement` - classify and validate content as Skill vs Passive Context
 - `compress markdown` - reduce token count for context files
-- `validate compliance` - check skill/passive context placement decisions
 - `optimize context` - lower API costs and improve agent performance
 - `extract and index` - split markdown into detail files with compact index
+- `audit always-on rules` - eval-gated procedure for whether a rule earns its slot, and the doctrine behind it, in [rule-audit-procedure.md](references/rule-audit-procedure.md) and [model-context-doctrine.md](references/model-context-doctrine.md). Also the entry point when a new model ships
 
 ## Process
 
@@ -115,6 +115,8 @@ The pass-rate table has no cost column. Passive context is paid on every request
 
 ## References
 
+- [model-context-doctrine.md](references/model-context-doctrine.md) - What the current doctrine is, why Vercel and Shihipar do not conflict, per-model levers, and how to update when a new model ships. **Read this before arguing about always-on content.**
+- [rule-audit-procedure.md](references/rule-audit-procedure.md) - Repeatable procedure for deciding whether an always-on rule earns its slot, including the eval commands, the noise floor, and known instrument gotchas
 - [Vercel: AGENTS.md outperforms skills](https://vercel.com/blog/agents-md-outperforms-skills-in-our-agent-evals)
 - Analysis: `.agents/analysis/vercel-passive-context-vs-skills-research.md`
 - Memory: `passive-context-vs-skills-vercel-research`
