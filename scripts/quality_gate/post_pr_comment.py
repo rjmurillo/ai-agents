@@ -121,6 +121,7 @@ def main(argv: list[str] | None = None) -> int:
 
     command = build_command(parsed_pr_number, str(report_path))
     try:
+        sys.stdout.flush()
         result = subprocess.run(command, timeout=args.timeout, check=False)
     except subprocess.TimeoutExpired:
         print(f"::error::Posting PR comment timed out after {args.timeout}s")

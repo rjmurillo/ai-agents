@@ -109,7 +109,7 @@ jobs:
           # Parse JSON into the issue body and agent count (ADR-006: no logic in YAML).
           python3 scripts/ci/parse_drift_results.py \
             --input drift-results.json \
-            --details-out drift-details.md \
+            --details-out "${RUNNER_TEMP:-.}/drift-details.md" \
             --count-out drift-count.txt
 
           # Set output for agents_count
@@ -132,7 +132,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Create issue body (unquoted EOF allows variable expansion)
-          cat << EOF > "issue-body.md"
+          cat << EOF > "${RUNNER_TEMP:-.}/issue-body.md"
           ## Agent Drift Detected
 
           **Detection Date**: $(date -u +"%Y-%m-%d %H:%M UTC")
@@ -142,9 +142,9 @@ jobs:
 
           EOF
 
-          cat "drift-details.md" >> "issue-body.md"
+          cat "${RUNNER_TEMP:-.}/drift-details.md" >> "${RUNNER_TEMP:-.}/issue-body.md"
 
-          cat << 'EOF' >> "issue-body.md"
+          cat << 'EOF' >> "${RUNNER_TEMP:-.}/issue-body.md"
 
           ### Recommended Actions
 
@@ -175,7 +175,7 @@ jobs:
           # Create the issue
           gh issue create \
             --title "Agent Drift Detected - $(date -u +"%Y-%m-%d")" \
-            --body-file issue-body.md \
+            --body-file "${RUNNER_TEMP:-.}/issue-body.md" \
             --label "drift-detected,automated"
 
       - name: Update existing drift issue
@@ -187,20 +187,20 @@ jobs:
           ISSUE_NUMBER="$(gh issue list --label "drift-detected" --state open --json number --jq '.[0].number')"
 
           # Add a comment to the existing issue
-          cat << EOF > "comment-body.md"
+          cat << EOF > "${RUNNER_TEMP:-.}/comment-body.md"
           ## Updated Drift Detection - $(date -u +"%Y-%m-%d %H:%M UTC")
 
           **Workflow Run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
           ### Current Status
 
-          $(cat drift-details.md)
+          $(cat "${RUNNER_TEMP:-.}/drift-details.md")
 
           ---
           *This comment was automatically added by the weekly drift detection workflow.*
           EOF
 
-          gh issue comment "$ISSUE_NUMBER" --body-file comment-body.md
+          gh issue comment "$ISSUE_NUMBER" --body-file "${RUNNER_TEMP:-.}/comment-body.md"
 
       - name: Fail when drift was detected
         if: steps.drift.outputs.drift_detected == 'true'

@@ -1,0 +1,119 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3608,
+    "date": "2026-07-30",
+    "branch": "wt/t_1afef4c5",
+    "startingCommit": "87b11766",
+    "objective": "Fix #3869 workflow-local-run aggregator cascade attribution"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP unavailable in this Hermes worker; repo documents read directly per degraded mode."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions unavailable in this Hermes worker; root AGENTS.md and .agents instructions used as fallback."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Kanban parent handoff and .agents/HANDOFF.md read."
+      },
+      "agentInstructionsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/AGENT-INSTRUCTIONS.md and root AGENTS.md read before implementation."
+      },
+      "claudeGuidanceRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/CLAUDE.md read; no root CLAUDE.md requirements found for this change."
+      },
+      "adrConstraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Relevant ADR constraints reviewed: ADR-035 exit-code standardization and ADR-086 local hook orchestration."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Working branch wt/t_1afef4c5 in /home/richard/repos/ai-agents/.worktrees/t_1afef4c5."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Working branch is wt/t_1afef4c5, not main."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation, regression tests, targeted validation, commit, and PR preparation completed."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No changes made to .agents/HANDOFF.md."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No durable Serena memory update needed; this was issue-specific implementation state."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files modified."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Commit cf10e2d456a3: fix(validation): attribute workflow-local-run cascades."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest tests/validation/test_run_workflow_local_test.py -q; uv run pytest tests/validation -q; uv run ruff check touched files; py_compile run_workflow_local_test.py. Pre-push/pre-pr validation reached all validations passed but push was blocked by retrospective-policy until this log existed."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "## Retrospective\n\nLearnings captured:\n1. Aggregator result annotations should be attributed only when their named upstream job has an act-limitation scope match.\n2. A broad output-wide cascade bypass would mask real required-check failures, so matching the act log scope is necessary.\n3. Pre-push retrospective-policy requires same-day retrospective evidence before pushing non-documentation code changes."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-07-30T00:20:00Z",
+      "entry": "Read task, issue #3869, root AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/HANDOFF.md, and relevant ADR context."
+    },
+    {
+      "time": "2026-07-30T00:28:00Z",
+      "entry": "Added failing regression test for cli-smoke aggregator cascade, verified RED with targeted pytest."
+    },
+    {
+      "time": "2026-07-30T00:34:00Z",
+      "entry": "Implemented scoped aggregator cascade attribution in scripts/validation/run_workflow_local_test.py and added hard-failure regression for cascade without an explained upstream limitation."
+    },
+    {
+      "time": "2026-07-30T00:37:00Z",
+      "entry": "Validation passed: 105 run_workflow_local_test tests, 1066 validation tests, ruff on touched files, py_compile, and pre_pr validations."
+    }
+  ],
+  "endingCommit": "cf10e2d4",
+  "nextSteps": [
+    "Push wt/t_1afef4c5 as rjmurillo-bot and open PR with Fixes #3869.",
+    "Queue QA review task for the PR."
+  ]
+}

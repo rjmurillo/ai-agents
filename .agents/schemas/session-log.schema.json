@@ -4,7 +4,14 @@
   "title": "AI Agents Session Log",
   "description": "JSON schema for AI agent session logs tracking work, decisions, and protocol compliance",
   "type": "object",
-  "required": ["session", "protocolCompliance"],
+  "required": [
+    "schemaVersion",
+    "session",
+    "protocolCompliance",
+    "workLog",
+    "endingCommit",
+    "nextSteps"
+  ],
   "properties": {
     "schemaVersion": {
       "type": "string",

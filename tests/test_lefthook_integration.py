@@ -4382,6 +4382,96 @@ def test_push_policy_rejects_protected_branch_deletion(tmp_path: Path) -> None:
     assert result == 1
 
 
+def test_push_policy_blocks_unresolved_merge_before_history_checks(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked.txt", "base\n")
+    _git(repo, "checkout", "-q", "-b", "other")
+    _commit_file(repo, "tracked.txt", "other\n")
+    _git(repo, "checkout", "-q", "feature/test")
+    _commit_file(repo, "tracked.txt", "feature\n")
+    _git(repo, "merge", "other", check=False)
+    monkeypatch.setattr(
+        policy,
+        "_check_history_integrity",
+        lambda _repo_root: pytest.fail("history checks should not run during a merge"),
+    )
+
+    result = policy.check_push_refs(io.StringIO(), repo)
+
+    assert result == 1
+    error = capsys.readouterr().err
+    assert "merge in progress" in error
+    assert "tracked.txt" in error
+    assert "git merge --abort" in error
+
+
+def test_push_policy_blocks_resolved_uncommitted_merge(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked.txt", "base\n")
+    _git(repo, "checkout", "-q", "-b", "other")
+    _commit_file(repo, "tracked.txt", "other\n")
+    _git(repo, "checkout", "-q", "feature/test")
+    _commit_file(repo, "tracked.txt", "feature\n")
+    _git(repo, "merge", "other", check=False)
+    _write_file(repo, "tracked.txt", "resolved\n")
+    _git(repo, "add", "tracked.txt")
+
+    result = policy.check_push_refs(io.StringIO(), repo)
+
+    assert result == 1
+    error = capsys.readouterr().err
+    assert "merge in progress" in error
+    assert "No unmerged paths remain" in error
+    assert "git commit" in error
+
+
+@pytest.mark.parametrize(
+    ("head_file", "operation", "remedy"),
+    [
+        ("REBASE_HEAD", "rebase", "git rebase --continue"),
+        ("CHERRY_PICK_HEAD", "cherry-pick", "git cherry-pick --continue"),
+    ],
+)
+def test_push_policy_names_active_git_operation(
+    head_file: str,
+    operation: str,
+    remedy: str,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    head = _commit_file(repo, "tracked.txt", "base\n")
+    git_path = Path(_git(repo, "rev-parse", "--git-path", head_file).stdout.strip())
+    if not git_path.is_absolute():
+        git_path = repo / git_path
+    git_path.write_text(f"{head}\n", encoding="utf-8")
+
+    result = policy.check_push_refs(io.StringIO(), repo)
+
+    assert result == 1
+    error = capsys.readouterr().err
+    assert f"{operation} in progress" in error
+    assert remedy in error
+
+
+def test_push_policy_allows_clean_tree_without_active_git_operation(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked.txt", "base\n")
+
+    assert policy.check_push_refs(io.StringIO(), repo) == 0
+
+
 def test_fetch_origin_main_refreshes_stale_tracking_ref(tmp_path: Path) -> None:
     remote = tmp_path / "remote.git"
     writer = tmp_path / "writer"
@@ -5568,7 +5658,10 @@ def test_advisories_warn_but_generators_block_before_staging(
 
     assert policy.run_planning_advisory(tmp_path) == 0
     assert policy.run_taste_advisory([], tmp_path) == 0
-    assert policy.run_taste_advisory(["source.py"], tmp_path) == 0
+    # taste_lints.py exit 1 is a script error, not findings, so the wrapper maps
+    # it to its own 2 (blocking). Exit 10 would be findings and would map to 0.
+    # The swallowing of exit 1 as "findings are advisory" is issue #3779.
+    assert policy.run_taste_advisory(["source.py"], tmp_path) == 2
     assert policy.generate_mcp_advisory(tmp_path) == 1
     assert policy.generate_agents_advisory(tmp_path) == 1
     assert policy.update_memory_tokens(tmp_path) == 1
@@ -7539,3 +7632,58 @@ def test_the_commit_ceilings_come_from_the_shared_module() -> None:
         == pr_commit_count.MAIN_MERGE_BLOCK_THRESHOLD
         == 40
     )
+
+
+def test_taste_findings_stay_advisory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Exit 10 is the linter reporting violations. Local scope is the staged
+    set, so blocking here would fail a contributor for debt they inherited by
+    touching one line of a large file. Enforcement is the whole-tree ratchet in
+    CI (scripts/ci/taste_count_ratchet.py) instead.
+    """
+    monkeypatch.setattr(
+        policy,
+        "_run_command",
+        lambda *_args, **_kwargs: _completed(10, "findings\n", ""),
+    )
+    assert policy.run_taste_advisory(["source.py"], tmp_path) == 0
+    assert "advisory" in capsys.readouterr().err
+
+
+def test_a_crashed_taste_lint_is_not_reported_as_advisory_findings(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The isolating control for the wrapper half of issue #3779.
+
+    taste_lints.py exits 1 on a script error and 10 on violations. Treating
+    both as findings meant a linter that could not run printed the same
+    reassuring line as a clean one, so nothing was checked and nothing said so.
+    """
+    monkeypatch.setattr(
+        policy,
+        "_run_command",
+        lambda *_args, **_kwargs: _completed(1, "", "Traceback\n"),
+    )
+    assert policy.run_taste_advisory(["source.py"], tmp_path) == 2
+    err = capsys.readouterr().err
+    assert "not a scan result" in err
+    assert "advisory" not in err
+
+
+def test_a_clean_taste_lint_says_nothing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        policy,
+        "_run_command",
+        lambda *_args, **_kwargs: _completed(0, "", ""),
+    )
+    assert policy.run_taste_advisory(["source.py"], tmp_path) == 0
+    assert "advisory" not in capsys.readouterr().err
