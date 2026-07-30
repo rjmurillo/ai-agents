@@ -638,6 +638,38 @@
     {
       "step": "Verification: full suite 19043 passed and 30 skipped, up 6 from the net new tests. Eval suite 237 passed and 1 skipped, up from 232 collected. ruff clean after fixing a real B023 late-binding catch in a loop-scoped lambda, mypy clean, 0 em/en dashes, context-optimizer mirrors byte-identical, taste ratchet OK at baseline 616, skill_size 0 failures.",
       "timestamp": "2026-07-30T19:20:00Z"
+    },
+    {
+      "step": "Sol adversarial round 22 returned a publish verdict of no: one blocking defect and three nits. Reproduced all four independently before touching anything. Blocking: the round-21 refusal required the score field name to be quoted and followed by a colon, so a JSON5 bare key, a Python dict(field=1) call, and unbraced prose each restated a verdict and published unmarked.",
+      "timestamp": "2026-07-30T21:05:00Z"
+    },
+    {
+      "step": "Rejected Sol's proposed fix of adding a bare-name-plus-colon alternative. It still enumerates separators, which is the trap that broke rounds 19, 20, and 21 in turn. Implemented the terminal form instead: match the bare field name with no quoting and no separator required, so nothing remains to enumerate. Measured the cost first: all three candidate policies refuse zero of the 264 nested reasoning values across the 288 archived payloads.",
+      "timestamp": "2026-07-30T21:20:00Z"
+    },
+    {
+      "step": "Name-only broke 17 tests, because the string walker yields object keys as well as values, so a healthy payload's own root key activation_score reached the check and every healthy payload refused. Added an exemption that is exact rather than a pattern: a string that is entirely a field name carries no verdict because it carries no number, so equality against the closed _SCORE_FIELDS set exempts it and any other character puts it back under the refusal.",
+      "timestamp": "2026-07-30T21:40:00Z"
+    },
+    {
+      "step": "Flipped one existing assertion deliberately. Prose that merely mentions a field name now refuses, because no bounded rule separates it from the round-22 bypass string. The neighbouring assertion stays False and serves as the control proving the check has not become universal.",
+      "timestamp": "2026-07-30T21:50:00Z"
+    },
+    {
+      "step": "Corrected two wrong-population numbers of my own. The 1732 count walked the whole archive envelope including artifact names and provenance prose; the population the claim attaches to is the 264 nested reasoning values. And the claim that the exemption silently excused three errors counted files over 500 lines, not files the rule gates: file-size covers markdown and code, not .xml or .txt, so the true number is one.",
+      "timestamp": "2026-07-30T22:00:00Z"
+    },
+    {
+      "step": "Narrowed the taste-lints generated-data exemption to require a .json suffix as well as the path. Re-exposed exactly one file, a closed 913-line generated audit catalog, which now carries an explicit suppression stating why splitting a resolved historical record would break what it is for.",
+      "timestamp": "2026-07-30T22:10:00Z"
+    },
+    {
+      "step": "Corrected the archive claim that issue #3998 rests on. The archive stores a raw payload for all 288 samples, successes included, so a defect on the success path can be replayed rather than argued about. Fixed the round-count contradictions across three reference docs and removed the aggregate defect count, whose categories shifted between rounds and so had no stable population.",
+      "timestamp": "2026-07-30T22:20:00Z"
+    },
+    {
+      "step": "Verification: full suite 19460 passed and 30 skipped. Eval suite 1590 passed and 4 skipped, matching baseline. Negative controls confirmed load-bearing: removing the exact-equality exemption fails 17 tests, removing the .json suffix condition fails exactly the two over-breadth tests, and the file was byte-identical after each restore. Replaying all 288 archived payloads gives 24 divergences, an identical set by coordinate to HEAD, so nothing published moved. ruff and mypy clean, all four portability checkers OK, 0 em or en dashes, manifest parity at 0.6.5433, ratchet OK at 613.",
+      "timestamp": "2026-07-30T22:40:00Z"
     }
   ],
   "endingCommit": "",

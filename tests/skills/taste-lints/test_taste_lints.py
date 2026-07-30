@@ -194,6 +194,37 @@ class TestCheckFileSize:
         assert len(result) == 1
         assert result[0].severity == "error"
 
+    def test_authored_markdown_in_an_exempt_dir_is_not_exempt(self) -> None:
+        # The exemption exists because JSON cannot carry a suppression comment.
+        # A markdown file in the same directory has section boundaries to split
+        # on and a comment syntax to suppress with, so it stays gated. A
+        # 913-line catalog under .agents/sessions/ was silently excused before
+        # the suffix condition was added.
+        lines = ["line\n"] * 600
+        for path in (
+            ".agents/sessions/2026-01-17-orphaned-artifacts-catalog.md",
+            ".agents/memory/notes.md",
+            ".agents/analysis/eval-artifacts/run/summary.md",
+        ):
+            result = check_file_size(path, lines)
+            assert len(result) == 1, path
+            assert result[0].severity == "error", path
+
+    def test_non_json_data_in_an_exempt_dir_is_not_exempt(self) -> None:
+        lines = ["line\n"] * 600
+        for path in (
+            ".agents/sessions/skillforge-phase2-spec.xml",
+            ".agents/sessions/2025-12-18-session-33-export.txt",
+            ".agents/sessions/helpers.py",
+        ):
+            result = check_file_size(path, lines)
+            assert len(result) == 1, path
+            assert result[0].severity == "error", path
+
+    def test_exempt_suffix_match_is_case_insensitive(self) -> None:
+        lines = ["{}\n"] * 900
+        assert check_file_size(".agents/sessions/2026-07-29-session-1.JSON", lines) == []
+
 
 class TestCheckNaming:
     """Tests for naming convention checks."""
