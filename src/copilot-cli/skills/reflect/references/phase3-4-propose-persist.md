@@ -166,8 +166,10 @@ check is a text search rather than a parser: it passes when the file contains
 `def name` or `async def name` anywhere, including inside a comment or a
 string, and it never looks at the file extension.
 
-So prefer `::function` over `:LINE` for a Python function or method, where a
-line number goes stale on the next edit above it while the name survives. Cite
+So prefer `::function` over `:LINE` for a Python function or method. `:LINE`
+is only checked against the file's length, so an edit above it keeps passing
+while pointing at different content, and it fails only once the file gets
+shorter than the cited line. A name survives both. Cite
 `path` or `path:LINE` for anything else. A TypeScript, C#, or Go function is
 reported stale even though it exists, and so is a Python class, because none of
 them is preceded by `def`. A name containing a character outside

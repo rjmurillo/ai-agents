@@ -292,52 +292,15 @@ The `.github/workflows/memory-health.yml` workflow runs health checks on all PRs
 
 ### Citation Verification Workflow
 
-The `.github/workflows/citation-verify.yml` verifies individual citations:
+The `.github/workflows/citation-verify.yml` workflow verifies citations:
 
-Replaces the example below with the actual deployed workflow.
-
-### Example workflow (for reference)
-
-```yaml
-name: Memory Citation Validation
-
-on:
-  pull_request:
-    paths:
-      - '.serena/memories/**'
-      - 'src/**'
-      - 'scripts/**'
-
-jobs:
-  verify:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: actions/setup-python@40c6b50cc6aa807e2d020b243100c016221d604c # v5.3.0
-        with:
-          python-version: '3.12'
-      - run: pip install -e .
-      - run: python -m memory_enhancement verify-all --json > results.json
-        continue-on-error: true
-      - run: cat results.json
-      - name: Comment on PR
-        if: failure()
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
-        with:
-          script: |
-            const results = require('./results.json');
-            const stale = results.filter(r => !r.valid);
-            if (stale.length > 0) {
-              await github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.name,
-                body: `⚠️ ${stale.length} stale memory citation(s) detected. Run \`python -m memory_enhancement verify-all\` locally for details.`
-              });
-            }
-```
-
-Initially set `continue-on-error: true` (warning only). After adoption, make blocking.
+- Runs on every pull request to `main`, plus `workflow_dispatch`
+- Filters on `.serena/memories/**` and `.claude/skills/memory-enhancement/**`
+- Runs `python3 -m memory_enhancement --repo-root . --memories-dir .serena/memories verify-all`
+- Blocking: a stale or broken citation exits 1 and fails the check
+- Posts no PR comment
+- Pairs with a `skip-verification` job so the required check still reports on
+  pull requests that touch neither path
 
 ## Verification
 
@@ -356,4 +319,4 @@ After using this skill:
 - [ADR-007](../../.agents/architecture/ADR-007-memory-first-architecture.md) - Memory-first architecture
 - [ADR-038](../../.agents/architecture/ADR-038-reflexion-memory-schema.md) - Reflexion memory schema
 
-<!-- vendor-portability: declared. This skill links .agents/architecture/ADR-007 and ADR-038 as the memory-first and reflexion-schema ADRs. Both are documentation citations; the enhancement logic does not read them, and a vendored install loses only the links. Issue #2050. -->
+<!-- vendor-portability: declared. This skill links .agents/architecture/ADR-007 and ADR-038 as the memory-first and reflexion-schema ADRs, and names .github/workflows/memory-health.yml and .github/workflows/citation-verify.yml as the CI that runs these commands. All four sit outside the plugin root and are absent from a vendored install. Every one is a documentation citation; the enhancement logic reads none of them, the CLI behaves identically without them, and a vendored install loses only the links and the description of this repository's CI wiring. Issue #2050. -->

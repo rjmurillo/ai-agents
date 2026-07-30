@@ -210,7 +210,9 @@ broken one costs 1/N of the validity factor.
 
 - Two or three citations to stable, load-bearing code
 - File-level citations for broad concepts
-- Function citations only where the function name is the contract
+- Function citations for a Python function or method, only where the name is
+  the contract. The check searches for `def name`, so it does not recognise a
+  function in any other language
 
 **Avoid:**
 
@@ -238,4 +240,4 @@ of a defect.
 4. `verify` and `health` tell you what is actually broken; use them to act.
 5. Citations and links must be inline in the body to be parsed at all.
 
-<!-- vendor-portability: declared. This guide cites scripts/memory_enhancement/confidence.py, reflection.py, serena_integration.py, and hooks/session_end_memory.py as the source of truth for the weights and the persistence path. Those paths live outside the plugin root and are absent from a vendored install. They are read-only citations that let a maintainer in this repository re-derive every number here; the guide is complete without them. Issue #2050. -->
+<!-- vendor-portability: declared. This guide cites scripts/memory_enhancement/confidence.py, reflection.py, serena_integration.py, and hooks/session_end_memory.py as the source of truth for the weights and the persistence path, and .claude/settings.json as the file that registers hooks in this repository. Those paths are absent from a vendored install. They are read-only citations that let a maintainer in this repository re-derive every number here; the guide is complete without them. Issue #2050. -->

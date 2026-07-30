@@ -357,7 +357,7 @@ python -m memory_enhancement health --markdown
 ```
 
 The first command names every citation that stopped resolving. The second
-ranks the damage and lists stale memories.
+summarizes the damage and lists stale memories.
 
 ### In CI
 
