@@ -19,6 +19,8 @@ The first draft of this ADR recommended moving the bump to merge time via a post
 
 Because the recommendation changed materially from the reviewed draft, the `adr-review` skill re-ran the 6-agent debate against the current PR-time-retention decision (Round 3 in the debate log at `.agents/critique/ADR-079-debate-log.md`). Outcome: 6/6 Accept. Both acceptance criteria are met: (a) the re-review completed with no blocking findings, and (b) the owner confirmed the decision to keep PR-time bumping and reject automation (issue #2855 thread, 2026-07-08). The ADR filename retains the historical `merge-time` slug to preserve inbound links; the title and decision are authoritative.
 
+Issue #3875 revisited Decision point 4 with measured traffic data, as the original ADR requested if the traffic assumption changed. The decision stays the same, but the cost model changes: recent merged PRs show packaged-plugin-source changes in one third of merges, so collision handling is a common coordination cost, not a rare tail event.
+
 ## Date
 
 2026-07-08
@@ -65,7 +67,7 @@ Keep the plugin version bump where it is: hand-set in the PR, shipped in the sam
 
 3. **The existing PR-time gate stays blocking and monotonic.** `validate_plugin_version_bump.py` continues to require a strictly-greater version when packaged plugin content changes. Monotonic because humans expect version numbers to increase, and because a strictly-greater value is a trivially correct way to guarantee the inequality the Copilot host needs. Strictly-greater is also the only guard against a *downgrade*: because Copilot's check is string inequality, a decreased version still differs and would push to installs as an "update," so the gate, not the host, is what blocks a rollback from reaching consumers. The gate enforces strictly-greater regardless of host semantics, so a lower-or-equal version fails even though the host itself would accept any inequality.
 
-4. **Cross-PR collision is accepted, not engineered away.** Two PRs on the same version line, off the same base, both bump to `N+1`; when one merges, the other equals base and must rebase and re-bump, up to once per sibling that merges ahead (O(K) worst case for K concurrent same-line PRs). This serializes same-line plugin-source merges. It is tolerable because plugin-source PRs are believed to be a small fraction of traffic (unmeasured assumption; revisit if that rate rises), the result is correct at merge, and each collision costs one rebase, often auto-resolved. Two mitigations bound the pain and stay in place: the merge-resolver rule that resolves a version-only `plugin.json` conflict to one patch above the higher side (issue #2543), re-checked by the same PR-time gate before merge; and an auto-loaded recovery-recipe instruction file that teaches the `max(open-PR versions) + 1` plus immediate-auto-merge move (PR #2873, a mitigation for #2855).
+4. **Cross-PR collision is accepted with measured traffic, not engineered away.** Two PRs on the same version line, off the same base, both bump to `N+1`; when one merges, the other equals base and must rebase and re-bump, up to once per sibling that merges ahead (O(K) worst case for K concurrent same-line PRs). This serializes same-line plugin-source merges. Issue #3875 measured the earlier traffic assumption: 26 open PRs included 14 that touched packaged plugin source (54%), but that sample was biased by one campaign; the defensible merged-PR sample was 60 most recently merged PRs, of which 20 touched packaged plugin source (33%). One in three merged PRs is not a small fraction, so this ADR now accepts a common-case coordination cost rather than a rare tail cost. The per-collision cost is also not just a rebase: a version-line conflict can require manual conflict resolution and a rerun of the pre-push hook gate chain. Two mitigations bound the pain and stay in place: the merge-resolver rule that resolves a version-only `plugin.json` conflict to one patch above the higher side (issue #2543), re-checked by the same PR-time gate before merge; and an auto-loaded recovery-recipe instruction file that teaches the `max(open-PR versions) + 1` plus immediate-auto-merge move (PR #2873, a mitigation for #2855).
 
 This ADR ships no code. It keeps the current gates and mitigations and records why the automation alternatives were rejected.
 
@@ -84,8 +86,8 @@ This ADR ships no code. It keeps the current gates and mitigations and records w
 
 ### Why Not Automate
 
-- **The scale pain is real** but bounded: plugin-source PRs are infrequent, and each collision costs one rebase, often auto-resolved by #2543.
-- **Every automation costs more than the pain it removes.** Post-merge stamping tears `main`; a merge queue adds infrastructure and still serializes; git-height and content-hash still write a value and either tear `main` or collide; relaxing the gate reopens #1942. Detail in Alternatives.
+- **The scale pain is real** and common: issue #3875 measured 20 of 60 recent merged PRs touching packaged plugin source (33%). Each collision costs conflict resolution plus a rerun of the pre-push hook gate chain, not just a rebase.
+- **Every automation still costs more than the pain it removes.** Post-merge stamping tears `main`; a merge queue adds infrastructure and still serializes; git-height and content-hash still write a value and either tear `main` or collide; a git merge driver has clone-local configuration and fail-closed semantics that must be proven before it can become policy; relaxing the gate reopens #1942. Detail in Alternatives.
 - **The write cannot be removed.** Both hosts read the raw checked-in value from HEAD; there is no build boundary to stamp ephemerally. So the only real choices are where the write happens (PR vs post-merge) and how the value is produced (hand vs derived). PR-time hand-bump is the only one of those that is correct at merge with zero new trust surface.
 
 ## Rationale
@@ -94,17 +96,18 @@ This ADR ships no code. It keeps the current gates and mitigations and records w
 
 | Alternative | Why chosen / rejected |
 |-------------|-----------------------|
-| **PR-time monotonic bump in the PR + tactical mitigations (CHOSEN)** | Correct at merge; `main` never torn; zero new infrastructure; zero new trust surface; one legible monotonic scheme for both hosts. Cost is the accepted rebump on concurrent plugin-source PRs, bounded by #2543 and #2873. |
-| **Post-merge auto-bump bot** | Rejected. Between the content merge and the bot's bump commit, `main` carries changed content under an unchanged version: a torn state that violates the "artifacts ship with the change" rule. Adds a new trusted actor committing to protected `main`, a branch-protection carve-out, a recursion guard, and a serialized queue as the correctness mechanism. High complexity that may or may not hold, to remove a rare, cheap rebase. |
+| **PR-time monotonic bump in the PR + tactical mitigations (CHOSEN)** | Correct at merge; `main` never torn; zero new infrastructure; zero new trust surface; one legible monotonic scheme for both hosts. Cost is the accepted rebump on concurrent plugin-source PRs. Issue #3875 measures that cost as common enough to document explicitly; #2543 and #2873 bound, but do not remove, the pain. |
+| **Post-merge auto-bump bot** | Rejected. Between the content merge and the bot's bump commit, `main` carries changed content under an unchanged version: a torn state that violates the "artifacts ship with the change" rule. Adds a new trusted actor committing to protected `main`, a branch-protection carve-out, a recursion guard, and a serialized queue as the correctness mechanism. High complexity that may or may not hold, to remove a common but still bounded coordination cost. |
 | **GitHub merge queue with a bump step** | Rejected. Heavier infrastructure and a merge-queue dependency; still serializes plugin-source merges; does not remove the bump. |
 | **Derived version from git height (NBGV-style)** | Rejected. Still commits a value to the manifest the host reads, so the write is not eliminated. Computed at PR time it collides identically to the hand-counter; computed post-merge it tears `main` like the bot. NBGV's zero-write property comes from stamping at build time and never checking in; there is no build boundary here (hosts read raw HEAD), so that escape is unavailable. |
 | **Content-addressable freshness key (hash of packaged source)** | Rejected on legibility. A per-plugin content hash would actually cut the version-only collisions, since a hash of that plugin's own tree does not change when a sibling touches different content. But it drops the monotonic ordering humans expect from a version, for no host benefit, since Copilot needs only inequality, which monotonic SemVer already provides. A checked-in hash of the merged tree also reintroduces the write-timing problem (tears `main` post-merge, or is stale at PR-time). Legibility is the decisive reason to decline. |
+| **Git merge driver for `plugin.json` version-only conflicts** | Not chosen in this ADR. A merge driver that resolves a version-only `plugin.json` conflict to one patch above the higher side would mechanize the existing #2543 rule inside the PR branch, so it does not tear `main` and deserves a separate spike. It is not adopted here because merge drivers are clone-local configuration, not repository policy by default; it must prove it fires on pull, rebase, and bot merges; and it must fail closed when a conflict is not version-only. |
 | **Relax the PR-time gate to `>=`** | Rejected. Reopens the silent-staleness bug (#1942): a content change under an unchanged version never reaches Copilot installs, whose update check is `!=` (equal means no update). |
 | **Do nothing, remove the mitigations** | Rejected. The rediscovery cost (#2873) and conflict thrash (#2543) return. The mitigations are cheap and stay. |
 
 ### Trade-offs
 
-The chosen option trades a bounded coordination cost (rebump on concurrent plugin-source PRs) for zero new infrastructure and zero new trust surface. The trade is favorable: plugin-source PRs are a small fraction of traffic, the per-instance cost is one rebase (often auto-resolved by #2543), and every automation that removes the cost adds a torn-`main` window or a self-committing bot that is strictly more dangerous than the problem it solves.
+The chosen option trades a common coordination cost (rebump on concurrent plugin-source PRs) for zero new infrastructure and zero new trust surface. The trade is still favorable after issue #3875: 20 of 60 recent merged PRs touched packaged plugin source (33%), and each collision can require conflict resolution plus a pre-push hook gate-chain rerun, not just a rebase. The cost is real, measured, and higher than originally assumed. The decision accepts that cost because the higher-risk alternatives add a torn-`main` window, a self-committing bot, or a clone-local merge-driver policy that is not proven safe enough to make binding here.
 
 ## Consequences
 
@@ -118,7 +121,7 @@ The chosen option trades a bounded coordination cost (rebump on concurrent plugi
 
 ### Negative
 
-- Parallel same-line plugin-source PRs still serialize: only one merges at `N+1`, the rest rebase and re-bump (O(K) worst case). Accepted. Bounded by issue #2543 (auto-resolve) and PR #2873 (recovery recipe).
+- Parallel same-line plugin-source PRs still serialize: only one merges at `N+1`, the rest rebase and re-bump (O(K) worst case). Accepted with measured frequency: issue #3875 found 20 of 60 recent merged PRs touched packaged plugin source (33%). Bounded by issue #2543 (auto-resolve) and PR #2873 (recovery recipe), but still a common coordination cost.
 - Contributors and fleet agents must remember to bump. The auto-loaded instruction (#2873) and the gate's failure message keep this a pit of success rather than tribal knowledge.
 
 ### Neutral
@@ -157,6 +160,7 @@ This ADR is accepted when (a) the mandatory `adr-review` debate has completed wi
 ## References
 
 - Issue #2855 (this ADR's request and evidence).
+- Issue #3875 (measured Decision point 4 traffic and cost).
 - `build/scripts/validate_plugin_version_bump.py` (RULE docstring).
 - `build/scripts/check_plugin_manifest_parity.py` (manifest parity).
 - `.github/workflows/validate-plugin-version-bump.yml`, `.github/workflows/validate-generated-agents.yml`, `.github/workflows/agent-drift-detection.yml`.

@@ -251,10 +251,30 @@ def has_case_insensitive(data: dict[str, Any], key: str) -> bool:
 _INCOMPLETE_MUST_PREFIX = "Incomplete MUST: "
 _MISSING_REQUIRED_PREFIX = "Missing required item: "
 _MUST_NOT_VIOLATED_PREFIX = "MUST NOT violated: "
+
+# Every check in validate_must_item is gated on the item's own `level`, so a
+# required item that declares no level at all is not merely unenforced: it is
+# unread. Measured over the committed corpus, 138 required items carry no
+# level, including 19 branchVerified and 4 notOnMain. Those are the two items
+# that answer "did this session run on main", so the silent ones are the ones
+# that matter most (issue #3747).
+_MISSING_LEVEL_PREFIX = "Missing level: "
+
+# SESSION-PROTOCOL.md line 20 already states that deviation from a MUST
+# "requires documented justification". Enforcing that sentence is what closes
+# the demotion bypass: an author can still declare a required item SHOULD when
+# the harness genuinely cannot satisfy it, but the deviation has to be written
+# down and attributable. Measured over the corpus, all 257 existing demotions
+# already carry evidence, so this enforces current practice rather than
+# changing it.
+_UNJUSTIFIED_DEMOTION_PREFIX = "Unjustified demotion: "
+
 _MUST_FAILURE_PREFIXES: tuple[str, ...] = (
     _INCOMPLETE_MUST_PREFIX,
     _MISSING_REQUIRED_PREFIX,
     _MUST_NOT_VIOLATED_PREFIX,
+    _MISSING_LEVEL_PREFIX,
+    _UNJUSTIFIED_DEMOTION_PREFIX,
 )
 
 
@@ -596,11 +616,58 @@ def validate_evidence_agrees_with_session(data: dict[str, Any], result: Validati
         )
 
 
+def _validate_required_item_level(
+    level: object,
+    is_complete: object,
+    evidence: object,
+    item_name: str,
+    section_name: str,
+    result: ValidationResult,
+) -> None:
+    """Stop a required item deciding how hard it will be checked.
+
+    Every other check in ``validate_must_item`` reads the item's own ``level``,
+    so the document controls its own enforcement. Two ways out of a MUST follow
+    from that, and both are closed here.
+
+    An absent ``level`` skips every branch, so the item is unread rather than
+    merely lenient. A demotion to SHOULD silences an incomplete MUST outright,
+    which is the bypass issue #3747 reports.
+
+    Demotion stays legal, because a harness can genuinely lack a capability the
+    protocol assumes: Serena is not reachable from Copilot CLI, and 61 logs say
+    so. What it may no longer be is silent. SESSION-PROTOCOL.md line 20 already
+    requires documented justification for deviating from a MUST, so an
+    incomplete demoted item without evidence is a protocol failure under the
+    rule as written.
+    """
+    if level is None:
+        result.errors.append(
+            f"{_MISSING_LEVEL_PREFIX}{section_name}.{item_name} declares no level, "
+            "so no requirement check applies to it. Required items must declare "
+            'one ("MUST", "MUST NOT", or "SHOULD" with justification).'
+        )
+        return
+
+    if level in ("MUST", "MUST NOT") or is_complete:
+        return
+
+    if not (isinstance(evidence, str) and evidence.strip()):
+        result.errors.append(
+            f"{_UNJUSTIFIED_DEMOTION_PREFIX}{section_name}.{item_name} is required "
+            f"but declares level {level!r} while incomplete, with no evidence. "
+            "SESSION-PROTOCOL.md requires documented justification to deviate "
+            "from a MUST."
+        )
+
+
 def validate_must_item(
     check_data: object,
     item_name: str,
     section_name: str,
     result: ValidationResult,
+    *,
+    is_required: bool = False,
 ) -> None:
     """Validate a MUST requirement item.
 
@@ -609,6 +676,9 @@ def validate_must_item(
         item_name: Name of the item being checked.
         section_name: Section name for error messages.
         result: ValidationResult to update with errors/warnings.
+        is_required: Whether the schema names this item as required for the
+            section. Required items answer to two extra rules, because for
+            them the document must not be able to choose its own enforcement.
     """
     if not isinstance(check_data, dict):
         # Six committed logs from 2026-01 and 2026-02 store a bare boolean here
@@ -626,6 +696,9 @@ def validate_must_item(
     is_complete = get_case_insensitive(check_data, "complete")
     evidence = get_case_insensitive(check_data, "evidence")
     level = get_case_insensitive(check_data, "level")
+
+    if is_required:
+        _validate_required_item_level(level, is_complete, evidence, item_name, section_name, result)
 
     if level == "MUST" and not is_complete:
         result.errors.append(f"{_INCOMPLETE_MUST_PREFIX}{section_name}.{item_name}")
@@ -668,7 +741,13 @@ def validate_checklist_section(
 
     for item_name in items_to_check:
         if item_name in section_data:
-            validate_must_item(section_data[item_name], item_name, section_name, result)
+            validate_must_item(
+                section_data[item_name],
+                item_name,
+                section_name,
+                result,
+                is_required=item_name in required_items,
+            )
         else:
             result.errors.append(f"{_MISSING_REQUIRED_PREFIX}{section_name}.{item_name}")
 
@@ -727,6 +806,15 @@ def validate_protocol_compliance(
         validate_session_end(protocol["sessionEnd"], result)
 
 
+# Root fields promoted to schema-required by issue #3763, and the only ones an
+# already-committed log is excused from. SESSION-PROTOCOL.md has listed all six
+# root fields as required since it was written, and build_session_log emits all
+# six, but the schema named only two, so the schema was the one document
+# disagreeing with both. Renaming an old log still cannot conjure these four,
+# so they relax in record mode (issue #3385).
+_RELAXED_FOR_EXISTING_LOGS = frozenset({"schemaVersion", "workLog", "endingCommit", "nextSteps"})
+
+
 def _load_schema() -> dict[str, Any]:
     """Read the committed schema.
 
@@ -743,7 +831,9 @@ def _describe(error: jsonschema.ValidationError) -> str:
     return f"Schema: {location}: {error.message}"
 
 
-def validate_against_schema(data: object, result: ValidationResult) -> None:
+def validate_against_schema(
+    data: object, result: ValidationResult, *, existing_log: bool = False
+) -> None:
     """Append every schema violation in ``data`` to ``result``.
 
     Reports all violations rather than the first, so one commit round fixes the
@@ -767,6 +857,13 @@ def validate_against_schema(data: object, result: ValidationResult) -> None:
     handler alone still lets the gate die with a traceback. ``check_schema``
     validates against the metaschema and turns all of them into ``SchemaError``.
     It costs about 4ms against the committed schema.
+
+    ``existing_log`` relaxes exactly the four root fields promoted to
+    ``required`` for issue #3763. The rest of the schema still binds, because
+    shape is always the record's own property (see ``validate_session_log``).
+    Those four are the exception the #3385 rename case already established: a
+    rename cannot supply a ``workLog`` the session never wrote down, and
+    fabricating one to clear a gate is the behaviour that issue forbids.
     """
     try:
         schema = _load_schema()
@@ -779,6 +876,14 @@ def validate_against_schema(data: object, result: ValidationResult) -> None:
             f"Schema: {SCHEMA_PATH.name} root is not a JSON object, schema layer skipped"
         )
         return
+
+    if existing_log and isinstance(schema.get("required"), list):
+        schema = {
+            **schema,
+            "required": [
+                name for name in schema["required"] if name not in _RELAXED_FOR_EXISTING_LOGS
+            ],
+        }
 
     validator_cls = validator_for(schema)
     try:
@@ -830,7 +935,7 @@ def validate_session_log(data: object, *, existing_log: bool = False) -> Validat
     """
     result = ValidationResult()
 
-    validate_against_schema(data, result)
+    validate_against_schema(data, result, existing_log=existing_log)
 
     # A valid session log must be a JSON object at the root. If it's not (e.g.,
     # an array or primitive), the schema validation above already reported the
