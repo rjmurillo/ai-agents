@@ -136,7 +136,10 @@ Returns JSON with:
     ".agents/analysis/",
     ".agents/retrospective/",
     ".serena/memories/",
-    ".agents/security/"
+    ".agents/security/",
+    ".agents/memory/",
+    ".agents/architecture/REVIEW-*",
+    ".agents/critique/"
   ]
 }
 ```
@@ -156,7 +159,10 @@ Returns JSON with:
     ".agents/analysis/",
     ".agents/retrospective/",
     ".serena/memories/",
-    ".agents/security/"
+    ".agents/security/",
+    ".agents/memory/",
+    ".agents/architecture/REVIEW-*",
+    ".agents/critique/"
   ]
 }
 ```
@@ -173,7 +179,10 @@ Returns JSON with:
     ".agents/analysis/",
     ".agents/retrospective/",
     ".serena/memories/",
-    ".agents/security/"
+    ".agents/security/",
+    ".agents/memory/",
+    ".agents/architecture/REVIEW-*",
+    ".agents/critique/"
   ],
   "Error": "Not in a git repository or git command failed"
 }

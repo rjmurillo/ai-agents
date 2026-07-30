@@ -33,7 +33,7 @@
       },
       {
         "prompt": "What allowlist paths qualify a session for investigation-only QA exemption?",
-        "expected": ".agents/sessions/, .agents/analysis/, .agents/retrospective/, .serena/memories/, .agents/security/. Code or config staged disqualifies."
+        "expected": ".agents/sessions/, .agents/analysis/, .agents/retrospective/, .serena/memories/, .agents/security/, .agents/memory/, .agents/architecture/REVIEW-*, .agents/critique/. Code or config staged disqualifies."
       },
       {
         "prompt": "List the session protocol gates that fire at session start, mid, pre-PR, and end.",
