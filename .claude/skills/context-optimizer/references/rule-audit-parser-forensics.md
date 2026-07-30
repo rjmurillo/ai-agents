@@ -1,4 +1,4 @@
-# Rule Audit Parser Forensics: twenty-two rounds against one judge parser
+# Rule Audit Parser Forensics: twenty-three rounds against one judge parser
 
 Companion to `rule-audit-evidence.md`, which carries the published table and
 the sample-recovery provenance behind it. This document is the repair history
@@ -10,21 +10,20 @@ number that looked ordinary.
 
 Raw artifacts: `.agents/analysis/eval-artifacts/2026-07-29-unified-software-engineering/`
 
-**Twenty-two rounds of adversarial review have each found at least one defect in
-it.** No aggregate defect count is given here, because across the rounds the
+**Twenty-three rounds of adversarial review have each found at least one defect
+in it.** No aggregate defect count is given here, because across the rounds the
 count was never defined the same way twice: it variously included parser
 defects, regressions introduced by an earlier round's repair, and methodological
 defects in how a claim was measured rather than in the code. An aggregate over
 categories that shifted is a number with no population, which is the exact
 failure this document exists to warn about. What survives restatement is the
-direction, not the count. The
-regex extractor was replaced with a
-structure-aware scanner, which review then broke repeatedly, always in the same
-direction: it returned a wrong verdict. How visible that was varied, and the
-variation matters more than the count. Most returned through the clean-parse
-branch, which sets no marker. One was marked `judge_salvaged` and was
-wrong anyway, which is the case that shows an audit trail is a weaker defence
-than a refusal: it makes a guess reviewable afterwards, not correct.
+direction, not the count. The regex extractor was replaced with a
+structure-aware scanner, which review then broke repeatedly, always returning a
+wrong verdict. How visible that was varied, and the variation matters more than
+the count: most returned through the clean-parse branch, which sets no marker,
+and one was marked `judge_salvaged` and was wrong anyway. That last case shows
+an audit trail is a weaker defence than a refusal, making a guess reviewable
+afterwards rather than correct.
 
 Sixteen defects of one class. A scan desynchronized by a quote inside a
 nested object; a second root object that *was* the real verdict; salvage
@@ -160,8 +159,10 @@ construction." **That conclusion was false, and round 15 disproved it.** The
 archive is not the only record of a run. The harness keeps full assistant
 messages, so the judge payloads behind the 264 successes still existed and
 were recovered. See the round 15 section for what that changed. The archive
-gap is real and remains issue #3998; the claim that it made the question
-unanswerable was an inference from absence, not a proof.
+gap is real and remains issue #3998: the run artifacts themselves store no raw
+payload, and recovering one from a session transcript is a salvage move, not a
+property of the instrument. What was wrong was the claim that the gap made the
+question unanswerable, which was an inference from absence, not a proof.
 
 The refusal has one cost that was misjudged in the same paragraph. The guard
 refuses outright on any `\u` in the payload, because a score field name
@@ -450,9 +451,36 @@ the layer, so every field after the first went unread: a judge restating
 `5/1/1` beside a filed `5/4/5` agreed on the one field checked and published
 two fabricated scores. The pattern now ends at the colon and captures no value.
 
-Two of the six controls covering round 20 were themselves false at first, one
-mutating a comment rather than the pattern and one invoking a `python` absent
-from PATH, both reporting clean against unmodified code. That is the line this
-whole audit turns on: a check that cannot fail has not been run.
+Round 23 found that the round-22 repair was itself the next defect, which makes
+it the most useful round in this document: the fix and the defect are the same
+edit. Dropping the quoting requirement meant the walker's *keys* now matched,
+and a healthy payload's own root key is `activation_score`, so every real
+payload refused itself. The repair exempted any string equal to a field name,
+on the reasoning that a string holding only a name holds no number and so
+carries no verdict. That reasoning is true of the string and false of the
+payload. It published this unmarked:
 
-<!-- vendor-portability: declared. This file cites .agents/analysis/eval-artifacts/2026-07-29-unified-software-engineering/ as the archive holding the eight runs whose forensics are recorded here, so a reader can re-measure every claim instead of taking it on faith. It is a citation in a narrative, not a path the skill reads or writes. A vendored install loses the ability to re-measure our raw artifacts locally; the forensics still read as a record of what went wrong and what to check for, which is what this file is for. Issue #2050. -->
+    {"activation_score": 5, "citation_score": 4, "behavior_score": 5,
+     "corrected_verdict": [{"field": "activation_score", "value": 1}, ...]}
+
+Every field name sits in value position and every competing number sits in a
+sibling key, so the exemption excused all three names and the filed 5/4/5 was
+published over a stated 1/1/1. The number never had to be in the same string.
+
+The skip now lives in the walker and applies to keys only, and the distinction
+it turns on is not lexical: a key that is exactly a field name is the schema
+slot the parser already read, while a value that equals a field name is a
+*reference* to a field, which is the shape a competing verdict record takes.
+Padding no longer excuses either, because the skip is equality rather than
+`strip`, so `"  activation_score  "` is not the slot the schema defines and a
+judge emitting one is naming a field somewhere the parser does not read.
+
+Round 23 also found two defects in how claims about this work were measured
+rather than in the code: a test-count detector that could not see the tests it
+was quoted for, and an edit that silently consumed the structural marker at the
+foot of this file. Both belong to a class that has now recurred often enough to
+have its own record, with the false negative controls from round 20 and the
+1732 miscount above. See `rule-audit-measurement-discipline.md`.
+
+<!-- vendor-portability: declared. This file cites
+.agents/analysis/eval-artifacts/2026-07-29-unified-software-engineering/ as the archive holding the eight runs whose forensics are recorded here, so a reader can re-measure every claim instead of taking it on faith. It is a citation in a narrative, not a path the skill reads or writes. A vendored install loses the ability to re-measure our raw artifacts locally; the forensics still read as a record of what went wrong and what to check for, which is what this file is for. Issue #2050. -->
