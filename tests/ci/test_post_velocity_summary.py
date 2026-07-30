@@ -108,7 +108,8 @@ def test_find_existing_comment_bad_json():
 
 def test_post_comment_create_new():
     mock_result = MagicMock(returncode=0)
-    with patch("scripts.ci.post_velocity_summary.subprocess.run", return_value=mock_result) as mock_run:
+    _patch = "scripts.ci.post_velocity_summary.subprocess.run"
+    with patch(_patch, return_value=mock_result) as mock_run:
         rc = pvs.post_comment("owner/repo", "10", "body text", None)
     assert rc == 0
     cmd = mock_run.call_args[0][0]
@@ -117,7 +118,8 @@ def test_post_comment_create_new():
 
 def test_post_comment_update_existing():
     mock_result = MagicMock(returncode=0)
-    with patch("scripts.ci.post_velocity_summary.subprocess.run", return_value=mock_result) as mock_run:
+    _patch = "scripts.ci.post_velocity_summary.subprocess.run"
+    with patch(_patch, return_value=mock_result) as mock_run:
         rc = pvs.post_comment("owner/repo", "10", "body text", 77)
     assert rc == 0
     cmd = mock_run.call_args[0][0]
@@ -164,7 +166,8 @@ def test_main_no_number(monkeypatch):
     monkeypatch.setenv("EVENT_NAME", "push")
     monkeypatch.setenv("PR_NUMBER", "")
     monkeypatch.setenv("ISSUE_NUMBER", "")
-    monkeypatch.setenv("OPPORTUNITIES_JSON", json.dumps([{"title": "T", "opportunity_type": "x", "priority": "p", "description": "d"}]))
+    opp = {"title": "T", "opportunity_type": "x", "priority": "p", "description": "d"}
+    monkeypatch.setenv("OPPORTUNITIES_JSON", json.dumps([opp]))
     assert pvs.main() == pvs.EXIT_SUCCESS
 
 
@@ -184,7 +187,8 @@ def test_main_gh_api_failure(monkeypatch):
     # find returns None, post fails
     find_result = MagicMock(returncode=0, stdout=json.dumps([]))
     post_result = MagicMock(returncode=1)
-    with patch("scripts.ci.post_velocity_summary.subprocess.run", side_effect=[find_result, post_result]):
+    _patch = "scripts.ci.post_velocity_summary.subprocess.run"
+    with patch(_patch, side_effect=[find_result, post_result]):
         rc = pvs.main()
     assert rc == pvs.EXIT_EXTERNAL
 
@@ -204,7 +208,8 @@ def test_main_success_pr(monkeypatch):
 
     empty_page = MagicMock(returncode=0, stdout=json.dumps([]))
     post_ok = MagicMock(returncode=0)
-    with patch("scripts.ci.post_velocity_summary.subprocess.run", side_effect=[empty_page, post_ok]):
+    _patch = "scripts.ci.post_velocity_summary.subprocess.run"
+    with patch(_patch, side_effect=[empty_page, post_ok]):
         rc = pvs.main()
     assert rc == pvs.EXIT_SUCCESS
 
@@ -224,7 +229,8 @@ def test_main_success_issue_update(monkeypatch):
 
     existing_page = MagicMock(returncode=0, stdout=json.dumps([{"id": 55, "body": pvs._MARKER}]))
     patch_ok = MagicMock(returncode=0)
-    with patch("scripts.ci.post_velocity_summary.subprocess.run", side_effect=[existing_page, patch_ok]) as mock_run:
+    _patch = "scripts.ci.post_velocity_summary.subprocess.run"
+    with patch(_patch, side_effect=[existing_page, patch_ok]) as mock_run:
         rc = pvs.main()
     assert rc == pvs.EXIT_SUCCESS
     # Verify PATCH call references the existing comment id
