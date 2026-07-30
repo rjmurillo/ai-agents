@@ -54,7 +54,7 @@ Lesson encoded: a global bypass with no teeth (no telemetry, no approval step) w
 |---|---|---|---|---|---|
 | `GIT_CONFIG_COUNT` + `GIT_CONFIG_KEY_0`/`GIT_CONFIG_VALUE_0` | env vars (set by conftest) | Test session injects `commit.gpgsign=false` with command-line precedence so test repos never invoke the user's signing setup | Production test infra | Only sets index 0 when `GIT_CONFIG_COUNT` is unset, so an outer process's config is not clobbered | `tests/conftest.py:35-38` |
 | PEP 668 / uv | environment reality | Bare `pip` fails (externally managed env). Everything goes through `uv sync --frozen --extra dev`; skill scripts need `uv run python`, not `python3` (PyYAML lives in the venv) | Production | `ModuleNotFoundError: No module named 'yaml'` means you used the wrong interpreter | `pyproject.toml`, `.python-version` (3.14.6) |
-| pytest markers `unit`, `integration`, `security`, `smoke` | pytest -m selectors | Filter test classes; `smoke` = real-CLI tests needing auth/credits, nightly only, and the smoke gate asserts they were NOT skipped (issue #2231 item 4) | Production | Marking a test `smoke` to dodge CI is detected by the not-skipped assertion | `pyproject.toml:46-51` |
+| pytest markers `unit`, `integration`, `safe_push_transport`, `security`, `smoke` | pytest -m selectors | Filter test classes; `smoke` = real-CLI tests needing auth/credits, nightly only, and the smoke gate asserts they were NOT skipped (issue #2231 item 4); `safe_push_transport` = touches a non-local transport, excluded from pre-push | Production | Marking a test `smoke` to dodge CI is detected by the not-skipped assertion | `pyproject.toml:66-72` |
 
 ## .env Keys (from .env.example)
 
@@ -89,7 +89,7 @@ Session-end QA can be skipped only with one of these exact verdict strings in th
 | Verdict | When legitimate | Enforcement |
 |---|---|---|
 | `SKIPPED: investigation-only` | Every staged file matches the allowlist: `.agents/sessions/`, `.agents/analysis/`, `.agents/retrospective/`, `.serena/memories/`, `.agents/security/`, `.agents/memory/` (incl. `episodes/`), `.agents/architecture/REVIEW-*`, `.agents/critique/` | Single source of truth `scripts/modules/investigation_allowlist.py`; pre-check via the `session` skill (Test-InvestigationEligibility); CI backstop `.github/scripts/validate_investigation_claims.py` (advisory) |
-| `SKIPPED: docs-only` | All changes are markdown and strictly editorial: spelling, grammar, formatting; no code, config, tests, workflows, or code-block changes | `SESSION-PROTOCOL.md:754`; `CONTRIBUTING.md:694` |
+| `SKIPPED: docs-only` | All changes are markdown and strictly editorial: spelling, grammar, formatting; no code, config, tests, workflows, or code-block changes | `SESSION-PROTOCOL.md:754`; `CONTRIBUTING.md:697` |
 
 Mixed sessions do not qualify; split the commit. Claiming investigation-only with a code file staged is exactly what the CI backstop exists to catch.
 

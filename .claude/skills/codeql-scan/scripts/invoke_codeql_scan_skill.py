@@ -95,6 +95,7 @@ def run_scan(
             write_colored(f"Configuration script not found: {config_script}", "error")
             return 3
         try:
+            sys.stdout.flush()
             result = subprocess.run(
                 ["pwsh", "-NoProfile", "-File", config_script],
                 timeout=120,
@@ -144,6 +145,7 @@ def run_scan(
     print("", file=sys.stderr)
 
     try:
+        sys.stdout.flush()
         result = subprocess.run(scan_args, timeout=600)
         exit_code = result.returncode
 

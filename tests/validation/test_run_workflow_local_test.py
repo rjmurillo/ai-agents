@@ -1283,6 +1283,65 @@ def test_act_limitation_hint_matches_empty_pr_env_patterns() -> None:
     )
 
 
+def test_act_limitation_hint_matches_argparse_empty_pr_number() -> None:
+    """argparse's ``type=int`` prints a different message than a bare int().
+
+    post_issue_comment.py takes --issue as an argparse int, so an empty
+    PR_NUMBER under act surfaces as "argument --issue: invalid int value: ''"
+    rather than the "invalid literal for int()" form. Same act-only cause,
+    different surface text.
+    """
+    assert (
+        w._act_limitation_hint(
+            "post_issue_comment.py: error: argument --issue: invalid int value: ''",
+            "pull_request",
+        )
+        is not None
+    )
+    # Event-scoped: workflow_dispatch keeps it blocking.
+    assert (
+        w._act_limitation_hint(
+            "post_issue_comment.py: error: argument --issue: invalid int value: ''",
+            "workflow_dispatch",
+        )
+        is None
+    )
+    # A non-empty value is a real defect, not the empty-env signature.
+    assert (
+        w._act_limitation_hint(
+            "error: argument --issue: invalid int value: 'abc'",
+            "pull_request",
+        )
+        is None
+    )
+
+
+def test_adr035_wrapper_annotation_is_explained_only_alongside_a_limitation() -> None:
+    """run_with_retry.py's ADR-035 annotation is derived, not a cause.
+
+    When the wrapped script failed for an attributed act limitation, the
+    wrapper annotation restates that limitation one layer up and must not veto
+    the downgrade. On its own it stays unexplained, so a genuine configuration
+    error still blocks.
+    """
+    wrapper = "::error::Configuration error (ADR-035 exit 2). Check command output."
+    limitation = "error: argument --issue: invalid int value: ''"
+
+    combined = f"{limitation}\n{wrapper}\n"
+    assert w._unexplained_error_annotations(combined, "pull_request") == []
+    assert w._act_limitation_hint(combined, "pull_request") is not None
+
+    # Negative: the wrapper alone is a real configuration error.
+    assert len(w._unexplained_error_annotations(wrapper, "pull_request")) == 1
+
+    # Negative: event-scoped, so workflow_dispatch keeps both blocking.
+    assert len(w._unexplained_error_annotations(combined, "workflow_dispatch")) == 1
+
+    # Negative: a genuine annotation riding along still blocks.
+    with_genuine = f"{combined}::error::Genuine action bug\n"
+    assert w._act_limitation_hint(with_genuine, "pull_request") is None
+
+
 def test_format_text_surfaces_warning_detail_on_ok() -> None:
     report = w.Report(
         exit_code=0,
@@ -1361,6 +1420,20 @@ def test_act_limitation_hint_explains_paths_filter_git_rev_parse_annotation() ->
         "failed with exit code 128"
     )
     assert w._act_limitation_hint(combined, "push") is not None
+
+
+def test_act_limitation_hint_attributes_aggregator_cascade_to_limitation() -> None:
+    combined = (
+        "[CLI Smoke/Check Changed Paths]   ::error::The process "
+        "'git rev-parse --abbrev-ref HEAD' failed with exit code 128\n"
+        "[CLI Smoke/Smoke Result]   ::error::Check changed paths result: failure"
+    )
+    assert w._act_limitation_hint(combined, "push") is not None
+
+
+def test_act_limitation_hint_blocks_aggregator_cascade_without_limitation() -> None:
+    combined = "[CLI Smoke/Smoke Result]   ::error::Check changed paths result: failure"
+    assert w._act_limitation_hint(combined, "push") is None
 
 
 def test_act_limitation_hint_ignores_non_annotation_noise() -> None:
