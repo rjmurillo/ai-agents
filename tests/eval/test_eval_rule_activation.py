@@ -1003,6 +1003,113 @@ def test_extract_json_object_returns_none_on_unbalanced_object():
     assert eval_mod._extract_json_object('{"activation_score": 5') is None
 
 
+def test_extract_json_object_prefers_the_verdict_over_an_earlier_tool_result():
+    """A tool-call trace emits its own JSON before the answer.
+
+    Taking the first balanced object hands back the trace, the shape check
+    fails, and the real verdict is never tried. This is the shape that made
+    the extractor useless for the providers it was written for.
+    """
+    text = '{"command": "ls", "exit_code": 0}\n\nHere is my grade:\n' + _JUDGE
+
+    assert eval_mod._extract_json_object(text) == _JUDGE
+
+
+def test_extract_json_object_skips_an_unparseable_leading_object():
+    text = '{"broken": }\n' + _JUDGE
+
+    assert eval_mod._extract_json_object(text) == _JUDGE
+
+
+def test_extract_json_object_skips_a_partial_score_object():
+    """A near-miss must not win. Missing one field is not a verdict."""
+    partial = '{"activation_score": 5, "citation_score": 4}'
+    text = partial + "\n\n" + _JUDGE
+
+    assert eval_mod._extract_json_object(text) == _JUDGE
+
+
+def test_extract_json_object_falls_back_to_the_first_parseable_object():
+    """No verdict anywhere still returns content, so the caller can report a
+    shape error against what the judge actually said rather than a bare parse
+    failure."""
+    text = '{"refusal": "cannot grade"}\n{"also": "not a verdict"}'
+
+    assert eval_mod._extract_json_object(text) == '{"refusal": "cannot grade"}'
+
+
+def test_iter_json_objects_yields_siblings_without_reentering_nested_ones():
+    text = 'a {"x": {"y": 1}} b {"z": 2} c'
+
+    assert list(eval_mod._iter_json_objects(text)) == ['{"x": {"y": 1}}', '{"z": 2}']
+
+
+# ---------------------------------------------------------------------------
+# _salvage_scores / _judge_parse_failure: an unparseable `reasoning` field must
+# not discard the three numbers the eval actually scores on.
+#
+# Observed in production: 24 of 96 Opus judge samples were thrown away, every
+# one of them carrying its scores in plain sight. The judge quotes the response
+# it is grading, and an unescaped quote inside that prose invalidates the whole
+# object. Verbose models trip it more often, so the loss was not random with
+# respect to the comparison being made.
+# ---------------------------------------------------------------------------
+
+
+_UNESCAPED_QUOTE_JUDGE = (
+    '{"activation_score": 5, "citation_score": 4, "behavior_score": 5, '
+    '"reasoning": "rejected it as "a rename" rather than a layer"}'
+)
+
+
+def test_judge_parse_failure_salvages_scores_from_unescaped_quote_prose():
+    result = eval_mod._judge_parse_failure(_UNESCAPED_QUOTE_JUDGE, "judge parse error")
+
+    assert result["judge_failed"] is False
+    assert result["judge_salvaged"] is True
+    assert result["activation_score"] == 5
+    assert result["citation_score"] == 4
+    assert result["behavior_score"] == 5
+
+
+def test_judge_parse_failure_still_fails_when_no_scores_are_present():
+    result = eval_mod._judge_parse_failure("I refuse to grade this.", "parse error")
+
+    assert result["judge_failed"] is True
+    assert result["activation_score"] == 0
+    assert "judge_salvaged" not in result
+
+
+def test_judge_parse_failure_does_not_invent_a_missing_field():
+    """Two of three is not a score. Salvage must be all-or-nothing."""
+    result = eval_mod._judge_parse_failure(
+        '{"activation_score": 5, "citation_score": 4}', "missing behavior_score"
+    )
+
+    assert result["judge_failed"] is True
+    assert result["behavior_score"] == 0
+
+
+def test_judge_parse_failure_rejects_a_non_numeric_score():
+    result = eval_mod._judge_parse_failure(
+        '{"activation_score": "high", "citation_score": 4, "behavior_score": 5}',
+        "non-numeric activation_score",
+    )
+
+    assert result["judge_failed"] is True
+
+
+def test_salvage_scores_clamps_an_out_of_range_value():
+    salvaged = eval_mod._judge_parse_failure(
+        '{"activation_score": 99, "citation_score": 4, "behavior_score": -3} "',
+        "parse error",
+    )
+
+    assert salvaged["judge_failed"] is False
+    assert salvaged["activation_score"] == eval_mod._clamp_score(99)
+    assert salvaged["behavior_score"] == eval_mod._clamp_score(-3)
+
+
 def test_extract_json_object_returns_none_on_empty_input():
     assert eval_mod._extract_json_object("") is None
 

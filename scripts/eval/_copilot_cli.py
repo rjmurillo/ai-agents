@@ -31,20 +31,31 @@ class _CopilotCLIProvider:
     (`claude-opus-5`, `gpt-5.6-sol`) without separate Anthropic or OpenAI
     billing. That is why it is the preferred transport for this repository.
 
-    Two isolation decisions, both load-bearing:
+    Three isolation decisions, all load-bearing:
 
     1. `cwd` is a caller-supplied empty directory, not the repository. The CLI
        loads `AGENTS.md`, `CLAUDE.md`, and `.github/instructions/**` from its
        working directory. In this repo those files are frequently the variable
        under test, so running from the repo root would put the treatment into
        the control cell and silently destroy the comparison.
-    2. Built-in MCP servers are disabled. Their tool definitions occupy the
+    2. `--no-custom-instructions` drops ambient user-level instructions from
+       `~/.copilot/`. Measured 2026-07-29 against `claude-opus-5` from an empty
+       directory: 54.7k input tokens with them, 41.2k without. That is 13,500
+       tokens of behavioral instruction riding along in every cell, several
+       times the size of the rule bodies these evals compare, and it overlaps
+       them semantically. Being constant within a run makes a paired contrast
+       valid, not clean; the overlap compresses deltas toward zero. Runs
+       archived before this flag was added carry that compression, which biases
+       against finding an effect rather than manufacturing one.
+    3. Built-in MCP servers are disabled. Their tool definitions occupy the
        same context the eval is measuring, and they add latency for no signal
        on a text-completion eval.
 
-    Ambient user-level configuration (`~/.copilot/`) is NOT isolated, because
-    the auth token lives there. It is therefore a constant across every cell of
-    a single run, which is the same control argument ADR-058 makes for not
+    Authentication is unaffected: the token lives in `~/.copilot/` but is read
+    separately from the instruction files, verified by a live call with the
+    flag set. What remains un-isolated is the CLI's own system prompt and tool
+    schema, roughly 41k tokens, which no flag removes. It is a constant across
+    every cell of a single run, the same control argument ADR-058 makes for not
     comparing scores across providers. Do not compare a copilot-cli score to an
     HTTP-provider score.
     """
@@ -59,6 +70,13 @@ class _CopilotCLIProvider:
         r"^(?:Changes|AI Credits|Tokens|Resume|Total duration|Wall time)( +)",
     )
     _FOOTER_COLUMN = 11
+
+    #: A stats value is a short token ("1m2s", "12,345", "$0.04"). Prose that
+    #: opens with a label longer than the column ("Total duration and latency
+    #: are ...") satisfies the column test vacuously, so the remainder is
+    #: checked too: real values are short and do not close a sentence.
+    _FOOTER_VALUE_MAX_WORDS = 5
+    _FOOTER_PROSE_ENDINGS = (".", "!", "?", ":", ",")
 
     #: Where the CLI records structured per-session events. Overridable so the
     #: tests can point at a fixture tree instead of the operator's real one.
@@ -151,7 +169,25 @@ class _CopilotCLIProvider:
             return False
         # Either the label is padded out to the value column, or it is followed
         # by a run of spaces no prose would use. Both are stats formatting.
-        return len(match.group(0)) >= cls._FOOTER_COLUMN or len(match.group(1)) >= 2
+        if len(match.group(0)) < cls._FOOTER_COLUMN and len(match.group(1)) < 2:
+            return False
+        return cls._is_footer_value(line[match.end() :])
+
+    @classmethod
+    def _is_footer_value(cls, value: str) -> bool:
+        """Reject a stats-shaped prefix whose remainder reads as prose.
+
+        Labels longer than the value column ("Total duration") pass the column
+        test no matter what follows, so a sentence opening with one would be
+        stripped off the end of a real answer. Stats values are a few short
+        tokens and never close a sentence.
+        """
+        stripped = value.strip()
+        if not stripped:
+            return True
+        if stripped.endswith(cls._FOOTER_PROSE_ENDINGS):
+            return False
+        return len(stripped.split()) <= cls._FOOTER_VALUE_MAX_WORDS
 
     @classmethod
     def _strip_footer(cls, text: str) -> str:
@@ -208,6 +244,7 @@ class _CopilotCLIProvider:
             "--model",
             model,
             "--allow-all-tools",
+            "--no-custom-instructions",
             "--disable-builtin-mcps",
             "--no-ask-user",
             "--no-color",
@@ -224,6 +261,7 @@ class _CopilotCLIProvider:
                     capture_output=True,
                     text=True,
                     encoding="utf-8",
+                    errors="replace",
                     timeout=self._timeout,
                     cwd=sandbox,
                     check=False,
@@ -251,7 +289,7 @@ class _CopilotCLIProvider:
             stderr = completed.stderr or completed.stdout or ""
             excerpt = "".join(ch for ch in stderr if 32 <= ord(ch) < 127)[:200]
             raise RuntimeError(
-                f"{self._provider_label} API returned HTTP "
+                f"{self._provider_label} exited with code "
                 f"{completed.returncode}: {excerpt}"
             )
         answer = ""

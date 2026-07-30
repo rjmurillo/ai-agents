@@ -50,7 +50,7 @@ import re
 import statistics
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -292,8 +292,25 @@ def _scan_balanced_object(text: str, start: int) -> int | None:
     return None
 
 
+def _iter_json_objects(text: str) -> Iterator[str]:
+    """Yield every balanced top-level JSON object in ``text``, left to right.
+
+    Advancing past a completed object rather than past its opening brace keeps
+    nested objects out of the stream, so callers see candidates rather than
+    every sub-object of the first one.
+    """
+    start = text.find("{")
+    while start != -1:
+        end = _scan_balanced_object(text, start)
+        if end is None:
+            start = text.find("{", start + 1)
+            continue
+        yield text[start:end]
+        start = text.find("{", end)
+
+
 def _extract_json_object(text: str) -> str | None:
-    """Return the first complete top-level JSON object embedded in ``text``.
+    """Return the embedded JSON object that is most likely the judge's verdict.
 
     The judge is told to answer with JSON only, and the Anthropic path obeys.
     Agentic CLI providers do not: they interleave tool-call traces and stray
@@ -302,15 +319,27 @@ def _extract_json_object(text: str) -> str | None:
     object recovers it without loosening the contract for providers that
     already comply, because callers only reach this after a strict parse fails.
 
-    Returns ``None`` when no balanced object exists.
+    Taking the *first* balanced object is wrong for exactly the providers this
+    exists to serve: a tool-call trace emits its own JSON before the answer, so
+    the first object is the trace and the real verdict is never tried. Every
+    candidate is therefore checked against the same shape validator the caller
+    uses, and the first one carrying a judge verdict wins. When none does, the
+    first parseable object is returned so the caller still reports a shape
+    error against real content rather than a bare parse failure.
+
+    Returns ``None`` when no balanced object parses.
     """
-    start = text.find("{")
-    while start != -1:
-        end = _scan_balanced_object(text, start)
-        if end is not None:
-            return text[start:end]
-        start = text.find("{", start + 1)
-    return None
+    fallback: str | None = None
+    for candidate in _iter_json_objects(text):
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if fallback is None:
+            fallback = candidate
+        if isinstance(parsed, dict) and _judge_score_shape_error(parsed) is None:
+            return candidate
+    return fallback
 
 
 def score_response(
@@ -392,40 +421,18 @@ Respond in JSON only, no other text:
     except json.JSONDecodeError:
         embedded = _extract_json_object(text)
         if embedded is None:
-            return {
-                "activation_score": 0,
-                "citation_score": 0,
-                "behavior_score": 0,
-                "reasoning": f"judge parse error: {text[:200]}",
-                "judge_failed": True,
-            }
+            return _judge_parse_failure(text, f"judge parse error: {text[:200]}")
         try:
             parsed = json.loads(embedded)
         except json.JSONDecodeError:
-            return {
-                "activation_score": 0,
-                "citation_score": 0,
-                "behavior_score": 0,
-                "reasoning": f"judge parse error: {text[:200]}",
-                "judge_failed": True,
-            }
+            return _judge_parse_failure(text, f"judge parse error: {text[:200]}")
     if not isinstance(parsed, dict):
-        return {
-            "activation_score": 0,
-            "citation_score": 0,
-            "behavior_score": 0,
-            "reasoning": f"judge returned non-object JSON: {text[:200]}",
-            "judge_failed": True,
-        }
+        return _judge_parse_failure(
+            text, f"judge returned non-object JSON: {text[:200]}"
+        )
     score_error = _judge_score_shape_error(parsed)
     if score_error is not None:
-        return {
-            "activation_score": 0,
-            "citation_score": 0,
-            "behavior_score": 0,
-            "reasoning": score_error,
-            "judge_failed": True,
-        }
+        return _judge_parse_failure(text, score_error)
     result = {
         "activation_score": _clamp_score(parsed["activation_score"]),
         "citation_score": _clamp_score(parsed["citation_score"]),
@@ -496,6 +503,55 @@ def _reduce_score_samples(
     reduced["graded_sample_count"] = len(graded)
     reduced["failed_sample_count"] = failed_count
     return reduced
+
+_SCORE_FIELD_RE = {
+    field: re.compile(rf'"{field}"\s*:\s*(-?\d+(?:\.\d+)?)')
+    for field in ("activation_score", "citation_score", "behavior_score")
+}
+
+
+def _salvage_scores(text: str) -> dict[str, float] | None:
+    """Recover the three numeric scores from judge output that will not parse.
+
+    The eval scores on three numbers. ``reasoning`` is diagnostic only, yet it
+    is the field that breaks the parse: judges routinely quote the response
+    they are grading, and an unescaped quote inside that prose invalidates the
+    whole object. Discarding the cell then throws away scores the judge stated
+    plainly, and it does so more often for verbose models, which biases the
+    comparison the eval exists to make.
+
+    Only the leading numeric fields are read, so a salvage cannot invent a
+    score the judge did not give. Returns ``None`` unless all three are found.
+    """
+    salvaged: dict[str, float] = {}
+    for field, pattern in _SCORE_FIELD_RE.items():
+        match = pattern.search(text)
+        if match is None:
+            return None
+        salvaged[field] = float(match.group(1))
+    return salvaged
+
+
+def _judge_parse_failure(text: str, reason: str) -> dict[str, Any]:
+    """Build a failed-judge record, salvaging scores when they are recoverable."""
+    salvaged = _salvage_scores(text)
+    if salvaged is not None and _judge_score_shape_error(salvaged) is None:
+        return {
+            "activation_score": _clamp_score(salvaged["activation_score"]),
+            "citation_score": _clamp_score(salvaged["citation_score"]),
+            "behavior_score": _clamp_score(salvaged["behavior_score"]),
+            "reasoning": f"scores salvaged from unparseable judge output: {reason}",
+            "judge_failed": False,
+            "judge_salvaged": True,
+        }
+    return {
+        "activation_score": 0,
+        "citation_score": 0,
+        "behavior_score": 0,
+        "reasoning": reason,
+        "judge_failed": True,
+    }
+
 
 def _judge_score_shape_error(parsed: dict[str, Any]) -> str | None:
     required_fields = ("activation_score", "citation_score", "behavior_score")

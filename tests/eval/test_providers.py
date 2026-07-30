@@ -622,6 +622,27 @@ def test_strip_footer_keeps_prose_that_merely_starts_with_a_footer_word() -> Non
     )
 
 
+def test_strip_footer_keeps_prose_opening_with_a_long_footer_label() -> None:
+    """A label longer than the value column satisfies the column test on its
+    own, so prose starting with one was stripped off the end of real answers.
+
+    ``Total duration`` is 14 characters against an 11-character column, which
+    made the column check vacuous for every sentence beginning that way.
+    """
+    raw = "Total duration and latency are the two things to measure.\n"
+
+    assert (
+        _providers._CopilotCLIProvider._strip_footer(raw)
+        == "Total duration and latency are the two things to measure."
+    )
+
+
+def test_strip_footer_still_removes_a_long_label_with_a_real_value() -> None:
+    raw = "PONG\n\nTotal duration 1m2s\nWall time  2.4s\n"
+
+    assert _providers._CopilotCLIProvider._strip_footer(raw) == "PONG"
+
+
 def test_strip_footer_returns_empty_when_output_is_only_a_footer() -> None:
     raw = "\nChanges    +0 -0\nResume     copilot --resume=abc\n"
 
@@ -692,6 +713,22 @@ def test_copilot_complete_isolates_cwd_and_disables_builtin_mcps(
     assert seen["kwargs"].get("shell", False) is False
 
 
+def test_copilot_complete_disables_ambient_custom_instructions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Sandboxing cwd only drops repo-level instruction files. User-level ones
+    in ``~/.copilot/`` load regardless of working directory, and measured 13.5k
+    input tokens on a live call: several times the size of the rule bodies
+    these evals compare, overlapping them semantically. Without this flag every
+    cell carries them and deltas compress toward zero."""
+    seen = _capture_run(monkeypatch, _FakeCompleted(stdout="ok\n"))
+    provider = _providers._CopilotCLIProvider()
+
+    provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
+
+    assert "--no-custom-instructions" in seen["argv"]
+
+
 def test_copilot_complete_raises_on_empty_prompt() -> None:
     provider = _providers._CopilotCLIProvider()
 
@@ -699,20 +736,53 @@ def test_copilot_complete_raises_on_empty_prompt() -> None:
         provider.complete(messages=[{"role": "user", "content": "  "}], model="m")
 
 
-def test_copilot_complete_nonzero_exit_uses_the_http_error_shape(
+def test_copilot_complete_nonzero_exit_reports_the_exit_code_not_an_http_status(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """The message must say what the number is, and still categorize.
+
+    An earlier version borrowed the Anthropic HTTP wording so that
+    `_categorize_error` would classify the failure. A subprocess exit code is
+    not an HTTP status, and POSIX truncates it to 0-255, so the borrowed shape
+    was both wrong to read and unreachable at the codes it claimed to carry.
+    Categorization now comes from the CLI's own stderr text.
+    """
     _capture_run(
         monkeypatch,
-        _FakeCompleted(stderr="rate limit exceeded", returncode=429),
+        _FakeCompleted(stderr="rate limit exceeded", returncode=1),
     )
     provider = _providers._CopilotCLIProvider()
 
     with pytest.raises(RuntimeError) as exc_info:
         provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
 
-    assert "HTTP 429" in str(exc_info.value)
+    message = str(exc_info.value)
+    assert "exited with code 1" in message
+    assert "HTTP" not in message
     assert _eval_api_adapter._categorize_error(exc_info.value) == "rate_limit"
+
+
+def test_copilot_complete_generic_exit_code_stays_transient(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """255 is a common generic-failure code and is three digits.
+
+    Under the borrowed HTTP wording it read as "HTTP 255", matched no status
+    band, and categorized as non-transient `unknown`, so a retryable failure
+    was recorded once and dropped.
+    """
+    _capture_run(
+        monkeypatch,
+        _FakeCompleted(stderr="unexpected failure", returncode=255),
+    )
+    provider = _providers._CopilotCLIProvider()
+
+    with pytest.raises(RuntimeError) as exc_info:
+        provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
+
+    category = _eval_api_adapter._categorize_error(exc_info.value)
+    assert category == "server_error"
+    assert _eval_api_adapter._is_transient(category)
 
 
 def test_copilot_complete_timeout_is_categorized_as_timeout(
