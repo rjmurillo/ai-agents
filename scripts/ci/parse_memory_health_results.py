@@ -59,9 +59,27 @@ def _coerce_length(value: object) -> int:
 
 
 def _render_score(value: object) -> str:
-    """Render ``health_score`` as a whole-number percentage."""
+    """Render ``health_score`` as a whole-number percentage.
+
+    ``health_score`` is a 0..1 ratio, not an unbounded number. The producer
+    enforces exactly this bound at construction time in
+    ``scripts/memory_enhancement/models.py::HealthReport.__post_init__``::
+
+        if not 0.0 <= self.health_score <= 1.0:
+            raise ValueError(
+                f"health_score must be between 0.0 and 1.0, got {self.health_score}"
+            )
+
+    A hand-edited or schema-drifted report on disk never passes through that
+    dataclass constructor, so this consumer must re-check the same bound
+    rather than trust the file. Without it, ``2.0`` or ``-0.5`` would render
+    as ``200%``/``-50%`` instead of failing loudly, hiding the exact schema
+    drift this script exists to surface (issue #3971, PR #3977 review).
+    """
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"expected a numeric health score, got {value!r}")
+    if not 0.0 <= value <= 1.0:
+        raise ValueError(f"expected health_score between 0.0 and 1.0, got {value!r}")
     return f"{round(value * 100)}%"
 
 

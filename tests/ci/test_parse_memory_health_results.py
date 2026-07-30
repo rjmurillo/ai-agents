@@ -239,6 +239,47 @@ class TestScoreRendering:
         assert _parsed(out)["health_score"] == rendered
 
 
+class TestScoreRangeIsEnforced:
+    """``health_score`` is a 0..1 ratio; the producer enforces the same bound.
+
+    ``HealthReport.__post_init__`` (``scripts/memory_enhancement/models.py``)
+    raises when the ratio falls outside that range::
+
+        if not 0.0 <= self.health_score <= 1.0:
+            raise ValueError(
+                f"health_score must be between 0.0 and 1.0, got {self.health_score}"
+            )
+
+    A hand-edited or schema-drifted report on disk never passes through that
+    dataclass constructor, so this consumer must re-check the same bound
+    rather than trust the file. Without the check, ``2.0`` renders as
+    ``200%`` and ``-0.5`` renders as ``-50%`` instead of failing loudly
+    (Copilot review finding on PR #3977).
+    """
+
+    @pytest.mark.parametrize("bad", [2.0, -0.5, 1.5, -1, 100.0, 1.0000001, -1e-9])
+    def test_out_of_range_score_is_rejected(
+        self, tmp_path: Path, monkeypatch, capsys, bad: object
+    ) -> None:
+        """Negative: a ratio outside 0..1 must fail, not render as a percent."""
+        out = _outputs(tmp_path, monkeypatch)
+        payload = _report(tmp_path, _with(health_score=bad))
+        rc = parser.main(["--results", str(payload)])
+        assert rc == 1
+        assert "does not match the schema" in capsys.readouterr().out
+        assert out.read_text(encoding="utf-8") == ""
+
+    @pytest.mark.parametrize("boundary", [0.0, 1.0, 0, 1])
+    def test_boundary_scores_are_accepted(
+        self, tmp_path: Path, monkeypatch, boundary: object
+    ) -> None:
+        """Edge: the bound is inclusive on both ends, matching the producer."""
+        out = _outputs(tmp_path, monkeypatch)
+        rc = parser.main(["--results", str(_report(tmp_path, _with(health_score=boundary)))])
+        assert rc == 0
+        assert _parsed(out)["health_score"] in {"0%", "100%"}
+
+
 class TestOutputHandling:
     """Outputs go to GITHUB_OUTPUT when set and stdout otherwise."""
 
