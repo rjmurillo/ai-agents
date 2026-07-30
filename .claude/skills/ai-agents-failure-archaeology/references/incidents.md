@@ -25,10 +25,9 @@ architectural layer.
 - `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:22`
   (33-day duration), `:25` (versions v0.3.0 through v0.5.6), `:21` (uninstall
   recovery), `:115` (why the fail-open shim was unreachable).
-- First broken commit `01e76615a` (2026-04-29); note this retro-cited SHA does
-  not resolve locally even with full history present (~1471 commits as of
-  2026-07-03), so it is only reachable via the retro text and GitHub, not
-  local `git show`.
+- First broken commit `01e76615a` (2026-04-29); this PR-branch SHA is not
+  reachable from `main`, because the PR squash-merged into a new commit, so it
+  is reliable only via the retro text and GitHub, not local `git show`.
 
 **The first fix made it worse before better**: session 1872 (a Copilot-authored
 agent) shipped three NEW defects in the fix itself

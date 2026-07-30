@@ -10,11 +10,11 @@ license: MIT
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
 This repo's rules are fossils of incidents. Before you challenge a gate, weaken
 a guard, or propose a "simpler" approach, check whether that battle was already
-fought and what it cost. The canon lives in `.agents/retrospective/` (95 files
-as of 2026-07-02) and `.serena/memories/` (122 files). Full local history is
-present (`git rev-list --count HEAD` = ~1471 as of 2026-07-03), but retro-cited
-short SHAs (e.g. `ddb76e0`, `01e76615a`) may not resolve locally, so archaeology
-still routes through the retros and memories as primary sources, not `git log`.
+fought and what it cost. The canon lives in `.agents/retrospective/` (121 files)
+and `.serena/memories/` (158 files), both as of 2026-07-30. Retro-cited short
+SHAs (e.g. `ddb76e0`, `01e76615a`) are not reachable from `main`, because every
+PR squash-merges into a new commit, so archaeology still routes through the
+retros and memories as primary sources, not `git log`.
 
 Depth per incident lives in `references/incidents.md` (read it when a table row
 below is not enough). This file is the index and the verdict list.
@@ -113,9 +113,9 @@ When the tables above do not answer the question:
    but the shipped ADR is `ADR-071-plugin-hook-runtime-contract-verification.md`;
    the real ADR-063 is memory-skill decomposition. Use
    `grep -rl "<topic>" .agents/architecture/`.
-4. **Do not lean on `git log` for incident history.** Full local history is
-   present (~1471 commits as of 2026-07-03), but SHAs cited in retros (e.g.
-   `01e76615a`, `ddb76e0`) do not resolve locally; look them up on GitHub and
+4. **Do not lean on `git log` for incident history.** SHAs cited in retros (e.g.
+   `01e76615a`, `ddb76e0`) are not reachable from `main`, because every PR
+   squash-merges into a new commit; look them up on GitHub and
    treat retros and memories as the primary record.
 5. **Auto-retros are shallow.** Files named `*-auto-retro.md` are unfilled
    Stop-hook skeletons; a later hand-written incident retro may supersede them
@@ -137,7 +137,7 @@ When the tables above do not answer the question:
 | Citing an ADR by number from an old document | Numbers collided and moved (ADR-063 vs ADR-071) | Grep architecture dir by topic, verify the title |
 | Shipping a detector with an intuition-chosen threshold | #1989 M4 threshold could never fire on real PRs | Calibrate against the last ~5 merged PRs, show the table |
 | Adding a quick env-var bypass to reduce friction | Session 1187: abused 3x within hours; ended in a trust failure | Route new flags through `ai-agents-config-catalog` (define semantics, guard, telemetry) |
-| Mining `git log` for incident history | Retro-cited SHAs do not resolve locally even with full history present | Retros + memories + GitHub |
+| Mining `git log` for incident history | Squash-merge rewrites every PR SHA, so retro-cited SHAs are not reachable from `main` | Retros + memories + GitHub |
 
 ## Verification
 
@@ -163,7 +163,7 @@ working tree on that date. Volatile facts and their re-verification commands:
 |------|--------|-----------|
 | Retro corpus far exceeds INDEX.md coverage (121 files, 9 indexed rows as of 2026-07-30) | `.agents/retrospective/` | `set -- .agents/retrospective/*.md; echo $#; grep -c "^. 20" .agents/retrospective/INDEX.md` |
 | 158 memory files as of 2026-07-30 | `.serena/memories/` | `set -- .serena/memories/*; echo $#` |
-| Full history present (~1471 commits) but retro-cited SHAs unresolvable | local clone | `git rev-list --count HEAD; git cat-file -t ddb76e0` (expect a count near 1471 and "Not a valid object name") |
+| Retro-cited SHAs unreachable from `main` (squash-merge rewrites every PR SHA) | repo merge policy: squash is the only method GitHub permits here | `gh api repos/rjmurillo/ai-agents -q .allow_merge_commit` (expect `false`); locally, `git merge-base --is-ancestor ddb76e0 origin/main; echo $?` (expect `1` when the object is present, or a `fatal:` line and `128` when it is absent; both outcomes confirm it is not on `main`) |
 | 11 failure modes | `.agents/governance/FAILURE-MODES.md:16-28` | `grep -c "^. [0-9]" .agents/governance/FAILURE-MODES.md` |
 | Historical SKIP_PREPUSH removal | Session 1187 retrospective | Confirm current Git hook jobs in `lefthook.yml`; do not reintroduce a global bypass |
 | Anchoring gate + runtime-contract test + e2e exist | repo tree | `ls scripts/validation/validate_hook_anchoring.py tests/build_scripts/test_generate_hooks_runtime_contract.py tests/e2e/test_cli_hook_e2e.py` |
