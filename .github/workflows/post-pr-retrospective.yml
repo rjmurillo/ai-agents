@@ -58,6 +58,13 @@ jobs:
     # ADR-025: ARM runner for cost optimization
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 5
+    # Least privilege (CWE-269). This job now checks out and executes a repo
+    # script, so it runs code from the pull request ref. It reads only the
+    # event context and writes GITHUB_OUTPUT, and makes no API call, so it
+    # needs read access for the checkout and nothing else. Without this it
+    # would inherit the workflow's pull-requests, issues, and id-token writes.
+    permissions:
+      contents: read
     outputs:
       should_run: ${{ steps.gate.outputs.should_run }}
       pr_number: ${{ steps.gate.outputs.pr_number }}
