@@ -51,7 +51,7 @@ The script creates missing subdirectories on demand. It never overwrites an exis
 
 ### Phase 0: Front-gate (run before Extract)
 
-Phase 0 is documentation-only and runs in the agent or human prompt before any `pan.py` invocation. There is no script enforcement; the LLM or human invoking the pipeline runs the six questions inline (or via the `front-gate-before-pipeline` skill if it is available in the workspace). `pan.py` is unchanged and starts at Phase 1.
+Phase 0 is documentation-only and runs in the agent or human prompt before any `pan.py` invocation. There is no script enforcement; the LLM or human invoking the pipeline runs the six questions inline (or via the gstack `front-gate-before-pipeline` skill if it is available in the workspace). `pan.py` is unchanged and starts at Phase 1.
 
 Run the six forcing questions against the input itself:
 
