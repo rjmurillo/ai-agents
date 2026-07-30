@@ -318,7 +318,7 @@ fi
 REMAINING=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
 
 # Artifact state
-PENDING=$(grep -c "^\*\*Status\*\*: pending\|^\*\*Status\*\*: \[ACKNOWLEDGED\]" .agents/pr-comments/PR-[number]/comments.md)
+PENDING=$(grep -c "^\*\*Status\*\*: pending\|^\*\*Status\*\*: \[ACKNOWLEDGED\]\|^\*\*Status\*\*: \[NEW\]" .agents/pr-comments/PR-[number]/comments.md)
 
 if [ "$REMAINING" -ne 0 ] || [ "$PENDING" -ne 0 ]; then
   echo "[BLOCKED] API unresolved: $REMAINING, Artifact pending: $PENDING"
@@ -1090,7 +1090,7 @@ echo "Verification: $((ADDRESSED + WONTFIX)) / $TOTAL comments addressed"
 
 if [ "$((ADDRESSED + WONTFIX))" -lt "$TOTAL" ]; then
   echo "[WARNING] INCOMPLETE: $((TOTAL - ADDRESSED - WONTFIX)) comments remaining"
-  grep -B5 "^\*\*Status\*\*: \[ACKNOWLEDGED\]\|^\*\*Status\*\*: pending" .agents/pr-comments/PR-[number]/comments.md
+  grep -B5 "^\*\*Status\*\*: \[ACKNOWLEDGED\]\|^\*\*Status\*\*: pending\|^\*\*Status\*\*: \[NEW\]" .agents/pr-comments/PR-[number]/comments.md
   # Return to Phase 3 for unaddressed comments
 fi
 ```

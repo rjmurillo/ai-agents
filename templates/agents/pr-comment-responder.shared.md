@@ -317,7 +317,7 @@ if [ ! -f "$COMMENT_MAP" ]; then
   echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
   exit 1
 fi
-PENDING=$(grep -Ec "^\*\*Status\*\*: \[ACKNOWLEDGED\]|^\*\*Status\*\*: pending" "$COMMENT_MAP" || true)
+PENDING=$(grep -Ec "^\*\*Status\*\*: \[ACKNOWLEDGED\]|^\*\*Status\*\*: pending|^\*\*Status\*\*: \[NEW\]" "$COMMENT_MAP" || true)
 
 # Count unresolved review threads separately
 UNRESOLVED_API=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
@@ -347,7 +347,7 @@ if [ ! -f "$COMMENT_MAP" ]; then
   echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
   exit 1
 fi
-PENDING=$(grep -Ec "^\*\*Status\*\*: pending|^\*\*Status\*\*: \[ACKNOWLEDGED\]" "$COMMENT_MAP" || true)
+PENDING=$(grep -Ec "^\*\*Status\*\*: pending|^\*\*Status\*\*: \[ACKNOWLEDGED\]|^\*\*Status\*\*: \[NEW\]" "$COMMENT_MAP" || true)
 
 if [ "$REMAINING" -ne 0 ] || [ "$PENDING" -ne 0 ]; then
   echo "[BLOCKED] API unresolved: $REMAINING, Artifact pending: $PENDING"
@@ -1142,7 +1142,7 @@ echo "Verification: $((ADDRESSED + WONTFIX)) / $TOTAL comments addressed"
 
 if [ "$((ADDRESSED + WONTFIX))" -lt "$TOTAL" ]; then
   echo "[WARNING] INCOMPLETE: $((TOTAL - ADDRESSED - WONTFIX)) comments remaining"
-  grep -E -B 5 "^\*\*Status\*\*: \[ACKNOWLEDGED\]|^\*\*Status\*\*: pending" "$COMMENT_MAP" || true
+  grep -E -B 5 "^\*\*Status\*\*: \[ACKNOWLEDGED\]|^\*\*Status\*\*: pending|^\*\*Status\*\*: \[NEW\]" "$COMMENT_MAP" || true
   # Return to Phase 3 for unaddressed comments
 fi
 ```
