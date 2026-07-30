@@ -460,19 +460,15 @@ Respond in JSON only, no other text:
     )
 
     text = raw.strip()
-    if "```" in text:
-        m = re.search(r"```(?:json)?\s*\n(.*?)```", text, re.DOTALL)
-        if m:
-            text = m.group(1).strip()
 
     try:
         parsed = _strict_json_loads(text)
         recovered_from_prefix = False
     except ValueError:
-        embedded = _extract_json_object(text)
+        embedded = _recover_verdict(text)
         if embedded is None:
             return _judge_parse_failure(text, f"judge parse error: {text[:200]}")
-        # _extract_json_object only returns candidates it already parsed with
+        # _recover_verdict only returns text it already parsed with
         # _strict_json_loads, so this cannot raise.
         parsed = _strict_json_loads(embedded)
         recovered_from_prefix = True
@@ -553,6 +549,18 @@ _SCORE_FIELDS = ("activation_score", "citation_score", "behavior_score")
 _SCORE_RANGE = range(1, 6)
 
 _JSON_INT_RE = re.compile(r"-?(?:0|[1-9][0-9]*)\Z")
+
+# A score field spelled as a JSON key: quoted, or quoted with the quotes
+# escaped because the object was itself serialized into a string. Counting
+# this shape rather than the bare identifier is what lets ordinary prose name
+# a field without being mistaken for a second verdict.
+_KEY_SHAPED_SCORE_FIELDS = tuple(
+    re.compile(r'(?:"|\\")' + re.escape(field) + r'(?:"|\\")\s*:') for field in _SCORE_FIELDS
+)
+
+# A Markdown code fence and its body. Applied only when the payload holds
+# exactly one, so no candidate is ever selected from several.
+_FENCE_RE = re.compile(r"`{3}(?:json)?\s*\n(.*?)`{3}", re.DOTALL)
 
 _ASCII_SPACE = " \t\r\n"
 
@@ -819,20 +827,64 @@ def _names_a_score_field_twice(text: str) -> bool:
     refused rather than guessed at.
 
     Counting raw names is cheap and needs no parse of the untrusted tail. The
-    count is of the *bare* identifier, not its quoted JSON-key spelling,
-    because a quoted count is evaded by an escaped one: a payload carrying a
-    second verdict serialized inside a string spells its keys with escaped
-    quotes, which ``count('"activation_score"')`` does not see. Bare counting
-    also refuses a payload whose prose names a score field, which is the
-    intended trade: across the 264 graded samples in the archived runs, no
-    judge reasoning names one. A name spelled with a unicode escape would
-    still slip the count, so any ``\\u`` in the payload refuses outright.
-    Judge prose does not contain one, and a refusal costs a sample while a
-    fabrication costs a published number.
+    count is of the field spelled as a JSON *key*, quoted or escaped-quoted,
+    not of the bare identifier. A quoted-only count is evaded by an escaped
+    one: a payload carrying a second verdict serialized inside a string spells
+    its keys with escaped quotes, which ``count('"activation_score"')`` does
+    not see. A bare-identifier count closes that but refuses any payload whose
+    prose names a field, and a judge that emits its verdict and then explains
+    it in prose ("the activation_score reflects...") is plausible output, so
+    the bare count buys the same protection at the price of discarding real
+    samples. Matching the key shape covers both spellings and leaves prose
+    alone. A name spelled with a unicode escape would still slip the count, so
+    any ``\\u`` in the payload refuses outright. Judge prose does not contain
+    one, and a refusal costs a sample while a fabrication costs a published
+    number.
     """
     if "\\u" in text:
         return True
-    return any(text.count(field) > 1 for field in _SCORE_FIELDS)
+    return any(len(pattern.findall(text)) > 1 for pattern in _KEY_SHAPED_SCORE_FIELDS)
+
+
+def _unwrap_lone_fence(text: str) -> str | None:
+    """Return the body of the payload's only Markdown fence, or ``None``.
+
+    A judge told to answer in JSON sometimes wraps the object in a fence. The
+    unwrap is safe only when there is nothing to choose between. The defect
+    class this file keeps hitting is *selection*: a search returning a
+    candidate that was not the judge's answer. ``re.search`` for a fence
+    selected the first one and replaced the whole payload with it, so a
+    verdict followed by a fenced rubric exemplar was answered with the
+    exemplar, and the substitution happened before both the offset-zero anchor
+    and the duplicate-name guard could see the real payload. That was the
+    thirteenth defect of the class.
+
+    Requiring exactly one fence removes the choice rather than adding another
+    disqualifier to the search. Zero or several refuse.
+    """
+    bodies = _FENCE_RE.findall(text)
+    if len(bodies) != 1:
+        return None
+    return bodies[0].strip()
+
+
+def _recover_verdict(text: str) -> str | None:
+    """Return JSON text holding the judge's verdict, or ``None`` to refuse.
+
+    Runs only after the whole payload failed to parse. The duplicate-name
+    guard is applied to the *original* payload first, so a second verdict
+    cannot be hidden from it by unwrapping a fence.
+    """
+    if _names_a_score_field_twice(text):
+        return None
+    fenced = _unwrap_lone_fence(text)
+    if fenced is not None:
+        try:
+            _strict_json_loads(fenced)
+        except ValueError:
+            return None
+        return fenced
+    return _extract_json_object(text)
 
 
 def _complete_verdict(members: dict[str, str] | None) -> dict[str, int] | None:

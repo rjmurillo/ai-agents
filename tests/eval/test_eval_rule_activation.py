@@ -1725,26 +1725,26 @@ def test_salvage_refuses_an_exemplar_it_cannot_tell_from_the_verdict(label, payl
     assert eval_mod._salvage_scores(payload) is None, label
 
 
-def test_salvage_refuses_when_prose_names_a_score_field_at_all():
-    """The name count is of the bare identifier, not its quoted spelling.
+def test_salvage_reads_a_verdict_whose_prose_names_a_score_field():
+    """Prose naming a dimension is not a second verdict.
 
-    Counting ``"activation_score"`` is evaded by an escaped spelling: a second
-    verdict serialized inside a string spells the key ``\\"activation_score\\"``
-    and the quoted count does not see it. Counting the bare word closes that,
-    at the cost of refusing a payload whose prose names a score field.
+    An earlier version counted the *bare* identifier and refused this payload.
+    The stated justification was that the refusal is free, measured as: across
+    the 264 graded samples in the archived runs, no judge reasoning names a
+    score field. That measurement is real but it does not support the claim.
+    It describes one judge, one prompt, and one provider; a judge that states
+    its verdict and then explains it ("I set activation_score high because...")
+    is ordinary output, and this payload carries exactly one verdict, so
+    refusing it discards a sample to protect against nothing.
 
-    That cost was measured, not assumed. Across the 264 graded samples in the
-    archived runs, no judge reasoning names a score field; the only 24 that do
-    are the stored parse-error strings, which are not judge prose. The refusal
-    is therefore free on observed output and closes a real evasion.
+    The guard now counts the JSON *key* shape, quoted or escaped-quoted, which
+    keeps the evasion closed (see the test below) without charging prose for
+    it.
     """
-    assert (
-        eval_mod._salvage_scores(
-            '{"activation_score":5,"citation_score":3,"behavior_score":4,'
-            '"reasoning":"I set activation_score high because"}'
-        )
-        is None
-    )
+    assert eval_mod._salvage_scores(
+        '{"activation_score":5,"citation_score":3,"behavior_score":4,'
+        '"reasoning":"I set activation_score high because"}'
+    ) == {"activation_score": 5, "citation_score": 3, "behavior_score": 4}
 
 
 def test_salvage_refuses_a_second_verdict_serialized_inside_a_string():
@@ -1873,6 +1873,128 @@ def test_a_clean_payload_is_not_marked_salvaged(monkeypatch: pytest.MonkeyPatch)
 
     assert result["judge_failed"] is False
     assert "judge_salvaged" not in result
+
+
+# ---------------------------------------------------------------------------
+# Markdown fences (the thirteenth defect of the selection class)
+# ---------------------------------------------------------------------------
+
+_FENCE = "`" * 3
+
+
+def _fenced(body: str) -> str:
+    return f"{_FENCE}json\n{body}\n{_FENCE}"
+
+
+def test_a_fenced_exemplar_after_the_verdict_does_not_win(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The fence pre-parser was an unanchored search, and it ran first.
+
+    ``re.search`` for a fence found the exemplar, replaced the *entire*
+    payload with it, and handed the result to a strict parse that succeeded.
+    Both the offset-zero anchor and the duplicate-name guard were bypassed
+    because neither ever saw the real payload, and the recovery carried no
+    marker because the substituted text parsed cleanly. That is the thirteenth
+    defect of the selection class and the first one found upstream of
+    ``_extract_json_object``.
+    """
+    payload = (
+        '{"activation_score":1,"citation_score":1,"behavior_score":1,'
+        '"reasoning":"actual verdict"}\nRubric exemplar:\n'
+        + _fenced(
+            '{"activation_score":5,"citation_score":5,"behavior_score":5,'
+            '"reasoning":"rubric exemplar"}'
+        )
+    )
+
+    result = _score_with_judge_text(monkeypatch, payload)
+
+    assert result["judge_failed"] is True
+    assert result["activation_score"] == 0
+    # The recorded payload is the original, not the fence body, so the
+    # archived error prefix shows what the judge actually emitted.
+    assert "actual verdict" in result["reasoning"]
+
+
+def test_a_lone_fenced_verdict_is_recovered_and_marked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One fence is not a selection, so unwrapping it invents nothing.
+
+    Refusing every fence would discard a shape judges really emit. The
+    recovery is marked because the raw payload did not parse.
+    """
+    result = _score_with_judge_text(
+        monkeypatch,
+        _fenced(
+            '{"activation_score":4,"citation_score":3,"behavior_score":2,"reasoning":"actual"}'
+        ),
+    )
+
+    assert result["judge_failed"] is False
+    assert result["judge_salvaged"] is True
+    assert (result["activation_score"], result["citation_score"]) == (4, 3)
+
+
+def test_two_fences_refuse_rather_than_pick_one(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Several fences is a choice, and choosing is the defect."""
+    payload = (
+        "Consider:\n"
+        + _fenced('{"activation_score":5}')
+        + "\nverdict:\n"
+        + _fenced('{"activation_score":2,"citation_score":2,"behavior_score":2,"reasoning":"r"}')
+    )
+
+    result = _score_with_judge_text(monkeypatch, payload)
+
+    assert result["judge_failed"] is True
+
+
+def test_a_fence_whose_body_is_not_json_refuses(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Unwrapping does not lower the parse bar."""
+    result = _score_with_judge_text(monkeypatch, _fenced("activation_score: five"))
+
+    assert result["judge_failed"] is True
+
+
+def test_unwrap_lone_fence_returns_none_when_absent() -> None:
+    assert eval_mod._unwrap_lone_fence(_JUDGE) is None
+
+
+def test_prose_naming_a_score_field_does_not_block_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Counting bare identifiers refused output judges really produce.
+
+    A verdict followed by a plain-English explanation naming a dimension is
+    ordinary judge behavior, not a second verdict. The guard counts the JSON
+    *key* shape instead, quoted or escaped-quoted, so prose costs nothing.
+    """
+    payload = _JUDGE + "\nThe activation_score reflects strong compliance."
+
+    assert eval_mod._names_a_score_field_twice(payload) is False
+    result = _score_with_judge_text(monkeypatch, payload)
+
+    assert result["judge_failed"] is False
+    assert result["judge_salvaged"] is True
+    assert result["activation_score"] == 5
+
+
+def test_an_escaped_quote_duplicate_still_refuses() -> None:
+    """Regression: the key-shaped count must keep round nine's fix.
+
+    A second verdict serialized inside a string spells its keys with escaped
+    quotes. Matching only the plain quoted form would let it through.
+    """
+    payload = (
+        '{"activation_score":1,"citation_score":1,"behavior_score":1,'
+        '"reasoning":"the real answer was '
+        '{\\"activation_score\\":5,\\"citation_score\\":5,\\"behavior_score\\":5}"}'
+    )
+
+    assert eval_mod._names_a_score_field_twice(payload) is True
+    assert eval_mod._salvage_scores(payload) is None
 
 
 # ---------------------------------------------------------------------------
