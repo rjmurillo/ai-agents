@@ -55,20 +55,34 @@ def is_safe_file_path(path: str, allowed_base: str | None = None) -> bool:
 
     Args:
         path: The file path to validate.
-        allowed_base: Base directory paths must stay within. Defaults to cwd.
+        allowed_base: Base directory paths must stay within. When ``None``,
+            the repository root is used, falling back to the working directory
+            only when git confirms there is no repository.
 
     Returns:
-        True if the resolved path stays within the allowed base.
+        True if the resolved path stays within the allowed base. False when the
+        containment base cannot be established, because a check that silently
+        answers a different question is worse than one that refuses to answer.
     """
     if _TRAVERSAL_PATTERN.search(path):
         return False
 
     try:
         if allowed_base is None:
-            from .repo import get_repo_root
+            from .repo import REPO_ROOT_NOT_A_REPO, resolve_repo_root
 
-            repo_root = get_repo_root()
-            allowed_base = str(repo_root) if repo_root is not None else os.getcwd()
+            repo_root, reason = resolve_repo_root()
+            if repo_root is not None:
+                allowed_base = str(repo_root)
+            elif reason == REPO_ROOT_NOT_A_REPO:
+                # Git answered: there is no repository. The working directory
+                # is then the only boundary available, and it is a fact rather
+                # than a guess.
+                allowed_base = os.getcwd()
+            else:
+                # Git could not answer. The repo root is unknown, not known to
+                # be absent, so there is no base to check containment against.
+                return False
         resolved_path = str(Path(path).resolve())
         resolved_base = str(Path(allowed_base).resolve())
         return resolved_path == resolved_base or resolved_path.startswith(

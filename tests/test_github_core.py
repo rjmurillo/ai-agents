@@ -12,6 +12,9 @@ from unittest.mock import patch
 import pytest
 
 from scripts.github_core import (
+    REPO_ROOT_GIT_FAILED,
+    REPO_ROOT_NOT_A_REPO,
+    REPO_ROOT_OK,
     FetchStatus,
     RateLimitResult,
     RepoInfo,
@@ -38,6 +41,7 @@ from scripts.github_core import (
     is_github_name_valid,
     is_safe_file_path,
     resolve_repo_params,
+    resolve_repo_root,
     safe_log_str,
     update_issue_comment,
     validation,
@@ -186,15 +190,48 @@ class TestIsSafeFilePath:
     def test_default_base_is_repo_root(self, tmp_path: Path):
         child = tmp_path / "file.txt"
         child.touch()
-        with patch("scripts.github_core.repo.get_repo_root", return_value=tmp_path):
+        with patch(
+            "scripts.github_core.repo.resolve_repo_root",
+            return_value=(tmp_path, REPO_ROOT_OK),
+        ):
             assert is_safe_file_path(str(child)) is True
 
-    def test_default_base_falls_back_to_cwd(self, tmp_path: Path):
+    def test_default_base_falls_back_to_cwd_when_there_is_no_repository(
+        self, tmp_path: Path
+    ):
+        """Git answered. "No repository" is a fact, so cwd is a real boundary."""
         child = tmp_path / "file.txt"
         child.touch()
-        with patch("scripts.github_core.repo.get_repo_root", return_value=None):
+        with patch(
+            "scripts.github_core.repo.resolve_repo_root",
+            return_value=(None, REPO_ROOT_NOT_A_REPO),
+        ):
             with patch("os.getcwd", return_value=str(tmp_path)):
                 assert is_safe_file_path(str(child)) is True
+
+    def test_git_failure_does_not_silently_become_a_cwd_check(self, tmp_path: Path):
+        """The false accept. Git failed, so containment cannot be answered.
+
+        Before this fix the base silently became the working directory, so a
+        path nowhere near the repository passed the repository containment
+        check purely because the process happened to be sitting next to it.
+        """
+        child = tmp_path / "file.txt"
+        child.touch()
+        with patch(
+            "scripts.github_core.repo.resolve_repo_root",
+            return_value=(None, REPO_ROOT_GIT_FAILED),
+        ):
+            with patch("os.getcwd", return_value=str(tmp_path)):
+                assert is_safe_file_path(str(child)) is False
+
+    def test_explicit_base_never_consults_git(self, tmp_path: Path):
+        """A caller-supplied base is authoritative; git must not be run at all."""
+        child = tmp_path / "file.txt"
+        child.touch()
+        with patch("scripts.github_core.repo.resolve_repo_root") as resolver:
+            assert is_safe_file_path(str(child), str(tmp_path)) is True
+        resolver.assert_not_called()
 
     def test_rejects_backslash_traversal(self):
         assert is_safe_file_path("foo\\..\\bar") is False
@@ -1997,3 +2034,130 @@ class TestInlineBodyError:
 
     def test_allows_a_normal_body(self) -> None:
         assert validation.inline_body_error("## H\n\ntext\n") is None
+
+
+class TestResolveRepoRoot:
+    """`None` alone cannot distinguish "no repository" from "git failed".
+
+    `is_safe_file_path` uses the repository root as a containment base for a
+    path-traversal check (CWE-22). Falling back to the working directory is
+    correct only when git has confirmed there is no repository. When git could
+    not answer, the root is unknown rather than absent, and substituting a
+    different base answers a question nobody asked.
+    """
+
+    def test_success_returns_root_and_ok(self, tmp_path: Path):
+        from scripts.github_core import repo
+
+        with patch("subprocess.run", return_value=_completed(stdout=f"{tmp_path}\n")):
+            assert repo.resolve_repo_root() == (tmp_path, REPO_ROOT_OK)
+
+    def test_git_reporting_no_repository_is_distinguishable(self):
+        from scripts.github_core import repo
+
+        stderr = "fatal: not a git repository (or any of the parent directories): .git\n"
+        with patch("subprocess.run", return_value=_completed(stderr=stderr, rc=128)):
+            assert repo.resolve_repo_root() == (None, REPO_ROOT_NOT_A_REPO)
+
+    def test_unrecognized_git_failure_fails_closed(self):
+        """An exit code we cannot explain must not be read as "no repository"."""
+        from scripts.github_core import repo
+
+        stderr = "fatal: index file smaller than expected\n"
+        with patch("subprocess.run", return_value=_completed(stderr=stderr, rc=128)):
+            assert repo.resolve_repo_root() == (None, REPO_ROOT_GIT_FAILED)
+
+    def test_empty_stderr_on_failure_fails_closed(self):
+        from scripts.github_core import repo
+
+        with patch("subprocess.run", return_value=_completed(rc=1)):
+            assert repo.resolve_repo_root() == (None, REPO_ROOT_GIT_FAILED)
+
+    def test_timeout_is_git_failed(self):
+        from scripts.github_core import repo
+
+        boom = subprocess.TimeoutExpired(cmd=["git"], timeout=10)
+        with patch("subprocess.run", side_effect=boom):
+            assert repo.resolve_repo_root() == (None, REPO_ROOT_GIT_FAILED)
+
+    def test_missing_git_binary_is_git_failed(self):
+        from scripts.github_core import repo
+
+        with patch("subprocess.run", side_effect=FileNotFoundError):
+            assert repo.resolve_repo_root() == (None, REPO_ROOT_GIT_FAILED)
+
+    def test_undecodable_output_is_git_failed(self):
+        from scripts.github_core import repo
+
+        boom = UnicodeDecodeError("utf-8", b"\x80", 0, 1, "invalid start byte")
+        with patch("subprocess.run", side_effect=boom):
+            assert repo.resolve_repo_root() == (None, REPO_ROOT_GIT_FAILED)
+
+    def test_locale_is_pinned_so_the_stderr_match_is_deterministic(self):
+        """Git translates `fatal: not a git repository`. LC_ALL=C pins it.
+
+        Without this the discriminator would silently degrade to "git failed"
+        on a non-English runner, and every default-base containment check on
+        that machine would start refusing.
+        """
+        from scripts.github_core import repo
+
+        with patch("subprocess.run", return_value=_completed(stdout="/tmp\n")) as run:
+            repo.resolve_repo_root()
+        assert run.call_args.kwargs["env"]["LC_ALL"] == "C"
+
+    def test_inherited_environment_is_preserved(self):
+        """Pinning the locale must not blank PATH and friends."""
+        import os
+
+        from scripts.github_core import repo
+
+        with patch("subprocess.run", return_value=_completed(stdout="/tmp\n")) as run:
+            repo.resolve_repo_root()
+        env = run.call_args.kwargs["env"]
+        for key in os.environ:
+            if key != "LC_ALL":
+                assert env[key] == os.environ[key]
+
+    def test_stderr_match_is_case_insensitive(self):
+        from scripts.github_core import repo
+
+        stderr = "FATAL: NOT A GIT REPOSITORY\n"
+        with patch("subprocess.run", return_value=_completed(stderr=stderr, rc=128)):
+            assert repo.resolve_repo_root() == (None, REPO_ROOT_NOT_A_REPO)
+
+    def test_relative_output_is_anchored_like_before(self, tmp_path: Path):
+        from scripts.github_core import repo
+
+        with patch("subprocess.run", return_value=_completed(stdout="sub\n")):
+            root, reason = repo.resolve_repo_root(start_dir=tmp_path)
+        assert reason == REPO_ROOT_OK
+        assert root == (tmp_path / "sub").resolve()
+
+    def test_start_dir_is_forwarded(self, tmp_path: Path):
+        from scripts.github_core import repo
+
+        with patch("subprocess.run", return_value=_completed(stdout=f"{tmp_path}\n")) as run:
+            repo.resolve_repo_root(start_dir=tmp_path)
+        assert run.call_args.args[0] == [
+            "git",
+            "-C",
+            str(tmp_path),
+            "rev-parse",
+            "--show-toplevel",
+        ]
+
+    def test_get_repo_root_keeps_its_none_contract(self):
+        """Every existing caller reads `None`; the wrapper must not change that."""
+        from scripts.github_core import repo
+
+        stderr = "fatal: not a git repository\n"
+        with patch("subprocess.run", return_value=_completed(stderr=stderr, rc=128)):
+            assert repo.get_repo_root() is None
+        with patch("subprocess.run", side_effect=FileNotFoundError):
+            assert repo.get_repo_root() is None
+
+    def test_public_export_matches_the_module(self):
+        from scripts.github_core import repo
+
+        assert resolve_repo_root is repo.resolve_repo_root
