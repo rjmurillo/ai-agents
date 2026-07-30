@@ -116,16 +116,20 @@ Settling the direction needs a two-by-two: ambient on and off crossed with
 Check in this order:
 
 1. **`total_judge_failures` must be 0.** Any non-zero count means some cells
-   were not graded. The verdict will say `FAIL_JUDGE_ERRORS`. Fix the failures
-   before reading any number in the table.
+   were not graded, and the verdict says `FAIL_JUDGE_ERRORS`. One exception:
+   for a routed target the unreachable `full` mechanism is excluded, so
+   `gating_judge_failures` can be 0 while the total is not. The table names the
+   exclusion and prints both counts when that happens.
 2. **Both graded columns must read `n/n`.** A mean over one scenario and a mean
-   over three look identical in the average column. An incomplete negative pool
-   returns `FAIL_NEGATIVE_INCOMPLETE`: a clean average over the measured half is
-   not evidence of restraint across the half nobody measured.
+   over three look identical in the average column. An incomplete pool returns
+   `FAIL_NEGATIVE_INCOMPLETE` or `FAIL_POSITIVE_INCOMPLETE`: a clean average
+   over the measured half is not evidence about the half nobody measured. An
+   off-rubric cell is unmeasured, so it drops out of the average without
+   raising `judge_failed`, which is why the coverage check is separate.
 3. **The negative case should be high on every mechanism the target can reach.**
-   A drop means the rule fires on work it should ignore, a real defect whatever
-   the positive scores say. For a skill reference the gate reads `description`
-   only: `full` force-injects the reference routing exists to keep out.
+   A drop means the rule fires on work it should ignore, whatever the positive
+   scores say. For a skill reference the gate reads `description` only: `full`
+   force-injects the reference routing exists to keep out.
 4. **Only then read the deltas**, against the noise floor below.
 
 ## What the instrument can and cannot resolve
@@ -214,22 +218,18 @@ coordinate-wise median need not be any sample the judge gave: three samples of
 the triple at 3.67. Reducing each sample to its own mean first and medianing
 those scalars gives 3.67. Across all 96 archived cells **3 diverge**, worst by
 0.333 on a cell and 0.111 on a run average (`t-sol56` S2 description and S3
-baseline, `var-sol-2` S3 full). Recomputed end to end the sign count is
-unchanged at seven positive against one negative, p = 0.0703; two rows shift.
+baseline, `var-sol-2` S3 full). Recomputed end to end the sign count holds at
+seven positive against one negative, p = 0.0703; two rows shift.
 
 **Both defects are now fixed (issues #3989 and #3933).** Post-fix runs carry a
-`cell_score` reduced in that second order. With an even sample count that median
-is the midpoint of two observations, so it is still not necessarily a score any
-single judge returned. Negative scenarios now gate: the worst reachable
-mechanism below `MIN_RESTRAINT_SCORE` returns `FAIL_OVER_ACTIVATION`. Archived
-runs carry no `cell_score`, so the reader falls back to the mean of three
-medians, reports that substitution in the table, and the table below still
-reproduces byte for byte. That fallback is deliberate: those runs are a closed
-record, and restating one under a rule it was not computed with would be a
-fabrication. A `cell_score` present but off the 1 to 5 rubric is damage rather
-than legacy, so the cell reads as unmeasured instead. **Distrust the
-archived cells at the 0.1 level and do not edit them; run new comparisons on the
-fixed instrument throughout.**
+`cell_score` reduced in that second order; with an even sample count that median
+is a midpoint, so it need not be a score any judge returned. Negative scenarios
+now gate. Archived runs carry no `cell_score`, so the reader falls back to the
+mean of three medians and reports the substitution; those runs are a closed
+record and restating one under a rule it was not computed with would be a
+fabrication. A `cell_score` present but null or off the rubric never came from
+the writer, so it is damage, and the cell reads as unmeasured. **Distrust the
+archived cells at the 0.1 level and do not edit them.**
 
 | Model | baseline | description | full | delta desc | delta full | discarded samples |
 |---|---|---|---|---|---|---|
@@ -311,7 +311,9 @@ Other limits, all real:
   is an assumption, not a measurement (issue #3934).
 - **Negative scenarios could not fail a rule until #3933.** `aggregate` now
   returns `FAIL_OVER_ACTIVATION` below `MIN_RESTRAINT_SCORE`, and
-  `FAIL_NEGATIVE_INCOMPLETE` when the pool was not fully graded. **The gate is
+  `FAIL_NEGATIVE_INCOMPLETE` or `FAIL_POSITIVE_INCOMPLETE` when a gating pool
+  was not fully graded. Harm outranks coverage, and an unproven harm outranks
+  an unproven benefit. **The gate is
   vacuous here**: this suite's one negative scenario scored 5.0 at every
   mechanism in all eight runs. Unit tests exercise it; this suite cannot.
 
@@ -408,15 +410,13 @@ number are not. The shapes recur either way.
   runs of exactly three backticks, so a payload fenced with four (legal
   Markdown, and what a judge emits when its own reasoning quotes a
   three-backtick block) closed at the inner three and yielded a truncated body
-  that would not parse. The sample was dropped. Found by adversarial review
-  round 11, and first recorded here rather than fixed on the reasoning that
-  widening the matcher would re-introduce the candidate-selection choice the
-  exactly-one-fence rule exists to remove. **That reasoning was wrong**, and
-  round 12 showed why: pairing the close to the width of the run that opened
+  that would not parse. The sample was dropped. Recorded rather than fixed at
+  first, on the reasoning that widening the matcher would re-introduce the
+  candidate selection the exactly-one-fence rule exists to remove. **That
+  reasoning was wrong**: pairing the close to the width of the run that opened
   it collects every block exactly as before and still refuses anything other
-  than one, so no selection returns. Fixed on 2026-07-30. The archive is
-  unaffected either way, since no stored payload contains a four-backtick run
-  (measured: 0 of 24 prefixes).
+  than one, so no selection returns. Fixed on 2026-07-30, archive unaffected
+  (measured: 0 of 24 prefixes carry a four-backtick run).
 - **A lone fence outranked an unfenced verdict beside it.** Requiring exactly
   one fenced block removed the choice among fences and left the choice between
   the fence and the prose around it. A judge that wrote its verdict as
