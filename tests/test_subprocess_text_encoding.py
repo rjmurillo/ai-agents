@@ -1170,6 +1170,13 @@ def _module_sources(value: ast.expr) -> list[str]:
     left to the caller's fixpoint, which already settles those, and keeping
     the walk inside one expression is what bounds it: chasing bindings from
     here re-walks a chain of length N once per link and costs N squared.
+
+    The queue is a deque because a list pops its front by shifting every
+    remaining element. A wide container puts all of its elements in at once,
+    so that shift costs the width on every pop. It hides at the sizes real
+    sources reach, where the shift is a cache-friendly move, and shows up
+    plainly past it: 50000 elements took 0.160s, 100000 took 0.664 and 200000
+    took 2.779, near enough 4x per doubling.
     """
     queue = deque([value])
     found: list[str] = []
@@ -1410,6 +1417,15 @@ def _presupplied(
     return set(_settle(bindings, seed))
 
 
+def _pins_codec(value: ast.expr, functions: dict[str, str]) -> bool:
+    """Report whether *value* is a partial fixing the codec where it is built."""
+    return (
+        isinstance(value, ast.Call)
+        and _is_partial(_call_label(value), functions)
+        and _pins_utf8(value)
+    )
+
+
 def _prepinned(
     bindings: list[tuple[str, ast.expr]],
     functions: dict[str, str],
@@ -1431,16 +1447,14 @@ def _prepinned(
 
     A name is only trusted when every binding it carries pins the codec. One
     name can be bound in two scopes, and a pinned partial built inside some
-    unrelated function says nothing about the runner called out here.
+    unrelated function says nothing about the runner called out here. The
+    same holds after the fixpoint has grown the set, because a name can
+    inherit a pin from an alias and then be rebound to something bare.
     """
     pinning: dict[str, bool] = {}
     source_groups: dict[int, tuple[bool, bool, list[str], set[str]]] = {}
     for name, value in bindings:
-        pins = (
-            isinstance(value, ast.Call)
-            and _is_partial(_call_label(value), functions)
-            and _pins_utf8(value)
-        )
+        pins = _pins_codec(value, functions)
         pinning[name] = pinning.get(name, True) and pins
         key = id(value)
         if key not in source_groups:
@@ -2397,6 +2411,15 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             'runner.keywords["timeout"] = 1\n'
             'runner(["x"], text=True)',
             "storing under some other key leaves the bound codec where it was",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'alias = runner\n'
+            'alias(["x"], text=True)',
+            "an alias that only ever holds the pinned runner still answers for it",
         ),
         (
             'import functools, subprocess\n'
@@ -3613,6 +3636,16 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'runner(["x"], capture_output=True, text=True)',
             "a pin bound to the same name somewhere else answers for nothing here",
         ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'alias = runner\n'
+            'alias = subprocess.run\n'
+            'alias(["x"], capture_output=True, text=True)',
+            "an alias that inherits a pin and is then rebound holds it no longer",
+        ),
     ],
 )
 def test_detector_closes_the_evasions(source: str, why: str) -> None:
@@ -3731,6 +3764,34 @@ def test_a_deep_module_alias_chain_stays_linear() -> None:
 
     assert flagged == [depth + 3], "the module survives every alias on the way"
     assert elapsed < 3.0, f"alias resolution took {elapsed:.1f}s for {depth} links"
+
+
+def test_unwinding_a_wide_container_stays_linear() -> None:
+    """Reading the names out of one wide container must not cost the width.
+
+    Every element goes into the queue at once, so a queue that pops its front
+    by shifting the rest pays the width on every pop. At the sizes a real
+    source reaches that shift is a cache-friendly move and the shape looks
+    linear, which is why the wide-unpack test above passes either way. Past
+    that it is plainly quadratic: 50000 elements took 0.160s, 100000 took
+    0.664 and 200000 took 2.779.
+
+    Only the unwinding is timed. Parsing a literal this wide costs about
+    0.45 seconds on its own and would swamp the measurement. The budget
+    leaves a wide margin: popping from both ends does this in 0.015 seconds
+    and shifting does it in about 0.95.
+    """
+    width = 120000
+    source = "WIDE = [" + ", ".join(f"n{index}" for index in range(width)) + "]"
+    container = ast.parse(source).body[0]
+    assert isinstance(container, ast.Assign)
+
+    started = time.perf_counter()
+    found = _module_sources(container.value)
+    elapsed = time.perf_counter() - started
+
+    assert len(found) == width, "every element of the container answers"
+    assert elapsed < 0.3, f"unwinding took {elapsed:.2f}s for {width} elements"
 
 
 def test_unpacking_a_wide_container_stays_linear() -> None:
