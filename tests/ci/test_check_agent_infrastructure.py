@@ -222,6 +222,8 @@ class TestWorkflowWiring:
             [sys.executable, str(scanner), "--max", "999"],
             check=False,
             capture_output=True,
+            encoding="utf-8",
+            errors="replace",
             text=True,
             cwd=REPO_ROOT,
         )
