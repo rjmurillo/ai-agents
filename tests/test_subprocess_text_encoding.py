@@ -1376,6 +1376,38 @@ def _partial_roots(
     return _settle(bindings, seed)
 
 
+def _renders_as_literal(value: ast.expr) -> bool:
+    """Answer whether rendering this value can only run builtin code.
+
+    A literal answers for itself: a string, a number, or a bool renders
+    without calling back into the module. Python writes several values that
+    are still numbers as something other than a constant, though. ``-1`` is a
+    unary minus over ``1``, and ``60 * 60`` is arithmetic over two of them.
+    Both fold to a number the moment the partial is built, so both render
+    through builtin code alone.
+
+    Containers answer the same way one level up. A tuple, list, set, or
+    mapping display renders by rendering what it holds, so it is safe exactly
+    while every leaf in it is. One name anywhere inside is enough to lose
+    that: rendering reaches the name's own ``__repr__``, and a splat hides
+    what it spreads, so neither can be read as a literal here.
+    """
+    if isinstance(value, ast.Constant):
+        return True
+    if isinstance(value, ast.UnaryOp):
+        return _renders_as_literal(value.operand)
+    if isinstance(value, ast.BinOp):
+        return _renders_as_literal(value.left) and _renders_as_literal(value.right)
+    if isinstance(value, (ast.Tuple, ast.List, ast.Set)):
+        return all(_renders_as_literal(one) for one in value.elts)
+    if isinstance(value, ast.Dict):
+        return all(
+            key is not None and _renders_as_literal(key) and _renders_as_literal(one)
+            for key, one in zip(value.keys, value.values, strict=True)
+        )
+    return False
+
+
 def _literal_roots(
     bindings: list[tuple[str, ast.expr]],
     functions: dict[str, str],
@@ -1385,8 +1417,8 @@ def _literal_roots(
 
     Rendering or comparing a keywords mapping reaches every value it holds, so
     a value carrying its own ``__repr__`` or ``__eq__`` runs code that can drop
-    the pin while the source still reads as a look. A literal cannot: a string,
-    a number, or a bool renders without calling back into the module.
+    the pin while the source still reads as a look. A literal cannot, for the
+    reason :func:`_renders_as_literal` gives.
 
     A root that is built more than once keeps the answer only while every one
     of its constructions is literal, and a double-star splat never is, because
@@ -1399,7 +1431,7 @@ def _literal_roots(
         if not _is_partial(_call_label(value), functions):
             continue
         literal = all(
-            keyword.arg is not None and isinstance(keyword.value, ast.Constant)
+            keyword.arg is not None and _renders_as_literal(keyword.value)
             for keyword in value.keywords
         )
         root = roots.get(name, name)
@@ -2625,6 +2657,60 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             'alias(["x"], text=True)',
             "an empty mapping can later receive a wholly pinned runner",
         ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", timeout=-1\n'
+            ')\n'
+            'seen = repr(runner.keywords)\n'
+            'runner(["x"], text=True)',
+            "a negated number is written as a unary minus and still renders as a number",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", timeout=~1\n'
+            ')\n'
+            'seen = repr(runner.keywords)\n'
+            'runner(["x"], text=True)',
+            "every unary operator over a number answers with a number",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", timeout=60 * 60\n'
+            ')\n'
+            'seen = repr(runner.keywords)\n'
+            'runner(["x"], text=True)',
+            "arithmetic over two numbers answers with a number",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", args=(1, 2)\n'
+            ')\n'
+            'seen = repr(runner.keywords)\n'
+            'runner(["x"], text=True)',
+            "a tuple of literals renders through the builtin tuple repr",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env={"A": "b"}\n'
+            ')\n'
+            'seen = repr(runner.keywords)\n'
+            'runner(["x"], text=True)',
+            "a mapping display of literals renders through the builtin dict repr",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", args=[[1], {2: -3}]\n'
+            ')\n'
+            'seen = repr(runner.keywords)\n'
+            'runner(["x"], text=True)',
+            "a container of containers is literal while every leaf of it is",
+        ),
     ],
 )
 def test_detector_stays_quiet(source: str, why: str) -> None:
@@ -3812,6 +3898,60 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'seen = repr(runner.keywords)\n'
             'runner(["x"], text=True)',
             "repr renders every value, so a value's __repr__ runs and can drop the pin",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", args=(1, guard)\n'
+            ')\n'
+            'seen = repr(runner.keywords)\n'
+            'runner(["x"], text=True)',
+            "a tuple holding one name renders that name, so the container is no literal",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env={"A": guard}\n'
+            ')\n'
+            'seen = repr(runner.keywords)\n'
+            'runner(["x"], text=True)',
+            "a mapping display renders its values, so one name in it is enough",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", timeout=-guard\n'
+            ')\n'
+            'seen = repr(runner.keywords)\n'
+            'runner(["x"], text=True)',
+            "negating a name calls its __neg__ and answers with whatever that returns",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", timeout=60 * guard\n'
+            ')\n'
+            'seen = repr(runner.keywords)\n'
+            'runner(["x"], text=True)',
+            "arithmetic against a name answers with whatever that name multiplies to",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env={**spread}\n'
+            ')\n'
+            'seen = repr(runner.keywords)\n'
+            'runner(["x"], text=True)',
+            "a mapping display that splats another mapping shows none of what it holds",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env=(1, *rest)\n'
+            ')\n'
+            'seen = repr(runner.keywords)\n'
+            'runner(["x"], text=True)',
+            "a starred element spreads what the tuple display does not show",
         ),
         (
             'import functools, subprocess\n'
