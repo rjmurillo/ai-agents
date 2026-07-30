@@ -261,6 +261,60 @@ def _build_routed_reference_prompt(
 # ---------------------------------------------------------------------------
 
 
+def _skip_string_literal(text: str, index: int) -> int:
+    """Return the index just past the string starting at ``index``.
+
+    Returns ``len(text)`` for a string that never closes, which is the shape
+    salvage exists for: the caller then sees no further structure, and a
+    payload whose tail is one open string cannot donate a brace to anything.
+    """
+    index += 1
+    while index < len(text):
+        char = text[index]
+        if char == "\\":
+            index += 2
+            continue
+        if char == '"':
+            return index + 1
+        index += 1
+    return len(text)
+
+
+def _iter_root_brace_positions(text: str) -> Iterator[int]:
+    """Yield the index of every ``{`` that opens a *root-level* object.
+
+    Root level means enclosed by neither an object nor an array. Both prior
+    scanners defined it as "any ``{`` not inside a span I already verified",
+    which counts braces and ignores brackets entirely. An object inside a
+    top-level array satisfied that definition, so ``[{...}]`` handed back its
+    first element as though the judge had written it at the root. The element
+    is an exemplar the judge was quoting, not its answer, and the harness
+    reported it with ``judge_failed`` false.
+
+    Tracking both bracket kinds is what makes "root" mean what the safety
+    argument in every caller already assumed it meant.
+    """
+    brace_depth = 0
+    bracket_depth = 0
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if char == '"':
+            index = _skip_string_literal(text, index)
+            continue
+        if char == "{":
+            if brace_depth == 0 and bracket_depth == 0:
+                yield index
+            brace_depth += 1
+        elif char == "}":
+            brace_depth = max(0, brace_depth - 1)
+        elif char == "[":
+            bracket_depth += 1
+        elif char == "]":
+            bracket_depth = max(0, bracket_depth - 1)
+        index += 1
+
+
 def _scan_balanced_object(text: str, start: int) -> int | None:
     """Return the index just past the object opening at ``start``, or ``None``.
 
@@ -291,21 +345,65 @@ def _scan_balanced_object(text: str, start: int) -> int | None:
     return None
 
 
+def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """Build the object, refusing a repeated key instead of taking the last.
+
+    ``json.loads`` silently keeps the last value for a duplicated key, and it
+    compares keys *after* unescaping, so ``\\u0061ctivation_score`` collides
+    with ``activation_score``. A judge payload carrying both therefore parsed
+    cleanly and reported the second value, which is fabrication reached
+    through the strict path rather than the salvage path.
+    """
+    seen: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in seen:
+            raise ValueError(f"duplicate JSON key: {key}")
+        seen[key] = value
+    return seen
+
+
+def _reject_json_constant(name: str) -> object:
+    """Refuse ``NaN``, ``Infinity``, and ``-Infinity``, which JSON excludes."""
+    raise ValueError(f"non-finite JSON constant: {name}")
+
+
+def _strict_json_loads(text: str) -> object:
+    """``json.loads`` restricted to what the JSON grammar actually allows.
+
+    Raises ``ValueError`` (which ``json.JSONDecodeError`` subclasses, so a
+    single ``except ValueError`` covers both) when the text is not JSON, uses
+    a non-finite constant, or repeats an object key.
+    """
+    return json.loads(
+        text,
+        object_pairs_hook=_reject_duplicate_keys,
+        parse_constant=_reject_json_constant,
+    )
+
+
 def _iter_json_objects(text: str) -> Iterator[str]:
     """Yield every balanced top-level JSON object in ``text``, left to right.
 
     Advancing past a completed object rather than past its opening brace keeps
     nested objects out of the stream, so callers see candidates rather than
     every sub-object of the first one.
+
+    An opener that never balances ends the walk. Resuming one character later
+    would descend *into* that unbalanced object, which is how a score-shaped
+    object quoted inside a malformed ``reasoning`` string became the verdict
+    and replaced the judge's real answer with the prose one. There is no way
+    to bound an unbalanced object, so nothing after its opener can be offered
+    as a root-level candidate.
+
+    Root position comes from ``_iter_root_brace_positions``, which tracks
+    brackets as well as braces. Counting braces alone let an object inside a
+    top-level array pass as a root candidate.
     """
-    start = text.find("{")
-    while start != -1:
+    for start in _iter_root_brace_positions(text):
         end = _scan_balanced_object(text, start)
         if end is None:
-            start = text.find("{", start + 1)
-            continue
+            return
         yield text[start:end]
-        start = text.find("{", end)
 
 
 def _extract_json_object(text: str) -> str | None:
@@ -322,23 +420,31 @@ def _extract_json_object(text: str) -> str | None:
     exists to serve: a tool-call trace emits its own JSON before the answer, so
     the first object is the trace and the real verdict is never tried. Every
     candidate is therefore checked against the same shape validator the caller
-    uses, and the first one carrying a judge verdict wins. When none does, the
-    first parseable object is returned so the caller still reports a shape
-    error against real content rather than a bare parse failure.
+    uses. When none does, the first parseable object is returned so the caller
+    still reports a shape error against real content rather than a bare parse
+    failure.
+
+    Two candidates carrying a verdict is an ambiguity, not a choice. Returning
+    the first would let an echoed exemplar outrank the judge's own answer, so
+    the whole payload is refused and the caller falls through to salvage,
+    which applies the same uniqueness rule to what it can still read.
 
     Returns ``None`` when no balanced object parses.
     """
     fallback: str | None = None
+    verdict: str | None = None
     for candidate in _iter_json_objects(text):
         try:
-            parsed = json.loads(candidate)
-        except json.JSONDecodeError:
+            parsed = _strict_json_loads(candidate)
+        except ValueError:
             continue
         if fallback is None:
             fallback = candidate
         if isinstance(parsed, dict) and _judge_score_shape_error(parsed) is None:
-            return candidate
-    return fallback
+            if verdict is not None:
+                return None
+            verdict = candidate
+    return verdict if verdict is not None else fallback
 
 
 def score_response(
@@ -416,15 +522,14 @@ Respond in JSON only, no other text:
             text = m.group(1).strip()
 
     try:
-        parsed = json.loads(text)
-    except json.JSONDecodeError:
+        parsed = _strict_json_loads(text)
+    except ValueError:
         embedded = _extract_json_object(text)
         if embedded is None:
             return _judge_parse_failure(text, f"judge parse error: {text[:200]}")
-        try:
-            parsed = json.loads(embedded)
-        except json.JSONDecodeError:
-            return _judge_parse_failure(text, f"judge parse error: {text[:200]}")
+        # _extract_json_object only returns candidates it already parsed with
+        # _strict_json_loads, so this cannot raise.
+        parsed = _strict_json_loads(embedded)
     if not isinstance(parsed, dict):
         return _failed_judge(f"judge returned non-object JSON: {text[:200]}")
     score_error = _judge_score_shape_error(parsed)
@@ -445,7 +550,7 @@ Respond in JSON only, no other text:
 
 def _clamp_score(value: object) -> int:
     """Return an exact judge score, or 0 after shape validation fails."""
-    if isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 5:
+    if isinstance(value, int) and not isinstance(value, bool) and value in _SCORE_RANGE:
         return value
     return 0
 
@@ -489,10 +594,308 @@ def _reduce_score_samples(
     reduced["failed_sample_count"] = failed_count
     return reduced
 
-_SCORE_FIELD_RE = {
-    field: re.compile(rf'"{field}"\s*:\s*([1-5])(?=\s*[,}}])')
-    for field in ("activation_score", "citation_score", "behavior_score")
-}
+_SCORE_FIELDS = ("activation_score", "citation_score", "behavior_score")
+
+# The judge rubric is 1-5. Kept as one authoritative range because three code
+# paths police it: the shape gate, the clamp, and salvage. They disagreed once
+# already, and that disagreement is what let an out-of-range score through.
+_SCORE_RANGE = range(1, 6)
+
+_JSON_INT_RE = re.compile(r"-?(?:0|[1-9][0-9]*)\Z")
+
+_ASCII_SPACE = " \t\r\n"
+
+# Stands in for an object or array value that was skipped rather than read.
+# It only has to be something `_JSON_INT_RE` can never match, so a score field
+# holding a structure is rejected instead of parsed. Recording the key at all
+# is the point: it lets the no-duplicate check see structure-valued members,
+# which otherwise slip past and let a later repeat of the same key win.
+_STRUCTURE_VALUE = "<structure>"
+
+
+def _span_parses_as_json(text: str, start: int, end: int) -> bool:
+    """Return whether ``text[start:end]`` is one complete, strict JSON value.
+
+    Strict matters: ``NaN``, ``Infinity``, and duplicate keys are all things
+    ``json.loads`` accepts by default and the JSON grammar does not. Accepting
+    them here would let this report "verified" on a span it had not really
+    verified, which is the claim the whole boundary decision rests on.
+    """
+    try:
+        _strict_json_loads(text[start:end])
+    except (ValueError, RecursionError):
+        return False
+    return True
+
+
+def _advance_string_state(
+    char: str, in_string: bool, escaped: bool
+) -> tuple[bool, bool]:
+    """Return the ``(in_string, escaped)`` pair after consuming ``char``."""
+    if not in_string:
+        return char == '"', False
+    if escaped:
+        return True, False
+    if char == "\\":
+        return True, True
+    return char != '"', False
+
+
+def _skip_balanced(text: str, index: int) -> int | None:
+    """Return the index just past the structure opening at ``index``.
+
+    Tracks string state so a brace inside a string value does not change
+    depth, then confirms the span it landed on parses as a complete JSON
+    value. That second step is what makes the boundary trustworthy.
+
+    Depth tracking alone is not enough. Salvage runs precisely because
+    ``json.loads`` already failed, and the usual cause is an unescaped quote
+    in judge prose. One stray quote desynchronizes ``in_string``, so a brace
+    sitting inside prose reads as a structural close and this function
+    returns an index *inside* the nested object rather than past it. The
+    caller then harvests the nested object's members as if they were
+    top-level, which is how an exemplar's zeros can outrank the real verdict.
+
+    Re-parsing the span closes that hole using the JSON grammar itself rather
+    than a heuristic. Counting quotes does not work: the payload that
+    motivated this check has an even quote count, which is exactly why the
+    desynchronization happens. A span that parses cleanly is a complete
+    value, so its end is the real end; a span that does not parse means the
+    boundary cannot be trusted and the whole payload is rejected.
+    """
+    opener = text[index]
+    closer = "}" if opener == "{" else "]"
+    depth = 0
+    in_string = False
+    escaped = False
+    for position in range(index, len(text)):
+        char = text[position]
+        was_in_string = in_string
+        in_string, escaped = _advance_string_state(char, in_string, escaped)
+        if was_in_string or in_string:
+            continue
+        if char in "{[":
+            depth += 1
+        elif char in "}]":
+            depth -= 1
+            if depth == 0:
+                end = position + 1
+                if char != closer or not _span_parses_as_json(text, index, end):
+                    return None
+                return end
+    return None
+
+
+def _read_key(text: str, index: int) -> tuple[str, int] | None:
+    """Read a quoted member key starting at ``index``, or return ``None``."""
+    if index >= len(text) or text[index] != '"':
+        return None
+    escaped = False
+    for position in range(index + 1, len(text)):
+        char = text[position]
+        if escaped:
+            escaped = False
+        elif char == "\\":
+            escaped = True
+        elif char == '"':
+            return text[index + 1 : position], position + 1
+    return None
+
+
+def _skip_while(text: str, index: int, chars: str) -> int:
+    """Return the first index at or after ``index`` not in ``chars``."""
+    while index < len(text) and text[index] in chars:
+        index += 1
+    return index
+
+
+def _read_member_key(text: str, index: int) -> tuple[str, int] | None:
+    """Read a ``"key":`` pair, returning the key and the index past the colon."""
+    key_read = _read_key(text, index)
+    if key_read is None:
+        return None
+    key, index = key_read
+    index = _skip_while(text, index, _ASCII_SPACE)
+    if index >= len(text) or text[index] != ":":
+        return None
+    return key, index + 1
+
+
+def _read_scalar_value(text: str, index: int) -> tuple[str, int] | None:
+    """Read an unquoted value up to the next comma or closing brace.
+
+    Returns ``None`` when the text read is not a single JSON primitive.
+    Without that check a malformed member swallows the punctuation that
+    separates it from a nested object, and the nested object's members are
+    then read as members of the root. ``{"noise":true {"x":1,"citation_score":
+    0}, ...}`` promoted a depth-2 score to depth 1 exactly that way.
+    """
+    end = index
+    while end < len(text) and text[end] not in ",}":
+        end += 1
+    token = text[index:end].strip(_ASCII_SPACE)
+    try:
+        _strict_json_loads(token)
+    except (ValueError, RecursionError):
+        return None
+    return token, end
+
+
+def _value_start(text: str, index: int) -> int | None:
+    """Return where a member's value begins, or ``None`` to stop scanning.
+
+    Two stops, both meaning "trust nothing further": the payload ended, or the
+    value is a string. Salvage runs on output that broke inside a string, so
+    the first string value is the last point at which offsets are reliable.
+    """
+    index = _skip_while(text, index, _ASCII_SPACE)
+    if index >= len(text) or text[index] == '"':
+        return None
+    return index
+
+
+def _members_read_so_far(members: dict[str, str]) -> dict[str, str] | None:
+    """Return what was read, or ``None`` when the scan stopped before any key.
+
+    An empty result is not a partial verdict, it is a failure to read the
+    object at all, and callers distinguish the two.
+    """
+    return members or None
+
+
+def _member_key_is_usable(key: str, members: dict[str, str]) -> bool:
+    """Return whether ``key`` may be recorded alongside the keys already read.
+
+    A repeat is a duplicate the strict loader would have refused. A backslash
+    means the raw undecoded text is not a reliable identity: ``\\u0061ctivation_score``
+    and ``activation_score`` compare as different keys, so the duplicate check
+    above would miss the collision. The judge is asked for fixed ASCII field
+    names, so refusing escapes costs nothing.
+    """
+    return "\\" not in key and key not in members
+
+
+def _scan_root_members(text: str, start: int | None = None) -> dict[str, str] | None:
+    """Return the depth-1 scalar members of the object at ``start`` in ``text``.
+
+    Salvage exists because the judge's ``reasoning`` string is malformed, so
+    this cannot use ``json.loads`` and cannot trust anything after the first
+    string value: an unescaped quote there desynchronizes every subsequent
+    read. It scans members in order and stops at the first string value,
+    which is exactly as far as the payload is trustworthy.
+
+    Only depth-1 members of the object starting at ``start`` are returned. A
+    nested rubric's scores sit at depth 2 and are skipped wholesale, and a
+    sibling object is never reached, so neither can contribute a number to a
+    verdict it does not belong to.
+
+    Returns ``None`` on a duplicate key or a malformed structure. See
+    ``_member_key_is_usable`` for why an escaped key rejects too.
+    """
+    start = text.find("{") if start is None else start
+    if start == -1 or start >= len(text) or text[start] != "{":
+        return None
+    members: dict[str, str] = {}
+    index = start + 1
+    while index < len(text):
+        index = _skip_while(text, index, _ASCII_SPACE + ",")
+        if index >= len(text) or text[index] == "}":
+            return members
+        key_read = _read_member_key(text, index)
+        if key_read is None:
+            return _members_read_so_far(members)
+        key, index = key_read
+        if not _member_key_is_usable(key, members):
+            return None
+        value_index = _value_start(text, index)
+        if value_index is None:
+            return members
+        index = value_index
+        char = text[index]
+        if char not in "{[":
+            scalar = _read_scalar_value(text, index)
+            if scalar is None:
+                return None
+            members[key], index = scalar
+            continue
+        skipped = _skip_balanced(text, index)
+        if skipped is None:
+            return _members_read_so_far(members)
+        members[key] = _STRUCTURE_VALUE
+        index = skipped
+    return members
+
+
+def _salvage_anchor(text: str) -> int | None:
+    """Return the offset of the only object salvage may read, or ``None``.
+
+    Salvage exists for one shape: the judge emitted a well-formed verdict
+    prefix and then broke inside ``reasoning``. In that shape the verdict is
+    the very first thing in the payload, so the anchor is fixed at offset 0
+    rather than searched for.
+
+    Searching is what produced eleven fabrication defects across seven review
+    rounds. Every one was a disagreement about which candidate object was the
+    judge's answer: a rubric exemplar, a tool trace, an array element, the
+    second of a duplicate pair. A search cannot be made safe by adding another
+    disqualifier, because each new one only narrows the set of wrong answers it
+    may still return. Refusing to search removes the question.
+
+    The cost is real and bounded: a payload that leads with prose or a tool
+    trace is no longer salvaged. That discards one of three judge samples. The
+    alternative is a fabricated score in a published number, and the archived
+    recoveries all lead with the verdict, so the shape this gives up is not one
+    the judges actually produce.
+    """
+    stripped = text.lstrip()
+    if not stripped.startswith("{"):
+        return None
+    return len(text) - len(stripped)
+
+
+def _names_a_score_field_twice(text: str) -> bool:
+    """Return whether any score field name appears more than once in ``text``.
+
+    ``_scan_root_members`` stops at ``reasoning`` because nothing after a
+    malformed string can be trusted. That makes it blind to a second copy of a
+    score field placed *after* ``reasoning``, so a judge answer of
+
+        {"activation_score": 1, ..., "reasoning": "...",
+         "activation_score": 5, ...}
+
+    was salvaged as ``1`` while a lenient parse would have said ``5``. The two
+    disagree, which makes the payload ambiguous, and ambiguous payloads are
+    refused rather than guessed at.
+
+    Counting raw names is cheap and needs no parse of the untrusted tail. A
+    name spelled with a unicode escape would slip the count, so any ``\\u`` in
+    the payload refuses outright: judge prose does not contain one, and a
+    refusal costs a sample while a fabrication costs a published number.
+    """
+    if "\\u" in text:
+        return True
+    return any(text.count(f'"{field}"') > 1 for field in _SCORE_FIELDS)
+
+
+def _complete_verdict(members: dict[str, str] | None) -> dict[str, int] | None:
+    """Return the three scores when ``members`` carries a whole valid verdict.
+
+    Returns ``None`` when any field is absent, is not a JSON integer, or falls
+    outside 1-5, so a partial object (a tool trace naming one field) is not a
+    candidate and cannot compete with the real answer.
+    """
+    if members is None:
+        return None
+    verdict: dict[str, int] = {}
+    for field in _SCORE_FIELDS:
+        raw = members.get(field)
+        if raw is None or not _JSON_INT_RE.match(raw):
+            return None
+        value = int(raw)
+        if value not in _SCORE_RANGE:
+            return None
+        verdict[field] = value
+    return verdict
 
 
 def _salvage_scores(text: str) -> dict[str, int] | None:
@@ -505,20 +908,43 @@ def _salvage_scores(text: str) -> dict[str, int] | None:
     plainly, and it does so more often for verbose models, which biases the
     comparison the eval exists to make.
 
-    Only the leading numeric fields are read, so a salvage cannot invent a
-    score the judge did not give. Returns ``None`` unless all three are found.
+    Five conditions, all required, so a salvage cannot invent a score:
+
+    1. The payload *begins* with the object, ignoring leading whitespace. This
+       is the load-bearing one, and it replaces every prior attempt to search
+       out the right candidate. See ``_salvage_anchor``.
+    2. No score field name appears twice anywhere in the payload, which is the
+       only way to see a duplicate placed after the unreadable tail. See
+       ``_names_a_score_field_twice``.
+    3. All three fields are depth-1 members of that one object, with no
+       repeated key inside the readable prefix.
+    4. Each value matches the JSON integer grammar in full. ``4.5``, ``5e-1``,
+       ``05``, and ``5junk`` all fail rather than being read as ``4`` or
+       ``5``, which would be fabrication.
+    5. Each value is in 1-5. Salvage runs *after* ``_judge_score_shape_error``
+       has already rejected the payload, so deferring range to that checker
+       re-admits exactly what it just refused: a judge answer of ``6`` came
+       back as a clean ``5`` once ``_clamp_score`` was through with it.
+
+    Conditions 1 and 2 replaced a walk over root-level objects that accepted
+    whichever one carried a complete verdict. That walk, and the two rewrites
+    before it, each defined "root" by counting braces, so an object inside a
+    top-level array qualified and ``[{...exemplar...}]`` was returned as the
+    judge's answer. Bracket-blindness was the eighth defect of this class in
+    seven review rounds; the pattern is the search itself, not any one of its
+    disqualifiers.
+
+    **Known limitations, both deliberate.** Scores must precede ``reasoning``,
+    and the verdict must lead the payload. JSON requires neither. Both refuse
+    rather than guess, because a refusal discards one of three judge samples
+    while a wrong guess silently corrupts a published number.
     """
-    for candidate in _iter_json_objects(text):
-        window = candidate.partition('"reasoning"')[0]
-        salvaged: dict[str, int] = {}
-        for field, pattern in _SCORE_FIELD_RE.items():
-            matches = pattern.findall(window)
-            if len(matches) != 1:
-                break
-            salvaged[field] = int(matches[0])
-        if len(salvaged) == len(_SCORE_FIELD_RE):
-            return salvaged
-    return None
+    if _names_a_score_field_twice(text):
+        return None
+    start = _salvage_anchor(text)
+    if start is None:
+        return None
+    return _complete_verdict(_scan_root_members(text, start))
 
 
 def _judge_parse_failure(text: str, reason: str) -> dict[str, Any]:
@@ -558,7 +984,7 @@ def _judge_score_shape_error(parsed: dict[str, Any]) -> str | None:
                 f"judge returned non-integral {field}: "
                 f"{type(value).__name__}"
             )
-        if not 1 <= value <= 5:
+        if value not in _SCORE_RANGE:
             return f"judge returned out-of-range {field}: {value!r}"
     return None
 
