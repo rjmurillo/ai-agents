@@ -49,7 +49,7 @@ Direction rule: generators read canonical, write mirrors. They NEVER write `.cla
 
 | Decision | ADR | Status (as of 2026-07-03) | Why it exists |
 |---|---|---|---|
-| Memory-first: retrieval precedes reasoning; Serena (`.serena/memories/`, 122 files) canonical, Forgetful supplementary | ADR-007 | Accepted (revised 2026-01-01) | Agents re-derive knowledge badly; retrieval is cheaper and auditable |
+| Memory-first: retrieval precedes reasoning; Serena (`.serena/memories/`, 158 files as of 2026-07-30) canonical, Forgetful supplementary | ADR-007 | Accepted (revised 2026-01-01) | Agents re-derive knowledge badly; retrieval is cheaper and auditable |
 | HANDOFF.md read-only, distributed handoffs | ADR-014 | Accepted | Single-file write target caused merge-conflict storms |
 | Two-source agent templates (shared templates plus hand-written `src/claude/`) | ADR-036 | Accepted | Claude prompts need harness-specific depth; 3 full sources would drift |
 | Python-only new scripts, bash prohibited | ADR-042 | Accepted | One toolchain, testable, cross-platform |
@@ -143,7 +143,7 @@ State these plainly when working near them; do not design as if they were sound.
 - **Skill tests split by location**: green CI does not prove skill tests ran; run them explicitly (`ai-agents-validation-and-qa`).
 - **Proposed-ADR ambiguity**: the status field is not a reliable is-this-binding signal; check enforcement, not status.
 - **EVENT telemetry consumer is thin**: telemetry may be written and never read; verify before citing intercept ratios.
-- **Retro-cited SHAs unresolvable locally**: archaeology routes through retros and memories as primary sources, not git log.
+- **Retro-cited SHAs unreachable from `main`**: squash-merge rewrites every PR SHA, so archaeology routes through retros and memories as primary sources, not git log.
 
 ## Anti-Patterns
 
