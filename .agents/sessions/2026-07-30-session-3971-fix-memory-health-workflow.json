@@ -180,7 +180,7 @@
     "primary": "A workflow that shells out to a first-party tool has an untested interface with it. Both defects here lived in that gap: argparse rejected the argv, and the parser read a schema the producer had stopped emitting. Neither is visible to a unit test of either side alone. The durable fix is a contract test that runs the real parser and the real producer, not a fixture of what they were once believed to do.",
     "secondary": "When a step redirects stdout to a file, a non-zero exit from the command still leaves an empty file behind. The failure then surfaces at the consumer, several steps away from its cause. Reading the annotation at the point of failure would have pointed at the wrong script."
   },
-  "endingCommit": "",
+  "endingCommit": "20bf1665b3a4fa7f97e54182bec4471f2adbfac6",
   "nextSteps": [
     "Open the PR for this branch and check the security review boxes: .github/workflows is a security-critical path under .claude/rules/security.md.",
     "Re-check PR 3983, PR 3638, and the third red PR once this merges: all three were failing only on this job.",

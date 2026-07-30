@@ -76,7 +76,9 @@
       "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "test",
       "content": "29 passed, ruff clean, both workflows parse as valid YAML",
-      "caused_by": [],
+      "caused_by": [
+        "e012"
+      ],
       "leads_to": []
     },
     {
@@ -94,6 +96,16 @@
       "content": "Bot review found the PR summary labelled HEALTH_STALE_MEMORIES as 'Memories with stale citations' while the value is stale_memory_count. Relabelled 'Stale memories' so it does not collide with the citation-level Stale row below it.",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 20bf1665b3a4fa7f97e54182bec4471f2adbfac6",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ]
     }
   ],
   "metrics": {
@@ -101,7 +113,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 6
   },
   "lessons": []
