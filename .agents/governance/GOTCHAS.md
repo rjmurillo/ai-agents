@@ -130,6 +130,45 @@ removed in a later one nets out and passes. Existing lines on `main` are
 grandfathered because only added lines are scanned, which is why inert
 suppressions can sit in the tree looking like sanctioned precedent. Refs #3940.
 
+## The push blocks at 21 commits, and the check runs at push time
+
+The pre-push `push-ref-policy` hook hard-fails at more than 20 commits ahead of
+`origin/main`. It runs at push time, so a long branch discovers the ceiling
+after the work is committed, not while it accumulates. Check it mid-session:
+
+```
+git rev-list --count HEAD ^origin/main
+```
+
+Relief is the `commit-limit-bypass` label on the PR, and nothing else. Squashing
+is often the wrong repair, because the five-file atomic-commit rule then makes
+the collapsed commit a violation of a different rule. Prefer the label when the
+branch is one coherent thread, and split into a second PR when it is not.
+
+## Never revert a source file with `git checkout` to negative-control a fix
+
+Negative-controlling a fix means reverting the source, confirming the new tests
+fail, then restoring. `git checkout <file>` restores the file to HEAD, which
+silently discards **every other uncommitted change in it**, not just the one
+you meant to undo. On a file carrying two unrelated in-progress fixes, one
+control run destroyed both.
+
+Copy the file aside and copy it back:
+
+```
+cp scripts/eval/thing.py /tmp/thing.bak
+# ... sabotage, run the test, observe the failure ...
+cp /tmp/thing.bak scripts/eval/thing.py
+```
+
+`git stash push <file>` is safe by comparison (the change is recoverable) but
+still moves *all* of the file's changes, so a control run that expects only
+one behavior to regress will see several.
+
+Symptom: a control that should fail passes instead, because the sabotage never
+applied to the code you thought you were editing. Check `git status` before
+concluding the test is weak.
+
 ## The mypy and ruff gates are ratchets, not clean-tree checks
 
 `git_hook_policy.py mypy` tolerates the pre-existing error count in a file and

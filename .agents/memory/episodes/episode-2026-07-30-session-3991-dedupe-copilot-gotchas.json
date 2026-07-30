@@ -94,6 +94,22 @@
       "content": "Rewrote the entry to name the trap and the supported remedy, and to point at the file count in the output line as the only thing distinguishing a real pass from the no-op.",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added two gotchas learned while running negative controls on the eval parser. First: git checkout on a source file to revert a sabotage discards every other uncommitted change in that file, which destroyed two in-progress fixes in one run. Copy the file aside instead.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Second: the pre-push hook hard-fails above 20 commits ahead of origin/main and only runs at push time, so a long branch finds the ceiling after the work is committed. Recorded the mid-session check and why squashing is often the wrong repair, since the five-file atomic rule then makes the collapsed commit a different violation.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
