@@ -86,6 +86,16 @@ entry point already established, and when a helper's answer contradicts the
 entry point, the entry point wins and the contradiction is a finding about the
 helper.
 
+A second-order form of the same trap: this instrument has two duplicate-name
+guards, a textual one for payloads that did not parse and a structural one for
+payloads that did. Checking the wrong one is not a wrong answer, it is an
+answer to the other question, and on a population where the chosen guard cannot
+run it returns a clean zero that reads like evidence. The measurement of the 24
+failures had exactly that shape at first, because the structural guard was
+applied to payloads that by definition do not parse. Name the guard in the
+claim, and confirm with a control that the chosen one fires on a positive case
+drawn from the same population.
+
 ## An over-eager refusal is not symmetric with an over-eager accept
 
 This is the asymmetry the whole instrument turns on, and it governs how much

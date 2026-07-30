@@ -79,7 +79,7 @@ trip it more often" and is measured against both populations rather than one.
 original whose cut-off tail named the score fields a second time would produce
 a byte-identical 200-character prefix, would be refused by the duplicate-name
 guard rather than recovered, and that the archive could not check it. The
-originals check it: 0 of 24 trip the duplicate-name guard, and all 24 salvage
+originals check it: 0 of 24 trip the textual duplicate-name guard, and all 24 salvage
 to three top-level integers. The same holds for the related worry that a
 recovered prefix is authentically the judge's first answer but not its final
 one. With the whole payload in hand there is no unseen tail to carry a

@@ -431,7 +431,7 @@ number are not. The shapes recur either way.
   against the published table is zero, and unlike the sixteen before it that
   is measured rather than argued**: `recovered-judge-payloads.json` holds the
   full original for all 288 samples, not only the failures, so the 264
-  successes replay directly. None of the 264 trips the duplicate-name guard,
+  successes replay directly. None of the 264 trips either duplicate-name guard,
   none is refused by the current parser, and none contains a literal `\u`, so
   the escape-refusal carries no cost either. Issue #3998 was filed when the
   archive was believed to keep raw only for failures; it does not apply to this
