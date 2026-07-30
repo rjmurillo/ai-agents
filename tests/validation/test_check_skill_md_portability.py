@@ -59,7 +59,6 @@ class TestCountUpstreamRefs:
         text = "Run .claude/skills/memory/scripts/search_memory.py here.\n"
         assert cmp.count_upstream_refs(text) == 0
 
-
     @pytest.mark.parametrize(
         "text",
         [
@@ -85,6 +84,7 @@ class TestCountUpstreamRefs:
     )
     def test_ignores_partial_word_directory_refs(self, text: str) -> None:
         assert cmp.count_upstream_refs(text) == 0
+
     def test_counts_templates_agents_and_platforms(self) -> None:
         # Both hold generator inputs that never ship in the plugin, so a
         # consumer following either reference lands on nothing (issue #3459).
@@ -314,9 +314,7 @@ class TestTerminatorWordBoundary:
         """A skill file with a newly counted bare ref drifts from an empty baseline."""
         skills = tmp_path / ".claude" / "skills" / "a"
         skills.mkdir(parents=True)
-        (skills / "SKILL.md").write_text(
-            "Writes under .agents today.\n", encoding="utf-8"
-        )
+        (skills / "SKILL.md").write_text("Writes under .agents today.\n", encoding="utf-8")
         # issue #3582: main() now requires every REQUIRED_SKILLS_ROOTS entry to
         # exist, not just .claude, so a bare `.claude`-only fixture exits 2.
         (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
@@ -551,12 +549,7 @@ class TestCodeBlockAndInlineHandling:
 
     def test_indented_fences_are_stripped(self) -> None:
         # CommonMark allows 0-3 spaces of indentation on fence markers.
-        text = (
-            "   ```bash\n"
-            "   .agents/foo\n"
-            "   ```\n"
-            "Real .claude/lib/bar here.\n"
-        )
+        text = "   ```bash\n   .agents/foo\n   ```\nReal .claude/lib/bar here.\n"
         assert cmp.count_upstream_refs(text) == 1
 
     def test_indented_fence_marker_not_opted_out(self) -> None:
@@ -620,9 +613,7 @@ class TestScan:
     def test_scan_collects_md_with_refs(self, tmp_path: Path) -> None:
         self._skill_md(tmp_path, "alpha/SKILL.md", "Writes .agents/analysis/a.md\n")
         self._skill_md(tmp_path, "beta/references/b.md", "Clean prose only.\n")
-        self._skill_md(
-            tmp_path, "gamma/SKILL.md", "Reads .claude/lib/x and .agents/y\n"
-        )
+        self._skill_md(tmp_path, "gamma/SKILL.md", "Reads .claude/lib/x and .agents/y\n")
         skills_dir = tmp_path / ".claude" / "skills"
         counts = cmp.scan_skill_markdown(skills_dir).counts
         assert counts == {
@@ -673,9 +664,7 @@ class TestPluginRootScan:
         """
         self._skill_md(tmp_path, ".claude", "a/SKILL.md", "Clean prose.\n")
         self._skill_md(tmp_path, "src/copilot-cli", "a/SKILL.md", "Reads .agents/x\n")
-        assert cmp.scan_plugin_roots(tmp_path) == {
-            "src/copilot-cli/skills/a/SKILL.md": 1
-        }
+        assert cmp.scan_plugin_roots(tmp_path) == {"src/copilot-cli/skills/a/SKILL.md": 1}
 
     def test_same_named_skills_in_two_roots_do_not_collide(self, tmp_path: Path) -> None:
         """Keys are repository relative because both roots hold ``skills/spec``.
@@ -699,15 +688,11 @@ class TestPluginRootScan:
         self._skill_md(tmp_path, "src/copilot-cli", "a/SKILL.md", "Reads .agents/x\n")
         baseline = tmp_path / "baseline.json"
         baseline.write_text('{"files": {}}', encoding="utf-8")
-        code = cmp.main(
-            ["--repo-root", str(tmp_path), "--baseline", str(baseline)]
-        )
+        code = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
         assert code == 1
 
     @pytest.mark.parametrize("absent", sorted(cmp.REQUIRED_SKILLS_ROOTS))
-    def test_exit_2_when_a_required_root_is_missing(
-        self, tmp_path: Path, absent: str
-    ) -> None:
+    def test_exit_2_when_a_required_root_is_missing(self, tmp_path: Path, absent: str) -> None:
         """A partial scan must fail, not narrow silently.
 
         This is the same failure shape as issue #3578 one level up. If a
@@ -755,9 +740,7 @@ class TestPluginRootScan:
         this test fails and names the root to add.
         """
         root = Path(__file__).resolve().parents[2]
-        have_skills = {
-            name for name in cmp.PLUGIN_ROOTS if (root / name / "skills").is_dir()
-        }
+        have_skills = {name for name in cmp.PLUGIN_ROOTS if (root / name / "skills").is_dir()}
         assert have_skills, "no plugin root has a skills tree; the scan would be empty"
         assert have_skills <= cmp.REQUIRED_SKILLS_ROOTS, (
             f"these roots ship skills but are not required: "
@@ -904,9 +887,7 @@ class TestMainCli:
         self._required_roots(tmp_path)
         skills = tmp_path / ".claude" / "skills" / "a"
         skills.mkdir(parents=True)
-        (skills / "SKILL.md").write_text(
-            "Writes .agents/x and .agents/z\n", encoding="utf-8"
-        )
+        (skills / "SKILL.md").write_text("Writes .agents/x and .agents/z\n", encoding="utf-8")
         baseline = tmp_path / "baseline.json"
         baseline.write_text(
             json.dumps({"files": {".claude/skills/a/SKILL.md": 1}}), encoding="utf-8"
@@ -997,9 +978,7 @@ class TestCommittedRepoHasNoDrift:
         root = Path(__file__).resolve().parents[2]
         if not cmp.skills_dirs(root):
             pytest.skip("no plugin root has a skills dir in this checkout")
-        baseline_path = (
-            root / "scripts" / "validation" / cmp._DEFAULT_BASELINE_NAME
-        )
+        baseline_path = root / "scripts" / "validation" / cmp._DEFAULT_BASELINE_NAME
         current = cmp.scan_plugin_roots(root)
         baseline = cmp._load_baseline(baseline_path)
         regressions, _ = cmp.diff_against_baseline(current, baseline)
@@ -1019,9 +998,7 @@ class TestCommittedRepoHasNoDrift:
             pytest.skip("no plugin root has a skills dir in this checkout")
         baseline_path = root / "scripts" / "validation" / cmp._DEFAULT_BASELINE_NAME
         scanned = {d.parent.relative_to(root).as_posix() for d in cmp.skills_dirs(root)}
-        recorded = {
-            key.split("/skills/", 1)[0] for key in cmp._load_baseline(baseline_path)
-        }
+        recorded = {key.split("/skills/", 1)[0] for key in cmp._load_baseline(baseline_path)}
         assert recorded <= scanned, f"baseline names unscanned roots: {recorded - scanned}"
 
 
@@ -1305,9 +1282,12 @@ class TestNestingExhaustionGate:
     def _nested_fence(depth: int) -> str:
         quote = ">" * depth + " "
         return (
-            quote + "```\n"
-            + quote + "<!-- vendor-portability: example -->\n"
-            + quote + "```\n"
+            quote
+            + "```\n"
+            + quote
+            + "<!-- vendor-portability: example -->\n"
+            + quote
+            + "```\n"
             + "Ref .agents/analysis/foo.md.\n"
         )
 
@@ -1335,3 +1315,57 @@ class TestNestingExhaustionGate:
         baseline = self._write_skill(tmp_path, self._nested_fence(19))
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
         assert rc == 1
+
+
+class TestScriptsPathDetection:
+    """Prose reference detection for scripts/ paths (issue #4013).
+
+    The scripts/ tree exists only in the upstream checkout; neither plugin root
+    ships it. A skill that instructs the agent to open or run scripts/x.py will
+    fail silently in every consumer install.
+    """
+
+    def test_counts_scripts_inline_code_ref(self) -> None:
+        """An inline-code scripts/ reference is counted as an upstream ref.
+
+        Isolating negative control: removing the scripts[\\/] pattern from
+        UPSTREAM_PATTERNS causes count_upstream_refs to return 0, failing this
+        assertion. The text contains no .agents/, .claude/lib/, templates/, or
+        other upstream prefix, so only the scripts/ component triggers it.
+        """
+        text = "Run `scripts/validation/check_vendor_portability.py` to validate.\n"
+        assert cmp.count_upstream_refs(text) == 1
+
+    def test_counts_scripts_bare_prose_ref(self) -> None:
+        """A bare prose scripts/ reference (no backticks) is also counted."""
+        text = "Edit scripts/validation/pre_pr.py before running.\n"
+        assert cmp.count_upstream_refs(text) == 1
+
+    def test_ignores_scripts_in_fenced_code_block(self) -> None:
+        """A scripts/ path inside a fenced code block is stripped before counting.
+
+        Fenced blocks document example invocations; they do not represent prose
+        instructions to the agent.
+        """
+        text = "```bash\npython3 scripts/validation/pre_pr.py\n```\n"
+        assert cmp.count_upstream_refs(text) == 0
+
+    def test_ignores_build_scripts_nested_path(self) -> None:
+        """A path where scripts is not at root (build/scripts/) is not counted.
+
+        The _BOUNDARY pattern requires a boundary character before scripts
+        that excludes a slash, so build/scripts/x.py does not match the
+        scripts[\\/] pattern.
+        """
+        text = "Generated by `build/scripts/generate_rules.py`.\n"
+        assert cmp.count_upstream_refs(text) == 0
+
+    def test_ignores_plain_word_scripts_without_separator(self) -> None:
+        """The bare English word "scripts" without a trailing slash is not counted.
+
+        The pattern requires scripts[\\/] (a path separator after the word), so
+        prose like "the scripts are located here" does not count as an upstream
+        path reference.
+        """
+        text = "The scripts are maintained by the team.\n"
+        assert cmp.count_upstream_refs(text) == 0

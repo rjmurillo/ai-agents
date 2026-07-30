@@ -66,7 +66,27 @@ from pathlib import Path
 # `.claude/skills/` is intentionally NOT flagged: the `/review` pattern
 # resolves skill resources via the helper's `.claude/skills/...` candidate,
 # so a reference to it inside the helper or via the helper is correct.
-_BANNED_PATH = re.compile(r"\.agents(?:[\\/]+|['\"]|$)|\.claude[\\/]+lib(?:[\\/]+|['\"]|$)")
+# `scripts/` is flagged (issue #4013): the scripts/ tree exists only in the
+# upstream checkout and does not ship inside either plugin root. A skill script
+# that hard-codes `scripts/validate_session_json.py` (for example) will fail
+# silently in every consumer install. Use the portability helper for read/write
+# paths and avoid direct `scripts/` references in shipped skill scripts.
+# The lookbehind `(?<![/\\\w.])` prevents matching paths where `scripts` is a
+# suffix (e.g. `build/scripts/`, `test_scripts/`, `../scripts/`).
+#
+# The optional `(?:\.[\\/])?` accepts an explicit current-directory prefix, so
+# `"./scripts/x.py"` and `".\\scripts\\x.py"` are flagged too. Without it the
+# lookbehind sees the `/` in `./` and rejects the match, which let a string like
+# `subprocess.run(["python3", "./scripts/x.py"])` bypass the gate entirely: the
+# exact upstream-only dependency #4013 exists to catch, written the way a shell
+# invocation is usually written. `../scripts/` stays unflagged (the `.` in the
+# lookbehind class rejects it) because a parent-relative path can legitimately
+# name a skill-internal sibling directory rather than the upstream tree.
+_BANNED_PATH = re.compile(
+    r"\.agents(?:[\\/]+|['\"]|$)"
+    r"|\.claude[\\/]+lib(?:[\\/]+|['\"]|$)"
+    r"|(?<![/\\\w.])(?:\.[\\/])?scripts[\\/]"
+)
 _STRING_TOKEN_TYPES = {tokenize.STRING}
 if hasattr(tokenize, "FSTRING_MIDDLE"):
     _STRING_TOKEN_TYPES.add(tokenize.FSTRING_MIDDLE)
@@ -346,13 +366,19 @@ def format_report(new: list[Offender], known: list[Offender]) -> str:
     lines.append(f"[FAIL] {len(new)} new vendor-portability offender(s) found.")
     lines.append("")
     lines.append(
-        "These files hard-code an upstream-only path (.agents/ or "
-        ".claude/lib/) and do not route through the portability helper."
+        "These files hard-code an upstream-only path (.agents/, .claude/lib/, "
+        "or scripts/) and do not route through the portability helper."
     )
     lines.append(
         "Use .claude/lib/paths.py: resolve_artifact_root() for write paths, "
         "artifact_dir() to resolve a write location without creating it, "
-        "resolve_skill_resource() for read paths. See Issue #2050."
+        "resolve_skill_resource() for read paths. See Issue #2050 and #4013."
+    )
+    lines.append(
+        "Those helpers resolve paths inside the plugin root, so they do NOT "
+        "fix a scripts/ reference: that tree is upstream-only and ships in "
+        "neither plugin root. Drop the reference, or record it in this "
+        "baseline with a comment naming the dependency."
     )
     lines.append("")
     for off in new:
@@ -371,9 +397,15 @@ def write_baseline(path: Path, offenders: list[Offender]) -> None:
     """Write the baseline file from the current offender set."""
     header = [
         "# Vendor-portability baseline (Issue #2050).",
-        "# Pre-existing scripts that hard-code .agents/ or .claude/lib/ paths.",
+        "# Pre-existing scripts that hard-code .agents/, .claude/lib/, or scripts/ paths.",
         "# check_vendor_portability.py allows these but fails on NEW offenders.",
         "# Regenerate: python3 scripts/validation/check_vendor_portability.py --update-baseline",
+        "#",
+        "# Not every entry is real debt. The scripts/ entries added for #4013 are",
+        "# known false positives: regex literals, README template text, and test",
+        "# fixture strings that name scripts/ as a concept, not as a path the file",
+        "# opens. The regex exemption cannot fire for them because it keys on a",
+        "# literal '\\.', which a scripts/ pattern never contains. Tracked in #4046.",
         "",
     ]
     body = sorted({off.relpath for off in offenders})
