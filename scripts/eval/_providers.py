@@ -225,7 +225,7 @@ class _OpenAICompatibleProvider:
             create_kwargs["seed"] = seed
         try:
             resp = client.chat.completions.create(**create_kwargs)
-        except Exception as exc:  # noqa: BLE001 - normalize then re-raise
+        except Exception as exc:  # normalize then re-raise
             _normalize_and_raise(self._provider_label, exc)
             raise  # unreachable; _normalize_and_raise always raises
         choices = getattr(resp, "choices", None) or []
@@ -283,7 +283,7 @@ class _AnthropicSDKProvider:
                 messages=anthropic_messages,
                 temperature=temperature,
             )
-        except Exception as exc:  # noqa: BLE001 - normalize then re-raise
+        except Exception as exc:  # normalize then re-raise
             _normalize_and_raise(self._provider_label, exc)
             raise  # unreachable
         parts = [

@@ -161,11 +161,11 @@ def _known_providers() -> set[str] | None:
     """Provider names the transport can resolve, or None if unavailable."""
     try:
         from _providers import known_provider_names
-    except Exception:  # noqa: BLE001 - transport optional at config time
+    except Exception:  # transport optional at config time
         return None
     try:
         return set(known_provider_names())
-    except Exception:  # noqa: BLE001
+    except Exception:
         return None
 
 

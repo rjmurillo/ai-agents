@@ -72,7 +72,7 @@ def _find_platform_hook_artifacts(repo_root: Path) -> tuple[list[Path], list[str
     declares hooks, triggering the legacy _COPILOT_REL fallback.
     """
     try:
-        import yaml  # noqa: PLC0415
+        import yaml
     except ImportError:  # pragma: no cover
         return [], []
     platforms_dir = repo_root / "templates" / "platforms"
@@ -123,8 +123,8 @@ def _load_generators(repo_root: Path) -> tuple[ModuleType, ModuleType]:
     scripts_dir = repo_root / "build" / "scripts"
     if str(scripts_dir) not in sys.path:
         sys.path.insert(0, str(scripts_dir))
-    import generate_dispatcher  # noqa: PLC0415
-    import generate_hooks  # noqa: PLC0415
+    import generate_dispatcher
+    import generate_hooks
 
     return cast(ModuleType, generate_hooks), cast(ModuleType, generate_dispatcher)
 

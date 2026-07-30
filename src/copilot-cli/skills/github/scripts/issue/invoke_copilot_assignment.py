@@ -515,7 +515,7 @@ def build_parser() -> argparse.ArgumentParser:
 # ---------------------------------------------------------------------------
 
 
-def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of complex PS1
+def main(argv: list[str] | None = None) -> int:  # faithful port of complex PS1
     args = build_parser().parse_args(argv)
     fmt = get_output_format(args.output_format)
 

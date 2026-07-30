@@ -201,7 +201,7 @@ def _main() -> int:
                 ),
             ),
         )
-    except Exception as exc:  # noqa: BLE001 - generated entrypoint must stay loud
+    except Exception as exc:  # generated entrypoint must stay loud
         fail_closed = mode in ("gate", "advise") or event_dir.name.lower() in (
             "pretooluse",
             "permissionrequest",

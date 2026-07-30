@@ -37,7 +37,7 @@ import json
 import math
 import os
 import re
-import subprocess  # noqa: S404 - invokes a sibling eval script with a fixed, validated argv
+import subprocess  # invokes a sibling eval script with a fixed, validated argv
 import sys
 import uuid
 from pathlib import Path
@@ -362,7 +362,7 @@ class SubprocessModelEvalRunner:
             provider=self._provider,
         )
         try:
-            completed = subprocess.run(  # noqa: S603 - argv is fixed + validated, shell=False
+            completed = subprocess.run(  # argv is fixed + validated, shell=False
                 argv,
                 capture_output=True,
                 encoding="utf-8",

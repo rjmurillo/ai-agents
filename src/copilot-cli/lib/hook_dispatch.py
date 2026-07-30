@@ -118,7 +118,7 @@ def _run_shim(shim_path: Path, name: str, raw_stdin: bytes) -> int:
         return ALLOW_EXIT
     except SystemExit as exc:
         return _exit_code(exc)
-    except Exception as exc:  # noqa: BLE001 - fail-closed is mandatory
+    except Exception as exc:  # fail-closed is mandatory
         print(
             f"hook-dispatch: shim {name} raised {type(exc).__name__}: {exc}; denying (fail-closed)",
             file=sys.stderr,

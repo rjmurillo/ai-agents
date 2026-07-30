@@ -178,7 +178,7 @@ def call_api(
         # which we preserve verbatim.
         try:
             raw_body = e.read().decode(errors="replace")
-        except Exception:  # noqa: BLE001 - body read is best-effort only
+        except Exception:  # body read is best-effort only
             raw_body = ""
         sanitized = "".join(ch for ch in raw_body if 32 <= ord(ch) < 127)[:200]
         message = f"Anthropic API returned HTTP {e.code}: {sanitized}"
@@ -200,7 +200,7 @@ def call_api(
                             f". Model '{model}' may be unavailable; reachable ids: "
                             f"{', '.join(sorted(reachable))}"
                         )
-                except Exception as enrich_err:  # noqa: BLE001 - enrichment is best-effort
+                except Exception as enrich_err:  # enrichment is best-effort
                     print(
                         f"warning: reachable-model lookup failed: {enrich_err}",
                         file=sys.stderr,
@@ -266,7 +266,7 @@ def list_available_models(api_key: str, *, timeout: int = 30) -> list[str]:
     except urllib.error.HTTPError as e:
         try:
             raw_body = e.read().decode(errors="replace")
-        except Exception:  # noqa: BLE001 - body read is best-effort only
+        except Exception:  # body read is best-effort only
             raw_body = ""
         sanitized = "".join(ch for ch in raw_body if 32 <= ord(ch) < 127)[:200]
         raise RuntimeError(
