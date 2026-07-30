@@ -1,8 +1,20 @@
 # Memory Router
+<!-- # taste-lint: ignore file-size -->
+<!-- file-size rationale: reference doc for the memory API; every entry
+documents a real entry point verified by test_reference_docs_resolve.py,
+and splitting the reference breaks lookup by single file. -->
 
 ## Overview
 
-The Memory Router (`.claude/skills/memory/scripts/search_memory.py`) provides unified memory search across Serena (lexical) and Forgetful (semantic) memory systems with Serena-first routing.
+The Memory Router searches every memory tier from one call. Two artifacts make
+it up:
+
+| Artifact | Role |
+|----------|------|
+| `.claude/skills/memory/memory_core/memory_router.py` | Importable module. Serena plus Forgetful. |
+| `.claude/skills/memory/scripts/search_memory.py` | CLI wrapper. Adds the Tier 2 episode store. |
+
+Agents call the CLI. Python callers import the module.
 
 **ADR**: ADR-037 Memory Router Architecture
 
@@ -11,34 +23,38 @@ The Memory Router (`.claude/skills/memory/scripts/search_memory.py`) provides un
 ## Architecture
 
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│                     Memory Router                           │
-│  ┌─────────────────────────────────────────────────────┐    │
-│  │ Search-Memory -Query "pattern" -MaxResults 10       │    │
-│  └─────────────────────────────────────────────────────┘    │
-│                            │                                 │
-│           ┌────────────────┴────────────────┐               │
-│           ▼                                 ▼               │
-│  ┌─────────────────┐              ┌─────────────────┐       │
-│  │ Serena MCP      │              │ Forgetful MCP   │       │
-│  │ (Canonical)     │              │ (Augmentation)  │       │
-│  │ File-based      │              │ Port 8020       │       │
-│  │                 │              │                 │       │
-│  │ ✓ Always avail  │              │ ✓ Semantic      │       │
-│  │ ✓ Git-synced    │              │ ✓ Auto-link     │       │
-│  │ ✓ 460+ memories │              │ ✓ Embeddings    │       │
-│  │ ✓ Lexical match │              │ ✗ Local-only    │       │
-│  └─────────────────┘              └─────────────────┘       │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                          Memory Router                               │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │ search_memory.py "pattern" --max-results 10                    │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+│                                │                                     │
+│      ┌─────────────────────────┼─────────────────────────┐           │
+│      ▼                         ▼                         ▼           │
+│ ┌──────────────┐      ┌──────────────────┐      ┌──────────────────┐ │
+│ │ Serena       │      │ Episodes         │      │ Forgetful        │ │
+│ │ (Canonical)  │      │ (Tier 2)         │      │ (Augmentation)   │ │
+│ │ .serena/     │      │ .agents/memory/  │      │ Port 8020        │ │
+│ │   memories   │      │   episodes       │      │                  │ │
+│ │              │      │                  │      │                  │ │
+│ │ Always avail │      │ Always avail     │      │ Semantic         │ │
+│ │ Git-synced   │      │ Git-synced       │      │ Embeddings       │ │
+│ │ Lexical      │      │ Lexical, recency │      │ Local-only       │ │
+│ └──────────────┘      └──────────────────┘      └──────────────────┘ │
+│      (module)              (CLI only)                 (module)       │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Core Concepts
 
 ### Serena-First Routing
 
-The Memory Router always queries Serena first (canonical source), then optionally augments with Forgetful semantic results.
+The router always queries Serena first (canonical source), then optionally
+augments with Forgetful semantic results.
 
-**Rationale**: Serena travels with the Git repository, ensuring cross-platform availability. Forgetful provides enhanced semantic search but requires a running service.
+**Rationale**: Serena travels with the Git repository, ensuring cross-platform
+availability. Forgetful provides enhanced semantic search but requires a
+running service.
 
 ### Result Augmentation
 
@@ -47,315 +63,340 @@ Forgetful results enhance but never replace Serena results.
 **Merge Strategy**:
 
 1. Query Serena (always)
-2. Query Forgetful (if available and not LexicalOnly)
+2. Query Forgetful (if available and `lexical_only` is not set)
 3. Deduplicate by SHA-256 content hash
-4. Return Serena results + unique Forgetful matches
+4. Return Serena results plus unique Forgetful matches
 
 ### Availability Detection
 
-The router automatically detects Forgetful availability using a cached TCP health check (30s TTL, 500ms timeout).
+The router detects Forgetful availability with a cached TCP health check
+(30s TTL, 0.5s connect timeout).
 
-**Failure Mode**: Gracefully degrades to Serena-only if Forgetful unavailable.
+**Failure Mode**: degrades to Serena-only if Forgetful is unavailable. No error
+is raised unless the caller asked for `semantic_only`.
 
 ## Usage
 
-### Basic Search
+### Command Line (Agent-Facing)
 
-```powershell
-# Import memory_router module
-# (Python equivalent: python3 .claude/skills/memory/scripts/search_memory.py)
+The query is a **positional** argument. There is no `--query` flag.
 
-# Unified search (Serena + Forgetful if available)
-$results = Search-Memory -Query "PowerShell array handling" -MaxResults 10
+```bash
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "git hooks" --format json
+```
 
-# Process results
-foreach ($result in $results) {
-    Write-Host "$($result.Name) (Source: $($result.Source), Score: $($result.Score))"
-    Write-Host $result.Content
-}
+Full option set:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `query` (positional) | required | Search query, 1-500 chars |
+| `--max-results N` | 10 | Maximum results (1-100) |
+| `--lexical-only` | off | File-based stores only (Serena and episodes) |
+| `--semantic-only` | off | Forgetful only |
+| `--format {json,table}` | `json` | Output format |
+| `--serena-path PATH` | `.serena/memories` | Override the Serena store |
+| `--episodes-path PATH` | `.agents/memory/episodes` | Override the episode store |
+
+The CLI is the only path that searches the Tier 2 episode store. Results from
+that tier carry `source: "Episodes"`.
+
+### Python Import
+
+`memory_core` is a package under the skill, not an installed distribution. Add
+the skill directory to `sys.path` first. The `skills/memory/tests/conftest.py`
+file in this tree does exactly this.
+
+```python
+import os
+import sys
+_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT") or ".claude"
+sys.path.insert(0, f"{_root}/skills/memory")
+
+from memory_core.memory_router import search_memory
+
+results = search_memory("git hooks", max_results=10)
+for result in results:
+    print(f"{result.name} (source={result.source}, score={result.score})")
+    print(result.content)
 ```
 
 ### Lexical-Only Search
 
-Force Serena-only search (skip Forgetful):
+Skips Forgetful entirely:
 
-```powershell
-# Faster, no network calls
-$results = Search-Memory -Query "git hooks" -LexicalOnly
+```python
+results = search_memory("git hooks", lexical_only=True)
 ```
 
-**Use When**: Performance critical, or Forgetful known to be unavailable.
+**Use When**: performance is critical, or Forgetful is known to be unavailable.
+
+**Caveat**: lexical-only skips reading file content, so every result comes back
+with `content=None` and `hash=None`. Only `name`, `source`, `score`, and `path`
+are populated. Ask for the augmented mode if you need the body.
 
 ### Semantic-Only Search
 
-Force Forgetful-only search (requires availability):
+Requires Forgetful to be running:
 
-```powershell
-# Requires Forgetful MCP running
-try {
-    $results = Search-Memory -Query "authentication patterns" -SemanticOnly
-}
-catch {
-    Write-Warning "Forgetful unavailable: $($_.Exception.Message)"
-}
+```python
+try:
+    results = search_memory("authentication patterns", semantic_only=True)
+except RuntimeError as exc:
+    print(f"Forgetful unavailable: {exc}")
 ```
 
-**Use When**: Need semantic similarity specifically, not keyword matching.
-
-### Via Skill (Agent-Facing)
-
-Agents should use the skill script:
-
-```bash
-python3 .claude/skills/memory/scripts/search_memory.py --query "git hooks" --format json
-```
-
-**Output**: JSON with results and diagnostic info.
+**Use When**: you need semantic similarity specifically, not keyword matching.
 
 ## Functions
 
-### Search-Memory
+### search_memory
 
 Main entry point for unified memory search.
 
-**Syntax**:
+**Signature**:
 
-```powershell
-Search-Memory
-    [-Query] <String>
-    [-MaxResults <Int32>]
-    [-SemanticOnly]
-    [-LexicalOnly]
+```python
+def search_memory(
+    query: str,
+    max_results: int = 10,
+    semantic_only: bool = False,
+    lexical_only: bool = False,
+) -> list[MemoryResult]: ...
 ```
 
 **Parameters**:
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| Query | String | Yes | - | Search query (1-500 chars, alphanumeric + safe punctuation) |
-| MaxResults | Int32 | No | 10 | Maximum results to return (1-100) |
-| SemanticOnly | Switch | No | - | Force Forgetful-only search (fails if unavailable) |
-| LexicalOnly | Switch | No | - | Force Serena-only search (always available) |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `query` | `str` | required | Search query (1-500 chars, alphanumeric plus safe punctuation) |
+| `max_results` | `int` | 10 | Maximum results to return (1-100) |
+| `semantic_only` | `bool` | `False` | Force Forgetful-only search (raises if unavailable) |
+| `lexical_only` | `bool` | `False` | Force Serena-only search (always available) |
 
-**Returns**: Array of `PSCustomObject` with:
+**Returns**: `list[MemoryResult]`. `MemoryResult` is a dataclass with:
 
-- `Name`: Memory name
-- `Content`: Full memory content
-- `Source`: "Serena" or "Forgetful"
-- `Score`: Relevance score (percentage for Serena, similarity for Forgetful)
-- `Path`: File path (Serena only)
-- `Hash`: SHA-256 content hash (for deduplication)
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | `str` | Memory name |
+| `content` | `str \| None` | Full memory content. `None` under `lexical_only`. |
+| `source` | `str` | `"Serena"` or `"Forgetful"` |
+| `score` | `float` | Serena: percent of query keywords matched. Forgetful: similarity. |
+| `path` | `str \| None` | File path (Serena only) |
+| `hash` | `str \| None` | SHA-256 content hash. `None` under `lexical_only`. |
+| `id` | `str \| None` | Forgetful record id |
 
-**Example**:
+**Raises**:
 
-```powershell
-$results = Search-Memory -Query "PowerShell arrays" -MaxResults 5
+| Exception | Condition |
+|-----------|-----------|
+| `ValueError` | Both `semantic_only` and `lexical_only` set |
+| `ValueError` | Query empty, over 500 chars, or outside the allowed character class |
+| `ValueError` | `max_results` outside 1-100 |
+| `RuntimeError` | `semantic_only` set and Forgetful is unavailable |
 
-# Results structure:
-# [
-#   {
-#     Name: "powershell-array-handling",
-#     Content: "PowerShell arrays need @() for...",
-#     Source: "Serena",
-#     Score: 66.67,
-#     Path: ".serena/memories/powershell-array-handling.md",
-#     Hash: "a3b5c7..."
-#   },
-#   ...
-# ]
+**Measured example**:
+
+```python
+>>> search_memory("git hooks", max_results=3, lexical_only=True)
+[MemoryResult(name='skills-git-hooks-index', content=None, source='Serena',
+              score=100.0, path='.serena/memories/skills-git-hooks-index.md',
+              hash=None, id=None),
+ MemoryResult(name='copilot-disable-all-hooks-windows', ..., score=50.0, ...),
+ MemoryResult(name='copilot-hooks-observations', ..., score=50.0, ...)]
 ```
 
-### Test-ForgetfulAvailable
+### test_forgetful_available
 
-Checks if Forgetful MCP is available with 30s caching.
+Checks whether Forgetful MCP is reachable, with 30s caching.
 
-**Syntax**:
+**Signature**:
 
-```powershell
-Test-ForgetfulAvailable
-    [-Port <Int32>]
-    [-Force]
+```python
+def test_forgetful_available(port: int = 8020, force: bool = False) -> bool: ...
 ```
 
-**Parameters**:
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `port` | `int` | 8020 | Forgetful server port |
+| `force` | `bool` | `False` | Skip the cache and re-check |
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| Port | Int32 | No | 8020 | Forgetful server port |
-| Force | Switch | No | - | Skip cache and force fresh check |
+**Returns**: `bool`.
 
-**Returns**: `Boolean` indicating availability.
+The name begins with `test_` for historical reasons. The module sets
+`__test__ = False` on it so pytest does not collect the production function as
+a test case. Do not rename it without updating every caller.
 
-**Example**:
+```python
+if test_forgetful_available():
+    print("Forgetful is available")
+else:
+    print("Forgetful is unavailable, using Serena-only")
+```
 
-```powershell
-if (Test-ForgetfulAvailable) {
-    Write-Host "Forgetful is available"
+### get_memory_router_status
+
+Returns diagnostic information about the router.
+
+**Signature**:
+
+```python
+def get_memory_router_status() -> dict[str, Any]: ...
+```
+
+Top-level keys are capitalized; the keys inside `Configuration` are snake_case
+because they mirror the module `_config` dict verbatim.
+
+**Measured output**:
+
+```json
+{
+ "Serena":        {"Available": true,  "Path": ".serena/memories"},
+ "Forgetful":     {"Available": false, "Endpoint": "http://localhost:8020/mcp"},
+ "Cache":         {"AgeSeconds": 0.0, "TTLSeconds": 30.0},
+ "Configuration": {
+   "serena_path": ".serena/memories",
+   "forgetful_port": 8020,
+   "forgetful_timeout": 0.5,
+   "max_results": 10
+ }
 }
-else {
-    Write-Host "Forgetful is unavailable, using Serena-only"
-}
 ```
 
-### Get-MemoryRouterStatus
+### reset_caches
 
-Returns diagnostic information about the Memory Router.
+Clears the health-check and file-list caches. Test-only.
 
-**Syntax**:
-
-```powershell
-Get-MemoryRouterStatus
-```
-
-**Returns**: `PSCustomObject` with:
-
-- `Serena`: Availability and path
-- `Forgetful`: Availability and endpoint
-- `Cache`: Health check cache age and TTL
-- `Configuration`: Current settings
-
-**Example**:
-
-```powershell
-$status = Get-MemoryRouterStatus
-
-# Output:
-# Serena:
-#   Available: True
-#   Path: .serena/memories
-# Forgetful:
-#   Available: True
-#   Endpoint: http://localhost:8020/mcp
-# Cache:
-#   AgeSeconds: 12.5
-#   TTLSeconds: 30
-# Configuration:
-#   SerenaPath: .serena/memories
-#   ForgetfulPort: 8020
-#   ForgetfulTimeout: 500
-#   MaxResults: 10
+```python
+def reset_caches() -> None: ...
 ```
 
 ## Internal Functions (Private)
 
-### Invoke-SerenaSearch
+### invoke_serena_search
 
 Performs lexical search across Serena memory files.
 
-**Scoring**: Percentage of query keywords matching in filename.
+**Scoring**: percent of query keywords matching in the filename.
 
 **Steps**:
 
 1. Extract keywords from query (length > 2 chars)
-2. List all `.md` files in `.serena/memories/`
+2. List all `.md` files in `.serena/memories/` (10s cached listing)
 3. Match keywords against file basenames
-4. Calculate score as `(matching_keywords / total_keywords) * 100`
-5. Read content for matched files
+4. Score as `(matching_keywords / total_keywords) * 100`
+5. Read content for matched files, unless `skip_content` is set
 6. Sort by score descending
 
-### Invoke-ForgetfulSearch
+### invoke_forgetful_search
 
-Performs semantic search via Forgetful MCP HTTP endpoint.
+Performs semantic search via the Forgetful MCP HTTP endpoint.
 
-**Protocol**: JSON-RPC 2.0 over HTTP
+**Protocol**: JSON-RPC 2.0 over HTTP, 10s read timeout.
 
 **Steps**:
 
-1. Build JSON-RPC request with `memory_search` tool
+1. Build a JSON-RPC request for the `memory_search` tool
 2. POST to `http://localhost:8020/mcp`
-3. Parse MCP tool response
-4. Extract memories from response content
+3. Parse the MCP tool response
+4. Extract memories from the response content
 5. Return structured results
 
-### Merge-MemoryResults
+### merge_memory_results
 
 Merges and deduplicates results from Serena and Forgetful.
 
 **Algorithm**:
 
-1. Create hash set from Serena results (SHA-256 of content)
-2. Add all Serena results to merged set
-3. For each Forgetful result:
-   - Hash content
-   - If hash not in set, add to merged results
-   - Mark hash as seen
-4. Limit to MaxResults
+1. Build a hash set from Serena results (SHA-256 of content)
+2. Add all Serena results to the merged set
+3. For each Forgetful result, hash the content; add it only if the hash is new
+4. Truncate to `max_results`
 
-**Serena Priority**: Serena results appear first and are the canonical version on content collision.
+**Serena Priority**: Serena results appear first and win on content collision.
 
-### Get-ContentHash
+### get_content_hash
 
-Computes SHA-256 hash of content for deduplication.
-
-**Algorithm**: SHA-256 over UTF-8 bytes, lowercase hex output.
+SHA-256 over UTF-8 bytes, lowercase hex output. Used for deduplication.
 
 ## Configuration
 
-Configuration is stored in module-level script variables:
+Configuration lives in a module-level dict:
 
-```powershell
-$script:Config = @{
-    SerenaPath       = ".serena/memories"
-    ForgetfulPort    = 8020
-    ForgetfulTimeout = 500  # milliseconds
-    MaxResults       = 10
+```python
+_config: dict[str, Any] = {
+    "serena_path": ".serena/memories",
+    "forgetful_port": 8020,
+    "forgetful_timeout": 0.5,  # seconds
+    "max_results": 10,
 }
 ```
 
-**Customization**: These can be modified after module import if needed (not recommended).
+`forgetful_timeout` is in **seconds**, and it is passed straight to
+`socket.settimeout`. The leading underscore marks it private; prefer the CLI
+`--serena-path` and `--episodes-path` flags over mutating it.
 
 ## Health Check Details
 
-### Cache Strategy
+### Caches
 
-**TTL**: 30 seconds
+| Cache | TTL | Contents |
+|-------|-----|----------|
+| Health | 30s | Forgetful reachability |
+| File list | 10s | The `.serena/memories/*.md` listing |
 
-**Rationale**: Balances freshness vs latency overhead. Forgetful availability is stable within a session.
+**Rationale**: both balance freshness against latency. Availability and the
+memory file set are stable within a session.
 
 ### TCP Check
 
-**Method**: Attempt TCP connection to `localhost:8020`
+**Method**: `connect_ex` to `localhost:8020`.
 
-**Timeout**: 500ms
+**Timeout**: 0.5s.
 
-**Rationale**: Fast enough for per-session check. Slower services fail early instead of blocking queries.
+**Rationale**: fast enough for a per-session check. A slow service fails early
+instead of blocking queries.
 
 ### Failure Handling
 
-**On Failure**: Cache `Available = false` for 30s, return false immediately.
+**On Failure**: cache `available = False` for 30s and return `False`.
 
-**No Retry**: Failed health checks are not retried until cache expires.
+**No Retry**: a failed health check is not retried until the cache expires. Pass
+`force=True` to bypass.
 
 ## Performance Characteristics
 
 | Operation | Latency | Notes |
 |-----------|---------|-------|
-| Serena search | ~530ms | O(n) file scan + keyword match |
-| Forgetful search | Variable | Network + embedding + vector search |
-| Health check (cached) | <1ms | Hash table lookup |
+| Serena search | ~530ms | O(n) file scan plus keyword match |
+| Forgetful search | Variable | Network, embedding, vector search |
+| Health check (cached) | <1ms | Dataclass field read |
 | Health check (fresh) | 1-500ms | TCP connect with timeout |
 | Result merge | <10ms | Hash-based deduplication |
 | **Total (Serena-only)** | ~530ms | Baseline, no network |
-| **Total (augmented)** | ~700ms | Serena + Forgetful + merge |
+| **Total (augmented)** | ~700ms | Serena plus Forgetful plus merge |
 
-**Target**: Router overhead < 50ms when Forgetful available.
+**Target**: router overhead under 50ms when Forgetful is available.
+
+Measure with `uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/measure_memory_performance.py"`.
 
 ## Security
 
 ### Input Validation
 
-All query inputs are validated:
+`search_memory` validates before any I/O:
 
-```powershell
-[ValidatePattern('^[a-zA-Z0-9\s\-.,_()&:]+$')]  # Alphanumeric + safe punctuation
-[ValidateLength(1, 500)]                         # Reasonable length limits
-[string]$Query
+```python
+if not query or len(query) > 500:
+    raise ValueError("Query must be 1-500 characters")
+if not re.match(r"^[a-zA-Z0-9\s\-.,_()&:]+$", query):
+    raise ValueError("Query contains invalid characters")
+if max_results < 1 or max_results > 100:
+    raise ValueError("max_results must be between 1 and 100")
 ```
 
 **Prevents**:
 
 - Regex injection (CWE-20)
-- Buffer overflow (CWE-120)
 - Path traversal (CWE-22)
 - Command injection (CWE-78)
 
@@ -364,134 +405,131 @@ All query inputs are validated:
 | Connection | Protocol | Security |
 |------------|----------|----------|
 | Serena | Local file I/O | No network exposure |
+| Episodes | Local file I/O | No network exposure |
 | Forgetful | HTTP localhost:8020 | Localhost-only (no TLS) |
 
-**Assumption**: Forgetful runs on localhost only. Remote deployment would require HTTPS.
+**Assumption**: Forgetful runs on localhost only. Remote deployment would
+require HTTPS.
 
 ### Data Handling
 
-- **No secrets in queries**: Queries should not contain credentials, API keys, or PII
-- **Content hashing**: SHA-256 for deduplication (cryptographically secure)
-- **Logging**: Query patterns logged for debugging; content NOT logged
+- **No secrets in queries**: queries must not contain credentials, API keys, or PII
+- **Content hashing**: SHA-256 for deduplication
+- **Logging**: query patterns are logged at DEBUG; content is not logged
 
 ## Error Handling
 
 ### Forgetful Unavailable
 
-```powershell
-$results = Search-Memory -Query "test"
-# Returns Serena results only, no error
+```python
+results = search_memory("test")
+# Serena results only. No error.
 ```
 
 ### Forgetful Required but Unavailable
 
-```powershell
-Search-Memory -Query "test" -SemanticOnly
-# Throws: "Forgetful is not available and -SemanticOnly was specified"
+```python
+search_memory("test", semantic_only=True)
+# RuntimeError: Forgetful is not available and semantic_only was specified
 ```
 
 ### Invalid Query
 
-```powershell
-Search-Memory -Query "test; rm -rf /"
-# Throws: "Cannot validate argument on parameter 'Query'"
+```python
+search_memory("test; rm -rf /")
+# ValueError: Query contains invalid characters
 ```
 
-### Mutually Exclusive Switches
+### Mutually Exclusive Flags
 
-```powershell
-Search-Memory -Query "test" -SemanticOnly -LexicalOnly
-# Throws: "Cannot specify both -SemanticOnly and -LexicalOnly"
+```python
+search_memory("test", semantic_only=True, lexical_only=True)
+# ValueError: Cannot specify both semantic_only and lexical_only
 ```
 
 ## Troubleshooting
 
 ### Forgetful Not Detected
 
-**Symptoms**: `Test-ForgetfulAvailable` returns false, but Forgetful is running.
+**Symptoms**: `test_forgetful_available()` returns `False` while Forgetful is running.
 
 **Diagnosis**:
 
-```powershell
-# Force fresh health check
-Test-ForgetfulAvailable -Force
+```python
+test_forgetful_available(force=True)  # skip the 30s cache
+```
 
-# Check endpoint manually
-Invoke-RestMethod -Uri "http://localhost:8020/mcp" -Method Get
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8020/mcp
 ```
 
 **Solutions**:
 
-1. Verify Forgetful is running: `systemctl --user status forgetful` (Linux)
-2. Check port: `netstat -an | grep 8020`
-3. Review Forgetful logs: `journalctl --user -u forgetful -n 50`
+1. Verify Forgetful is running: `systemctl --user status forgetful`
+2. Check the port: `ss -ltn 'sport = :8020'`
+3. Review logs: `journalctl --user -u forgetful -n 50`
 
 ### No Serena Results
 
-**Symptoms**: `Search-Memory` returns empty results, but memories exist.
+**Symptoms**: `search_memory` returns an empty list while memories exist.
 
 **Diagnosis**:
 
-```powershell
-# Check Serena path exists
-Test-Path ".serena/memories"
-
-# List memory files
-Get-ChildItem ".serena/memories" -Filter "*.md"
+```bash
+ls .serena/memories/*.md | head
 ```
 
 **Solutions**:
 
-1. Verify `.serena/memories/` directory exists
-2. Check query keywords match file names
-3. Try broader query with common terms
+1. Verify `.serena/memories/` exists
+2. Serena scores on the **filename**, so keywords must appear in the file name
+3. Try a broader query with common terms
 
 ### Slow Searches
 
-**Symptoms**: Searches take >1 second consistently.
+**Symptoms**: searches consistently take over one second.
 
 **Diagnosis**:
 
-```powershell
-# Time Serena-only search
-Measure-Command { Search-Memory -Query "test" -LexicalOnly }
-
-# Time augmented search
-Measure-Command { Search-Memory -Query "test" }
+```bash
+time uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "test" --lexical-only
+time uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "test"
 ```
 
 **Solutions**:
 
-1. Use `-LexicalOnly` if semantic search not needed
-2. Reduce `-MaxResults` to minimize file reads
-3. Check Forgetful response time (may be slow on first query)
+1. Pass `--lexical-only` when semantic search is not needed
+2. Lower `--max-results` to reduce file reads
+3. Check the Forgetful response time; the first query is often slow
 
 ## Best Practices
 
 ### For Agents
 
-1. **Always use Search-Memory**: Don't call Serena/Forgetful MCP directly
-2. **Specify MaxResults**: Limit to what you actually need (default 10 is reasonable)
-3. **Check availability**: Use `Test-ForgetfulAvailable` if semantic search is critical
-4. **Handle empty results**: Always check `$results.Count` before processing
+1. **Use the CLI**: do not call Serena or Forgetful MCP directly
+2. **Bound results**: pass `--max-results` for what you actually need
+3. **Check availability**: call `test_forgetful_available()` if semantic search is critical
+4. **Handle empty results**: the return is a list; check it before indexing
 
 ### For Skill Authors
 
-1. **Use skill script**: Call `.claude/skills/memory/scripts/search_memory.py`
-2. **Parse JSON output**: Skill returns structured JSON for programmatic use
-3. **Include diagnostics**: Skill output includes `Get-MemoryRouterStatus`
+1. **Call the script**: `.claude/skills/memory/scripts/search_memory.py`
+2. **Parse JSON**: `--format json` gives structured output
+3. **Include diagnostics**: pair results with `get_memory_router_status()`
 
 ### For Developers
 
-1. **Test both modes**: Verify Serena-only and augmented searches
-2. **Mock health checks**: Use `-LexicalOnly` in tests to avoid network dependency
-3. **Validate input**: Never bypass `ValidatePattern` checks
-4. **Profile performance**: Use `measure_memory_performance.py` for benchmarking
+1. **Test both modes**: verify Serena-only and augmented paths
+2. **Avoid the network in tests**: pass `lexical_only=True`
+3. **Reset caches**: call `reset_caches()` between tests that fake availability
+4. **Profile**: `measure_memory_performance.py`
 
 ## Related Documentation
 
-- [Reflexion Memory](reflexion-memory.md) - Episodic memory (Tier 2)
+- [Reflexion Memory](../../memory-reflexion/references/reflexion-memory.md) - Episodic memory (Tier 2)
 - [Benchmarking](../../memory-maintenance/references/benchmarking.md) - Performance measurement
 - [API Reference](api-reference.md) - Complete function signatures
 - ADR-037 - Memory Router Architecture
 - ADR-007 - Memory-First Architecture
+
+<!-- vendor-portability: declared. The CLI defaults table names `.agents/memory/episodes` as the episode store's default location. That path is the consumer's own data dir, created on demand when absent, and `--episodes-path` overrides it. A vendored install without the dir loses the Tier 2 episode results, not the search. Issue #2050. -->

@@ -33,7 +33,7 @@ The skill ships with vendored installs. Missing targets are errors by default. U
 
 ## Path conventions
 
-Commands below resolve the install root through `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}`, so they run unchanged from a repo checkout, a Claude plugin install, or the Copilot CLI mirror. The `skill: "orphan-ref-validator"` invocation form is platform-agnostic and is what the `/build` gate uses.
+Commands below resolve the install root through `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}`, so they run unchanged from a repo checkout, a Claude plugin install, or the Copilot CLI mirror. The `/build` gate invokes this skill through whichever invocation form its platform provides; each platform mirror runs its own copy of `scan.py`.
 
 ## Inputs
 
