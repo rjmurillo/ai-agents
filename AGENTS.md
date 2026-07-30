@@ -9,36 +9,26 @@
 |APIs: Context7, DeepWiki, WebSearch|Memory: `memory` skill
 |Constraints: `.agents/governance/PROJECT-CONSTRAINTS.md`|ADRs: `.agents/architecture/ADR-*.md`
 |Protocol: `.agents/SESSION-PROTOCOL.md`|Skills: `.claude/skills/{name}/SKILL.md`
-|Rules: read `.claude/rules/*.md` by `applyTo` first|Book depth: `software-engineering-library`|Generators: `.agents/governance/GENERATOR-FILES.md`
+|Rules: read `.claude/rules/*.md` by `applyTo` first|Book depth: `software-engineering-library`|Generators: `.agents/governance/GENERATOR-FILES.md`|Gotchas: `.agents/governance/GOTCHAS.md`
 
 ## Gates
 
-**Start**: Init Serena|Read HANDOFF+latest issue handoff|Resume check|Log|Search mem|Verify git
+**Start**: Read HANDOFF+latest issue handoff|Resume check|Log|Search mem|Verify git
 **Mid**: `git rev-list --count HEAD ^origin/main` <=20, warn >15 (ADR-008)
-**Pre-PR**: `python3 scripts/validation/pre_pr.py`|No BLOCKING|Security scan|Style `.gemini/styleguide.md`
-**End**: Complete log|Keep HANDOFF|Issue handoff if open|Update Serena|Lint|Commit|Check
+**Pre-PR**: `uv run python scripts/validation/pre_pr.py`|No BLOCKING|Security scan|Style `.gemini/styleguide.md`
+**End**: Complete log|Issue handoff if open|Update Serena|Lint|Commit|Check
 
 ## Boundaries
 
 **BLOCKING verify**: unrun gen'd artifact -> runtime test|security thread -> code fix or owner|skip validation -> `pre_pr.py`
-**Always**: Python (ADR-042)|Verify branch|Update Serena|Check skills|Assign issues|PR template|Atomic commits <=5 files|Scoped lint|Pin Actions SHA|Run changed workflows pre-push|Bump plugin manifest
+**Always**: Python (ADR-042)|Verify branch|Check skills|Assign issues|PR template|Atomic commits <=5 files|Scoped lint|Pin Actions SHA|Run changed workflows pre-push|Bump plugin manifest
 **Ask First**: Architecture|New ADRs|Breaking|Security
 **Autonomy Guardrail**: Internal+reversible: act|External/irreversible: confirm|Ambiguous: act minimal, flag rest
 **Never**: Commit secrets|Edit HANDOFF.md|Use bash|Logic in YAML (ADR-006)|Raw gh if skill exists|Force push|Skip hooks|Internal refs in src|Scratch in tree|Resolve security threads w/o fix|Ship unrun gen artifact
 
 ## Context
 
-Always-on context is for what the model can't know: repo gotchas, local conventions, non-obvious tool behavior. Generic engineering knowledge doesn't earn a slot without evidence it changes behavior; the burden is on the content. Arbitration between principles is not restatement of them and does earn a slot: `unified-software-engineering` (tiebreaker rule) beat baseline in 7 of 8 eval runs across Opus 5 and Sol 5.6, its description alone in 1 of 8. `code-quality` and `pragmatic-programmer` have no scenario file, so they are unmeasured, not vindicated (#3935). Depth -> progressive disclosure. Actions -> skills.
-Budget is measured, not asserted: `python3 scripts/validation/instruction_budget.py`. This line used to claim <8KB, which was Vercel's compressed-context figure adopted in #1022; the always-on corpus is now ~95KB on a `.py` edit, roughly 12x that. Ceilings ratchet to measured size, so a passing gate is not evidence the corpus is small.
-
-## Gotchas
-
-Non-obvious, cost real time to learn, cannot be inferred from the code.
-
-|Session log: create it untracked in the worktree BEFORE the first commit. `branch-context-policy` reads the worktree; `session-policy` rejects a staged log with incomplete `sessionEnd`. Stage it only at session end. Following the protocol literally (create + stage at start) cannot pass both.
-|Copilot CLI token counts are non-monotonic (109k reported from `/tmp` vs 96k in-repo for the same trivial prompt). Not a measurement. Use `instruction_budget.py`.
-|Evals without an API key: `EVAL_PROVIDER=copilot-cli`. The provider must run in an empty cwd, because the CLI loads `AGENTS.md`, `CLAUDE.md`, and `.github/instructions/**` from its working directory and would contaminate the control cell.
-|Instruction-budget ceilings ratchet to measured size, so a passing gate is not evidence the corpus is small. Compare against the goal, not the ceiling.
+Always-on = what the model can't know. Depth -> disclosure. Actions -> skills.
 
 ## Skill-First
 
@@ -48,10 +38,7 @@ Non-obvious, cost real time to learn, cannot be inferred from the code.
 |ADR-078: no skill -> autoplan; multi-step/cross-cutting -> orchestrator; no return loop
 |New capability: buy-vs-build Quick BEFORE /spec+baseline; >13wk no baseline = prune. Skip: bug/doc/refactor/approved-capability-extension
 |Harness work: read agent-harness-reference; mutate via ai-agents-portability-campaign
-
-### ADR Review
-
-Any `ADR-*.md` or `SESSION-PROTOCOL.md` edit fires adr-review.
+|`SESSION-PROTOCOL.md` edit fires adr-review
 
 ## Standards
 
