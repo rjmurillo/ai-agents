@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-28T05:18:53.542312+00:00",
+  "updated": "2026-07-30T00:21:09.983573+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -23320,6 +23320,87 @@
         "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
       ],
       "created": "2026-07-28T05:06:51.357047+00:00"
+    },
+    {
+      "id": "a86d934fd61a",
+      "type": "decision",
+      "label": "implementation: Updated ADR-079 to record the 33% merged-PR measurement, the stronger collision cost statement, and the git merge driver option as not chosen here.",
+      "episodes": [
+        "episode-2026-07-30-session-3875-adr-079-measured-collision-cost"
+      ],
+      "created": "2026-07-30T00:21:09.967578+00:00"
+    },
+    {
+      "id": "6b983965b673",
+      "type": "milestone",
+      "label": "milestone: Read issue #3875, ADR-079, the debate log, repository constraints, and relevant rules.",
+      "episodes": [
+        "episode-2026-07-30-session-3875-adr-079-measured-collision-cost"
+      ],
+      "created": "2026-07-30T00:21:09.967746+00:00"
+    },
+    {
+      "id": "0844a70ea861",
+      "type": "milestone",
+      "label": "milestone: Added tests/test_adr_079_plugin_version_bump.py and watched the test fail against the old unmeasured assumption.",
+      "episodes": [
+        "episode-2026-07-30-session-3875-adr-079-measured-collision-cost"
+      ],
+      "created": "2026-07-30T00:21:09.967914+00:00"
+    },
+    {
+      "id": "39b465048ad3",
+      "type": "milestone",
+      "label": "milestone: Updated ADR-079 to record the 33% merged-PR measurement, the stronger collision cost statement, and the git merge driver option as not chosen here.",
+      "episodes": [
+        "episode-2026-07-30-session-3875-adr-079-measured-collision-cost"
+      ],
+      "created": "2026-07-30T00:21:09.968116+00:00"
+    },
+    {
+      "id": "d1b1c569ccf9",
+      "type": "milestone",
+      "label": "milestone: Ran targeted pytest, ruff, git diff check, and quick pre_pr.py successfully.",
+      "episodes": [
+        "episode-2026-07-30-session-3875-adr-079-measured-collision-cost"
+      ],
+      "created": "2026-07-30T00:21:09.968385+00:00"
+    },
+    {
+      "id": "7af46d4bb102",
+      "type": "outcome",
+      "label": "Outcome: success - Fix issue #3875 by revisiting ADR-079 Decision point 4 with measured packaged-plugin-source PR traffic.",
+      "episodes": [
+        "episode-2026-07-30-session-3875-adr-079-measured-collision-cost"
+      ],
+      "created": "2026-07-30T00:21:09.968669+00:00"
+    },
+    {
+      "id": "1990440cea66",
+      "type": "decision",
+      "label": "Updated ADR-079 to record the 33% merged-PR measurement, the stronger collision cost statement, and the git merge driver option as not chosen here.",
+      "episodes": [
+        "episode-2026-07-30-session-3875-adr-079-measured-collision-cost"
+      ],
+      "created": "2026-07-30T00:21:09.969131+00:00"
+    },
+    {
+      "id": "865fbc2ea51e",
+      "type": "milestone",
+      "label": "Read issue #3875, ADR-079, the debate log, repository constraints, and relevant rules.",
+      "episodes": [
+        "episode-2026-07-30-session-3875-adr-079-measured-collision-cost"
+      ],
+      "created": "2026-07-30T00:21:09.969420+00:00"
+    },
+    {
+      "id": "9a4d766c3a86",
+      "type": "milestone",
+      "label": "Updated ADR-079 to record the 33% merged-PR measurement, the stronger collision cost statement, and the git merge driver option as not chosen here.",
+      "episodes": [
+        "episode-2026-07-30-session-3875-adr-079-measured-collision-cost"
+      ],
+      "created": "2026-07-30T00:21:09.969998+00:00"
     }
   ],
   "patterns": [
@@ -23884,7 +23965,7 @@
       "trigger": "When implementation decision needed",
       "action": "Fail-closed (Option 2)",
       "success_rate": 1.0,
-      "occurrences": 8,
+      "occurrences": 9,
       "created": "2026-06-02T04:20:23.790649+00:00",
       "episodes": [
         "episode-2026-01-09-session-317",
@@ -23894,7 +23975,8 @@
         "episode-2026-07-11-session-3016-confidence-adr",
         "episode-2026-07-13-session-3041-frontier-model",
         "episode-2026-07-15-session-3042",
-        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
+        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph",
+        "episode-2026-07-30-session-3875-adr-079-measured-collision-cost"
       ],
       "id": "5bbe1bcd6123",
       "contributions": {
@@ -23905,7 +23987,8 @@
         "episode-2026-05-31-session-1857": 1.0,
         "episode-2026-07-11-session-2840-model-pin-adr": 1.0,
         "episode-2026-07-11-session-3016-confidence-adr": 1.0,
-        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph": 1.0
+        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph": 1.0,
+        "episode-2026-07-30-session-3875-adr-079-measured-collision-cost": 1.0
       }
     },
     {
@@ -27730,6 +27813,34 @@
         "episode-2026-07-27-session-3489-anchor-blockquote": 0.8
       },
       "created": "2026-07-27T13:33:30.219779+00:00"
+    },
+    {
+      "source": "1990440cea66",
+      "target": "865fbc2ea51e",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-30-session-3875-adr-079-measured-collision-cost"
+      ],
+      "contributions": {
+        "episode-2026-07-30-session-3875-adr-079-measured-collision-cost": 0.6
+      },
+      "created": "2026-07-30T00:21:09.969455+00:00"
+    },
+    {
+      "source": "1990440cea66",
+      "target": "9a4d766c3a86",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-30-session-3875-adr-079-measured-collision-cost"
+      ],
+      "contributions": {
+        "episode-2026-07-30-session-3875-adr-079-measured-collision-cost": 0.6
+      },
+      "created": "2026-07-30T00:21:09.970020+00:00"
     }
   ]
 }
