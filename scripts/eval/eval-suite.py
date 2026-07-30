@@ -43,6 +43,10 @@ from _anthropic_api import DEFAULT_MODEL
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SCRIPT_DIR = Path(__file__).resolve().parent
+EXIT_OK = 0
+EXIT_LOGIC = 1
+EXIT_CONFIG = 2
+EXIT_EXTERNAL = 3
 
 # Security-critical path patterns (ADR-057: 5 runs, 100% pass)
 SECURITY_PATTERNS = [
@@ -56,6 +60,10 @@ SECURITY_PATTERNS = [
 # ---------------------------------------------------------------------------
 # Change detection
 # ---------------------------------------------------------------------------
+
+class ChangeDetectionError(RuntimeError):
+    """Git change detection failed, so the suite cannot know what to run."""
+
 
 def detect_changed_files(base_ref: str) -> list[str]:
     """Get files changed between base_ref and working tree (staged + unstaged)."""
@@ -71,8 +79,9 @@ def detect_changed_files(base_ref: str) -> list[str]:
         )
         committed = result.stdout.strip().splitlines()
     except subprocess.CalledProcessError as e:
-        print(f"WARNING: git diff against {base_ref} failed: {e}", file=sys.stderr)
-        committed = []
+        raise ChangeDetectionError(
+            f"git diff against {base_ref} failed: {e}"
+        ) from e
 
     try:
         result = subprocess.run(
@@ -86,10 +95,29 @@ def detect_changed_files(base_ref: str) -> list[str]:
         )
         staged = result.stdout.strip().splitlines()
     except subprocess.CalledProcessError as e:
-        print(f"WARNING: git diff --cached failed: {e}", file=sys.stderr)
-        staged = []
+        raise ChangeDetectionError("git diff --cached failed") from e
 
     return sorted(set(committed + staged))
+
+
+def _parse_child_json(stdout: str, context: str) -> tuple[dict[str, Any] | None, str | None]:
+    try:
+        parsed = json.loads(stdout)
+    except json.JSONDecodeError as exc:
+        return None, f"JSON parse failed for {context}: {exc}"
+    if not isinstance(parsed, dict):
+        return None, f"JSON schema failed for {context}: output is not an object"
+    return parsed, None
+
+
+def _contains_external_failure(value: object) -> bool:
+    if isinstance(value, dict):
+        if value.get("exit_code") == EXIT_EXTERNAL:
+            return True
+        return any(_contains_external_failure(v) for v in value.values())
+    if isinstance(value, list):
+        return any(_contains_external_failure(item) for item in value)
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -266,15 +294,16 @@ def run_behavioral_for_prompt(
             timeout=600,
             cwd=str(REPO_ROOT),
         )
-        try:
-            parsed = json.loads(result.stdout)
-        except json.JSONDecodeError:
-            print(f"WARNING: JSON parse failed for {prompt_path}", file=sys.stderr)
-            parsed = {"raw_output": result.stdout[:1000]}
+        parsed, parse_error = _parse_child_json(result.stdout, prompt_path)
+        passed = result.returncode == 0 and parse_error is None
+        exit_code = EXIT_EXTERNAL if parse_error is not None else result.returncode
+        if parse_error is not None:
+            print(f"WARNING: {parse_error}", file=sys.stderr)
+            parsed = {"raw_output": result.stdout[:1000], "error": parse_error}
 
         return {
-            "passed": result.returncode == 0,
-            "exit_code": result.returncode,
+            "passed": passed,
+            "exit_code": exit_code,
             "prompt": prompt_path,
             "scenarios": scenario_path,
             "security_critical": security_critical,
@@ -311,15 +340,16 @@ def run_agent_quality(
                 timeout=300,
                 cwd=str(REPO_ROOT),
             )
-            try:
-                parsed = json.loads(result.stdout)
-            except json.JSONDecodeError:
-                print(f"WARNING: Failed to parse JSON from eval-agents for {name}", file=sys.stderr)
-                parsed = {"raw_output": result.stdout[:500]}
+            parsed, parse_error = _parse_child_json(result.stdout, f"eval-agents for {name}")
+            passed = result.returncode == 0 and parse_error is None
+            exit_code = EXIT_EXTERNAL if parse_error is not None else result.returncode
+            if parse_error is not None:
+                print(f"WARNING: {parse_error}", file=sys.stderr)
+                parsed = {"raw_output": result.stdout[:500], "error": parse_error}
 
             results["agents"][name] = {
-                "passed": result.returncode == 0,
-                "exit_code": result.returncode,
+                "passed": passed,
+                "exit_code": exit_code,
                 "results": parsed,
             }
         except subprocess.TimeoutExpired:
@@ -364,15 +394,16 @@ def run_skill_knowledge(
                 timeout=300,
                 cwd=str(REPO_ROOT),
             )
-            try:
-                parsed = json.loads(result.stdout)
-            except json.JSONDecodeError:
-                print(f"WARNING: JSON parse failed for skill {name}", file=sys.stderr)
-                parsed = {"raw_output": result.stdout[:500]}
+            parsed, parse_error = _parse_child_json(result.stdout, f"skill {name}")
+            passed = result.returncode == 0 and parse_error is None
+            exit_code = EXIT_EXTERNAL if parse_error is not None else result.returncode
+            if parse_error is not None:
+                print(f"WARNING: {parse_error}", file=sys.stderr)
+                parsed = {"raw_output": result.stdout[:500], "error": parse_error}
 
             results["skills"][name] = {
-                "passed": result.returncode == 0,
-                "exit_code": result.returncode,
+                "passed": passed,
+                "exit_code": exit_code,
                 "results": parsed,
             }
         except subprocess.TimeoutExpired:
@@ -512,7 +543,11 @@ def main() -> None:
     args = parser.parse_args()
 
     start_time = time.time()
-    classified = _detect_and_classify(args.base_ref)
+    try:
+        classified = _detect_and_classify(args.base_ref)
+    except ChangeDetectionError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        sys.exit(EXIT_CONFIG)
     results, any_failure = _run_evals(classified, args)
 
     elapsed = round(time.time() - start_time, 1)
@@ -536,7 +571,9 @@ def main() -> None:
         print(json_output)
 
     _print_summary(output)
-    sys.exit(0 if not any_failure else 1)
+    if not any_failure:
+        sys.exit(EXIT_OK)
+    sys.exit(EXIT_EXTERNAL if _contains_external_failure(results) else EXIT_LOGIC)
 
 
 if __name__ == "__main__":

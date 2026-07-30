@@ -59,6 +59,17 @@ def test_parse_panel_bad_role_raises():
         ]})
 
 
+@pytest.mark.parametrize("threshold", [float("nan"), float("inf"), -0.1])
+def test_parse_panel_rejects_non_finite_or_negative_threshold(threshold):
+    with pytest.raises(core.PanelConfigError, match="drop_threshold"):
+        core.parse_panel({
+            "drop_threshold": threshold,
+            "tiers": [
+                {"label": "opus", "role": "reference", "provider": "anthropic", "model": "m1"},
+            ],
+        })
+
+
 def test_parse_panel_no_reference_raises():
     with pytest.raises(core.PanelConfigError, match="reference"):
         core.parse_panel({"tiers": [
@@ -92,7 +103,9 @@ def test_default_panel_shape():
 
 def test_cell_from_report_extracts_delta_and_ci():
     cell = core.cell_from_report("qa", "opus", {
-        "recall_delta": 0.42, "bootstrap_ci_95": [0.3, 0.5],
+        "error_count": 0,
+        "recall_delta": 0.42,
+        "bootstrap_ci_95": [0.3, 0.5],
     })
     assert cell.ok
     assert cell.recall_delta == 0.42
@@ -100,9 +113,31 @@ def test_cell_from_report_extracts_delta_and_ci():
 
 
 def test_cell_from_report_missing_delta_is_error():
-    cell = core.cell_from_report("qa", "opus", {"foo": 1})
+    cell = core.cell_from_report("qa", "opus", {"foo": 1, "error_count": 0})
     assert not cell.ok
     assert "recall_delta" in cell.error
+
+
+@pytest.mark.parametrize(
+    "report, message",
+    [
+        ({"recall_delta": 0.1, "bootstrap_ci_95": [0.1, 0.1]}, "error_count"),
+        ({"error_count": 2, "recall_delta": 0.1, "bootstrap_ci_95": [0.1, 0.1]}, "error_count"),
+        (
+            {"error_count": 0, "recall_delta": float("nan"), "bootstrap_ci_95": [0.1, 0.1]},
+            "recall_delta",
+        ),
+        ({"error_count": 0, "recall_delta": 2.0, "bootstrap_ci_95": [0.1, 0.1]}, "recall_delta"),
+        (
+            {"error_count": 0, "recall_delta": 0.1, "bootstrap_ci_95": [float("nan"), 0.1]},
+            "bootstrap_ci_95",
+        ),
+    ],
+)
+def test_cell_from_report_rejects_degraded_or_invalid_measurements(report, message):
+    cell = core.cell_from_report("qa", "opus", report)
+    assert not cell.ok
+    assert message in cell.error
 
 
 # --- summarize ---------------------------------------------------------------
