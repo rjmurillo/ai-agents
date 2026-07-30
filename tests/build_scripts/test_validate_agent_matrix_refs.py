@@ -1539,6 +1539,34 @@ class TestNestedAgentDefinitions:
         found = vamr.nested_agent_definitions(tmp_path, ".agent.md")
         assert "*.agent.md" in found[0]
 
+    def test_the_flat_form_carries_every_path_component(self, tmp_path):
+        """``tree_root.name`` names a directory that does not exist.
+
+        Four of the six entries in ``AGENT_TREES`` are nested at least one
+        level deep, and the last component alone is ambiguous across them:
+        ``templates/agents``, ``.claude/agents``, ``.github/agents``, and
+        ``src/copilot-cli/agents`` all end in ``agents``. Telling an author to
+        move a file into ``agents/`` names no tree in particular and no path
+        that resolves from the repository root.
+        """
+        repo_root = tmp_path
+        tree_root = tmp_path / "src" / "claude"
+        self._write(tree_root, "sub/misplaced.md", AGENT_STUB.format(name="misplaced"))
+        found = vamr.nested_agent_definitions(tree_root, ".md", repo_root)
+        assert len(found) == 1
+        assert "src/claude/*.md" in found[0]
+        assert "flat form claude/" not in found[0]
+        # The absolute prefix must not appear: a substring check alone passes
+        # for `/tmp/.../src/claude/*.md` too, so it does not discriminate.
+        assert str(repo_root) not in found[0]
+
+    def test_the_flat_form_stays_absolute_without_a_repo_root(self, tmp_path):
+        """No repo root means no relative form to compute; do not invent one."""
+        tree_root = tmp_path / "src" / "claude"
+        self._write(tree_root, "sub/misplaced.md", AGENT_STUB.format(name="misplaced"))
+        found = vamr.nested_agent_definitions(tree_root, ".md")
+        assert f"{tree_root.as_posix()}/*.md" in found[0]
+
     def test_nested_prose_without_frontmatter_stays_silent(self, tmp_path):
         """The shipped ``security/references/*.md`` sidecars must not trip this."""
         self._write(tmp_path, "references/threat-model.md", "# Threat model\n\nProse.\n")

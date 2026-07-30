@@ -508,9 +508,10 @@ def nested_agent_definitions(
         if not is_agent_definition(path):
             continue
         shown = path.relative_to(repo_root) if repo_root else path
+        tree_shown = tree_root.relative_to(repo_root) if repo_root else tree_root
         found.append(
             f"{shown}: agent definition in a subdirectory. Hosts load only the "
-            f"flat form {tree_root.name}/*{suffix}; move it up one level."
+            f"flat form {tree_shown.as_posix()}/*{suffix}; move it up one level."
         )
     return found
 
