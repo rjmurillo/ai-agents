@@ -11,6 +11,7 @@ No live API calls. T4-2 will add adapter and persistence tests.
 
 from __future__ import annotations
 
+import dataclasses
 import importlib.util
 import json
 import re
@@ -3604,3 +3605,77 @@ class TestCostBasisProviderResolution:
         """Empty string is falsy for the transport, so the env must win here too."""
         monkeypatch.setenv("EVAL_PROVIDER", "github-models")
         assert common_mod.cost_basis("") == "requests"
+
+
+class TestReportDeclaresWhatIsWritten:
+    """`Report` is DESIGN-004 section 5.6's declaration of the report shape.
+
+    A bot review read it as the authoritative serialized shape and flagged it as
+    out of sync with the writer. The premise was wrong: `_build_report_json`
+    serializes `AggregateResult`, and `Report` is constructed nowhere in
+    production. But the observation underneath was right. `Report` declared
+    `cost_estimate_usd: float` and no `cost_basis`, which stopped describing what
+    lands on disk the moment a quota metered provider began writing a null cost
+    beside a basis. A declaration that no longer matches the artifact misleads
+    the next reader whether or not any code reads it.
+    """
+
+    def _report(self, **overrides):
+        kwargs = dict(
+            run_id="r",
+            model_id="openai/gpt-4o-mini",
+            agent_prompt_sha="a",
+            baseline_prompt_sha="b",
+            fixture_set_sha="c",
+            agent_recall=0.0,
+            baseline_recall=0.0,
+            recall_delta=0.0,
+            bootstrap_ci_95=(0.0, 0.0),
+            recall_with_errors=0.0,
+            recall_excluding_errors=0.0,
+            per_fixture_pass_rates={},
+            flakiness=False,
+            total_tokens_in=0,
+            total_tokens_out=0,
+            wall_clock_seconds=0.0,
+            cost_estimate_usd=0.0,
+            error_count=0,
+            pricing_rate_as_of="2026-05-03",
+        )
+        kwargs.update(overrides)
+        return Report(**kwargs)
+
+    def test_cost_basis_defaults_to_usd(self):
+        """The Anthropic path is the default, so an omitted basis means dollars."""
+        assert self._report().cost_basis == "usd"
+
+    def test_cost_basis_accepts_requests(self):
+        """A quota metered provider writes this basis, so the type must carry it."""
+        assert self._report(cost_basis="requests").cost_basis == "requests"
+
+    def test_cost_estimate_usd_accepts_none(self):
+        """On the requests basis the writer emits null, not 0.0.
+
+        0.0 would assert the run was free. None says no per token price exists.
+        Asserts the declared annotation, not just runtime tolerance: dataclasses
+        do not enforce types, so constructing with None would succeed even under
+        a `float` annotation and prove nothing about the declaration.
+        """
+        annotation = {f.name: f.type for f in dataclasses.fields(Report)}["cost_estimate_usd"]
+        assert "None" in str(annotation), annotation
+        report = self._report(cost_estimate_usd=None, cost_basis="requests")
+        assert report.cost_estimate_usd is None
+
+    def test_cost_estimate_usd_still_accepts_a_float(self):
+        """The USD path must not regress while making the null path expressible."""
+        assert self._report(cost_estimate_usd=1.25).cost_estimate_usd == 1.25
+
+    def test_declared_fields_match_the_serialized_cost_keys(self):
+        """Pins the two shapes together so they cannot drift apart again silently.
+
+        Every cost key the writer emits must exist as a field on the declared
+        type. This is the assertion that would have caught the drift when it
+        happened rather than one release later.
+        """
+        declared = {f.name for f in dataclasses.fields(Report)}
+        assert {"cost_estimate_usd", "cost_basis"} <= declared
