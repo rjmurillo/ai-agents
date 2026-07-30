@@ -13,9 +13,10 @@ import subprocess
 import sys
 import tempfile
 from collections.abc import Callable
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import TYPE_CHECKING, Any
 from unittest import mock
+from urllib.parse import urlparse
 
 import pytest
 
@@ -44,6 +45,7 @@ from scripts.validate_session_json import (
     validate_session_section,
     validate_session_start,
 )
+from scripts.validation.session_scope import commit_reachability_problem
 
 
 def _make_complete_start_section(**overrides: dict) -> dict:
@@ -1929,6 +1931,7 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
             if line.startswith(("import ", "from ")) and "__future__" not in line
         ]
         assert imports == [
+            "import re",
             "import subprocess",
             "from collections.abc import Iterable",
             "from pathlib import Path",
@@ -2179,6 +2182,29 @@ class TestEvidenceAgreesWithSession:
         log["endingCommit"] = "1ffee3834e910608ed6c03c374fb71ff7c39bdc3"
         assert not any("endingCommit is empty" in w for w in validate_session_log(log).warnings)
 
+    def test_a_log_with_no_next_steps_field_warns(self) -> None:
+        """`SESSION-PROTOCOL.md` lists `nextSteps` as a required top-level field."""
+        log = _make_valid_log()
+        log.pop("nextSteps", None)
+        assert any("nextSteps" in w for w in validate_session_log(log).warnings)
+
+    def test_an_empty_next_steps_array_is_an_answer_and_does_not_warn(self) -> None:
+        """`[]` says there is nothing to follow up. Absence says nothing at all."""
+        log = _make_valid_log()
+        log["nextSteps"] = []
+        assert not any("nextSteps" in w for w in validate_session_log(log).warnings)
+
+    def test_a_populated_next_steps_array_does_not_warn(self) -> None:
+        log = _make_valid_log()
+        log["nextSteps"] = ["Land the follow-up PR"]
+        assert not any("nextSteps" in w for w in validate_session_log(log).warnings)
+
+    def test_the_next_steps_warning_does_not_block_the_log(self) -> None:
+        """Negative control: 71 committed logs predate the field, so this warns."""
+        log = _make_valid_log()
+        log.pop("nextSteps", None)
+        assert validate_session_log(log).errors == []
+
     def test_an_existing_log_is_not_blocked_by_a_contradiction_it_cannot_repair(self) -> None:
         """Four committed logs contradict themselves and git cannot adjudicate which
         side is true. On the record side they would be a permanent block that no
@@ -2234,3 +2260,165 @@ class TestBranchEvidenceMayDescribeARelationship:
         """Logs abbreviate their own branch; that is not a second session."""
         log = _log_with_evidence(notOnMain="On fix/3346-session-schema, not main")
         assert not any("names a different branch" in e for e in validate_session_log(log).errors)
+
+
+class TestEndingCommitReachability:
+    """`endingCommit` was written once and never revalidated (issue #3618).
+
+    Of 1003 committed logs, 542 leave the field empty, 332 name a SHA that is
+    not an object in this repository at all, and 95 name a real commit that is
+    off the current history. 34 are sound. Nothing ever looked, so a value
+    orphaned by a later amend or rebase stayed in the record and seeded a
+    causal-graph node pointing at a commit that does not exist.
+    """
+
+    @staticmethod
+    def _make_repo(tmp_path: Path) -> tuple[Path, str, str]:
+        """Build a repo and return (root, reachable_sha, existing_offbranch_sha)."""
+        repo = tmp_path / "r"
+        repo.mkdir()
+
+        def git(*args: str) -> str:
+            return subprocess.run(
+                ["git", *args], cwd=repo, capture_output=True, text=True, check=True
+            ).stdout.strip()
+
+        git("init", "-q", "-b", "main")
+        git("config", "user.email", "t@example.com")
+        git("config", "user.name", "T")
+        (repo / "a.txt").write_text("a", encoding="utf-8")
+        git("add", "a.txt")
+        git("commit", "-qm", "a")
+        reachable = git("rev-parse", "HEAD")
+        git("checkout", "-qb", "side")
+        (repo / "b.txt").write_text("b", encoding="utf-8")
+        git("add", "b.txt")
+        git("commit", "-qm", "b")
+        offbranch = git("rev-parse", "HEAD")
+        git("checkout", "-q", "main")
+        return repo, reachable, offbranch
+
+    def test_a_reachable_commit_raises_no_complaint(self, tmp_path: Path) -> None:
+        repo, reachable, _ = self._make_repo(tmp_path)
+        assert commit_reachability_problem(reachable, repo) is None
+
+    def test_a_sha_that_is_no_object_is_named(self, tmp_path: Path) -> None:
+        repo, _, _ = self._make_repo(tmp_path)
+        assert commit_reachability_problem("0" * 40, repo) == "names no commit in this repository"
+
+    def test_a_real_commit_off_the_history_is_named(self, tmp_path: Path) -> None:
+        """The amend case: the commit still exists, but nothing reaches it."""
+        repo, _, offbranch = self._make_repo(tmp_path)
+        assert (
+            commit_reachability_problem(offbranch, repo)
+            == "names a commit that is not an ancestor of HEAD"
+        )
+
+    def test_a_dash_leading_value_never_reaches_git(self, tmp_path: Path) -> None:
+        """The value lands in argv, where a leading dash reads as an option (CWE-88)."""
+        repo, _, _ = self._make_repo(tmp_path)
+        assert commit_reachability_problem("--upload-pack=touch", repo) == "is not a commit SHA"
+
+    def test_a_shallow_clone_stays_silent(self, tmp_path: Path) -> None:
+        """Older commits are genuinely absent, so any complaint describes the clone."""
+        repo, _, _ = self._make_repo(tmp_path)
+        shallow = tmp_path / "shallow"
+        subprocess.run(
+            ["git", "clone", "-q", "--depth", "1", repo.as_uri(), str(shallow)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert subprocess.run(
+            ["git", "rev-parse", "--is-shallow-repository"],
+            cwd=shallow,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip() == "true"
+        assert commit_reachability_problem("0" * 40, shallow) is None
+
+    def test_a_directory_that_is_no_repository_stays_silent(self, tmp_path: Path) -> None:
+        bare = tmp_path / "plain"
+        bare.mkdir()
+        assert commit_reachability_problem("0" * 40, bare) is None
+
+    def test_a_clone_source_is_built_as_a_uri_not_a_concatenation(
+        self, tmp_path: Path
+    ) -> None:
+        """`"file://" + path` is a URL only where the separator is already `/`.
+
+        On Windows the drive path carries no leading slash, so everything after
+        `file://` parses as the URL host and the path comes back empty. `git
+        clone` then looks for a host named `C:\\Users\\...` and the shallow-clone
+        test fails on the Windows job for a reason that has nothing to do with
+        reachability. `Path.as_uri()` emits the third slash and forward
+        separators, so the host stays empty on both platforms.
+        """
+        windows = PureWindowsPath(r"C:\Users\runner\Temp\repo")
+        naive = urlparse(f"file://{windows}")
+        assert naive.netloc == "C:\\Users\\runner\\Temp\\repo"
+        assert naive.path == ""
+
+        built = urlparse(tmp_path.as_uri())
+        assert built.netloc == ""
+        assert "\\" not in built.path
+        assert built.path.startswith("/")
+
+    def test_an_orphaned_ending_commit_warns(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Pinned to a purpose-built repo, not the ambient checkout.
+
+        Reading the ambient repository made this test depend on how CI clones.
+        The pytest job checks out at the actions/checkout default depth of 1, and
+        the helper stays deliberately silent in a shallow clone because older
+        commits are genuinely absent there. The assertion therefore passed
+        locally against a full clone and failed in CI against a shallow one, on
+        identical code. The sibling test below had the mirror-image defect: it
+        passed in CI for the wrong reason, because a silent helper satisfies a
+        no-warning assertion vacuously.
+        """
+        from scripts import validate_session_json
+
+        repo, _, _ = self._make_repo(tmp_path)
+        monkeypatch.setattr(validate_session_json, "_PROJECT_ROOT", repo)
+        log = _make_valid_log()
+        log["endingCommit"] = "0" * 40
+        assert any(
+            "issue #3618" in w for w in validate_session_log(log).warnings
+        ), "an unresolvable endingCommit must be reported"
+
+    def test_a_sound_ending_commit_does_not_warn(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Guards against a check that simply always complains."""
+        from scripts import validate_session_json
+
+        repo, reachable, _ = self._make_repo(tmp_path)
+        monkeypatch.setattr(validate_session_json, "_PROJECT_ROOT", repo)
+        log = _make_valid_log()
+        log["endingCommit"] = reachable
+        assert not any("issue #3618" in w for w in validate_session_log(log).warnings)
+
+    def test_an_existing_log_is_never_rechecked(self) -> None:
+        """427 committed logs carry a broken SHA. They are records, not claims,
+        and no honest edit could repair them, so the check sits on the claim
+        side of the issue #3385 line with the other cross-field checks."""
+        log = _make_valid_log()
+        log["endingCommit"] = "0" * 40
+        result = validate_session_log(log, existing_log=True)
+        assert not any("issue #3618" in w for w in result.warnings)
+
+    def test_a_malformed_value_is_left_to_the_schema(self) -> None:
+        """Reporting it here too would print one fact under two spellings."""
+        log = _make_valid_log()
+        log["endingCommit"] = "not-a-sha"
+        assert not any("issue #3618" in w for w in validate_session_log(log).warnings)
+
+    def test_an_empty_value_keeps_its_own_warning(self) -> None:
+        log = _make_valid_log()
+        log["endingCommit"] = ""
+        warnings = validate_session_log(log).warnings
+        assert any("endingCommit is empty" in w for w in warnings)
+        assert not any("issue #3618" in w for w in warnings)

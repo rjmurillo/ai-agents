@@ -487,6 +487,7 @@ def main(argv: list[str] | None = None) -> int:
     validate_script = os.path.join(repo_root, "scripts", "validate_session_json.py")
 
     if os.path.isfile(validate_script):
+        sys.stdout.flush()
         result = subprocess.run(
             [sys.executable, validate_script, session_path],
             capture_output=False, timeout=60, check=False,

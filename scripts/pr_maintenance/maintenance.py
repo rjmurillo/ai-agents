@@ -195,6 +195,8 @@ def check_workflow_environment() -> EnvironmentResult:
             ["gh", "--version"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=True,
             timeout=30,
         )
@@ -209,6 +211,8 @@ def check_workflow_environment() -> EnvironmentResult:
             ["git", "--version"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=True,
             timeout=30,
         )

@@ -1,0 +1,63 @@
+{
+  "id": "episode-2026-07-29-session-3742-stdout-flush",
+  "session": "2026-07-29-session-3742-stdout-flush",
+  "timestamp": "2026-07-29T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix #3742: a subprocess spawn that inherits stdout reorders the child's output ahead of the parent's buffered text in any piped or redirected log. Overturned the issue's own diagnosis (it claimed bytes were destroyed; both runs emit 33 bytes, the gh error had merely moved above the reproduction's tail -4 window). Applied the fix unconditionally at all 24 fd-inheriting spawns in the authored trees and added a standing AST guard, because 'has anything reached stdout by now' is not decidable from a call site.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduce the defect and settle its mechanism",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Scope the fix",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Prove every inserted flush is load-bearing",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bound the guard's scope",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 2
+  },
+  "lessons": []
+}

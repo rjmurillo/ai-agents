@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E402
 """Validate Claude Code skill YAML frontmatter against schema requirements.
 
 Enforces frontmatter constraints for SKILL.md files:
@@ -26,8 +27,14 @@ import argparse
 import os
 import re
 import subprocess
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_VALIDATION_PACKAGE_SENTINEL = _PROJECT_ROOT / "scripts" / "validation" / "models.py"
+if _VALIDATION_PACKAGE_SENTINEL.is_file() and str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
 
 import yaml
 
@@ -369,6 +376,8 @@ def get_staged_skill_files() -> list[Path]:
             ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
         )
     except (subprocess.TimeoutExpired, FileNotFoundError):

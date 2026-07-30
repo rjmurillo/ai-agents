@@ -18,7 +18,7 @@ Patterns identified from Phase 3 consistency validation implementation.
 - Enables confident refactoring
 - Serves as regression prevention
 
-**Application**: All validation scripts should have corresponding Pester test suites with >90% coverage
+**Application**: All validation scripts should have corresponding test suites with >90% coverage. The Pester suites named in the evidence above were retired with the ADR-042 migration; new suites are pytest under `tests/`.
 
 **Related Skills**:
 
@@ -56,20 +56,21 @@ Patterns identified from Phase 3 consistency validation implementation.
 
 ## Pattern: Single Source Script Organization
 
-**Description**: Maintain scripts ONLY in canonical `scripts/` location; agents reference directly
+**Description**: Each script has exactly one home; agents reference it directly. Runtime validators live in `scripts/validation/`, build-pipeline validators in `build/scripts/`.
 
 **Current Implementation**:
 
-- Canonical: `scripts/` (PowerShell conventions)
-- Agents: Reference `scripts/Validate-Consistency.ps1` directly
+- Runtime: `scripts/` and `scripts/validation/` (Python, per ADR-042; originally PowerShell)
+- Build pipeline: `build/scripts/validate_*.py` (validates generator output, runs in the build)
+- Agents: Reference the script at its single home (for example `scripts/validation/pre_pr.py`), never a copy
 - NO duplication to `.agents/utilities/`
 
 **Benefits**:
 
 - **Single source of truth**: No synchronization needed
 - **DRY principle**: No duplicate maintenance
-- **Clear ownership**: Scripts team owns scripts/
-- **Simpler CI**: One location to test
+- **Clear ownership**: split by lifecycle, runtime vs build
+- **Simpler CI**: One location per script
 
 **Anti-Pattern Avoided**: Duplicating scripts to `.agents/utilities/` for "agent access" creates maintenance burden and potential drift
 
@@ -85,8 +86,8 @@ Patterns identified from Phase 3 consistency validation implementation.
 
 1. Shared content: `templates/agents/*.shared.md`
 2. Variant-specific: `templates/agents/*.copilot.md`, `*.vs-code.md`
-3. Generation: `build/Generate-Agents.ps1`
-4. Outputs: `src/claude/`, `src/copilot-cli/`, `src/vs-code-agents/`
+3. Generation: `build/generate_agents.py`
+4. Outputs: `src/copilot-cli/agents/`, `src/vs-code-agents/` (the allowlist at `build/generate_agents.py:269-272`). `src/claude/` is hand-authored and is **not** a generator output. The broader pipeline that regenerates skills, commands, rules, hooks, and the agent catalog is `build/scripts/build_all.py`.
 
 **Benefits**:
 

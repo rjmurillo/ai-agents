@@ -57,7 +57,8 @@ MARKER_TRAILER_KEY = "Reviewed-By"
 # more comma-separated stems; it must be non-empty. The SHA is 40 (sha1) or 64
 # (sha256) lowercase hex characters, matching git object-name widths.
 _MARKER_VALUE_RE = re.compile(
-    r"^/review@(?P<axes>[A-Za-z0-9_-]+(?:,[A-Za-z0-9_-]+)*) on (?P<sha>[0-9A-Fa-f]{40}|[0-9A-Fa-f]{64})$"
+    r"^/review@(?P<axes>[A-Za-z0-9_-]+(?:,[A-Za-z0-9_-]+)*) on "
+    r"(?P<sha>[0-9A-Fa-f]{40}|[0-9A-Fa-f]{64})$"
 )
 
 
@@ -113,11 +114,38 @@ def _run_git(args: list[str], repo_root: Path) -> tuple[int, str, str]:
             ["git", "-C", str(repo_root), *args],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=15,
         )
     except subprocess.TimeoutExpired:
         return -1, "", "git command timed out after 15s"
+    except UnicodeDecodeError:
+        # Commit messages and paths are raw bytes on POSIX. Strict UTF-8 keeps
+        # a bad decode from becoming a plausible wrong string, and this gate
+        # already reports failure through the return value rather than raising.
+        return -1, "", "git output was not valid UTF-8"
     return result.returncode, result.stdout, result.stderr
+
+
+def _git_failure_reason(exit_code: int, stderr: str, operation: str) -> str:
+    """Return a diagnostic that distinguishes git exit from internal failures."""
+    reason = stderr.strip()
+    if exit_code == -1:
+        return reason or f"{operation} failed before git completed"
+    if reason:
+        return f"{operation} exited with {exit_code}: {reason}"
+    return f"{operation} exited with {exit_code}"
+
+
+def _with_reason(message: str, error: str | None) -> str:
+    """Append git's own diagnostic to an outcome message when there is one.
+
+    Every reader in this module returns ``(value, error)``. Flattening the
+    error into a generic "git could not read X" sends the developer to run the
+    same command by hand, where a lenient terminal decodes what the gate could
+    not, and the real cause stays hidden.
+    """
+    return f"{message}: {error}" if error else message
 
 
 def _is_option_like_ref(ref: str) -> bool:
@@ -142,16 +170,22 @@ def resolve_sha(ref: str, repo_root: Path) -> str | None:
     return sha
 
 
-def read_marker_values(ref: str, repo_root: Path) -> list[str] | None:
+def read_marker_values(ref: str, repo_root: Path) -> tuple[list[str] | None, str | None]:
     """Read all ``Reviewed-By`` trailer values from the commit at ``ref``.
 
-    Returns the list of trailer values (one per ``Reviewed-By:`` line in the
-    commit's last paragraph), an empty list when the commit carries none, or
-    ``None`` when git could not read the commit (bad ref, git failure).
+    This is the one call in the gate whose stdout is commit trailer text
+    rather than hex SHAs, so it is the one most likely to fail on a decode.
+    The reason travels with the result.
+
+    Returns:
+        ``(values, None)`` on success, where ``values`` is one entry per
+        ``Reviewed-By:`` line and may be empty. ``(None, reason)`` when git
+        could not read the commit; ``reason`` is git's own message when it
+        produced one.
     """
     if _is_option_like_ref(ref):
-        return None
-    exit_code, stdout, _ = _run_git(
+        return None, f"invalid ref '{ref}': refs must not start with '-'"
+    exit_code, stdout, stderr = _run_git(
         [
             "log",
             "-1",
@@ -161,25 +195,25 @@ def read_marker_values(ref: str, repo_root: Path) -> list[str] | None:
         repo_root,
     )
     if exit_code != 0:
-        return None
-    return [line for line in stdout.splitlines() if line.strip()]
+        return None, _git_failure_reason(exit_code, stderr, "git log")
+    return [line for line in stdout.splitlines() if line.strip()], None
 
 
-def read_parent_shas(commit_sha: str, repo_root: Path) -> list[str] | None:
-    """Read the direct parent SHAs for ``commit_sha``."""
-    exit_code, stdout, _ = _run_git(["show", "-s", "--format=%P", commit_sha], repo_root)
+def read_parent_shas(commit_sha: str, repo_root: Path) -> tuple[list[str] | None, str | None]:
+    """Read the direct parent SHAs for ``commit_sha``, preserving git's error."""
+    exit_code, stdout, stderr = _run_git(["show", "-s", "--format=%P", commit_sha], repo_root)
     if exit_code != 0:
-        return None
-    return stdout.split()
+        return None, _git_failure_reason(exit_code, stderr, "git show parents")
+    return stdout.split(), None
 
 
-def resolve_tree_sha(commit_sha: str, repo_root: Path) -> str | None:
-    """Resolve ``commit_sha`` to the tree SHA it points at."""
-    exit_code, stdout, _ = _run_git(["show", "-s", "--format=%T", commit_sha], repo_root)
+def resolve_tree_sha(commit_sha: str, repo_root: Path) -> tuple[str | None, str | None]:
+    """Resolve ``commit_sha`` to its tree SHA, preserving git's error."""
+    exit_code, stdout, stderr = _run_git(["show", "-s", "--format=%T", commit_sha], repo_root)
     if exit_code != 0:
-        return None
+        return None, _git_failure_reason(exit_code, stderr, "git show tree")
     tree_sha = stdout.strip()
-    return tree_sha or None
+    return (tree_sha or None), None
 
 
 @dataclass(frozen=True, slots=True)
@@ -214,13 +248,14 @@ def validate_parent_shas(
     ref: str,
     head_sha: str,
     parent_shas: list[str] | None,
+    read_error: str | None = None,
 ) -> ValidationOutcome | None:
     """Return an error outcome when parent data is missing or invalid."""
     if parent_shas is None:
         return ValidationOutcome(
             ok=False,
             exit_code=2,
-            message=f"git could not read parent commits for '{ref}'",
+            message=_with_reason(f"git could not read parent commits for '{ref}'", read_error),
         )
 
     if not parent_shas:
@@ -256,13 +291,16 @@ def validate_marker_commit_shape(
         )
 
     parent_sha = parent_shas[0]
-    head_tree_sha = resolve_tree_sha(head_sha, repo_root)
-    parent_tree_sha = resolve_tree_sha(parent_sha, repo_root)
+    head_tree_sha, head_tree_error = resolve_tree_sha(head_sha, repo_root)
+    parent_tree_sha, parent_tree_error = resolve_tree_sha(parent_sha, repo_root)
     if head_tree_sha is None or parent_tree_sha is None:
         return ValidationOutcome(
             ok=False,
             exit_code=2,
-            message=f"git could not compare commit trees for '{ref}'",
+            message=_with_reason(
+                f"git could not compare commit trees for '{ref}'",
+                head_tree_error or parent_tree_error or "tree SHA was empty",
+            ),
         )
 
     if head_tree_sha != parent_tree_sha:
@@ -294,15 +332,14 @@ def validate_ref(ref: str, repo_root: Path) -> ValidationOutcome:
 
     head_sha, resolve_error = resolve_sha_with_error(ref, repo_root)
     if head_sha is None:
-        reason = f": {resolve_error}" if resolve_error else ""
         return ValidationOutcome(
             ok=False,
             exit_code=2,
-            message=f"could not resolve ref '{ref}' to a commit{reason}",
+            message=_with_reason(f"could not resolve ref '{ref}' to a commit", resolve_error),
         )
 
-    parent_shas = read_parent_shas(head_sha, repo_root)
-    parent_error = validate_parent_shas(ref, head_sha, parent_shas)
+    parent_shas, parent_read_error = read_parent_shas(head_sha, repo_root)
+    parent_error = validate_parent_shas(ref, head_sha, parent_shas, parent_read_error)
     if parent_error is not None:
         return parent_error
     assert parent_shas is not None
@@ -312,12 +349,12 @@ def validate_ref(ref: str, repo_root: Path) -> ValidationOutcome:
         return shape_error
 
     parent_sha = parent_shas[0]
-    values = read_marker_values(head_sha, repo_root)
+    values, marker_read_error = read_marker_values(head_sha, repo_root)
     if values is None:
         return ValidationOutcome(
             ok=False,
             exit_code=2,
-            message=f"git could not read commit '{ref}'",
+            message=_with_reason(f"git could not read commit '{ref}'", marker_read_error),
         )
 
     if not values:

@@ -42,6 +42,8 @@ def _run_gh(args: list[str], timeout: int = 30) -> subprocess.CompletedProcess[s
         ["gh", *args],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=timeout,
         check=False,
     )
@@ -258,6 +260,8 @@ def find_synthesis_panels(owner: str, repo: str, pr_number: int) -> list[str]:
             ["git", "ls-files", pattern],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
             check=False,
         )
