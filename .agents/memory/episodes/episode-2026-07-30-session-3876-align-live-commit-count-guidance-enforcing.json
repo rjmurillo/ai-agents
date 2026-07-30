@@ -129,6 +129,14 @@
       "content": "Commit: 575aa74497219bbbb2894a48e417189c7be62a13",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The final review found the same off-by-one and missing 40-limit relief in CONTRIBUTING.md, PROJECT-CONSTRAINTS.md, claude-skills.md, and two active skill references. Corrected the canonical sources and regenerated both Copilot CLI mirrors.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

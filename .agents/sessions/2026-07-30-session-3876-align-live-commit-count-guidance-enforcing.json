@@ -157,6 +157,9 @@
     },
     {
       "step": "Caught myself appending these entries to another session's log because a glob picked the wrong file; reverted that log to HEAD and wrote to the correct one."
+    },
+    {
+      "step": "The final review found the same off-by-one and missing 40-limit relief in CONTRIBUTING.md, PROJECT-CONSTRAINTS.md, claude-skills.md, and two active skill references. Corrected the canonical sources and regenerated both Copilot CLI mirrors."
     }
   ],
   "endingCommit": "575aa74497219bbbb2894a48e417189c7be62a13",
