@@ -1350,3 +1350,93 @@ class TestUngradedCellsExcludedFromAverage:
         assert "Graded" in table
         assert "1/2" in table
         assert "2/2" in table
+
+
+# ---------------------------------------------------------------------------
+# Report identity: which model and seed produced these scores
+#
+# optimize-artifact.py refuses to gate two extractions whose provenance
+# disagrees, and upstream_model is one of the keys it compares. It can only
+# compare what the report records. Before this, the report recorded neither the
+# model nor the seed, so the extractor wrote the literal "not-applicable" and
+# two runs on two different models compared equal at the gate.
+#
+# The producer is the only place that knows these values, so it is the place
+# that has to write them down.
+# ---------------------------------------------------------------------------
+
+
+class TestReportRecordsRunIdentity:
+    @staticmethod
+    def _scenario_file(tmp_path):
+        path = tmp_path / "scenarios.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "rule_path": ".claude/rules/working-with-legacy-code.md",
+                    "scenarios": [{"id": "S1", "input": "do the thing"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        return path
+
+    def _run(self, tmp_path, monkeypatch, *extra):
+        """Drive main() past the API calls and stop at the writer.
+
+        `_process_scenario_file` returning None is its "this file is done, keep
+        going" answer, so stubbing it exercises the real assembly and the real
+        writer without spending a call.
+        """
+        out = tmp_path / "out.json"
+        monkeypatch.setattr(eval_mod, "_load_api_key", lambda *a, **k: "key")
+        monkeypatch.setattr(eval_mod, "verify_model_available", lambda *a, **k: None)
+        monkeypatch.setattr(eval_mod, "_process_scenario_file", lambda *a, **k: None)
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "eval-rule-activation.py",
+                "--scenarios",
+                str(self._scenario_file(tmp_path)),
+                "--output",
+                str(out),
+                *extra,
+            ],
+        )
+        eval_mod.main()
+        return out
+
+    def test_report_records_the_model(self, tmp_path, monkeypatch):
+        out = self._run(tmp_path, monkeypatch, "--model", "openai/gpt-4o-mini")
+        assert json.loads(out.read_text(encoding="utf-8"))["model_id"] == "openai/gpt-4o-mini"
+
+    def test_report_records_the_seed(self, tmp_path, monkeypatch):
+        out = self._run(tmp_path, monkeypatch, "--seed", "7")
+        assert json.loads(out.read_text(encoding="utf-8"))["seed"] == 7
+
+    def test_report_records_a_zero_seed(self, tmp_path, monkeypatch):
+        """The default seed is 0, so the common case is the falsy one."""
+        out = self._run(tmp_path, monkeypatch)
+        assert json.loads(out.read_text(encoding="utf-8"))["seed"] == 0
+
+    def test_report_records_the_default_model_when_none_is_given(self, tmp_path, monkeypatch):
+        out = self._run(tmp_path, monkeypatch)
+        assert json.loads(out.read_text(encoding="utf-8"))["model_id"] == eval_mod.DEFAULT_MODEL
+
+    def test_metadata_does_not_displace_the_scores(self, tmp_path, monkeypatch):
+        """The consumer reads `rules`; the metadata sits beside it, not inside.
+
+        A metadata key written under `rules` would be read as a rule name and
+        scored, which fails closed on a missing `scenarios` list.
+        """
+        out = self._run(tmp_path, monkeypatch)
+        report = json.loads(out.read_text(encoding="utf-8"))
+        assert "rules" in report
+        assert set(report["rules"]) == set()
+        assert "model_id" not in report["rules"]
+
+    def test_a_dry_run_still_writes_nothing(self, tmp_path, monkeypatch):
+        """Unchanged behavior. A plan that spends no calls has no identity."""
+        out = self._run(tmp_path, monkeypatch, "--dry-run")
+        assert not out.exists()

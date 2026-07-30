@@ -1166,7 +1166,18 @@ def main() -> int:
             print(f"ERROR: {e}", file=sys.stderr)
             return 2
 
-    all_results: dict[str, Any] = {"rules": {}}
+    # Recorded beside `rules`, not inside it, because the consumer reads
+    # `rules` as a mapping of rule name to result and would score a metadata
+    # key as a rule. optimize-artifact.py refuses to gate two extractions whose
+    # provenance disagrees, and `upstream_model` is one of the keys it
+    # compares, so a report that does not name its model lets a run scored on
+    # one model be compared against a run scored on another. This is the only
+    # place that knows these values.
+    all_results: dict[str, Any] = {
+        "model_id": args.model,
+        "seed": args.seed,
+        "rules": {},
+    }
     state = _RunState()
 
     for scenario_file in args.scenarios:
