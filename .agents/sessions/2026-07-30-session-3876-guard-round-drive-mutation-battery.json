@@ -1,0 +1,155 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3876,
+    "date": "2026-07-30",
+    "branch": "fix/guard-class-scope",
+    "startingCommit": "c153e4724",
+    "objective": "Guard round 19: drive mutation battery 29 to exhaustion, fix the capture_output false positive, remove dead code, repair a corrupted battery entry"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP unavailable in this harness; fell back to .serena/memories/ on disk per AGENTS.md. 158 memory files present."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP unavailable; AGENTS.md and .claude/rules/*.md read directly as the documented fallback."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read. Confirmed read-only per ADR-014; not modified this session (git status clean for that path)."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ls .claude/skills/*/scripts/*.py returned 96 scripts across the skill tree."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md lines 54 to 76 (Skill Usage Constraints) read. GitHub work routed through gh in the read-only checkout, no skill bypass."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read: language, skill usage, workflow, commit, session, and security sections."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/decision-calibrate-guards-on-the-whole-corpus.md and decision-worktree-identity-guard-scope.md from disk. The first governed this session's offender-diff method (whole corpus, base versus candidate, not a sample of the guard's own hits)."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/guard-class-scope"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/guard-class-scope"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --porcelain clean at c153e4724 before work began; worktree confirmed restored after the mutation sweep."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "c153e4724"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not modified; git status --porcelain for that path returns zero lines."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "MCP unavailable, so written to disk: .serena/memories/decision-mutation-analysis-complements-adversarial-review.md."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 run scoped to the new retrospective. Config excludes .agents/**, so 0 files linted and 0 issues. Dash prohibition byte-verified separately: 0 occurrences of U+2014 and U+2013."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Three guard commits landed this session: a1ef12fc8, a85bfa9a6, c153e4724. This log and the retrospective commit together."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "348 tests pass. ruff check, ruff check --select C901, ruff format --check and mypy all clean. Repo-wide offender diff across 59451 files: 0 added, 0 removed. Anchor audit 0 broken, 0 identity mutations."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Battery 29 driven from 15 survivors to 4; all four remaining accounted for."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-07-30-guard-round-19-mutation-analysis.md, classified FM-9 primary and FM-4 secondary."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Re-ran mutation battery 29 end to end after repairing entry A59",
+      "outcome": "Survivors fell from 15 to 4. A59 died once repaired, confirming the existing suite already covered that branch.",
+      "commit": "c153e4724"
+    },
+    {
+      "task": "Diagnosed and fixed a guard false positive on a partial that pre-bound capture off",
+      "outcome": "Runtime proof under LC_ALL=C PYTHONCOERCECLOCALE=0 PYTHONUTF8=0 showed the shape decodes nothing. Capture keywords now carry an on or off state instead of being recorded by name alone.",
+      "commit": "a85bfa9a6"
+    },
+    {
+      "task": "Removed an unreachable branch surfaced by a surviving mutant",
+      "outcome": "_shadowed_off folded into its one caller, removing the dead None branch and a double negation.",
+      "commit": "c153e4724"
+    },
+    {
+      "task": "Repaired a corrupted battery entry and hardened the anchor auditor",
+      "outcome": "A bulk substitution had made A59 a no-op mutation, which always survives. Auditor now flags any old-equals-new pair, verified with a negative control. Swept all 46 battery files: A59 was the only one.",
+      "commit": ""
+    },
+    {
+      "task": "Ran a repo-wide offender diff between a1ef12fc8 and c153e4724",
+      "outcome": "scanned=59451 added=0 removed=0. added=0 proves no real detection was lost. removed=0 is explained: an AST scan found zero partials pre-binding capture in this tree, so the fixed false positive had no instances here.",
+      "commit": ""
+    },
+    {
+      "task": "Filed two issues",
+      "outcome": "#3925 records 162 test-tree calls decoding child output with the locale codec, with runtime proof. #3927 records the round 18 and 19 results.",
+      "commit": ""
+    }
+  ],
+  "endingCommit": "c153e4724",
+  "nextSteps": [
+    "Push the branch and apply the updated PR body to #3835, then re-run scripts/validation/pr_description.py --ci",
+    "Add a uniqueness check to the anchor auditor so an anchor matching two sites fails rather than silently taking the first",
+    "Pin an explicit codec at the 162 test-tree call sites in #3925",
+    "Decide whether to widen the guard's scan root beyond scripts/, tracked in #3925"
+  ]
+}
