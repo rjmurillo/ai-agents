@@ -24,6 +24,8 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 from active_plan_closeout import validate_active_plan_closeout
+from check_nested_tests import validate_no_nested_tests  # noqa: E402
+from check_unreachable_code import validate_unreachable_code  # noqa: E402
 from checks_coverage import (  # noqa: E402
     validate_review_marker,
 )
@@ -115,6 +117,18 @@ def run_all_validations(
         "Python Syntax (compile gate)",
         state,
         lambda: validate_python_syntax(repo_root),
+    )
+
+    run_validation(
+        "Nested Test Detection",
+        state,
+        lambda: validate_no_nested_tests(repo_root),
+    )
+
+    run_validation(
+        "Unreachable Code Detection",
+        state,
+        lambda: validate_unreachable_code(repo_root),
     )
 
     # 1. Session End
@@ -332,7 +346,6 @@ def run_all_validations(
         state,
         lambda: validate_spec_contradiction(repo_root),
     )
-
 
     # 3.88 Model Pin Governance (ADR-080, warn mode; Issue #3073). Advisory
     # gate wrapping check_model_pins.py --mode warn. Surfaces unpinned or
