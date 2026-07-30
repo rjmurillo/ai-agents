@@ -83,7 +83,8 @@ HTML comments must be preserved:
 ```markdown
 <!-- Investigation sessions may skip QA with evidence "SKIPPED: investigation-only"
      when only staging: .agents/sessions/, .agents/analysis/, .agents/retrospective/,
-     .serena/memories/, .agents/security/
+     .serena/memories/, .agents/security/, .agents/memory/,
+     .agents/architecture/REVIEW-*, .agents/critique/
      See ADR-034 for details. -->
 ```
 

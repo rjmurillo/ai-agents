@@ -704,6 +704,11 @@ The pre-commit hook validates that QA has been performed for sessions involving 
 - `.agents/retrospective/` - Learning extractions
 - `.serena/memories/` - AI memory updates
 - `.agents/security/` - Security assessments
+- `.agents/memory/` - Cross-session memory graph
+- `.agents/architecture/REVIEW-*` - ADR review artifacts
+- `.agents/critique/` - Critique artifacts
+
+The machine-readable source of truth is `scripts/modules/investigation_allowlist.py`. This list mirrors it; `.agents/architecture/ADR-*` is deliberately excluded.
 
 See [ADR-034](.agents/architecture/ADR-034-investigation-session-qa-exemption.md) for the full specification.
 
