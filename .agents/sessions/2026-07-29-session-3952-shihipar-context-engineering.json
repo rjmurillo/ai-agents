@@ -164,6 +164,27 @@
     },
     {
       "step": "Labeled the sign-counting decision rule exploratory. It was selected after the eight runs were observed, so it cannot carry its nominal false-positive rate. Filed #3957 to pre-register it before the next audit."
+    },
+    {
+      "step": "Merged origin/main (20 commits). Resolved the two plugin-manifest conflicts to 0.6.5427 and staged both parity manifests together so the parity gate passes."
+    },
+    {
+      "step": "Found a silent semantic break the merge created. Main commit ae64b725 tightened _clamp_score to require isinstance(value, int); _salvage_scores returned float, so the textual auto-merge succeeded while the entire salvage path became unreachable dead code and every salvaged sample silently reverted to judge_failed with zeroed scores. Proved it with a direct probe before fixing, then made salvage return int so it inherits main's validation instead of bypassing it. Isolated unit tests did not catch this because they exercised _salvage_scores alone."
+    },
+    {
+      "step": "Ran adversarial review round 3 with GPT-5.6 Sol. Twelve findings, one CRITICAL. Verified every arithmetic finding independently before accepting it; Sol was correct on all of them."
+    },
+    {
+      "step": "Fixed the CRITICAL salvage flaw. Three unanchored regex searches could take one score field from each of several JSON objects or tool traces and emit a triple that never appeared together, and the pattern read 5e-1 as 5. Added _salvage_window bounded from the first brace to the first reasoning key, exactly-once matching per field, and rejection of trailing period, e, or E. Seven tests now cover the path, six of them Sol's attack payloads."
+    },
+    {
+      "step": "Deduplicated the eight-run results table. It existed in two copies in rule-audit-procedure.md, they drifted, and that is how a pre-recovery baseline survived two review rounds. One table now, with the variance section pointing at it."
+    },
+    {
+      "step": "Applied Sol round-3 findings 2 through 12. Corrected stale arithmetic to 3.89 / -0.22 / +0.22, spread 1.00, pooled -0.14. Downgraded four overclaims: the measurement does not license cutting the rule (only 3 of 8 gaps clear the noise floor), model attribution rests on filenames, the tiebreaker explanation is a hypothesis because the full cell varies four things at once, and the over-engineering claim is one uncontrolled trial."
+    },
+    {
+      "step": "Fixed three self-contradictions I had introduced myself. The contamination probe told readers to use the CLI token counter the same document lists as unusable and omitted --disable-builtin-mcps. The claim that ambient context compresses deltas toward zero was asserted, but substitution and priming cut the other way, so bias direction is now stated as unknown with a 2x2 experiment named as the way to settle it. The 94,088 and 75,528 byte figures were both called the always-on corpus; they are now the .py effective context and the strict always-on corpus."
     }
   ],
   "endingCommit": "d73ee09796",
@@ -174,7 +195,10 @@
     "Fix the copilot-cli provider to load treatments through a sandbox instruction file rather than the user prompt (#3934). Until it lands no copilot-cli result should be cited as passive-context evidence",
     "Gate the verdict on negative scenarios (#3933). Over-activation is the failure mode this doctrine warns about and the instrument cannot currently see it",
     "Surface transcript read failures instead of silently falling back to stdout parsing (#3959), which skips the only check confirming which model served the request",
-    "Re-run the audit under the corrected instrument once the above land. The archived deltas are lower bounds, not point estimates"
+    "Re-run the audit under the corrected instrument once the above land. The archived deltas are lower bounds, not point estimates",
+    "Read Sol adversarial round 4 and apply or rebut each finding. Rounds 3 and 4 both target the same two reference docs plus the salvage diff.",
+    "Settle the ambient-context bias direction with the 2x2 experiment named in rule-audit-procedure.md: ambient on and off crossed with description and full.",
+    "Isolate arbitration from restatement. The current full cell varies arbitration content, length, ordering, and examples at once, so the tiebreaker explanation is unfalsified."
   ],
   "sessionEnd": "2026-07-29"
 }
