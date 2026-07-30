@@ -240,23 +240,6 @@ class TestScoreRendering:
 
 
 class TestScoreRangeIsEnforced:
-    """``health_score`` is a 0..1 ratio; the producer enforces the same bound.
-
-    ``HealthReport.__post_init__`` (``scripts/memory_enhancement/models.py``)
-    raises when the ratio falls outside that range::
-
-        if not 0.0 <= self.health_score <= 1.0:
-            raise ValueError(
-                f"health_score must be between 0.0 and 1.0, got {self.health_score}"
-            )
-
-    A hand-edited or schema-drifted report on disk never passes through that
-    dataclass constructor, so this consumer must re-check the same bound
-    rather than trust the file. Without the check, ``2.0`` renders as
-    ``200%`` and ``-0.5`` renders as ``-50%`` instead of failing loudly
-    (Copilot review finding on PR #3977).
-    """
-
     @pytest.mark.parametrize("bad", [2.0, -0.5, 1.5, -1, 100.0, 1.0000001, -1e-9])
     def test_out_of_range_score_is_rejected(
         self, tmp_path: Path, monkeypatch, capsys, bad: object
