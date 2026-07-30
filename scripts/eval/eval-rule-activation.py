@@ -616,6 +616,24 @@ _KEY_SHAPED_SCORE_FIELDS = tuple(
     for field in _SCORE_FIELDS
 )
 
+# The same key shape, but capturing which field was named and the integer that
+# follows it. The count-only patterns above cannot tell a contradiction from a
+# restatement, and the difference decides whether a payload is ambiguous.
+_NAMED_SCORE_FIELD_RE = re.compile(
+    "(?:\"|\\\\\"|')(" + "|".join(re.escape(f) for f in _SCORE_FIELDS) + ")"
+    + "(?:\"|\\\\\"|')\\s*:\\s*(-?[0-9]+)?"
+)
+
+# A four-hex-digit JSON unicode escape, still spelled as text after a parse.
+# A real escape decodes during the parse, so one surviving here means the
+# payload carried a second encoding layer: JSON serialized into a string.
+_UNICODE_ESCAPE_RE = re.compile(r"\\u([0-9a-fA-F]{4})")
+
+# How many further decode layers to peel before giving up. Three covers every
+# nesting depth a cooperating judge produces; the bound exists so a crafted
+# payload cannot turn the check into unbounded work.
+_MAX_ESCAPE_LAYERS = 3
+
 # The opening line of a Markdown code fence, capturing its delimiter run so
 # the close can be paired to the same width. Applied only when the payload
 # holds exactly one block, so no candidate is ever selected from several.
@@ -872,16 +890,27 @@ def _salvage_anchor(text: str) -> int | None:
 
 
 def _count_score_bearing_objects(value: object) -> int:
-    """Count objects carrying a score field, at any depth, in a parsed payload."""
+    """Count objects carrying a score field, at any depth, in a parsed payload.
+
+    Iterative on purpose. A recursive walk overflows Python's own call stack on
+    payloads the JSON decoder accepts happily, and ``RecursionError`` subclasses
+    ``RuntimeError``, which the scoring call site catches as a transport error.
+    A healthy verdict carrying a deeply nested member would therefore have been
+    filed as a judge API failure and dropped from the sample, which moves a
+    published number by removing a valid observation. The decoder's C scanner
+    has its own much deeper limit, so the walkers, not the parse, were the
+    binding constraint.
+    """
     total = 0
-    if isinstance(value, dict):
-        if any(field in value for field in _SCORE_FIELDS):
-            total += 1
-        for member in value.values():
-            total += _count_score_bearing_objects(member)
-    elif isinstance(value, list):
-        for member in value:
-            total += _count_score_bearing_objects(member)
+    stack: list[object] = [value]
+    while stack:
+        current = stack.pop()
+        if isinstance(current, dict):
+            if any(field in current for field in _SCORE_FIELDS):
+                total += 1
+            stack.extend(current.values())
+        elif isinstance(current, list):
+            stack.extend(current)
     return total
 
 
@@ -897,17 +926,23 @@ def _string_values(value: object) -> Iterator[str]:
     The raw-text guard this check replaced caught that shape. Dropping to
     values-only would have made the replacement a regression on the one case it
     exists to stop, so the walk covers both halves of every pair.
+
+    Iterative for the same reason as ``_count_score_bearing_objects``: a
+    recursive walk turns a healthy but deeply nested payload into a mislabelled
+    API failure.
     """
-    if isinstance(value, str):
-        yield value
-    elif isinstance(value, dict):
-        for key, member in value.items():
-            if isinstance(key, str):
-                yield key
-            yield from _string_values(member)
-    elif isinstance(value, list):
-        for member in value:
-            yield from _string_values(member)
+    stack: list[object] = [value]
+    while stack:
+        current = stack.pop()
+        if isinstance(current, str):
+            yield current
+        elif isinstance(current, dict):
+            for key, member in current.items():
+                if isinstance(key, str):
+                    yield key
+                stack.append(member)
+        elif isinstance(current, list):
+            stack.extend(current)
 
 
 def _parsed_names_two_verdicts(parsed: object) -> bool:
@@ -948,11 +983,67 @@ def _parsed_names_two_verdicts(parsed: object) -> bool:
     """
     if _count_score_bearing_objects(parsed) > 1:
         return True
+    filed = parsed if isinstance(parsed, dict) else {}
     return any(
-        pattern.search(text)
+        _string_contradicts_filed_scores(text, filed)
         for text in _string_values(parsed)
-        for pattern in _KEY_SHAPED_SCORE_FIELDS
     )
+
+
+def _escape_layers(text: str) -> Iterator[str]:
+    """Yield ``text`` and the forms it takes as unicode escapes are peeled off.
+
+    A parse decodes exactly one layer of escaping. A verdict serialized into a
+    string can therefore spell its own field names with ``\\uXXXX`` and survive
+    the parse as literal backslash-u text, which no pattern for
+    ``"activation_score"`` will match. Peeling further layers asks the question
+    the parse could not: what does this string say once it is fully decoded?
+
+    Only ``\\uXXXX`` is decoded, and only into the character it names. Handing
+    the string to a general unescaper instead would mangle characters the parse
+    already decoded correctly, and could raise on input this must merely
+    classify.
+    """
+    seen = text
+    yield seen
+    for _ in range(_MAX_ESCAPE_LAYERS):
+        peeled = _UNICODE_ESCAPE_RE.sub(lambda m: chr(int(m.group(1), 16)), seen)
+        if peeled == seen:
+            return
+        seen = peeled
+        yield seen
+
+
+def _string_contradicts_filed_scores(text: str, filed: dict[str, Any]) -> bool:
+    """Return whether ``text`` names a score that disagrees with the filed one.
+
+    Naming a score field inside a string is not by itself a second verdict. A
+    judge that writes ``I assigned "activation_score": 5 because ...`` while
+    filing 5 has restated its answer, not offered another one, and refusing that
+    payload discards a valid observation. Refusing it is not the safe direction
+    here: a dropped sample moves a published median exactly as a fabricated one
+    does, only downward in confidence rather than upward.
+
+    What is a second verdict is a *different* value for a field the payload
+    already answered. That is the comparison this makes, across every escape
+    layer, so a nested serialization cannot hide the disagreement.
+
+    A named field with no integer after it, or one this payload never filed at
+    top level, cannot be compared and is treated as a contradiction. That keeps
+    the ambiguous case on the refusing side without punishing agreement.
+    """
+    for layer in _escape_layers(text):
+        for match in _NAMED_SCORE_FIELD_RE.finditer(layer):
+            field, quoted = match.group(1), match.group(2)
+            if quoted is None:
+                return True
+            if not isinstance(filed.get(field), int) or isinstance(
+                filed.get(field), bool
+            ):
+                return True
+            if int(quoted) != filed[field]:
+                return True
+    return False
 
 
 def _names_a_score_field_twice(text: str) -> bool:
