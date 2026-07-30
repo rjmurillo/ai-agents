@@ -168,7 +168,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:  # faithful port of PS1 logic
+def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of PS1 logic
     args = build_parser().parse_args(argv)
     fmt = get_output_format(args.output_format)
 

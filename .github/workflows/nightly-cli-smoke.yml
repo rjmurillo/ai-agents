@@ -206,6 +206,14 @@ jobs:
     permissions:
       contents: read
     steps:
+      # The reporter is a repo script, so this job needs it on disk. Without
+      # this the step died with Errno 2 and masked the real smoke result.
+      - name: Checkout reporter script
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          sparse-checkout: scripts/ci/require_job_results.py
+          sparse-checkout-cone-mode: false
+
       - name: Report
         shell: bash
         env:

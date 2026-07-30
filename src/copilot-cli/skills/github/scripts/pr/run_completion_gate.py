@@ -691,7 +691,7 @@ def _evaluate_criterion(criterion: dict, pr_number: int) -> dict:
             verdict = _eval_pass_when_python(parsed, pass_when_python)
         else:
             verdict = _eval_pass_when(parsed, pass_when)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         # A broken pass_when expression is a config bug, not a verifier
         # outage. fail_open does NOT apply: masking a typo with a
         # green gate would defeat the dispatcher's purpose.

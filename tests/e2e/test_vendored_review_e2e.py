@@ -380,7 +380,7 @@ def test_discovered_axis_count_matches_canonical_plus_chained(
     """
     sys.path.insert(0, str(REPO_ROOT))
     try:
-        from tests.lib.test_axis_schema import CANONICAL_ROLES
+        from tests.lib.test_axis_schema import CANONICAL_ROLES  # noqa: PLC0415
     finally:
         sys.path.remove(str(REPO_ROOT))
 

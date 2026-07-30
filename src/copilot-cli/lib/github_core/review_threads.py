@@ -354,7 +354,7 @@ def get_unresolved_review_threads(
                     owner, repo, pull_request, pages_seen, len(aggregated),
                 )
             break
-        assert review_threads is not None
+        assert review_threads is not None  # noqa: S101
         page_nodes = review_threads.get("nodes", [])
         aggregated.extend(page_nodes)
 

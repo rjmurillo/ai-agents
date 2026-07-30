@@ -18,10 +18,10 @@ import pytest
 def _tiktoken_available() -> bool:
     """Return True if tiktoken can load the cl100k_base BPE encoding."""
     try:
-        import tiktoken
+        import tiktoken  # noqa: PLC0415
         tiktoken.get_encoding("cl100k_base")
         return True
-    except Exception:
+    except Exception:  # noqa: BLE001
         return False
 
 

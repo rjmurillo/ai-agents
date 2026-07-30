@@ -213,11 +213,10 @@ class TestPushedSuppressionPolicy:
         assert _run_suppression_push(monkeypatch, tmp_path, diff) == 1
         assert "pkg/module.py:1" in capsys.readouterr().err
 
-    def test_bare_type_ignore_is_honored_by_mypy_and_blocked_by_push_gate(
+    def test_bare_type_ignore_is_honored_by_mypy_and_allowed_by_security_gate(
         self,
         tmp_path,
         monkeypatch,
-        capsys,
     ):
         comment = "# type" ": ignore"
         analyzer_file = tmp_path / "mypy_bare_type_ignore.py"
@@ -231,10 +230,9 @@ class TestPushedSuppressionPolicy:
 +value: int = 'wrong'  {comment}
 """
 
-        assert _run_suppression_push(monkeypatch, tmp_path, diff) == 1
-        assert "pkg/module.py:1" in capsys.readouterr().err
+        assert _run_suppression_push(monkeypatch, tmp_path, diff) == 0
 
-    def test_newly_added_type_ignore_is_blocked(self, tmp_path, monkeypatch, capsys):
+    def test_newly_added_type_ignore_is_allowed(self, tmp_path, monkeypatch):
         suppression = "# type" ": ignore[arg-type]"
         diff = f"""diff --git a/pkg/module.py b/pkg/module.py
 --- a/pkg/module.py
@@ -243,10 +241,7 @@ class TestPushedSuppressionPolicy:
 +value = call()  {suppression}
 """
 
-        assert _run_suppression_push(monkeypatch, tmp_path, diff) == 1
-        err = capsys.readouterr().err
-        assert "security suppression comments detected" in err
-        assert "pkg/module.py:2" in err
+        assert _run_suppression_push(monkeypatch, tmp_path, diff) == 0
 
     def test_pre_existing_type_ignore_touched_elsewhere_is_allowed(self, tmp_path, monkeypatch):
         diff = """diff --git a/pkg/module.py b/pkg/module.py
@@ -259,7 +254,7 @@ class TestPushedSuppressionPolicy:
 
         assert _run_suppression_push(monkeypatch, tmp_path, diff) == 0
 
-    def test_added_file_with_type_ignore_is_blocked(self, tmp_path, monkeypatch, capsys):
+    def test_added_file_with_type_ignore_is_allowed(self, tmp_path, monkeypatch):
         suppression = "# type" ": ignore[assignment]"
         diff = f"""diff --git a/pkg/new.py b/pkg/new.py
 new file mode 100644
@@ -270,11 +265,10 @@ new file mode 100644
 +result = value  {suppression}
 """
 
-        assert _run_suppression_push(monkeypatch, tmp_path, diff, ("pkg/new.py",)) == 1
-        assert "pkg/new.py:2" in capsys.readouterr().err
+        assert _run_suppression_push(monkeypatch, tmp_path, diff, ("pkg/new.py",)) == 0
 
     def test_type_ignore_on_context_line_adjacent_to_edit_is_allowed(self, tmp_path, monkeypatch):
-        suppression = "# type" ": ignore[arg-type]"
+        suppression = "# no" "sec"
         diff = f"""diff --git a/pkg/module.py b/pkg/module.py
 --- a/pkg/module.py
 +++ b/pkg/module.py
@@ -382,7 +376,7 @@ new file mode 100644
         monkeypatch,
         capsys,
     ):
-        suppression = "# type" ": ignore[arg-type]"
+        suppression = "# no" "sec"
         diff = f"""diff --git a/source.py b/source.py
 new file mode 100644
 --- /dev/null
@@ -413,7 +407,7 @@ new file mode 100644
         monkeypatch,
         capsys,
     ):
-        suppression = "# type" ": ignore[arg-type]"
+        suppression = "# no" "sec"
         diff = f"""diff --git a/source.py b/source.py
 new file mode 100644
 --- /dev/null
@@ -562,7 +556,7 @@ new file mode 100644
         assert _run_real_suppression_push(repo, head) == 1
 
     def test_true_orphan_branch_scans_from_empty_tree(self, tmp_path, monkeypatch, capsys):
-        suppression = "# type" ": ignore[arg-type]"
+        suppression = "# no" "sec"
         diff = f"""diff --git a/source.py b/source.py
 new file mode 100644
 --- /dev/null
@@ -592,7 +586,7 @@ new file mode 100644
         monkeypatch,
         capsys,
     ):
-        suppression = "# type" ": ignore[arg-type]"
+        suppression = "# no" "sec"
         diff = f"""diff --git a/source.py b/source.py
 new file mode 100644
 --- /dev/null
@@ -715,16 +709,26 @@ class _GitStub:
         diff_output: str,
         *,
         returncode: int = 0,
+        paths: tuple[str, ...] = ("pkg/module.py",),
+        rename_status_output: str = "",
     ) -> None:
         self._diff_output = diff_output
         self._returncode = returncode
+        self._paths = paths
+        self._rename_status_output = rename_status_output
 
     def __call__(
         self, repo: Path, args: list[str]
     ) -> subprocess.CompletedProcess[str]:
         import subprocess as _sp  # noqa: PLC0415 (import inside function is intentional)
 
-        return _sp.CompletedProcess(args, self._returncode, self._diff_output, "")
+        if "--name-only" in args:
+            stdout = "\0".join((*self._paths, ""))
+        elif "--name-status" in args:
+            stdout = self._rename_status_output
+        else:
+            stdout = self._diff_output
+        return _sp.CompletedProcess(args, self._returncode, stdout, "")
 
 
 class TestStagedSuppressionPolicy:
@@ -735,11 +739,19 @@ class TestStagedSuppressionPolicy:
         diff_output: str,
         *,
         git_returncode: int = 0,
+        paths: tuple[str, ...] = ("pkg/module.py",),
+        rename_status_output: str = "",
     ) -> int:
+        monkeypatch.setattr(policy, "_staged_suppression_base", lambda root: "HEAD")
         monkeypatch.setattr(
             policy,
             "_run_git",
-            _GitStub(diff_output, returncode=git_returncode),
+            _GitStub(
+                diff_output,
+                returncode=git_returncode,
+                paths=paths,
+                rename_status_output=rename_status_output,
+            ),
         )
         return policy.check_staged_suppressions(repo_root)
 
@@ -782,6 +794,101 @@ class TestStagedSuppressionPolicy:
 +new_call()  {comment}
 """
         assert self._run_staged(monkeypatch, tmp_path, diff) == 0
+
+    def test_staged_suppression_in_unscanned_file_is_ignored(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        suppression = "# no" "sec"
+        diff = f"""diff --git a/docs/example.md b/docs/example.md
+--- a/docs/example.md
++++ b/docs/example.md
+@@ -0,0 +1 @@
++example  {suppression}
+"""
+        assert (
+            self._run_staged(
+                monkeypatch,
+                tmp_path,
+                diff,
+                paths=("docs/example.md",),
+            )
+            == 0
+        )
+
+    def test_staged_notebook_security_suppression_is_blocked(self, tmp_path, capsys):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _init_push_repo(repo)
+        path = repo / "notebooks" / "analysis.ipynb"
+        path.parent.mkdir()
+        _write_ruff_notebook(path, "import os  # no" "qa: S603\n")
+        _git(repo, "add", str(path.relative_to(repo)))
+
+        assert policy.check_staged_suppressions(repo) == 1
+        assert "notebooks/analysis.ipynb:1" in capsys.readouterr().err
+
+    def test_staged_pure_python_rename_is_allowed(self, tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _init_push_repo(repo)
+        path = repo / "old.py"
+        path.write_text("import subprocess  # no" "sec\n", encoding="utf-8")
+        _commit(repo, "add suppression")
+        _git(repo, "mv", "old.py", "new.py")
+
+        assert policy.check_staged_suppressions(repo) == 0
+
+    def test_staged_pure_notebook_rename_is_allowed(self, tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _init_push_repo(repo)
+        path = repo / "old.ipynb"
+        _write_ruff_notebook(path, "import os  # no" "qa: S603\n")
+        _commit(repo, "add notebook suppression")
+        _git(repo, "mv", "old.ipynb", "new.ipynb")
+
+        assert policy.check_staged_suppressions(repo) == 0
+
+    def test_merge_ignores_suppression_arriving_from_merge_head(self, tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _init_push_repo(repo)
+        _git(repo, "checkout", "main")
+        incoming = repo / "incoming.py"
+        incoming.write_text("import subprocess  # no" "sec\n", encoding="utf-8")
+        _commit(repo, "incoming suppression")
+
+        _git(repo, "checkout", "topic")
+        (repo / "local.py").write_text("local = True\n", encoding="utf-8")
+        _commit(repo, "local work")
+        merge = _run(["git", "merge", "--no-edit", "--no-commit", "main"], repo)
+        assert merge.returncode == 0, merge.stderr
+
+        assert policy.check_staged_suppressions(repo) == 0
+
+    def test_merge_blocks_suppression_authored_on_local_branch(
+        self,
+        tmp_path,
+        capsys,
+    ):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _init_push_repo(repo)
+        _git(repo, "checkout", "main")
+        (repo / "incoming.py").write_text("incoming = True\n", encoding="utf-8")
+        _commit(repo, "incoming work")
+
+        _git(repo, "checkout", "topic")
+        local = repo / "local.py"
+        local.write_text("import subprocess  # no" "sec\n", encoding="utf-8")
+        _commit(repo, "local suppression")
+        merge = _run(["git", "merge", "--no-edit", "--no-commit", "main"], repo)
+        assert merge.returncode == 0, merge.stderr
+
+        assert policy.check_staged_suppressions(repo) == 1
+        assert "local.py:1" in capsys.readouterr().err
 
 
 class TestAdrReviewPolicyMergeScope:

@@ -49,13 +49,15 @@ import re
 import statistics
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
 from _anthropic_api import DEFAULT_MODEL, verify_model_available
 from _anthropic_api import call_api as _call_api
-from _anthropic_api import load_api_key as _load_api_key
+from _anthropic_api import (
+    load_api_key_for_selected_provider as _load_api_key,
+)
 from _eval_common import EST_TOKENS_PER_CALL
 
 # ---------------------------------------------------------------------------
@@ -259,6 +261,86 @@ def _build_routed_reference_prompt(
 # ---------------------------------------------------------------------------
 
 
+def _scan_balanced_object(text: str, start: int) -> int | None:
+    """Return the index just past the object opening at ``start``, or ``None``.
+
+    String contents are skipped so that braces or escaped quotes inside a value
+    cannot terminate the scan early.
+    """
+    depth = 0
+    in_string = False
+    escaped = False
+    for index in range(start, len(text)):
+        char = text[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return index + 1
+    return None
+
+
+def _iter_json_objects(text: str) -> Iterator[str]:
+    """Yield every balanced top-level JSON object in ``text``, left to right.
+
+    Advancing past a completed object rather than past its opening brace keeps
+    nested objects out of the stream, so callers see candidates rather than
+    every sub-object of the first one.
+    """
+    start = text.find("{")
+    while start != -1:
+        end = _scan_balanced_object(text, start)
+        if end is None:
+            start = text.find("{", start + 1)
+            continue
+        yield text[start:end]
+        start = text.find("{", end)
+
+
+def _extract_json_object(text: str) -> str | None:
+    """Return the embedded JSON object that is most likely the judge's verdict.
+
+    The judge is told to answer with JSON only, and the Anthropic path obeys.
+    Agentic CLI providers do not: they interleave tool-call traces and stray
+    prose into stdout around the answer, so a whole-string ``json.loads`` fails
+    on output that plainly contains a valid object. Scanning for a balanced
+    object recovers it without loosening the contract for providers that
+    already comply, because callers only reach this after a strict parse fails.
+
+    Taking the *first* balanced object is wrong for exactly the providers this
+    exists to serve: a tool-call trace emits its own JSON before the answer, so
+    the first object is the trace and the real verdict is never tried. Every
+    candidate is therefore checked against the same shape validator the caller
+    uses, and the first one carrying a judge verdict wins. When none does, the
+    first parseable object is returned so the caller still reports a shape
+    error against real content rather than a bare parse failure.
+
+    Returns ``None`` when no balanced object parses.
+    """
+    fallback: str | None = None
+    for candidate in _iter_json_objects(text):
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if fallback is None:
+            fallback = candidate
+        if isinstance(parsed, dict) and _judge_score_shape_error(parsed) is None:
+            return candidate
+    return fallback
+
+
 def score_response(
     api_key: str,
     scenario: dict[str, Any],
@@ -336,30 +418,18 @@ Respond in JSON only, no other text:
     try:
         parsed = json.loads(text)
     except json.JSONDecodeError:
-        return {
-            "activation_score": 0,
-            "citation_score": 0,
-            "behavior_score": 0,
-            "reasoning": f"judge parse error: {text[:200]}",
-            "judge_failed": True,
-        }
+        embedded = _extract_json_object(text)
+        if embedded is None:
+            return _judge_parse_failure(text, f"judge parse error: {text[:200]}")
+        try:
+            parsed = json.loads(embedded)
+        except json.JSONDecodeError:
+            return _judge_parse_failure(text, f"judge parse error: {text[:200]}")
     if not isinstance(parsed, dict):
-        return {
-            "activation_score": 0,
-            "citation_score": 0,
-            "behavior_score": 0,
-            "reasoning": f"judge returned non-object JSON: {text[:200]}",
-            "judge_failed": True,
-        }
+        return _failed_judge(f"judge returned non-object JSON: {text[:200]}")
     score_error = _judge_score_shape_error(parsed)
     if score_error is not None:
-        return {
-            "activation_score": 0,
-            "citation_score": 0,
-            "behavior_score": 0,
-            "reasoning": score_error,
-            "judge_failed": True,
-        }
+        return _judge_parse_failure(text, score_error)
     result = {
         "activation_score": _clamp_score(parsed["activation_score"]),
         "citation_score": _clamp_score(parsed["citation_score"]),
@@ -375,7 +445,7 @@ Respond in JSON only, no other text:
 
 def _clamp_score(value: object) -> int:
     """Return an exact judge score, or 0 after shape validation fails."""
-    if isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= 5:
+    if isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 5:
         return value
     return 0
 
@@ -384,23 +454,97 @@ def _reduce_score_samples(
     samples: list[dict[str, Any]],
     reducer_name: str,
 ) -> dict[str, Any]:
+    """Reduce judge samples, ignoring the ones that failed to parse.
+
+    A failed sample carries no score, so folding it in as a zero would drag
+    the cell toward zero and invert rankings between mechanisms that happened
+    to fail at different rates. Reduce over the graded samples only and report
+    how many were graded. `judge_failed` still flips when any sample failed,
+    so the caller keeps failing loudly; it just no longer reads a fabricated
+    zero as if the judge had scored it.
+    """
     reducer = _SCORE_REDUCERS[reducer_name]
-    if any(sample.get("judge_failed") for sample in samples):
+    graded = [s for s in samples if not s.get("judge_failed")]
+    failed_count = len(samples) - len(graded)
+    if not graded:
         return {
-            "activation_score": 0,
-            "citation_score": 0,
-            "behavior_score": 0,
+            "activation_score": None,
+            "citation_score": None,
+            "behavior_score": None,
             "judge_failed": True,
+            "graded": False,
             "score_reducer": reducer_name,
             "sample_count": len(samples),
+            "graded_sample_count": 0,
+            "failed_sample_count": failed_count,
         }
     reduced: dict[str, Any] = {
-        key: reducer([float(sample[key]) for sample in samples]) for key in _SCORE_KEYS
+        key: reducer([float(sample[key]) for sample in graded]) for key in _SCORE_KEYS
     }
-    reduced["judge_failed"] = False
+    reduced["judge_failed"] = failed_count > 0
+    reduced["graded"] = True
     reduced["score_reducer"] = reducer_name
     reduced["sample_count"] = len(samples)
+    reduced["graded_sample_count"] = len(graded)
+    reduced["failed_sample_count"] = failed_count
     return reduced
+
+_SCORE_FIELD_RE = {
+    field: re.compile(rf'"{field}"\s*:\s*([1-5])(?=\s*[,}}])')
+    for field in ("activation_score", "citation_score", "behavior_score")
+}
+
+
+def _salvage_scores(text: str) -> dict[str, int] | None:
+    """Recover the three numeric scores from judge output that will not parse.
+
+    The eval scores on three numbers. ``reasoning`` is diagnostic only, yet it
+    is the field that breaks the parse: judges routinely quote the response
+    they are grading, and an unescaped quote inside that prose invalidates the
+    whole object. Discarding the cell then throws away scores the judge stated
+    plainly, and it does so more often for verbose models, which biases the
+    comparison the eval exists to make.
+
+    Only the leading numeric fields are read, so a salvage cannot invent a
+    score the judge did not give. Returns ``None`` unless all three are found.
+    """
+    for candidate in _iter_json_objects(text):
+        window = candidate.partition('"reasoning"')[0]
+        salvaged: dict[str, int] = {}
+        for field, pattern in _SCORE_FIELD_RE.items():
+            matches = pattern.findall(window)
+            if len(matches) != 1:
+                break
+            salvaged[field] = int(matches[0])
+        if len(salvaged) == len(_SCORE_FIELD_RE):
+            return salvaged
+    return None
+
+
+def _judge_parse_failure(text: str, reason: str) -> dict[str, Any]:
+    """Build a failed-judge record, salvaging scores when they are recoverable."""
+    salvaged = _salvage_scores(text)
+    if salvaged is not None:
+        return {
+            "activation_score": _clamp_score(salvaged["activation_score"]),
+            "citation_score": _clamp_score(salvaged["citation_score"]),
+            "behavior_score": _clamp_score(salvaged["behavior_score"]),
+            "reasoning": f"scores salvaged from unparseable judge output: {reason}",
+            "judge_failed": False,
+            "judge_salvaged": True,
+        }
+    return _failed_judge(reason)
+
+
+def _failed_judge(reason: str) -> dict[str, Any]:
+    return {
+        "activation_score": 0,
+        "citation_score": 0,
+        "behavior_score": 0,
+        "reasoning": reason,
+        "judge_failed": True,
+    }
+
 
 def _judge_score_shape_error(parsed: dict[str, Any]) -> str | None:
     required_fields = ("activation_score", "citation_score", "behavior_score")
@@ -414,7 +558,7 @@ def _judge_score_shape_error(parsed: dict[str, Any]) -> str | None:
                 f"judge returned non-integral {field}: "
                 f"{type(value).__name__}"
             )
-        if not 0 <= value <= 5:
+        if not 1 <= value <= 5:
             return f"judge returned out-of-range {field}: {value!r}"
     return None
 
@@ -548,39 +692,41 @@ def eval_one_scenario(
     return result
 
 
-def _scenario_score_triple(scenario: dict[str, Any], mech: str) -> tuple[float, bool]:
+def _scenario_score_triple(scenario: dict[str, Any], mech: str) -> tuple[float | None, bool]:
     """Return (mean_score, judge_failed) for one scenario at one mechanism.
 
-    Every scenario contributes to the average, including failed evaluations.
-    A failed judge or API call yields mean=0 and judge_failed=True so callers
-    can surface failures rather than silently filtering them.
+    Returns `None` for the score when the cell was never graded (every judge
+    sample failed, or the API call errored). `None` means "no measurement",
+    which is different from a measured zero; callers must exclude it from the
+    average instead of averaging in a number the judge never produced.
     """
     mech_data = scenario["mechanisms"].get(mech, {})
     sc = mech_data.get("scores", {})
-    triple = [
-        sc.get("activation_score", 0),
-        sc.get("citation_score", 0),
-        sc.get("behavior_score", 0),
-    ]
     failed = bool(sc.get("judge_failed")) or "error" in mech_data
+    ungraded = "error" in mech_data or sc.get("graded") is False
+    if ungraded or any(sc.get(key) is None for key in _SCORE_KEYS):
+        return None, failed
+    triple = [sc.get(key, 0) for key in _SCORE_KEYS]
     return sum(triple) / 3, failed
 
 
 def _mechanism_summary(
     pool: list[dict[str, Any]], mech: str
 ) -> dict[str, Any]:
-    """Compute avg_score across every scenario for one mechanism."""
+    """Compute avg_score over the graded scenarios for one mechanism."""
     scores: list[float] = []
     failures = 0
     for s in pool:
         score, failed = _scenario_score_triple(s, mech)
-        scores.append(score)
+        if score is not None:
+            scores.append(score)
         if failed:
             failures += 1
     avg = round(sum(scores) / len(scores), 2) if scores else 0.0
     return {
         "avg_score": avg,
-        "scenario_count": len(scores),
+        "scenario_count": len(pool),
+        "graded_count": len(scores),
         "judge_failures": failures,
     }
 
@@ -588,10 +734,15 @@ def _mechanism_summary(
 def aggregate(scenarios: list[dict[str, Any]]) -> dict[str, Any]:
     """Aggregate per-mechanism averages across scenarios.
 
-    Counts every scenario in the average. Failed evaluations contribute their
-    zero scores rather than being filtered, preventing false PASS verdicts when
-    the judge or API breaks. The summary exposes per-mechanism judge_failures
-    so the caller can fail loudly when failures are non-zero.
+    Averages only the scenarios the judge actually graded. Ungraded cells are
+    excluded rather than counted as zero: a zero is a measurement, and folding
+    a non-measurement in as one biases the mean toward whichever mechanism
+    happened to fail more often, which can invert the ranking outright.
+
+    This does not soften the failure signal. `judge_failures` still counts
+    every failure and any non-zero count still forces the FAIL_JUDGE_ERRORS
+    verdict below, so a broken judge can never yield a PASS. `graded_count`
+    exposes how many scenarios each average actually rests on.
     """
     summary: dict[str, Any] = {"per_mechanism": {}, "negative_case_per_mechanism": {}}
     pos_scenarios = [s for s in scenarios if not s["negative_case"]]
@@ -655,18 +806,25 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
         f"Verdict: {summary['verdict']}",
         f"Best mechanism: {summary['best_mechanism']} (avg {summary['best_avg_score']})",
         "",
-        "| Mechanism    | Pos avg | Neg avg | Δ vs baseline |",
-        "|--------------|---------|---------|---------------|",
+        "| Mechanism    | Pos avg | Neg avg | Δ vs baseline | Graded |",
+        "|--------------|---------|---------|---------------|--------|",
     ]
     for mech in MECHANISMS:
         pos = summary["per_mechanism"][mech]["avg_score"]
         neg = summary["negative_case_per_mechanism"][mech]["avg_score"]
+        pos_stats = summary["per_mechanism"][mech]
+        graded = (
+            f"{pos_stats.get('graded_count', pos_stats['scenario_count'])}"
+            f"/{pos_stats['scenario_count']}"
+        )
         if mech == "baseline":
             delta = ""
         else:
             delta_val = round(pos - summary["baseline_avg"], 2)
             delta = f"{delta_val:+}"
-        rows.append(f"| {mech:<12} | {pos:>7} | {neg:>7} | {delta:>13} |")
+        rows.append(
+            f"| {mech:<12} | {pos:>7} | {neg:>7} | {delta:>13} | {graded:>6} |"
+        )
     return "\n".join(rows)
 
 

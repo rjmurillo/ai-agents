@@ -139,8 +139,8 @@ def test_canonical_axes_pass_schema_in_vendored_copy(vendored_root: Path) -> Non
     """Schema validation passes against the vendored copy of the axes."""
     sys.path.insert(0, str(REPO_ROOT))
     try:
-        from tests.lib.conftest import validate_axis_schema
-        from tests.lib.test_axis_schema import CANONICAL_ROLES
+        from tests.lib.conftest import validate_axis_schema  # noqa: PLC0415
+        from tests.lib.test_axis_schema import CANONICAL_ROLES  # noqa: PLC0415
     finally:
         sys.path.remove(str(REPO_ROOT))
 

@@ -66,7 +66,7 @@ _original_sys_path = sys.path.copy()
 try:
     if _build_scripts_dir not in sys.path:
         sys.path.insert(0, _build_scripts_dir)
-    import copilot_body_translation
+    import copilot_body_translation  # noqa: PLC0415
 finally:
     sys.path[:] = _original_sys_path
 

@@ -342,7 +342,7 @@ def call_router(api_key: str, prompt: str) -> str:
                 temperature=0,
             ),
         )
-    except Exception as exc:  # normalize all transport errors to one type
+    except Exception as exc:  # noqa: BLE001 - normalize all transport errors to one type
         raise RuntimeError(f"Anthropic API call failed: {exc}") from exc
 
 

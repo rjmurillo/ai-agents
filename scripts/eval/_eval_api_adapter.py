@@ -80,21 +80,29 @@ class APICallResult:
 # request loop.
 _HTTP_STATUS_RE = re.compile(r"HTTP (\d{3})")
 _TIMEOUT_HINT = "timed out"
+# Subprocess-backed providers have no HTTP status to report. They surface a
+# rate limit as text on stderr, which the provider copies into the message.
+_RATE_LIMIT_HINT = "rate limit"
 
 
 def _categorize_error(exc: Exception) -> str:
-    """Translate a `_anthropic_api.call_api` RuntimeError into an error_category.
+    """Translate a provider RuntimeError into an error_category.
 
-    The underlying API helper raises `RuntimeError` with one of three
-    well-known message shapes (see `_anthropic_api.py`): HTTP error,
-    timeout, or other URLError. Anything else falls through to `unknown`.
+    `_anthropic_api.call_api` raises one of three well-known message shapes
+    (see `_anthropic_api.py`): HTTP error, timeout, or other URLError.
+    Subprocess-backed providers have no HTTP status at all, so their failures
+    are read from text instead. Anything unrecognized falls back to the
+    transient default, which retries rather than discarding a sample.
     """
     message = str(exc)
     if _TIMEOUT_HINT in message:
         return ERR_TIMEOUT
     match = _HTTP_STATUS_RE.search(message)
     if match is None:
-        # No HTTP status code → treat as transient network issue.
+        # No HTTP status. Check the text signals a subprocess provider can
+        # give, then treat the rest as a transient network issue.
+        if _RATE_LIMIT_HINT in message.lower():
+            return ERR_RATE_LIMIT
         return ERR_SERVER_ERROR
     code = int(match.group(1))
     if code in (401, 403):
@@ -267,7 +275,7 @@ class AnthropicAPIAdapter:
         resolve_start = self._clock()
         try:
             transport = self._resolve_transport()
-        except Exception as exc:  # categorize-then-decide
+        except Exception as exc:  # noqa: BLE001 - categorize-then-decide
             latency_ms = (self._clock() - resolve_start) * 1000.0
             # Best-effort categorization: today the only resolve-time
             # raise is `load_api_key()` raising RuntimeError when no key

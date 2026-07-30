@@ -1353,11 +1353,16 @@ class TestHistoricalLogsAreExemptByConstruction:
         assert self._invoked_paths([]) == []
 
     def test_workflow_validates_one_file_per_invocation(self) -> None:
-        workflow = (
-            Path(__file__).resolve().parents[1] / ".github/workflows/ai-session-protocol.yml"
+        """One log per invocation, never a glob (ADR-006: logic lives in the script).
+
+        A glob would hand the validator all 131 historical logs at once and
+        fail the job on files no one in this PR touched.
+        """
+        script = (
+            Path(__file__).resolve().parents[1] / "scripts/ci/validate_session_protocol.py"
         ).read_text(encoding="utf-8")
-        assert "validate_session_json.py $sessionFile" in workflow
-        assert "validate_session_json.py .agents/sessions/*" not in workflow
+        assert "./scripts/validate_session_json.py" in script
+        assert ".agents/sessions/*" not in script
 
 
 class TestMainNarrowsOnThePayload:
@@ -1940,8 +1945,17 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         return _git, seen
 
     def test_the_workflow_derives_the_scope_from_git_in_one_call(self) -> None:
-        workflow = Path(__file__).resolve().parents[1] / ".github/workflows/ai-session-protocol.yml"
-        assert "--scope-from-git" in workflow.read_text(encoding="utf-8")
+        """The validate step must keep passing --scope-from-git.
+
+        The flag moved into scripts/ci/validate_session_protocol.py with the
+        rest of the step's logic (ADR-006, issue #3520), so that is where the
+        guard has to look. Dropping it would re-validate logs already in the
+        merge base.
+        """
+        script = (
+            Path(__file__).resolve().parents[1] / "scripts/ci/validate_session_protocol.py"
+        ).read_text(encoding="utf-8")
+        assert "--scope-from-git" in script
 
     def test_the_workflow_does_not_shell_out_to_uv(self) -> None:
         """The validate job installs no dependencies; uv is not on PATH there."""

@@ -46,7 +46,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
     try:
-        import generate_agent_catalog
+        import generate_agent_catalog  # noqa: PLC0415
     except ImportError as exc:
         print(f"Error: cannot import build/generate_agent_catalog.py: {exc}", file=sys.stderr)
         return 2

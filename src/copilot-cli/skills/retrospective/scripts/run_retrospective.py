@@ -415,7 +415,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         evidence = gather_evidence(project_dir, args.scope, args.since)
-    except Exception as exc:  # boundary: report and exit cleanly
+    except Exception as exc:  # noqa: BLE001 - boundary: report and exit cleanly
         print(f"ERROR: evidence gather failed: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 3
 
