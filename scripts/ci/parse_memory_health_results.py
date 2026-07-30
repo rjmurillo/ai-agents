@@ -55,7 +55,12 @@ def parse_results(results: Path) -> list[tuple[str, str]]:
     if not results.is_file():
         return [("has_stale", "false"), ("total", "0")]
 
-    summary = json.loads(results.read_text(encoding="utf-8")).get("summary") or {}
+    payload = json.loads(results.read_text(encoding="utf-8"))
+    summary = payload.get("summary") if isinstance(payload, dict) else None
+    if not isinstance(summary, dict):
+        # jq emitted null for non-object shapes instead of crashing; a report
+        # whose summary is an array or scalar reads as absent, not fatal.
+        summary = {}
     pairs = [(field, _render(summary.get(field))) for field in _SUMMARY_FIELDS]
     pairs.append(("has_stale", "true" if _is_stale(summary.get("stale")) else "false"))
     return pairs

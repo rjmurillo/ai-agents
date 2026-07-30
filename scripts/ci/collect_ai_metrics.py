@@ -17,7 +17,7 @@ import argparse
 import os
 import subprocess
 import sys
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 _CSV_FALLBACK = "No CSV data available"
@@ -83,7 +83,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"::error::--weeks must be at least 1, got {weeks}")
         return 1
 
-    end_at = datetime.now(UTC).date()
+    end_at = datetime.now(timezone.utc).date()
     start_at = end_at - timedelta(weeks=weeks)
     end, start = end_at.isoformat(), start_at.isoformat()
     print(f"Collecting metrics from {start} to {end}")

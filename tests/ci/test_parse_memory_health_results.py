@@ -123,6 +123,18 @@ class TestStaleFlag:
         assert parser.main(["--results", str(path)]) == 0
         assert _parsed(out)["total"] == "null"
 
+    @pytest.mark.parametrize("payload", [[], "x", 1, {"summary": []}, {"summary": "x"}])
+    def test_a_non_object_shape_reads_as_absent(
+        self, tmp_path: Path, monkeypatch, payload
+    ) -> None:
+        """Edge: jq emitted null for non-object shapes instead of crashing."""
+        out = _outputs(tmp_path, monkeypatch)
+        path = tmp_path / "health-report.json"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        assert parser.main(["--results", str(path)]) == 0
+        assert _parsed(out)["total"] == "null"
+        assert _parsed(out)["has_stale"] == "false"
+
 
 class TestFailureModes:
     """Only an unreadable report is an error."""
