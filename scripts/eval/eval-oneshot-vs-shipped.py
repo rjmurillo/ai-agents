@@ -46,7 +46,7 @@ from _oneshot_bench_core import (  # noqa: E402
 def _load_api_key_for_selected_provider(*args: object) -> str:
     from _anthropic_api import load_api_key_for_selected_provider
 
-    return load_api_key_for_selected_provider(*args)
+    return str(load_api_key_for_selected_provider(*args))
 
 
 def _api_error_verdict(reason: str) -> JudgeVerdict:
