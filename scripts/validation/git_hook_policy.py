@@ -38,6 +38,7 @@ from scripts.validation.object_id import ZERO_SHA_LENGTHS, is_full_object_id
 from scripts.validation.pr_commit_count import (
     BLOCK_THRESHOLD,
     MAIN_MERGE_BLOCK_THRESHOLD,
+    main_first_parent_shas,
 )
 from scripts.validation.session_scope import new_session_logs
 from scripts.validation.sha_pinning import LOCAL_ACTION_PATTERN, VERSION_TAG_PATTERN
@@ -193,9 +194,31 @@ SHELL_ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\[[^]]*\])?\+?=")
 # command and the spliced word merely its argument.
 SHELL_RESERVED_WORDS = frozenset(
     {
-        "!", "(", ")", "{", "}", "&&", "||", "|", ";", "&",
-        "case", "do", "done", "elif", "else", "esac", "fi", "for", "if",
-        "in", "select", "then", "time", "until", "while",
+        "!",
+        "(",
+        ")",
+        "{",
+        "}",
+        "&&",
+        "||",
+        "|",
+        ";",
+        "&",
+        "case",
+        "do",
+        "done",
+        "elif",
+        "else",
+        "esac",
+        "fi",
+        "for",
+        "if",
+        "in",
+        "select",
+        "then",
+        "time",
+        "until",
+        "while",
     },
 )
 # Words that open and close a compound command. A compound opened inside a
@@ -208,12 +231,46 @@ SHELL_COMPOUND_CLOSERS = frozenset({"done", "esac", "fi", "}"})
 # from code.
 SHELL_SINK_COMMANDS = frozenset(
     {
-        ".", "ash", "awk", "bash", "builtin", "busybox", "chroot", "command",
-        "coproc", "dash", "doas", "env", "eval", "exec", "flock", "gawk",
-        "ionice", "ksh", "mawk", "nice", "nohup", "parallel", "rbash",
-        "runuser", "script", "setsid", "sh", "source", "ssh", "stdbuf", "su",
-        "sudo", "taskset", "time", "timeout", "trap", "unbuffer", "watch",
-        "xargs", "zsh",
+        ".",
+        "ash",
+        "awk",
+        "bash",
+        "builtin",
+        "busybox",
+        "chroot",
+        "command",
+        "coproc",
+        "dash",
+        "doas",
+        "env",
+        "eval",
+        "exec",
+        "flock",
+        "gawk",
+        "ionice",
+        "ksh",
+        "mawk",
+        "nice",
+        "nohup",
+        "parallel",
+        "rbash",
+        "runuser",
+        "script",
+        "setsid",
+        "sh",
+        "source",
+        "ssh",
+        "stdbuf",
+        "su",
+        "sudo",
+        "taskset",
+        "time",
+        "timeout",
+        "trap",
+        "unbuffer",
+        "watch",
+        "xargs",
+        "zsh",
     },
 )
 # Interpreters that run a script file by default and only become sinks when an
@@ -276,8 +333,7 @@ def _ruff_scan_suffixes() -> frozenset[str]:
         if not isinstance(node, ast.Assign):
             continue
         has_scan_globs_assignment = any(
-            isinstance(target, ast.Name) and target.id == "_SCAN_GLOBS"
-            for target in node.targets
+            isinstance(target, ast.Name) and target.id == "_SCAN_GLOBS" for target in node.targets
         )
         if not has_scan_globs_assignment:
             continue
@@ -1948,7 +2004,6 @@ DIFF_ADDED_FILE_RE = re.compile(r"^\+\+\+ (?:b/)?(?P<path>.+)$")
 DIFF_HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(?P<start>\d+)(?:,(?P<count>\d+))? @@")
 
 
-
 def _normalize_ratchet_path(path: str) -> str:
     # mypy on Windows can echo OS-native backslash separators, while git diff
     # names and command-line inputs are forward-slash; normalize so the pushed
@@ -2534,8 +2589,7 @@ def _posix_shell_invocations(body: str) -> list[str]:
             previous = word
             continue
         executes = (
-            at_command
-            or previous.strip("'\"").rstrip(":").lower() in POWERSHELL_EXEC_PARAMETERS
+            at_command or previous.strip("'\"").rstrip(":").lower() in POWERSHELL_EXEC_PARAMETERS
         )
         if executes and _is_posix_shell_name(word):
             invocations.append(word)
@@ -3048,9 +3102,7 @@ def _is_non_bash_shell(shell: str | None) -> bool:
     if not tokens or tokens[0] not in NON_BASH_INTERPRETERS:
         return False
     interpreter = tokens[0]
-    return all(
-        _is_reviewed_shell_argument(token, interpreter) for token in tokens[1:]
-    )
+    return all(_is_reviewed_shell_argument(token, interpreter) for token in tokens[1:])
 
 
 WINDOWS_BASH_FALLBACKS = (
@@ -3409,10 +3461,7 @@ def _shell_code_flags(word: str) -> set[str]:
     return {
         flag
         for flag in SHELL_CODE_FLAGS
-        if len(flag) == 2
-        and flag.startswith("-")
-        and word.startswith(flag)
-        and word[len(flag) :]
+        if len(flag) == 2 and flag.startswith("-") and word.startswith(flag) and word[len(flag) :]
     }
 
 
@@ -3462,9 +3511,7 @@ def _record_positional_arguments(scan: _ShellScan, written: dict[str, set[int]])
                 written.setdefault(name, set()).add(pipeline)
 
 
-def _promote_staged_files(
-    scan: _ShellScan, sinks: set[int], written: dict[str, set[int]]
-) -> None:
+def _promote_staged_files(scan: _ShellScan, sinks: set[int], written: dict[str, set[int]]) -> None:
     """Fold a pipeline that stages a file a sink later executes into that sink.
 
     ``echo payload > /tmp/f & sh /tmp/f`` moves the payload through the
@@ -3605,8 +3652,7 @@ def _splices_expression_into_command_word(run: str) -> bool:
     if not tainted:
         return False
     return any(
-        is_command and _leading_variable_reference(word) in tainted
-        for word, is_command, _ in words
+        is_command and _leading_variable_reference(word) in tainted for word, is_command, _ in words
     )
 
 
@@ -3652,6 +3698,7 @@ def _blob_id_at(repo_root: Path, commit: str, path: str) -> str | None:
         return None
     return result.stdout.strip() or None
 
+
 def _decoded_frontmatter(raw: bytes) -> str | None:
     """Decode frontmatter strictly, or report that it cannot be reasoned about.
 
@@ -3665,6 +3712,7 @@ def _decoded_frontmatter(raw: bytes) -> str | None:
         return raw.decode("utf-8")
     except UnicodeDecodeError:
         return None
+
 
 def _followed_blob_ids(repo_root: Path, path: str, diff_merges: str) -> set[str]:
     """Blob ids from one `--follow` traversal of `path` on `origin/main`.
@@ -3763,6 +3811,7 @@ def _followed_blob_ids(repo_root: Path, path: str, diff_merges: str) -> set[str]
     # the repository's hash.
     return {blob_id for blob_id in blob_ids if not _is_zero_sha(blob_id)}
 
+
 def _frontmatter_pair_for_a_body_unchanged_edit(
     path: str,
     repo_root: Path,
@@ -3788,6 +3837,7 @@ def _frontmatter_pair_for_a_body_unchanged_edit(
         return None
     return old_text, new_text
 
+
 def _governed_document_identity(path: str) -> str | None:
     """Which record `path` holds, or None if this gate does not govern it.
 
@@ -3810,6 +3860,7 @@ def _governed_document_identity(path: str) -> str | None:
         return "SESSION-PROTOCOL"
     return None
 
+
 def _normalized_record_number(identifier: str) -> str:
     """One record's number, written the one way, so a repad is not a new record.
 
@@ -3828,11 +3879,13 @@ def _normalized_record_number(identifier: str) -> str:
     prefix, _, number = identifier.upper().partition("-")
     return f"{prefix}-{number.lstrip('0') or '0'}"
 
+
 def _is_scanned_suppression_rename(source: str, destination: str) -> bool:
     return (
         Path(source).suffix.lower() in SECURITY_SUPPRESSION_SUFFIXES
         and Path(destination).suffix.lower() in SECURITY_SUPPRESSION_SUFFIXES
     )
+
 
 def _parse_pure_scanned_rename_destinations(output: str) -> set[str] | None:
     records = [record for record in output.split("\0") if record]
@@ -3852,6 +3905,7 @@ def _parse_pure_scanned_rename_destinations(output: str) -> set[str] | None:
             destinations.add(destination)
         index += 3
     return destinations
+
 
 def _pure_scanned_rename_destinations(
     update: PushUpdate,
@@ -3874,8 +3928,8 @@ def _pure_scanned_rename_destinations(
         return None
     return _parse_pure_scanned_rename_destinations(result.stdout)
 
-PATH_SEPARATOR_RE = re.compile(r"[\\/]")
 
+PATH_SEPARATOR_RE = re.compile(r"[\\/]")
 
 
 def _step_defeats_bash_subparse(shell: str | None, run: str) -> bool:
@@ -4291,23 +4345,12 @@ def _contains_main_merge(update: PushUpdate, repo_root: Path) -> bool:
         return False
     # Every merge is read against the same trunk, and a push may carry many.
     # Reading it here keeps the walk once per push rather than once per merge.
-    trunk = _main_trunk_commits(repo_root)
+    # main_first_parent_shas is the shared implementation; contains_main_merge
+    # in pr_commit_count uses it too so both gates use the same predicate. This
+    # module's _run_git goes with it so a hook keeps the scrubbed git env and
+    # the timeout it applies to every other git call it makes.
+    trunk = main_first_parent_shas(repo_root, run_git=_run_git)
     return any(_merge_has_main_parent(merge_sha, repo_root, trunk) for merge_sha in merges)
-
-
-def _main_trunk_commits(repo_root: Path) -> frozenset[str]:
-    """Read the commits `origin/main` reaches by first parent alone.
-
-    A branch main has landed is an ancestor of main, but it is not one of
-    these. It sits on the second parent of the merge that landed it. Merging
-    such a branch brings in no history main had not already handed out, so
-    asking only whether main can reach a parent answers a wider question than
-    the raised limit is for.
-    """
-    result = _run_git(repo_root, ["rev-list", "--first-parent", "origin/main"])
-    if result.returncode != 0:
-        return frozenset()
-    return frozenset(result.stdout.split())
 
 
 def _merge_has_main_parent(
@@ -4329,7 +4372,7 @@ def _merge_has_main_parent(
         return False
     parents = result.stdout.split()[1:]
     if trunk is None:
-        trunk = _main_trunk_commits(repo_root)
+        trunk = main_first_parent_shas(repo_root, run_git=_run_git)
     return any(parent in trunk for parent in parents)
 
 
@@ -4369,9 +4412,7 @@ def _check_commit_limit(update: PushUpdate, repo_root: Path) -> int:
     except ValueError:
         return 2
     limit = (
-        MAIN_MERGE_BLOCK_THRESHOLD
-        if _contains_main_merge(update, repo_root)
-        else BLOCK_THRESHOLD
+        MAIN_MERGE_BLOCK_THRESHOLD if _contains_main_merge(update, repo_root) else BLOCK_THRESHOLD
     )
     if commit_count <= limit:
         return 0
