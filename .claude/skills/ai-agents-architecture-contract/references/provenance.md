@@ -19,7 +19,7 @@ Verified 2026-07-03 against the working tree. Volatile facts are date-stamped in
 | Dispatcher modes and current inventory | generated manifests; ADR-068 | `find src/copilot-cli/hooks -name _manifest.json -print -exec cat {} \;` |
 | Skill vs subagent latency 5-20ms vs 100-200ms | `.agents/architecture/ADR-030-skills-pattern-superiority.md:31` | `grep -n "100-200ms" .agents/architecture/ADR-030*.md` |
 | Memory sync direction | `scripts/memory_sync/sync_engine.py` module docstring | `head -8 scripts/memory_sync/sync_engine.py` |
-| Explicit correction and topical-memory retrieval | `memory` and `memory-search` skills; retained hook files are unregistered | `uv run pytest -q tests/build_scripts/test_copilot_dispatcher_artifact.py::test_only_advisory_pretooluse_registrations_are_absent` |
+| Explicit correction and topical-memory retrieval | `memory` and `memory-search` skills; retained hook files are unregistered | `uv run pytest -q "tests/build_scripts/test_copilot_dispatcher_artifact.py::TestDispatcherArtifacts::test_retired_hooks_are_absent_and_keepers_are_plugin_only"` |
 | Plugin names/versions, marketplaces, npm CLI | the three `.claude-plugin/plugin.json` files, `.claude-plugin/marketplace.json`, `.github/plugin/marketplace.json`, `packages/ai-agents-cli/package.json` | `find . -name plugin.json -not -path "*/node_modules/*"` then read each |
 | Stale CONTRIBUTING pwsh commands | `CONTRIBUTING.md:155`; no repo `.ps1` files | `grep -n "pwsh" CONTRIBUTING.md; find . -name "*.ps1" -not -path "./.venv/*"` |
 | ruff advisory | `.github/workflows/pytest.yml` (comments near lines 107-119, issue #2194) | `grep -n -i "ruff" .github/workflows/pytest.yml` |

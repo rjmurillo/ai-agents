@@ -50,7 +50,7 @@ issue, or write-up. All commands run from the repo root.
 | 12 rule scenario fixtures as of 2026-07-30 | `ls tests/evals/rule-scenarios/` |
 | Corpus size (98 skills, 25 rules, 121 retros, 158 memories as of 2026-07-30) | `ls -d .claude/skills/*/ \| wc -l; ls .claude/rules/*.md \| wc -l; ls .agents/retrospective/ \| wc -l; ls .serena/memories/ \| wc -l` |
 | Runtime contract tests pass | `uv run pytest tests/build_scripts/test_generate_hooks_runtime_contract.py -q` |
-| Apply-step hooks unregistered | `uv run pytest -q tests/build_scripts/test_copilot_dispatcher_artifact.py::test_only_advisory_pretooluse_registrations_are_absent` |
+| Apply-step hooks unregistered | `uv run pytest -q "tests/build_scripts/test_copilot_dispatcher_artifact.py::TestDispatcherArtifacts::test_retired_hooks_are_absent_and_keepers_are_plugin_only"` |
 
 ### Phase 2: Pick a program
 
