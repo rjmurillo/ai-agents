@@ -4422,7 +4422,7 @@ def test_push_policy_blocks_resolved_uncommitted_merge(
     _git(repo, "checkout", "-q", "feature/test")
     _commit_file(repo, "tracked.txt", "feature\n")
     _git(repo, "merge", "other", check=False)
-    (repo / "tracked.txt").write_text("resolved\n", encoding="utf-8")
+    _write_file(repo, "tracked.txt", "resolved\n")
     _git(repo, "add", "tracked.txt")
 
     result = policy.check_push_refs(io.StringIO(), repo)
