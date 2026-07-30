@@ -117,6 +117,11 @@ _ENCODING = "encoding"
 # The builtin that fetches an attribute by name. It reaches a partial's
 # keyword mapping exactly as the attribute does.
 _GETATTR = "getattr"
+# The dunders an attribute read delegates to. Spelling either one out by hand
+# reaches the same value the sugar does, so a scan reading only the sugar is
+# one rename away from missing the fetch. ``__getattr__`` is the fallback a
+# partial subclass can define; ``__getattribute__`` runs for every read.
+_ATTR_DUNDERS = frozenset({"__getattribute__", "__getattr__"})
 # The builtins that consume a mapping by walking its keys. A partial's keys
 # are always strings, so what these answer with holds no way back to the
 # mapping: a number, a bool, one key, or a fresh container of keys. Measured
@@ -165,7 +170,8 @@ _OPERATOR_METHODCALLER = "methodcaller"
 # What sets it apart is that it also calls the result, so the keywords that
 # decide the codec sit on the factory rather than on the call this scan
 # resolves. See _keyword_site.
-_OPERATOR_GETTERS = frozenset({"attrgetter", _OPERATOR_METHODCALLER})
+_OPERATOR_ATTRGETTER = "attrgetter"
+_OPERATOR_GETTERS = frozenset({_OPERATOR_ATTRGETTER, _OPERATOR_METHODCALLER})
 _OPERATOR_SELECTOR = "itemgetter"
 _OPERATOR_FACTORIES = _OPERATOR_GETTERS | frozenset({_OPERATOR_SELECTOR})
 _OPERATOR_MODULE = "operator"
@@ -1473,33 +1479,98 @@ def _literal_roots(
     return frozenset(root for root, literal in settled.items() if literal)
 
 
-def _fetched_keywords(node: ast.AST) -> ast.expr | None:
-    """Return the owner in ``getattr(x, "keywords")``, or None.
+def _getattr_aliases(bindings: list[tuple[str, ast.expr]]) -> frozenset[str]:
+    """Name every binding that reaches the ``getattr`` builtin.
 
-    A third argument is the default, which decides nothing here: a partial
-    always carries a keywords mapping, so the attribute is always found and
-    the default is never the value that comes back.
+    ``fetch = getattr`` renames the builtin without changing what it does, so
+    a scan matching the word alone stops at the rename. Assignments are
+    revisited until the set settles, because a rename can be renamed again.
     """
-    if not isinstance(node, ast.Call) or len(node.args) not in (2, 3):
-        return None
-    if not isinstance(node.func, ast.Name) or node.func.id != _GETATTR:
-        return None
-    name = node.args[1]
-    if not isinstance(name, ast.Constant) or name.value != _KEYWORDS:
-        return None
-    return node.args[0]
+    found = {_GETATTR}
+    growing = True
+    while growing:
+        growing = False
+        for name, value in bindings:
+            if isinstance(value, ast.Name) and value.id in found:
+                growing = growing or name not in found
+                found.add(name)
+    return frozenset(found)
 
 
-def _keyword_mapping(node: ast.AST) -> ast.expr | None:
+def _fetched_keywords(
+    node: ast.AST, functions: dict[str, str], fetchers: frozenset[str]
+) -> ast.expr | None:
+    """Return the owner whose keywords mapping a fetching call reaches.
+
+    A third argument to ``getattr`` is the default, which decides nothing
+    here: a partial always carries a keywords mapping, so the attribute is
+    always found and the default is never the value that comes back.
+    """
+    if not isinstance(node, ast.Call):
+        return None
+    return _dunder_fetch(node) or _getter_fetch(node, functions, fetchers)
+
+
+def _names_keywords(node: ast.expr) -> bool:
+    """Report whether *node* is the constant string ``keywords``."""
+    return isinstance(node, ast.Constant) and node.value == _KEYWORDS
+
+
+def _dunder_fetch(call: ast.Call) -> ast.expr | None:
+    """Return the owner in ``x.__getattribute__("keywords")``, or None.
+
+    An attribute read is a call to one of these dunders, so spelling the call
+    out by hand reaches the same mapping the attribute does. ``__getattr__``
+    joins it because a partial subclass can define one, and a scan that reads
+    only the sugar lets either spelling undo a pin in silence.
+    """
+    func = call.func
+    if not isinstance(func, ast.Attribute) or func.attr not in _ATTR_DUNDERS:
+        return None
+    if len(call.args) != 1 or not _names_keywords(call.args[0]):
+        return None
+    return func.value
+
+
+def _getter_fetch(
+    call: ast.Call, functions: dict[str, str], fetchers: frozenset[str]
+) -> ast.expr | None:
+    """Return the owner a ``getattr`` or ``attrgetter`` call reads, or None.
+
+    ``attrgetter("keywords")(runner)`` splits the question across two calls:
+    the factory names the attribute, the call names what to read it from.
+    Neither node alone spells the mapping, which is what makes the pair an
+    evasion.
+    """
+    if isinstance(call.func, ast.Call):
+        factory = call.func
+        if _operator_label(factory, functions) != _OPERATOR_ATTRGETTER:
+            return None
+        if len(factory.args) != 1 or not _names_keywords(factory.args[0]):
+            return None
+        return call.args[0] if call.args else None
+    if not isinstance(call.func, ast.Name) or call.func.id not in fetchers:
+        return None
+    if len(call.args) not in (2, 3) or not _names_keywords(call.args[1]):
+        return None
+    return call.args[0]
+
+
+def _keyword_mapping(
+    node: ast.AST, functions: dict[str, str], fetchers: frozenset[str]
+) -> ast.expr | None:
     """Return the expression whose keywords mapping *node* reaches, if any.
 
-    Two spellings arrive at the same dict. ``runner.keywords`` reads the
-    attribute directly; ``getattr(runner, "keywords")`` asks for it by name.
-    A scan that knows only the first lets the second undo a pin in silence.
+    Four spellings arrive at the same dict. ``runner.keywords`` reads the
+    attribute directly; ``getattr(runner, "keywords")`` asks for it by name;
+    ``runner.__getattribute__("keywords")`` runs the lookup the first two
+    delegate to; ``attrgetter("keywords")(runner)`` defers the owner to a
+    second call. A scan that knows only the first lets the rest undo a pin in
+    silence.
     """
     if isinstance(node, ast.Attribute) and node.attr == _KEYWORDS:
         return node.value
-    return _fetched_keywords(node)
+    return _fetched_keywords(node, functions, fetchers)
 
 
 def _undone_pins(
@@ -1507,6 +1578,8 @@ def _undone_pins(
     roots: dict[str, str],
     literal_roots: frozenset[str],
     shadowed: frozenset[str],
+    functions: dict[str, str],
+    fetchers: frozenset[str],
 ) -> set[str]:
     """Return the partials whose bound codec the source can undo.
 
@@ -1528,7 +1601,7 @@ def _undone_pins(
     }
     undone: set[str] = set()
     for node in ast.walk(tree):
-        owner = _keyword_mapping(node)
+        owner = _keyword_mapping(node, functions, fetchers)
         if owner is None:
             continue
         name = _owner_name(owner)
@@ -1836,6 +1909,8 @@ def _subprocess_names(tree: ast.Module) -> _Names:
         roots,
         _literal_roots(bindings, functions, roots),
         _rebound_builtins(tree, bindings),
+        functions,
+        _getattr_aliases(bindings),
     )
     return _Names(
         modules,
@@ -2850,6 +2925,45 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             '    seen = key\n'
             'runner(["x"], text=True)',
             "a plain walk yields the keys without ever naming an iterator",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env=guard\n'
+            ')\n'
+            'seen = runner.__getattribute__("func")\n'
+            'runner(["x"], text=True)',
+            "a dunder fetch of some other attribute reaches no keywords mapping",
+        ),
+        (
+            'import functools, operator, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env=guard\n'
+            ')\n'
+            'seen = operator.attrgetter("func")(runner)\n'
+            'runner(["x"], text=True)',
+            "attrgetter naming another attribute selects no keywords mapping",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env=guard\n'
+            ')\n'
+            'def attrgetter(name):\n'
+            '    return lambda owner: {}\n'
+            'seen = attrgetter("keywords")(runner)\n'
+            'runner(["x"], text=True)',
+            "a local attrgetter is some other callable sharing a word",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env=guard\n'
+            ')\n'
+            'fetch = getattr\n'
+            'seen = fetch(runner, "func")\n'
+            'runner(["x"], text=True)',
+            "a getattr under another name still only answers for the name it asks",
         ),
     ],
 )
@@ -3966,6 +4080,53 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'getattr(runner, "keywords").pop("encoding")\n'
             'runner(["x"], text=True)',
             "a mapping fetched by getattr can be emptied by any of its methods",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'runner.__getattribute__("keywords")["encoding"] = None\n'
+            'runner(["x"], text=True)',
+            "the dunder getattr calls by hand is the lookup an attribute runs",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'runner.__getattr__("keywords")["encoding"] = None\n'
+            'runner(["x"], text=True)',
+            "the fallback dunder answers with the same mapping",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'fetch = getattr\n'
+            'fetch(runner, "keywords")["encoding"] = None\n'
+            'runner(["x"], text=True)',
+            "a getattr under another name fetches what getattr fetches",
+        ),
+        (
+            'import functools, operator, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'operator.attrgetter("keywords")(runner)["encoding"] = None\n'
+            'runner(["x"], text=True)',
+            "attrgetter names the attribute on the factory and reads it on the call",
+        ),
+        (
+            'import functools, subprocess\n'
+            'from operator import attrgetter\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'attrgetter("keywords")(runner)["encoding"] = None\n'
+            'runner(["x"], text=True)',
+            "a directly imported attrgetter needs no module name to reach it",
         ),
         (
             'import functools, subprocess\n'
