@@ -39,7 +39,7 @@ _ALLOWED_AGENTS = frozenset(
 )
 
 
-def run(argv: list[str] | None = None) -> int:  # noqa: ARG001
+def run(_argv: list[str] | None = None) -> int:
     """Validate agent and save review result files."""
     agent = os.environ.get("AGENT", "")
     if agent not in _ALLOWED_AGENTS:

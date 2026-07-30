@@ -39,6 +39,7 @@ def write_github_output(key: str, value: str) -> None:
 def run(_argv: list[str] | None = None) -> int:
     """Run drift detection and set drift_detected output."""
     print("Running agent drift detection...")
+    sys.stdout.flush()
     result = subprocess.run(
         [
             sys.executable,

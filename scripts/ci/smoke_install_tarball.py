@@ -46,6 +46,7 @@ def run(_argv: list[str] | None = None) -> int:
     print(f"Working directory: {work_dir}")
 
     def _run(cmd: list[str]) -> int:
+        sys.stdout.flush()
         result = subprocess.run(cmd, cwd=work_dir, check=False)
         return result.returncode
 

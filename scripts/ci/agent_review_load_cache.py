@@ -47,7 +47,7 @@ def _write_output(key: str, value: str, github_output: str) -> None:
 _AGENT_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 
-def run(argv: list[str] | None = None) -> int:  # noqa: ARG001
+def run(_argv: list[str] | None = None) -> int:
     """Load cache and write outputs."""
     agent = os.environ.get("AGENT", "")
     if not agent or not _AGENT_RE.match(agent):

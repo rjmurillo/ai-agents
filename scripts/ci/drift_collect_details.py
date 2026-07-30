@@ -72,6 +72,7 @@ def run(_argv: list[str] | None = None) -> int:
     # Parse results via the dedicated script.
     details_out = Path(runner_temp) / "drift-details.md"
     count_out = Path("drift-count.txt")
+    sys.stdout.flush()
     result2 = subprocess.run(
         [
             sys.executable,

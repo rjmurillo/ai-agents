@@ -29,7 +29,7 @@ _BLOCKING_VERDICTS = frozenset({"CRITICAL_FAIL", "REJECTED", "FAIL", "NEEDS_REVI
 _MAX_ANNOTATION_LENGTH = 180
 
 
-def run(argv: list[str] | None = None) -> int:  # noqa: ARG001
+def run(_argv: list[str] | None = None) -> int:
     """Check verdict and exit with appropriate code."""
     agent = os.environ.get("AGENT", "")
     emoji = os.environ.get("EMOJI", "")
