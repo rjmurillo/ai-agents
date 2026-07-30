@@ -400,6 +400,12 @@ def write_baseline(path: Path, offenders: list[Offender]) -> None:
         "# Pre-existing scripts that hard-code .agents/, .claude/lib/, or scripts/ paths.",
         "# check_vendor_portability.py allows these but fails on NEW offenders.",
         "# Regenerate: python3 scripts/validation/check_vendor_portability.py --update-baseline",
+        "#",
+        "# Not every entry is real debt. The scripts/ entries added for #4013 are",
+        "# known false positives: regex literals, README template text, and test",
+        "# fixture strings that name scripts/ as a concept, not as a path the file",
+        "# opens. The regex exemption cannot fire for them because it keys on a",
+        "# literal '\\.', which a scripts/ pattern never contains. Tracked in #4046.",
         "",
     ]
     body = sorted({off.relpath for off in offenders})
