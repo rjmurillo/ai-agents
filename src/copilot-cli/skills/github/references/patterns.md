@@ -4,6 +4,15 @@ Reusable patterns for GitHub CLI operations.
 
 ---
 
+## Script Path
+
+The PR scripts ship inside this skill, not at the repository root. Every example
+below opens by setting `SCRIPTS_DIR`; `CLAUDE_PLUGIN_ROOT` (or
+`COPILOT_PLUGIN_ROOT`) is set in a vendored install and falls back to `.claude`
+when running in-repo.
+
+---
+
 ## Owner/Repo Inference
 
 All scripts auto-infer from `git remote` when `--owner` and `--repo` are omitted.
@@ -32,22 +41,23 @@ For multi-line content, use `--body-file` to avoid escaping issues.
 ## Thread Management Workflow
 
 ```bash
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr"
 # 1. Get unresolved threads
-threads=$(python3 scripts/pr/get_pr_review_threads.py --pull-request 50 --unresolved-only)
+threads=$(python3 "$SCRIPTS_DIR/get_pr_review_threads.py" --pull-request 50 --unresolved-only)
 
 # 2. Reply to each thread using thread ID and resolve (recommended)
 echo "$threads" | jq -r '.threads[].thread_id' | while read -r tid; do
-    python3 scripts/pr/add_pr_review_thread_reply.py --thread-id "$tid" --body "Fixed." --resolve
+    python3 "$SCRIPTS_DIR/add_pr_review_thread_reply.py" --thread-id "$tid" --body "Fixed." --resolve
 done
 
 # 3. Or reply using comment ID (REST API) then batch resolve
 echo "$threads" | jq -r '.threads[].first_comment_id' | while read -r cid; do
-    python3 scripts/pr/post_pr_comment_reply.py --pull-request 50 --comment-id "$cid" --body "Fixed."
+    python3 "$SCRIPTS_DIR/post_pr_comment_reply.py" --pull-request 50 --comment-id "$cid" --body "Fixed."
 done
-python3 scripts/pr/resolve_pr_review_thread.py --pull-request 50 --all
+python3 "$SCRIPTS_DIR/resolve_pr_review_thread.py" --pull-request 50 --all
 
 # 4. Merge
-python3 scripts/pr/merge_pr.py --pull-request 50 --strategy squash --delete-branch
+python3 "$SCRIPTS_DIR/merge_pr.py" --pull-request 50 --strategy squash --delete-branch
 ```
 
 ---
@@ -55,12 +65,13 @@ python3 scripts/pr/merge_pr.py --pull-request 50 --strategy squash --delete-bran
 ## Merge Readiness Check
 
 ```bash
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr"
 # Full merge readiness check
-ready=$(python3 scripts/pr/test_pr_merge_ready.py --pull-request 50)
+ready=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request 50)
 
 can_merge=$(echo "$ready" | jq -r '.CanMerge')
 if [ "$can_merge" = "true" ]; then
-    python3 scripts/pr/merge_pr.py --pull-request 50 --strategy squash --delete-branch
+    python3 "$SCRIPTS_DIR/merge_pr.py" --pull-request 50 --strategy squash --delete-branch
 else
     echo "Cannot merge. Reasons:"
     echo "$ready" | jq -r '.Reasons[]' | while read -r reason; do
@@ -86,13 +97,14 @@ fi
 ## Auto-Merge Workflow
 
 ```bash
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr"
 # Check current readiness (threads must be resolved, but CI can be pending)
-ready=$(python3 scripts/pr/test_pr_merge_ready.py --pull-request 50 --ignore-ci)
+ready=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request 50 --ignore-ci)
 
 can_merge=$(echo "$ready" | jq -r '.CanMerge')
 if [ "$can_merge" = "true" ]; then
     # Enable auto-merge - PR will merge when CI passes
-    python3 scripts/pr/set_pr_auto_merge.py --pull-request 50 --enable --merge-method SQUASH
+    python3 "$SCRIPTS_DIR/set_pr_auto_merge.py" --pull-request 50 --enable --merge-method SQUASH
     echo "Auto-merge enabled. PR will merge when all checks pass."
 else
     echo "Cannot enable auto-merge: $(echo "$ready" | jq -r '.Reasons | join("; ")')"
@@ -104,16 +116,17 @@ fi
 ## PR Enumeration Workflow
 
 ```bash
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr"
 # Get all open PRs targeting main
-prs=$(python3 scripts/pr/get_pull_requests.py --state open --base main)
+prs=$(python3 "$SCRIPTS_DIR/get_pull_requests.py" --state open --base main)
 
 # Check each PR for merge readiness
 echo "$prs" | jq -r '.Data.PullRequests[].number' | while read -r pr_num; do
-    ready=$(python3 scripts/pr/test_pr_merge_ready.py --pull-request "$pr_num")
+    ready=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request "$pr_num")
     can_merge=$(echo "$ready" | jq -r '.CanMerge')
     if [ "$can_merge" = "true" ]; then
         echo "PR #$pr_num is ready to merge"
-        python3 scripts/pr/merge_pr.py --pull-request "$pr_num" --strategy squash --delete-branch
+        python3 "$SCRIPTS_DIR/merge_pr.py" --pull-request "$pr_num" --strategy squash --delete-branch
     fi
 done
 ```
@@ -125,7 +138,8 @@ done
 Always check if PR is merged before starting review work:
 
 ```bash
-python3 scripts/pr/test_pr_merged.py --pull-request 50
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr"
+python3 "$SCRIPTS_DIR/test_pr_merged.py" --pull-request 50
 if [ $? -eq 1 ]; then
     echo "PR already merged, skipping review"
     exit 0
@@ -139,8 +153,9 @@ fi
 Use batch mode for 88% faster acknowledgment of multiple comments:
 
 ```bash
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr"
 # Get all review comment IDs
-comments=$(python3 scripts/pr/get_pr_review_comments.py --pull-request 50)
+comments=$(python3 "$SCRIPTS_DIR/get_pr_review_comments.py" --pull-request 50)
 ids=$(echo "$comments" | jq -r '.Comments[].id')
 
 # Batch acknowledge (saves ~1.2s per comment vs. individual calls)
@@ -163,8 +178,9 @@ fi
 ## CI Check Verification
 
 ```bash
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr"
 # Quick check - get current status
-checks=$(python3 scripts/pr/get_pr_checks.py --pull-request 50)
+checks=$(python3 "$SCRIPTS_DIR/get_pr_checks.py" --pull-request 50)
 
 merge_ref_usable=$(echo "$checks" | jq -r '.Data.MergeRefUsable')
 all_passing=$(echo "$checks" | jq -r '.Data.AllPassing')
@@ -184,7 +200,7 @@ else
 fi
 
 # Poll until all checks complete (or timeout)
-checks=$(python3 scripts/pr/get_pr_checks.py --pull-request 50 --wait --timeout-seconds 600)
+checks=$(python3 "$SCRIPTS_DIR/get_pr_checks.py" --pull-request 50 --wait --timeout-seconds 600)
 
 if [ $? -eq 7 ]; then
     echo "Timeout waiting for checks"
@@ -193,7 +209,7 @@ fi
 
 all_passing=$(echo "$checks" | jq -r '.AllPassing')
 if [ "$all_passing" = "true" ]; then
-    python3 scripts/pr/merge_pr.py --pull-request 50 --strategy squash --delete-branch
+    python3 "$SCRIPTS_DIR/merge_pr.py" --pull-request 50 --strategy squash --delete-branch
 fi
 ```
 
@@ -202,17 +218,18 @@ fi
 ## Integration Pattern
 
 ```bash
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr"
 # Chain operations with error handling
-pr=$(python3 scripts/pr/get_pr_context.py --pull-request 50)
+pr=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request 50)
 success=$(echo "$pr" | jq -r '.Success')
 if [ "$success" != "true" ]; then
     echo "Failed to get PR context" >&2
     exit 1
 fi
 
-checks=$(python3 scripts/pr/get_pr_checks.py --pull-request 50 --wait)
+checks=$(python3 "$SCRIPTS_DIR/get_pr_checks.py" --pull-request 50 --wait)
 all_passing=$(echo "$checks" | jq -r '.AllPassing')
 if [ "$all_passing" = "true" ]; then
-    python3 scripts/pr/merge_pr.py --pull-request 50 --strategy squash
+    python3 "$SCRIPTS_DIR/merge_pr.py" --pull-request 50 --strategy squash
 fi
 ```
