@@ -116,6 +116,14 @@ SCAN_ROOTS: tuple[tuple[str, ...], ...] = (
 # fail silently in every consumer install just as a bare .claude/skills/ path
 # would. The path-prefix group is anchored to require `scripts/` at the start
 # of the path argument (not inside a longer resolved prefix).
+#
+# `./`-prefixed forms (`python3 ./scripts/x.py`, `uv run python ./scripts/x.py`)
+# ARE covered, but by the second lead-in alternative rather than the first: the
+# `\./` branch consumes the `./` and the path-prefix group then matches
+# `scripts/`. Do not "simplify" by deleting that branch as redundant with the
+# interpreter branch, and do not drop `scripts/` from the path-prefix group:
+# either edit alone silently un-covers every `./scripts/...` invocation. Both
+# mutations are pinned by TestDotSlashScriptsExecDetection (PR #4029 review).
 EXEC_PATTERN = re.compile(
     r"(?<![\w.])(?:(?:python3?|bash|sh)\s+(?:-\S+\s+)*|\./)"
     r"[\"']?(?:\.claude/skills/|scripts/)\S+\.(?:py|sh)(?!\.\w)[\"']?"

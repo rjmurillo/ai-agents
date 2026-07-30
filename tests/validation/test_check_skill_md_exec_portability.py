@@ -390,3 +390,67 @@ class TestScriptsExecDetection:
         """
         text = "python3 build/scripts/generate_rules.py\n"
         assert cep.count_exec_invocations(text) == 0
+
+
+class TestDotSlashScriptsExecDetection:
+    """``./scripts/...`` invocations are detected (PR #4029 review).
+
+    A review raised that EXEC_PATTERN's path-prefix group only lists
+    ``scripts/`` with no optional ``./``, so ``python3 ./scripts/x.py`` would
+    slip past the gate. It does not: such text is matched by the *other*
+    lead-in alternative, the direct ``\\./`` executable branch, which consumes
+    ``./`` and leaves ``scripts/`` for the path-prefix group.
+
+    That makes the coverage real but *incidental*: it depends on two separate
+    regex branches lining up, and no test pinned it. These tests pin it. Each
+    one is killed by either mutation:
+      - drop ``scripts/`` from the path-prefix group -> the ``\\./`` branch has
+        nothing to match after ``./``, count becomes 0;
+      - drop the ``\\./`` lead-in alternative -> the interpreter branch cannot
+        match ``./scripts/`` (the group is anchored at ``scripts/``), count
+        becomes 0.
+    """
+
+    def test_counts_dot_slash_scripts_python_invocation(self) -> None:
+        """python3 ./scripts/... is counted despite the ./ prefix."""
+        text = "python3 ./scripts/validation/check_vendor_portability.py --repo-root .\n"
+        assert cep.count_exec_invocations(text) == 1
+
+    def test_counts_dot_slash_scripts_under_uv_run(self) -> None:
+        """The `uv run python ./scripts/...` form used in this repo is counted.
+
+        The runner prefix (`uv run`) is not part of the match; the interpreter
+        token inside it is what anchors the lead-in.
+        """
+        text = "uv run python ./scripts/validation/pre_pr.py\n"
+        assert cep.count_exec_invocations(text) == 1
+
+    def test_counts_dot_slash_scripts_with_interpreter_option(self) -> None:
+        """A short option between the interpreter and ./scripts/... still counts."""
+        text = "python3 -u ./scripts/validation/pre_pr.py\n"
+        assert cep.count_exec_invocations(text) == 1
+
+    def test_counts_bare_dot_slash_scripts_shell_invocation(self) -> None:
+        """./scripts/x.sh with no interpreter token is counted."""
+        text = "./scripts/bootstrap-vm.sh --dev\n"
+        assert cep.count_exec_invocations(text) == 1
+
+    def test_ignores_dot_slash_nested_scripts_path(self) -> None:
+        """./build/scripts/... is not counted; scripts is not at the path root.
+
+        Negative control for the ./ branch: the path-prefix group stays
+        anchored, so prefixing a nested path with ./ does not launder it into
+        a match.
+        """
+        text = "./build/scripts/generate_rules.py\n"
+        assert cep.count_exec_invocations(text) == 0
+
+    def test_ignores_parent_relative_scripts_path(self) -> None:
+        """python3 ../scripts/... is not counted.
+
+        Edge case bounding the ./ branch: `../` is not `./`, and the
+        path-prefix group does not match at `../scripts/`, so a parent-relative
+        path is out of scope for this gate.
+        """
+        text = "python3 ../scripts/x.py\n"
+        assert cep.count_exec_invocations(text) == 0
