@@ -2,7 +2,7 @@
 
 Companion to `rule-audit-procedure.md`. That document is the procedure and
 carries the published table; this one carries the forensics behind it: which
-judge samples were lost, what recovering them changed, and what eighteen rounds
+judge samples were lost, what recovering them changed, and what twenty-two rounds
 of adversarial review found in the verdict-parsing code.
 
 Read this before citing a number from the procedure document, and before
@@ -95,10 +95,10 @@ State the limit plainly. The extractor was written after seeing which samples
 failed, so this is post-hoc recovery, not independent replication. Recovering
 *every* failure rather than a chosen subset avoids outcome selection.
 
-## The instrument that produced this table was repaired 21 times
+## The instrument that produced this table was reviewed across 22 rounds
 
 Every number above comes out of one parser. That parser has been under
-adversarial review for twenty-one rounds, and the rounds keep finding defects,
+adversarial review for twenty-two rounds, and the rounds keep finding defects,
 so its repair history is evidence about the table as much as the table is.
 `rule-audit-parser-forensics.md` carries the round-by-round record: what each
 round found, what it cost, and which fixes were themselves wrong. Read it

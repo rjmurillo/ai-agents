@@ -1,4 +1,4 @@
-# Rule Audit Parser Forensics: twenty-one rounds against one judge parser
+# Rule Audit Parser Forensics: twenty-two rounds against one judge parser
 
 Companion to `rule-audit-evidence.md`, which carries the published table and
 the sample-recovery provenance behind it. This document is the repair history
@@ -10,13 +10,19 @@ number that looked ordinary.
 
 Raw artifacts: `.agents/analysis/eval-artifacts/2026-07-29-unified-software-engineering/`
 
-**Fifteen rounds of adversarial review have found seventeen defects in it, plus
-one regression introduced by the round 14 repair and caught in round 15.** The
+**Twenty-two rounds of adversarial review have each found at least one defect in
+it.** No aggregate defect count is given here, because across the rounds the
+count was never defined the same way twice: it variously included parser
+defects, regressions introduced by an earlier round's repair, and methodological
+defects in how a claim was measured rather than in the code. An aggregate over
+categories that shifted is a number with no population, which is the exact
+failure this document exists to warn about. What survives restatement is the
+direction, not the count. The
 regex extractor was replaced with a
 structure-aware scanner, which review then broke repeatedly, always in the same
 direction: it returned a wrong verdict. How visible that was varied, and the
 variation matters more than the count. Most returned through the clean-parse
-branch, which sets no marker. The sixteenth was marked `judge_salvaged` and was
+branch, which sets no marker. One was marked `judge_salvaged` and was
 wrong anyway, which is the case that shows an audit trail is a weaker defence
 than a refusal: it makes a guess reviewable afterwards, not correct.
 
@@ -414,9 +420,29 @@ Three rounds, three proofs of lexical equality, three sets of holes. Each
 enumeration was unbounded, so patching one reopened it somewhere else. The fix
 was to stop proving equality: any decoded layer that names a score field is now
 uncomparable and refuses. The cost was measured before the change rather than
-assumed. Across 1732 strings in the payload archive, zero name a score field in
+assumed. Across the 264 nested reasoning values in the 288 archived payloads,
+zero name a score field in
 a layer beyond the top-level object, so refusing the class drops no sample any
 real judge has produced.
+
+A first attempt at that measurement counted 1732 and was wrong, in the way this
+document keeps warning about: the walk covered the whole archive envelope,
+including artifact names, session identifiers, and provenance prose, none of
+which the parser ever reads. The population the sentence attaches to is the
+nested reasoning values, and there are 264 of them. The claim's direction did
+not change, but a number quoted against the wrong population is not evidence
+for anything, whichever way it points.
+
+Round 22 found the refusal was still enumerating, one level up. It required the
+field name to be quoted and followed by a colon, so `{activation_score:1}`
+(JSON5 bare key), `dict(activation_score=1)` (Python, `=` not `:`), and
+`Final activation_score: 1, not 5.` (prose, no braces) all bypassed it and
+published unmarked. Adding a bare-name-plus-colon alternative would have left
+`=` and every other separator, which is the same trap a fourth time. The
+refusal now matches the bare field name with no quoting and no separator
+required. Measured against the same 264 values, all three candidate policies
+refuse zero, so the terminal form costs nothing over the narrow one and has
+nothing left to enumerate.
 
 Round 20 also found a regression round 19 had introduced. The pattern grew a
 trailing group to capture the value, and being greedy it consumed the rest of

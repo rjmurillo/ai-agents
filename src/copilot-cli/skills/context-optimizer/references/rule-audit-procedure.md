@@ -244,11 +244,14 @@ three from post-hoc recovery of a truncated prefix, and seven get two.
 
 The full accounting and the confounds it creates for the table above are in
 `rule-audit-evidence.md`. Read it before citing a cell from this table. The
-defects found in the verdict-parsing code, across twenty-one review rounds,
-are in `rule-audit-parser-forensics.md`. One of them is the first whose cost
-against this table could not be measured: the archive keeps raw payloads only
-for failed samples, so a defect on the success path leaves no evidence either
-way (issue #3998).
+defects found in the verdict-parsing code, across twenty-two review rounds,
+are in `rule-audit-parser-forensics.md`. Each one's cost against this table was
+measurable, because this run's archive stores the raw judge payload for all 288
+samples, successes included, so a defect on the success path can be replayed
+rather than argued about. Issue #3998 was filed on the belief that the archive
+kept raw only for failures; that belief was wrong for this run, and the general
+concern it raises applies only to a future instrument that discards
+success-path evidence.
 
 **Provenance for the eight runs, recorded by hand because the artifacts do not
 carry it (issue #3956).**
