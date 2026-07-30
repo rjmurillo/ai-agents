@@ -89,6 +89,7 @@ if __package__ in (None, ""):
         is_known_kebab_word,
         is_known_retired_kebab_skill,
         is_known_single_word_skill,
+        is_metasyntactic_placeholder,
         is_qualified_foreign_skill,
     )
     from patterns import (
@@ -126,6 +127,7 @@ else:
         is_known_kebab_word,
         is_known_retired_kebab_skill,
         is_known_single_word_skill,
+        is_metasyntactic_placeholder,
         is_qualified_foreign_skill,
     )
     from .patterns import (
@@ -167,6 +169,7 @@ _foreign_skill_catalog = foreign_skill_catalog
 _is_qualified_foreign_skill = is_qualified_foreign_skill
 _is_known_retired_kebab_skill = is_known_retired_kebab_skill
 _is_known_single_word_skill = is_known_single_word_skill
+_is_metasyntactic_placeholder = is_metasyntactic_placeholder
 
 
 def _requires_typed_skill_refs(rel: str) -> bool:
@@ -356,9 +359,10 @@ def _check_skill_refs(
     - Single-word tokens (``incoherence``): a backticked single word is a
       candidate only when it resolves to a live catalog entry (valid, no
       finding) or is a curated known single-word skill name (flagged when
-      absent). Arbitrary backticked English words are ignored, so widening
-      detection to no-hyphen names does not flood false positives (issue
-      #2679).
+      absent). Conventional placeholder tokens (``x``, ``foo``, ``name``)
+      are non-candidates even when prose documents the ``Skill: `x`` syntax.
+      Arbitrary backticked English words are ignored, so widening detection
+      to no-hyphen names does not flood false positives (issue #2679).
 
     A token that resolves in ``sibling_names`` names a real non-skill
     artifact (agent, slash command, review axis, Serena memory) and is not
@@ -411,6 +415,8 @@ def _check_skill_refs(
             _skill_ref_finding(ref, rel, lineno, skill_catalog_present)
         )
     for lineno, ref in extract_single_word_skill_refs(text):
+        if _is_metasyntactic_placeholder(ref):
+            continue
         is_typed = (lineno, ref) in typed
         if typed_only and not is_typed:
             continue
