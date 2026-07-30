@@ -36,39 +36,55 @@ positive scenarios.
 
 ## What salvage did and did not contribute
 
-Measured 2026-07-30 by walking all eight files:
+Measured 2026-07-30 by walking all eight files, corrected 2026-07-30 after
+round 10 review:
 
 | Quantity | Count |
 |---|---|
 | Judge samples | 288 |
-| Graded, fed the medians | 264 |
-| Failed, excluded entirely | 24 |
+| `judge_failed` in the stored artifacts | 24 |
+| Graded in the stored artifacts | 264 |
 | Carrying a `judge_salvaged` marker | 0 |
 
-`_reduce_samples` drops failed samples rather than folding them in as zeros, so
-the 24 contributed nothing to any cell. No sample carries a salvage marker, so
-`_salvage_scores` never produced a published number either. **No change to the
-salvage path can move a number in the published table.** That statement is
-stronger than the "24 of 24 recover" claim it replaces, and it is checkable
-from these files alone.
+**These files store the state before salvage was applied.** An earlier version
+of this section read the zero marker count as proof that salvage never reached
+a published cell, and concluded no change to the salvage path could move a
+published number. That was wrong, and it was wrong in the direction of
+comfort. The published table in `rule-audit-procedure.md` was recomputed with
+all 24 recovered; the artifacts were not rewritten. The zero is an artifact of
+when these files were serialized, not evidence about the table.
+
+What salvage actually contributed, measured against the table:
+
+- Re-running the current parser over the 24 stored payload prefixes recovers
+  **all 24**: seventeen at 5/4/5, five at 5/5/5, one 2/2/1, one 2/3/1. The
+  published table is reproducible from the code as it now stands.
+- Recovery moved **exactly one published cell**: `fx-opus5` baseline, 3.83 to
+  3.89. That changed the row's delta-full from +0.28 to +0.22.
+- The sign count did not change. Seven positive deltas against one negative
+  either way, so the conclusion does not rest on the recovery.
 
 Two limits on what this archive can support:
 
 - **It cannot say how many of the 264 graded samples reached a score through
   `_extract_json_object`'s prefix path** rather than a clean whole-payload
-  parse. That path was unmarked until the round 9 hardening added
-  `judge_salvaged` to it. That gap is the reason the marker exists, and the
-  reason no claim about tightening the parser can be validated here.
+  parse, nor how many were unwrapped from a Markdown fence. Neither path was
+  marked until rounds 9 and 10 added `judge_salvaged` to them. That gap is the
+  reason the marker exists, and the reason no claim about tightening the
+  parser can be validated here.
 - **Re-walking the 24 failures is weaker than it looks.** Only 200 characters
   of each payload survive (#3975), so a re-parse exercises the stored prefix,
-  not the payload the judge actually emitted. All 24 prefixes re-parse under
-  the hardened salvage; that is consistency, not proof of recovery.
+  not the payload the judge actually emitted. A duplicate score field in the
+  discarded tail would refuse under the current guard and is invisible here.
+  All 24 prefixes recover; that shows the hardening did not make the parser
+  worse on what was kept, not that it matches on what was not.
 
-One number does transfer. Of the 264 graded samples, **none** has a `reasoning`
-string naming a score field; the only 24 that do are the stored parse-error
-strings, which are not judge prose. Refusing a payload whose prose names a
-score field therefore costs nothing on observed output, which is what makes the
-bare-identifier count affordable.
+A third figure that was published as free is not. Of the 264 graded samples,
+none has a `reasoning` string naming a score field. That was read as evidence
+that refusing any payload whose prose names a field costs nothing. It is
+evidence about one judge, one prompt, and one provider, not about judge output
+in general, and the guard has since been narrowed to count the JSON key shape
+instead.
 
 ## Known limits
 

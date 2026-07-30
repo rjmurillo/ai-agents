@@ -167,7 +167,8 @@
         "e056",
         "e070",
         "e079",
-        "e082"
+        "e082",
+        "e095"
       ]
     },
     {
@@ -213,7 +214,8 @@
         "e056",
         "e070",
         "e079",
-        "e082"
+        "e082",
+        "e095"
       ]
     },
     {
@@ -627,7 +629,8 @@
         "e056",
         "e070",
         "e079",
-        "e082"
+        "e082",
+        "e095"
       ]
     },
     {
@@ -740,6 +743,98 @@
       "type": "milestone",
       "content": "Split the delivery into two commits so the code change carries no .agents/ path: parser hardening first, then the two reference documents and the artifact README. Kept the procedure document at 497 lines against the 500-line taste limit by putting the short form there and the full accounting in the artifact README.",
       "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e085",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Round 10 (GPT-5.6 Sol) found the thirteenth parser defect, one layer upstream of everything hardened in rounds 1 through 9. A four-line Markdown-fence stripper ran a bare re.search before both the duplicate guard and the offset-0 anchor, and replaced the whole payload with the first fence it found. A real verdict at offset 0 followed by a fenced rubric exemplar graded 5/5/5 with no salvage marker. Same class as the other twelve: a search picking the wrong candidate object. Fixed by removing the choice rather than adding a disqualifier: a fence is unwrapped only when the payload holds exactly one.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e086",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed round 10 finding 5, the inverse error. Bare-identifier counting refused a payload whose prose said 'The activation_score reflects', which is plausible judge output. The guard now counts the JSON key shape, matching quoted and escaped-quoted spellings so round 9's escaped-quote fix survives. Verified against all three prior-round regression scripts: round 8's A/B/C/E/F/G still refuse and D/H still recover, round 9's escaped-quote and off-offset cases still refuse, all 24 archived failures still recover.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e087",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Caught myself publishing a clean result from zero data. A walker written to check whether the round 10 findings moved any published cell returned no samples and printed 'no cell moves'. That is the same failure class as the parser defects it was auditing, so I refused the result and rewrote the walker against the real artifact schema. The rules and mechanisms keys are dicts, not lists; only scenarios is a list.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e088",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The corrected walker showed a claim I published last segment is false. The document said no archived sample carries a salvage marker, therefore salvage never produced a published number. The zero is real; the inference is wrong. The artifacts store the state before recovery was applied. The published table was recomputed with all 24 recovered, and that moved one cell, fx-opus5 baseline 3.83 to 3.89, changing that row's delta-full from +0.28 to +0.22. Sign count unchanged. Corrected in both the artifact README and the procedure document, with the wrong inference named rather than quietly replaced.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e089",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Found a second false claim in the same document while verifying the first. It placed all 24 lost judge samples in var-opus-*.json artifacts. Six of them are in fx-opus5.json. Measured the real distribution: fx-opus5 6, var-opus-1 8, var-opus-2 4, var-opus-3 6, all four Sol files zero. Also corrected a carried-forward cell count that was wrong in my own notes: 79 cells at n=3, not 55.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e090",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Published two confounds that were measured but never written down. All 24 judge failures are on Opus runs and none on Sol, and the Opus rows are the ones carrying the large positive delta-full that drives the headline result. Seven published cells rest on a single graded sample, all seven Opus. A median of one sample is one observation.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e091",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Filed issue #3989 for round 10 finding 3, the coordinate-wise median. Taking each score field's median independently can publish a triple no judge gave: three samples of 5/5/1, 5/1/5, 1/5/5 reduce to 5/5/5 when every judge rated the cell 3.67. Measured across all 96 archived cells, 3 diverge, worst 0.333 on a cell and 0.111 on a run mean. Recomputed end to end the sign test is identical at 7/1, p = 0.0703125, so the conclusion holds and the defect is real anyway.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e092",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Filed issue #3990 for round 10 finding 4 and immediately closed it as a duplicate of #3933, which already tracked negative scenarios not gating the verdict with the same diagnosis. Process failure on my part: the procedure document I was editing cites #3933 twelve lines from where I was writing, and I filed without checking. Carried the one thing the duplicate added, a positive-strong negative-catastrophic regression test that must FAIL, forward as a comment on #3933.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e093",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Split rule-audit-procedure.md at 517 lines against the 500-line taste limit. Rather than compressing prose again, separated the two concerns the file had grown: the reusable procedure, and the forensics of the 2026-07-29 run. The forensics moved to references/rule-audit-evidence.md with a five-line pointer left behind. That is the same progressive-disclosure move this session's doctrine argues for, applied to the session's own artifact. Procedure 421 lines, evidence 123.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e094",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified the split: taste-lints file-size clean on both files, orphan-ref scan PASS on 9 refs, vendor-portability no new offenders, skill-portability no drift, zero em or en dashes byte-checked, copilot-cli mirror byte-identical by diff -rq, both plugin manifests bumped to 0.6.5431. Full eval suite 1539 passed 4 skipped, ruff clean.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e095",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "content": "Verified the split: taste-lints file-size clean on both files, orphan-ref scan PASS on 9 refs, vendor-portability no new offenders, skill-portability no drift, zero em or en dashes byte-checked, copilot-cli mirror byte-identical by diff -rq, both plugin manifests bumped to 0.6.5431. Full eval suite 1539 passed 4 skipped, ruff clean.",
+      "caused_by": [
+        "e017",
+        "e022",
+        "e071"
+      ],
       "leads_to": []
     }
   ],
