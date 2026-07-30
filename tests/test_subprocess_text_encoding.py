@@ -3847,6 +3847,35 @@ def test_one_value_reading_many_names_stays_linear() -> None:
     assert elapsed < 3.0, f"chain resolution took {elapsed:.1f}s for {depth} links"
 
 
+def _wide_value_source(width: int) -> str:
+    """One list literal reading ``width`` names that each resolve."""
+    lines = ["import subprocess"]
+    lines += [f"n{index} = subprocess.run" for index in range(width)]
+    lines.append("WIDE = [" + ", ".join(f"n{index}" for index in range(width)) + "]")
+    return "\n".join(lines)
+
+
+def _best_elapsed(source: str, repeats: int = 3) -> float:
+    """Fastest of several runs. Scheduler noise only ever adds time."""
+    best = float("inf")
+    for _ in range(repeats):
+        started = time.perf_counter()
+        flagged = unpinned_lines(source)
+        best = min(best, time.perf_counter() - started)
+        assert flagged == [], "no call is made, so nothing can decode"
+    return best
+
+
+# Quadrupling the width costs 4x under a linear scan and 16x under the
+# re-queueing one. Measured linear ratios ran 4.24 to 4.97 across three width
+# pairs and eighteen trials, so this sits about 1.6x above the worst linear
+# reading and 2x below what quadratic predicts.
+_LINEAR_SCALING_CEILING = 8.0
+
+_NARROW_WIDTH = 1000
+_WIDE_WIDTH = 4000
+
+
 def test_a_value_reading_many_names_stays_linear() -> None:
     """A value node that reads N names must be walked once, not once per name.
 
@@ -3857,19 +3886,51 @@ def test_a_value_reading_many_names_stays_linear() -> None:
     A group whose names are all settled cannot change an answer, so skipping
     it before the walk bounds the work. Unlike the wide-unpack case every
     name here does resolve, which is what drives the re-queue.
+
+    This one is bounded by how the cost grows rather than by a wall clock,
+    which its siblings can afford and this one cannot. Their two regimes sit
+    63x and 110x apart, so a fixed ceiling drops between them with room on
+    both sides. Here they sit about 11x apart: linear measured 0.30 seconds
+    against the docstring's 3.26 for the re-queueing version. The old ceiling
+    of 1.0 second was the midpoint of that narrow gap, which left only 3.6x
+    over linear, and a CI runner about 3.9x slower than a workstation failed
+    it at 1.078 seconds with the implementation behaving correctly. Raising
+    the ceiling instead is not available: any value high enough to stop
+    flaking on that runner sits above the 3.26 seconds quadratic already
+    costs, so the test would stop detecting the regression it exists for.
+
+    A ratio has neither problem. Both readings come off the same machine in
+    the same run, so a slow runner scales them together and cancels out.
+    Refs #4048.
     """
-    width = 4000
-    lines = ["import subprocess"]
-    lines += [f"n{index} = subprocess.run" for index in range(width)]
-    lines.append("WIDE = [" + ", ".join(f"n{index}" for index in range(width)) + "]")
-    source = "\n".join(lines)
+    narrow = _best_elapsed(_wide_value_source(_NARROW_WIDTH))
+    wide = _best_elapsed(_wide_value_source(_WIDE_WIDTH))
+    ratio = wide / narrow
 
-    started = time.perf_counter()
-    flagged = unpinned_lines(source)
-    elapsed = time.perf_counter() - started
+    assert ratio < _LINEAR_SCALING_CEILING, (
+        f"{_WIDE_WIDTH} names cost {ratio:.2f}x what {_NARROW_WIDTH} did "
+        f"({wide:.3f}s vs {narrow:.3f}s); linear predicts about "
+        f"{_WIDE_WIDTH / _NARROW_WIDTH:.0f}x and quadratic about "
+        f"{(_WIDE_WIDTH / _NARROW_WIDTH) ** 2:.0f}x"
+    )
 
-    assert flagged == [], "no call is made, so nothing can decode"
-    assert elapsed < 1.0, f"resolution took {elapsed:.1f}s for {width} names"
+
+def test_the_linear_scaling_ceiling_separates_the_two_regimes() -> None:
+    """The bound above proves nothing unless it can fail.
+
+    Pins both margins so a later edit cannot quietly widen the ceiling past
+    what quadratic costs, which would leave a bound that always passes, nor
+    tighten it under what linear measured, which is the flake being fixed.
+    """
+    width_factor = _WIDE_WIDTH / _NARROW_WIDTH
+    linear_predicts = width_factor
+    quadratic_predicts = width_factor**2
+    worst_measured_linear_ratio = 4.97
+
+    assert linear_predicts < _LINEAR_SCALING_CEILING < quadratic_predicts
+    assert worst_measured_linear_ratio < _LINEAR_SCALING_CEILING, (
+        "ceiling must clear the slowest linear reading actually observed"
+    )
 
 
 def test_return_bindings_stay_linear_in_a_deeply_nested_file() -> None:
