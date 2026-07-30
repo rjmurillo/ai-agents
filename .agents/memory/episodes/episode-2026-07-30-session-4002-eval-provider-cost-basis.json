@@ -13,10 +13,7 @@
       "type": "milestone",
       "content": "Reproduced the CI failure locally",
       "caused_by": [],
-      "leads_to": [
-        "e010",
-        "e011"
-      ]
+      "leads_to": []
     },
     {
       "id": "e002",
@@ -24,10 +21,7 @@
       "type": "milestone",
       "content": "Compared the parser's expected schema against the producer's real output",
       "caused_by": [],
-      "leads_to": [
-        "e010",
-        "e011"
-      ]
+      "leads_to": []
     },
     {
       "id": "e003",
@@ -35,10 +29,7 @@
       "type": "milestone",
       "content": "Traced the dead PYTHONPATH and the dead path filters",
       "caused_by": [],
-      "leads_to": [
-        "e010",
-        "e011"
-      ]
+      "leads_to": []
     },
     {
       "id": "e004",
@@ -46,10 +37,7 @@
       "type": "milestone",
       "content": "Found a producer mismatch not recorded in the issue",
       "caused_by": [],
-      "leads_to": [
-        "e010",
-        "e011"
-      ]
+      "leads_to": []
     },
     {
       "id": "e005",
@@ -57,10 +45,7 @@
       "type": "milestone",
       "content": "Corrected the CLI invocation and removed the dead wiring",
       "caused_by": [],
-      "leads_to": [
-        "e010",
-        "e011"
-      ]
+      "leads_to": []
     },
     {
       "id": "e006",
@@ -68,10 +53,7 @@
       "type": "milestone",
       "content": "Rewrote the parser against the producer's real schema",
       "caused_by": [],
-      "leads_to": [
-        "e010",
-        "e011"
-      ]
+      "leads_to": []
     },
     {
       "id": "e007",
@@ -79,10 +61,7 @@
       "type": "milestone",
       "content": "Replaced the test module and added two class-level contract gates",
       "caused_by": [],
-      "leads_to": [
-        "e010",
-        "e011"
-      ]
+      "leads_to": []
     },
     {
       "id": "e008",
@@ -90,57 +69,43 @@
       "type": "milestone",
       "content": "Ran the real command and the real parser end to end",
       "caused_by": [],
-      "leads_to": [
-        "e010",
-        "e011"
-      ]
+      "leads_to": []
     },
     {
       "id": "e009",
       "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "test",
       "content": "29 passed, ruff clean, both workflows parse as valid YAML",
-      "caused_by": [],
-      "leads_to": [
-        "e010",
-        "e011"
-      ]
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": []
     },
     {
       "id": "e010",
-      "timestamp": "2026-07-30T14:19:21.686896+00:00",
+      "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
       "content": "Bot review found the workflow comment claimed health exits 1 only on stale citations. Verified against __main__.py: it exits 1 on broken citations, stale citations, or stale memories. Comment corrected.",
-      "caused_by": [
-        "e001",
-        "e002",
-        "e003",
-        "e004",
-        "e005",
-        "e006",
-        "e007",
-        "e008",
-        "e009"
-      ],
+      "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e011",
-      "timestamp": "2026-07-30T14:19:21.686896+00:00",
+      "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
       "content": "Bot review found the PR summary labelled HEALTH_STALE_MEMORIES as 'Memories with stale citations' while the value is stale_memory_count. Relabelled 'Stale memories' so it does not collide with the citation-level Stale row below it.",
-      "caused_by": [
-        "e001",
-        "e002",
-        "e003",
-        "e004",
-        "e005",
-        "e006",
-        "e007",
-        "e008",
-        "e009"
-      ],
+      "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 64800b5d9",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ]
     }
   ],
   "metrics": {
@@ -148,7 +113,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 6
   },
   "lessons": []
