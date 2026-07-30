@@ -42,12 +42,23 @@ SCANNABLE_EXTENSIONS = {
 }
 
 # Path segments whose files are exempt from the file-size rule. These hold
-# append-only generated data (the episode-extraction hook writes an episode
-# record under .agents/memory/episodes/ on every session-log commit). The data
-# has no module boundaries to split on, so a line ceiling is the wrong gate,
-# and JSON cannot carry a `# taste-lint: ignore` suppression comment. A path
-# exemption is the only mechanism. See issue #2785.
-FILE_SIZE_EXEMPT_SEGMENTS: tuple[tuple[str, ...], ...] = ((".agents", "memory"),)
+# captured or generated data rather than authored modules, so a line ceiling is
+# the wrong gate: the content has no boundaries to split on, and JSON cannot
+# carry a `# taste-lint: ignore` suppression comment. A path exemption is the
+# only mechanism.
+#
+#   .agents/memory: the episode-extraction hook appends an episode record on
+#   every session-log commit (issue #2785).
+#
+#   .agents/analysis/eval-artifacts: raw eval result files, archived so the
+#   numbers published in an analysis can be re-derived instead of taken on
+#   faith. Splitting one would break the provenance it exists to provide, and
+#   the file-size remediation text proposes extracting "helper functions" from
+#   a JSON dump, which is advice no author can act on (issue #3970).
+FILE_SIZE_EXEMPT_SEGMENTS: tuple[tuple[str, ...], ...] = (
+    (".agents", "memory"),
+    (".agents", "analysis", "eval-artifacts"),
+)
 
 _GENERATED_PATH_SEGMENTS: tuple[tuple[str, ...], ...] = (
     ("src", "copilot-cli"),

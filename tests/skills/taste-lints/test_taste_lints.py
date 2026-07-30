@@ -126,6 +126,40 @@ class TestCheckFileSize:
         assert len(result) == 1
         assert result[0].severity == "error"
 
+    def test_eval_artifact_exempt_despite_size(self) -> None:
+        # .agents/analysis/eval-artifacts/ holds raw eval result files kept so
+        # published numbers can be re-derived. Splitting one destroys the
+        # provenance it exists to provide (issue #3970).
+        lines = ["{}\n"] * 9000
+        result = check_file_size(
+            ".agents/analysis/eval-artifacts/2026-07-29-run/fx-opus5.json", lines
+        )
+        assert result == []
+
+    def test_eval_artifact_absolute_path_under_cwd_exempt(self, tmp_path: Path) -> None:
+        target = (
+            tmp_path / ".agents" / "analysis" / "eval-artifacts" / "run" / "a.json"
+        )
+        lines = ["{}\n"] * 9000
+        with patch.object(mod.Path, "cwd", return_value=tmp_path):
+            result = check_file_size(str(target), lines)
+        assert result == []
+
+    def test_analysis_outside_eval_artifacts_not_exempt(self) -> None:
+        # The exemption is for captured data, not for everything under
+        # .agents/analysis/. A hand-authored analysis document still has
+        # boundaries to split on, so the ceiling must still apply.
+        lines = ["line\n"] * 600
+        result = check_file_size(".agents/analysis/some-writeup.md", lines)
+        assert len(result) == 1
+        assert result[0].severity == "error"
+
+    def test_eval_artifacts_lookalike_not_exempt(self) -> None:
+        lines = ["line\n"] * 600
+        result = check_file_size(".agents/analysis/eval-artifactsish/a.json", lines)
+        assert len(result) == 1
+        assert result[0].severity == "error"
+
 
 class TestCheckNaming:
     """Tests for naming convention checks."""
