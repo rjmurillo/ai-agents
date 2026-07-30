@@ -161,6 +161,14 @@
       "action": "Ran the real command and the real parser end to end",
       "detail": "The health command now exits 1 and emits all nine keys. The parser reads that report to total_memories=878, stale_memory_count=7, has_stale=true. Under the old citation-only logic the same report produced has_stale=false, which is the reversal the fifth defect describes.",
       "outcome": "29 passed, ruff clean, both workflows parse as valid YAML"
+    },
+    {
+      "step": "Bot review found the workflow comment claimed health exits 1 only on stale citations. Verified against __main__.py: it exits 1 on broken citations, stale citations, or stale memories. Comment corrected.",
+      "timestamp": "2026-07-30T14:19:21.686896Z"
+    },
+    {
+      "step": "Bot review found the PR summary labelled HEALTH_STALE_MEMORIES as 'Memories with stale citations' while the value is stale_memory_count. Relabelled 'Stale memories' so it does not collide with the citation-level Stale row below it.",
+      "timestamp": "2026-07-30T14:19:21.686896Z"
     }
   ],
   "outcomes": {

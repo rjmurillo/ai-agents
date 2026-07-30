@@ -78,6 +78,22 @@
       "content": "29 passed, ruff clean, both workflows parse as valid YAML",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bot review found the workflow comment claimed health exits 1 only on stale citations. Verified against __main__.py: it exits 1 on broken citations, stale citations, or stale memories. Comment corrected.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bot review found the PR summary labelled HEALTH_STALE_MEMORIES as 'Memories with stale citations' while the value is stale_memory_count. Relabelled 'Stale memories' so it does not collide with the citation-level Stale row below it.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

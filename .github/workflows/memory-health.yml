@@ -80,8 +80,9 @@ jobs:
           enable-git-hooks: false
 
       # --repo-root is a top-level flag, so it must precede the subcommand.
-      # health exits 1 when it finds stale citations, which is a finding to
-      # report rather than a step failure; continue-on-error carries that.
+      # health exits 1 on any broken citation, stale citation, or stale
+      # memory. All three are findings to report rather than step failures,
+      # which is what continue-on-error carries here.
       - name: Run health check (JSON)
         continue-on-error: true
         run: |
@@ -145,7 +146,7 @@ jobs:
               '<summary>Health Check Details</summary>',
               '',
               `- **Total memories**: ${process.env.HEALTH_TOTAL}`,
-              `- **Memories with stale citations**: ${process.env.HEALTH_STALE_MEMORIES}`,
+              `- **Stale memories**: ${process.env.HEALTH_STALE_MEMORIES}`,
               `- **Health score**: ${process.env.HEALTH_SCORE}`,
               `- **Citations**: ${process.env.HEALTH_CITATIONS}`,
               `- **Valid**: ${process.env.HEALTH_VALID}`,
