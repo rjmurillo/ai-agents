@@ -157,21 +157,32 @@ as an implementer.
 Measured 2026-07-29. Always-on corpus, `.py` language baseline: 94,088 bytes
 across 11 files.
 
-The three book rules are the largest single block:
+The two book rules that load on every file are the largest single block:
 
-| Rule | Bytes | Eval coverage |
-|---|---|---|
-| `code-quality.md` | 14,152 | none |
-| `pragmatic-programmer.md` | 12,219 | none |
-| `unified-software-engineering.md` | 8,242 | 4 scenarios |
+| Rule | Bytes | Loading | Eval coverage |
+|---|---|---|---|
+| `code-quality.md` | 14,152 | always-on | none |
+| `pragmatic-programmer.md` | 12,219 | always-on | none |
+| `unified-software-engineering.md` | 8,242 | code files only | 3 positive, 1 negative |
 
-That is 34,613 bytes, roughly 37% of the always-on corpus. Two of the three
-have no behavioral eval coverage at all, which is why they grew unchallenged.
+That is 26,371 always-on bytes, roughly 35% of the 75,528-byte always-on
+corpus, and neither has behavioral eval coverage, which is why they grew
+unchallenged.
 
-They are fenced. `.claude/skills/software-engineering-library/SKILL.md`
-contains an explicit design sentence saying these three stay always-on while
-the other eight books moved to progressive disclosure under ADR-088. Do not
-cut them without updating that sentence in the same change.
+**The rule that was measured is not in that corpus.**
+`unified-software-engineering.md` declares `paths:` scoped to source files, so
+it loads on a code edit and not otherwise. Carrying its result across to the
+two always-on book rules is an extrapolation, not a measurement. State it that
+way whenever the number gets quoted.
+
+Always-on status is declared two ways in this tree: `applyTo: '**'` on six
+rules and `alwaysApply: true` on the other two, including both book rules
+above. A survey that greps one convention misses the other.
+
+They are fenced. The `software-engineering-library` skill contains an explicit
+design sentence saying these baseline rules stay loaded while the other eight
+books moved to progressive disclosure under ADR-088. Do not cut them without
+updating that sentence in the same change.
 
 **The cut is not currently justified by evidence.** See
 `rule-audit-procedure.md` for what the eval can and cannot resolve.

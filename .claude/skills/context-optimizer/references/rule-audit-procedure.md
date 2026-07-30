@@ -61,6 +61,33 @@ Three mechanisms run per scenario:
 If they tie, the body is dead weight and belongs in progressive disclosure.
 `baseline` tells you whether the rule was ever needed at all.
 
+### Measure your ambient contamination before trusting a run
+
+The provider sandboxes `cwd` so repo instruction files cannot leak into the
+control cell, and passes `--no-custom-instructions` so user-level ones in
+`~/.copilot/` cannot either. What no flag removes is the CLI's own system
+prompt and tool schema.
+
+Re-measure both numbers when the CLI updates, because an ambient block that
+grows past the treatment can swamp it:
+
+```bash
+mkdir -p /tmp/cci-probe && cd /tmp/cci-probe
+copilot --no-custom-instructions --allow-all-tools --model claude-opus-5 \
+  -p "Reply with exactly the word: PONG"
+copilot --allow-all-tools --model claude-opus-5 \
+  -p "Reply with exactly the word: PONG"
+```
+
+Read the `Tokens ↑` line from each. The difference is what the flag removes;
+the smaller number is the floor you cannot remove. Measured 2026-07-29:
+**41.2k floor, 54.7k with ambient instructions, so 13.5k contaminating.** That
+was several times the size of the rule bodies under comparison and overlapped
+them semantically, which compresses deltas toward zero. Every run archived
+before 2026-07-29 carries that compression. It biases against finding an
+effect, so it does not explain away a positive result, but it does mean those
+deltas are lower bounds.
+
 ## Step 2. Read the table honestly
 
 ```
@@ -125,8 +152,14 @@ The means are swamped. The **sign is not**:
 
 | Mechanism | beats baseline | ties | pooled mean delta |
 |---|---|---|---|
-| `description` only | 1 of 8 runs | 3 | -0.13 |
+| `description` only | 1 of 8 runs | 3 | -0.14 |
 | `full` body | **7 of 8 runs** | 0 | **+0.67** |
+
+The contrast Step 3 actually decides on is `full` against `description`, not
+either against baseline. It gives the same answer: `full` wins **7 of 8**, with
+per-run deltas 0.44, 0.89, 1.22, 1.22, -0.22, 0.89, 0.78, 1.22. Only three of
+those clear the ~1.0 noise floor on magnitude, which is why the decision rests
+on the sign count rather than the size of any one delta.
 
 Seven of eight in one direction is p about 0.070 two-tailed under a fair-coin
 null. **Read it two-tailed.** The doctrine predicted the opposite direction,
@@ -149,32 +182,64 @@ Recorded so a later re-run has something to compare against. Scenario is
 `unified-software-engineering`, three positive cells plus one negative,
 one generation per cell, judge samples medianed. Scores are 0 to 5.
 
-| Model | baseline | description | full | delta desc | delta full | judge failures |
+| Model | baseline | description | full | delta desc | delta full | discarded samples |
 |---|---|---|---|---|---|---|
-| Opus 5 | 3.83 | 3.67 | 4.11 | -0.16 | +0.28 | 4 |
-| Opus 5 | 3.67 | 3.89 | 4.78 | +0.22 | +1.11 | 6 |
-| Opus 5 | 3.67 | 3.67 | 4.89 | 0.00 | +1.22 | 3 |
+| Opus 5 | 3.89 | 3.67 | 4.11 | -0.22 | +0.22 | 6 |
+| Opus 5 | 3.67 | 3.89 | 4.78 | +0.22 | +1.11 | 8 |
 | Opus 5 | 3.67 | 3.67 | 4.89 | 0.00 | +1.22 | 4 |
+| Opus 5 | 3.67 | 3.67 | 4.89 | 0.00 | +1.22 | 6 |
 | Sol 5.6 | 3.89 | 3.78 | 3.56 | -0.11 | -0.33 | 0 |
 | Sol 5.6 | 3.44 | 3.33 | 4.22 | -0.11 | +0.78 | 0 |
 | Sol 5.6 | 3.22 | 3.22 | 4.00 | 0.00 | +0.78 | 0 |
 | Sol 5.6 | 4.11 | 3.22 | 4.44 | -0.89 | +0.33 | 0 |
 
-Every cell above was graded on the full sample, so no average is computed over
-a reduced denominator. The Opus judge failures were retried and did not shrink
-any cell. **The failures are not evenly spread: Opus logged 3 to 6 per run and
-Sol logged none.** Per-cell Opus scores are usable, but Opus run-level verdicts
-are not, and any future comparison should check this column before trusting a
-verdict.
+### The judge discarded a quarter of the Opus samples, and it was recoverable
+
+An earlier version of this table claimed every cell was graded on the full
+sample. **That was false.** Twelve of the 48 Opus cells were averaged over one
+or two judge samples instead of three, and the `total_judge_failures` field
+those numbers came from counts *affected cells*, not failed samples (issue
+#3958). The real per-run sample losses are 6, 8, 4, and 6, against 0 for every
+Sol run.
+
+The cause is a single defect, and it is not random with respect to the
+comparison. The judge is asked for three numbers plus a `reasoning` string. It
+quotes the response it is grading, an unescaped quote inside that prose
+invalidates the whole JSON object, and the cell was thrown away. **All 24 lost
+samples carried their three scores intact, ahead of the prose that broke the
+parse.** Verbose models trip it more often, which is why Opus lost 24 samples
+and Sol lost none.
+
+`_salvage_scores` in `scripts/eval/eval-rule-activation.py` now recovers the
+numbers when the object will not parse, all-or-nothing, and marks the sample
+`judge_salvaged`. The table above is recomputed with all 24 recovered.
+
+**The correction did not change the conclusion.** One cell moved (`fx-opus5`
+baseline, 3.83 to 3.89). The sign counts, the per-model split, and the pooled
+deltas are the same to two decimal places. That is worth stating plainly: the
+claim was wrong, and the finding it supported survived being fixed.
+
+Reproduce the recovery from any archived run with the three
+`"<field>": <number>` patterns; the artifacts store enough of each failed
+payload to re-extract them.
 
 Other limits, all real:
 
-- **n is 3 or 4 positive scenarios per rule.** One cell moves the average a
-  lot.
+- **n is 2 or 3 positive scenarios per rule.** One cell moves the average a
+  lot. `unified-software-engineering` has 3; most rule scenario files have 2.
+- **The sign-counting rule was chosen after seeing these runs.** It is the
+  reading that survived the noise, not a rule fixed in advance, so the p-value
+  above is exploratory (issue #3957). Treat the four-runs-per-model protocol as
+  a hypothesis this document proposes, and the next audit as its first real
+  test.
 - **The judge is the same model family being evaluated.** Treat it as a known
   validity weakness, not a settled one.
 - **Per-cell scores are a median of 3 judge samples.** That smooths judge
   noise, not model noise. Model noise needs repeat runs.
+- **Runs carry no provenance.** Result artifacts record only `rules`. Provider,
+  requested and actual model, commit, and CLI version are not stored, so model
+  attribution rests on the filename. Record them by hand until that is fixed
+  (issue #3956).
 - **The Copilot provider does not test passive context.** Copilot CLI has no
   separate system channel, so `_CopilotCLIProvider` folds the treatment into
   the user prompt (`scripts/eval/_copilot_cli.py`). A `copilot-cli` result
@@ -195,8 +260,15 @@ Other limits, all real:
 
 The last row is the common case and the easy one to skip. As of 2026-07-29,
 `code-quality.md` (14,152 bytes) and `pragmatic-programmer.md` (12,219 bytes)
-have no scenario file at all. They are the two largest always-on rules. They
-cannot be audited until someone writes scenarios for them.
+have no scenario file at all. They are the two largest **book-derived**
+always-on rules, ranks 2 and 3 in the corpus; `voice.md` (19,624 bytes) is
+larger than either. They cannot be audited until someone writes scenarios for
+them.
+
+Note that always-on status is declared two different ways. Six rules use
+`applyTo: '**'` and two use `alwaysApply: true`. A survey that greps for one
+convention silently misses the other, which is how an earlier draft of this
+paragraph got the ranking wrong. Eight rules, 75,528 bytes, is the corpus.
 
 Applying the doctrine to **authoring guidance** is a separate decision from
 **cutting existing content**. The first is an argument about where new content
@@ -210,9 +282,8 @@ After any change to always-on content:
 1. `uv run python build/scripts/generate_rules.py` to refresh the mirrors.
 2. Re-run Step 0 and record the byte delta.
 3. Re-run Step 1 on both models and confirm the change cleared the noise floor.
-4. If the rule is fenced, update the fence in the same commit.
-   `.claude/skills/software-engineering-library/SKILL.md` currently fences the
-   three book rules.
+4. If the rule is fenced, update the fence in the same commit. The
+   `software-engineering-library` skill currently fences the three book rules.
 
 ## Step 5. Adversarial review
 
@@ -248,13 +319,18 @@ These each cost real time. They are fixed, but the shapes recur.
 - **Agentic CLI output is not clean JSON.** The provider reads
   `~/.copilot/session-state/<uuid>/events.jsonl` and correlates by the sandbox
   working directory, which is race-free. Falling back to stdout parsing mixes
-  tool traces into the answer.
+  tool traces into the answer. That fallback also fires on a filesystem error,
+  silently skipping the only check that confirms which model actually served
+  the request, so a run can be attributed to the wrong model with no warning
+  (issue #3959).
 - **The Copilot CLI stdout token counter is non-monotonic.** Unusable as a
   measurement. Use `session.usage_checkpoint.data.totalNanoAiu` from the event
   log instead.
 - **The CLI loads `AGENTS.md` from its working directory.** Eval calls must run
   in an empty temp directory or the repo's own instructions contaminate the
-  baseline mechanism.
+  baseline mechanism. User-level instructions in `~/.copilot/` ignore the
+  working directory entirely and need `--no-custom-instructions`; see Step 1
+  for how to measure what they were costing you.
 - **Most eval entry points still demand `ANTHROPIC_API_KEY`** even when
   `EVAL_PROVIDER` selects a keyless provider. Tracked in issue #3924.
   `eval-rule-activation.py` is fixed and shows the pattern.
