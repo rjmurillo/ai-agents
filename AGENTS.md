@@ -14,7 +14,7 @@
 ## Gates
 
 **Start**: Init Serena|Read HANDOFF+latest issue handoff|Resume check|Log|Search mem|Verify git
-**Mid**: `git rev-list --count HEAD ^origin/main` block >20 (>40 merging main); notice at 10, warning at 15 (scripts/validation/pr_commit_count.py)
+**Mid**: `git rev-list --count HEAD ^origin/main` block >20; notice 10; warn 15
 **Pre-PR**: `python3 scripts/validation/pre_pr.py`|No BLOCKING|Security scan|Style `.gemini/styleguide.md`
 **End**: Complete log|Keep HANDOFF|Issue handoff if open|Update Serena|Lint|Commit|Check
 
@@ -28,7 +28,7 @@
 
 ## Context
 
-Knowledge -> context (ceiling 99KB for .py/.cs/.ps1, 83KB for .md; see scripts/validation/instruction_budget_constants.py). Actions -> skills.
+Knowledge -> context. Actions -> skills.
 
 ## Skill-First
 
