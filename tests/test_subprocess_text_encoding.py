@@ -122,6 +122,11 @@ _GETATTR = "getattr"
 # one rename away from missing the fetch. ``__getattr__`` is the fallback a
 # partial subclass can define; ``__getattribute__`` runs for every read.
 _ATTR_DUNDERS = frozenset({"__getattribute__", "__getattr__"})
+# How a name that fetches an attribute asks for it. A named fetcher is told
+# the attribute at the call site, the way ``getattr`` is. A fixed one was
+# built already knowing it, the way ``attrgetter("keywords")`` is.
+_FETCH_NAMED = "named"
+_FETCH_FIXED = "fixed"
 # The builtins that consume a mapping by walking its keys. A partial's keys
 # are always strings, so what these answer with holds no way back to the
 # mapping: a number, a bool, one key, or a fresh container of keys. Measured
@@ -1479,26 +1484,56 @@ def _literal_roots(
     return frozenset(root for root, literal in settled.items() if literal)
 
 
-def _getattr_aliases(bindings: list[tuple[str, ast.expr]]) -> frozenset[str]:
-    """Name every binding that reaches the ``getattr`` builtin.
+def _getter_names_keywords(factory: ast.Call, functions: dict[str, str]) -> bool:
+    """Report whether *factory* builds an attrgetter that reads ``keywords``.
 
-    ``fetch = getattr`` renames the builtin without changing what it does, so
-    a scan matching the word alone stops at the rename. Assignments are
-    revisited until the set settles, because a rename can be renamed again.
+    An attrgetter can name several attributes at once, and answers with a
+    tuple holding one value per name. The mapping is in that tuple whichever
+    position it was asked for in, so any name matching is enough.
+
+    Reaching it out of that tuple takes a subscript this scan does not model,
+    so ``attrgetter("keywords", "func")(runner)[0]["encoding"] = None`` is
+    read as a look and stays spared. Measured, not assumed: that spelling
+    does undo the pin at runtime. It is left open because closing it needs
+    the whole tuple-index hop threaded into the sparing rule for a spelling
+    nothing writes, while the one-name form above is the one that appears.
     """
-    found = {_GETATTR}
+    if _operator_label(factory, functions) != _OPERATOR_ATTRGETTER:
+        return False
+    return any(_names_keywords(arg) for arg in factory.args)
+
+
+def _keyword_fetchers(
+    bindings: list[tuple[str, ast.expr]], functions: dict[str, str]
+) -> dict[str, str]:
+    """Map every name that fetches a keywords mapping to how it asks for one.
+
+    Two kinds arrive here. ``getattr`` and anything renamed from it take the
+    attribute name as an argument, so the call site decides what is fetched.
+    An attrgetter is built with the name already in it, so the binding decides
+    and the call supplies only the owner.
+
+    Assignments are revisited until the set settles, because a rename can be
+    renamed again.
+    """
+    found = {_GETATTR: _FETCH_NAMED}
+    for name, value in bindings:
+        if isinstance(value, ast.Call) and _getter_names_keywords(value, functions):
+            found[name] = _FETCH_FIXED
     growing = True
     while growing:
         growing = False
         for name, value in bindings:
-            if isinstance(value, ast.Name) and value.id in found:
-                growing = growing or name not in found
-                found.add(name)
-    return frozenset(found)
+            if not isinstance(value, ast.Name) or value.id not in found:
+                continue
+            if found.get(name) != found[value.id]:
+                found[name] = found[value.id]
+                growing = True
+    return found
 
 
 def _fetched_keywords(
-    node: ast.AST, functions: dict[str, str], fetchers: frozenset[str]
+    node: ast.AST, functions: dict[str, str], fetchers: dict[str, str]
 ) -> ast.expr | None:
     """Return the owner whose keywords mapping a fetching call reaches.
 
@@ -1533,31 +1568,41 @@ def _dunder_fetch(call: ast.Call) -> ast.expr | None:
 
 
 def _getter_fetch(
-    call: ast.Call, functions: dict[str, str], fetchers: frozenset[str]
+    call: ast.Call, functions: dict[str, str], fetchers: dict[str, str]
 ) -> ast.expr | None:
     """Return the owner a ``getattr`` or ``attrgetter`` call reads, or None.
 
     ``attrgetter("keywords")(runner)`` splits the question across two calls:
     the factory names the attribute, the call names what to read it from.
     Neither node alone spells the mapping, which is what makes the pair an
-    evasion.
+    evasion, and binding the factory to a name splits it across two
+    statements as well.
     """
     if isinstance(call.func, ast.Call):
-        factory = call.func
-        if _operator_label(factory, functions) != _OPERATOR_ATTRGETTER:
-            return None
-        if len(factory.args) != 1 or not _names_keywords(factory.args[0]):
+        if not _getter_names_keywords(call.func, functions):
             return None
         return call.args[0] if call.args else None
-    if not isinstance(call.func, ast.Name) or call.func.id not in fetchers:
+    if isinstance(call.func, ast.Name):
+        return _named_fetch(call, fetchers.get(call.func.id))
+    return None
+
+
+def _named_fetch(call: ast.Call, kind: str | None) -> ast.expr | None:
+    """Return the owner a fetching call named by *kind* reads, or None.
+
+    A fixed fetcher was built already knowing the attribute, so the first
+    argument is the owner. A named one is told the attribute at the call, so
+    the second argument has to be the one this scan cares about.
+    """
+    if kind == _FETCH_FIXED:
+        return call.args[0] if call.args else None
+    if kind != _FETCH_NAMED or len(call.args) not in (2, 3):
         return None
-    if len(call.args) not in (2, 3) or not _names_keywords(call.args[1]):
-        return None
-    return call.args[0]
+    return call.args[0] if _names_keywords(call.args[1]) else None
 
 
 def _keyword_mapping(
-    node: ast.AST, functions: dict[str, str], fetchers: frozenset[str]
+    node: ast.AST, functions: dict[str, str], fetchers: dict[str, str]
 ) -> ast.expr | None:
     """Return the expression whose keywords mapping *node* reaches, if any.
 
@@ -1579,7 +1624,7 @@ def _undone_pins(
     literal_roots: frozenset[str],
     shadowed: frozenset[str],
     functions: dict[str, str],
-    fetchers: frozenset[str],
+    fetchers: dict[str, str],
 ) -> set[str]:
     """Return the partials whose bound codec the source can undo.
 
@@ -1910,7 +1955,7 @@ def _subprocess_names(tree: ast.Module) -> _Names:
         _literal_roots(bindings, functions, roots),
         _rebound_builtins(tree, bindings),
         functions,
-        _getattr_aliases(bindings),
+        _keyword_fetchers(bindings, functions),
     )
     return _Names(
         modules,
@@ -2964,6 +3009,28 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             'seen = fetch(runner, "func")\n'
             'runner(["x"], text=True)',
             "a getattr under another name still only answers for the name it asks",
+        ),
+        (
+            'import functools, operator, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env=guard\n'
+            ')\n'
+            'fetch = operator.attrgetter("func")\n'
+            'seen = fetch(runner)\n'
+            'runner(["x"], text=True)',
+            "an attrgetter bound to a name carries the attribute it was built for",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env=guard\n'
+            ')\n'
+            'def attrgetter(*names):\n'
+            '    return lambda owner: {}\n'
+            'fetch = attrgetter("keywords")\n'
+            'seen = fetch(runner)\n'
+            'runner(["x"], text=True)',
+            "a name bound to a local attrgetter fetches nothing from the partial",
         ),
     ],
 )
@@ -4127,6 +4194,27 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'attrgetter("keywords")(runner)["encoding"] = None\n'
             'runner(["x"], text=True)',
             "a directly imported attrgetter needs no module name to reach it",
+        ),
+        (
+            'import functools, operator, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'fetch = operator.attrgetter("keywords")\n'
+            'fetch(runner)["encoding"] = None\n'
+            'runner(["x"], text=True)',
+            "an attrgetter bound to a name reads the attribute the same way",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'fetch = getattr\n'
+            'again = fetch\n'
+            'again(runner, "keywords")["encoding"] = None\n'
+            'runner(["x"], text=True)',
+            "a rename of a rename still reaches the builtin it started as",
         ),
         (
             'import functools, subprocess\n'
