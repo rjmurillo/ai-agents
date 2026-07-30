@@ -51,7 +51,9 @@ from github_core.output import (  # noqa: E402
     write_skill_output,
 )
 
-_SEMVER_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
+# Optional v prefix matches the repository tag and milestone convention
+# (every milestone since 0.3.0 is v-prefixed; see issue #3945).
+_SEMVER_PATTERN = re.compile(r"^v?\d+\.\d+\.\d+$")
 
 
 # Upper bound (seconds) for each gh network call.
@@ -59,7 +61,7 @@ GH_TIMEOUT_SECONDS = 30
 
 
 def _parse_semver_tuple(version: str) -> tuple[int, ...]:
-    return tuple(int(part) for part in version.split("."))
+    return tuple(int(part) for part in version.removeprefix("v").split("."))
 
 
 def _write_github_output(outputs: dict[str, str]) -> None:
