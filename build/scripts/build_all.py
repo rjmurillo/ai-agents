@@ -724,18 +724,32 @@ def _confirm_ignored(repo_root: Path, candidates: set[Path]) -> set[Path]:
     """
     if not candidates:
         return set()
-    payload = "\0".join(str(p) for p in sorted(candidates))
+    payload = b"\0".join(os.fsencode(str(p)) for p in sorted(candidates))
     try:
         completed = subprocess.run(
             ["git", "-C", str(repo_root), "check-ignore", "--stdin", "-z"],
-            input=payload.encode(),
+            input=payload,
             capture_output=True,
             check=False,
             env=_git_scrubbed_env(),
         )
     except OSError:
         return set()
-    return {Path(raw) for raw in completed.stdout.decode().split("\0") if raw}
+    # git check-ignore exits 0 when at least one path matched, 1 when none
+    # did, and 128 on error. Only 0 and 1 carry a trustworthy answer. Any
+    # other code returns the empty set, which leaves every candidate
+    # un-excluded and so keeps the guard fail-closed.
+    if completed.returncode not in (0, 1):
+        return set()
+    # Decode with os.fsdecode (surrogateescape on POSIX) so a non-UTF-8
+    # filename round-trips instead of raising UnicodeDecodeError and
+    # crashing the pre-push guard. Splitting on bytes first keeps the
+    # NUL delimiter unambiguous.
+    return {
+        Path(os.fsdecode(raw))
+        for raw in completed.stdout.split(b"\0")
+        if raw
+    }
 
 
 # --- Clean ----------------------------------------------------------------

@@ -1,0 +1,150 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3747,
+    "date": "2026-07-29",
+    "branch": "fix/3747-3763-session-log-validation",
+    "startingCommit": "9cf7ff8960121d4fa052e0a94f2f3ce65bb50aac",
+    "objective": "Close the two ways a required session-log item escapes enforcement (#3747) and make the committed schema name every root field the protocol requires (#3763)."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena MCP exposes no tools in this harness. Used the documented .serena/memories fallback per AGENTS.md."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Blocked by the same unavailability as serenaActivated; the initial_instructions tool is not reachable."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md read-only per ADR-014."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Enumerated .claude/skills/session-init/scripts and session_init/session_structure.py to confirm the generator already emits the four fields #3763 promotes."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Reviewed skill-first routing; validator work has no owning skill, so it is direct repository work."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/SESSION-PROTOCOL.md lines 20, 285-286 and 946. Line 20 is the authority the demotion rule enforces; 946 lists the six root fields."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded prior findings on _MUST_FAILURE_PREFIXES drift (issue #3365) and the #3385 record-mode split before touching the validator."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current reported fix/3747-3763-session-log-validation."
+      },
+      "notOnMain": {
+        "level": "MUST NOT",
+        "Complete": false,
+        "Evidence": "On fix/3747-3763-session-log-validation, cut from origin/main at 9cf7ff896."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short showed only the three intended files."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "9cf7ff8960121d4fa052e0a94f2f3ce65bb50aac"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This checklist."
+      },
+      "handoffPreserved": {
+        "level": "MUST NOT",
+        "Complete": false,
+        "Evidence": "HANDOFF.md not modified; read-only per ADR-014."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena MCP unreachable in this harness. The durable finding is recorded in the PR body and in module comments instead."
+      },
+      "markdownLintRun": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "No markdown file changed. The diff is one Python module, one test module, and one JSON schema."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Three atomic commits: schema, validator, tests."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "259 tests pass in tests/test_validate_session_json.py; 340 pass across the session batch; 16/16 mutants caught; ruff and mypy clean; pre_pr.py passed."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issues #3747 and #3763 addressed in one branch because both are the same defect class: a required field that nothing required."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Recorded below as the overturned premise on #3747."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Measured the #3747 premise before acting on it",
+      "detail": "The issue reports one bypass: demoting a required MUST to SHOULD. Scanned all 1,027 committed logs. 257 demotions exist and every one already carries evidence, so the named bypass has never been used. A second, unnamed bypass is wide open: 138 required items declare no level key at all. Because every check in validate_must_item is gated on level == 'MUST', an absent level skips all of them. The absent-level hole covers branchVerified 19 times and notOnMain 4 times, the two items that answer whether the session ran on main."
+    },
+    {
+      "step": "Closed both holes with one flag",
+      "detail": "Threaded an is_required flag from validate_checklist_section into validate_must_item. A required item with no level is now an error. A required item demoted below MUST while incomplete and carrying no evidence is now an error, which enforces SESSION-PROTOCOL.md line 20 as written rather than inventing policy. Demotion itself stays legal because Copilot CLI exposes no Serena tools and pinning serenaActivated to MUST would invalidate every Copilot session."
+    },
+    {
+      "step": "Registered both messages in _MUST_FAILURE_PREFIXES",
+      "detail": "count_must_failures matches on exact prefixes, so an unregistered MUST-level message is one CI silently never counts. Issue #3365 was exactly this drift, and a test now pins the registration."
+    },
+    {
+      "step": "Made the schema name every root field the protocol requires",
+      "detail": "SESSION-PROTOCOL.md line 946 lists six required root fields and build_session_log emits all six, but the schema named two. Promoted schemaVersion, workLog, endingCommit and nextSteps to required. The schema was the only one of the three documents disagreeing with the other two."
+    },
+    {
+      "step": "Kept the #3385 record-mode guarantee intact",
+      "detail": "Promoting the four fields initially broke renames of historical logs, which is the exact regression #3385 fixed. Threaded existing_log into validate_against_schema and subtracted precisely those four names from the root required list in record mode. A rename cannot supply a workLog the session never wrote, and fabricating one to clear a gate is the behaviour that issue forbids. Two mutants pin the subtraction to exactly four names."
+    },
+    {
+      "step": "Verified both rules ratchet practice rather than change it",
+      "detail": "The last log missing a level is dated 2026-03-09; the most recent 397 logs have none. build_session_log emits level on all twelve required items and all six root fields, so a freshly generated log trips neither rule. A test asserts this against the real generator so the claim is checked, not remembered."
+    },
+    {
+      "step": "Proved every component load-bearing",
+      "detail": "16-mutant harness: suppress each new error, remove the is_required guard, cut the call-site wiring, drop each exemption, accept whitespace as justification, unregister the prefixes, remove the relaxation, apply it unconditionally, cut the existing_log threading, and drop each of the five required entries individually. All 16 caught, 0 survived."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Continue the gate-integrity cluster: #3710 markdownlint exiting 0 on an empty file set, #3770 conflict-marker gate lacking a pre-push backstop, #3779 taste-lints file-size declared error but hardcoded to return 0."
+  ]
+}

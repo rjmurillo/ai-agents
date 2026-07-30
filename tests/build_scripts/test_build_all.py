@@ -1917,3 +1917,43 @@ def test_confirm_ignored_ignores_git_exit_one(tmp_path: Path) -> None:
     real = repo / ".claude" / "lib" / "generated.py"
     real.write_text("x = 1\n", encoding="utf-8")
     assert build_all._confirm_ignored(repo, {real}) == set()
+
+
+def test_confirm_ignored_is_fail_closed_on_git_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A git error (exit 128) must discard whatever partial output arrived.
+
+    The stdout payload is non-empty on purpose. With empty output the real
+    code and a mutant that drops the return-code check are
+    indistinguishable, so the test would prove nothing. Trusting partial
+    output would exclude a path from the guard on the strength of a failed
+    query, which is fail-open.
+    """
+    pyc = tmp_path / "x.pyc"
+
+    class _Result:
+        returncode = 128
+        stdout = str(pyc).encode()
+
+    monkeypatch.setattr(build_all.subprocess, "run", lambda *a, **k: _Result())
+
+    assert build_all._confirm_ignored(tmp_path, {pyc}) == set()
+
+
+def test_confirm_ignored_survives_non_utf8_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A non-UTF-8 filename must round-trip rather than raise
+    UnicodeDecodeError and crash the pre-push guard."""
+    import os as _os
+
+    raw = tmp_path / _os.fsdecode(b"caf\xe9.pyc")
+
+    class _Result:
+        returncode = 0
+        stdout = _os.fsencode(str(raw))
+
+    monkeypatch.setattr(build_all.subprocess, "run", lambda *a, **k: _Result())
+
+    assert build_all._confirm_ignored(tmp_path, {raw}) == {raw}
