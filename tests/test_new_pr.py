@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import codecs
 import importlib.util
 import os
 import subprocess
@@ -850,6 +851,16 @@ class TestCapturedOutputPinsItsCodec:
         return isinstance(value, ast.Constant) and bool(value.value)
 
     @staticmethod
+    def _pins_utf8(encoding: ast.expr | None) -> bool:
+        """True when encoding= resolves to the canonical UTF-8 codec."""
+        if not isinstance(encoding, ast.Constant) or not isinstance(encoding.value, str):
+            return False
+        try:
+            return codecs.lookup(encoding.value).name == "utf-8"
+        except LookupError:
+            return False
+
+    @staticmethod
     def _capturing_runs(source: str):
         """(lineno, {kwarg names}) for each subprocess.run that decodes output."""
         found = []
@@ -875,7 +886,10 @@ class TestCapturedOutputPinsItsCodec:
                 or "errors" in kwargs
             )
             if captures and decodes:
-                found.append((node.lineno, set(kwargs)))
+                present = set(kwargs)
+                if not TestCapturedOutputPinsItsCodec._pins_utf8(kwargs.get("encoding")):
+                    present.discard("encoding")
+                found.append((node.lineno, present))
         return found
 
     @pytest.mark.parametrize("mirror", _MIRRORS, ids=lambda p: p.parts[-6])
@@ -931,6 +945,36 @@ class TestCapturedOutputPinsItsCodec:
         )
         offenders = [lineno for lineno, kwargs in runs if "encoding" not in kwargs]
         assert offenders == []
+
+    def test_utf8_codec_aliases_are_not_encoding_offenders(self):
+        """Python codec aliases that resolve to UTF-8 still pin the codec."""
+        source = "\n".join(
+            [
+                "import subprocess",
+                *(
+                    "subprocess.run(['x'], capture_output=True, "
+                    f"encoding={alias!r}, errors='replace')"
+                    for alias in ("UTF-8", "utf8", "UTF8", "utf_8", "U8")
+                ),
+            ]
+        )
+        runs = self._capturing_runs(source)
+
+        offenders = [lineno for lineno, kwargs in runs if "encoding" not in kwargs]
+
+        assert len(runs) == 5
+        assert offenders == []
+
+    @pytest.mark.parametrize("codec", ("latin-1", "utf-8-sig", "not-a-codec"))
+    def test_non_utf8_codecs_are_encoding_offenders(self, codec):
+        """Non-UTF-8 codecs still fail the pinned-codec guard."""
+        runs = self._capturing_runs(
+            "import subprocess\n"
+            f"subprocess.run(['x'], capture_output=True, encoding={codec!r}, errors='replace')\n"
+        )
+        offenders = [lineno for lineno, kwargs in runs if "encoding" not in kwargs]
+
+        assert offenders == [2]
 
     def test_a_non_capturing_run_is_out_of_scope(self):
         """text= without capture never decodes, so it is not this rule's business."""
