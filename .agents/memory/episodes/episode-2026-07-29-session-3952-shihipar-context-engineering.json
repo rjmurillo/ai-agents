@@ -55,6 +55,16 @@
       "rationale": "",
       "outcome": "success",
       "effects": []
+    },
+    {
+      "id": "d006",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "recovery",
+      "context": "",
+      "chosen": "Rejected Sol's proposed fix of refusing any string containing a literal backslash-u. It produces false refusals on prose that merely mentions an escape and cannot distinguish a contradiction from a restatement. Adopted a contradiction-based contract instead: a payload is ambiguous when it names a score field whose value conflicts with the value actually filed at top level, measured across up to three peeled escape layers, with uncomparable mentions still refused. This corrects a bias the session had been applying, since a dropped sample moves a published median exactly as a fabricated one does.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
     }
   ],
   "events": [
@@ -205,7 +215,8 @@
         "e127",
         "e141",
         "e148",
-        "e153"
+        "e153",
+        "e160"
       ]
     },
     {
@@ -259,7 +270,8 @@
         "e127",
         "e141",
         "e148",
-        "e153"
+        "e153",
+        "e160"
       ]
     },
     {
@@ -681,7 +693,8 @@
         "e127",
         "e141",
         "e148",
-        "e153"
+        "e153",
+        "e160"
       ]
     },
     {
@@ -1373,6 +1386,66 @@
       "timestamp": "2026-07-29T00:00:00+00:00",
       "type": "test",
       "content": "Added test_a_verdict_hidden_in_an_object_key_is_two_verdicts as a standing regression guard, negative-controlled by reverting only the key-walking change. Verification: ruff clean, mypy clean, 0 em/en dashes, mirrors byte-identical, full suite 19029 passed and 30 skipped.",
+      "caused_by": [
+        "e017",
+        "e022",
+        "e071"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e154",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Sol adversarial round 17 returned three findings and all three reproduced exactly. One BLOCKING: a second verdict spelled with unicode escapes inside reasoning survives the parse as literal backslash-u text, which no pattern for the score field names matches, so a payload carrying a corrected 5/5/5 beside a filed 1/1/1 published the 1/1/1 unmarked on both parsed-region paths. Two others: both ambiguity walkers recursed and raised RecursionError on deeply nested but healthy payloads, which the scoring call site catches as RuntimeError and mislabels a judge API failure, dropping a valid sample; and a single agreeing mention of a score field in prose was refused as a second verdict.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e155",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rejected Sol's proposed fix of refusing any string containing a literal backslash-u. It produces false refusals on prose that merely mentions an escape and cannot distinguish a contradiction from a restatement. Adopted a contradiction-based contract instead: a payload is ambiguous when it names a score field whose value conflicts with the value actually filed at top level, measured across up to three peeled escape layers, with uncomparable mentions still refused. This corrects a bias the session had been applying, since a dropped sample moves a published median exactly as a fabricated one does.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e156",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Converted both ambiguity walkers to iterative stack walks and documented the RecursionError to RuntimeError to judge-API-failure mislabel chain in the docstring, so the next reader sees why the recursion mattered rather than only that it was removed.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e157",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified all three fixes against the reproduction script: nested escapes now refuse on all three parsed-region shapes, the 996-deep healthy payload now scores 5/4/5 instead of being dropped, and the self-restating payload now scores 5/4/5. Controls hold: em-dash prose still scores, a conflicting quoted verdict still refuses, a verdict hidden in an object key still refuses.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e158",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added three regression tests, each negative-controlled with a cp backup rather than git checkout: disabling escape peeling fails the escape test, refusing on any match fails the restatement test, and restoring the recursive counter fails the deep-nesting test. Re-ran the 288-cell replay: every archived payload is unaffected by all three changes, confirming Sol's measurement that none carries either shape.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e159",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verification: full suite 19032 passed and 30 skipped, up 3 from the new tests. ruff clean, mypy clean after annotating the filed-scores parameter, 0 em/en dashes, mirrors byte-identical, taste ratchet OK at baseline 616. Shipped as dea1e35f and 8a52e03a on PR #3983.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e160",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "content": "Verification: full suite 19032 passed and 30 skipped, up 3 from the new tests. ruff clean, mypy clean after annotating the filed-scores parameter, 0 em/en dashes, mirrors byte-identical, taste ratchet OK at baseline 616. Shipped as dea1e35f and 8a52e03a on PR #3983.",
       "caused_by": [
         "e017",
         "e022",
