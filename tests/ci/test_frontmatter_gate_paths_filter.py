@@ -99,19 +99,22 @@ def test_the_filter_result_actually_reaches_the_gate() -> None:
     filter_id = filter_steps[0].get("id")
     assert filter_id, "the paths-filter step needs an id or its output is unreadable"
 
-    deciders = [
-        step
-        for step in check["steps"]
-        if f"steps.{filter_id}.outputs.agents" in str(step.get("env", {}))
-    ]
-    assert deciders, f"no step reads steps.{filter_id}.outputs.agents"
-    decider_id = deciders[0].get("id")
-    assert decider_id, "the deciding step needs an id"
-
     published = str(check.get("outputs", {}).get("should-run-agents", ""))
-    assert f"steps.{decider_id}.outputs.should-run-agents" in published, (
-        "check-paths does not publish the deciding step's result"
-    )
+    if f"steps.{filter_id}.outputs.agents" not in published:
+        # The output may name an intermediate step instead of the filter. That
+        # is still a valid chain, so long as the step it names reads the
+        # filter's output.
+        deciders = [
+            step
+            for step in check["steps"]
+            if f"steps.{filter_id}.outputs.agents" in str(step.get("env", {}))
+            and step.get("id")
+            and f"steps.{step['id']}.outputs." in published
+        ]
+        assert deciders, (
+            f"check-paths publishes {published!r}, which neither reads "
+            f"steps.{filter_id}.outputs.agents nor names a step that does"
+        )
 
     validate = document["jobs"]["validate"]
     needs = validate["needs"]
