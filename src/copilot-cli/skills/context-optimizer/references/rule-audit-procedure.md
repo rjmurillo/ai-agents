@@ -51,15 +51,25 @@ disagreement is the point.
 
 Three mechanisms run per scenario:
 
-| Mechanism | System prompt | Answers |
+| Mechanism | Treatment text | Answers |
 |---|---|---|
-| `baseline` | empty | What does the model do unprompted? |
+| `baseline` | none | What does the model do unprompted? |
 | `description` | frontmatter only | Does the routing line alone suffice? |
 | `full` | whole rule body | Does the body add anything? |
 
+**Where the treatment text goes depends on the provider, and it is not always
+a system prompt.** The Anthropic API provider sets it as the system prompt.
+The Copilot CLI provider has no separate system channel, so it prepends the
+treatment to the user message. That measures priming, which is a weaker
+analogue of the loading path production uses. Do not describe a Copilot CLI
+result as a system-prompt result.
+
 **The comparison that decides the question is `description` against `full`.**
-If they tie, the body is dead weight and belongs in progressive disclosure.
-`baseline` tells you whether the rule was ever needed at all.
+If they tie, the body earned nothing measurable and is a candidate for
+progressive disclosure. Read the decision rule below before acting on a tie:
+a single tie is not evidence, and the cut requires replicated absence of
+degradation, not a single equality. `baseline` tells you whether the rule was
+ever needed at all.
 
 ### Ambient instructions contaminated runs archived before 2026-07-29
 
@@ -71,15 +81,17 @@ cells.
 
 A rough size check, run from an empty directory against `claude-opus-5` with
 the same prompt twice, once with `--no-custom-instructions` and once without,
-put the difference near 13k input tokens on the CLI's own stdout counter. Read
-that as an order of magnitude and nothing more. **That counter is
-non-monotonic and is listed under instrument gotchas below as unusable for
-measurement**, and the probe did not pass `--disable-builtin-mcps`, so neither
-absolute number is the provider's floor. It is enough to establish that the
-ambient block was larger than the rule bodies being compared, not enough to
-quantify it. Measure it properly from
-`session.usage_checkpoint.data.totalNanoAiu` in the event log, under the
-provider's actual argument list, before quoting a number.
+showed the flag changed reported usage by roughly 13k input tokens on the
+CLI's own stdout counter. **That is all it establishes.** The same counter is
+listed under instrument gotchas below as non-monotonic and unusable for
+measurement, so it cannot support a claim about relative size, and the probe
+omitted `--disable-builtin-mcps`, so neither absolute number is the provider's
+floor. Read it as confirmation that the flag does something, not as a
+quantity. Before comparing ambient size against rule-body size, measure both
+from the event log: read `data.totalNanoAiu` on the events whose `type` is
+`session.usage_checkpoint` in `~/.copilot/session-state/<uuid>/events.jsonl`,
+under the provider's actual argument list. The `session.` prefix is part of
+the type string, not a key at the root of the object.
 
 **The direction of that bias is unknown.** It is tempting to argue the ambient
 block only adds a constant to every cell and so compresses deltas toward zero,
@@ -169,13 +181,46 @@ win against four losses. A sign test discards ties.
 
 **So run the eval at least four times per model and count signs.** A
 consistent direction across runs is evidence. A large delta in one run is not.
-This is the only reading of this instrument that has held up.
+This is the reading that survived the noise in the one audit run so far. It
+was chosen after seeing those runs, so treat it as the protocol this document
+proposes, not as a protocol that has been validated. Pre-register the run
+count, the tie handling, and the decision threshold before the next audit
+(issue #3957).
 
 ### The eight runs, for comparison
 
 Recorded so a later re-run has something to compare against. Scenario is
 `unified-software-engineering`, three positive cells plus one negative,
 one generation per cell, judge samples medianed. Scores are 0 to 5.
+
+The numbers below are the positive-scenario average, and they only reproduce
+if you reduce in this order:
+
+1. The judge returns three fields per sample: `activation_score`,
+   `citation_score`, `behavior_score`.
+2. Per cell (one scenario x one mechanism), take the **median** across judge
+   samples of each field separately. Three medians.
+3. The cell score is the **mean of those three medians**.
+4. The published figure is the **mean of the three positive-scenario cells**
+   for that mechanism. The negative scenario is scored and reported but does
+   not gate the verdict, so read its column yourself (issue #3933).
+
+Three positive cells times three fields is nine medians, which is why a full
+run lands on a 1/9 grid. 3.89 is 35/9. Reducing in a different order, for
+example averaging the three fields before taking the median, gives different
+numbers.
+
+**Step 2 is a defect, not a choice, and the numbers below carry it.** Taking
+each field's median independently is a coordinate-wise median, and the result
+need not be any sample the judge gave. Three samples of 5/5/1, 5/1/5, and
+1/5/5 reduce to 5/5/5, a cell of 5.0, when every judge rated the triple at
+3.67. Reducing each sample to its own three-score mean first and taking the
+median of those scalars gives 3.67. Measured across all 96 archived cells,
+**3 diverge**, worst by 0.333 on a cell and 0.111 on a run average:
+`t-sol56` S2 description and S3 baseline, and `var-sol-2` S3 full. Recomputed
+end to end, the sign count is unchanged at seven positive against one
+negative, p = 0.0703, so the conclusion holds; two of the eight rows shift.
+Tracked as issue #3989. Do not reproduce this reduction in a new instrument.
 
 | Model | baseline | description | full | delta desc | delta full | discarded samples |
 |---|---|---|---|---|---|---|
@@ -190,42 +235,50 @@ one generation per cell, judge samples medianed. Scores are 0 to 5.
 
 ### The judge discarded Opus samples unevenly, and it was recoverable
 
-An earlier version of this table claimed every cell was graded on the full
-sample. **That was false.** Twelve of the 48 Opus cells, one in four, were
-averaged over one or two judge samples instead of three. That is 24 of 144
-Opus judge samples, one in six. The `total_judge_failures` field the claim
-rested on counts affected cells, not failed samples (issue #3958), which is
-how the undercount survived. Sol lost none.
+Seventeen of the 48 Opus cells were averaged over one or two judge samples
+instead of three, and all 24 lost samples are in the four Opus artifacts.
+Recovering them moved one cell (`fx-opus5` baseline, 3.83 to 3.89) and left
+the sign count unchanged. The table above is the post-recovery one, so every
+published cell uses three samples; seventeen of them get at least one of those
+three from post-hoc recovery of a truncated prefix, and seven get two.
 
-The cause is a single defect, and it is not random with respect to the
-comparison. The judge is asked for three numbers plus a `reasoning` string. It
-quotes the response it is grading, an unescaped quote inside that prose
-invalidates the whole JSON object, and the cell was thrown away. **All 24 lost
-samples were recovered**, which means each carried its three scores intact
-ahead of the prose that broke the parse; the salvage path is all-or-nothing,
-so a partial payload would have failed rather than recovered. Verbose models
-trip it more often, which is why Opus lost 24 samples and Sol lost none.
+The full accounting and the confounds it creates for the table above are in
+`rule-audit-evidence.md`. Read it before citing a cell from this table. The
+defects found in the verdict-parsing code, across more than twenty review
+rounds,
+are in `rule-audit-parser-forensics.md`. Each one's cost against this table was
+measurable, because this run's archive stores the raw judge payload for all 288
+samples, successes included, so a defect on the success path can be replayed
+rather than argued about. Issue #3998 was filed on the belief that the archive
+kept raw only for failures; that belief was wrong for this run, and the general
+concern it raises applies only to a future instrument that discards
+success-path evidence.
 
-`_salvage_scores` in `scripts/eval/eval-rule-activation.py` now recovers the
-numbers when the object will not parse, all-or-nothing, and marks the sample
-`judge_salvaged`. The table above is recomputed with all 24 recovered.
+**Provenance for the eight runs, recorded by hand because the artifacts do not
+carry it (issue #3956).**
 
-**The correction did not change the reported sign count.** One cell moved
-(`fx-opus5` baseline, 3.83 to 3.89). The per-model split held and the pooled
-description delta shifted from -0.13 to -0.14.
+| Field | Value |
+|---|---|
+| Artifacts | `fx-opus5`, `var-opus-{1,2,3}`, `t-sol56`, `var-sol-{1,2,3}` |
+| Rule under test | `unified-software-engineering`, 3 positive and 1 negative scenario |
+| Provider | `EVAL_PROVIDER=copilot-cli` |
+| Requested models | `claude-opus-5`, `gpt-5.6-sol` (actual model not recorded) |
+| Judge samples | 3 per cell, median reduced |
+| Generations | 1 per cell |
+| Ambient instructions | present; these runs predate `--no-custom-instructions` |
+| Harness state | postdates the 2026-07-29 fix for silently zero-scored cells |
+| Date | 2026-07-29 |
 
-State the limit of that plainly. The extractor was written after seeing which
-samples failed and was evaluated on those same failures, so this is a
-post-hoc recovery, not an independent replication. Recovering *every* failure
-rather than a chosen subset avoids outcome selection, and the negative control
-below is real evidence the method is faithful. Neither makes it a blind test.
-Falsifying it takes one of: blinded manual transcription of the failed
-payloads, a second parser written without sight of them, or held-out malformed
-output. None of those has been done.
+The harness row matters. An earlier defect scored a cell zero when the
+provider call failed, which pulls an average down without leaving a mark. All
+eight runs above were taken after that was fixed, so no cell in the table is a
+disguised provider error. A run recorded before that date is not comparable
+and should not be pooled with these.
 
-Reproduce the recovery from any archived run with the three
-`"<field>": <number>` patterns; the artifacts store enough of each failed
-payload to re-extract them.
+
+Model attribution rests on the filenames above and nothing else. The artifacts
+are committed at
+`.agents/analysis/eval-artifacts/2026-07-29-unified-software-engineering/`.
 
 Other limits, all real:
 
@@ -257,10 +310,14 @@ Other limits, all real:
 
 | Evidence | Action |
 |---|---|
-| `description` ties or beats `full`, replicated across runs | Move the body to progressive disclosure |
+| `description` ties or beats `full`, replicated across runs, with no replicated degradation | Move the body to progressive disclosure |
 | `full` beats `description` by more than the noise floor, replicated | Keep the body, record the number |
-| Delta under the noise floor | **Not resolved.** Do not cut. Say so plainly |
+| Delta under the noise floor on a single run | **Not resolved.** Do not cut. Say so plainly |
 | No scenario file exists | **Cannot be gated.** Write scenarios first |
+
+A single tie is the third row, not the first. Replication is what separates
+them: one run cannot distinguish a real equivalence from noise, and the noise
+floor here spans most of the usable range.
 
 The last row is the common case and the easy one to skip. As of 2026-07-29,
 `code-quality.md` (14,152 bytes) and `pragmatic-programmer.md` (12,219 bytes)
@@ -269,10 +326,21 @@ always-on rules, ranks 2 and 3 in the corpus; `voice.md` (19,624 bytes) is
 larger than either. They cannot be audited until someone writes scenarios for
 them.
 
-Note that always-on status is declared two different ways. Six rules use
-`applyTo: '**'` and two use `alwaysApply: true`. A survey that greps for one
-convention silently misses the other, which is how an earlier draft of this
-paragraph got the ranking wrong. Eight rules, 75,528 bytes, is the corpus.
+Note that always-on status is declared **three** different ways: `applyTo:
+'**'` (six rules), `alwaysApply: true` (two), and `paths: ["**"]` (one,
+`knowledge-persistence.md`). A survey that greps for one convention misses the
+others. That is how an earlier draft got the ranking wrong and then, after a
+correction that added only the second form, still reported 8 rules instead of
+9. Enumerate by parsing frontmatter.
+
+Nine rules is the corpus. Do not hardcode its size; it changes on every rule
+edit. Regenerate it below, and say which basis you mean: this gate reads the
+generated `.github/instructions/` mirrors, which total 139 bytes less than the
+`.claude/rules/` sources because `generate_rules.py` strips `priority:`.
+
+```bash
+uv run --frozen python scripts/validation/instruction_budget.py --format table
+```
 
 Applying the doctrine to **authoring guidance** is a separate decision from
 **cutting existing content**. The first is an argument about where new content
@@ -285,7 +353,13 @@ After any change to always-on content:
 
 1. `uv run python build/scripts/generate_rules.py` to refresh the mirrors.
 2. Re-run Step 0 and record the byte delta.
-3. Re-run Step 1 on both models and confirm the change cleared the noise floor.
+3. Re-run Step 1 on both models, at least four times per model, and apply the
+   test that matches the direction of the change. **A cut and an addition have
+   opposite success conditions.** For a cut, success is the absence of
+   replicated degradation: the sign count must not favor the pre-cut version.
+   Demanding that a cut clear the noise floor is incoherent, because a good cut
+   leaves the delta near zero. For an addition or a keep decision, success is
+   replicated improvement whose magnitude clears the floor.
 4. If the rule is fenced, update the fence in the same commit. The
    `software-engineering-library` skill currently fences the three book rules.
 
@@ -321,6 +395,48 @@ number are not. The shapes recur either way.
   Because failures are not evenly distributed across mechanisms, this could
   invert the ranking. Fixed on 2026-07-29. Any result file older than that with
   a non-zero `total_judge_failures` has a biased table.
+- **A four-backtick fence was miscounted and refused.** The fence matcher took
+  runs of exactly three backticks, so a payload fenced with four (legal
+  Markdown, and what a judge emits when its own reasoning quotes a
+  three-backtick block) closed at the inner three and yielded a truncated body
+  that would not parse. The sample was dropped. Found by adversarial review
+  round 11, and first recorded here rather than fixed on the reasoning that
+  widening the matcher would re-introduce the candidate-selection choice the
+  exactly-one-fence rule exists to remove. **That reasoning was wrong**, and
+  round 12 showed why: pairing the close to the width of the run that opened
+  it collects every block exactly as before and still refuses anything other
+  than one, so no selection returns. Fixed on 2026-07-30. The archive is
+  unaffected either way, since no stored payload contains a four-backtick run
+  (measured: 0 of 24 prefixes).
+- **A lone fence outranked an unfenced verdict beside it.** Requiring exactly
+  one fenced block removed the choice among fences and left the choice between
+  the fence and the prose around it. A judge that wrote its verdict as
+  unfenced text and fenced a rubric exemplar it had labelled "do not use" was
+  answered with the exemplar, which then parsed cleanly and was published as a
+  recovered sample. Unwrapping now also requires that nothing but whitespace
+  sit outside the fence: that is the only condition under which unwrapping is
+  a rewrite of the payload rather than a choice within it. Found by
+  adversarial review round 13, fixed on 2026-07-30. The archive is unaffected,
+  since none of the stored payloads contains a fence at all (measured: 0 of 24
+  prefixes), and all 24 recover to byte-identical triples afterwards.
+- **A clean parse was treated as proof of a single answer.** Eleven rounds
+  attacked recovery and left the strict parse alone, on the reasoning that a
+  payload which parses whole cannot be ambiguous. JSON nests, so it can: a
+  second verdict sits inside the first as a member, a list element, or a
+  quoted string, and the grammar is satisfied. Duplicate-key rejection does
+  not see these, because a nested key is not a repeated one. The guard that
+  refuses exactly this already existed and was wired into all three recovery
+  paths and none of the strict one, so the miss was a path that did not know
+  it needed a check rather than a missing check. It now runs once before any
+  parse. Found by adversarial review round 14, fixed on 2026-07-30. **Its cost
+  against the published table is zero, and unlike the sixteen before it that
+  is measured rather than argued**: `recovered-judge-payloads.json` holds the
+  full original for all 288 samples, not only the failures, so the 264
+  successes replay directly. None of the 264 trips either duplicate-name guard,
+  none is refused by the current parser, and none contains a literal `\u`, so
+  the escape-refusal carries no cost either. Issue #3998 was filed when the
+  archive was believed to keep raw only for failures; it does not apply to this
+  run.
 - **Agentic CLI output is not clean JSON.** The provider reads
   `~/.copilot/session-state/<uuid>/events.jsonl` and correlates by the sandbox
   working directory, which is race-free. Falling back to stdout parsing mixes
@@ -329,8 +445,12 @@ number are not. The shapes recur either way.
   the request, so a run can be attributed to the wrong model with no warning
   (issue #3959).
 - **The Copilot CLI stdout token counter is non-monotonic.** Unusable as a
-  measurement. Use `session.usage_checkpoint.data.totalNanoAiu` from the event
-  log instead.
+  measurement. Use the event log instead: in
+  `~/.copilot/session-state/<uuid>/events.jsonl`, read `data.totalNanoAiu` on
+  events whose `type` is `session.usage_checkpoint`. Verified against 3253
+  local sessions, which carry 2729 such events. `session.usage_checkpoint` is
+  the value of `type`, not a nested key, so a walker looking for a literal
+  `session` key at the root finds nothing.
 - **The CLI loads `AGENTS.md` from its working directory.** Eval calls must run
   in an empty temp directory or the repo's own instructions contaminate the
   baseline mechanism. User-level instructions in `~/.copilot/` ignore the
@@ -339,6 +459,20 @@ number are not. The shapes recur either way.
 - **Most eval entry points still demand `ANTHROPIC_API_KEY`** even when
   `EVAL_PROVIDER` selects a keyless provider. Tracked in issue #3924.
   `eval-rule-activation.py` is fixed and shows the pattern.
+- **The archive nests dicts where a walker expects lists.** `rules` is a dict
+  keyed by rule name, and each scenario's `mechanisms` is a dict keyed by
+  `baseline`/`description`/`full`. Only `scenarios` is a list. A walker that
+  assumes lists finds zero samples and prints a clean result from no data,
+  which is the same failure class as the parser defects in the evidence
+  document: a confident answer derived from nothing. Reading
+  `rules[<name>].scenarios[].mechanisms[<mech>].score_samples[]` and
+  re-medianing each cell reproduces the published table exactly.
+- **Recovering discarded samples.** Failed samples store the truncated raw
+  payload in `reasoning` behind a `judge parse error: ` prefix; strip it and
+  feed the remainder to `_salvage_scores`. Successful samples store no payload
+  in the artifact at all. Both are recovered in full in
+  `recovered-judge-payloads.json` beside it, keyed by the same coordinates and
+  attributed by the input-based oracle rather than by the score.
 
 ## Scenario files
 
@@ -353,3 +487,5 @@ Writing scenarios that can actually detect a difference is the hard part. A
 scenario the model handles correctly with an empty system prompt proves
 nothing about the rule. Aim for cases where the rule's specific guidance
 changes the answer.
+
+<!-- vendor-portability: declared. The provenance table cites .agents/analysis/eval-artifacts/2026-07-29-unified-software-engineering/ as the archive holding the eight runs behind the published numbers, so a reader can re-derive every cell instead of taking them on faith. It is a citation in a narrative, not a path the skill reads or writes. A vendored install loses the ability to check the raw artifacts locally; the procedure still runs, it just produces new data rather than reproducing ours. Issue #2050. -->

@@ -1,4 +1,13 @@
 # Orphaned Session Artifact Catalog
+<!-- # taste-lint: ignore file-size -->
+<!-- file-size rationale: a generated audit record, not an authored document.
+It carries one section per audited branch, so its length tracks how many
+branches the audit found (54) and nothing an author controls. The audit is
+closed: every branch below is resolved and deleted. Splitting a closed
+historical record across files would break the one thing it is for, which is
+being the single place a reader can check what the audit covered. This file
+was silently exempt by path until the exemption was narrowed to JSON; the
+suppression is now explicit rather than implied. -->
 
 Generated: 2026-01-18 05:17:14 UTC
 
