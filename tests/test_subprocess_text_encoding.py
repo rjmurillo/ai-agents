@@ -123,10 +123,16 @@ _GETATTR = "getattr"
 # mapping is treated as at risk.
 _MAPPING_READERS = frozenset(
     {
-        "all", "any", "bool", "dict", "frozenset", "id", "iter", "len",
+        "all", "any", "bool", "frozenset", "id", "iter", "len",
         "list", "max", "min", "reversed", "set", "sorted", "sum", "tuple",
     }
 )
+# The builtin that answers with a mapping rather than with the keys. ``dict``
+# reads like its neighbours above and behaves like ``copy``: what it hands
+# back holds the same value objects the original does, so rendering the copy
+# runs their ``__repr__`` and reaches the original through it. Spared only
+# when every bound value is a literal.
+_COPYING_READERS = frozenset({"dict"})
 # The builtins that render a mapping. Rendering reaches every value, so a
 # value that is not a literal runs its own ``__repr__`` and can drop the pin
 # in the middle of what the source reads as a look. Spared only when every
@@ -1315,7 +1321,7 @@ def _rebound_builtins(
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             found.add(node.name)
-    return frozenset(found & (_MAPPING_READERS | _RENDERING_READERS))
+    return frozenset(found & (_MAPPING_READERS | _RENDERING_READERS | _COPYING_READERS))
 
 
 def _spares_pin(
@@ -1328,13 +1334,15 @@ def _spares_pin(
     yields the keys, a double-star splat that fills a fresh mapping for
     someone else, a builtin that only walks the keys, and, when *literal*
     says every bound value is a literal, a method that hands a value out, a
-    render, or a comparison. Everything else counts against the pin,
+    copy, a render, or a comparison. Everything else counts against the pin,
     including handing the mapping to a function that could pass it on, which
     can change it out of sight.
 
     *literal* is what separates a look from a leak. Rendering or comparing a
     mapping reaches its values, so a value carrying its own ``__repr__`` or
-    ``__eq__`` runs code that can drop the pin. Literals cannot.
+    ``__eq__`` runs code that can drop the pin. Copying reaches them one step
+    later, because the copy holds the same objects the original does.
+    Literals cannot run anything either way.
 
     *shadowed* names the readers the file binds for itself. Those resolve to
     the file's own code, so none of them is spared.
@@ -1353,7 +1361,8 @@ def _spares_pin(
         if not isinstance(parent.func, ast.Name) or parent.func.id in shadowed:
             return False
         return parent.func.id in _MAPPING_READERS or (
-            literal and parent.func.id in _RENDERING_READERS
+            literal
+            and parent.func.id in (_RENDERING_READERS | _COPYING_READERS)
         )
     return literal and isinstance(parent, _INSPECTING_PARENTS)
 
@@ -2711,6 +2720,42 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             'runner(["x"], text=True)',
             "a container of containers is literal while every leaf of it is",
         ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", timeout=1\n'
+            ')\n'
+            'seen = dict(runner.keywords)\n'
+            'runner(["x"], text=True)',
+            "copying a mapping of literals hands out nothing that can run code",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env=guard\n'
+            ')\n'
+            'seen = repr(sorted(runner.keywords))\n'
+            'runner(["x"], text=True)',
+            "sorting a mapping answers with its keys, which are always strings",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env=guard\n'
+            ')\n'
+            'seen = repr(tuple(runner.keywords))\n'
+            'runner(["x"], text=True)',
+            "rendering a tuple of keys renders strings, whatever the values are",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env=guard\n'
+            ')\n'
+            'seen = dict(**runner.keywords)\n'
+            'runner(["x"], text=True)',
+            "a splat fills a fresh mapping for someone else, as every splat does",
+        ),
     ],
 )
 def test_detector_stays_quiet(source: str, why: str) -> None:
@@ -3952,6 +3997,34 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'seen = repr(runner.keywords)\n'
             'runner(["x"], text=True)',
             "a starred element spreads what the tuple display does not show",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env=guard\n'
+            ')\n'
+            'seen = dict(runner.keywords)\n'
+            'runner(["x"], text=True)',
+            "copying a mapping carries the same values, which carry their own repr",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env=guard\n'
+            ')\n'
+            'seen = repr(dict(runner.keywords))\n'
+            'runner(["x"], text=True)',
+            "rendering a copy renders the values the copy shares with the original",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env=guard\n'
+            ')\n'
+            'copied = dict(runner.keywords)\n'
+            'seen = repr(copied)\n'
+            'runner(["x"], text=True)',
+            "the copy carries the risk to wherever it is bound, not just to one line",
         ),
         (
             'import functools, subprocess\n'
