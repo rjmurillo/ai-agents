@@ -88,8 +88,10 @@ measurement, so it cannot support a claim about relative size, and the probe
 omitted `--disable-builtin-mcps`, so neither absolute number is the provider's
 floor. Read it as confirmation that the flag does something, not as a
 quantity. Before comparing ambient size against rule-body size, measure both
-from `session.usage_checkpoint.data.totalNanoAiu` in the event log, under the
-provider's actual argument list.
+from the event log: read `data.totalNanoAiu` on the events whose `type` is
+`session.usage_checkpoint` in `~/.copilot/session-state/<uuid>/events.jsonl`,
+under the provider's actual argument list. The `session.` prefix is part of
+the type string, not a key at the root of the object.
 
 **The direction of that bias is unknown.** It is tempting to argue the ambient
 block only adds a constant to every cell and so compresses deltas toward zero,
@@ -436,8 +438,12 @@ number are not. The shapes recur either way.
   the request, so a run can be attributed to the wrong model with no warning
   (issue #3959).
 - **The Copilot CLI stdout token counter is non-monotonic.** Unusable as a
-  measurement. Use `session.usage_checkpoint.data.totalNanoAiu` from the event
-  log instead.
+  measurement. Use the event log instead: in
+  `~/.copilot/session-state/<uuid>/events.jsonl`, read `data.totalNanoAiu` on
+  events whose `type` is `session.usage_checkpoint`. Verified against 3253
+  local sessions, which carry 2729 such events. `session.usage_checkpoint` is
+  the value of `type`, not a nested key, so a walker looking for a literal
+  `session` key at the root finds nothing.
 - **The CLI loads `AGENTS.md` from its working directory.** Eval calls must run
   in an empty temp directory or the repo's own instructions contaminate the
   baseline mechanism. User-level instructions in `~/.copilot/` ignore the

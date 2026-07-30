@@ -268,15 +268,16 @@ The archive is not a closed population. Copilot CLI keeps every assistant
 message in a session transcript, so the raw judge payloads behind the 264
 successful samples were still on disk. Recovering them is a scan: 465 of 3366
 sessions mention `activation_score`, yielding 474 candidate messages and 466
-distinct payload texts. Correlating each payload's parsed triple back to the
-published cells matched **264 of 264 successes, with none unmatched**. Ten
-cells had more than one candidate payload agreeing on the same triple, which
-is a duplicate-transcript artifact rather than an ambiguity.
+distinct payload texts. Round 15 correlated each payload back to a published
+cell by its parsed triple and reported 264 of 264 matched. Round 16 showed
+that correlation was circular and redid it; the recovery itself holds, but the
+attribution it produced was wrong for six coordinates. The corrected method is
+recorded below.
 
 That moves the parser from "verified on 24 of 288 published cells" to
 **verified on all 288**: 264 successes re-score to their published triples
-exactly, and the 24 archived failures recover to byte-identical triples. The
-264 recovered payloads are archived beside the results they produced as
+exactly, and the 24 archived failures recover to byte-identical triples. All
+288 recovered payloads are archived beside the results they produced as
 `recovered-judge-payloads.json`, and
 `test_every_published_cell_still_scores_to_its_archived_triple` replays them
 on every test run, so this stops being a one-time forensic exercise and
@@ -317,13 +318,66 @@ carries the shape; and the top-level object is the schema's answer slot, so an
 undetected prose verdict loses to the verdict the judge actually filed. The
 durable answer is provider-enforced structured output, not another regex.
 
+Round 16 found two defects, and the first was one this session had just
+introduced. The round 15 repair replaced a raw-text guard with a structural
+check over the parsed object, and that check walked `dict.values()` only. A
+JSON object key is a string too, so a second verdict serialized into a key
+passed as a clean 1/1/1 on the plain path and as a salvaged 1/1/1 on the
+fenced path. The guard being replaced had caught that shape. A replacement
+that is weaker than what it replaces, on the exact case it exists to stop, is
+not a repair; the walk now covers both halves of every pair, and
+`test_a_verdict_hidden_in_an_object_key_is_two_verdicts` fails without the
+fix while a legitimate verdict whose prose carries an em-dash still scores.
+
+The second finding was methodological, and it is the more useful one. The
+round 15 correlation matched each recovered payload to a published cell **by
+its parsed triple**, then verified the match **by the parsed triple**. Any
+wrong payload that happened to produce the same triple satisfied that check by
+construction. The measurement is easy to state once seen: 264 coordinates drew
+on only 258 distinct source events, with 4 events assigned to 10 coordinates
+between them, so 6 coordinates carried a payload that was not theirs.
+
+The fix is an oracle that does not touch the score. Every judge call embeds
+the response it is grading under an `**Actual response**` heading, and every
+archived mechanism stores a `response_preview` of that same response.
+Matching those ties a payload to a cell **by its input**. Recovering the
+prompts found 448 of 474; each published mechanism matched exactly its own
+judge repeats, and ordering those chronologically assigns every sample. The
+result is 288 coordinates on 288 distinct source events with no reuse, and all
+264 successes still re-score to their published triples. Six attributions
+changed, matching the count the circularity analysis predicted.
+
+Two things came free. Correlating on the input reaches the 24 failures as
+well, so their full payloads are archived instead of the 200-character
+`reasoning` prefix, which retires that truncation limit for this run. And
+replaying all 288 measures the recovery divergence exactly: every one of the
+24 samples the published run refused is recovered by the current parser, each
+to a triple whose three values appear literally in its raw payload as score
+fields. Those triples were never published, so they are pinned as a baseline
+rather than checked against a published number. That is the concrete size of
+issue #3999 for this run: 24 of 288 cells would change if it were re-scored
+today.
+
+Round 16 also hardened the replay test against a gap it left. Walking only the
+archive keeps a test green while the archive loses a coordinate or assigns one
+source event to two cells. The test now asserts coordinate-set equality
+against the published table and source-event uniqueness, and both assertions
+were negative-controlled by dropping an entry and by duplicating a source.
+
+One process note, since it cost real work. Negative-controlling a source fix
+by reverting the file with `git checkout` destroys any *other* uncommitted
+change in it. That is how the two fixes above were lost and had to be rebuilt.
+Copy the file aside and copy it back instead; the tests written moments
+earlier are what caught the loss.
+
 
 Reproduce the recovery from any archived run. The failed samples store the
 truncated raw payload in their `reasoning` field behind a
 `judge parse error: ` prefix; strip that prefix and feed the remainder to
-`_salvage_scores`. The successful samples store no payload in the artifact;
-their recovered payloads live in `recovered-judge-payloads.json` beside it,
-keyed by the same coordinates. Walking the artifact needs care about its
+`_salvage_scores`. The successful samples store no payload in the artifact at
+all. Both are recovered in full in `recovered-judge-payloads.json` beside it,
+keyed by the same coordinates and attributed by the input-based oracle
+described above rather than by the score. Walking the artifact needs care about its
 shape: `rules` is a **dict keyed by rule name**, and each scenario's
 `mechanisms` is likewise a **dict keyed by**
 `baseline`/`description`/`full`, not a list. Only
