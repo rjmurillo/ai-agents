@@ -99,23 +99,33 @@ Test 1 has a trap, and this repo walked into it from the other side. Eight
 eval runs on `unified-software-engineering.md`, four each on Opus 5 and
 Sol 5.6, found that the **full rule body beat baseline in 7 of 8 runs
 (pooled +0.67), while its description alone beat baseline in 1 of 8
-(pooled -0.13)**. See `rule-audit-procedure.md` for the table and the caveats.
+(pooled -0.14)**. See `rule-audit-procedure.md` for the table and the caveats.
 
 Under a naive reading of test 1 this rule should have been cut. It is
 synthesized from Clean Code, Pragmatic Programmer, and SOLID, all of which the
-model has read. The measurement says otherwise, consistently, across two model
-families that share no weights.
+model has read. **The measurement does not license cutting it.** The sign is
+consistent across two sets of runs whose result files carry different model
+identifiers, but only 3 of 8 `full - description` gaps clear the ~1.0 noise
+floor this document's own variance section establishes. Read that as: the
+conservative policy blocks the cut, not as proof the body earns its slot. Two
+caveats on the models: attribution rests on run filenames rather than anything
+the artifact records (issue #3956), and the provider supplies rule text as a
+user message, so this measures priming, not the loading path production uses.
 
-The reason is in the rule's own first line: it is a **tiebreaker**. It says
-which principle wins when two the model already knows collide. The model knows
-DRY. The model knows YAGNI. It does not know which one this repo prefers when
-they conflict, because that is a local decision, not a fact about software.
+The likely reason is in the rule's own first line: it is a **tiebreaker**. It
+says which principle wins when two the model already knows collide. The model
+knows DRY. The model knows YAGNI. It does not know which one this repo prefers
+when they conflict, because that is a local decision, not a fact about
+software. **The eval did not isolate that.** The `full` cell differs from
+`description` in arbitration content, length, ordering, and concrete examples
+all at once. Any of those could carry the effect. Testing the mechanism means
+holding length fixed and varying only whether the text arbitrates.
 
-**Restating a principle fails test 1. Arbitrating between principles passes
-it.** The arbitration is the thing the model cannot know. When auditing a rule
-that looks like restatement, check whether it is actually resolving conflicts,
-setting local thresholds, or ranking priorities. That content is
-repo-knowledge wearing a textbook's clothes.
+**Restating a principle fails test 1. Arbitrating between principles is the
+leading hypothesis for what passes it.** The arbitration is the part the model
+cannot know. When auditing a rule that looks like restatement, check whether it
+is actually resolving conflicts, setting local thresholds, or ranking
+priorities. That content is repo-knowledge wearing a textbook's clothes.
 
 **How far this generalizes is not yet measured.** One rule was tested, eight
 times. The direction is consistent and the mechanism is plausible, but a
@@ -139,9 +149,12 @@ cutting always-on content is the lever that moves it.
 
 ### GPT-5.6 Sol
 
-**Over-engineering is not correctable by prompt.** Field evidence: a user
-added anti-over-engineering rules for a week. The model apologized for
-over-engineering and then added more rules as its own proposed remedy.
+**Over-engineering resists prompt correction.** Field evidence, one user, one
+week: they added anti-over-engineering rules, and the model apologized for
+over-engineering and then proposed adding more rules as its own remedy. That
+is a single uncontrolled trial and an anecdote, not a measurement. It is
+recorded because the failure mode is expensive and the anecdote is the only
+evidence anyone has produced so far, not because it settles the question.
 
 The load-bearing control is the **effort tier**, not the prompt. The settled
 position in this repo is **Medium** for routine work.
@@ -154,8 +167,13 @@ as an implementer.
 
 ## Where this repo stands
 
-Measured 2026-07-29. Always-on corpus, `.py` language baseline: 94,088 bytes
-across 11 files.
+Measured 2026-07-29. Two numbers, and they are not interchangeable. The
+**always-on corpus is 75,528 bytes across 8 rules**: the ones that load
+regardless of what you touch. The **effective context on a `.py` edit is
+94,088 bytes across 11 files**, which is the always-on corpus plus the
+path-scoped rules that a Python file activates. Use the first when arguing
+about what every session pays. Use the second when arguing about what a
+specific edit pays.
 
 The two book rules that load on every file are the largest single block:
 
