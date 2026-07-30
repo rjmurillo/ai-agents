@@ -1,0 +1,104 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3957,
+    "date": "2026-07-30",
+    "branch": "fix/test-infrastructure",
+    "startingCommit": "0adb7d51f",
+    "objective": "Fix issues #3874, #3879, #3896 in test-infrastructure cluster: nested test detection, unreachable code gate, stale-bytecode mutation harness hazard"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP tools not present in Copilot CLI harness; fallback to .serena/memories files per AGENTS.md fallback path."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/usage-mandatory.md and project constraints at session start as the documented Copilot CLI fallback."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read at session start. Issue cluster assigned with 7 issues."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/test-infrastructure verified via git branch --show-current before any commits."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/test-infrastructure, branched from origin/main at 0adb7d51f."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All new gate tests pass. mypy and ruff pass on all changed files. Session log validated."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not modified during this session."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP write_memory not available; mutation harness guidance written to TESTING-RIGOR.md as the durable record per the fallback documented in knowledge-persistence.md."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "lefthook markdown-check hook ran on .agents/governance/TESTING-RIGOR.md and passed. No markdown lint errors."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Four commits: 05ec01a82, e5bf51f6a, 27123e83c, d4f8410d7"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mypy: no issues on 5 changed files. ruff check: all checks passed. pytest: 13+17+4=34 new tests all pass."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-07-30T00:00:00Z",
+      "entry": "Read all 7 issues in full. Measured premises empirically against main."
+    },
+    {
+      "time": "2026-07-30T01:00:00Z",
+      "entry": "05ec01a82: Fixed 4 nested tests in test_git_hook_policy_causal_restore.py. Collection: 76 to 80."
+    },
+    {
+      "time": "2026-07-30T02:00:00Z",
+      "entry": "e5bf51f6a: Built check_nested_tests.py gate. 13 tests pass including negative control."
+    },
+    {
+      "time": "2026-07-30T03:00:00Z",
+      "entry": "27123e83c: Built check_unreachable_code.py gate. 17 tests pass. 0 findings in current repo."
+    },
+    {
+      "time": "2026-07-30T04:00:00Z",
+      "entry": "d4f8410d7: 4 stale-bytecode harness tests (before/after). TESTING-RIGOR.md updated."
+    }
+  ],
+  "endingCommit": "d4f8410d7",
+  "nextSteps": [
+    "Wire gates into pre_pr_sequence.py",
+    "Triage #3772, #3806, #3885, #3925 with measurements",
+    "Push and create PR"
+  ]
+}
