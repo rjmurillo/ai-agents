@@ -1,9 +1,15 @@
 """Tests for scripts/ci/build_retrospective_prompt.py (ADR-006, issue #3523).
 
 The prompt moved out of a bash heredoc with an unquoted delimiter. Two things
-must hold: the rendered text is byte-identical to what the heredoc produced,
-and the template can no longer smuggle an unsubstituted placeholder or an
-early delimiter into the step output.
+must hold: the rendered text carries the same content lines the heredoc
+produced, in the same order, and the template can no longer smuggle an
+unsubstituted placeholder or an early delimiter into the step output.
+
+Identity is compared on content lines rather than bytes because markdownlint
+reshapes the extracted template: MD041 requires a top-level heading and MD032
+requires blank lines around lists. Those are cosmetic. Comparing the ordered
+non-blank lines still catches every regression that matters (a dropped line, a
+mangled backtick, an unsubstituted placeholder).
 """
 
 from __future__ import annotations
@@ -114,6 +120,43 @@ class TestShippedTemplate:
         out = tmp_path / "out.txt"
         builder.append_multiline_output(out, "PROMPT", rendered)
         assert out.read_text(encoding="utf-8").count("RETRO_EOF") == 2
+
+
+class TestWorkflowWiring:
+    """The workflow must supply every placeholder the template declares.
+
+    ``substitute`` raises ``KeyError`` on a name the caller did not pass, and
+    the script turns that into a red step. Catching the mismatch here means a
+    template edit fails review instead of failing production.
+    """
+
+    WORKFLOW = REPO_ROOT / ".github/workflows/post-pr-retrospective.yml"
+
+    def _prompt_step(self) -> dict:
+        import yaml
+
+        data = yaml.safe_load(self.WORKFLOW.read_text(encoding="utf-8"))
+        for job in data["jobs"].values():
+            for step in job.get("steps", []):
+                if step.get("id") == "prompt":
+                    return step
+        raise AssertionError("no step with id 'prompt' in the workflow")
+
+    def test_the_workflow_still_invokes_the_extracted_builder(self) -> None:
+        assert "build_retrospective_prompt.py" in self._prompt_step()["run"]
+
+    def test_the_workflow_env_covers_every_declared_placeholder(self) -> None:
+        supplied = set(self._prompt_step().get("env", {}))
+        assert set(builder.PLACEHOLDERS) <= supplied
+
+    def test_the_template_declares_nothing_the_workflow_cannot_supply(self) -> None:
+        text = TEMPLATE.read_text(encoding="utf-8")
+        used = {
+            m.group("named") or m.group("braced")
+            for m in string.Template.pattern.finditer(text)
+            if m.group("named") or m.group("braced")
+        }
+        assert used <= set(self._prompt_step().get("env", {}))
 
 
 class TestMain:
