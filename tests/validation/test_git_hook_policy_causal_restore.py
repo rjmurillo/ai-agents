@@ -2871,6 +2871,9 @@ def _repo_where_a_rename_repadded_the_number(
     return repo, after_name, before
 
 
+class TestBlobIdentityAndRenameLookup:
+    """Blob identity and rename-crossing lookups behind the ADR-review gate."""
+
     def test_blob_readers_do_not_normalise_line_endings_or_undecodable_bytes(self, tmp_path):
         """Distinct blobs must not compare equal. Refs #3679.
 
