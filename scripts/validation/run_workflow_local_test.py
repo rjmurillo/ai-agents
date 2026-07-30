@@ -527,6 +527,17 @@ _ACT_PR_CONTEXT_MISSING_PATTERN = re.compile(
 _ACT_PR_CONTEXT_EMPTY_ENV_PATTERN = re.compile(
     r"PR_TITLE environment variable is required"
     r"|invalid literal for int\(\) with base 10: ''"
+    r"|argument --[A-Za-z0-9-]+: invalid int value: ''"
+)
+
+# run_with_retry.py wraps a called script and translates its exit code into an
+# ADR-035 annotation. That annotation is derived, not a cause: when the wrapped
+# script failed for an attributed act limitation, the wrapper annotation
+# describes the same limitation one layer up. Attributing it unconditionally
+# would excuse every genuine configuration error, so it is only excused for a
+# run that already carries an attributed limitation.
+_ACT_WRAPPER_ANNOTATION_PATTERN = re.compile(
+    r"::error::Configuration error \(ADR-035 exit 2\)"
 )
 
 _ACT_SERVER_PORT_BIND_PATTERN = re.compile(
@@ -678,6 +689,10 @@ def _unexplained_error_annotations(
     """
     labels = explained_limitation_labels or set()
     unexplained = []
+    run_is_attributed = any(
+        (scope is None or scope == event) and matches(combined)
+        for scope, matches, _ in _ACT_LIMITATION_RULES
+    )
     for line in combined.splitlines():
         if _ACT_ERROR_ANNOTATION not in line:
             continue
@@ -685,6 +700,8 @@ def _unexplained_error_annotations(
             (scope is None or scope == event) and matches(line)
             for scope, matches, _ in _ACT_LIMITATION_RULES
         ):
+            continue
+        if run_is_attributed and _ACT_WRAPPER_ANNOTATION_PATTERN.search(line):
             continue
         if labels and _is_aggregator_cascade_annotation(line, labels):
             continue
