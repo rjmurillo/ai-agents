@@ -71,10 +71,14 @@ def _pr_data(**overrides):
         "headRefName": "feature",
         "headRefOid": "abc123def4567890abc123def4567890abc12345",
         "baseRefName": "main",
+        "baseRefOid": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
         "state": "OPEN",
+        "isDraft": False,
         "author": {"login": "alice"},
         "labels": [{"name": "bug"}],
         "reviewRequests": [],
+        "reviews": [],
+        "reviewDecision": "",
         "commits": [
             {"oid": "abc123", "messageHeadline": "first commit"},
             {"oid": "def456", "messageHeadline": "second commit"},
@@ -84,6 +88,10 @@ def _pr_data(**overrides):
         "deletions": 5,
         "changedFiles": 2,
         "mergeable": "MERGEABLE",
+        "mergeStateStatus": "CLEAN",
+        "autoMergeRequest": None,
+        "headRepository": {"id": "R_1", "name": "ai-agents", "nameWithOwner": "owner/ai-agents"},
+        "headRepositoryOwner": {"id": "U_1", "name": "Alice", "login": "alice"},
         "mergedAt": None,
         "mergedBy": None,
         "createdAt": "2025-01-01T00:00:00Z",
@@ -549,3 +557,112 @@ class TestMainDiffAndFiles:
         data = output["Data"]
         assert data["diff"] == "the diff"
         assert data["files"] == ["x.py", "y.py"]
+
+
+# ---------------------------------------------------------------------------
+# Tests: extended metadata fields (issue #3912)
+# ---------------------------------------------------------------------------
+
+class TestExtendedMetadata:
+    """Verify is_draft, merge_state_status, auto_merge_method, review_counts,
+    head_repo, head_repo_owner, base_sha, review_decision are populated."""
+
+    def test_basic_extended_fields(self, capsys):
+        """All new fields appear with expected values from fixture."""
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch(
+            "subprocess.run",
+            return_value=_completed(stdout=_pr_json(), rc=0),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["is_draft"] is False
+        assert data["merge_state_status"] == "CLEAN"
+        assert data["auto_merge_method"] is None
+        assert data["review_decision"] == ""
+        assert data["review_counts"] == {}
+        assert data["head_repo"] == "owner/ai-agents"
+        assert data["head_repo_owner"] == "alice"
+        assert data["base_sha"] == "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+
+    def test_is_draft_true(self, capsys):
+        """Draft PRs set is_draft=True."""
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch(
+            "subprocess.run",
+            return_value=_completed(stdout=_pr_json(isDraft=True), rc=0),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["is_draft"] is True
+
+    def test_auto_merge_method_extracted(self, capsys):
+        """auto_merge_method is populated when autoMergeRequest is set."""
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        pr = _pr_json(autoMergeRequest={"mergeMethod": "SQUASH", "enabledAt": "2025-01-01T00:00:00Z"})
+        with auth_patch, repo_patch, patch(
+            "subprocess.run",
+            return_value=_completed(stdout=pr, rc=0),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["auto_merge_method"] == "SQUASH"
+
+    def test_review_counts_aggregated(self, capsys):
+        """Reviews are counted by state."""
+        reviews = [
+            {"id": "r1", "state": "APPROVED", "author": {"login": "bob"}},
+            {"id": "r2", "state": "APPROVED", "author": {"login": "carol"}},
+            {"id": "r3", "state": "CHANGES_REQUESTED", "author": {"login": "dave"}},
+        ]
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch(
+            "subprocess.run",
+            return_value=_completed(stdout=_pr_json(reviews=reviews), rc=0),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["review_counts"] == {"APPROVED": 2, "CHANGES_REQUESTED": 1}
+
+    def test_merge_state_status_behind(self, capsys):
+        """BEHIND mergeStateStatus passes through unchanged."""
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch(
+            "subprocess.run",
+            return_value=_completed(stdout=_pr_json(mergeStateStatus="BEHIND"), rc=0),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["merge_state_status"] == "BEHIND"
+
+    def test_head_repo_missing(self, capsys):
+        """headRepository=None produces head_repo=None gracefully."""
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch(
+            "subprocess.run",
+            return_value=_completed(
+                stdout=_pr_json(headRepository=None, headRepositoryOwner=None), rc=0
+            ),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["head_repo"] is None
+        assert data["head_repo_owner"] is None
+
+    def test_review_decision_populated(self, capsys):
+        """reviewDecision value is passed through."""
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch(
+            "subprocess.run",
+            return_value=_completed(stdout=_pr_json(reviewDecision="APPROVED"), rc=0),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["review_decision"] == "APPROVED"
