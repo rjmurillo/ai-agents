@@ -13,9 +13,7 @@
       "type": "milestone",
       "content": "Re-measure #4006 premise",
       "caused_by": [],
-      "leads_to": [
-        "e008"
-      ]
+      "leads_to": []
     },
     {
       "id": "e002",
@@ -23,9 +21,7 @@
       "type": "milestone",
       "content": "Re-measure #4000 premise",
       "caused_by": [],
-      "leads_to": [
-        "e008"
-      ]
+      "leads_to": []
     },
     {
       "id": "e003",
@@ -33,9 +29,7 @@
       "type": "milestone",
       "content": "Fix scan_principles.py for ADR-080",
       "caused_by": [],
-      "leads_to": [
-        "e008"
-      ]
+      "leads_to": []
     },
     {
       "id": "e004",
@@ -43,9 +37,7 @@
       "type": "milestone",
       "content": "Update golden-principles.md GP-003",
       "caused_by": [],
-      "leads_to": [
-        "e008"
-      ]
+      "leads_to": []
     },
     {
       "id": "e005",
@@ -53,9 +45,7 @@
       "type": "milestone",
       "content": "Update and add tests",
       "caused_by": [],
-      "leads_to": [
-        "e008"
-      ]
+      "leads_to": []
     },
     {
       "id": "e006",
@@ -63,9 +53,7 @@
       "type": "milestone",
       "content": "Mutation harness (mut_gold.py)",
       "caused_by": [],
-      "leads_to": [
-        "e008"
-      ]
+      "leads_to": []
     },
     {
       "id": "e007",
@@ -73,24 +61,22 @@
       "type": "milestone",
       "content": "Close issue #4000",
       "caused_by": [],
-      "leads_to": [
-        "e008"
-      ]
+      "leads_to": []
     },
     {
       "id": "e008",
-      "timestamp": "2026-07-30T18:41:06+00:00",
+      "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 52a2e3daf",
-      "caused_by": [
-        "e001",
-        "e002",
-        "e003",
-        "e004",
-        "e005",
-        "e006",
-        "e007"
-      ],
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "address-review-threads",
+      "caused_by": [],
       "leads_to": []
     }
   ],
@@ -100,7 +86,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 3
+    "files_changed": 5
   },
   "lessons": []
 }

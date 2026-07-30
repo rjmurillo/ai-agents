@@ -111,10 +111,19 @@
     {
       "task": "Close issue #4000",
       "outcome": "Closed with gh issue close 4000 --comment citing measured 355-line count and 145-line buffer."
+    },
+    {
+      "step": "address-review-threads",
+      "description": "Fixed thread 1 (GP-003 cost-exception constraint) and thread 2 (haiku+cost-rationale test fixture)",
+      "filesChanged": [
+        ".agents/governance/golden-principles.md",
+        ".claude/skills/golden-principles/tests/test_scan_principles.py",
+        "src/copilot-cli/skills/golden-principles/tests/test_scan_principles.py"
+      ]
     }
   ],
   "endingCommit": "52a2e3daf",
   "nextSteps": [
-    "Push branch and open PR referencing Fixes #4006."
+    "PR #4027 review threads addressed; resolve threads and push."
   ]
 }

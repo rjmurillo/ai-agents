@@ -206,14 +206,20 @@ def test_skill_model_alias_without_rationale_fails_adr080(tmp_path: Path) -> Non
     assert "model-rationale" in v.message
 
 
-def test_skill_model_sonnet_alias_valid_with_rationale(tmp_path: Path) -> None:
-    """sonnet alias with model-rationale: is a valid ADR-080 pin."""
+def test_skill_model_haiku_cost_exception_is_valid(tmp_path: Path) -> None:
+    """haiku alias with cost-based model-rationale: passes GP-003 (ADR-080 endorsed pattern).
+
+    Per ADR-080 rule 3, model-rationale is a cost exception. Only an alias
+    priced below the harness default qualifies; in practice that is haiku.
+    """
     skill = _write(
         tmp_path,
         _SKILL_DEMO,
         (
             "---\nname: demo\nversion: 1.0.0\ndescription: demo\nlicense: MIT\n"
-            "model: sonnet\nmodel-rationale: Requires higher capability.\n---\n"
+            "model: haiku\n"
+            "model-rationale: Cost-conscious; haiku-tier pricing sufficient for this task.\n"
+            "---\n"
         ),
     )
     result = _mod.run_scan([skill], ["skill-frontmatter"])
