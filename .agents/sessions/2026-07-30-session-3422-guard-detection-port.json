@@ -1,0 +1,161 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3422,
+    "date": "2026-07-30",
+    "branch": "feat/guard-operator-iterator-resolution",
+    "startingCommit": "561035125",
+    "objective": "Port the unique subprocess-guard detections from the superseded branch (closed PR #3835) forward onto current main, one family per commit, tests first, and verify with a differential harness that no detection is lost."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena unavailable in this worktree; fell back to .serena/memories per AGENTS.md."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena unavailable in this worktree; fell back to .serena/memories per AGENTS.md."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read at session start; not modified (ADR-014)."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Guard work is a single test-tree file; no skill script applies."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "gh operations routed through the GitHub skill; raw gh used only for read-only state checks."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md and TESTING-RIGOR.md applied: pos+neg+edge per new function."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Prior-session guard context loaded from checkpoints before resuming the port."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat/guard-operator-iterator-resolution"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On feat/guard-operator-iterator-resolution, branched from origin/main 561035125"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Clean tree confirmed before each of the 8 commits; explicit paths staged, never git add -A."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "561035125"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "283 tests pass in 8.51s (228 on main's baseline); ruff clean; C901 at main's baseline; mypy clean; 0 em/en dashes byte-verified."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md untouched this session (ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Durable findings recorded in .agents/retrospective/2026-07-30-differential-harness-over-test-suite.md; Serena MCP unavailable in this worktree."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Scoped markdownlint run on the retrospective added this session (ADR-043)."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "8 commits, one detection family each, single file per code commit."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Differential vs main over a 276-payload corpus: 26 detections added, exactly 1 false positive removed, 0 real detections lost, 0 errors."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issues #3925 and #3927 repointed from the closed #3835 to this branch's PR."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-07-30-differential-harness-over-test-suite.md"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Measure the abandoned branch against main before choosing a base",
+      "outcome": "27 old-branch-only shapes traced by hand. 8 were false positives the branch introduced. Main is the better base; the branch was abandoned rather than merged."
+    },
+    {
+      "task": "Port family F2, itertools filters and heapq selectors",
+      "outcome": "Commit 4fabd3819"
+    },
+    {
+      "task": "Fix a lambda owner-name crash surfaced by F2",
+      "outcome": "Commit 691c21ac5"
+    },
+    {
+      "task": "Port family F1, operator selectors",
+      "outcome": "Commit 067d4c986"
+    },
+    {
+      "task": "Port family F3, module alias through container and class body",
+      "outcome": "Commit bd1fadd7f"
+    },
+    {
+      "task": "Port family F5, partial fixed capture through a container",
+      "outcome": "Commit a6c911400"
+    },
+    {
+      "task": "Port family F4, partial keyword mutation undoing a codec pin",
+      "outcome": "Commit d928b6346. Differential harness then caught a read-only .keywords false positive; fixed with a parent map and _reads_only."
+    },
+    {
+      "task": "Fix main's construction-site codec-pin false positive",
+      "outcome": "Commit 8ce470bfd. Added _prepinned as the mirror of _presupplied. Differential harness caught 3 real regressions the change introduced; all three written as failing tests first, then fixed."
+    },
+    {
+      "task": "Port operator.methodcaller, previously deferred as expensive",
+      "outcome": "Commit 707f016fc. One word in _OPERATOR_GETTERS plus a nine-line _keyword_site helper, because the F1 operator machinery had already landed."
+    }
+  ],
+  "endingCommit": "707f016fc222a8691266181171b24d4adfa90beb",
+  "nextSteps": [
+    "Open the PR with Refs #3422 and the differential numbers in the body.",
+    "Repoint issues #3925 and #3927 from the closed #3835 to the new PR.",
+    "File the capture_output=False conservatism policy question with its runtime table for owner decision.",
+    "Consider a checked-in differential-diff tool so guard PRs cannot silently remove detections."
+  ]
+}

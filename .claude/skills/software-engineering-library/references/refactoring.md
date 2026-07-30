@@ -93,7 +93,7 @@ These rules tighten the general discipline for the way changes land in this repo
 - **One hat per commit.** Do not mix refactoring commits with feature commits. Reviewers should be able to tell at a glance which is which.
 - **Refactoring commits are pure restructure.** No new conditionals, no new error handling, no new logging. If you find yourself adding any of these, you are wearing the wrong hat.
 - **Behavior commits ride on top of clean structure.** Land the preparatory refactoring first (or in an earlier commit on the same branch), then add the feature in a focused commit.
-- **Each refactoring step counts toward the per-PR commit budget.** CONTRIBUTING.md documents the 20-commit limit (warning at 10, alert at 15, blocked at 20). Plan your refactoring so the necessary steps fit, or split the work across PRs along a clean seam.
+- **Each refactoring step counts toward the per-PR commit budget.** CONTRIBUTING.md documents the active limit: 20 by default, or 40 after validation detects a qualifying base merge. Warning starts at 10, alert starts at 15, and blocking starts above the active limit. Plan your refactoring so the necessary steps fit, or split the work across PRs along a clean seam.
 - **Conventional commit prefixes encode the hat.** Use `refactor:` for pure structural changes, `feat:`/`fix:` for behavior changes. Reviewers should be able to filter by prefix and find no surprises.
 - **PR description names the refactorings used.** "Extract Function on `Foo.handle`, Move Method `bar` from `A` to `B`." Named steps are reviewable; unnamed structural changes are not.
 
@@ -113,7 +113,7 @@ These shapes appear under the label "refactoring" but break the discipline. Reje
 
 ai-agents has conventions that interact with this rule. Honor them.
 
-- **Per-PR commit budget**: refactoring steps count toward the 20-commit limit documented in CONTRIBUTING.md. Plan accordingly. If a refactoring needs more steps than your budget allows, split along a seam and land each half on its own PR.
+- **Per-PR commit budget**: refactoring steps count toward the active limit documented in CONTRIBUTING.md. Plan against 20 commits. Validation may allow 40 after a qualifying base merge. If a refactoring needs more steps than your budget allows, split along a seam and land each half on its own PR.
 - **Atomic commits (≤5 files)**: AGENTS.md sets the per-commit file budget. Each refactoring step is a separate commit and stays within that budget. If a transformation cannot fit, pick a smaller transformation.
 - **Conventional commits**: `refactor(<scope>):` for pure structure, `feat(<scope>):` and `fix(<scope>):` for behavior. Do not relabel a `feat` as a `refactor` to dodge review.
 - **Session protocol**: refactoring sessions still produce a session log with evidence. The evidence for a refactoring is "tests passed before, tests passed after, no behavior change."
