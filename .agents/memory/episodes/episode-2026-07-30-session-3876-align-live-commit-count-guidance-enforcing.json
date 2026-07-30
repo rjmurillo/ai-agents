@@ -5,7 +5,76 @@
   "outcome": "success",
   "task": "Align live commit-count guidance with the enforcing code (issue #3944); adr-review skill debate required for the SESSION-PROTOCOL edit",
   "decisions": [],
-  "events": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Derived the commit-count bands by executing classify_count across 0..45 for both limits rather than reading the constants. limit=20 gives OK 0-9, WARNING 10-14, ALERT 15-20, BLOCKED 21+. limit=40 gives ALERT 15-40, BLOCKED 41+. SESSION-PROTOCOL taught warn at 15 and a table of < 15 / 15-19 / >= 20, so all three bands were wrong.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Confirmed ADR-008 defines no commit ceiling by grepping the ADR, and found the real authority: ADR-049 line 35 carries <=20, PROJECT-CONSTRAINTS line 121 carries the PR #908 and issue #934 rationale, and pr_commit_count.py carries all four numbers plus the issue #3596 relief.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Byte-measured AGENTS.md against scripts/validate_workspace_budget.py PER_FILE_BUDGET_BYTES = 3000. The first attempt reached 3056 and failed the gate. Shrank the line to 2982 instead of growing it.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran two adversarial reviews on different model families than the author: gpt-5.6-sol for arithmetic and gates, claude-opus-4.8 for governance and proportionality. The governance review returned SHIP with two non-blocking items.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced both non-blocking findings before acting. FAILURE-MODES.md line 89 told agents to display Commit X/20 (ADR-008) every turn, a live prescriptive instruction carrying the phantom citation. Executed _gated_adr_review_paths with positive and negative controls to confirm that file does not trip the adr-review gate.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rejected the suggested AGENTS.md restore on measurement, not caution. The proposed line is 2997 bytes, 3 under the cap, and open PR #3953 grows AGENTS.md from 2991 to 2995. Both merged would reach 3001 and fail the strict comparison, so the 18-byte slack stays.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": []
+    }
+  ],
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,

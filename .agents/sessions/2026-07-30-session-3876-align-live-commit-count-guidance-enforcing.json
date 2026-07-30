@@ -118,7 +118,26 @@
       }
     }
   },
-  "workLog": [],
+  "workLog": [
+    {
+      "step": "Derived the commit-count bands by executing classify_count across 0..45 for both limits rather than reading the constants. limit=20 gives OK 0-9, WARNING 10-14, ALERT 15-20, BLOCKED 21+. limit=40 gives ALERT 15-40, BLOCKED 41+. SESSION-PROTOCOL taught warn at 15 and a table of < 15 / 15-19 / >= 20, so all three bands were wrong."
+    },
+    {
+      "step": "Confirmed ADR-008 defines no commit ceiling by grepping the ADR, and found the real authority: ADR-049 line 35 carries <=20, PROJECT-CONSTRAINTS line 121 carries the PR #908 and issue #934 rationale, and pr_commit_count.py carries all four numbers plus the issue #3596 relief."
+    },
+    {
+      "step": "Byte-measured AGENTS.md against scripts/validate_workspace_budget.py PER_FILE_BUDGET_BYTES = 3000. The first attempt reached 3056 and failed the gate. Shrank the line to 2982 instead of growing it."
+    },
+    {
+      "step": "Ran two adversarial reviews on different model families than the author: gpt-5.6-sol for arithmetic and gates, claude-opus-4.8 for governance and proportionality. The governance review returned SHIP with two non-blocking items."
+    },
+    {
+      "step": "Reproduced both non-blocking findings before acting. FAILURE-MODES.md line 89 told agents to display Commit X/20 (ADR-008) every turn, a live prescriptive instruction carrying the phantom citation. Executed _gated_adr_review_paths with positive and negative controls to confirm that file does not trip the adr-review gate."
+    },
+    {
+      "step": "Rejected the suggested AGENTS.md restore on measurement, not caution. The proposed line is 2997 bytes, 3 under the cap, and open PR #3953 grows AGENTS.md from 2991 to 2995. Both merged would reach 3001 and fail the strict comparison, so the 18-byte slack stays."
+    }
+  ],
   "endingCommit": "",
   "nextSteps": []
 }
