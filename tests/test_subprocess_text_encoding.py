@@ -1411,6 +1411,36 @@ def _presupplied(
     return set(_settle(bindings, seed))
 
 
+def _pins_codec(value: ast.expr, functions: dict[str, str]) -> bool:
+    """Report whether *value* is a partial fixing the codec where it is built."""
+    return (
+        isinstance(value, ast.Call)
+        and _is_partial(_call_label(value), functions)
+        and _pins_utf8(value)
+    )
+
+
+def _rebound_bare(
+    bindings: list[tuple[str, ast.expr]], functions: dict[str, str]
+) -> set[str]:
+    """Name every binding holding something no pin can reach it through.
+
+    A value that pins the codec answers for itself. A value naming other
+    names defers to the fixpoint, which answers only if those names are
+    pinned. Anything else is a plain callable with no codec of its own.
+
+    Keeping these out of the seed is not enough, because the fixpoint grows
+    by name: ``alias = runner`` puts an alias back however it was later
+    rebound. A name that ever holds a bare callable is dropped after the
+    fixpoint has run, so the rebinding wins over what it inherited.
+    """
+    return {
+        name
+        for name, value in bindings
+        if not _pins_codec(value, functions) and not _module_sources(value)
+    }
+
+
 def _prepinned(
     bindings: list[tuple[str, ast.expr]],
     functions: dict[str, str],
@@ -1432,22 +1462,19 @@ def _prepinned(
 
     A name is only trusted when every binding it carries pins the codec. One
     name can be bound in two scopes, and a pinned partial built inside some
-    unrelated function says nothing about the runner called out here.
+    unrelated function says nothing about the runner called out here. The
+    same holds after the fixpoint has grown the set, because a name can
+    inherit a pin from an alias and then be rebound to something bare.
     """
     pinning: dict[str, bool] = {}
     for name, value in bindings:
-        pins = (
-            isinstance(value, ast.Call)
-            and _is_partial(_call_label(value), functions)
-            and _pins_utf8(value)
-        )
-        pinning[name] = pinning.get(name, True) and pins
+        pinning[name] = pinning.get(name, True) and _pins_codec(value, functions)
     seed = {
         name: name
         for name, pins in pinning.items()
         if pins and name not in undone
     }
-    return set(_settle(bindings, seed))
+    return set(_settle(bindings, seed)) - _rebound_bare(bindings, functions)
 
 
 def _parameter_bindings(tree: ast.Module) -> list[tuple[str, ast.expr]]:
@@ -2361,6 +2388,15 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             'runner.keywords["timeout"] = 1\n'
             'runner(["x"], text=True)',
             "storing under some other key leaves the bound codec where it was",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'alias = runner\n'
+            'alias(["x"], text=True)',
+            "an alias that only ever holds the pinned runner still answers for it",
         ),
         (
             'import functools, subprocess\n'
@@ -3511,6 +3547,16 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             '    return runner\n'
             'runner(["x"], capture_output=True, text=True)',
             "a pin bound to the same name somewhere else answers for nothing here",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'alias = runner\n'
+            'alias = subprocess.run\n'
+            'alias(["x"], capture_output=True, text=True)',
+            "an alias that inherits a pin and is then rebound holds it no longer",
         ),
     ],
 )
