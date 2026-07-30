@@ -1383,8 +1383,13 @@ def _literal_roots(
 
 
 def _fetched_keywords(node: ast.AST) -> ast.expr | None:
-    """Return the owner in ``getattr(x, "keywords")``, or None."""
-    if not isinstance(node, ast.Call) or len(node.args) != 2:
+    """Return the owner in ``getattr(x, "keywords")``, or None.
+
+    A third argument is the default, which decides nothing here: a partial
+    always carries a keywords mapping, so the attribute is always found and
+    the default is never the value that comes back.
+    """
+    if not isinstance(node, ast.Call) or len(node.args) not in (2, 3):
         return None
     if not isinstance(node.func, ast.Name) or node.func.id != _GETATTR:
         return None
@@ -3821,6 +3826,15 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'seen = repr(list(runner.keywords.items()))\n'
             'runner(["x"], text=True)',
             "items pairs every key with its value, so rendering reaches the values",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'getattr(runner, "keywords", {})["encoding"] = None\n'
+            'runner(["x"], text=True)',
+            "a default argument does not stop getattr reaching the mapping",
         ),
     ],
 )
