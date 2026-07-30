@@ -68,6 +68,13 @@ IGNORE_DIRECTIVE_RE = re.compile(r"<!--\s*orphan-ref-ignore\s*-->")
 # requires the finding in that case. Bare mentions carry no type claim and may
 # legally name a sibling artifact (see counts.py).
 #
+# The "skill `x`" arm stops short of a following field noun. In "the rule or
+# skill `description` field", `description` is a noun adjunct naming a part of
+# a skill, not the skill's name; the sentence is about every skill's
+# description, not about a skill called description. Reading it as a type
+# claim produced findings whose only offered remedies (rename, restore,
+# delete) all damage correct prose (issue #3727).
+#
 # Singular "skill" only. The plural reads as ordinary proficiency prose
 # ("improve your `bash` skills") far more often than as a catalog reference,
 # and a false positive here turns the /build gate red on a sentence that names
@@ -75,7 +82,7 @@ IGNORE_DIRECTIVE_RE = re.compile(r"<!--\s*orphan-ref-ignore\s*-->")
 # ("the `a`, `b`, and `c` skills") because each token is checked on its own.
 SKILL_TYPED_REF_RE = re.compile(
     r"`(?P<after>[a-z][a-z0-9-]*)`\s+(?:is\s+(?:a|an|the)\s+)?skill\b"
-    r"|\bskill\s+`(?P<before>[a-z][a-z0-9-]*)`"
+    r"|\bskill\s+`(?P<before>[a-z][a-z0-9-]*)`(?!\s+(?:field|fields|mechanism|key|keys|value|values|section|property|attribute|column|header|entry|label|block|name|names|file|files|directory|directories)\b)"
     r"|\bskill\s*[=:]\s*[\"'`](?P<kv>[a-z][a-z0-9-]*)",
     re.IGNORECASE,
 )
