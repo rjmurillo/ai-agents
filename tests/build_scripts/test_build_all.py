@@ -1789,3 +1789,171 @@ def test_bytecode_filter_does_not_mask_a_concurrent_real_write(
     assert build_all.assert_no_claude_writes(repo, baseline) == [
         ".claude/lib/leak.md"
     ]
+
+
+# _confirm_ignored: report-time race closure (issue #3773) -------------------
+
+
+def _race_repo(tmp_path: Path) -> Path:
+    """A git repo whose .gitignore covers bytecode, with .claude/lib present."""
+    import subprocess
+
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    (repo / ".gitignore").write_text("__pycache__/\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", ".gitignore"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "ignore"], check=True)
+    (repo / ".claude" / "lib").mkdir(parents=True)
+    return repo
+
+
+def test_bytecode_written_after_the_ignore_scan_is_not_a_violation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The exact failure that blocked PR #3688.
+
+    ``_snapshot_owned_prefixes`` computes the ignore set before it walks the
+    tree, so a gitignored file created in between is walked and not excluded.
+    Simulated deterministically by having the ignore scan write the .pyc as it
+    returns, which is the same ordering the real race produces: present in the
+    walk, absent from the ignore set.
+    """
+    repo = _race_repo(tmp_path)
+    pyc = repo / ".claude" / "lib" / "__pycache__" / "mod.cpython-314.pyc"
+    real_ignored_paths = build_all._ignored_paths
+
+    def racing_scan(repo_root: Path, prefixes: tuple[str, ...]) -> set[Path]:
+        result = real_ignored_paths(repo_root, prefixes)
+        pyc.parent.mkdir(parents=True, exist_ok=True)
+        pyc.write_bytes(b"\x00bytecode")
+        return result
+
+    monkeypatch.setattr(build_all, "_ignored_paths", racing_scan)
+    baseline = build_all._snapshot_owned_prefixes(
+        repo, build_all.CLAUDE_GUARD_PREFIX, exclude_ignored=True
+    )
+    assert build_all.assert_no_claude_writes(repo, baseline) == []
+
+
+def test_a_real_generator_write_is_still_reported(tmp_path: Path) -> None:
+    """Negative control: closing the race must not blind the guard."""
+    repo = _race_repo(tmp_path)
+    baseline = build_all._snapshot_owned_prefixes(
+        repo, build_all.CLAUDE_GUARD_PREFIX, exclude_ignored=True
+    )
+    (repo / ".claude" / "lib" / "generated.py").write_text("x = 1\n", encoding="utf-8")
+    assert build_all.assert_no_claude_writes(repo, baseline) == [".claude/lib/generated.py"]
+
+
+def test_confirm_ignored_returns_only_the_gitignored_candidates(tmp_path: Path) -> None:
+    """Mixed input: the tracked-looking path survives, the bytecode does not."""
+    repo = _race_repo(tmp_path)
+    pyc = repo / ".claude" / "lib" / "__pycache__" / "mod.cpython-314.pyc"
+    pyc.parent.mkdir(parents=True)
+    pyc.write_bytes(b"\x00bytecode")
+    real = repo / ".claude" / "lib" / "generated.py"
+    real.write_text("x = 1\n", encoding="utf-8")
+    assert build_all._confirm_ignored(repo, {pyc, real}) == {pyc}
+
+
+def test_confirm_ignored_short_circuits_on_no_candidates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The clean case is the common case; it must not shell out to git.
+
+    Asserting only on the return value would pass without the guard, because
+    ``check-ignore`` given empty stdin also returns nothing. The spawn is what
+    the short-circuit exists to avoid, so the spawn is what this pins.
+    """
+    repo = _race_repo(tmp_path)
+    calls: list[object] = []
+
+    def record(*args: object, **kwargs: object) -> object:
+        calls.append(args)
+        raise AssertionError("git must not run when there is nothing to confirm")
+
+    monkeypatch.setattr(build_all.subprocess, "run", record)
+    assert build_all._confirm_ignored(repo, set()) == set()
+    assert calls == []
+
+
+def test_confirm_ignored_survives_an_inherited_git_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Git honours ``GIT_DIR`` over ``-C``, and this runs inside a git hook.
+
+    ``build-all-check`` is a lefthook pre-push job, so the environment can
+    carry git location vars pointing at another repository. Without the env
+    scrub the confirmation would resolve there, match nothing, and report the
+    bytecode as a violation. Mirrors the same defence in ``_ignored_paths``
+    (issue #2992).
+    """
+    repo = _race_repo(tmp_path)
+    pyc = repo / ".claude" / "lib" / "__pycache__" / "mod.cpython-314.pyc"
+    pyc.parent.mkdir(parents=True)
+    pyc.write_bytes(b"\x00bytecode")
+    monkeypatch.setenv("GIT_DIR", str(tmp_path / "elsewhere" / ".git"))
+    monkeypatch.setenv("GIT_WORK_TREE", str(tmp_path / "elsewhere"))
+    assert build_all._confirm_ignored(repo, {pyc}) == {pyc}
+
+
+def test_confirm_ignored_returns_empty_when_git_cannot_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Fail closed: an unconfirmable candidate stays reported, not dropped."""
+    repo = _race_repo(tmp_path)
+    pyc = repo / ".claude" / "lib" / "mod.pyc"
+
+    def boom(*args: object, **kwargs: object) -> object:
+        raise OSError("git missing")
+
+    monkeypatch.setattr(build_all.subprocess, "run", boom)
+    assert build_all._confirm_ignored(repo, {pyc}) == set()
+
+
+def test_confirm_ignored_ignores_git_exit_one(tmp_path: Path) -> None:
+    """``check-ignore`` exits 1 when nothing matches; that is the clean case."""
+    repo = _race_repo(tmp_path)
+    real = repo / ".claude" / "lib" / "generated.py"
+    real.write_text("x = 1\n", encoding="utf-8")
+    assert build_all._confirm_ignored(repo, {real}) == set()
+
+
+def test_confirm_ignored_is_fail_closed_on_git_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A git error (exit 128) must discard whatever partial output arrived.
+
+    The stdout payload is non-empty on purpose. With empty output the real
+    code and a mutant that drops the return-code check are
+    indistinguishable, so the test would prove nothing. Trusting partial
+    output would exclude a path from the guard on the strength of a failed
+    query, which is fail-open.
+    """
+    pyc = tmp_path / "x.pyc"
+
+    class _Result:
+        returncode = 128
+        stdout = str(pyc).encode()
+
+    monkeypatch.setattr(build_all.subprocess, "run", lambda *a, **k: _Result())
+
+    assert build_all._confirm_ignored(tmp_path, {pyc}) == set()
+
+
+def test_confirm_ignored_survives_non_utf8_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A non-UTF-8 filename must round-trip rather than raise
+    UnicodeDecodeError and crash the pre-push guard."""
+    import os as _os
+
+    raw = tmp_path / _os.fsdecode(b"caf\xe9.pyc")
+
+    class _Result:
+        returncode = 0
+        stdout = _os.fsencode(str(raw))
+
+    monkeypatch.setattr(build_all.subprocess, "run", lambda *a, **k: _Result())
+
+    assert build_all._confirm_ignored(tmp_path, {raw}) == {raw}
