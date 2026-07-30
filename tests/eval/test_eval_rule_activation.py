@@ -2,7 +2,10 @@
 
 Covers:
 - aggregate() verdict outcomes (PASS, FAIL_THRESHOLD, FAIL_NO_DELTA,
-  FAIL_JUDGE_ERRORS, NO_POSITIVE_CASES)
+  FAIL_JUDGE_ERRORS, NO_POSITIVE_CASES, FAIL_OVERACTIVATION)
+- _reduce_score_samples() mixed pass/fail sample handling
+- _mechanism_summary() graded_count and failure field naming
+- _build_run_provenance() presence of required keys
 - _load_scenarios_file() target validation: rule paths must resolve under
   .claude/rules/ and skill references must resolve under one skill's
   references/ directory.
@@ -172,8 +175,179 @@ class TestAggregateVerdicts:
         # judge_failed forces the FAIL_JUDGE_ERRORS path before averages decide
         assert summary["verdict"] == "FAIL_JUDGE_ERRORS"
 
+    def test_negative_overactivation_fails_verdict(self):
+        # Positive scenario passes the threshold but the negative scenario scores
+        # above MAX_NEG_ACTIVATION_SCORE, signaling over-activation.
+        high_neg = 5  # description scores 5 on a negative case (bad)
+        scenarios = [
+            _make_scenario(baseline=1, description=4, full=5),  # positive
+            _make_scenario(baseline=1, description=high_neg, full=5, negative=True),
+        ]
+        summary = eval_mod.aggregate(scenarios)
+        assert summary["verdict"] == "FAIL_OVERACTIVATION"
 
-class TestScoreResponseJudgeShape:
+    def test_low_negative_score_does_not_block_pass(self):
+        # Negative scenario scores below MAX_NEG_ACTIVATION_SCORE; should not block.
+        scenarios = [
+            _make_scenario(baseline=1, description=4, full=5),  # positive
+            _make_scenario(baseline=1, description=2, full=2, negative=True),
+        ]
+        summary = eval_mod.aggregate(scenarios)
+        assert summary["verdict"] == "PASS"
+
+    def test_aggregate_exposes_total_judge_failure_samples(self):
+        scenarios = [
+            _make_scenario(baseline=1, description=4, full=5, judge_failed=True),
+        ]
+        summary = eval_mod.aggregate(scenarios)
+        assert "total_judge_failure_samples" in summary
+
+    def test_aggregate_exposes_judge_failure_cells_and_samples_per_mechanism(self):
+        scenarios = [
+            _make_scenario(baseline=1, description=4, full=5, judge_failed=True),
+        ]
+        summary = eval_mod.aggregate(scenarios)
+        for mech in eval_mod.MECHANISMS:
+            mech_summary = summary["per_mechanism"][mech]
+            assert "judge_failure_cells" in mech_summary
+            assert "judge_failure_samples" in mech_summary
+
+    def test_graded_count_present_in_mechanism_summary(self):
+        scenarios = [
+            _make_scenario(baseline=1, description=4, full=5),
+        ]
+        summary = eval_mod.aggregate(scenarios)
+        assert summary["per_mechanism"]["description"]["graded_count"] == 1
+
+
+class TestReduceScoreSamples:
+    def test_all_passing_samples_uses_all(self):
+        samples = [
+            {
+                "activation_score": 4,
+                "citation_score": 3,
+                "behavior_score": 5,
+                "judge_failed": False,
+            },
+            {
+                "activation_score": 2,
+                "citation_score": 4,
+                "behavior_score": 3,
+                "judge_failed": False,
+            },
+        ]
+        result = eval_mod._reduce_score_samples(samples, "mean")
+        assert result["judge_failed"] is False
+        assert result["graded_count"] == 2
+        assert result["failed_sample_count"] == 0
+
+    def test_mixed_samples_excludes_failures_from_mean(self):
+        # Only the passing sample should contribute to the mean.
+        samples = [
+            {
+                "activation_score": 4,
+                "citation_score": 4,
+                "behavior_score": 4,
+                "judge_failed": False,
+            },
+            {"activation_score": 0, "citation_score": 0, "behavior_score": 0, "judge_failed": True},
+        ]
+        result = eval_mod._reduce_score_samples(samples, "mean")
+        assert result["judge_failed"] is False
+        assert result["graded_count"] == 1
+        assert result["failed_sample_count"] == 1
+        # Mean should be from the passing sample only, not dragged down by zero.
+        assert result["activation_score"] == 4.0
+
+    def test_all_failing_samples_returns_judge_failed(self):
+        samples = [
+            {"activation_score": 0, "citation_score": 0, "behavior_score": 0, "judge_failed": True},
+            {"activation_score": 0, "citation_score": 0, "behavior_score": 0, "judge_failed": True},
+        ]
+        result = eval_mod._reduce_score_samples(samples, "mean")
+        assert result["judge_failed"] is True
+        assert result["graded_count"] == 0
+        assert result["failed_sample_count"] == 2
+        assert result["activation_score"] == 0
+
+    def test_graded_count_reflects_non_failed_samples(self):
+        samples = [
+            {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "judge_failed": False,
+            },
+            {"activation_score": 0, "citation_score": 0, "behavior_score": 0, "judge_failed": True},
+            {
+                "activation_score": 3,
+                "citation_score": 3,
+                "behavior_score": 3,
+                "judge_failed": False,
+            },
+        ]
+        result = eval_mod._reduce_score_samples(samples, "mean")
+        assert result["graded_count"] == 2
+        assert result["failed_sample_count"] == 1
+        assert result["sample_count"] == 3
+
+
+class TestRunProvenance:
+    def test_build_run_provenance_contains_required_keys(self, tmp_path):
+        import argparse as _ap
+
+        args = _ap.Namespace(
+            model="claude-opus-5",
+            scenarios=[str(tmp_path / "s.json")],
+        )
+        prov = eval_mod._build_run_provenance(args)
+        for key in ("provider", "requested_model", "timestamp_utc", "git_commit", "scenario_hash"):
+            assert key in prov, f"missing key: {key}"
+
+    def test_build_run_provenance_requested_model_matches(self, tmp_path):
+        import argparse as _ap
+
+        args = _ap.Namespace(model="my-model", scenarios=[])
+        prov = eval_mod._build_run_provenance(args)
+        assert prov["requested_model"] == "my-model"
+
+    def test_all_results_contains_run_key(self, tmp_path, monkeypatch):
+        scenario_file = tmp_path / "scenarios.json"
+        scenario_file.write_text(
+            json.dumps(
+                {
+                    "rule_path": ".claude/rules/working-with-legacy-code.md",
+                    "scenarios": [{"id": "S1", "input": "test input"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        old_argv = sys.argv
+        sys.argv = [
+            "eval-rule-activation.py",
+            "--scenarios",
+            str(scenario_file),
+            "--dry-run",
+        ]
+        try:
+            # dry_run does not write output; just verify the results dict shape
+            import argparse as _ap
+
+            args = _ap.Namespace(
+                model="test-model",
+                scenarios=[str(scenario_file)],
+                dry_run=True,
+                output=None,
+                seed=0,
+                judge_repeats=1,
+                judge_reducer="median",
+            )
+            results: dict = {"run": eval_mod._build_run_provenance(args), "rules": {}}
+            assert "run" in results
+            assert "provider" in results["run"]
+        finally:
+            sys.argv = old_argv
+
     @pytest.mark.parametrize(
         "judge_json",
         [
@@ -944,7 +1118,11 @@ class TestJudgeSampleReduction:
         full = result["mechanisms"]["full"]
         assert full["score_samples"][1]["judge_failed"] is True
         assert "judge API failure" in full["score_samples"][1]["reasoning"]
-        assert full["scores"]["judge_failed"] is True
+        # 2/3 samples graded successfully; failed sample excluded from mean so
+        # judge_failed is False at the reduced level (issue #3915).
+        assert full["scores"]["judge_failed"] is False
+        assert full["scores"]["graded_count"] == 2
+        assert full["scores"]["failed_sample_count"] == 1
 
     def test_dry_run_counts_repeated_judge_calls(self, tmp_path, capsys):
         rule_path = REPO_ROOT / ".claude" / "rules" / "working-with-legacy-code.md"

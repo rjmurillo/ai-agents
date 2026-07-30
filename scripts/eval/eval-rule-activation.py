@@ -44,11 +44,15 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import datetime
 import difflib
+import hashlib
 import json
 import math
+import os
 import re
 import statistics
+import subprocess
 import sys
 import time
 from collections.abc import Callable, Iterator
@@ -1891,7 +1895,8 @@ def _mechanism_summary(
 ) -> dict[str, Any]:
     """Compute avg_score over the graded scenarios for one mechanism."""
     scores: list[float] = []
-    failures = 0
+    failure_cells = 0
+    failure_samples = 0
     legacy = 0
     route_missed = 0
     for s in pool:
@@ -1901,9 +1906,11 @@ def _mechanism_summary(
         if score is not None:
             scores.append(score)
         if failed:
-            failures += 1
+            failure_cells += 1
         if legacy_reduced:
             legacy += 1
+        sc = s.get("mechanisms", {}).get(mech, {}).get("scores", {})
+        failure_samples += sc.get("failed_sample_count", 0)
     # None rather than 0.0 when nothing graded. A 0.0 reads as a real score
     # in every consumer: it becomes a published average, a delta against
     # baseline, and a candidate for best_mechanism, none of which any
@@ -1921,7 +1928,9 @@ def _mechanism_summary(
         "avg_score_exact": (sum(scores) / len(scores)) if scores else None,
         "scenario_count": len(pool),
         "graded_count": len(scores),
-        "judge_failures": failures,
+        "judge_failures": failure_cells,
+        "judge_failure_cells": failure_cells,
+        "judge_failure_samples": failure_samples,
         "legacy_reduced_count": legacy,
         "route_mismatch_count": route_missed,
     }
@@ -2073,6 +2082,13 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     )
 
     summary["total_judge_failures"] = total_judge_failures
+    total_judge_failure_samples = sum(
+        summary["per_mechanism"][m]["judge_failure_samples"] for m in MECHANISMS
+    ) + sum(
+        summary["negative_case_per_mechanism"][m]["judge_failure_samples"]
+        for m in MECHANISMS
+    )
+    summary["total_judge_failure_samples"] = total_judge_failure_samples
     # Name the cells whose failures no gate reads. Deriving this in the
     # renderer instead would let the disclosure drift from the exclusion, which
     # is how the negative-baseline exclusion shipped silent in the first place.
@@ -2988,6 +3004,42 @@ def _process_one_rule(
     }, n_calls
 
 
+def _build_run_provenance(args: argparse.Namespace) -> dict[str, Any]:
+    """Build a provenance record for this run.
+
+    Fields are best-effort: a git or hashing failure returns an empty string
+    rather than crashing the run.
+    """
+    commit_sha = ""
+    try:
+        commit_sha = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+    except Exception:  # noqa: BLE001 - provenance is best-effort
+        pass
+
+    scenario_hash = ""
+    try:
+        h = hashlib.sha256()
+        for p in sorted(str(s) for s in getattr(args, "scenarios", [])):
+            if os.path.isfile(p):
+                with open(p, "rb") as fh:
+                    h.update(fh.read())
+        scenario_hash = h.hexdigest()[:16]
+    except Exception:  # noqa: BLE001 - provenance is best-effort
+        pass
+
+    return {
+        "provider": "anthropic",
+        "requested_model": getattr(args, "model", ""),
+        "timestamp_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "git_commit": commit_sha,
+        "scenario_hash": scenario_hash,
+    }
+
+
 def main() -> int:
     args = _parse_args()
     if args.judge_repeats < 1:
@@ -3011,6 +3063,7 @@ def main() -> int:
 
     all_results: dict[str, Any] = {
         "schema_version": RESULTS_SCHEMA_VERSION,
+        "run": _build_run_provenance(args),
         "rules": {},
     }
     state = _RunState()
