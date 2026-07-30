@@ -1,0 +1,117 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3683,
+    "date": "2026-07-28",
+    "branch": "fix/3673-3683-semgrep-gate",
+    "startingCommit": "9b7e10df57",
+    "objective": "Close the three semgrep tolerance bypasses in the pre-push security gate (#3683, #3673, #3672), then triage every open issue in the backlog and either close it with justification or queue a fix."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned fix/3673-3683-semgrep-gate after checkout -b from origin/main at 9b7e10df57. The tree started in detached HEAD at c81f17bb5, a commit predating PR #3668, which masked the current gate code and had to be corrected before any analysis was valid."
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branch is fix/3673-3683-semgrep-gate, not main"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Read .agents/HANDOFF.md and the open issue backlog; 111 open issues loaded into a triage table before work started"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file. The branch-context-policy pre-push job rejected the first push because no session log named this branch."
+      },
+      "serenaActivated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP was not reachable in this harness. Fell back to reading .serena/memories/ directly per AGENTS.md."
+      },
+      "serenaInstructions": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Not available; see serenaActivated"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Read .agents/governance/TESTING-RIGOR.md for the positive/negative/edge bar applied to the new regression tests, and .claude/rules/universal.md for the dash prohibition applied to the commit body and PR description."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Semgrep gate fix committed with tests; path-normalization gate fix committed with tests; 21 unmerited issues closed with written justification; one new tooling defect filed as #3686"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md was not modified; git status shows no entry for it"
+      },
+      "serenaMemoryUpdated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP unavailable this session. The load-bearing finding, that the Actions runner's six-key extension table is what makes a blocklist of interpreter names undefendable, is recorded in the commit body and in the #3683 fix comments instead."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "No Markdown files changed in this session, so scoped markdownlint had no targets"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Commit 5d380d8f6 for the semgrep gate; a second commit for the path-normalization gate"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "uv run pytest tests/test_lefthook_integration.py reports 447 passed; tests/test_validate_path_normalization.py reports 47 passed; uv run ruff check clean on all three changed files"
+      },
+      "retrospectiveInvoked": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Campaign is still in flight across the remaining open issues; the retrospective belongs at the end of the campaign, not at this commit boundary"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Corrected the working tree. It started in detached HEAD at c81f17bb5, a commit that predates PR #3668, so grep found the retired POWERSHELL_SHELL_RE instead of the live NON_BASH_SHELL_RE. Any analysis performed before the reset would have been against dead code. Reverted the Serena-rewritten .serena/project.yml, stashed an abandoned parse_skill_reference feature in scripts/eval that was never wired to a caller, parked ten untracked files, and branched from origin/main."
+    },
+    {
+      "step": "Fixed #3683. The non-Bash shell test was a blocklist of interpreter names, and the blocklist was defeatable in at least eight shapes. The GitHub Actions runner names a step's temporary script by looking the first token of shell: up in a six-key extension table; a miss writes the file with no extension, and PowerShell's call operator then hands an extensionless file to the OS, which honours a #!/bin/bash first line. So pwsh.exe declared PowerShell and ran Bash. cmd.exe accepts a glued /c<command>, so cmd /cbash {0} hid the word from a word-boundary match. perl execs the interpreter named in a foreign shebang per perlrun. Replaced the blocklist with a structural allowlist: shlex-split the value, require the first token to be an exact pwsh, powershell, python, or python3, and require every later token to be a flag, the {0} placeholder, or a PowerShell call-operator form. Unbalanced quoting raises ValueError and fails closed. Only four distinct shell values exist repository-wide, so the tight allowlist breaks nothing real."
+    },
+    {
+      "step": "Fixed both #3673 defects. The snippet arrived stripped while the run body did not, so a |+ block scalar's trailing blank lines inflated the body's line count and the real step failed to match its own snippet, leaving only a decoy in the tolerated list and flipping block to allow. Stripped both sides. Separately, non-ASCII characters in the expected line act as wildcards because semgrep re-encodes them, so a line made entirely of non-ASCII was all wildcard and matched any observed line. Added an ASCII-anchor requirement."
+    },
+    {
+      "step": "Fixed #3672. Semgrep reports start and end offsets in bytes while PyYAML exposes start_mark.index as a character index, so span containment read the wrong region on any file holding multibyte content. Read the target as bytes and convert offsets to character indexes; an offset landing mid-character returns None and the span is dropped, which empties the match list and blocks the push. The defect was latent rather than exploitable because line containment is ANDed with offset containment and line numbers are unambiguous, but the fix removes the dependency on an unrelated check compensating."
+    },
+    {
+      "step": "Inverted the now-incorrect test parametrizations and added regression coverage. Moved PowerShell.exe, powershell.exe, pwsh.exe -NoProfile, node, ruby, perl, cmd /C, and cmd /S /C from the non-Bash lists to the Bash lists, since every one of them reaches Bash. Added a sixteen-case parametrized test covering each #3683 bypass shape, block-scalar leading and trailing blank-line cases plus a negative control for #3673 defect 1, all-non-ASCII decoy cases plus a one-ASCII-anchor positive control for defect 2, and byte-to-character offset conversion including mid-character and out-of-range inputs for #3672. 447 tests pass."
+    },
+    {
+      "step": "Triaged the open backlog with five parallel read-only agents partitioned by issue family, each returning a per-issue verdict with file and line evidence. Closed 21 issues that were already fixed, superseded, duplicated, or built on a false premise, each with a written justification citing the commit or file that settles it. Notable: #3218 asked to delete machinery that is live and called from two generators; #3639 proposed a rewrite that would corrupt intentional canonical-path documentation; #3644 targets a file ADR-089 already deleted."
+    },
+    {
+      "step": "Found and fixed a tooling defect that blocks every contributor. The path-normalization pre-push job walks the working tree with rglob and filters against a five-name exclude list, so it scanned git-ignored trees and failed on a .pytest_cache fixture whose deliberate /home/runner string exists to prove the audit detects a leaked runner path. The exclude list is a blocklist and .pytest_cache is one of 290 ignored paths in a normal tree. Replaced it with a batch git check-ignore --stdin call that fails open outside a repository or when git is unavailable, preserving prior behavior for non-repo inputs. Filed as #3686 with seven regression tests."
+    }
+  ],
+  "endingCommit": "4674a805876ec5b51d526ba730f6091da141a59b",
+  "nextSteps": [
+    "Open the PR for the semgrep gate and path-normalization fixes",
+    "Ship the queued fixes from triage, highest value first: #3626 doubled artifact path in an executable session-init command, #3624 false ADR-007 attribution, #3597 missing eval sweep gitignore, #3652 unquoted hash truncating five workflow step names, #3664 free-form string interpolated into a workflow shell",
+    "Address #3684, add a semgrep rule flagging a PowerShell run body that invokes a POSIX shell, as its own PR",
+    "Work the 37 ADR-006 extraction chores one workflow family per PR, lowering the pr-validation ratchet after each merge",
+    "Unblock the nine in-flight PRs and resolve the conflicts on #3647 and #3638"
+  ]
+}

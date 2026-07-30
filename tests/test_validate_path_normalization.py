@@ -415,3 +415,4 @@ class TestMain:
         captured = capsys.readouterr()
         assert "Line 2" in captured.out
         assert "Windows Absolute Path" in captured.out
+

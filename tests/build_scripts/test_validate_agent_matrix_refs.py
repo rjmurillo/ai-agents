@@ -22,6 +22,7 @@ must fail this test and force a human to update the guard on purpose.
 from __future__ import annotations
 
 import importlib.util
+import os
 import re
 import sys
 import time
@@ -1497,3 +1498,137 @@ class TestDescriptionMustBeUsable:
     def test_a_multiline_folded_description_is_still_an_agent(self, tmp_path):
         path = self._write(tmp_path, "folded.md", "description: >\n  Real dispatch text.\n")
         assert vamr.is_agent_definition(path) is True
+
+
+class TestNestedAgentDefinitions:
+    """Detection of agent definitions placed below the tree root.
+
+    Every host contract in this repository names the flat form: ADR-003 cites
+    ``.github/agents/*.agent.md``, ADR-057 cites ``.claude/agents/*.md``. The
+    roster glob matches that and is deliberately non-recursive, so a definition
+    one directory down loads in no host and joins no roster. Before issue #3601
+    it also produced no diagnostic: the only symptom was a matrix row reporting
+    a phantom agent, which points the reader at the citation rather than at the
+    misplaced file.
+
+    Reporting rather than including is the deliberate choice. Including a nested
+    file in the roster would let a matrix row cite it and pass, claiming the
+    repository ships an agent that no host loads.
+
+    Frontmatter, not location, is what separates a misplaced agent from sidecar
+    prose. ``agents/security/references/`` already ships three markdown files,
+    and a location-only rule would report all three and break the build.
+    """
+
+    @staticmethod
+    def _write(directory: Path, relative: str, body: str) -> Path:
+        path = directory / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(body, encoding="utf-8")
+        return path
+
+    def test_a_nested_agent_definition_is_reported(self, tmp_path):
+        self._write(tmp_path, "sub/misplaced.md", AGENT_STUB.format(name="misplaced"))
+        found = vamr.nested_agent_definitions(tmp_path, ".md")
+        assert len(found) == 1
+        assert "sub/misplaced.md" in found[0].replace("\\", "/")
+
+    def test_the_report_names_the_flat_form_so_the_fix_is_obvious(self, tmp_path):
+        """A path alone does not tell the author what to do about it."""
+        self._write(tmp_path, "sub/misplaced.agent.md", AGENT_STUB.format(name="misplaced"))
+        found = vamr.nested_agent_definitions(tmp_path, ".agent.md")
+        assert "*.agent.md" in found[0]
+
+    def test_the_flat_form_carries_every_path_component(self, tmp_path):
+        """``tree_root.name`` names a directory that does not exist.
+
+        Four of the six entries in ``AGENT_TREES`` are nested at least one
+        level deep, and the last component alone is ambiguous across them:
+        ``templates/agents``, ``.claude/agents``, ``.github/agents``, and
+        ``src/copilot-cli/agents`` all end in ``agents``. Telling an author to
+        move a file into ``agents/`` names no tree in particular and no path
+        that resolves from the repository root.
+        """
+        repo_root = tmp_path
+        tree_root = tmp_path / "src" / "claude"
+        self._write(tree_root, "sub/misplaced.md", AGENT_STUB.format(name="misplaced"))
+        found = vamr.nested_agent_definitions(tree_root, ".md", repo_root)
+        assert len(found) == 1
+        assert "src/claude/*.md" in found[0]
+        assert "flat form claude/" not in found[0]
+        # The absolute prefix must not appear: a substring check alone passes
+        # for `/tmp/.../src/claude/*.md` too, so it does not discriminate.
+        assert str(repo_root) not in found[0]
+
+    def test_the_flat_form_stays_absolute_without_a_repo_root(self, tmp_path):
+        """No repo root means no relative form to compute; do not invent one."""
+        tree_root = tmp_path / "src" / "claude"
+        self._write(tree_root, "sub/misplaced.md", AGENT_STUB.format(name="misplaced"))
+        found = vamr.nested_agent_definitions(tree_root, ".md")
+        assert f"{tree_root.as_posix()}/*.md" in found[0]
+
+    def test_nested_prose_without_frontmatter_stays_silent(self, tmp_path):
+        """The shipped ``security/references/*.md`` sidecars must not trip this."""
+        self._write(tmp_path, "references/threat-model.md", "# Threat model\n\nProse.\n")
+        assert vamr.nested_agent_definitions(tmp_path, ".md") == []
+
+    def test_nested_frontmatter_without_a_description_stays_silent(self, tmp_path):
+        """Agent-hood is the ``description`` key, matching ``is_agent_definition``."""
+        self._write(tmp_path, "references/notes.md", "---\ntitle: Notes\n---\n\n# Notes\n")
+        assert vamr.nested_agent_definitions(tmp_path, ".md") == []
+
+    def test_a_top_level_agent_is_not_reported_as_nested(self, tmp_path):
+        """The flat form is the correct form; reporting it would fail every tree."""
+        self._write(tmp_path, "analyst.md", AGENT_STUB.format(name="analyst"))
+        assert vamr.nested_agent_definitions(tmp_path, ".md") == []
+
+    def test_a_nested_file_not_matching_the_suffix_stays_silent(self, tmp_path):
+        """A ``.md`` sidecar in an ``.agent.md`` tree is prose by construction."""
+        self._write(tmp_path, "references/guide.md", AGENT_STUB.format(name="guide"))
+        assert vamr.nested_agent_definitions(tmp_path, ".agent.md") == []
+
+    def test_a_bare_suffix_file_is_not_an_agent(self, tmp_path):
+        """``.agent.md`` with no stem would strip to an empty agent name."""
+        self._write(tmp_path, "sub/.agent.md", AGENT_STUB.format(name="anon"))
+        assert vamr.nested_agent_definitions(tmp_path, ".agent.md") == []
+
+    def test_deeply_nested_definitions_are_found(self, tmp_path):
+        """One level of recursion would miss ``a/b/c``; the glob must be full."""
+        self._write(tmp_path, "a/b/c/buried.md", AGENT_STUB.format(name="buried"))
+        assert len(vamr.nested_agent_definitions(tmp_path, ".md")) == 1
+
+    def test_every_nested_definition_is_reported_not_just_the_first(self, tmp_path):
+        for name in ("one", "two", "three"):
+            self._write(tmp_path, f"sub/{name}.md", AGENT_STUB.format(name=name))
+        assert len(vamr.nested_agent_definitions(tmp_path, ".md")) == 3
+
+    def test_paths_are_shown_relative_to_the_repo_root_when_given(self, tmp_path):
+        """Absolute tmp paths in a build log are noise; the repo path is the fix site."""
+        tree = tmp_path / ".claude" / "agents"
+        self._write(tree, "sub/misplaced.md", AGENT_STUB.format(name="misplaced"))
+        found = vamr.nested_agent_definitions(tree, ".md", tmp_path)
+        assert found[0].startswith(".claude/agents/sub/misplaced.md".replace("/", os.sep))
+
+    def test_scan_surfaces_a_nested_definition_as_a_config_error(self, tmp_path):
+        """End to end: the finding must reach the caller, not stop at the helper."""
+        tree_name, suffix = vamr.AGENT_TREES[0]
+        tree = tmp_path / tree_name
+        tree.mkdir(parents=True)
+        self._write(tree, f"sub/misplaced{suffix}", AGENT_STUB.format(name="misplaced"))
+        self._write(tree, f"analyst{suffix}", AGENT_STUB.format(name="analyst"))
+        result = vamr.scan(tmp_path)
+        assert any("misplaced" in error for error in result.config_errors)
+
+    def test_the_real_agent_trees_carry_no_nested_definitions(self):
+        """Regression pin: the shipped repository must stay flat.
+
+        This is the check that would have caught the condition issue #3601
+        describes, had it been present when the issue was filed.
+        """
+        repo_root = Path(vamr.__file__).resolve().parents[2]
+        offenders: list[str] = []
+        for tree, suffix in vamr.AGENT_TREES:
+            directory = repo_root / tree
+            if directory.is_dir():
+                offenders.extend(vamr.nested_agent_definitions(directory, suffix, repo_root))
+        assert offenders == []

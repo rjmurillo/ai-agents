@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Merge commit 63d4f32efba8696f78d88fe25088f3a6a2165cea exists. This session log is the only follow-up change."
+        "Evidence": "Primary resolution merge commit 63d4f32efba8696f78d88fe25088f3a6a2165cea exists. This log is included in the final main-sync merge."
       },
       "validationPassed": {
         "level": "MUST",
@@ -128,7 +128,7 @@
     },
     {
       "time": "2026-07-30T04:55:00Z",
-      "entry": "Regenerated the Copilot memory skill mirror and resolved plugin versions to parity 0.6.5418 while preserving the separate Claude line at 0.3.55."
+      "entry": "Regenerated the Copilot memory skill mirror and resolved plugin versions while preserving the separate Claude manifest line."
     },
     {
       "time": "2026-07-30T05:05:00Z",
@@ -137,6 +137,10 @@
     {
       "time": "2026-07-30T05:10:00Z",
       "entry": "Created merge commit 63d4f32efba8696f78d88fe25088f3a6a2165cea with both expected parents."
+    },
+    {
+      "time": "2026-07-30T05:20:00Z",
+      "entry": "Merged nine commits that reached origin/main during validation. Resolved the only new conflicts by setting paired project-toolkit manifests to 0.6.5420, one patch above the highest open plugin PR."
     }
   ],
   "endingCommit": "63d4f32efba8696f78d88fe25088f3a6a2165cea",
