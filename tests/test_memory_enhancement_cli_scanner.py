@@ -12,8 +12,11 @@ The corpus scan itself lives in the sibling module.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
+import tests.test_memory_enhancement_cli_docs as docs
 from tests.test_memory_enhancement_cli_docs import (
     _BARE_INVOCATION,
     _PLACEHOLDER_TOKEN,
@@ -149,6 +152,47 @@ class TestDetector:
         assert parse_error(argv) is not None
 
     @pytest.mark.parametrize(
+        "fragment",
+        [
+            " graph --start x --depth --bogus",
+            " search query --top --bogus",
+        ],
+    )
+    def test_int_substitution_does_not_swallow_a_following_flag(
+        self, fragment: str
+    ) -> None:
+        """A flag after a bare int option is not that option's value.
+
+        Consuming it hid a phantom flag from argparse entirely, which is the
+        one thing this guard exists to catch.
+        """
+        argv = _argv_from(fragment)
+        assert "--bogus" in argv
+        assert parse_error(argv) is not None
+
+    @pytest.mark.parametrize(
+        "fragment",
+        [
+            " health --json 2> err.txt",
+            " health --json 2>&1",
+            " health --json > out.txt",
+        ],
+    )
+    def test_redirections_leave_no_stray_descriptor(self, fragment: str) -> None:
+        """A file-descriptor prefix is shell syntax, not a positional."""
+        assert _argv_from(fragment) == ["health", "--json"]
+
+    def test_quoted_command_substitution_stays_one_token(self) -> None:
+        """The shipped verify-all example quotes a $(...) repo root."""
+        argv = _argv_from(' --repo-root "$(git rev-parse --show-toplevel)" verify-all')
+        assert argv == [
+            "--repo-root",
+            "$(git rev-parse --show-toplevel)",
+            "verify-all",
+        ]
+        assert parse_error(argv) is None
+
+    @pytest.mark.parametrize(
         "line",
         [
             "prose mentioning `graph --start <id> --strategy dfs` inline",
@@ -232,3 +276,40 @@ class TestDetector:
         assert invocation_error(["graph"], runnable=False) is None
 
 
+class TestLineContinuation:
+    """A command split across lines must be scanned as one invocation."""
+
+    @staticmethod
+    def _scan(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, body: str) -> list:
+        (tmp_path / "doc.md").write_text(body, encoding="utf-8")
+        monkeypatch.setattr(docs, "REPO_ROOT", tmp_path)
+        monkeypatch.setattr(docs, "_tracked_docs", lambda: ["doc.md"])
+        return docs.documented_invocations()
+
+    def test_shell_fence_joins_continued_lines(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Without joining, a phantom flag on the second line is never seen."""
+        rows = self._scan(
+            monkeypatch,
+            tmp_path,
+            "```bash\npython -m memory_enhancement graph --start id \\\n"
+            "  --bogus\n```\n",
+        )
+        assert len(rows) == 1
+        _, number, _, argv, runnable = rows[0]
+        assert argv == ["graph", "--start", "id", "--bogus"]
+        assert number == 2, "the invocation is attributed to the line it starts on"
+        assert docs.invocation_error(argv, runnable) is not None
+
+    def test_prose_backslash_is_a_markdown_break_not_a_continuation(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Outside a shell fence a trailing backslash joins nothing."""
+        rows = self._scan(
+            monkeypatch,
+            tmp_path,
+            "About memory_enhancement, note this break \\\n"
+            "See `health --json` for details.\n",
+        )
+        assert [(row[1], row[3]) for row in rows] == [(2, ["health", "--json"])]

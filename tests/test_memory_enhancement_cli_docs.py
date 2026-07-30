@@ -71,8 +71,10 @@ _SHELL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "console"})
 _PLACEHOLDER_TOKEN = "PLACEHOLDER"
 # Shell control operators end the command being documented.
 _OPERATORS = frozenset({"&&", "||", "|", ";", "&"})
-# Redirections consume the token that follows them.
-_REDIRECTS = frozenset({">", ">>", "<", "<<"})
+# Redirections consume the token that follows them. The descriptor-duplicating
+# forms carry a leading file-descriptor number, which is shell syntax and not
+# an argument.
+_REDIRECTS = frozenset({">", ">>", "<", "<<", ">&", "<&", "&>", ">>&"})
 # Options parsed with type=int. A synopsis writes their value as a
 # metavariable, which argparse rejects before it can check the option name,
 # so substitute a concrete integer to keep the name under test.
@@ -101,8 +103,15 @@ def _substitute_int_values(tokens: list[str]) -> list[str]:
     for token in tokens:
         if expects_int:
             expects_int = False
-            substituted.append(token if token.lstrip("-").isdigit() else "1")
-            continue
+            if token.lstrip("-").isdigit():
+                substituted.append(token)
+                continue
+            substituted.append("1")
+            # A metavariable is the option's value and is now consumed. A flag
+            # is not, and must stay visible or a phantom option name written
+            # after a bare --depth would vanish instead of failing argparse.
+            if not token.startswith("-"):
+                continue
         option, separator, value = token.partition("=")
         if option in _INT_OPTIONS:
             if not separator:
@@ -134,6 +143,11 @@ def _shell_argv(tokens: list[str]) -> list[str]:
         if token in _OPERATORS:
             break
         if token in _REDIRECTS:
+            # `2> err.txt` tokenizes the descriptor apart from the operator.
+            # Without this the stray 2 survives as a positional argument and
+            # the guard rejects a valid documented command.
+            if argv and argv[-1].isdigit():
+                argv.pop()
             skip_next = True
             continue
         argv.append(token)
@@ -230,6 +244,12 @@ def _line_invocations(line: str, runnable: bool) -> list[tuple[list[str], bool]]
     return found
 
 
+def _continues(line: str) -> bool:
+    """Report whether a shell line continues onto the next one."""
+    stripped = line.rstrip()
+    return stripped.endswith("\\") and not stripped.endswith("\\\\")
+
+
 def _fence_language_after(line: str, current: str | None) -> tuple[str | None, bool]:
     """Track fenced-block state; the bool reports whether the line was a fence."""
     fence = _FENCE.match(line)
@@ -249,13 +269,28 @@ def documented_invocations() -> list[tuple[str, int, str, list[str], bool]]:
         if "memory_enhancement" not in text:
             continue
         fence_language: str | None = None
+        pending = ""
+        pending_number = 0
         for number, line in enumerate(text.splitlines(), start=1):
             fence_language, is_fence = _fence_language_after(line, fence_language)
             if is_fence:
+                pending = ""
                 continue
             runnable = fence_language in _SHELL_FENCE_LANGUAGES
+            if pending:
+                line = f"{pending} {line.strip()}"
+            else:
+                pending_number = number
+            # A trailing backslash continues the command only inside a shell
+            # fence. In prose it is a Markdown hard line break.
+            if runnable and _continues(line):
+                pending = line.rstrip().removesuffix("\\").rstrip()
+                continue
+            pending = ""
             for argv, in_shell in _line_invocations(line, runnable):
-                collected.append((relative_path, number, line.strip(), argv, in_shell))
+                collected.append(
+                    (relative_path, pending_number, line.strip(), argv, in_shell)
+                )
     return collected
 
 
@@ -295,13 +330,23 @@ class TestDocumentedInvocations:
             ".serena/memories",
         }, "DOC_ROOTS changed; confirm the new scope is intended"
         by_root = {root: 0 for root in DOC_ROOTS}
+        for relative_path in _tracked_docs():
+            for root in DOC_ROOTS:
+                if relative_path.startswith(f"{root}/"):
+                    by_root[root] += 1
+        empty = sorted(root for root in DOC_ROOTS if by_root[root] == 0)
+        assert not empty, f"pinned doc roots with no tracked files: {empty}"
+
+        by_root = {root: 0 for root in DOC_ROOTS}
         for relative_path, *_ in documented_invocations():
             for root in DOC_ROOTS:
                 if relative_path.startswith(f"{root}/"):
                     by_root[root] += 1
         # The two instruction roots are watched for future drift; today their
-        # only mention of the module is prose about a tracked symlink. The
-        # rest carry real invocations and must not fall silent.
+        # only mention of the module is prose about a tracked symlink. They are
+        # exempt from contributing invocations, not from existing: the file
+        # census above still fails if either is emptied. The rest carry real
+        # invocations and must not fall silent.
         documenting = set(DOC_ROOTS) - {".claude/rules", "src/copilot-cli/instructions"}
         silent = sorted(root for root in documenting if by_root[root] == 0)
         assert not silent, f"doc roots contributing no invocations: {silent}"
