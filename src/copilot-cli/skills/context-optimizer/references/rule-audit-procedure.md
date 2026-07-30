@@ -244,7 +244,7 @@ three from post-hoc recovery of a truncated prefix, and seven get two.
 
 The full accounting and the confounds it creates for the table above are in
 `rule-audit-evidence.md`. Read it before citing a cell from this table. The
-defects found in the verdict-parsing code, across twenty-two review rounds,
+defects found in the verdict-parsing code, across twenty-three review rounds,
 are in `rule-audit-parser-forensics.md`. Each one's cost against this table was
 measurable, because this run's archive stores the raw judge payload for all 288
 samples, successes included, so a defect on the success path can be replayed
@@ -427,12 +427,15 @@ number are not. The shapes recur either way.
   refuses exactly this already existed and was wired into all three recovery
   paths and none of the strict one, so the miss was a path that did not know
   it needed a check rather than a missing check. It now runs once before any
-  parse. Found by adversarial review round 14, fixed on 2026-07-30. **Unlike
-  the sixteen before it, the cost against the published table is unknown**:
-  the archive stores raw payloads only for failed samples, so the 264
-  successful ones cannot be replayed (issue #3998). Refusing on any `\u` in
-  the payload carries a second unmeasured cost in the same direction, since a
-  healthy verdict whose reasoning contains an escape now refuses too.
+  parse. Found by adversarial review round 14, fixed on 2026-07-30. **Its cost
+  against the published table is zero, and unlike the sixteen before it that
+  is measured rather than argued**: `recovered-judge-payloads.json` holds the
+  full original for all 288 samples, not only the failures, so the 264
+  successes replay directly. None of the 264 trips the duplicate-name guard,
+  none is refused by the current parser, and none contains a literal `\u`, so
+  the escape-refusal carries no cost either. Issue #3998 was filed when the
+  archive was believed to keep raw only for failures; it does not apply to this
+  run.
 - **Agentic CLI output is not clean JSON.** The provider reads
   `~/.copilot/session-state/<uuid>/events.jsonl` and correlates by the sandbox
   working directory, which is race-free. Falling back to stdout parsing mixes
