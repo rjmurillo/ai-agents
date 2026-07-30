@@ -1857,15 +1857,21 @@ def test_the_ambiguity_walkers_terminate_on_a_self_referential_object():
     Both walkers are reachable from any caller holding a parsed-looking object,
     and a walk that hangs is worse than one that answers, so identity tracking
     costs one set membership per container to remove the failure mode entirely.
+
+    The exact yielded set is the assertion because a finite set is the direct
+    evidence of termination, and this one carries a key and a value so both
+    branches are shown to run. ``activation_score`` is absent by design: it is
+    a schema slot, and ``_string_values`` skips those keys so a healthy payload
+    does not refuse itself. That skip has its own test.
     """
-    cyclic: dict[str, Any] = {"activation_score": 1}
+    cyclic: dict[str, Any] = {"activation_score": 1, "note": "cited"}
     cyclic["self"] = cyclic
     listish: list[Any] = []
     listish.append(listish)
 
     assert eval_mod._parsed_names_two_verdicts(cyclic) is False
     assert eval_mod._count_score_bearing_objects(listish) == 0
-    assert "activation_score" in set(eval_mod._string_values(cyclic))
+    assert set(eval_mod._string_values(cyclic)) == {"note", "cited", "self"}
 
 
 def test_a_verdict_spelled_with_unicode_escapes_is_still_two_verdicts(monkeypatch):
@@ -3438,3 +3444,86 @@ def test_deep_nesting_scores_as_a_parse_failure_not_an_api_failure(monkeypatch):
     assert result["judge_failed"] is True
     assert result["activation_score"] == 0
     assert "judge API failure" not in result["reasoning"]
+
+
+def test_the_exact_name_exemption_cannot_carry_a_verdict():
+    """Only an exact field-name *key* is skipped, and a value never is.
+
+    ``_string_values`` yields object keys, so a healthy payload's own root key
+    reaches the refusal as a string and has to be skipped or every real payload
+    fails. The skip is equality against ``_SCORE_FIELDS`` and applies to keys
+    only, which is the distinction round 23 forced.
+
+    The first repair skipped any *string* equal to a field name, on the
+    reasoning that a string holding only a name holds no number. That is true
+    of the string and false of the payload: a ``{"field": "activation_score",
+    "value": 1}`` record puts the name in one slot and the competing number in
+    its sibling, and it published a fabricated 5/4/5 over a stated 1/1/1. So a
+    field name in value position refuses, and the last case here is that
+    payload.
+
+    Padding refuses too, because the skip does not strip. A key of
+    ``"  activation_score  "`` is not the slot the schema defines, so a judge
+    that emits one is naming a field somewhere the parser does not read, which
+    is the whole trigger for a refusal.
+    """
+    names_two = eval_mod._parsed_names_two_verdicts
+    verdict = {"activation_score": 1, "citation_score": 1, "behavior_score": 1}
+
+    assert names_two({**verdict, "reasoning": "ok"}) is False
+    assert names_two({**verdict, "notes": "the rule fired and was cited"}) is False
+
+    for label, key in {
+        "ascii padding": "  activation_score  ",
+        "non breaking space": "\u00a0activation_score\u00a0",
+        "newline padding": "\nactivation_score\n",
+    }.items():
+        assert names_two({**verdict, key: True}) is True, label
+
+    assert names_two({**verdict, "reasoning": "activation_score"}) is True
+    assert names_two({**verdict, "reasoning": ["activation_score"]}) is True
+    assert names_two({**verdict, "activation_score2": '{"activation_score": 5}'}) is True
+    assert names_two({**verdict, "reasoning": {"activation_score": 5}}) is True
+    assert names_two({**verdict, "reasoning": "activation_score\uff1a5"}) is True
+
+
+def test_a_verdict_split_across_field_and_value_slots_is_refused():
+    """A record naming a field in one slot and its number in a sibling refuses.
+
+    Round 23's blocking case, kept as its own test because it is the payload
+    that broke the previous repair rather than a variation on it. The judge
+    files 5/4/5 and then states a corrected 1/1/1 as structured records, so
+    every field name sits in value position and every number sits beside it.
+    Nothing here is a schema slot, nothing is a nested score-bearing object
+    that ``_count_score_bearing_objects`` would count, and the published result
+    was an unmarked 5/4/5.
+    """
+    names_two = eval_mod._parsed_names_two_verdicts
+    payload = {
+        "activation_score": 5,
+        "citation_score": 4,
+        "behavior_score": 5,
+        "reasoning": "initial",
+        "corrected_verdict": [
+            {"field": "activation_score", "value": 1},
+            {"field": "citation_score", "value": 1},
+            {"field": "behavior_score", "value": 1},
+        ],
+    }
+    assert names_two(payload) is True
+
+
+def test_a_field_name_spelled_in_another_encoding_is_a_known_undetected_shape():
+    """Homoglyph and zero-width spellings pass, and the docstring says so.
+
+    The limit is one cause with three shapes: a field name that is not the
+    literal codepoint sequence, whether split, substituted, or interleaved. No
+    textual check closes it, so the honest move is to pin the behaviour in a
+    test rather than let a future round rediscover it as a defect. Zero of the
+    264 recovered payloads contain any of these shapes.
+    """
+    names_two = eval_mod._parsed_names_two_verdicts
+    verdict = {"activation_score": 1, "citation_score": 1, "behavior_score": 1}
+
+    assert names_two({**verdict, "reasoning": "activation_sc\u043ere: 5"}) is False
+    assert names_two({**verdict, "reasoning": "activation\u200b_score: 5"}) is False

@@ -967,6 +967,25 @@ def _string_values(value: object) -> Iterator[str]:
     values-only would have made the replacement a regression on the one case it
     exists to stop, so the walk covers both halves of every pair.
 
+    One kind of key is skipped: a key that is *exactly* a score field name.
+    That key is the schema slot the parser already read, so yielding it would
+    make every healthy payload refuse once the field pattern stopped requiring
+    quotes. The skip is deliberately narrow. It is equality against
+    ``_SCORE_FIELDS``, so a key that merely *contains* a field name is still
+    yielded, and it applies to keys only. An exact field name appearing as a
+    *value* is not a schema slot; it is a reference to a field, and round 23
+    showed why that distinction is load-bearing:
+
+        {"activation_score": 5, ...,
+         "corrected_verdict": [{"field": "activation_score", "value": 1}, ...]}
+
+    names a competing 1/1/1 verdict with the field names in value position and
+    the numbers in siblings. An earlier fix exempted exact field names wherever
+    they appeared, on the reasoning that a string holding only a name holds no
+    number. That is true of the string and false of the payload, which is where
+    the number actually lives. A nested object that keys real scores is still
+    covered by ``_count_score_bearing_objects``.
+
     Iterative for the same reason as ``_count_score_bearing_objects``: a
     recursive walk turns a healthy but deeply nested payload into a mislabelled
     API failure.
@@ -983,7 +1002,7 @@ def _string_values(value: object) -> Iterator[str]:
             yield current
         elif isinstance(current, dict):
             for key, member in current.items():
-                if isinstance(key, str):
+                if isinstance(key, str) and key not in _SCORE_FIELDS:
                     yield key
                 stack.append(member)
         elif isinstance(current, list):
@@ -1018,11 +1037,16 @@ def _parsed_names_two_verdicts(parsed: object) -> bool:
     judge named two answers and choosing one of them is a guess.
 
     Known limit, measured rather than assumed: this cannot detect a second
-    verdict written in a dialect where the field name is not a contiguous
-    substring, such as Python adjacent string literals (``'activation' '_score'``).
-    Neither can any textual check, since the encoding space is open. Zero of the
-    264 recovered judge payloads contain that shape, and the one payload with
-    adjacent quoted tokens is ordinary prose. The exposure is bounded by the top
+    verdict whose field name is not spelled as the literal codepoint sequence.
+    Three shapes share that one cause. The name can be split
+    (``'activation' '_score'`` as Python adjacent literals), substituted
+    (``activation_scоre`` with a Cyrillic о), or interleaved (a zero-width
+    space inside it). Each survives any pattern written over the real name, and
+    no textual check closes the class, because the encoding space is open.
+    Zero of the
+    264 recovered judge payloads contain any of those shapes, and the one
+    payload with adjacent quoted tokens is ordinary prose. The exposure is
+    bounded by the top
     level being the schema-defined answer slot, so an undetected second verdict
     in prose loses to the verdict the judge actually filed.
     """
@@ -1137,21 +1161,18 @@ def _string_contradicts_filed_scores(text: str, filed: dict[str, Any]) -> bool:
     A truncated decode is likewise a refusal, since the unread remainder could
     name a field by definition.
 
-    One exemption, and it is exact rather than a pattern. ``_string_values``
-    yields object *keys* as well as values, so on a healthy payload the root
-    object's own key ``activation_score`` arrives here as a string. That key is
-    the schema slot the parser already read, not a second answer, and a string
-    that is *entirely* a field name carries no verdict because it carries no
-    number. The exemption is therefore equality against ``_SCORE_FIELDS``, a
-    closed set fixed by the schema, and any other character at all in the
-    string, a separator, a digit, a word, puts it back under the refusal. There
-    is nothing here to enumerate, which is the property rounds 19 through 22
-    kept failing to get. A *nested* object that keys a real score is owned by
-    ``_count_score_bearing_objects``, which counts score-bearing objects
-    exactly rather than reading them out of text.
+    There is no exemption here, and an earlier version of this function had one
+    that was wrong. ``_string_values`` yields object keys as well as values, so
+    once the field pattern stopped requiring quotes, a healthy payload's own
+    root key ``activation_score`` reached this check and every healthy payload
+    refused. The first repair exempted any string equal to a field name,
+    arguing that a string holding only a name holds no number. Round 23 broke
+    it in one move: the number does not have to be in the same string. A
+    ``{"field": "activation_score", "value": 1}`` record names a competing
+    verdict with the name in one slot and the number in its sibling. The skip
+    now lives in ``_string_values``, applies to keys only, and leaves every
+    value under the refusal, because a key is a schema slot and a value is not.
     """
-    if text.strip() in _SCORE_FIELDS:
-        return False
     for layer, truncated in _escape_layers(text):
         if _NAMED_SCORE_FIELD_RE.search(layer):
             return True
