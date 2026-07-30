@@ -85,12 +85,12 @@ TRIVIAL_SESSION_SECONDS = 10 * 60
 SECURITY_SUPPRESSION_RE = re.compile(
     r"(?:#|//|/\*)\s*"
     r"(?:"
-    r"lgtm\[|"
+    r"(?:lgtm|codeql)\[|"
     r"nosec\b|"
     r"nosem(?:grep)?\b|"
     r"(?:(?:ruff|flake8)\s*:\s*)?"
-    r"noqa\b(?:\s*:\s*(?:[A-Z]+\d+\s*,\s*)*S\d+\b"
-    r"(?:\s*,\s*[A-Z]+\d+\b)*|(?!\s*:))|"
+    r"noqa\b(?:\s*:\s*(?:[A-Z]+\d+(?:\s*,\s*|\s+))*S\d+\b"
+    r"(?:(?:\s*,\s*|\s+)[A-Z]+\d+\b)*|(?!\s*:))|"
     r"cwe-suppress\b"
     r")",
     re.IGNORECASE,
@@ -457,6 +457,12 @@ class PushUpdate:
     head: str
     range_spec: str
     destination_branch: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class SuppressionRenames:
+    pure_scanned_destinations: frozenset[str]
+    promoted_destinations: frozenset[str]
 
 
 class PushUpdateConfigError(ValueError):
@@ -2286,11 +2292,17 @@ def _added_suppression_violations(
     ]
     if not scan_paths:
         return []
-    pure_rename_destinations = _pure_scanned_rename_destinations(update, repo_root)
-    if pure_rename_destinations is None:
+    renames = _suppression_renames(repo_root, update.range_spec)
+    if renames is None:
         return None
-    scan_paths = [path for path in scan_paths if path not in pure_rename_destinations]
-    if not scan_paths:
+    promoted_paths = [path for path in scan_paths if path in renames.promoted_destinations]
+    scan_paths = [
+        path
+        for path in scan_paths
+        if path not in renames.pure_scanned_destinations
+        and path not in renames.promoted_destinations
+    ]
+    if not scan_paths and not promoted_paths:
         return []
     notebook_paths, diff_scan_paths = _partition_suppression_paths(scan_paths)
     violations = _textual_suppression_violations(
@@ -2305,6 +2317,14 @@ def _added_suppression_violations(
     if notebook_violations is None:
         return None
     violations.extend(notebook_violations)
+    promoted_violations = _commit_full_content_suppression_violations(
+        update,
+        promoted_paths,
+        repo_root,
+    )
+    if promoted_violations is None:
+        return None
+    violations.extend(promoted_violations)
     return violations
 
 
@@ -2387,7 +2407,13 @@ def _textual_suppression_violations(
 ) -> list[str] | None:
     if not paths:
         return []
-    args = ["-c", "diff.noprefix=false", "diff"]
+    args = [
+        "-c",
+        "diff.noprefix=false",
+        "-c",
+        "core.quotePath=false",
+        "diff",
+    ]
     if cached:
         args.append("--cached")
     args.extend(
@@ -2419,17 +2445,41 @@ def check_staged_suppressions(repo_root: Path) -> int:
     scan_paths = _staged_suppression_paths(repo_root, base_ref)
     if scan_paths is None:
         return 2
-    if not scan_paths:
+    violations = _staged_suppression_violations(scan_paths, repo_root, base_ref)
+    if violations is None:
+        return 2
+    if not violations:
         return 0
-    pure_rename_destinations = _staged_pure_scanned_rename_destinations(
+    print("ERROR: security suppression comments detected in staged changes:", file=sys.stderr)
+    for violation in violations:
+        print(f"  {violation}", file=sys.stderr)
+    return 1
+
+
+def _staged_suppression_violations(
+    scan_paths: Sequence[str],
+    repo_root: Path,
+    base_ref: str,
+) -> list[str] | None:
+    if not scan_paths:
+        return []
+    renames = _suppression_renames(
         repo_root,
         base_ref,
+        cached=True,
+        context="staged changes",
     )
-    if pure_rename_destinations is None:
-        return 2
-    scan_paths = [path for path in scan_paths if path not in pure_rename_destinations]
-    if not scan_paths:
-        return 0
+    if renames is None:
+        return None
+    promoted_paths = [path for path in scan_paths if path in renames.promoted_destinations]
+    scan_paths = [
+        path
+        for path in scan_paths
+        if path not in renames.pure_scanned_destinations
+        and path not in renames.promoted_destinations
+    ]
+    if not scan_paths and not promoted_paths:
+        return []
     notebook_paths, diff_scan_paths = _partition_suppression_paths(scan_paths)
     violations = _textual_suppression_violations(
         repo_root,
@@ -2439,21 +2489,23 @@ def check_staged_suppressions(repo_root: Path) -> int:
         cached=True,
     )
     if violations is None:
-        return 2
+        return None
     notebook_violations = _staged_notebook_suppression_violations(
         notebook_paths,
         repo_root,
         base_ref,
     )
     if notebook_violations is None:
-        return 2
+        return None
     violations.extend(notebook_violations)
-    if not violations:
-        return 0
-    print("ERROR: security suppression comments detected in staged changes:", file=sys.stderr)
-    for violation in violations:
-        print(f"  {violation}", file=sys.stderr)
-    return 1
+    promoted_violations = _staged_full_content_suppression_violations(
+        promoted_paths,
+        repo_root,
+    )
+    if promoted_violations is None:
+        return None
+    violations.extend(promoted_violations)
+    return violations
 
 
 def _staged_suppression_base(repo_root: Path) -> str:
@@ -2489,32 +2541,6 @@ def _staged_suppression_paths(repo_root: Path, base_ref: str) -> list[str] | Non
     return paths
 
 
-def _staged_pure_scanned_rename_destinations(
-    repo_root: Path,
-    base_ref: str,
-) -> set[str] | None:
-    result = _run_git(
-        repo_root,
-        [
-            "diff",
-            "--cached",
-            *TEXTUAL_DIFF_FLAGS,
-            "--find-renames=100%",
-            "--name-status",
-            "--diff-filter=R",
-            "-z",
-            base_ref,
-        ],
-    )
-    if result.returncode != 0:
-        _print_process_output(result)
-        return None
-    return _parse_pure_scanned_rename_destinations(
-        result.stdout,
-        context="staged changes",
-    )
-
-
 def _staged_notebook_suppression_violations(
     paths: Sequence[str],
     repo_root: Path,
@@ -2534,6 +2560,19 @@ def _staged_notebook_suppression_violations(
                 head_text,
             )
         )
+    return violations
+
+
+def _staged_full_content_suppression_violations(
+    paths: Sequence[str],
+    repo_root: Path,
+) -> list[str] | None:
+    violations: list[str] = []
+    for path in paths:
+        text = _index_text_or_none(path, repo_root)
+        if text is None:
+            return None
+        violations.extend(_full_content_suppression_violations("staged", path, text))
     return violations
 
 
@@ -2557,6 +2596,35 @@ def _notebook_suppression_violations(
             )
         )
     return violations
+
+
+def _commit_full_content_suppression_violations(
+    update: PushUpdate,
+    paths: Sequence[str],
+    repo_root: Path,
+) -> list[str] | None:
+    violations: list[str] = []
+    for path in paths:
+        text = _commit_text_or_none(update.head, path, repo_root)
+        if text is None:
+            return None
+        violations.extend(_full_content_suppression_violations(update.head[:12], path, text))
+    return violations
+
+
+def _full_content_suppression_violations(
+    head_label: str,
+    path: str,
+    text: str,
+) -> list[str]:
+    lines = (
+        _notebook_code_lines(text) if Path(path).suffix.lower() == ".ipynb" else text.splitlines()
+    )
+    return [
+        f"{head_label}:{path}:{line_number}"
+        for line_number, line in enumerate(lines, start=1)
+        if SECURITY_SUPPRESSION_RE.search(line)
+    ]
 
 
 def _notebook_suppression_violations_for_text(
@@ -4094,13 +4162,15 @@ def _is_scanned_suppression_rename(source: str, destination: str) -> bool:
         and Path(destination).suffix.lower() in SECURITY_SUPPRESSION_SUFFIXES
     )
 
-def _parse_pure_scanned_rename_destinations(
+
+def _parse_suppression_renames(
     output: str,
     *,
     context: str = "pushed range",
-) -> set[str] | None:
+) -> SuppressionRenames | None:
     records = [record for record in output.split("\0") if record]
-    destinations: set[str] = set()
+    pure_scanned: set[str] = set()
+    promoted: set[str] = set()
     index = 0
     while index < len(records):
         status = records[index]
@@ -4112,32 +4182,47 @@ def _parse_pure_scanned_rename_destinations(
         if source is None or destination is None:
             print(f"ERROR: unsafe rename path in {context}", file=sys.stderr)
             return None
-        if status == "R100" and _is_scanned_suppression_rename(source, destination):
-            destinations.add(destination)
+        source_scanned = Path(source).suffix.lower() in SECURITY_SUPPRESSION_SUFFIXES
+        destination_scanned = Path(destination).suffix.lower() in SECURITY_SUPPRESSION_SUFFIXES
+        if status == "R100" and source_scanned and destination_scanned:
+            pure_scanned.add(destination)
+        if not source_scanned and destination_scanned:
+            promoted.add(destination)
         index += 3
-    return destinations
+    return SuppressionRenames(
+        pure_scanned_destinations=frozenset(pure_scanned),
+        promoted_destinations=frozenset(promoted),
+    )
 
 
-def _pure_scanned_rename_destinations(
-    update: PushUpdate,
+def _suppression_renames(
     repo_root: Path,
-) -> set[str] | None:
-    result = _run_git(
-        repo_root,
-        [
-            "diff",
+    range_spec: str,
+    *,
+    cached: bool = False,
+    context: str = "pushed range",
+) -> SuppressionRenames | None:
+    args = ["diff"]
+    if cached:
+        args.append("--cached")
+    args.extend(
+        (
             *TEXTUAL_DIFF_FLAGS,
-            "--find-renames=100%",
+            "--find-renames",
             "--name-status",
             "--diff-filter=R",
             "-z",
-            update.range_spec,
-        ],
+            range_spec,
+        )
+    )
+    result = _run_git(
+        repo_root,
+        args,
     )
     if result.returncode != 0:
         _print_process_output(result)
         return None
-    return _parse_pure_scanned_rename_destinations(result.stdout)
+    return _parse_suppression_renames(result.stdout, context=context)
 
 
 PATH_SEPARATOR_RE = re.compile(r"[\\/]")

@@ -22,10 +22,9 @@ gate's own scanner does not flag this file as introducing what it tests for.
 Joining them, which the formatter does, re-arms the trap. Nothing in CI or the
 hooks runs ``ruff format``, so the split form survives.
 
-The honest fix for the name is a rename, and it is blocked. The gate diffs with
-``--no-renames`` on purpose, so a rename reads as a wholesale add and the one
-real suppression here, the ``E402`` on the import below, trips it. Renaming
-requires teaching the gate to skip pure renames first. Filed as issue 3635.
+The filename is historical. This file now covers suppression policy and ADR
+merge scope, not causal restore. Renaming it remains separate scope because
+test selectors and review references use the current path. Filed as issue 3635.
 """
 
 from __future__ import annotations
@@ -91,7 +90,7 @@ def _run_suppression_push(
         if args[0] == "diff" and "--name-status" in args and "--diff-filter=R" in args:
             assert expected_range is not None
             assert expected_range in args
-            assert "--find-renames=100%" in args
+            assert "--find-renames" in args
             assert "--no-renames" not in args
             return _completed(rename_status_output)
         if "diff" in args and "--unified=0" in args:
@@ -311,98 +310,68 @@ new file mode 100644
     def test_pure_rename_with_existing_suppression_is_allowed(
         self,
         tmp_path,
-        monkeypatch,
     ):
-        suppression = "# no" "qa"
-        no_rename_diff = f"""diff --git a/pkg/source.py b/pkg/target.py
-deleted file mode 100644
---- a/pkg/source.py
-+++ /dev/null
-@@ -1 +0,0 @@
--import os  {suppression}
-diff --git a/pkg/target.py b/pkg/target.py
-new file mode 100644
---- /dev/null
-+++ b/pkg/target.py
-@@ -0,0 +1 @@
-+import os  {suppression}
-"""
-        rename_status = "\0".join(("R100", "pkg/source.py", "pkg/target.py", ""))
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _init_push_repo(repo)
+        _git(repo, "checkout", "main")
+        source = repo / "source.py"
+        source.write_text("import os  # no" "qa\n", encoding="utf-8")
+        _commit(repo, "add suppression")
+        _point_origin_main_at_head(repo)
 
-        assert (
-            _run_suppression_push(
-                monkeypatch,
-                tmp_path,
-                no_rename_diff,
-                ("pkg/target.py",),
-                rename_status_output=rename_status,
-            )
-            == 0
-        )
+        _git(repo, "checkout", "topic")
+        _git(repo, "merge", "--ff-only", "main")
+        _git(repo, "mv", "source.py", "target.py")
+        head = _commit(repo, "rename source")
+
+        assert _run_real_suppression_push(repo, head) == 0
 
     def test_rename_with_edit_preserves_existing_suppression_credit(
         self,
         tmp_path,
-        monkeypatch,
     ):
-        suppression = "# no" "sec"
-        rename_diff = f"""diff --git a/pkg/source.py b/pkg/target.py
-similarity index 80%
-rename from pkg/source.py
-rename to pkg/target.py
---- a/pkg/source.py
-+++ b/pkg/target.py
-@@ -1 +1,2 @@
--value = call()  {suppression}
-+value = call()  {suppression}
-+changed = True
-"""
-        rename_status = "\0".join(("R080", "pkg/source.py", "pkg/target.py", ""))
-
-        assert (
-            _run_suppression_push(
-                monkeypatch,
-                tmp_path,
-                rename_diff,
-                ("pkg/target.py",),
-                rename_status_output=rename_status,
-            )
-            == 0
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _init_push_repo(repo)
+        _git(repo, "checkout", "main")
+        source = repo / "source.py"
+        content = "value = call()  # no" "sec\n" + "".join(
+            f"value_{index} = {index}\n" for index in range(10)
         )
+        source.write_text(content, encoding="utf-8")
+        _commit(repo, "add suppression")
+        _point_origin_main_at_head(repo)
+
+        _git(repo, "checkout", "topic")
+        _git(repo, "merge", "--ff-only", "main")
+        _git(repo, "mv", "source.py", "target.py")
+        (repo / "target.py").write_text(content + "changed = True\n", encoding="utf-8")
+        head = _commit(repo, "rename and edit source")
+
+        assert _run_real_suppression_push(repo, head) == 0
 
     def test_rename_into_scanned_suffix_with_existing_suppression_is_blocked(
         self,
         tmp_path,
-        monkeypatch,
         capsys,
     ):
-        suppression = "# no" "sec"
-        no_rename_diff = f"""diff --git a/pkg/payload.txt b/pkg/payload.py
-deleted file mode 100644
---- a/pkg/payload.txt
-+++ /dev/null
-@@ -1 +0,0 @@
--value = call()
-diff --git a/pkg/payload.py b/pkg/payload.py
-new file mode 100644
---- /dev/null
-+++ b/pkg/payload.py
-@@ -0,0 +1 @@
-+value = call()  {suppression}
-"""
-        rename_status = "\0".join(("R100", "pkg/payload.txt", "pkg/payload.py", ""))
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _init_push_repo(repo)
+        _git(repo, "checkout", "main")
+        payload = repo / "payload.txt"
+        payload.write_text("value = call()  # no" "sec\n", encoding="utf-8")
+        _commit(repo, "add unscanned suppression")
+        _point_origin_main_at_head(repo)
 
-        assert (
-            _run_suppression_push(
-                monkeypatch,
-                tmp_path,
-                no_rename_diff,
-                ("pkg/payload.py",),
-                rename_status_output=rename_status,
-            )
-            == 1
-        )
-        assert "pkg/payload.py:1" in capsys.readouterr().err
+        _git(repo, "checkout", "topic")
+        _git(repo, "merge", "--ff-only", "main")
+        _git(repo, "mv", "payload.txt", "payload.py")
+        head = _commit(repo, "promote payload to Python")
+
+        assert _run_real_suppression_push(repo, head) == 1
+        assert "payload.py:1" in capsys.readouterr().err
 
     def test_new_branch_without_merge_base_is_config_error(
         self,
@@ -814,6 +783,8 @@ class TestStagedSuppressionPolicy:
             "# ruff: no" "qa",
             "# ruff: no" "qa: S602",
             "# flake8: no" "qa",
+            "# no" "qa: E501 S602",
+            "# no" "qa: ANN001 S603",
         ),
     )
     def test_staged_file_level_security_noqa_is_blocked(
@@ -850,6 +821,20 @@ class TestStagedSuppressionPolicy:
         monkeypatch,
     ):
         directive = "# NO" "QA: S603"
+        diff = f"""diff --git a/pkg/module.py b/pkg/module.py
+--- a/pkg/module.py
++++ b/pkg/module.py
+@@ -0,0 +1 @@
++{directive}
+"""
+        assert self._run_staged(monkeypatch, tmp_path, diff) == 1
+
+    def test_staged_codeql_suppression_is_blocked(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        directive = "# code" "ql[js/xss]"
         diff = f"""diff --git a/pkg/module.py b/pkg/module.py
 --- a/pkg/module.py
 +++ b/pkg/module.py
@@ -950,6 +935,17 @@ class TestStagedSuppressionPolicy:
         assert policy.check_staged_suppressions(repo) == 1
         assert "module.py:1" in capsys.readouterr().err
 
+    def test_staged_unicode_python_path_is_blocked(self, tmp_path, capsys):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _init_push_repo(repo)
+        path = repo / "café.py"
+        path.write_text("import subprocess  # no" "sec\n", encoding="utf-8")
+        _git(repo, "add", str(path.relative_to(repo)))
+
+        assert policy.check_staged_suppressions(repo) == 1
+        assert "café.py:1" in capsys.readouterr().err
+
     def test_staged_pure_python_rename_is_allowed(self, tmp_path):
         repo = tmp_path / "repo"
         repo.mkdir()
@@ -976,6 +972,18 @@ class TestStagedSuppressionPolicy:
         _git(repo, "add", "new.py")
 
         assert policy.check_staged_suppressions(repo) == 0
+
+    def test_staged_rename_into_scanned_suffix_is_blocked(self, tmp_path, capsys):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _init_push_repo(repo)
+        path = repo / "payload.txt"
+        path.write_text("value = call()  # no" "sec\n", encoding="utf-8")
+        _commit(repo, "add unscanned suppression")
+        _git(repo, "mv", "payload.txt", "payload.py")
+
+        assert policy.check_staged_suppressions(repo) == 1
+        assert "payload.py:1" in capsys.readouterr().err
 
     def test_staged_pure_notebook_rename_is_allowed(self, tmp_path):
         repo = tmp_path / "repo"
