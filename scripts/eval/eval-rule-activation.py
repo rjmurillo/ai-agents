@@ -625,13 +625,26 @@ _KEY_SHAPED_SCORE_FIELDS = tuple(
 # restatement.
 _NAMED_SCORE_FIELD_RE = re.compile(
     "(?:\"|\\\\\"|')(" + "|".join(re.escape(f) for f in _SCORE_FIELDS) + ")"
-    + "(?:\"|\\\\\"|')\\s*:\\s*([^\\s,}\\]]+)?"
+    + "(?:\"|\\\\\"|')\\s*:\\s*([^\\s,}\\]]+)?([\\s\\S]*)"
 )
 
-# A value token is comparable only if it is exactly an integer. ``1.5``,
-# ``1e1``, and ``"1"`` all name a score this cannot equate with a filed
-# integer, so each is treated as uncomparable and refused.
-_EXACT_INT_RE = re.compile(r"-?[0-9]+\Z")
+# Punctuation that can close an English sentence around a number without being
+# part of it. ``I assigned "activation_score": 5.`` states one verdict, and
+# refusing it because the token is ``5.`` rather than ``5`` would drop the most
+# ordinary sentence a judge can write. Stripped only from the end, so ``1.5``
+# keeps its decimal and stays uncomparable.
+_SENTENCE_CLOSERS = ".!?;:)`\"'"
+
+# Characters that can continue an arithmetic expression after a value token.
+# The token stops at whitespace, so ``"activation_score": 5 - 1`` captures
+# ``5``, which equals a filed 5 while the expression means 4. Equality cannot
+# be established through an operator, so the presence of one refuses.
+#
+# ``(`` is deliberately absent. No language continues a bare number into a
+# call or grouping without an operator between them, so ``5 (the rule
+# applied)`` is a judge writing a parenthetical, and refusing it would drop an
+# ordinary sentence to guard against an expression that cannot be written.
+_EXPRESSION_CONTINUATIONS = "-+*/%"
 
 # The escapes a JSON string body can carry. ``\\`` matters most: a value
 # serialized twice spells its escapes with a doubled backslash, and decoding
@@ -656,7 +669,14 @@ _HEX4_RE = re.compile(r"[0-9a-fA-F]{4}\Z")
 # it is reached with decoding still possible, the payload is refused rather
 # than accepted, since an undecoded remainder is exactly the case this cannot
 # clear.
-_MAX_ESCAPE_LAYERS = 3
+#
+# Each peel strictly shortens the string, so a walk terminates on its own and
+# the bound is about cost, not termination. It is set high enough that ordinary
+# prose reaches a fixpoint well inside it: a run of N consecutive backslashes
+# halves each layer, so eight layers absorb 256 of them, and a judge writing
+# about regex escaping does not produce that. A smaller bound refused such a
+# judge over a remainder that held no score field at all.
+_MAX_ESCAPE_LAYERS = 8
 
 # The opening line of a Markdown code fence, capturing its delimiter run so
 # the close can be paired to the same width. Applied only when the payload
@@ -1107,21 +1127,32 @@ def _string_contradicts_filed_scores(text: str, filed: dict[str, Any]) -> bool:
     where equality is established **exactly**, and every case where it cannot be
     is refused:
 
-    * a named field with no value token, or a token that is not exactly an
-      integer, so ``1.5`` and ``1e1`` are refused rather than read as ``1``
+    * a named field with no value token, or a token that is not the exact
+      decimal spelling of the filed value, so ``1.5``, ``1e1``, and ``05`` are
+      all refused rather than read as an integer
+    * a token followed by an arithmetic operator, since ``5 - 1`` beside a
+      filed 5 states 4 and the token alone cannot say so
     * a field this payload never filed as a top level integer, bools excluded
     * a decode budget exhausted while another layer remained, since the
       remainder is by definition unread
+
+    Comparison is on the decimal spelling, not on ``int(token)``. Converting
+    first would accept ``05`` as 5, and CPython refuses to convert an integer
+    literal past 4300 digits at all, raising ``ValueError`` where the caller
+    catches only ``RuntimeError``: one judge response could end the run.
     """
     for layer, truncated in _escape_layers(text):
         for match in _NAMED_SCORE_FIELD_RE.finditer(layer):
-            field, token = match.group(1), match.group(2)
-            if token is None or not _EXACT_INT_RE.match(token):
+            field, token, tail = match.group(1), match.group(2), match.group(3)
+            if token is None:
                 return True
             value = filed.get(field)
             if not isinstance(value, int) or isinstance(value, bool):
                 return True
-            if int(token) != value:
+            if token.rstrip(_SENTENCE_CLOSERS) != str(value):
+                return True
+            rest = tail.lstrip(_ASCII_SPACE)
+            if rest[:1] in _EXPRESSION_CONTINUATIONS and rest[:1]:
                 return True
         if truncated:
             return True

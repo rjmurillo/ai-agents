@@ -1514,24 +1514,23 @@ def test_an_exhausted_decode_budget_refuses_rather_than_accepts(monkeypatch):
     """The peel bound must fail closed; an unread remainder is not agreement.
 
     Accepting when the budget runs out accepts precisely the payload the check
-    failed to read, so the bound would become the bypass. Four layers is one
-    past the budget, and early exit does not make it unreachable: each layer
-    still decodes, so the walk never stops early.
+    failed to read, so the bound would become the bypass.
+
+    The payload carries no score field at all, so the contradiction arm cannot
+    fire and the refusal is attributable to truncation alone. An earlier
+    version of this test buried a real field past the bound and kept passing
+    when the bound was raised, because the field then decoded into view and
+    refused as a contradiction: it asserted the right outcome for the wrong
+    reason. A run of backslashes halves per layer, so 512 is the smallest
+    power of two that outlasts the budget, and the companion test below pins
+    the other side of that boundary.
     """
-
-    def bury(field: str, layers: int = 4) -> str:
-        text = rf"\u{ord(field[0]):04x}{field[1:]}"
-        for _ in range(layers - 1):
-            text = text.replace("\\", r"\u005c")
-        return text
-
-    inner = "{" + ",".join(f'"{bury(f)}":5' for f in eval_mod._SCORE_FIELDS) + "}"
     payload = json.dumps(
         {
-            "activation_score": 1,
-            "citation_score": 1,
-            "behavior_score": 1,
-            "reasoning": "Corrected verdict: " + inner,
+            "activation_score": 5,
+            "citation_score": 4,
+            "behavior_score": 5,
+            "reasoning": "\\" * 512 + " is a lot of escaping",
         }
     )
     monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_k: payload)
@@ -1541,6 +1540,168 @@ def test_an_exhausted_decode_budget_refuses_rather_than_accepts(monkeypatch):
     )
 
     assert result["judge_failed"] is True
+
+
+def test_backslash_prose_within_the_budget_is_not_refused(monkeypatch):
+    """Escaping a judge can plausibly write must decode, not exhaust the bound.
+
+    This is the other side of the boundary the test above pins. At a bound of
+    three layers a judge discussing regex escaping was refused over a
+    remainder that held no score field, which is a lost sample charged to the
+    payload rather than to the checker. 256 backslashes is far past anything
+    prose produces and still resolves inside the budget.
+    """
+    payload = json.dumps(
+        {
+            "activation_score": 5,
+            "citation_score": 4,
+            "behavior_score": 5,
+            "reasoning": "The pattern needs " + "\\" * 256 + " before the class",
+        }
+    )
+    monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_k: payload)
+
+    result = eval_mod.score_response(
+        "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
+    )
+
+    assert result["judge_failed"] is False
+    assert result["activation_score"] == 5
+
+
+def test_an_arithmetic_expression_beside_an_equal_token_is_not_agreement(
+    monkeypatch,
+):
+    """``5 - 1`` beside a filed 5 states 4, and the leading token cannot say so.
+
+    The value token stops at whitespace, so the capture is ``5``, which equals
+    the filed score exactly. Reading that as agreement publishes a 5 the judge
+    corrected to 4, with nothing in the record marking it: the worst outcome
+    available to this check, since a refusal is visible through the sample
+    count and a fabrication is not.
+    """
+    payload = json.dumps(
+        {
+            "activation_score": 5,
+            "citation_score": 4,
+            "behavior_score": 5,
+            "reasoning": 'Corrected: {"activation_score": 5 - 1, "citation_score": 4}',
+        }
+    )
+    monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_k: payload)
+
+    result = eval_mod.score_response(
+        "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
+    )
+
+    assert result["judge_failed"] is True
+
+
+def test_a_value_token_past_the_integer_conversion_limit_does_not_raise(
+    monkeypatch,
+):
+    """A long digit run must refuse, not end the run.
+
+    CPython refuses to convert an integer literal longer than 4300 digits,
+    raising ``ValueError``. ``eval_one_scenario`` catches ``RuntimeError``, so
+    converting before comparing let a single judge response abort every
+    remaining scenario. Comparing decimal spellings never converts, so length
+    is just inequality.
+    """
+    payload = json.dumps(
+        {
+            "activation_score": 5,
+            "citation_score": 4,
+            "behavior_score": 5,
+            "reasoning": 'Restated "activation_score": ' + "9" * 4400,
+        }
+    )
+    monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_k: payload)
+
+    result = eval_mod.score_response(
+        "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
+    )
+
+    assert result["judge_failed"] is True
+
+
+def test_ordinary_sentence_punctuation_after_a_score_is_not_a_disagreement(
+    monkeypatch,
+):
+    """``"activation_score": 5.`` restates 5; the period closes the sentence.
+
+    Comparing the raw token refused every judge who ended a sentence on the
+    number, which is the most ordinary way to write one. Closers are stripped
+    only from the end, so ``1.5`` keeps its decimal and stays uncomparable.
+    """
+    for closer in (".", ";", ")", "`", "!", "?"):
+        payload = json.dumps(
+            {
+                "activation_score": 5,
+                "citation_score": 4,
+                "behavior_score": 5,
+                "reasoning": f'I set "activation_score": 5{closer} The rule fired.',
+            }
+        )
+        monkeypatch.setattr(
+            eval_mod, "_call_api", lambda *_a, _p=payload, **_k: _p
+        )
+
+        result = eval_mod.score_response(
+            "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
+        )
+
+        assert result["judge_failed"] is False, closer
+        assert result["activation_score"] == 5, closer
+
+
+def test_a_leading_zero_spelling_is_not_an_exact_restatement(monkeypatch):
+    """``05`` is not a JSON integer, so it cannot establish equality exactly.
+
+    Converting first accepted it as 5. The claim this check makes is equality
+    of spelling, and ``05`` does not spell the filed value; refusing costs a
+    visible sample, while accepting asserts an exactness that was not tested.
+    """
+    payload = json.dumps(
+        {
+            "activation_score": 5,
+            "citation_score": 4,
+            "behavior_score": 5,
+            "reasoning": 'Restated "activation_score": 05',
+        }
+    )
+    monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_k: payload)
+
+    result = eval_mod.score_response(
+        "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
+    )
+
+    assert result["judge_failed"] is True
+
+
+def test_a_parenthetical_after_a_score_is_not_an_expression(monkeypatch):
+    """``5 (the rule applied)`` is prose; no language continues a bare number.
+
+    ``(`` is excluded from the operator set for this reason. Including it
+    refused a judge annotating the score, buying nothing: an expression needs
+    an operator between the number and the group.
+    """
+    payload = json.dumps(
+        {
+            "activation_score": 5,
+            "citation_score": 4,
+            "behavior_score": 5,
+            "reasoning": 'I set "activation_score": 5 (the rule clearly applied)',
+        }
+    )
+    monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_k: payload)
+
+    result = eval_mod.score_response(
+        "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
+    )
+
+    assert result["judge_failed"] is False
+    assert result["activation_score"] == 5
 
 
 def test_the_ambiguity_walkers_terminate_on_a_self_referential_object():
