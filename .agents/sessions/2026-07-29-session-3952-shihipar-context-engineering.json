@@ -462,6 +462,46 @@
     {
       "step": "Filed issue #3999 for the remaining Sol finding: _recover_verdict and _salvage_scores accept different payloads in both directions, and archive replay calls the latter directly, so a future archived score can depend on which helper the caller reached for. Left unfixed here as it belongs with the aggregator work.",
       "timestamp": "2026-07-30T14:40:28.618482Z"
+    },
+    {
+      "step": "Sol round 15 disproved this session's published claim that a success-path parser defect was retroactively unmeasurable. Copilot CLI keeps full assistant messages in session transcripts, so the raw judge payloads behind the 264 successful samples were still on disk. That was the eighth false claim of the session and the same shape as the other seven: a negative inferred from absence, asserted because the data was not in the place I looked.",
+      "timestamp": "2026-07-30T15:25:34.013813Z"
+    },
+    {
+      "step": "Independently reproduced and extended the recovery: 465 of 3366 sessions mention activation_score, yielding 474 candidate messages and 466 distinct payload texts. Correlated each parsed triple back to the published cells and matched 264 of 264 successes with none unmatched; 10 cells had multiple candidates agreeing on the same triple.",
+      "timestamp": "2026-07-30T15:25:34.013840Z"
+    },
+    {
+      "step": "Fell into two traps during correlation and caught both. First, _recover_verdict returns JSON text rather than a dict, so an isinstance(v, dict) check silently matched 0 of 264 and printed a clean-looking result. Second, my first regression script incremented a match counter without ever comparing to the published triple, which is exactly the fabrication pattern this session exists to hunt. Caught on re-read before it produced a number.",
+      "timestamp": "2026-07-30T15:25:34.013846Z"
+    },
+    {
+      "step": "Used the recovered instrument to run the regression I had published as impossible: all 264 successful cells re-score to their archived triples exactly, and the 24 archived failures recover to byte-identical triples. That moves the parser from verified on 24 of 288 published cells to verified on all 288.",
+      "timestamp": "2026-07-30T15:25:34.013850Z"
+    },
+    {
+      "step": "The regression found a defect I introduced in round 14. Moving the textual ambiguity guard pre-parse on every path meant any payload containing a unicode escape was refused outright, and json.dumps defaults to ensure_ascii=True, so an em-dash or curly quote in judge prose serializes as \\uXXXX. A healthy strictly-parseable verdict was scored 0/0/0. Sol reported the fenced case; the plain case is worse and I found it myself.",
+      "timestamp": "2026-07-30T15:25:34.013855Z"
+    },
+    {
+      "step": "Repaired by reversing a round-14 design decision. Round 14 ran one textual guard everywhere because divergent strictness between paths looked like a defect in itself. That conflated divergent strictness for the same question with genuinely different questions needing different instruments. Where the parse succeeded, count score-bearing objects at any depth and scan decoded strings; where an unparsed tail follows the object, keep the raw count and its blanket.",
+      "timestamp": "2026-07-30T15:25:34.013859Z"
+    },
+    {
+      "step": "Declined Sol's blocking finding 1 deliberately and recorded why in a test. Python adjacent string literals concatenate under the grammar, so no textual method sees the field name; the encoding space is open, so enumerating spellings cannot close the class. The source is a cooperating judge, none of the 288 payloads carries the shape, and the top-level object is the schema's answer slot. Sol's own recommendation is provider-enforced structured output, which I agree with.",
+      "timestamp": "2026-07-30T15:25:34.013863Z"
+    },
+    {
+      "step": "Archived the 264 recovered payloads as recovered-judge-payloads.json beside the results they produced, and added a replay test that re-scores every published cell on each run. Negative control: sabotaging the ambiguity check makes the test report all 264 cells as changed, so it is not a test that can only pass. This is the durable fix for the archive gap in issue #3998.",
+      "timestamp": "2026-07-30T15:25:34.013867Z"
+    },
+    {
+      "step": "Corrected three published claims in rule-audit-evidence.md: the unmeasurability claim, the assertion that the unicode blanket costs nothing on recovery paths (true for the tail path, false for the fenced one), and the statement that all sixteen prior defects were bounded exactly by replaying 24 prefixes, which reads a bound from the failed population and attaches it to a sentence about all samples.",
+      "timestamp": "2026-07-30T15:25:34.013871Z"
+    },
+    {
+      "step": "Verification: ruff clean, mypy clean, 4 of 6 new tests fail without the source fix under a targeted git stash, all prior round controls still hold, full suite 19020 passed and 30 skipped.",
+      "timestamp": "2026-07-30T15:25:34.013875Z"
     }
   ],
   "endingCommit": "",

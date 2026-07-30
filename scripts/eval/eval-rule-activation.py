@@ -49,7 +49,7 @@ import re
 import statistics
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -370,13 +370,13 @@ def _extract_json_object(text: str) -> str | None:
     ``_names_a_score_field_twice`` applies here for the same reason it applies
     to salvage: a second copy of a score field anywhere in the payload makes
     the leading object one of two candidate answers, and two candidates is an
-    ambiguity rather than a choice.
+    ambiguity rather than a choice. It applies only when text follows the
+    object, because that trailing text is what a second candidate would hide
+    in and it is exactly what cannot be parsed and checked exactly.
 
     Returns ``None`` when the payload does not begin with a balanced,
-    strictly-parseable object, or when it names a score field twice.
+    strictly-parseable object, or when it names two verdicts.
     """
-    if _names_a_score_field_twice(text):
-        return None
     start = _salvage_anchor(text)
     if start is None:
         return None
@@ -385,10 +385,19 @@ def _extract_json_object(text: str) -> str | None:
         return None
     candidate = text[start:end]
     try:
-        _strict_json_loads(candidate)
+        parsed = _strict_json_loads(candidate)
     except ValueError:
         return None
-    return candidate
+    if text[end:].strip():
+        # Something follows the object, so a second verdict could be sitting in
+        # a tail this function never parses. Only the raw count can see it.
+        return None if _names_a_score_field_twice(text) else candidate
+    # The object is the whole payload. There is no unparsed tail to protect
+    # against, and the parse has already decoded every escape, so the exact
+    # structural check applies. Using the raw count here instead would refuse
+    # any payload containing ``\u``, which discards a healthy fenced verdict
+    # whose reasoning carries an em-dash or a curly quote.
+    return None if _parsed_names_two_verdicts(parsed) else candidate
 
 
 def score_response(
@@ -461,7 +470,18 @@ Respond in JSON only, no other text:
 
     text = raw.strip()
 
-    if _names_a_score_field_twice(text):
+    try:
+        parsed = _strict_json_loads(text)
+        recovered_from_prefix = False
+    except ValueError:
+        embedded = _recover_verdict(text)
+        if embedded is None:
+            return _judge_parse_failure(text, f"judge parse error: {text[:200]}")
+        # _recover_verdict only returns text it already parsed with
+        # _strict_json_loads, so this cannot raise.
+        parsed = _strict_json_loads(embedded)
+        recovered_from_prefix = True
+    else:
         # A second copy of a score field makes the payload carry two candidate
         # verdicts, and picking one of two is a guess. Both recovery paths
         # already refused on this. The strict parse did not, because a
@@ -476,25 +496,16 @@ Respond in JSON only, no other text:
         # all, so a fabricated triple was indistinguishable from a judge that
         # simply answered.
         #
-        # Checked once, before any parse, rather than on the success branch:
-        # the defect was a path that did not know it needed the guard, so the
-        # guard belongs where every path inherits it, including the fourth one
-        # nobody has written yet.
-        return _failed_judge(
-            f"ambiguous judge output names a score field twice: {text[:200]}"
-        )
-
-    try:
-        parsed = _strict_json_loads(text)
-        recovered_from_prefix = False
-    except ValueError:
-        embedded = _recover_verdict(text)
-        if embedded is None:
-            return _judge_parse_failure(text, f"judge parse error: {text[:200]}")
-        # _recover_verdict only returns text it already parsed with
-        # _strict_json_loads, so this cannot raise.
-        parsed = _strict_json_loads(embedded)
-        recovered_from_prefix = True
+        # Checked against the parsed object rather than the raw text. The two
+        # answer the same question, but only one of them can answer it here
+        # without also refusing healthy output: see _parsed_names_two_verdicts.
+        # The recovery branch above keeps the raw-text guard, which each of its
+        # entry points already applies, because a payload that did not parse
+        # offers nothing exact to check.
+        if _parsed_names_two_verdicts(parsed):
+            return _failed_judge(
+                f"ambiguous judge output names two verdicts: {text[:200]}"
+            )
     if not isinstance(parsed, dict):
         return _failed_judge(f"judge returned non-object JSON: {text[:200]}")
     score_error = _judge_score_shape_error(parsed)
@@ -845,6 +856,77 @@ def _salvage_anchor(text: str) -> int | None:
     return len(text) - len(stripped)
 
 
+def _count_score_bearing_objects(value: object) -> int:
+    """Count objects carrying a score field, at any depth, in a parsed payload."""
+    total = 0
+    if isinstance(value, dict):
+        if any(field in value for field in _SCORE_FIELDS):
+            total += 1
+        for member in value.values():
+            total += _count_score_bearing_objects(member)
+    elif isinstance(value, list):
+        for member in value:
+            total += _count_score_bearing_objects(member)
+    return total
+
+
+def _string_values(value: object) -> Iterator[str]:
+    """Yield every string value in a parsed payload, at any depth."""
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for member in value.values():
+            yield from _string_values(member)
+    elif isinstance(value, list):
+        for member in value:
+            yield from _string_values(member)
+
+
+def _parsed_names_two_verdicts(parsed: object) -> bool:
+    """Return whether a payload that parsed whole carries two candidate verdicts.
+
+    The textual guard below answers the same question for payloads that do not
+    parse, where the verdict has to be searched for. Once a payload parses, the
+    search is over and the question can be answered exactly instead of by
+    spelling, which matters in both directions.
+
+    It stops a false accept: ``_names_a_score_field_twice`` counts key shapes in
+    raw text, so a second verdict nested as a member, a list element, or a value
+    three levels down is caught only if it happens to be spelled the way the
+    patterns expect. Counting score-bearing objects in the parsed structure
+    catches all three by construction.
+
+    It also stops a false refuse, which is why this is not simply the textual
+    guard run twice. That guard refuses any payload containing ``\\u``, because
+    a name spelled with a unicode escape would slip a raw count. On a malformed
+    payload that costs nothing. On a healthy one it is a live hazard: JSON
+    encoders default to ASCII output, so a judge whose reasoning contains an
+    em-dash, a curly quote, or an accented name emits ``\\uXXXX`` and would be
+    refused for prose. Here the parse has already decoded those escapes, so the
+    blanket is not needed and the string check sees what the judge meant.
+
+    A verdict serialized inside a string value is still a second candidate and
+    is still refused, on the same reasoning that governs the recovery paths: the
+    judge named two answers and choosing one of them is a guess.
+
+    Known limit, measured rather than assumed: this cannot detect a second
+    verdict written in a dialect where the field name is not a contiguous
+    substring, such as Python adjacent string literals (``'activation' '_score'``).
+    Neither can any textual check, since the encoding space is open. Zero of the
+    264 recovered judge payloads contain that shape, and the one payload with
+    adjacent quoted tokens is ordinary prose. The exposure is bounded by the top
+    level being the schema-defined answer slot, so an undetected second verdict
+    in prose loses to the verdict the judge actually filed.
+    """
+    if _count_score_bearing_objects(parsed) > 1:
+        return True
+    return any(
+        pattern.search(text)
+        for text in _string_values(parsed)
+        for pattern in _KEY_SHAPED_SCORE_FIELDS
+    )
+
+
 def _names_a_score_field_twice(text: str) -> bool:
     """Return whether any score field name appears more than once in ``text``.
 
@@ -874,8 +956,20 @@ def _names_a_score_field_twice(text: str) -> bool:
     the same protection at the price of discarding real samples. Matching the
     key shape covers all three spellings and leaves prose alone. A name spelled
     with a unicode escape would still slip the count, so any ``\\u`` in the
-    payload refuses outright. Judge prose does not contain one, and a refusal
-    costs a sample while a fabrication costs a published number.
+    payload refuses outright.
+
+    That ``\\u`` blanket is why this function is no longer the general answer.
+    ``json.dumps`` defaults to ``ensure_ascii=True``, so an em-dash or a curly
+    quote anywhere in a judge's reasoning is serialized as ``\\uXXXX``. Applying
+    the blanket to every payload therefore refuses healthy, strictly-parseable
+    verdicts for the crime of containing punctuation. Call this only where the
+    exact check cannot run: where a tail follows the object and is never
+    parsed, so escapes stay undecoded and structure is unknown. When the parse
+    succeeded, ask ``_parsed_names_two_verdicts`` instead, which counts
+    score-bearing objects and scans *decoded* strings and needs no blanket.
+
+    A refusal costs a sample while a fabrication costs a published number, so
+    the blanket stays where the payload is already malformed.
     """
     if "\\u" in text:
         return True
@@ -964,19 +1058,25 @@ def _unwrap_lone_fence(text: str) -> str | None:
 def _recover_verdict(text: str) -> str | None:
     """Return JSON text holding the judge's verdict, or ``None`` to refuse.
 
-    Runs only after the whole payload failed to parse. The duplicate-name
-    guard is applied to the *original* payload first, so a second verdict
-    cannot be hidden from it by unwrapping a fence.
+    Runs only after the whole payload failed to parse.
+
+    Each branch checks for a second verdict with the sharpest instrument it
+    can. ``_unwrap_lone_fence`` already refuses unless nothing but whitespace
+    sits outside the fence, so a successful unwrap means the fence body is the
+    whole payload: it parses, its escapes are decoded, and the exact structural
+    check applies. Running the raw count on the original payload there would
+    add nothing except its ``\\u`` blanket, which refuses a healthy fenced
+    verdict whose reasoning contains an em-dash. ``_extract_json_object``
+    applies its own guard, and keeps the raw count when text follows the
+    object, because that tail is never parsed.
     """
-    if _names_a_score_field_twice(text):
-        return None
     fenced = _unwrap_lone_fence(text)
     if fenced is not None:
         try:
-            _strict_json_loads(fenced)
+            parsed = _strict_json_loads(fenced)
         except ValueError:
             return None
-        return fenced
+        return None if _parsed_names_two_verdicts(parsed) else fenced
     return _extract_json_object(text)
 
 

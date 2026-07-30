@@ -1321,6 +1321,131 @@ def test_a_single_verdict_beside_unrelated_nesting_still_parses(monkeypatch):
     assert result["behavior_score"] == 2
 
 
+# A judge that writes an em-dash, a curly quote, or an accented name emits a
+# unicode escape, because JSON encoders default to ASCII output. These are the
+# healthy payloads that the raw-text guard refused for prose, and they are the
+# regression tests for that false refusal.
+_UNICODE_ESCAPE_BODY = (
+    '{"activation_score": 4, "citation_score": 3, "behavior_score": 2,'
+    ' "reasoning": "the rule fired \\u2014 and was cited \\u201cexactly\\u201d"}'
+)
+
+
+@pytest.mark.parametrize(
+    ("payload", "label"),
+    [
+        (_UNICODE_ESCAPE_BODY, "plain"),
+        (f"```json\n{_UNICODE_ESCAPE_BODY}\n```", "fenced"),
+    ],
+    ids=["plain", "fenced"],
+)
+def test_a_unicode_escape_in_reasoning_is_not_an_ambiguity(monkeypatch, payload, label):
+    """A verdict whose prose carries an escape must score, not be refused.
+
+    The raw-text guard refuses any payload containing ``\\u``, because a field
+    name spelled with an escape would slip a count of raw key shapes. On a
+    payload that failed to parse that blanket costs nothing. On one that parses
+    it discards a healthy verdict for the sole reason that the judge used a
+    dash, and dashes are ordinary.
+
+    Both spellings are covered because they reach the check by different
+    routes: the plain body parses whole, the fenced one only after unwrapping.
+    """
+    monkeypatch.setattr(eval_mod, "_call_api", lambda *_args, **_kwargs: payload)
+
+    result = eval_mod.score_response(
+        "sk-test",
+        {"input": "x", "expected_gate": "apply-rule"},
+        "response",
+    )
+
+    assert result["judge_failed"] is False, label
+    assert result["activation_score"] == 4
+    assert result["citation_score"] == 3
+    assert result["behavior_score"] == 2
+
+
+def test_a_second_verdict_after_the_object_is_still_refused(monkeypatch):
+    """Narrowing the raw guard must not open the hole it was written to close.
+
+    The guard now yields to the exact structural check only when the object is
+    the whole payload. When text follows it, that text is never parsed, so a
+    second verdict could hide there and only the raw count can see it. This is
+    the control that proves the narrowing is conditional rather than a removal.
+    """
+    payload = (
+        '{"activation_score": 1, "citation_score": 1, "behavior_score": 1,'
+        ' "reasoning": "first"}\n'
+        '{"activation_score": 5, "citation_score": 5, "behavior_score": 5,'
+        ' "reasoning": "second"}'
+    )
+    monkeypatch.setattr(eval_mod, "_call_api", lambda *_args, **_kwargs: payload)
+
+    result = eval_mod.score_response(
+        "sk-test",
+        {"input": "x", "expected_gate": "apply-rule"},
+        "response",
+    )
+
+    assert result["judge_failed"] is True
+    assert result["activation_score"] == 0
+
+
+def test_count_score_bearing_objects_finds_every_depth():
+    count = eval_mod._count_score_bearing_objects
+    verdict = {"activation_score": 1, "citation_score": 1, "behavior_score": 1}
+
+    assert count({}) == 0
+    assert count({"reasoning": "none here"}) == 0
+    assert count(verdict) == 1
+    assert count({**verdict, "revised": dict(verdict)}) == 2
+    assert count({**verdict, "alts": [dict(verdict), dict(verdict)]}) == 3
+    assert count({"meta": {"audit": {"final": dict(verdict)}}}) == 1
+
+
+def test_a_verdict_serialized_into_a_string_is_two_verdicts():
+    """A quoted verdict is a second candidate, so the payload is ambiguous.
+
+    The structural count cannot see it, because a string is one value however
+    much JSON it spells. The string check is what covers this, and it runs on
+    decoded text so an escape in ordinary prose does not trip it.
+    """
+    names_two = eval_mod._parsed_names_two_verdicts
+    verdict = {"activation_score": 1, "citation_score": 1, "behavior_score": 1}
+
+    assert names_two({**verdict, "reasoning": "the activation_score was low"}) is False
+    assert names_two({**verdict, "reasoning": "fired \u2014 and cited"}) is False
+    assert names_two({**verdict, "reasoning": 'was {"activation_score": 5}'}) is True
+
+
+def test_adjacent_string_literals_are_a_known_undetected_shape(monkeypatch):
+    """Record the limit that no textual check closes, so it stays measured.
+
+    A second verdict spelled so the field name is never a contiguous substring
+    evades any text scan; Python's adjacent string literal concatenation is one
+    such spelling and the encoding space is open, so enumerating spellings does
+    not converge. This asserts today's behavior rather than a fix: the top
+    level is the schema's answer slot, so the filed verdict wins over prose.
+
+    Zero of the 264 recovered judge payloads carry this shape. If that ever
+    changes, this test is where the argument gets reopened.
+    """
+    payload = (
+        '{"activation_score": 1, "citation_score": 1, "behavior_score": 1,'
+        " \"reasoning\": \"corrected: {'activation' '_score': 5}\"}"
+    )
+    monkeypatch.setattr(eval_mod, "_call_api", lambda *_args, **_kwargs: payload)
+
+    result = eval_mod.score_response(
+        "sk-test",
+        {"input": "x", "expected_gate": "apply-rule"},
+        "response",
+    )
+
+    assert result["judge_failed"] is False
+    assert result["activation_score"] == 1
+
+
 def test_judge_parse_failure_does_not_combine_partial_objects():
     result = eval_mod._judge_parse_failure(
         '{"activation_score": 5}\n{"citation_score": 4, "behavior_score": 3}',
@@ -2541,3 +2666,91 @@ def test_adding_a_second_candidate_can_only_withdraw_a_salvage():
     ):
         after = eval_mod._salvage_scores(base + suffix)
         assert after in (None, original), suffix
+
+
+_ARCHIVE_DIR = (
+    REPO_ROOT
+    / ".agents"
+    / "analysis"
+    / "eval-artifacts"
+    / "2026-07-29-unified-software-engineering"
+)
+_RECOVERED_PAYLOADS = _ARCHIVE_DIR / "recovered-judge-payloads.json"
+
+
+def _published_triples() -> dict[tuple[str, str, str, str, int], tuple[int, int, int]]:
+    """Index every published score sample by its artifact coordinates."""
+    published = {}
+    for path in sorted(_ARCHIVE_DIR.glob("*.json")):
+        if path.name == _RECOVERED_PAYLOADS.name:
+            continue
+        data = json.loads(path.read_text(encoding="utf-8"))
+        for rule_name, rule in (data.get("rules") or {}).items():
+            for scenario in rule.get("scenarios", []):
+                for mech_name, mech in (scenario.get("mechanisms") or {}).items():
+                    for sample in mech.get("score_samples") or []:
+                        key = (
+                            path.stem,
+                            rule_name,
+                            scenario.get("id"),
+                            mech_name,
+                            sample.get("sample_index"),
+                        )
+                        published[key] = sample
+    return published
+
+
+def test_every_published_cell_still_scores_to_its_archived_triple(monkeypatch):
+    """Replay the published table through the current parser, cell by cell.
+
+    For most of this parser's history only the 24 *failed* samples could be
+    replayed, because those are the ones that store raw text. That made a
+    defect on the success path unmeasurable, and the gap was published as a
+    limit rather than worked around.
+
+    It was not a real limit. The judge payloads survive in the harness session
+    transcripts, so the 264 successful samples were recovered and archived
+    beside the results they produced. This test is what that buys: any change
+    to verdict parsing is now checked against every published number, not
+    against the eighth of them that happened to fail.
+
+    A mismatch here means a parser change would have altered a result that has
+    already been published and argued from. That is the failure this suite
+    exists to catch.
+    """
+    recovered = json.loads(_RECOVERED_PAYLOADS.read_text(encoding="utf-8"))
+    published = _published_triples()
+    assert recovered["sample_count"] == len(recovered["payloads"])
+
+    mismatches = []
+    for entry in recovered["payloads"]:
+        key = (
+            entry["artifact"],
+            entry["rule"],
+            entry["scenario"],
+            entry["mechanism"],
+            entry["sample_index"],
+        )
+        sample = published[key]
+        monkeypatch.setattr(
+            eval_mod, "_call_api", lambda *_a, _p=entry["raw"], **_k: _p
+        )
+        result = eval_mod.score_response(
+            "sk-test",
+            {"input": "x", "expected_gate": "apply-rule"},
+            "response",
+        )
+        got = (
+            result["activation_score"],
+            result["citation_score"],
+            result["behavior_score"],
+        )
+        want = (
+            sample["activation_score"],
+            sample["citation_score"],
+            sample["behavior_score"],
+        )
+        if result["judge_failed"] or got != want:
+            mismatches.append((key, got, want, result["judge_failed"]))
+
+    assert not mismatches, f"{len(mismatches)} published cells changed: {mismatches[:5]}"
