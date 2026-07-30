@@ -1276,6 +1276,31 @@ All scripts that call the API support `--dry-run` (validate inputs, no API calls
 
 Set `ANTHROPIC_API_KEY` as an environment variable. The scripts also check `.env` files as a fallback.
 
+Set `EVAL_PROVIDER` to use a non-Anthropic transport (e.g., `openai`, `github-models`). When a
+keyless provider is selected, `ANTHROPIC_API_KEY` is not required.
+
+## Token Budget Measurement
+
+The Copilot CLI session counter is NOT a reliable tool for measuring instruction corpus size.
+Its reported token count folds in MCP tool definitions and cache accounting alongside
+instruction text. The number is non-monotonic: adding instruction files can cause the counter
+to decrease (issue #3906).
+
+Use `scripts/validation/instruction_budget.py` for before/after instruction corpus measurement.
+It reads instruction files directly, applies `applyTo` glob matching for a given file type, and
+reports a deterministic sum:
+
+```bash
+# Report instruction tokens for .py files
+uv run --frozen python scripts/validation/instruction_budget.py --file-type .py
+
+# Report instruction tokens for .md files
+uv run --frozen python scripts/validation/instruction_budget.py --file-type .md
+```
+
+This output is stable across sessions, does not depend on MCP state or CLI caching, and is
+the correct input for optimization decisions.
+
 ## References
 
 - [ADR-057](.agents/architecture/ADR-057-prompt-behavioral-evaluation.md)

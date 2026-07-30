@@ -30,6 +30,11 @@ MODEL_PRICING_RATES_USD_PER_1K_TOKENS: dict[str, dict[str, float]] = {
     "claude-opus-4-6": {"input": 0.005, "output": 0.025},
     "claude-opus-4-8": {"input": 0.005, "output": 0.025},
     "claude-haiku-4-5": {"input": 0.001, "output": 0.005},
+    # TODO(#3905): add verified pricing for claude-opus-5 and gpt-5.6-sol once
+    # rates are confirmed from the provider. Do NOT add placeholder values;
+    # see issue #3786 for the risk of inventing rates. Retrieve from
+    # platform.claude.com/docs/en/about-claude/pricing or openai.com/api/pricing
+    # and update PRICING_RATE_AS_OF below.
 }
 PRICING_RATE_AS_OF = "2026-07-08"
 
@@ -61,9 +66,7 @@ def aggregate_multi_run_scores(
             aggregated[dim] = 0.0
 
     # Flakiness detection: a scenario is flaky if any dimension varies by > threshold
-    max_variance = max(
-        (aggregated.get(f"{d}_variance", 0) for d in dimensions), default=0
-    )
+    max_variance = max((aggregated.get(f"{d}_variance", 0) for d in dimensions), default=0)
     aggregated["runs"] = len(run_scores)
     aggregated["flaky"] = max_variance > FLAKINESS_VARIANCE_THRESHOLD
     aggregated["max_variance"] = round(max_variance, 2)
