@@ -13,17 +13,22 @@ import subprocess
 import sys
 import tempfile
 from collections.abc import Callable
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import TYPE_CHECKING, Any
 from unittest import mock
+from urllib.parse import urlparse
 
 import pytest
 
 from scripts.validate_session_json import (
     _INCOMPLETE_MUST_PREFIX,
     _LEGACY_HANDOFF_FIELD,
+    _MISSING_LEVEL_PREFIX,
     _MISSING_REQUIRED_PREFIX,
+    _MUST_FAILURE_PREFIXES,
     _MUST_NOT_VIOLATED_PREFIX,
+    _RELAXED_FOR_EXISTING_LOGS,
+    _UNJUSTIFIED_DEMOTION_PREFIX,
     BRANCH_PATTERN,
     COMMIT_SHA_PATTERN,
     CONTRADICTION_PATTERNS,
@@ -38,12 +43,14 @@ from scripts.validate_session_json import (
     load_session_file,
     validate_checklist_section,
     validate_filename_number,
+    validate_must_item,
     validate_protocol_compliance,
     validate_session_end,
     validate_session_log,
     validate_session_section,
     validate_session_start,
 )
+from scripts.validation.session_scope import commit_reachability_problem
 
 
 def _make_complete_start_section(**overrides: dict) -> dict:
@@ -707,8 +714,13 @@ class TestValidateSessionLog:
     """Tests for validate_session_log function."""
 
     def test_valid_minimal_log(self) -> None:
-        """Valid minimal log passes validation."""
+        """Valid minimal log passes validation.
+
+        "Minimal" means the six root fields SESSION-PROTOCOL.md requires, not
+        the two the schema used to name (issue #3763).
+        """
         data = {
+            "schemaVersion": "1.0",
             "session": {
                 "number": 1,
                 "date": "2026-01-18",
@@ -720,6 +732,9 @@ class TestValidateSessionLog:
                 "sessionStart": _make_complete_start_section(),
                 "sessionEnd": _make_complete_end_section(),
             },
+            "workLog": [],
+            "endingCommit": "",
+            "nextSteps": [],
         }
 
         result = validate_session_log(data)
@@ -803,6 +818,7 @@ class TestMainFunction:
     def valid_session_file(self, tmp_path: Path) -> Path:
         """Create a valid session log file."""
         data = {
+            "schemaVersion": "1.0",
             "session": {
                 "number": 1,
                 "date": "2026-01-18",
@@ -814,6 +830,9 @@ class TestMainFunction:
                 "sessionStart": _make_complete_start_section(),
                 "sessionEnd": _make_complete_end_section(),
             },
+            "workLog": [],
+            "endingCommit": "",
+            "nextSteps": [],
         }
         session_file = tmp_path / "valid-session.json"
         session_file.write_text(json.dumps(data))
@@ -998,6 +1017,7 @@ class TestEdgeCases:
         """Extra fields in session do not cause errors."""
         data = {
             "schema": "session-protocol-v1.4",
+            "schemaVersion": "1.0",
             "session": {
                 "number": 1,
                 "date": "2026-01-18",
@@ -1011,6 +1031,8 @@ class TestEdgeCases:
                 "sessionEnd": _make_complete_end_section(),
             },
             "workLog": [],
+            "endingCommit": "",
+            "nextSteps": [],
             "decisions": [],
             "outcome": {},
         }
@@ -1031,11 +1053,19 @@ def _make_valid_log(**session_overrides: object) -> dict:
     }
     session.update(session_overrides)
     return {
+        # The four fields below are required by SESSION-PROTOCOL.md and emitted
+        # by session_structure.build_session_log, but the schema did not name
+        # them until issue #3763. A fixture that omitted them was only "valid"
+        # against the weaker schema, so it is corrected here alongside the fix.
+        "schemaVersion": "1.0",
         "session": session,
         "protocolCompliance": {
             "sessionStart": _make_complete_start_section(),
             "sessionEnd": _make_complete_end_section(),
         },
+        "workLog": [],
+        "endingCommit": "",
+        "nextSteps": [],
     }
 
 
@@ -1929,6 +1959,7 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
             if line.startswith(("import ", "from ")) and "__future__" not in line
         ]
         assert imports == [
+            "import re",
             "import subprocess",
             "from collections.abc import Iterable",
             "from pathlib import Path",
@@ -2179,6 +2210,43 @@ class TestEvidenceAgreesWithSession:
         log["endingCommit"] = "1ffee3834e910608ed6c03c374fb71ff7c39bdc3"
         assert not any("endingCommit is empty" in w for w in validate_session_log(log).warnings)
 
+    def test_a_log_with_no_next_steps_field_warns(self) -> None:
+        """`SESSION-PROTOCOL.md` lists `nextSteps` as a required top-level field."""
+        log = _make_valid_log()
+        log.pop("nextSteps", None)
+        assert any("nextSteps" in w for w in validate_session_log(log).warnings)
+
+    def test_an_empty_next_steps_array_is_an_answer_and_does_not_warn(self) -> None:
+        """`[]` says there is nothing to follow up. Absence says nothing at all."""
+        log = _make_valid_log()
+        log["nextSteps"] = []
+        assert not any("nextSteps" in w for w in validate_session_log(log).warnings)
+
+    def test_a_populated_next_steps_array_does_not_warn(self) -> None:
+        log = _make_valid_log()
+        log["nextSteps"] = ["Land the follow-up PR"]
+        assert not any("nextSteps" in w for w in validate_session_log(log).warnings)
+
+    def test_the_next_steps_warning_does_not_block_an_existing_log(self) -> None:
+        """Negative control: 71 committed logs predate the field.
+
+        Issue #3763 promoted nextSteps to schema-required, so a *new* log that
+        omits it is now an error. The 71 records keep their old protection
+        through record mode, which is the whole point of the split: the field
+        is demanded of the author who can still supply it, and excused for the
+        record that cannot.
+        """
+        log = _make_valid_log()
+        log.pop("nextSteps", None)
+        assert validate_session_log(log, existing_log=True).errors == []
+
+    def test_a_new_log_without_next_steps_is_now_an_error(self) -> None:
+        log = _make_valid_log()
+        log.pop("nextSteps", None)
+        assert any(
+            "nextSteps" in e and e.startswith("Schema:") for e in validate_session_log(log).errors
+        )
+
     def test_an_existing_log_is_not_blocked_by_a_contradiction_it_cannot_repair(self) -> None:
         """Four committed logs contradict themselves and git cannot adjudicate which
         side is true. On the record side they would be a permanent block that no
@@ -2234,3 +2302,374 @@ class TestBranchEvidenceMayDescribeARelationship:
         """Logs abbreviate their own branch; that is not a second session."""
         log = _log_with_evidence(notOnMain="On fix/3346-session-schema, not main")
         assert not any("names a different branch" in e for e in validate_session_log(log).errors)
+
+
+class TestEndingCommitReachability:
+    """`endingCommit` was written once and never revalidated (issue #3618).
+
+    Of 1003 committed logs, 542 leave the field empty, 332 name a SHA that is
+    not an object in this repository at all, and 95 name a real commit that is
+    off the current history. 34 are sound. Nothing ever looked, so a value
+    orphaned by a later amend or rebase stayed in the record and seeded a
+    causal-graph node pointing at a commit that does not exist.
+    """
+
+    @staticmethod
+    def _make_repo(tmp_path: Path) -> tuple[Path, str, str]:
+        """Build a repo and return (root, reachable_sha, existing_offbranch_sha)."""
+        repo = tmp_path / "r"
+        repo.mkdir()
+
+        def git(*args: str) -> str:
+            return subprocess.run(
+                ["git", *args], cwd=repo, capture_output=True, text=True, check=True
+            ).stdout.strip()
+
+        git("init", "-q", "-b", "main")
+        git("config", "user.email", "t@example.com")
+        git("config", "user.name", "T")
+        (repo / "a.txt").write_text("a", encoding="utf-8")
+        git("add", "a.txt")
+        git("commit", "-qm", "a")
+        reachable = git("rev-parse", "HEAD")
+        git("checkout", "-qb", "side")
+        (repo / "b.txt").write_text("b", encoding="utf-8")
+        git("add", "b.txt")
+        git("commit", "-qm", "b")
+        offbranch = git("rev-parse", "HEAD")
+        git("checkout", "-q", "main")
+        return repo, reachable, offbranch
+
+    def test_a_reachable_commit_raises_no_complaint(self, tmp_path: Path) -> None:
+        repo, reachable, _ = self._make_repo(tmp_path)
+        assert commit_reachability_problem(reachable, repo) is None
+
+    def test_a_sha_that_is_no_object_is_named(self, tmp_path: Path) -> None:
+        repo, _, _ = self._make_repo(tmp_path)
+        assert commit_reachability_problem("0" * 40, repo) == "names no commit in this repository"
+
+    def test_a_real_commit_off_the_history_is_named(self, tmp_path: Path) -> None:
+        """The amend case: the commit still exists, but nothing reaches it."""
+        repo, _, offbranch = self._make_repo(tmp_path)
+        assert (
+            commit_reachability_problem(offbranch, repo)
+            == "names a commit that is not an ancestor of HEAD"
+        )
+
+    def test_a_dash_leading_value_never_reaches_git(self, tmp_path: Path) -> None:
+        """The value lands in argv, where a leading dash reads as an option (CWE-88)."""
+        repo, _, _ = self._make_repo(tmp_path)
+        assert commit_reachability_problem("--upload-pack=touch", repo) == "is not a commit SHA"
+
+    def test_a_shallow_clone_stays_silent(self, tmp_path: Path) -> None:
+        """Older commits are genuinely absent, so any complaint describes the clone."""
+        repo, _, _ = self._make_repo(tmp_path)
+        shallow = tmp_path / "shallow"
+        subprocess.run(
+            ["git", "clone", "-q", "--depth", "1", repo.as_uri(), str(shallow)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert (
+            subprocess.run(
+                ["git", "rev-parse", "--is-shallow-repository"],
+                cwd=shallow,
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
+            == "true"
+        )
+        assert commit_reachability_problem("0" * 40, shallow) is None
+
+    def test_a_directory_that_is_no_repository_stays_silent(self, tmp_path: Path) -> None:
+        bare = tmp_path / "plain"
+        bare.mkdir()
+        assert commit_reachability_problem("0" * 40, bare) is None
+
+    def test_a_clone_source_is_built_as_a_uri_not_a_concatenation(self, tmp_path: Path) -> None:
+        """`"file://" + path` is a URL only where the separator is already `/`.
+
+        On Windows the drive path carries no leading slash, so everything after
+        `file://` parses as the URL host and the path comes back empty. `git
+        clone` then looks for a host named `C:\\Users\\...` and the shallow-clone
+        test fails on the Windows job for a reason that has nothing to do with
+        reachability. `Path.as_uri()` emits the third slash and forward
+        separators, so the host stays empty on both platforms.
+        """
+        windows = PureWindowsPath(r"C:\Users\runner\Temp\repo")
+        naive = urlparse(f"file://{windows}")
+        assert naive.netloc == "C:\\Users\\runner\\Temp\\repo"
+        assert naive.path == ""
+
+        built = urlparse(tmp_path.as_uri())
+        assert built.netloc == ""
+        assert "\\" not in built.path
+        assert built.path.startswith("/")
+
+    def test_an_orphaned_ending_commit_warns(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Pinned to a purpose-built repo, not the ambient checkout.
+
+        Reading the ambient repository made this test depend on how CI clones.
+        The pytest job checks out at the actions/checkout default depth of 1, and
+        the helper stays deliberately silent in a shallow clone because older
+        commits are genuinely absent there. The assertion therefore passed
+        locally against a full clone and failed in CI against a shallow one, on
+        identical code. The sibling test below had the mirror-image defect: it
+        passed in CI for the wrong reason, because a silent helper satisfies a
+        no-warning assertion vacuously.
+        """
+        from scripts import validate_session_json
+
+        repo, _, _ = self._make_repo(tmp_path)
+        monkeypatch.setattr(validate_session_json, "_PROJECT_ROOT", repo)
+        log = _make_valid_log()
+        log["endingCommit"] = "0" * 40
+        assert any("issue #3618" in w for w in validate_session_log(log).warnings), (
+            "an unresolvable endingCommit must be reported"
+        )
+
+    def test_a_sound_ending_commit_does_not_warn(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Guards against a check that simply always complains."""
+        from scripts import validate_session_json
+
+        repo, reachable, _ = self._make_repo(tmp_path)
+        monkeypatch.setattr(validate_session_json, "_PROJECT_ROOT", repo)
+        log = _make_valid_log()
+        log["endingCommit"] = reachable
+        assert not any("issue #3618" in w for w in validate_session_log(log).warnings)
+
+    def test_an_existing_log_is_never_rechecked(self) -> None:
+        """427 committed logs carry a broken SHA. They are records, not claims,
+        and no honest edit could repair them, so the check sits on the claim
+        side of the issue #3385 line with the other cross-field checks."""
+        log = _make_valid_log()
+        log["endingCommit"] = "0" * 40
+        result = validate_session_log(log, existing_log=True)
+        assert not any("issue #3618" in w for w in result.warnings)
+
+    def test_a_malformed_value_is_left_to_the_schema(self) -> None:
+        """Reporting it here too would print one fact under two spellings."""
+        log = _make_valid_log()
+        log["endingCommit"] = "not-a-sha"
+        assert not any("issue #3618" in w for w in validate_session_log(log).warnings)
+
+    def test_an_empty_value_keeps_its_own_warning(self) -> None:
+        log = _make_valid_log()
+        log["endingCommit"] = ""
+        warnings = validate_session_log(log).warnings
+        assert any("endingCommit is empty" in w for w in warnings)
+        assert not any("issue #3618" in w for w in warnings)
+
+
+class TestARequiredItemCannotChooseItsOwnEnforcement:
+    """Issue #3747: every check in validate_must_item reads the item's own
+    `level`, so the document being checked decided how hard it was checked.
+
+    Two exits followed. Demotion to SHOULD silences an incomplete MUST, which
+    is the one the issue names. An absent `level` skips every branch, so the
+    item is not merely lenient, it is unread. Measured over the 1,027 committed
+    logs, the unnamed hole is the larger one: 138 required items carry no level
+    and *zero* demotions lack justification.
+    """
+
+    @staticmethod
+    def _check(item: object, *, required: bool = True) -> ValidationResult:
+        result = ValidationResult()
+        validate_must_item(item, "branchVerified", "sessionStart", result, is_required=required)
+        return result
+
+    def test_a_required_item_with_no_level_is_an_error(self) -> None:
+        """The 138-instance hole. `branchVerified` and `notOnMain` are 23 of them,
+        and they are the two items that answer "did this run on main"."""
+        errors = self._check({"complete": False, "evidence": ""}).errors
+        assert any(e.startswith(_MISSING_LEVEL_PREFIX) for e in errors)
+
+    def test_a_required_item_with_no_level_is_an_error_even_when_complete(self) -> None:
+        """Completeness is the item's own claim. An unread item's claim is unread."""
+        errors = self._check({"complete": True, "evidence": "on feat/x"}).errors
+        assert any(e.startswith(_MISSING_LEVEL_PREFIX) for e in errors)
+
+    def test_an_optional_item_with_no_level_is_left_alone(self) -> None:
+        """Isolating negative control for the is_required flag.
+
+        Without the flag the rule would fire on every optional item in every
+        log. This is the assertion that proves the flag itself is load-bearing
+        rather than decoration.
+        """
+        errors = self._check({"complete": False, "evidence": ""}, required=False).errors
+        assert not any(e.startswith(_MISSING_LEVEL_PREFIX) for e in errors)
+
+    def test_a_demoted_incomplete_item_without_evidence_is_an_error(self) -> None:
+        """The bypass #3747 names. SESSION-PROTOCOL.md line 20 already requires
+        documented justification to deviate from a MUST, so this enforces the
+        rule as written rather than inventing policy."""
+        errors = self._check({"complete": False, "level": "SHOULD", "evidence": ""}).errors
+        assert any(e.startswith(_UNJUSTIFIED_DEMOTION_PREFIX) for e in errors)
+
+    def test_a_demoted_incomplete_item_with_evidence_passes(self) -> None:
+        """Isolating negative control for the demotion rule.
+
+        Demotion has to stay legal: Copilot CLI exposes no Serena tools at all,
+        so pinning serenaActivated to MUST unconditionally would make every
+        Copilot session permanently invalid. All 257 demotions in the committed
+        corpus already carry justification, so the rule ratifies practice.
+        """
+        errors = self._check(
+            {
+                "complete": False,
+                "level": "SHOULD",
+                "evidence": "Serena MCP not exposed by this harness",
+            }
+        ).errors
+        assert not any(e.startswith(_UNJUSTIFIED_DEMOTION_PREFIX) for e in errors)
+
+    def test_whitespace_is_not_justification(self) -> None:
+        errors = self._check({"complete": False, "level": "SHOULD", "evidence": "   "}).errors
+        assert any(e.startswith(_UNJUSTIFIED_DEMOTION_PREFIX) for e in errors)
+
+    def test_a_demoted_but_complete_item_passes(self) -> None:
+        """Nothing was skipped, so there is no deviation to justify."""
+        errors = self._check({"complete": True, "level": "SHOULD", "evidence": ""}).errors
+        assert not any(e.startswith(_UNJUSTIFIED_DEMOTION_PREFIX) for e in errors)
+
+    def test_a_must_item_is_not_reported_as_a_demotion(self) -> None:
+        """Isolating negative control: the incomplete-MUST error already covers
+        this, and reporting both would print one fact under two spellings."""
+        errors = self._check({"complete": False, "level": "MUST", "evidence": ""}).errors
+        assert any(e.startswith(_INCOMPLETE_MUST_PREFIX) for e in errors)
+        assert not any(e.startswith(_UNJUSTIFIED_DEMOTION_PREFIX) for e in errors)
+
+    def test_a_must_not_item_is_not_reported_as_a_demotion(self) -> None:
+        """`notOnMain` is MUST NOT, where complete=false is the *passing* state."""
+        errors = self._check({"complete": False, "level": "MUST NOT", "evidence": ""}).errors
+        assert not any(e.startswith(_UNJUSTIFIED_DEMOTION_PREFIX) for e in errors)
+
+    def test_a_malformed_item_is_not_double_reported(self) -> None:
+        """A bare boolean returns early with its own message; the new rules must
+        not run on it and add a second, less accurate one."""
+        errors = self._check(True).errors
+        assert any(e.startswith("Malformed item:") for e in errors)
+        assert not any(e.startswith(_MISSING_LEVEL_PREFIX) for e in errors)
+
+    def test_both_new_messages_are_counted_as_must_failures(self) -> None:
+        """count_must_failures matches on exact prefixes, so a new MUST-level
+        message that is not registered is a message CI silently never counts.
+        Issue #3365 was exactly this drift."""
+        assert _MISSING_LEVEL_PREFIX in _MUST_FAILURE_PREFIXES
+        assert _UNJUSTIFIED_DEMOTION_PREFIX in _MUST_FAILURE_PREFIXES
+        missing = self._check({"complete": False, "evidence": ""})
+        demoted = self._check({"complete": False, "level": "SHOULD", "evidence": ""})
+        assert count_must_failures(missing) >= 1
+        assert count_must_failures(demoted) >= 1
+
+    def test_the_checklist_walker_passes_the_flag_through(self) -> None:
+        """End-to-end: the flag is computed in validate_checklist_section, so a
+        unit test on validate_must_item alone would pass with the wiring cut."""
+        section = _make_complete_start_section()
+        del section["branchVerified"]["level"]
+        result = ValidationResult()
+        validate_checklist_section(section, SESSION_START_REQUIRED_ITEMS, "sessionStart", result)
+        assert any(
+            e.startswith(_MISSING_LEVEL_PREFIX) and "branchVerified" in e for e in result.errors
+        )
+
+    def test_the_generator_output_trips_neither_rule(self) -> None:
+        """A rule that fires on the repo's own session-init template is a rule
+        that blocks every new session. build_session_log emits `level` on all
+        twelve required items, so both rules are pure ratchets on practice."""
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / ".claude/skills/session-init"))
+        from session_init.session_structure import build_session_log
+
+        log = build_session_log(
+            branch="feat/probe",
+            commit="a" * 40,
+            session_number=1,
+            objective="probe",
+            current_date="2026-07-29",
+        )
+        errors = validate_session_log(log).errors
+        assert not any(e.startswith(_MISSING_LEVEL_PREFIX) for e in errors)
+        assert not any(e.startswith(_UNJUSTIFIED_DEMOTION_PREFIX) for e in errors)
+        assert not any(e.startswith("Schema:") for e in errors)
+
+
+class TestTheSchemaNamesEveryRequiredRootField:
+    """Issue #3763: SESSION-PROTOCOL.md lists six required root fields and
+    build_session_log emits all six, but the schema named two. The schema was
+    the single document disagreeing with both the prose and the generator.
+    """
+
+    def test_each_promoted_field_is_individually_required(self) -> None:
+        """Isolating negative control, one per field: a single `required` list
+        entry could be dropped without any other assertion in this file
+        noticing, because _make_valid_log supplies all four."""
+        for field in ("schemaVersion", "workLog", "endingCommit", "nextSteps"):
+            log = _make_valid_log()
+            log.pop(field)
+            errors = validate_session_log(log).errors
+            assert any(field in e and e.startswith("Schema:") for e in errors), field
+
+    def test_the_two_original_fields_still_bind(self) -> None:
+        for field in ("session", "protocolCompliance"):
+            log = _make_valid_log()
+            log.pop(field)
+            assert any(
+                field in e and e.startswith("Schema:") for e in validate_session_log(log).errors
+            )
+
+    def test_an_existing_log_is_excused_from_the_four_new_fields(self) -> None:
+        """544 committed logs predate schemaVersion. Renaming one must not
+        demand that the renamer invent a workLog the session never wrote.
+        This is the #3385 rule, applied to the fields #3763 adds."""
+        log = _make_valid_log()
+        for field in _RELAXED_FOR_EXISTING_LOGS:
+            log.pop(field, None)
+        assert validate_session_log(log, existing_log=True).errors == []
+
+    def test_an_existing_log_is_not_excused_from_the_two_original_fields(self) -> None:
+        """Isolating negative control for the relaxation: it must subtract
+        exactly four names, not disable root `required` wholesale."""
+        log = _make_valid_log()
+        log.pop("session")
+        assert any(
+            "session" in e and e.startswith("Schema:")
+            for e in validate_session_log(log, existing_log=True).errors
+        )
+
+    def test_the_relaxation_does_not_reach_nested_required(self) -> None:
+        """`session.required` names five fields of its own. Editing the root
+        list must not touch them."""
+        log = _make_valid_log()
+        del log["session"]["objective"]
+        assert any(
+            "objective" in e and e.startswith("Schema:")
+            for e in validate_session_log(log, existing_log=True).errors
+        )
+
+    def test_an_empty_ending_commit_still_satisfies_required(self) -> None:
+        """`required` means the key is present, not that it is filled. A log
+        written at session start cannot know the SHA of the commit that will
+        contain it, so demanding a value would be unsatisfiable."""
+        log = _make_valid_log()
+        log["endingCommit"] = ""
+        assert not any(e.startswith("Schema:") for e in validate_session_log(log).errors)
+
+    def test_the_schema_file_and_the_relaxation_list_agree(self) -> None:
+        """If a future edit promotes a fifth field without adding it to the
+        relaxation set, renames of old logs start failing again."""
+        schema = json.loads(
+            (
+                Path(__file__).resolve().parents[1] / ".agents/schemas/session-log.schema.json"
+            ).read_text(encoding="utf-8")
+        )
+        assert _RELAXED_FOR_EXISTING_LOGS < set(schema["required"])
+        assert set(schema["required"]) - _RELAXED_FOR_EXISTING_LOGS == {
+            "session",
+            "protocolCompliance",
+        }

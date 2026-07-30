@@ -1,9 +1,10 @@
 ---
 type: task
 id: TASK-014
-requirement: REQ-004
-design: DESIGN-004
 status: ready
+related:
+  - REQ-014
+  - DESIGN-014
 priority: P1
 created: 2026-05-03
 updated: 2026-05-03
@@ -79,7 +80,7 @@ Low. Local change in one module, fully tested, reversible.
 
 ## Traceability
 
-- Requirement: `REQ-004-pr-description-extension-boundary.md`
-- Design: `DESIGN-004-pr-description-extension-boundary.md`
+- Requirement: `REQ-014-pr-description-extension-boundary.md`
+- Design: `DESIGN-014-pr-description-extension-boundary.md`
 - Issue: rjmurillo/ai-agents#1874
 - Downstream PR: rjmurillo/ai-agents#1873

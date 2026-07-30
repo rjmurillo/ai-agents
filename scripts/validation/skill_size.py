@@ -71,6 +71,46 @@ SKILL_BYTE_TARGET: int = 20_480  # 20 KiB, the documented goal (Issue #3421)
 SKILL_BYTE_LIMIT: int = 24_576  # 24 KiB, current ratchet (max body is 24,210 B)
 SKILL_BYTE_WARNING: int = 12_288  # 12 KiB, progressive-disclosure trigger
 
+# A declared size-exception must be accompanied by a rationale. The gate reads
+# only the head of the file so the reason sits where a reader lands, next to the
+# key it explains, rather than buried at the end. The length floor rejects a
+# token comment such as ``<!-- size-exception -->``: a suppression whose stated
+# reason is the suppression's own name carries no information. 200 characters is
+# roughly two sentences, which is the smallest form that can name what the check
+# wants and why the ordinary fix does not apply.
+RATIONALE_SEARCH_LINES: int = 40
+RATIONALE_MIN_CHARS: int = 200
+_RATIONALE_COMMENT_RE = re.compile(r"<!--(.*?)-->", re.DOTALL)
+
+
+def has_exception_rationale(content: str) -> bool:
+    """Return True when a size-exception rationale comment heads the file.
+
+    A rationale qualifies when an HTML comment *opens* within the first
+    ``RATIONALE_SEARCH_LINES`` lines, mentions ``size-exception``, and carries at
+    least ``RATIONALE_MIN_CHARS`` characters of body text. Only the opening
+    position is bounded, so a long multi-line reason is not penalized for
+    extending past the window; anchoring on the close instead would push authors
+    to compress the explanation to fit, which is the opposite of the goal.
+    """
+    if not content:
+        return False
+    head_end = 0
+    for _ in range(RATIONALE_SEARCH_LINES):
+        newline = content.find("\n", head_end)
+        if newline == -1:
+            head_end = len(content)
+            break
+        head_end = newline + 1
+    for match in _RATIONALE_COMMENT_RE.finditer(content):
+        if match.start() >= head_end:
+            break
+        body = match.group(1).strip()
+        if "size-exception" in body.lower() and len(body) >= RATIONALE_MIN_CHARS:
+            return True
+    return False
+
+
 # Skill trees whose staged/changed SKILL.md bodies the gate measures. Both the
 # canonical Claude tree and the generated Copilot mirror ship skills and are
 # staged by the lefthook ``**/SKILL.md`` glob, so both must be discoverable here
@@ -202,6 +242,21 @@ def check_skill_size(
         byte_count=byte_count,
         has_exception=exception,
     )
+
+    over_a_limit = line_count > limit or byte_count > byte_limit
+    if exception and over_a_limit and not has_exception_rationale(content):
+        result.passed = False
+        result.errors.append(
+            "'size-exception: true' is declared but carries no rationale. "
+            "An escape hatch with no stated reason is indistinguishable from an "
+            "unreviewed one, so the next reader cannot tell whether the overage "
+            "was justified or merely tolerated. Add an HTML comment near the top "
+            f"(within the first {RATIONALE_SEARCH_LINES} lines) mentioning "
+            "'size-exception' and stating what the check wants, why the "
+            "progressive-disclosure fix does not apply here, and what would "
+            "retire the exception. See .claude/rules/code-quality.md, "
+            "'Suppressions Are a Last Resort'."
+        )
 
     if line_count > limit:
         if exception:
@@ -572,10 +627,7 @@ def main(argv: list[str] | None = None) -> int:
                 content_bytes = read_staged_blob_bytes(file_path)
             except StagedBlobError as exc:
                 tally.uncertifiable += 1
-                print(
-                    f"  [FAIL] {_relative_display(file_path)} "
-                    "(staged blob uncertifiable)"
-                )
+                print(f"  [FAIL] {_relative_display(file_path)} (staged blob uncertifiable)")
                 print(f"    {exc}")
                 continue
 
@@ -600,10 +652,7 @@ def main(argv: list[str] | None = None) -> int:
         if result.warning:
             tally.warnings += 1
             if result.has_exception:
-                print(
-                    f"  [EXCEPTION] {result.file_path} ({size})"
-                    " - size-exception declared"
-                )
+                print(f"  [EXCEPTION] {result.file_path} ({size}) - size-exception declared")
             else:
                 print(f"  [WARN] {result.file_path} ({size})")
 

@@ -1,0 +1,292 @@
+{
+  "id": "episode-2026-07-29-session-3619-episode-commit-order",
+  "session": "2026-07-29-session-3619-episode-commit-order",
+  "timestamp": "2026-07-29T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix issue #3619. Episode commit events were emitted in provenance order, endingCommit first, and _link_sequential_events chains by list position, so a multi-commit episode claimed its newest commit caused its oldest. Order commit events by committer date, refusing to reorder at all when git cannot resolve every SHA, and pin both behaviours with tests.",
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "implementation",
+      "context": "",
+      "chosen": "Chose the emission site over _collect_shas. _collect_shas also feeds metrics.commits, where order is irrelevant, and its docstring states the provenance contract that three prior issues (#3123, #3301, #3328) depend on. Sorting inside it would have silently rewritten that contract.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    },
+    {
+      "id": "d002",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "context": "",
+      "chosen": "Decided the partial-resolution rule deliberately. _chronological reorders only when every SHA resolves. Placing unresolved commits first or last would assert a position git did not supply, in an artifact read as a record of what happened, so a partial answer preserves the input order unchanged. That is also the pre-fix behaviour, so episodes stay extractable outside a checkout.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced the reported chain before changing anything. The five SHAs the issue names all resolve, and git reports committer dates 19:59:57, 20:11:41, 21:11:10, 21:19:38 and 21:52:57 on 2026-07-27. b61cf1cff3 at 21:52:57 is the last of the five and the shipped episode places it first, exactly as filed.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Traced the cause rather than trusting the issue text. _collect_shas documents its order as source-of-truth ranking: endingCommit, then the changesCommitted evidence, then work-log prose as a fallback. endingCommit is by definition the session's final commit, so the ranking is anti-chronological at position one by construction, not by accident.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Chose the emission site over _collect_shas. _collect_shas also feeds metrics.commits, where order is irrelevant, and its docstring states the provenance contract that three prior issues (#3123, #3301, #3328) depend on. Sorting inside it would have silently rewritten that contract.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Extracted the git lookup _prose_sha_predates_session already ran into a cached _commit_datetime and shared it, so the two callers cannot drift on GIT_* scrubbing, the 10 second timeout, or ISO parse handling. This removed duplicated knowledge rather than adding a second copy.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Decided the partial-resolution rule deliberately. _chronological reorders only when every SHA resolves. Placing unresolved commits first or last would assert a position git did not supply, in an artifact read as a record of what happened, so a partial answer preserves the input order unchanged. That is also the pre-fix behaviour, so episodes stay extractable outside a checkout.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified against the reported case end to end. Re-running the extractor on 2026-07-27-session-3605-skill-description-context-cost.json produces 56f4f861aa -> ee1de31d5a -> 31a015587d -> 23e41ffb80 -> b61cf1cff3, byte-identical to the chronology the issue states as correct.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "content": "1 passed",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added 10 tests across three classes, each building a real temporary git repository with pinned GIT_COMMITTER_DATE values so the chronology under test is stated independently of the code under test. Suite went from 70 to 80 passing.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "content": "80 passed",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Made the tie test a real mutation detector. Asserting one direction only would be satisfied by luck if a tiebreak fell through to SHA text, so it asserts both directions; no sha-text tiebreak can satisfy both.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Mutation tested the fix three ways. Reverting the ordering call turned 2 tests red. Making _chronological guess on partial resolution turned 1 red. Dropping the index from the sort key turned 1 red. Each element is individually load-bearing.",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e013"
+      ]
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "content": "3 mutations, 3 reds, then 80 passed on restore",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e017"
+      ]
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured the shipped corpus rather than assuming the blast radius. 71 of the episodes carry more than one commit event; 9 of those are fully resolvable and out of chronological order.",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e014"
+      ]
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Left the 9 shipped episodes alone on evidence. --preserve merges fresh extraction over existing data but keeps the existing event order, so it does not repair the chain; --force does repair it but drops metrics.files_changed, measured as 3 to 0 on the 3605 episode. Neither path is lossless, so the artifact repair needs its own decision and is filed separately rather than folded in here.",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ]
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Confirmed the change adds no format debt. ruff format already wants to reformat this file on pristine origin/main, and the two hunks it reports are both pre-existing, at the blank line before _link_sequential_events and a string wrap in the duplicate-id message.",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e016"
+      ]
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated the copilot-cli mirror with build/scripts/build_all.py and bumped both plugin manifests from 0.6.191 to 0.6.192, verified equal by the parity suite.",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "content": "108 passed",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 56f4f861aa",
+      "caused_by": [],
+      "leads_to": [
+        "e019"
+      ]
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: ee1de31d5a",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [
+        "e020"
+      ]
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 31a015587d",
+      "caused_by": [
+        "e019"
+      ],
+      "leads_to": [
+        "e021"
+      ]
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 23e41ffb80",
+      "caused_by": [
+        "e020"
+      ],
+      "leads_to": [
+        "e022"
+      ]
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: b61cf1cff3",
+      "caused_by": [
+        "e021"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 5,
+    "files_changed": 8
+  },
+  "lessons": []
+}

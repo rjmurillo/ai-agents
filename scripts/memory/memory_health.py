@@ -34,6 +34,8 @@ def get_git_age_days(file_path: Path) -> int | None:
             ["git", "log", "-1", "--format=%aI", "--", str(file_path)],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
         )
         if result.returncode != 0:
