@@ -187,7 +187,10 @@ jobs:
           BROKEN_CITATIONS: ${{ steps.parse.outputs.broken_citations }}
           STALE_CITATIONS: ${{ steps.parse.outputs.stale_citations }}
         run: |
-          echo "::warning::Memory health issues: $STALE_MEMORIES stale memories, $BROKEN_CITATIONS broken citations, $STALE_CITATIONS stale citations"
+          echo "::warning::Memory health issues: \
+          $STALE_MEMORIES stale memories, \
+          $BROKEN_CITATIONS broken citations, \
+          $STALE_CITATIONS stale citations"
 
   skip-health-check:
     name: Skip health check (no changes)
