@@ -286,16 +286,21 @@ marker at all.
 Each round hardened the structural reading and each left the class standing.
 The fix was to stop reading structure to decide *which* object is the verdict.
 Salvage now anchors at offset 0 and refuses any payload naming a score field
-twice. Both checks are cheap invariants that do not interpret input already
-known to be malformed. The generalization: when a safety argument depends on
-parsing what you know is broken, the argument is the defect.
+twice, counting the bare identifier so an escaped spelling cannot evade it.
+Round 9 found the same search alive on the *success* path, returning a verdict
+found past offset 0 indistinguishable from a clean parse; that now refuses, and
+a recovery from a clean leading object is marked `judge_salvaged`. The
+generalization: when a safety argument depends on parsing what you know is
+broken, the argument is the defect. Its corollary, learned in round 9: an
+unauditable recovery is worse than an auditable refusal.
 
 That is strict, and it discards recoverable payloads: a leading tool trace, a
-nested rubric, and reasoning prose that quotes a field name all fail now. The
-asymmetry justifies it. A refused sample costs one of three; a fabricated one
-silently corrupts a published number. All 24 archived failures were measured
-against every version and recovered **24 of 24** each time, reproducing every
-cell above to two decimals.
+nested rubric, and prose naming a field all fail now. The asymmetry justifies
+it. A refused sample costs one of three; a fabricated one silently corrupts a
+published number. The published table cannot move either way: failed samples
+are dropped from each median rather than folded in as zeros, and no archived
+sample carries a salvage marker, so salvage never produced a published number.
+See the archive README for the full accounting and for what it cannot answer.
 
 That is not a blind test, because the same author wrote all five parsers.
 Falsifying it properly still takes one of: blinded manual transcription of the

@@ -278,17 +278,45 @@
     },
     {
       "step": "Rebuilt the change as a focused branch off current main. The push gate blocks at 40 commits and the branch carried 48; the commit-by-commit trail of eleven defects is already preserved in rule-audit-procedure.md and in this log, so the git history was redundant with both. Full history retained locally under tag shihipar-full-history."
+    },
+    {
+      "step": "Adversarial round 9 (GPT-5.6 Sol) reported five findings against the salvage path. Reproduced all five independently in a dedicated git worktree rather than switching the main worktree's branch, since Sol had flagged that a branch switch corrupted its own earlier run."
+    },
+    {
+      "step": "Finding 4 was the twelfth defect of the single class the previous eleven belong to: a search picking the wrong candidate object. _salvage_anchor had already anchored the failure path, but _extract_json_object is the success path, so a verdict found past offset 0 returned through the ordinary result branch and was indistinguishable from a clean parse. Deleted the search; _iter_json_objects and _iter_root_brace_positions became dead and were removed."
+    },
+    {
+      "step": "Checked the deleted search's stated justification before removing it. Its docstring claimed agentic CLI providers interleave tool-call traces into stdout. _copilot_cli._read_session_transcript reads assistant.message events, and tool calls sit in a sibling toolRequests field that never reaches the parser, so the justification was stale."
+    },
+    {
+      "step": "Finding 3: a second verdict serialized inside a string spells its keys with escaped quotes and evaded count('\"activation_score\"'). Switched _names_a_score_field_twice to count the bare identifier. Measured the cost before accepting it: of the 264 graded samples across the eight archived runs, none has a reasoning string naming a score field, so the refusal is free on observed output."
+    },
+    {
+      "step": "Finding 1 is an accepted trade-off, not a fix. An exemplar at offset 0 followed by an explicit refusal still grades, because refusing would require reading English out of a string field. It now carries judge_salvaged, so the recovery is auditable after the run. Corollary recorded in the procedure doc: an unauditable recovery is worse than an auditable refusal."
+    },
+    {
+      "step": "Finding 5 was a claim-precision defect, not a code defect. The published claim '24 of 24 failed samples recover, reproducing every cell' framed 24 failures as recoveries. Re-measured: 288 judge samples, 264 graded, 24 failed, 0 carrying a salvage marker. _reduce_samples drops failures rather than folding them in as zeros, so the 24 never reached a cell and salvage never produced a published number. Replaced the claim with the stronger, checkable one: no change to the salvage path can move the published table."
+    },
+    {
+      "step": "Corrected an arithmetic error of my own found while re-measuring. The earlier figure of 252 samples / 228 graded undercounted by one run's worth; the full walk over all eight files gives 288 / 264 / 24. Fixed the number in the instrument docstring, the test docstring, and both reference documents."
+    },
+    {
+      "step": "Rewrote nine tests that pinned the searching behavior and added four: the judge_salvaged marker is set on a prefix recovery and absent on a clean parse, an escaped-quote duplicate refuses, and a leading prose block refuses end to end. Full eval suite 1532 passed, 4 skipped; ruff clean on both changed files."
+    },
+    {
+      "step": "Re-ran both adversarial payload suites against the hardened parser. Six attacks refuse, two negative controls still recover, and the round 9 script confirms findings 3 and 4 now refuse while the clean control still parses."
+    },
+    {
+      "step": "Split the delivery into two commits so the code change carries no .agents/ path: parser hardening first, then the two reference documents and the artifact README. Kept the procedure document at 497 lines against the 500-line taste limit by putting the short form there and the full accounting in the artifact README."
     }
   ],
-  "endingCommit": "33ed7df6",
+  "endingCommit": "",
   "nextSteps": [
-    "Run Sol adversarial round 7 against the root-object walk, _strict_json_loads, and the corrected corpus numbers. Six rounds have each found a distinct fabrication defect in one function; assume an eighth exists rather than declaring convergence.",
-    "Act on Sol's structural recommendation: stop implementing a general malformed-JSON parser and salvage only the narrow prefix the judge actually emits. Seven defects of one class is evidence the approach, not the implementation, is wrong.",
-    "Add property-based tests asserting that adding a second candidate verdict to any payload can only change acceptance to rejection, never change the returned values. This is the invariant every one of the seven defects violated.",
-    "Widen the stored judge-failure prefix (#3975) so a cause claim becomes checkable at all.",
-    "Add run provenance to eval artifacts (#3956). Model attribution still rests on filenames.",
-    "Write rule scenarios for code-quality.md and pragmatic-programmer.md (#3935). Roughly 26KB of always-on content still cannot be evaluated by the tool built to evaluate it.",
-    "Salvage verification is still not blind: the same agent writes the salvage and checks its output. No true passive-context condition exists (#3934), and arbitration versus restatement was never isolated."
+    "Run adversarial round 10 against the rewritten salvage path. Convergence is disproven: twelve defects of one class over nine rounds is evidence the next round finds a thirteenth.",
+    "File the structural issue Sol has now raised three times: stop writing a general malformed-JSON parser. Twelve defects of one class is evidence against the approach, not against any one implementation. Consider an ADR.",
+    "Independently re-verify the contradiction between Sol's PASS on unbalanced-trace safety and the second reviewer's opposing claim. Never resolved.",
+    "Salvage verification is still not blind. The same author wrote every parser and every test. Falsifying it properly needs blinded transcription, a second parser by an author who has not seen the payloads, or held-out malformed output.",
+    "Return to the remaining part of the original objective: CLAUDE.md, .github/copilot-instructions.md, and AGENTS.md were never updated with the gotchas. AGENTS.md is at 2999 bytes against a 3000-byte hard limit, so anything added must displace something."
   ],
   "sessionEnd": "2026-07-29"
 }
