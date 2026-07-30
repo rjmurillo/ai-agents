@@ -616,15 +616,25 @@ _KEY_SHAPED_SCORE_FIELDS = tuple(
     for field in _SCORE_FIELDS
 )
 
-# The same key shape, used only to detect that a decoded layer names a score
-# field at all. The value is deliberately not captured: three rounds of trying
-# to compare a restated value to the filed one were broken by the next round,
-# so the caller refuses on the name alone. A trailing capture group here also
-# consumed the rest of the layer once, so ``finditer`` returned one match per
-# layer and every field after the first went unexamined.
+# The same field names, used only to detect that a decoded layer names a score
+# field at all. Neither the quoting nor the separator is required, and the value
+# is deliberately not captured.
+#
+# Three rounds of trying to compare a restated value to the filed one were each
+# broken by the next round, so round 21 refused on the name instead. Round 22
+# then showed that refusing on a *quoted* name still missed the unquoted JSON5
+# and Python spellings (``{activation_score:1}``, ``dict(activation_score=1)``),
+# and that requiring a colon still missed ``=``. Quoting styles and separators
+# are both unbounded enumerations, which is the trap the previous three rounds
+# fell into, so this matches the bare name and stops there.
+#
+# The cost is measured, not assumed: across the 264 reasoning strings nested in
+# the 288 archived judge payloads, zero name a score field, so this refuses no
+# sample any real judge in the archive has produced. A trailing capture group
+# here also consumed the rest of the layer once, so ``finditer`` returned one
+# match per layer and every field after the first went unexamined.
 _NAMED_SCORE_FIELD_RE = re.compile(
-    "(?:\"|\\\\\"|')(" + "|".join(re.escape(f) for f in _SCORE_FIELDS) + ")"
-    + "(?:\"|\\\\\"|')\\s*:\\s*"
+    r"\b(?:" + "|".join(re.escape(f) for f in _SCORE_FIELDS) + r")\b"
 )
 
 # The escapes a JSON string body can carry. ``\\`` matters most: a value
@@ -1116,15 +1126,32 @@ def _string_contradicts_filed_scores(text: str, filed: dict[str, Any]) -> bool:
     either: a refusal increments ``judge_failed`` and shrinks a sample count a
     reader can inspect, while a fabrication is an unmarked false observation
     that no reader can distinguish from a real one. The cost here is also
-    measured rather than assumed. Across the 1732 strings in the recovered
-    payload archive, zero name a score field in a decoded layer beyond the
-    top-level object the parser already reads, so this refuses no sample that
-    any real judge has produced. It closes an attack surface that grew a new
-    hole in each of rounds 19, 20, and 21.
+    measured rather than assumed. The archive stores a raw payload for all 288
+    samples, successes included, so the measurement is not confined to the
+    failures (which is the population limit issue #3998 raises elsewhere).
+    Parsing all 288 and walking the strings nested inside them yields 264
+    reasoning values, and zero of them name a score field, so this refuses no
+    sample any real judge in the archive has produced. It closes an attack
+    surface that grew a new hole in each of rounds 19, 20, 21, and 22.
 
     A truncated decode is likewise a refusal, since the unread remainder could
     name a field by definition.
+
+    One exemption, and it is exact rather than a pattern. ``_string_values``
+    yields object *keys* as well as values, so on a healthy payload the root
+    object's own key ``activation_score`` arrives here as a string. That key is
+    the schema slot the parser already read, not a second answer, and a string
+    that is *entirely* a field name carries no verdict because it carries no
+    number. The exemption is therefore equality against ``_SCORE_FIELDS``, a
+    closed set fixed by the schema, and any other character at all in the
+    string, a separator, a digit, a word, puts it back under the refusal. There
+    is nothing here to enumerate, which is the property rounds 19 through 22
+    kept failing to get. A *nested* object that keys a real score is owned by
+    ``_count_score_bearing_objects``, which counts score-bearing objects
+    exactly rather than reading them out of text.
     """
+    if text.strip() in _SCORE_FIELDS:
+        return False
     for layer, truncated in _escape_layers(text):
         if _NAMED_SCORE_FIELD_RE.search(layer):
             return True
