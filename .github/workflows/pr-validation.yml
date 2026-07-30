@@ -157,7 +157,7 @@ jobs:
       - name: Apply needs-split label
         # Fixes #2557: this step is ADVISORY and must never fail the job.
         # The real cap is enforced in `Enforce Blocking Issues`. The ceiling is
-        # 20, or 40 when the branch merges main (ADR-008 relief, issue #3596);
+        # 20, or 40 when the branch merges main (main-merge relief, issue #3596);
         # both numbers live in scripts/validation/pr_commit_count.py.
         # `continue-on-error` is the belt; warnings (not throws) in the body
         # are the suspenders, so a label API outage shows as an annotation

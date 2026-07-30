@@ -14,7 +14,7 @@
 ## Gates
 
 **Start**: Read HANDOFF+latest issue handoff|Resume check|Log|Search mem|Verify git
-**Mid**: `git rev-list --count HEAD ^origin/main` <=20, warn >15 (ADR-008)
+**Mid**: `git rev-list --count HEAD ^origin/main` <=20/40(main), warn >=10
 **Pre-PR**: `uv run python scripts/validation/pre_pr.py`|No BLOCKING|Security scan|Style `.gemini/styleguide.md`
 **End**: Complete log|Issue handoff if open|Update Serena|Lint|Commit|Check
 
