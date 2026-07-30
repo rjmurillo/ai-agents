@@ -2,18 +2,22 @@
 """Parse memory health report results into GitHub Actions step outputs.
 
 Extracted from ``.github/workflows/memory-health.yml`` under ADR-006 (no logic
-in workflow YAML). Issue #3541.
+in workflow YAML). Issue #3541, reworked for issue #3971.
 
-The shell this replaces read five ``.summary.*`` fields with five separate
-``jq`` calls and derived a ``has_stale`` flag from the stale count. Two
-behaviours are load-bearing and preserved exactly:
+This reads the schema ``memory_enhancement health --json`` actually emits, a
+flat object produced by ``_cmd_health`` in ``scripts/memory_enhancement``. An
+earlier revision read a ``summary`` object belonging to the implementation
+deleted in ``2aeb4fddd``; every field it asked for rendered as ``null`` and the
+workflow reported a permanent green Pass.
 
-* A missing report is not a failure. It emits ``has_stale=false`` and
-  ``total=0`` and nothing else, so the downstream comment step still runs.
-* A stale count that is not an integer (a missing key makes ``jq`` emit
-  ``null``) reads as "not stale". In shell, ``[ "null" -gt 0 ]`` errors and
-  the ``if`` takes its else branch; the same outcome is produced here rather
-  than crashing.
+A missing, empty, or unparseable report means the health command crashed. That
+is reported as an error rather than defaulting to a green banner, matching the
+sibling ``memory-validation.yml`` contract established by issue #2808. The
+producing workflow steps set ``continue-on-error``, so a crash there is silent
+and this script is the only place it can become visible.
+
+``has_issues`` mirrors the producer's own exit-code predicate so the banner and
+the command agree on what "unhealthy" means.
 """
 
 from __future__ import annotations
@@ -24,7 +28,73 @@ import os
 import sys
 from pathlib import Path
 
-_SUMMARY_FIELDS = ("total", "healthy", "stale", "exempt", "errors")
+#: Integer counters copied straight through from the report.
+COUNT_FIELDS = (
+    "total_memories",
+    "total_citations",
+    "valid_citations",
+    "stale_citations",
+    "broken_citations",
+    "unverified_citations",
+)
+
+#: List-valued fields surfaced to the workflow as lengths.
+LENGTH_FIELDS = ("stale_memories", "recommendations")
+
+
+def _coerce_count(value: object) -> int:
+    """Return a non-negative integer for a report counter."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"expected an integer counter, got {value!r}")
+    if value < 0:
+        raise ValueError(f"expected a non-negative counter, got {value!r}")
+    return value
+
+
+def _coerce_length(value: object) -> int:
+    """Return the length of a list-valued report field."""
+    if not isinstance(value, list):
+        raise ValueError(f"expected a list, got {value!r}")
+    return len(value)
+
+
+def _render_score(value: object) -> str:
+    """Render ``health_score`` as a whole-number percentage."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"expected a numeric health score, got {value!r}")
+    return f"{round(value * 100)}%"
+
+
+def parse_report(payload: object) -> list[tuple[str, str]]:
+    """Return the step outputs for a decoded health report.
+
+    Raises ``ValueError`` when the payload is not the shape ``_cmd_health``
+    emits. A shape mismatch means the producer and this consumer have drifted
+    apart, which is the failure issue #3971 was filed for, so it must not be
+    absorbed into a default.
+    """
+    if not isinstance(payload, dict):
+        raise ValueError(f"expected a JSON object, got {type(payload).__name__}")
+
+    required = (*COUNT_FIELDS, *LENGTH_FIELDS, "health_score")
+    missing = [key for key in required if key not in payload]
+    if missing:
+        raise ValueError(f"report is missing expected keys: {', '.join(missing)}")
+
+    counts = {field: _coerce_count(payload[field]) for field in COUNT_FIELDS}
+    lengths = {field: _coerce_length(payload[field]) for field in LENGTH_FIELDS}
+
+    pairs = [(field, str(counts[field])) for field in COUNT_FIELDS]
+    pairs.extend((field, str(lengths[field])) for field in LENGTH_FIELDS)
+    pairs.append(("health_score", _render_score(payload["health_score"])))
+
+    has_issues = (
+        counts["broken_citations"] > 0
+        or counts["stale_citations"] > 0
+        or lengths["stale_memories"] > 0
+    )
+    pairs.append(("has_issues", "true" if has_issues else "false"))
+    return pairs
 
 
 def _write_outputs(pairs: list[tuple[str, str]], output_path: str | None) -> None:
@@ -38,43 +108,6 @@ def _write_outputs(pairs: list[tuple[str, str]], output_path: str | None) -> Non
             handle.write(f"{key}={value}\n")
 
 
-def _is_stale(value: object) -> bool:
-    """Report whether a stale count is a positive integer.
-
-    ``jq`` emits ``null`` for a missing key and the shell comparison that
-    consumed it failed rather than raising, so anything non-integral is
-    treated as "not stale".
-    """
-    if isinstance(value, bool) or not isinstance(value, int):
-        return False
-    return value > 0
-
-
-def parse_results(results: Path) -> list[tuple[str, str]]:
-    """Return the step outputs for a health report, present or not."""
-    if not results.is_file():
-        return [("has_stale", "false"), ("total", "0")]
-
-    payload = json.loads(results.read_text(encoding="utf-8"))
-    summary = payload.get("summary") if isinstance(payload, dict) else None
-    if not isinstance(summary, dict):
-        # jq emitted null for non-object shapes instead of crashing; a report
-        # whose summary is an array or scalar reads as absent, not fatal.
-        summary = {}
-    pairs = [(field, _render(summary.get(field))) for field in _SUMMARY_FIELDS]
-    pairs.append(("has_stale", "true" if _is_stale(summary.get("stale")) else "false"))
-    return pairs
-
-
-def _render(value: object) -> str:
-    """Render a summary value the way ``jq`` rendered it for the shell."""
-    if value is None:
-        return "null"
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    return str(value)
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -85,10 +118,26 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     results = Path(args.results)
+    if not results.is_file() or results.stat().st_size == 0:
+        print(
+            f"::error::{results.name} is missing or empty, so the health command "
+            "crashed. Refusing to report a passing health check."
+        )
+        return 1
+
     try:
-        pairs = parse_results(results)
+        payload = json.loads(results.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as exc:
         print(f"::error::Could not read {results.name}: {exc}")
+        return 1
+
+    try:
+        pairs = parse_report(payload)
+    except ValueError as exc:
+        print(
+            f"::error::{results.name} does not match the schema emitted by "
+            f"'memory_enhancement health --json': {exc}"
+        )
         return 1
 
     _write_outputs(pairs, os.environ.get("GITHUB_OUTPUT"))
