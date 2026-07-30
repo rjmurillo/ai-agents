@@ -102,6 +102,22 @@
         "e009"
       ],
       "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Correct the frozen 2026-07-07 snapshot in ai-agents-change-control",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Correct my own first reading of the change-control defect",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

@@ -104,20 +104,37 @@ Each was reproduced before it was acted on.
    widening and narrowing mutations FAIL, four formatting mutations PASS.
    Sol's own proposed fix, dropping the prefix filter across the whole clause,
    would have reintroduced the contrast false positive that finding 4 fixed.
-7. **Four more surfaces taught the stale count** (sol only, list re-derived).
-   `ai-agents-change-control/SKILL.md` carried three separate falsehoods: a
-   count of 9, a phantom `.agents/memory/episodes/` pattern, and a citation to
-   `ADR-034...md:79-83` used to prove the code had "drifted wider than the
-   ADR". The module returns 8; `grep -c episodes` on the module returns 0
-   against a control of 2 for `critique`; and lines 84-86 continue the ADR
-   list with the other 3 patterns, each tagged "Amendment 2026-07-08", with
-   the amendment header itself at line 200. The line range stopped one line
-   short of the text that refutes it. `references/provenance.md` carried the
-   same claim in a table row. `session/SKILL.md` documented the script's
-   `AllowedPaths` output as 5 entries in three JSON examples; the script emits
-   8, and the real output was used rather than a hand-written list.
-   `tests/evals/skills/triage-prompts.json` is a grading key whose expected
-   answer listed 5 paths, so a correct 8-path answer scored wrong.
+7. **Four more surfaces taught a stale count** (sol only, list re-derived).
+   `ai-agents-change-control/SKILL.md` was a frozen snapshot of the module as
+   it stood on 2026-07-07. It taught 9 patterns, named
+   `.agents/memory/episodes/` among them, and cited
+   `ADR-034...md:79-83` to show the code had "drifted wider than the ADR"
+   and would stay divergent "until an amendment lands". Every one of those
+   statements was true when written and all three were invalidated by a single
+   commit. `96e9bf7d2` (2026-07-08, PR #2958, "reconcile investigation
+   allowlist to 8 patterns") dropped `.agents/memory/episodes/`, which was
+   redundant under `.agents/memory/`, taking the module from 9 to 8, and the
+   ADR Amendment landed the same day. Measured across history with the real
+   accessor: `a333cb70c` 9, `59e6587c4` 9, `96e9bf7d2` 8.
+
+   This is worth naming precisely, because the first reading was wrong. These
+   are not three fabrications. They are one stale snapshot, internally
+   consistent, that nobody re-measured after the commit that invalidated it.
+   The citation is the instructive part: `79-83` was the whole list on
+   2026-07-07 and is the first five sixths of it now, because lines 84-86 were
+   appended, each tagged "Amendment 2026-07-08". A line-range citation silently
+   converts into a truncated one when the cited block grows, and a truncated
+   range reads exactly like evidence of drift. The remedy applied here is to
+   stop restating the list in prose and call
+   `get_investigation_allowlist_display()` instead; `references/provenance.md`
+   keeps a range and is widened to `79-86`.
+
+   The other two surfaces were plain staleness. `session/SKILL.md` documented
+   the eligibility script's `AllowedPaths` output as 5 entries in three JSON
+   examples; the script emits 8, and the real output was used rather than a
+   hand-written list. `tests/evals/skills/triage-prompts.json` is a grading key
+   whose expected answer listed 5 paths, so a correct 8-path answer scored
+   wrong.
 
 ## Findings considered and not adopted
 

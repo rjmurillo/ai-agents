@@ -108,8 +108,8 @@
       "outcome": "SESSION-PROTOCOL.md (three sites), CONTRIBUTING.md, session-init/references/template-extraction.md, session/SKILL.md (three JSON examples), and tests/evals/skills/triage-prompts.json all taught 5 patterns while scripts/modules/investigation_allowlist.py returns 8. The triage-prompts entry is a grading key, so a correct 8-path answer was being scored wrong."
     },
     {
-      "task": "Remove three falsehoods from ai-agents-change-control",
-      "outcome": "The skill claimed 9 patterns (module returns 8), named a .agents/memory/episodes/ pattern that does not exist in the module (grep -c episodes: 0, control grep -c critique: 2), and cited ADR-034 lines 79-83 to prove the code had drifted wider than the ADR. Lines 84-86 continue the list with the other 3 patterns, each tagged Amendment 2026-07-08, and the amendment header sits at line 200. The citation window stopped one line short of the text that refutes it. Replaced with an executable count command."
+      "task": "Correct the frozen 2026-07-07 snapshot in ai-agents-change-control",
+      "outcome": "The skill taught 9 allowlist patterns, named .agents/memory/episodes/ among them, and cited ADR-034 lines 79-83 to argue the code had drifted wider than the ADR. All three statements were true when written and all three were invalidated by one commit: 96e9bf7d2 (2026-07-08, PR #2958) dropped .agents/memory/episodes/ as redundant under .agents/memory/, taking the module from 9 to 8, and the ADR Amendment landed the same day. Measured with the real accessor across history: a333cb70c 9, 59e6587c4 9, 96e9bf7d2 8. The line-range citation is the instructive part: 79-83 was the whole list then and is a truncated window now, because lines 84-86 were appended. A range citation silently becomes a truncation when the cited block grows, and a truncation reads like evidence of drift. Prose copy replaced with the accessor call."
     },
     {
       "task": "Harden the parity test against widening",
@@ -118,6 +118,10 @@
     {
       "task": "Regenerate Copilot mirrors",
       "outcome": "python3 build/scripts/build_all.py exit 0; all five canonical and mirror pairs verified byte-identical with diff -q per file rather than trusting the build summary, which undercounts rewrites."
+    },
+    {
+      "task": "Correct my own first reading of the change-control defect",
+      "outcome": "The first pass called the three statements fabrications and the episodes pattern a phantom, on a grep of the current module alone. Checking the module's history showed the pattern was real until 2026-07-08. A grep of HEAD answers what is true now, never whether a claim was true when written; for a staleness verdict the history is the negative control. The debate log, the provenance citation, and this log were corrected in a follow-up commit rather than by rewriting the pushed ones."
     }
   ],
   "endingCommit": "30cc20b12",
