@@ -33,7 +33,7 @@ EXIT_ERR = 1
 _TEMPLATE_PATH = Path(".github/prompts/drift-alert-issue.md")
 
 
-def run(argv: list[str] | None = None) -> int:  # noqa: ARG001
+def run(_argv: list[str] | None = None) -> int:
     """Create the drift alert issue."""
     runner_temp = os.environ.get("RUNNER_TEMP", ".")
     server_url = os.environ.get("SERVER_URL", os.environ.get("GITHUB_SERVER_URL", ""))

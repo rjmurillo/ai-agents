@@ -44,7 +44,7 @@ def build_summary(drift_detected: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-def run(argv: list[str] | None = None) -> int:  # noqa: ARG001
+def run(_argv: list[str] | None = None) -> int:
     """Write the summary."""
     drift_detected = os.environ.get("DRIFT_DETECTED", "false")
     summary_file = os.environ.get("GITHUB_STEP_SUMMARY", "")

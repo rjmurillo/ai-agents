@@ -41,7 +41,7 @@ def write_github_output(key: str, value: str) -> None:
         print(f"{key}={value}")
 
 
-def run(argv: list[str] | None = None) -> int:  # noqa: ARG001
+def run(_argv: list[str] | None = None) -> int:
     """Collect drift details and set agents_count output."""
     runner_temp = os.environ.get("RUNNER_TEMP", ".")
 
