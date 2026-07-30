@@ -250,6 +250,17 @@ _OPAQUE_KEY = "*opaque*"
 #: repeats one of them overrides it, so the name is what says which.
 _CAPTURING_PARTIAL = "*cap*"
 
+#: Separates a pre-bound capture keyword from the state it was given. The state
+#: travels with the name so that a construction read as off is distinguishable
+#: from one that supplied nothing, which otherwise read as capturing.
+_CAPTURE_STATE = ":"
+
+#: The state a pre-bound capture keyword carries when it opens a pipe.
+_CAPTURE_ON = "on"
+
+#: The state a pre-bound capture keyword carries when it opens no pipe.
+_CAPTURE_OFF = "off"
+
 #: How far a mapping splat may nest before it stops being read. A real call
 #: site does not merge deeper than this, and the bound is what ends recursion.
 _MAPPING_DEPTH = 6
@@ -494,19 +505,29 @@ def _alias_sources(value: ast.expr, containers: dict[str, _Container]) -> list[s
 
 
 def _capture_keywords(call: ast.Call) -> list[str]:
-    """Return the capture keywords *call* supplies, whatever they were set to.
+    """Return the capture keywords *call* supplies, each tagged on or off.
 
     Recorded by name rather than as a verdict, because a call site can shadow
-    one of these and only the name says which. ``stdout`` counts wherever it
-    appears: a stream that opens no pipe is recorded here and then read as
-    capturing, which keeps this no quieter than treating the whole partial as
-    opaque already does.
+    one of these and only the name says which. The state travels with the name
+    so that a construction which was read and said off is not confused with one
+    that said nothing: ``partial(run, capture_output=False)`` captures nothing,
+    and dropping the record left it indistinguishable from a silent partial and
+    so reported as capturing.
+
+    ``stdout`` counts as on wherever it appears: a stream that opens no pipe is
+    recorded here and then read as capturing, which keeps this no quieter than
+    treating the whole partial as opaque already does.
     """
     supplied = []
     capture = _keyword(call, "capture_output")
-    if capture is not None and not _is_literal_falsy(capture):
-        supplied.append("capture_output")
-    supplied.extend(name for name in ("stdout", "stderr") if _keyword(call, name) is not None)
+    if capture is not None:
+        state = _CAPTURE_OFF if _is_literal_falsy(capture) else _CAPTURE_ON
+        supplied.append("capture_output" + _CAPTURE_STATE + state)
+    supplied.extend(
+        name + _CAPTURE_STATE + _CAPTURE_ON
+        for name in ("stdout", "stderr")
+        if _keyword(call, name) is not None
+    )
     return supplied
 
 
@@ -1548,11 +1569,25 @@ def _inherits_capture(call: ast.Call, functions: dict[str, str], modules: dict[s
     keeps ``partial(run, stdout=PIPE)`` called with ``capture_output=False``
     flagged, because turning off a keyword the partial never set changes
     nothing about the pipe it did.
+
+    A keyword the call site does not repeat keeps the state the construction
+    gave it, so ``partial(run, capture_output=False)`` stays quiet whether or
+    not the call site repeats the off value. Spelled directly that call was
+    already quiet, and routing it through a partial should not change the
+    answer.
     """
     inherited = functions.get(_CAPTURING_PARTIAL + _call_label(call))
     if inherited is None:
         return True
-    return any(not _shadowed_off(call, name, modules) for name in inherited.split(","))
+    return any(_capture_survives(call, item, modules) for item in inherited.split(","))
+
+
+def _capture_survives(call: ast.Call, item: str, modules: dict[str, str]) -> bool:
+    """Report whether one pre-bound capture keyword still captures at *call*."""
+    name, _, state = item.partition(_CAPTURE_STATE)
+    if _keyword(call, name) is None:
+        return state == _CAPTURE_ON
+    return not _shadowed_off(call, name, modules)
 
 
 def _shadowed_off(call: ast.Call, name: str, modules: dict[str, str]) -> bool:
@@ -2512,6 +2547,33 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             "assert runner.keywords.get('encoding') == 'utf-8'\n"
             "runner([1], text=True)",
             "reading a partial's keywords leaves the codec it pinned in place",
+        ),
+        (
+            "import functools, subprocess\n"
+            "runner = functools.partial(subprocess.run, capture_output=False)\n"
+            'runner(["x"], text=True)',
+            "a partial that pre-bound capture off opens no pipe to decode",
+        ),
+        (
+            "import functools, subprocess\n"
+            "runner = functools.partial(subprocess.run, capture_output=False)\n"
+            'runner(["x"], capture_output=False, text=True)',
+            "repeating the off value the partial already pre-bound changes nothing",
+        ),
+        (
+            "import operator, subprocess\n"
+            'name = "run"\n'
+            "holder = object()\n"
+            "operator.attrgetter(name)(holder)([1], capture_output=True, text=True)",
+            "a getter reading an object that is not a known module reaches nothing",
+        ),
+        (
+            "import subprocess\n"
+            "class H:\n"
+            "    pass\n"
+            'register(H, "runner", subprocess.run)\n'
+            "H.runner([1], capture_output=True, text=True)",
+            "only setattr writes an attribute, so a lookalike call binds nothing",
         ),
     ],
 )
@@ -3573,6 +3635,18 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             "runner([1], capture_output=True, text=True)",
             "an operator selector imported under an alias is still that selector",
         ),
+        (
+            "import functools, subprocess\n"
+            "runner = functools.partial(subprocess.run, stdout=subprocess.PIPE)\n"
+            "runner([1], stdout=subprocess.PIPE, text=True)",
+            "repeating a capturing stream leaves the pipe the partial opened",
+        ),
+        (
+            "import subprocess\n"
+            'pairs = [("text", True)]\n'
+            "subprocess.run([1], capture_output=True, **dict(pairs))",
+            "a dict built from a positional mapping may still select text mode",
+        ),
     ],
 )
 def test_detector_closes_the_evasions(source: str, why: str) -> None:
@@ -3642,12 +3716,6 @@ def test_detector_survives_malformed_source(source: str, why: str) -> None:
             + "}" * 9
             + ")",
             "a mapping nested past the depth bound stops being read",
-        ),
-        (
-            "import functools, subprocess\n"
-            "runner = functools.partial(subprocess.run, capture_output=False)\n"
-            'runner(["x"], text=True)',
-            "a pre-bound capture is recorded by name, so an off value still counts",
         ),
         (
             "import subprocess\nclass C:\n    def __init__(self):\n"
