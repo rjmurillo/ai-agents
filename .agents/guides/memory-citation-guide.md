@@ -125,9 +125,13 @@ distinction is worth keeping straight. See
 
 1. Run `verify --memory-id <id>` and read every `[FAIL]` line.
 2. For each one, open the cited file and find where the content went.
-3. Re-point the citation. Prefer `[cite:function](path::name)` over
-   `[cite:file](path:LINE)`; a line number goes stale on the next edit above it,
-   a function name does not.
+3. Re-point the citation. For a Python function or method, prefer
+   `[cite:function](path::name)` over `[cite:file](path:LINE)`; a line number
+   goes stale on the next edit above it, a function name does not. For anything
+   else use `[cite:file](path)` or `[cite:file](path:LINE)`: the `function`
+   check is a text search for `def name`, so a TypeScript, C#, or Go name is
+   reported stale even when it exists, and a hyphenated name such as a
+   PowerShell `Get-Thing` is reported broken.
 4. Re-run `verify --memory-id <id>` and confirm it exits 0.
 5. If the content is gone rather than moved, fix the memory text too. A memory
    that cites the right file while describing behavior that no longer exists is

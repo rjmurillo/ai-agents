@@ -97,8 +97,11 @@ citation is dropped, so it never appears in any count.
 There is **no snippet field**. Line content is never compared. A `:LINE`
 suffix asserts only that the file is long enough.
 
-The `function` verifier matches Python `def` syntax. It will not find a
-TypeScript, C#, or PowerShell function.
+The `function` verifier is a text search, not a parser. It passes when the file
+contains `def name` or `async def name` anywhere, including inside a comment or
+a string, and it never inspects the file extension. In practice it recognises
+Python callables only: a TypeScript, C#, or PowerShell function is reported
+stale, and so is a Python class, because none of them is preceded by `def`.
 
 ## Verification
 
@@ -124,7 +127,7 @@ Base directories differ by type: repo root for `file` and `function`,
 | `Line number must be >= 1, got N` | Non-positive line number | Use 1-based line numbers |
 | `Function 'f' not found in file` | Function renamed or removed | Update the target |
 | `Invalid file target format: X` | Target contains more than one `:` | Use `path` or `path:LINE` |
-| `Invalid function target format: X` | Target is missing the `::` separator | Use `path::name` |
+| `Invalid function target format: X` | Target is missing the `::` separator, or the name contains a character outside `[A-Za-z0-9_]` | Use `path::name`; cite the file instead for a hyphenated name |
 | `Invalid issue/PR format: X` | Target is not `123` or `#123` | Use a bare number |
 | `Invalid URL format: X` | Scheme is not `http`/`https` | Use an absolute http(s) URL |
 | `Cannot read file: E` | Permissions or I/O error | Fix file access |

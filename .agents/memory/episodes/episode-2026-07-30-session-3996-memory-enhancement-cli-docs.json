@@ -86,6 +86,46 @@
       "content": "Regenerated the Copilot CLI skill mirrors with build/scripts/generate_skills.py and bumped both project-toolkit manifests to 0.6.5431.",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran two adversarial review rounds on other model families; reproduced every finding by execution before acting, which downgraded two of seven from one reviewer and rejected one of three from the other.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed four scanner holes the reviews found: an int substitution swallowing the following flag, a line continuation hiding a flag, a redirect leaving a stray descriptor, and exempt roots deletable without detection.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rejected a fifth proposed widening after measuring corpus incidence: the single command substitution in the corpus is quoted and already parses, and the unquoted form fails loudly rather than silently.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Mutation-tested three new assertions by reverting each fix in turn and confirming the matching test fails; guard suite is 71 tests, up from 63.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Disproved my own correction: a probe showed a TypeScript file containing the comment '// def ts_func' verifies as PASS, so the citation check is a raw text search, not a definition check, and all three documents now say that.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
