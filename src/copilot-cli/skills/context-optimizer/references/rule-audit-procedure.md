@@ -242,13 +242,13 @@ the sign count unchanged. The table above is the post-recovery one, so every
 published cell uses three samples; seventeen of them get at least one of those
 three from post-hoc recovery of a truncated prefix, and seven get two.
 
-The full accounting, the confounds it creates for the table above, and the
-seventeen defects found in the verdict-parsing code across fourteen review
-rounds are in `rule-audit-evidence.md`. Read it before citing a cell from this
-table. One of the seventeen, the most recent, is the first whose cost against
-this table could not be measured: the archive keeps raw payloads only for
-failed samples, so a defect on the success path leaves no evidence either way
-(issue #3998).
+The full accounting and the confounds it creates for the table above are in
+`rule-audit-evidence.md`. Read it before citing a cell from this table. The
+defects found in the verdict-parsing code, across twenty-one review rounds,
+are in `rule-audit-parser-forensics.md`. One of them is the first whose cost
+against this table could not be measured: the archive keeps raw payloads only
+for failed samples, so a defect on the success path leaves no evidence either
+way (issue #3998).
 
 **Provenance for the eight runs, recorded by hand because the artifacts do not
 carry it (issue #3956).**
