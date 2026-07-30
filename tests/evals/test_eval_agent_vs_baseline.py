@@ -3679,3 +3679,83 @@ class TestReportDeclaresWhatIsWritten:
         """
         declared = {f.name for f in dataclasses.fields(Report)}
         assert {"cost_estimate_usd", "cost_basis"} <= declared
+
+
+class TestEveryRegisteredProviderIsClassified:
+    """Every transport in `_providers._REGISTRY` must have a deliberate basis.
+
+    `cost_basis` returns "usd" for any name outside `QUOTA_BILLED_PROVIDERS`.
+    That fallback is correct for an unknown name, because an unrecognized
+    transport is not evidence of a free one. It is wrong for a registered one:
+    a provider the tool can actually dispatch to gets its billing model decided
+    by omission.
+
+    That is not hypothetical. `copilot` and `copilot-cli` shell out to an
+    authenticated GitHub Copilot CLI, spend no per-token dollars, and were
+    absent from the quota set, so a dry run through the provider this
+    repository documents as preferred printed a Claude Sonnet dollar rate.
+    Measured before the fix, same plan, same scenario file:
+
+        EVAL_PROVIDER=github-models  ~126,000 (metered as requests)
+        EVAL_PROVIDER=copilot-cli    ~126,000 (~$0.38 sonnet input rate)
+
+    Centralizing the decision in `cost_basis` did not help, because the set it
+    reads was never audited against the registry. These tests audit it, so the
+    next provider added cannot inherit a billing model by default.
+    """
+
+    # The basis each registered transport bills on. A new row in `_REGISTRY`
+    # must add a row here, which is the point: classification becomes a
+    # required step rather than a silent default.
+    EXPECTED_BASIS = {
+        "openai": "usd",
+        "codex": "usd",
+        "github": "requests",
+        "github-models": "requests",
+        "anthropic-sdk": "usd",
+        "copilot": "requests",
+        "copilot-cli": "requests",
+    }
+
+    def _registry_names(self):
+        added = str(EVAL_DIR) not in sys.path
+        if added:
+            sys.path.insert(0, str(EVAL_DIR))
+        try:
+            providers_mod = _load_module("_providers.py", "_providers")
+        finally:
+            if added and str(EVAL_DIR) in sys.path:
+                sys.path.remove(str(EVAL_DIR))
+        return set(providers_mod._REGISTRY)
+
+    def test_registry_and_classification_cover_the_same_names(self):
+        """Adding a provider without classifying how it bills fails here."""
+        assert self._registry_names() == set(self.EXPECTED_BASIS)
+
+    @pytest.mark.parametrize("name", sorted(EXPECTED_BASIS))
+    def test_registered_provider_resolves_to_its_declared_basis(self, name, monkeypatch):
+        """Each registered transport answers the basis it actually bills on."""
+        monkeypatch.delenv("EVAL_PROVIDER", raising=False)
+        assert common_mod.cost_basis(name) == self.EXPECTED_BASIS[name]
+
+    @pytest.mark.parametrize("name", sorted(EXPECTED_BASIS))
+    def test_env_selection_matches_explicit_selection(self, name, monkeypatch):
+        """The env path and the argument path must not disagree for any provider.
+
+        The dry run reads the environment; a caller may pass the name. A
+        provider classified correctly on one path and not the other would
+        reintroduce the split the centralization was meant to close.
+        """
+        monkeypatch.setenv("EVAL_PROVIDER", name)
+        assert common_mod.cost_basis(None) == common_mod.cost_basis(name)
+
+    def test_copilot_cli_is_not_billed_per_token(self, monkeypatch):
+        """The specific regression: a subscription CLI must not quote a token rate."""
+        monkeypatch.delenv("EVAL_PROVIDER", raising=False)
+        assert common_mod.cost_basis("copilot-cli") == "requests"
+        assert common_mod.cost_basis("copilot") == "requests"
+
+    def test_unregistered_name_still_answers_usd(self, monkeypatch):
+        """The fallback must survive: an unknown transport is not a free one."""
+        monkeypatch.delenv("EVAL_PROVIDER", raising=False)
+        assert common_mod.cost_basis("some-unlisted-vendor") == "usd"
