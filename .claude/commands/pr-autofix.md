@@ -54,25 +54,65 @@ resolve_pr_scripts_dir() {
 }
 SCRIPTS_DIR="$(resolve_pr_scripts_dir)"
 
+# SESSION_ID must be set before the loop (e.g. from the session log or a uuid).
 # Per PR, immediately before any per-tier action:
+
+# Step 1: Acquire the branch-ownership lease (issue #3413, ADR-076 Phase 1).
+# Exit 1 = another agent holds the lease; skip this PR without touching it.
+LEASE=$(python3 "$SCRIPTS_DIR/pr_autofix_lease.py" acquire \
+    --pull-request "$PR" --session "$SESSION_ID" --output-format json) || {
+    LEASE_RC=$?
+    if [ "$LEASE_RC" -eq 1 ]; then
+        HELD_BY=$(echo "$LEASE" | jq -r '.Data.held_by // "unknown"')
+        echo "Lease held by $HELD_BY for #$PR; skipping."
+        continue
+    fi
+    echo "Lease acquire failed (exit $LEASE_RC) for #$PR; skipping to avoid racing."
+    continue
+}
+
+# Step 2: Live-state gate (BLOCKING, issue #2455).
 LIVE=$(python3 "$SCRIPTS_DIR/check_pr_live_state.py" \
     --pull-request "$PR" --skip-fetch --output-format json)
 ACTION=$(echo "$LIVE" | jq -r '.Data.action')
 if [ "$ACTION" = "SKIP" ]; then
     REASON=$(echo "$LIVE" | jq -r '.Data.reason')
     echo "Skipping #$PR: $REASON"
+    python3 "$SCRIPTS_DIR/pr_autofix_lease.py" release \
+        --pull-request "$PR" --session "$SESSION_ID" --output-format json || true
     # If Data.superseded_by_base.fully_superseded == true, recommend close
     # via the queue's close-handling path; do NOT push or merge.
     continue
 fi
 # ACTION == "ACT": proceed with the tier's planned action set.
+# Release the lease after all per-PR work (push + post-push CI wait + merge).
+# Pattern:
+#   ... (tier actions) ...
+#   python3 "$SCRIPTS_DIR/pr_autofix_lease.py" release \
+#       --pull-request "$PR" --session "$SESSION_ID" --output-format json || true
 ```
 
-SKIP verdicts are binding: do NOT push commits, do NOT arm auto-merge, do NOT run `merge_pr.py` on a PR this gate classifies as SKIP. The verdict's `reason` field names the cause (merged, closed, draft, fully superseded by base) for the autofix log. An ACT verdict only proves the PR is still actionable; the four-condition Ready-to-Merge gate still applies before any merge.
+Lease SKIP verdicts: when exit code is 1 the lease is held by another autofix
+loop. Do NOT push, do NOT arm auto-merge, do NOT post threads.  The `held_by`
+field identifies the owner so the operator can investigate a stale lease.
+
+LIVE-STATE SKIP verdicts are binding: do NOT push commits, do NOT arm
+auto-merge, do NOT run `merge_pr.py` on a PR this gate classifies as SKIP.
+The verdict's `reason` field names the cause (merged, closed, draft, fully
+superseded by base) for the autofix log. An ACT verdict only proves the PR is
+still actionable; the four-condition Ready-to-Merge gate still applies before
+any merge.
 
 ### Phase 3: Verify and gate
 
-After all queued actions, re-check the 4-condition Ready-to-Merge gate. Enable auto-merge only when all four conditions hold.
+After all queued actions, re-check the 4-condition Ready-to-Merge gate. Enable
+auto-merge only when all four conditions hold. Release each PR's lease after its
+merge command (or skip) completes:
+
+```bash
+python3 "$SCRIPTS_DIR/pr_autofix_lease.py" release \
+    --pull-request "$PR" --session "$SESSION_ID" --output-format json || true
+```
 
 ## Workflow
 
@@ -290,6 +330,7 @@ python3 "$SCRIPTS_DIR/run_completion_gate.py" \
 
 Per PR processed:
 
+- [ ] Lease acquired before per-PR action (issue #3413): `pr_autofix_lease.py acquire --pull-request $PR --session $SESSION_ID`. Exit 1 = SKIP (another agent holds it); exit 0 = ACT. Lease released after PR work completes or on live-state SKIP.
 - [ ] Tier classification recorded (T1-T5).
 - [ ] Per-PR live-state gate ran immediately before the tier's action (issue #2455): `check_pr_live_state.py --pull-request $PR --skip-fetch --output-format json`. Verdict `Data.action=ACT` recorded; `Data.action=SKIP` aborted the action and recorded the reason (merged, closed, draft, or fully superseded by base).
 - [ ] All required CI checks pass (T2/T4 only).
