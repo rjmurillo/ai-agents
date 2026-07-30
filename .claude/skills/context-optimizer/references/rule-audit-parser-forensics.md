@@ -10,8 +10,8 @@ number that looked ordinary.
 
 Raw artifacts: `.agents/analysis/eval-artifacts/2026-07-29-unified-software-engineering/`
 
-**Twenty-three rounds of adversarial review have each found at least one defect
-in it.** No aggregate defect count is given here, because across the rounds the
+**More than twenty rounds of adversarial review have each found at least one
+defect in it.** No aggregate defect count is given here, because across the rounds the
 count was never defined the same way twice: it variously included parser
 defects, regressions introduced by an earlier round's repair, and methodological
 defects in how a claim was measured rather than in the code. An aggregate over
