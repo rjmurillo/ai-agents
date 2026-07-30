@@ -312,6 +312,8 @@ def fetch_pr_data(pr_number: int, owner: str, repo: str) -> dict[str, Any]:
         "body": pr_info.get("body", "") or "",
         "files": files,
         "labels": [{"name": lbl.get("name") or ""} for lbl in labels],
+        "base_ref": (pr_info.get("base") or {}).get("ref", ""),
+        "default_branch": ((pr_info.get("base") or {}).get("repo") or {}).get("default_branch", ""),
     }
 
 
@@ -565,6 +567,113 @@ def file_matches(actual: str, mentioned: str) -> bool:
 # tracked under the broader Issue #1923 umbrella, not a specific AC.
 _DASH_RE: re.Pattern[str] = re.compile("[\u2013\u2014]")
 
+# ---------------------------------------------------------------------------
+# Closing-link validation (Issue #3827)
+# ---------------------------------------------------------------------------
+
+# Matches closing keywords that GitHub auto-closes issues on merge.
+# "Refs" is intentionally excluded: it mentions but does not close.
+_AUTO_CLOSE_KW: re.Pattern[str] = re.compile(
+    r"\b(?:close[sd]?|fix(?:es|ed)?|resolve[sd]?)\s+(?:[\w.-]+/[\w.-]+)?#(\d+)",
+    re.IGNORECASE,
+)
+
+# Single-backtick inline code span, non-greedy, does not cross newlines.
+# Matches: `...closing keyword #N...`
+# Excludes triple-backtick fences by the negative lookahead/behind.
+_INLINE_CODE_SPAN: re.Pattern[str] = re.compile(r"(?<!`)`(?!`)(?P<content>[^`\n]+?)(?<!`)`(?!`)")
+
+# Fenced code block: triple backtick with optional language tag.
+_FENCED_CODE_BLOCK: re.Pattern[str] = re.compile(r"```[^\n]*\n.*?```", re.DOTALL)
+
+
+def _span_ranges(body: str, pattern: re.Pattern[str]) -> list[tuple[int, int]]:
+    """Return (start, end) pairs for all non-overlapping matches of pattern."""
+    return [(m.start(), m.end()) for m in pattern.finditer(body)]
+
+
+def _in_any_range(pos: int, ranges: list[tuple[int, int]]) -> bool:
+    return any(start <= pos < end for start, end in ranges)
+
+
+def validate_closing_links(
+    body: str,
+    base_ref: str,
+    default_branch: str,
+) -> list[Issue]:
+    """Detect closing keywords that GitHub will silently ignore.
+
+    Two failure modes (Issue #3827):
+
+    1. The keyword is inside an inline code span or fenced code block.
+       GitHub does not parse closing keywords inside backtick markup, so
+       ``Fixes #N`` written as :literal:`Fixes #N` never creates a link
+       and the issue stays open after merge.  This produces a CRITICAL.
+
+    2. The keyword is valid syntax but the PR targets a non-default branch
+       (stacked PRs). GitHub only auto-closes issues for merges into the
+       default branch.  This produces a WARNING so the author knows to
+       close the issue manually once the stack lands.
+
+    ``Refs`` is excluded because it is intentionally advisory and does not
+    trigger auto-close regardless of location.
+    """
+    issues: list[Issue] = []
+    fenced_ranges = _span_ranges(body, _FENCED_CODE_BLOCK)
+    code_span_ranges = _span_ranges(body, _INLINE_CODE_SPAN)
+    non_default_base = bool(base_ref and default_branch and base_ref != default_branch)
+
+    for m in _AUTO_CLOSE_KW.finditer(body):
+        pos = m.start()
+        full_kw = m.group(0)
+        issue_num = m.group(1)
+
+        if _in_any_range(pos, code_span_ranges):
+            issues.append(
+                Issue(
+                    severity="CRITICAL",
+                    issue_type="Closing keyword in inline code span",
+                    file="<pr-body>",
+                    message=(
+                        f"Closing keyword '{full_kw}' is inside an inline code span. "
+                        f"GitHub will not close issue #{issue_num} on merge. "
+                        "Remove the surrounding backticks and place the keyword "
+                        f"on its own line: Fixes #{issue_num}"
+                    ),
+                )
+            )
+        elif _in_any_range(pos, fenced_ranges):
+            issues.append(
+                Issue(
+                    severity="CRITICAL",
+                    issue_type="Closing keyword in fenced code block",
+                    file="<pr-body>",
+                    message=(
+                        f"Closing keyword '{full_kw}' is inside a fenced code block. "
+                        f"GitHub will not close issue #{issue_num} on merge. "
+                        "Add a plain closing line outside any code block: "
+                        f"Fixes #{issue_num}"
+                    ),
+                )
+            )
+        elif non_default_base:
+            issues.append(
+                Issue(
+                    severity="WARNING",
+                    issue_type="Closing keyword targets non-default branch",
+                    file="<pr-body>",
+                    message=(
+                        f"Closing keyword '{full_kw}' will not auto-close issue "
+                        f"#{issue_num} because this PR targets '{base_ref}' "
+                        f"instead of '{default_branch}'. GitHub only auto-closes "
+                        "issues for PRs merged into the default branch. "
+                        f"Close issue #{issue_num} manually once this stack lands."
+                    ),
+                )
+            )
+
+    return issues
+
 
 def validate_no_dashes(title: str, body: str) -> list[Issue]:
     """Reject U+2014 (em-dash) or U+2013 (en-dash) in PR title or description.
@@ -786,6 +895,13 @@ def main(argv: list[str] | None = None) -> int:
     # in GitHub and never reach `git commit`. This check closes that gap.
     title: str = pr_data.get("title", "") or ""
     issues.extend(validate_no_dashes(title, description))
+
+    # Validate: closing keywords not buried in code spans or non-default
+    # base PRs (Issue #3827). Code-span keywords silently fail to create
+    # closing links; non-default base keywords warn for manual close.
+    base_ref: str = pr_data.get("base_ref", "") or ""
+    default_branch: str = pr_data.get("default_branch", "") or ""
+    issues.extend(validate_closing_links(description, base_ref, default_branch))
 
     # Honor the bypass label only when CI mode would otherwise fail. The label
     # is the documented escape hatch for false-positive contextual references
