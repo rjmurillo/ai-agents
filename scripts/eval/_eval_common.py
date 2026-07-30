@@ -33,6 +33,15 @@ MODEL_PRICING_RATES_USD_PER_1K_TOKENS: dict[str, dict[str, float]] = {
 }
 PRICING_RATE_AS_OF = "2026-07-08"
 
+# Providers that meter requests against an account allowance instead of
+# charging a published per-token USD rate. GitHub Models bills this way, so a
+# dollar figure for a run routed through it is a number nobody publishes.
+# Naming these providers lets the plan report the request count it will spend
+# and leave the USD figure empty, rather than either inventing a third-party
+# price or refusing to run a provider the transport already supports.
+# Spellings match the aliases in `_providers._REGISTRY`.
+QUOTA_BILLED_PROVIDERS: frozenset[str] = frozenset({"github", "github-models"})
+
 
 def aggregate_multi_run_scores(
     run_scores: list[dict[str, Any]],

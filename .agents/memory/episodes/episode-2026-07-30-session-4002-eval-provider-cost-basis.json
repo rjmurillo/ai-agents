@@ -1,0 +1,155 @@
+{
+  "id": "episode-2026-07-30-session-4002-eval-provider-cost-basis",
+  "session": "2026-07-30-session-4002-eval-provider-cost-basis",
+  "timestamp": "2026-07-30T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix issue 4002: eval-agent-vs-baseline --provider is a dead flag because the plan-time USD gate rejects every model absent from the Anthropic-only pricing table, before any provider dispatch",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced the CI failure locally",
+      "caused_by": [],
+      "leads_to": [
+        "e010",
+        "e011"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Compared the parser's expected schema against the producer's real output",
+      "caused_by": [],
+      "leads_to": [
+        "e010",
+        "e011"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Traced the dead PYTHONPATH and the dead path filters",
+      "caused_by": [],
+      "leads_to": [
+        "e010",
+        "e011"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Found a producer mismatch not recorded in the issue",
+      "caused_by": [],
+      "leads_to": [
+        "e010",
+        "e011"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected the CLI invocation and removed the dead wiring",
+      "caused_by": [],
+      "leads_to": [
+        "e010",
+        "e011"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rewrote the parser against the producer's real schema",
+      "caused_by": [],
+      "leads_to": [
+        "e010",
+        "e011"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replaced the test module and added two class-level contract gates",
+      "caused_by": [],
+      "leads_to": [
+        "e010",
+        "e011"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran the real command and the real parser end to end",
+      "caused_by": [],
+      "leads_to": [
+        "e010",
+        "e011"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "test",
+      "content": "29 passed, ruff clean, both workflows parse as valid YAML",
+      "caused_by": [],
+      "leads_to": [
+        "e010",
+        "e011"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-30T14:19:21.686896+00:00",
+      "type": "milestone",
+      "content": "Bot review found the workflow comment claimed health exits 1 only on stale citations. Verified against __main__.py: it exits 1 on broken citations, stale citations, or stale memories. Comment corrected.",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-30T14:19:21.686896+00:00",
+      "type": "milestone",
+      "content": "Bot review found the PR summary labelled HEALTH_STALE_MEMORIES as 'Memories with stale citations' while the value is stale_memory_count. Relabelled 'Stale memories' so it does not collide with the citation-level Stale row below it.",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 6
+  },
+  "lessons": []
+}

@@ -206,6 +206,10 @@ class ExecutionPlan:
     planned_calls: int
     estimated_tokens_in: int
     estimated_tokens_out: int
-    estimated_cost_usd: float
+    estimated_cost_usd: float | None
     pricing_rate_as_of: str
+    # "usd" when the provider publishes a per-token rate, "requests" when it
+    # meters an allowance instead. On the "requests" basis `estimated_cost_usd`
+    # is None and `planned_calls` is the spend figure.
+    cost_basis: str = "usd"
     schema_version: int = SCHEMA_VERSION

@@ -434,6 +434,76 @@ class TestPlanRunner:
                 model_id="model-without-pricing",
             )
 
+    def test_quota_provider_plans_an_unpriced_model(self):
+        """A quota-billed provider prices in requests, so no USD rate is needed."""
+        plan = PlanRunner.build_plan(
+            fixtures=_make_fixtures(1),
+            model_id="openai/gpt-4o-mini",
+            provider="github-models",
+        )
+        assert plan.cost_basis == "requests"
+        assert plan.estimated_cost_usd is None
+        assert plan.planned_calls > 0
+
+    def test_quota_provider_alias_plans_the_same(self):
+        """`github` and `github-models` name one provider and must agree."""
+        plan = PlanRunner.build_plan(
+            fixtures=_make_fixtures(1),
+            model_id="openai/gpt-4o-mini",
+            provider="github",
+        )
+        assert plan.cost_basis == "requests"
+        assert plan.estimated_cost_usd is None
+
+    def test_usd_provider_still_raises_on_an_unpriced_model(self):
+        """OpenAI bills in USD, so an absent rate is a real gap, not a basis change.
+
+        Inventing a rate to make the plan run would put a fabricated
+        third-party price into an operator-facing cost report.
+        """
+        with pytest.raises(UnsupportedModelError):
+            PlanRunner.build_plan(
+                fixtures=_make_fixtures(1),
+                model_id="gpt-4o-mini",
+                provider="openai",
+            )
+
+    def test_absent_provider_keeps_the_usd_basis(self):
+        plan = PlanRunner.build_plan(
+            fixtures=_make_fixtures(1),
+            model_id="claude-sonnet-4-6",
+        )
+        assert plan.cost_basis == "usd"
+        assert plan.estimated_cost_usd is not None
+
+    def test_quota_basis_follows_the_provider_not_the_model(self):
+        """The biller is the provider. A priced id routed through a quota
+        provider is still metered in requests."""
+        plan = PlanRunner.build_plan(
+            fixtures=_make_fixtures(1),
+            model_id="claude-sonnet-4-6",
+            provider="github-models",
+        )
+        assert plan.cost_basis == "requests"
+        assert plan.estimated_cost_usd is None
+
+    def test_quota_cost_line_reports_requests(self):
+        plan = PlanRunner.build_plan(
+            fixtures=_make_fixtures(1),
+            model_id="openai/gpt-4o-mini",
+            n_runs=3,
+            provider="github-models",
+        )
+        lines = PlanRunner.format_plan_lines(plan)
+        assert not [ln for ln in lines if ln.startswith("cost_estimate_usd=")]
+        cost_line = [
+            ln for ln in lines if ln.startswith("cost_estimate_requests=")
+        ]
+        assert len(cost_line) == 1
+        assert cost_line[0] == (
+            f"cost_estimate_requests={plan.planned_calls} basis=quota"
+        )
+
     def test_cost_line_format(self):
         plan = PlanRunner.build_plan(
             fixtures=_make_fixtures(1),
