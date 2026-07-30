@@ -70,7 +70,7 @@ The first question is not "skill or passive context." It is: **does the model al
 
 ### Keep Out Of Passive Context
 
-- Generic engineering knowledge the model already has: SOLID, Clean Code, refactoring catalogs, testing pyramids. Restating pre-trained material does not raise pass rates. It bills tokens on every edit, in every language, forever.
+- Generic engineering knowledge the model already has: SOLID, Clean Code, refactoring catalogs, testing pyramids. It does not earn an always-on slot without task-specific evidence that it changes behavior. It bills tokens on every edit, in every language, forever. The burden is on the content to prove it helps, not on the reader to prove it does not.
 - Anything already stated in another always-on file. Duplicates drift apart, and then the agent spends reasoning reconciling them instead of doing the work.
 
 ### Use Skills For
@@ -134,6 +134,12 @@ The pass-rate table has no cost column. Passive context is paid on every request
 **Script**: `scripts/analyze_skill_placement.py`
 
 Analyzes skill content and recommends Skill, Passive Context, or Hybrid placement.
+
+> The script's `always_needed` heuristic predates the Decision Framework above
+> and disagrees with it: it reads "always", "mandatory", and "framework
+> knowledge" as reasons to make content passive, where the framework reads them
+> as reasons to scrutinize it. **The Decision Framework wins.** Use the script
+> for size and duplication, not for admission. Tracked in #3936.
 
 **Classification Logic**:
 
