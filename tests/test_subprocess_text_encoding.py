@@ -94,15 +94,22 @@ _DYNAMIC = "subprocess.<dynamic>"
 _ATTRIBUTE = "."
 # The attribute a functools.partial keeps its bound keywords under.
 _KEYWORDS = "keywords"
-# The dict methods that answer a question about the mapping without changing
-# it. Every other way of reaching the mapping is treated as a write.
-_KEYWORD_READERS = frozenset({"copy", "get", "items", "keys", "values"})
+# The dict method that answers a question about the mapping while reaching
+# only its keys. A partial's keys are always strings, so nothing it hands
+# back can run code from the module under scan.
+_KEY_READERS = frozenset({"keys"})
+# The dict methods that hand a value back out. None of them changes the
+# mapping, but the value they release carries its own ``__repr__`` and
+# ``__eq__``, and those reach the mapping again. Spared only when every bound
+# value is a literal. Every other way of reaching the mapping is a write.
+_VALUE_READERS = frozenset({"copy", "get", "items", "values"})
 # The nodes that hold the thing they walk under ``iter``. Walking a mapping
 # yields its keys and leaves the mapping itself alone. All three also accept
 # an assignment target, so the node has to be the ``iter`` to count as a read.
 _WALKING_PARENTS = (ast.For, ast.AsyncFor, ast.comprehension)
-# The nodes that only look at what they are given. A comparison answers a
-# question about the mapping; an interpolation renders it.
+# The nodes that only look at what they are given. A comparison runs ``__eq__``
+# on the values it reaches; an interpolation renders them. Both are spared only
+# when every bound value is a literal, which cannot run code.
 _INSPECTING_PARENTS = (ast.Compare, ast.FormattedValue)
 # The keyword the pin is bound under. A store or a delete that spells out some
 # other key cannot reach it.
@@ -110,15 +117,21 @@ _ENCODING = "encoding"
 # The builtin that fetches an attribute by name. It reaches a partial's
 # keyword mapping exactly as the attribute does.
 _GETATTR = "getattr"
-# The builtins that consume a mapping without the means to change it. Every
-# other callee can hand it on, so the mapping is treated as at risk.
+# The builtins that consume a mapping by walking its keys. A partial's keys
+# are always strings, so none of these can reach a value or run code from the
+# module under scan. Every other callee can hand the mapping on, so the
+# mapping is treated as at risk.
 _MAPPING_READERS = frozenset(
     {
         "all", "any", "bool", "dict", "frozenset", "id", "iter", "len",
-        "list", "max", "min", "print", "repr", "reversed", "set", "sorted",
-        "str", "sum", "tuple",
+        "list", "max", "min", "reversed", "set", "sorted", "sum", "tuple",
     }
 )
+# The builtins that render a mapping. Rendering reaches every value, so a
+# value that is not a literal runs its own ``__repr__`` and can drop the pin
+# in the middle of what the source reads as a look. Spared only when every
+# bound value is a literal.
+_RENDERING_READERS = frozenset({"ascii", "format", "print", "repr", "str"})
 _UNKNOWN = object()
 _PARTIAL = "functools.partial"
 # Marks the null sink. Held beside the entry points so an imported ``DEVNULL``
@@ -1285,19 +1298,26 @@ def _names_other_key(parent: ast.Subscript) -> bool:
     return isinstance(key, ast.Constant) and key.value != _ENCODING
 
 
-def _spares_pin(node: ast.AST, parent: ast.AST | None) -> bool:
+def _spares_pin(node: ast.AST, parent: ast.AST | None, literal: bool) -> bool:
     """Report whether the keywords mapping at *node* leaves its codec standing.
 
-    Six shapes are provably harmless: one of the dict methods that cannot
-    change the mapping, a subscript that either loads or names some other
-    key, a walk that yields the keys, a double-star splat that fills a fresh
-    mapping for someone else, a builtin that only consumes the mapping, and a
-    comparison or an interpolation. Everything else counts against the pin,
+    Six shapes are provably harmless: a dict method that reaches only the
+    keys, a subscript that either loads or names some other key, a walk that
+    yields the keys, a double-star splat that fills a fresh mapping for
+    someone else, a builtin that only walks the keys, and, when *literal*
+    says every bound value is a literal, a method that hands a value out, a
+    render, or a comparison. Everything else counts against the pin,
     including handing the mapping to a function that could pass it on, which
     can change it out of sight.
+
+    *literal* is what separates a look from a leak. Rendering or comparing a
+    mapping reaches its values, so a value carrying its own ``__repr__`` or
+    ``__eq__`` runs code that can drop the pin. Literals cannot.
     """
     if isinstance(parent, ast.Attribute):
-        return parent.attr in _KEYWORD_READERS
+        return parent.attr in _KEY_READERS or (
+            literal and parent.attr in _VALUE_READERS
+        )
     if isinstance(parent, ast.Subscript):
         return isinstance(parent.ctx, ast.Load) or _names_other_key(parent)
     if isinstance(parent, _WALKING_PARENTS):
@@ -1305,8 +1325,12 @@ def _spares_pin(node: ast.AST, parent: ast.AST | None) -> bool:
     if isinstance(parent, ast.keyword):
         return parent.arg is None
     if isinstance(parent, ast.Call):
-        return isinstance(parent.func, ast.Name) and parent.func.id in _MAPPING_READERS
-    return isinstance(parent, _INSPECTING_PARENTS)
+        if not isinstance(parent.func, ast.Name):
+            return False
+        return parent.func.id in _MAPPING_READERS or (
+            literal and parent.func.id in _RENDERING_READERS
+        )
+    return literal and isinstance(parent, _INSPECTING_PARENTS)
 
 
 def _partial_roots(
@@ -1325,6 +1349,37 @@ def _partial_roots(
         if isinstance(value, ast.Call) and _is_partial(_call_label(value), functions)
     }
     return _settle(bindings, seed)
+
+
+def _literal_roots(
+    bindings: list[tuple[str, ast.expr]],
+    functions: dict[str, str],
+    roots: dict[str, str],
+) -> frozenset[str]:
+    """Name the partial roots whose bound keyword values are every one a literal.
+
+    Rendering or comparing a keywords mapping reaches every value it holds, so
+    a value carrying its own ``__repr__`` or ``__eq__`` runs code that can drop
+    the pin while the source still reads as a look. A literal cannot: a string,
+    a number, or a bool renders without calling back into the module.
+
+    A root that is built more than once keeps the answer only while every one
+    of its constructions is literal, and a double-star splat never is, because
+    what it spreads is not visible here.
+    """
+    settled: dict[str, bool] = {}
+    for name, value in bindings:
+        if not isinstance(value, ast.Call):
+            continue
+        if not _is_partial(_call_label(value), functions):
+            continue
+        literal = all(
+            keyword.arg is not None and isinstance(keyword.value, ast.Constant)
+            for keyword in value.keywords
+        )
+        root = roots.get(name, name)
+        settled[root] = settled.get(root, True) and literal
+    return frozenset(root for root, literal in settled.items() if literal)
 
 
 def _fetched_keywords(node: ast.AST) -> ast.expr | None:
@@ -1351,7 +1406,9 @@ def _keyword_mapping(node: ast.AST) -> ast.expr | None:
     return _fetched_keywords(node)
 
 
-def _undone_pins(tree: ast.AST, roots: dict[str, str]) -> set[str]:
+def _undone_pins(
+    tree: ast.AST, roots: dict[str, str], literal_roots: frozenset[str]
+) -> set[str]:
     """Return the partials whose bound codec the source can undo.
 
     ``functools.partial`` keeps its bound keywords in a plain dict that stays
@@ -1373,11 +1430,14 @@ def _undone_pins(tree: ast.AST, roots: dict[str, str]) -> set[str]:
     undone: set[str] = set()
     for node in ast.walk(tree):
         owner = _keyword_mapping(node)
-        if owner is None or _spares_pin(node, parents.get(id(node))):
+        if owner is None:
             continue
         name = _owner_name(owner)
-        if name is not None and name in roots:
-            undone.add(roots[name])
+        root = roots.get(name) if name is not None else None
+        if _spares_pin(node, parents.get(id(node)), root in literal_roots):
+            continue
+        if root is not None:
+            undone.add(root)
     return undone
 
 
@@ -1642,7 +1702,8 @@ def _subprocess_names(tree: ast.Module) -> _Names:
                 # A group reading ``get()`` registers a dependency on the bare
                 # name ``get``, because that is the only Name node in it.
                 queue.extend(dependents.get(name[: -len(_CALL_SUFFIX)], ()))
-    undone = _undone_pins(tree, _partial_roots(bindings, functions))
+    roots = _partial_roots(bindings, functions)
+    undone = _undone_pins(tree, roots, _literal_roots(bindings, functions, roots))
     return _Names(
         modules,
         functions,
@@ -3645,6 +3706,121 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'alias = subprocess.run\n'
             'alias(["x"], capture_output=True, text=True)',
             "an alias that inherits a pin and is then rebound holds it no longer",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'alias = runner\n'
+            'alias = subprocess.run\n'
+            'second = alias\n'
+            'second(["x"], capture_output=True, text=True)',
+            "a name reading a rebound alias reads what the rebinding left",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'alias = runner\n'
+            'alias = subprocess.run\n'
+            'second = alias\n'
+            'third = second\n'
+            'third(["x"], capture_output=True, text=True)',
+            "a rebinding travels the whole chain that reads from it",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'alias = runner\n'
+            'second = alias\n'
+            'alias = subprocess.run\n'
+            'second(["x"], capture_output=True, text=True)',
+            "reading an alias before it is rebound still reads one binding of two",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", timeout=guard\n'
+            ')\n'
+            'seen = repr(runner.keywords)\n'
+            'runner(["x"], text=True)',
+            "repr renders every value, so a value's __repr__ runs and can drop the pin",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", timeout=guard\n'
+            ')\n'
+            'seen = str(runner.keywords)\n'
+            'runner(["x"], text=True)',
+            "str renders the mapping the same way repr does",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", timeout=guard\n'
+            ')\n'
+            'print(runner.keywords)\n'
+            'runner(["x"], text=True)',
+            "print renders its argument before writing it",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", timeout=guard\n'
+            ')\n'
+            'print(f"{runner.keywords}")\n'
+            'runner(["x"], text=True)',
+            "an interpolation renders the mapping, which renders every value",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", timeout=guard\n'
+            ')\n'
+            'seen = runner.keywords == {"encoding": "utf-8", "timeout": 1}\n'
+            'runner(["x"], text=True)',
+            "comparing against a same-shape mapping runs __eq__ on every value",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", timeout=guard\n'
+            ')\n'
+            'seen = 1 in runner.keywords.values()\n'
+            'runner(["x"], text=True)',
+            "values() hands out the values, and membership runs __eq__ on them",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", timeout=guard\n'
+            ')\n'
+            'seen = repr(runner.keywords.copy())\n'
+            'runner(["x"], text=True)',
+            "a copy shares the value objects, so rendering it renders them",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", timeout=guard\n'
+            ')\n'
+            'seen = repr(runner.keywords.get("timeout"))\n'
+            'runner(["x"], text=True)',
+            "get hands back a value whose __repr__ reaches the mapping",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", timeout=guard\n'
+            ')\n'
+            'seen = repr(list(runner.keywords.items()))\n'
+            'runner(["x"], text=True)',
+            "items pairs every key with its value, so rendering reaches the values",
         ),
     ],
 )
