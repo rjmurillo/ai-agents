@@ -91,6 +91,8 @@ _DYNAMIC = "subprocess.<dynamic>"
 # subprocess names for want of a second one to thread, and filtered out of
 # every path that answers "is this a subprocess entry point".
 _ATTRIBUTE = "."
+# The attribute a functools.partial keeps its bound keywords under.
+_KEYWORDS = "keywords"
 _UNKNOWN = object()
 _PARTIAL = "functools.partial"
 # Marks the null sink. Held beside the entry points so an imported ``DEVNULL``
@@ -1191,18 +1193,53 @@ def _settle(bindings: list[tuple[str, ast.expr]], seed: dict[str, str]) -> dict[
     return grown
 
 
-def _owner_module(node: ast.expr, modules: dict[str, str]) -> str | None:
-    """Return the module the owner expression *node* names, or ``None``.
+def _owner_name(node: ast.expr) -> str | None:
+    """Return the table key the owner expression *node* reads under.
 
     A class body binds its attributes under the attribute prefix, the same
     way the function table records them, so ``Holder.sp`` reads back exactly
     as a plain ``sp`` does.
     """
     if isinstance(node, ast.Name):
-        return modules.get(node.id)
+        return node.id
     if isinstance(node, ast.Attribute):
-        return modules.get(_ATTRIBUTE + node.attr)
+        return _ATTRIBUTE + node.attr
     return None
+
+
+def _owner_module(node: ast.expr, modules: dict[str, str]) -> str | None:
+    """Return the module the owner expression *node* names, or ``None``."""
+    key = _owner_name(node)
+    return None if key is None else modules.get(key)
+
+
+def _voided_pins(tree: ast.AST, bindings: list[tuple[str, ast.expr]]) -> set[int]:
+    """Return the construction sites whose bound codec the source can undo.
+
+    ``functools.partial`` keeps its bound keywords in a plain dict that stays
+    reachable through the result, so ``del runner.keywords["encoding"]`` and
+    ``runner.keywords["encoding"] = None`` both drop a pin the construction
+    site still spells out. Reading that site alone reports a codec the call
+    will never use.
+
+    Any mention of the mapping counts, not writes alone. Telling a write from
+    a read needs the enclosing statement, and a partial whose keywords are
+    read but never changed is both rare and harmless to report: the answer
+    errs toward flagging, which is the direction this scan takes throughout.
+
+    Node identity is the key because a construction site is a value node, not
+    a name, and the same expression can be bound to several names. Every node
+    stays alive for as long as the tree that owns it, which outlives this
+    answer, so an address cannot be recycled underneath it.
+    """
+    touched: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Attribute) or node.attr != _KEYWORDS:
+            continue
+        name = _owner_name(node.value)
+        if name is not None:
+            touched.add(name)
+    return {id(value) for name, value in bindings if name in touched}
 
 
 def _supplies_capture(
@@ -1303,7 +1340,7 @@ def _matched(
 
 def _subprocess_names(
     tree: ast.Module,
-) -> tuple[dict[str, str], dict[str, str], dict[str, _Container], set[str]]:
+) -> tuple[dict[str, str], dict[str, str], dict[str, _Container], set[str], set[int]]:
     """Collect every name in *tree* that reaches a subprocess entry point.
 
     Imports seed the search, and every binding is then resolved against what
@@ -1361,7 +1398,13 @@ def _subprocess_names(
                 # A group reading ``get()`` registers a dependency on the bare
                 # name ``get``, because that is the only Name node in it.
                 queue.extend(dependents.get(name[: -len(_CALL_SUFFIX)], ()))
-    return modules, functions, containers, _presupplied(bindings, modules, functions)
+    return (
+        modules,
+        functions,
+        containers,
+        _presupplied(bindings, modules, functions),
+        _voided_pins(tree, bindings),
+    )
 
 
 def _target(
@@ -1490,7 +1533,7 @@ def _pins_utf8(call: ast.Call) -> bool:
 def unpinned_lines(source: str) -> list[int]:
     """Return the line numbers of text-capturing calls that do not pin UTF-8."""
     tree = ast.parse(source)
-    modules, functions, containers, presupplied = _subprocess_names(tree)
+    modules, functions, containers, presupplied, voided = _subprocess_names(tree)
     offenders: list[int] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
@@ -1507,7 +1550,7 @@ def unpinned_lines(source: str) -> list[int]:
             node, functions, target, modules, presupplied
         ):
             continue
-        if not _pins_utf8(node):
+        if not _pins_utf8(node) or id(node) in voided:
             offenders.append(node.lineno)
     return sorted(offenders)
 
@@ -1993,6 +2036,15 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             'runner = holders[0]\n'
             'runner(["x"], text=True)',
             "a partial that fixed no capture leaves nothing to decode",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, text=True, encoding="utf-8"\n'
+            ')\n'
+            'other.keywords["encoding"] = None\n'
+            'runner(["x"])',
+            "a mapping belonging to some other name leaves this pin standing",
         ),
     ],
 )
@@ -2930,6 +2982,35 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'runner = holders[0]\n'
             'runner(["x"], text=True)',
             "a partial keeps its fixed capture through a container",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, text=True, encoding="utf-8"\n'
+            ')\n'
+            'del runner.keywords["encoding"]\n'
+            'runner(["x"])',
+            "deleting the bound encoding leaves the locale codec behind",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, text=True, encoding="utf-8"\n'
+            ')\n'
+            'runner.keywords["encoding"] = None\n'
+            'runner(["x"])',
+            "overwriting the bound encoding asks for the locale codec by name",
+        ),
+        (
+            'import functools, subprocess\n'
+            'class A:\n'
+            '    b = functools.partial(\n'
+            '        subprocess.run, capture_output=True, text=True, encoding="utf-8"\n'
+            '    )\n'
+            'a = A()\n'
+            'a.b.keywords["encoding"] = None\n'
+            'a.b(["x"])',
+            "a partial bound in a class body is mutated the same way",
         ),
     ],
 )
