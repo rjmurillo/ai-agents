@@ -18,6 +18,7 @@ import tempfile
 import time
 import unicodedata
 import warnings
+from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -84,7 +85,7 @@ SECURITY_SUPPRESSION_RE = re.compile(
     r"lgtm\[|"
     r"nosec\b|"
     r"nosem(?:grep)?\b|"
-    r"noqa\b(?:\s*:[^\r\n]*)?|"
+    r"noqa\b(?:\s*:\s*[^\r\n]*\bS\d+|(?!\s*:))|"
     r"type:\s*ignore(?:\[[^\]\r\n]*\])?|"
     r"cwe-suppress\b"
     r")"
@@ -2265,8 +2266,37 @@ def _added_suppression_violations(
 
 
 def _suppression_violations_in_diff(head: str, diff_text: str) -> list[str]:
-    violations: list[str] = []
+    # Pass 1: collect suppression payloads from removed lines, keyed by file.
+    # Counter allows duplicate payloads (e.g. three identical # nosec lines).
+    removed: dict[str, Counter[str]] = {}
     current_path: str | None = None
+    in_hunk = False
+    for line in diff_text.splitlines():
+        if line.startswith("diff --git "):
+            current_path = None
+            in_hunk = False
+            continue
+        if not in_hunk:
+            file_match = DIFF_ADDED_FILE_RE.match(line)
+            if file_match is not None and file_match.group("path") != "/dev/null":
+                current_path = _normalize_ratchet_path(file_match.group("path"))
+                continue
+        if DIFF_HUNK_RE.match(line):
+            in_hunk = True
+            continue
+        if not in_hunk or current_path is None or line.startswith("\\"):
+            continue
+        if line.startswith("-"):
+            m = SECURITY_SUPPRESSION_RE.search(line[1:])
+            if m:
+                removed.setdefault(current_path, Counter())[m.group(0)] += 1
+
+    # Pass 2: flag added suppressions that have no matching removal in the
+    # same file (net-new suppressions). A suppression that merely moved within
+    # the file consumes one count from the removal Counter and is not a
+    # violation.
+    violations: list[str] = []
+    current_path = None
     current_line: int | None = None
     in_hunk = False
     for line in diff_text.splitlines():
@@ -2275,11 +2305,12 @@ def _suppression_violations_in_diff(head: str, diff_text: str) -> list[str]:
             current_line = None
             in_hunk = False
             continue
-        file_match = None if in_hunk else DIFF_ADDED_FILE_RE.match(line)
-        if file_match is not None and file_match.group("path") != "/dev/null":
-            current_path = _normalize_ratchet_path(file_match.group("path"))
-            current_line = None
-            continue
+        if not in_hunk:
+            file_match = DIFF_ADDED_FILE_RE.match(line)
+            if file_match is not None and file_match.group("path") != "/dev/null":
+                current_path = _normalize_ratchet_path(file_match.group("path"))
+                current_line = None
+                continue
         hunk_match = DIFF_HUNK_RE.match(line)
         if hunk_match is not None:
             current_line = int(hunk_match.group("start"))
@@ -2288,14 +2319,50 @@ def _suppression_violations_in_diff(head: str, diff_text: str) -> list[str]:
         if not in_hunk or current_path is None or current_line is None or line.startswith("\\"):
             continue
         if line.startswith("+"):
-            if SECURITY_SUPPRESSION_RE.search(line[1:]):
-                violations.append(f"{head[:12]}:{current_path}:{current_line}")
+            m = SECURITY_SUPPRESSION_RE.search(line[1:])
+            if m:
+                file_removed = removed.get(current_path)
+                if file_removed and file_removed.get(m.group(0), 0) > 0:
+                    file_removed[m.group(0)] -= 1
+                else:
+                    violations.append(f"{head[:12]}:{current_path}:{current_line}")
             current_line += 1
             continue
         if line.startswith("-"):
             continue
         current_line += 1
     return violations
+
+
+def check_staged_suppressions(repo_root: Path) -> int:
+    """Check staged changes (git diff --cached) for net-new security suppressions."""
+    result = _run_git(
+        repo_root,
+        [
+            "-c",
+            "diff.noprefix=false",
+            "diff",
+            "--cached",
+            *TEXTUAL_DIFF_FLAGS,
+            "--src-prefix=a/",
+            "--dst-prefix=b/",
+            "--no-renames",
+            "--unified=0",
+            "--no-color",
+        ],
+    )
+    if result.returncode != 0:
+        _print_process_output(result)
+        return 2
+    if not result.stdout.strip():
+        return 0
+    violations = _suppression_violations_in_diff("staged", result.stdout)
+    if not violations:
+        return 0
+    print("ERROR: security suppression comments detected in staged changes:", file=sys.stderr)
+    for violation in violations:
+        print(f"  {violation}", file=sys.stderr)
+    return 1
 
 
 def _notebook_suppression_violations(
@@ -5212,6 +5279,10 @@ def _handle_suppressions_push(args: argparse.Namespace) -> int:
     return check_pushed_suppressions(sys.stdin, _repo_root(args))
 
 
+def _handle_staged_suppressions(args: argparse.Namespace) -> int:
+    return check_staged_suppressions(_repo_root(args))
+
+
 def _handle_stage_generated(args: argparse.Namespace) -> int:
     return stage_generated(args.kind, _repo_root(args))
 
@@ -5270,6 +5341,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("semgrep", _handle_semgrep),
         ("semgrep-push", _handle_semgrep_push),
         ("security-suppressions-push", _handle_suppressions_push),
+        ("security-suppressions-staged", _handle_staged_suppressions),
         ("pre-push", _handle_pre_push),
         ("tracked-conflict-markers", _handle_tracked_conflict_markers),
     )
