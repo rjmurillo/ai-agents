@@ -87,14 +87,25 @@ Use artifacts instead of outputs for reliable handoff between jobs.
 
 ## Diagnostic Command Reference
 
-| Purpose | Command |
-|---------|---------|
-| Run overview | `gh run view $RunId` |
-| All jobs status | `gh api .../actions/runs/$RunId/jobs --jq '.jobs[]...'` |
-| Failed jobs only | `...--jq '.jobs[] \| select(.conclusion == "failure")'` |
-| Incomplete jobs | `...--jq '.jobs[] \| select(.status != "completed")'` |
-| Workflow logs | `gh run view $RunId --log 2>&1 \| head -100` |
-| Specific job log | `gh run view $RunId --log --job $JobId` |
+```powershell
+# Run overview
+gh run view $RunId
+
+# All jobs status
+gh api /repos/$Repo/actions/runs/$RunId/jobs --jq '.jobs[] | {name: .name, status: .status, conclusion: .conclusion}'
+
+# Failed jobs only
+gh api /repos/$Repo/actions/runs/$RunId/jobs --jq '.jobs[] | select(.conclusion == "failure") | .name'
+
+# Incomplete jobs
+gh api /repos/$Repo/actions/runs/$RunId/jobs --jq '.jobs[] | select(.status != "completed") | .name'
+
+# Workflow logs, first 100 lines
+gh run view $RunId --log 2>&1 | Select-Object -First 100
+
+# Specific job log
+gh run view $RunId --log --job $JobId
+```
 
 ---
 
