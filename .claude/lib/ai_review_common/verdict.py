@@ -1,4 +1,4 @@
-"""Canonical: scripts/ai_review_common/verdict.py. Sync via scripts/sync_plugin_lib.py."""
+"""Verdict parsing, label/milestone extraction, and failure categorization."""
 
 from __future__ import annotations
 
