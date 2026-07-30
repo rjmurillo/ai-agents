@@ -127,3 +127,39 @@ is the load-bearing step; the flag prevents cross-mutant contamination.
 `tests/test_stale_bytecode_harness.py` contains four tests that reproduce the
 defect (`test_before__stale_cache_hides_mutation`), document the insufficient
 flag-only approach, and prove both fixes work independently and in combination.
+
+---
+
+## External Tool Fake Fidelity
+
+**Source**: Issue #3885. Two instances of wrong exit-code contracts in git fakes:
+`_fake_scan` in `tests/ci/test_taste_count_ratchet.py` and `_confirm_ignored`
+tests in `tests/build_scripts/test_build_all.py`.
+
+### The hazard
+
+A monkeypatched fake that models an external binary's exit codes or output
+shape is a claim about that binary's behavior. If the claim is wrong, every
+test built on the fake passes while asserting a contract the binary does not
+have. The production code then inherits the false contract. A wrong fake makes
+tests MORE confident, not less.
+
+### The rule
+
+For any fake that encodes an external binary's exit codes, stdout shape, or
+error semantics, add at least one test that runs the REAL binary and exercises
+the discriminating rows the fake models.
+
+- The real-binary test does not need 100% coverage of the fake. It needs to
+  cover the exit codes and output shapes that the fake encodes.
+- Write the fake FROM a measurement of the real binary, not from prose or
+  documentation alone.
+- When a binary is unavailable in CI (e.g., a proprietary tool), document the
+  version and environment the fake was measured against in a comment.
+
+### Pattern (from PR #3824)
+
+`tests/ci/test_count_ratchet_against_real_git.py` is the exemplar. It runs
+real `git` to exercise the exact bootstrap-detection paths that
+`_fake_scan` in `test_taste_count_ratchet.py` models. A failing real-git test
+catches a wrong fake at merge time rather than in production.

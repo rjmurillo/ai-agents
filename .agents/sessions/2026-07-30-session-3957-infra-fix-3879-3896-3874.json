@@ -93,6 +93,14 @@
     {
       "time": "2026-07-30T04:00:00Z",
       "entry": "d4f8410d7: 4 stale-bytecode harness tests (before/after). TESTING-RIGOR.md updated."
+    },
+    {
+      "time": "2026-07-30T05:00:00Z",
+      "entry": "Added External Tool Fake Fidelity governance rule to TESTING-RIGOR.md for issue #3885."
+    },
+    {
+      "time": "2026-07-30T05:30:00Z",
+      "entry": "Wired check_nested_tests and check_unreachable_code into pre_pr_sequence.py and pre_pr.py."
     }
   ],
   "endingCommit": "d4f8410d7",
