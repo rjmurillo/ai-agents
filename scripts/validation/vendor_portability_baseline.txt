@@ -3,8 +3,11 @@
 # check_vendor_portability.py allows these but fails on NEW offenders.
 # Regenerate: python3 scripts/validation/check_vendor_portability.py --update-baseline
 
+.claude/skills/SkillForge/scripts/init_skill.py
+.claude/skills/SkillForge/scripts/skill_modularity_audit.py
+.claude/skills/SkillForge/scripts/validate-skill.py
+.claude/skills/SkillForge/tests/test_skill_modularity_audit.py
 .claude/skills/adr-review/scripts/detect_adr_changes.py
-.claude/skills/adr-review/tests/test_detect_adr_changes.py
 .claude/skills/chestertons-fence/scripts/investigate.py
 .claude/skills/github/scripts/pr/new_pr.py
 .claude/skills/golden-principles/scripts/scan_principles.py
@@ -12,14 +15,18 @@
 .claude/skills/memory/scripts/extract_session_episode.py
 .claude/skills/memory/scripts/search_memory.py
 .claude/skills/memory/scripts/test_memory_health.py
+.claude/skills/memory/tests/test_extract_session_episode.py
 .claude/skills/memory/tests/test_memory_health.py
 .claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py
 .claude/skills/merge-resolver/tests/test_resolve_pr_conflicts.py
+.claude/skills/metrics/collect_metrics.py
 .claude/skills/orphan-ref-validator/scripts/scan.py
+.claude/skills/orphan-ref-validator/tests/test_scan.py
+.claude/skills/pr-comment-responder/tests/test_cluster_threads.py
+.claude/skills/prose-self-check/tests/test_burstiness.py
 .claude/skills/quality-grades/scripts/grade_domains.py
 .claude/skills/session-end/scripts/rework_warning.py
 .claude/skills/session-end/tests/test_complete_session_log.py
-.claude/skills/session-init/tests/test_session_init.py
 .claude/skills/session/scripts/test_investigation_eligibility.py
 .claude/skills/session/tests/test_session_eligibility.py
 .claude/skills/steering-matcher/get_applicable_steering.py

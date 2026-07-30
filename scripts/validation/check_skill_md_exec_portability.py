@@ -97,10 +97,10 @@ SCAN_ROOTS: tuple[tuple[str, ...], ...] = (
     ("src", "copilot-cli", "skills"),
 )
 
-# An executable invocation of a bare .claude/skills script. The negative
-# lookbehind (?<![\w.]) keeps the lead-in a standalone token so that the
-# "sh" inside "bash"/"flash" does not match, while still allowing a backtick,
-# whitespace, line start, or shell operator immediately before it.
+# An executable invocation of a bare .claude/skills or scripts/ path. The
+# negative lookbehind (?<![\w.]) keeps the lead-in a standalone token so that
+# the "sh" inside "bash"/"flash" does not match, while still allowing a
+# backtick, whitespace, line start, or shell operator immediately before it.
 #
 # Two execution lead-ins are recognized, both anchored to an execution context
 # so bare *prose* path mentions stay exempt (the sibling prose guard owns those):
@@ -109,9 +109,16 @@ SCAN_ROOTS: tuple[tuple[str, ...], ...] = (
 #   2. A direct `./`-prefixed executable (`./.claude/skills/x/y.sh`).
 # Shell line continuations (`python3 \<newline>.claude/...`) are normalized to a
 # single line before matching so a split invocation is not missed (issue #2838).
+#
+# `scripts/` is added alongside `.claude/skills/` (issue #4013): the scripts/
+# tree exists only in the upstream checkout and does not ship in either plugin
+# root. A skill instruction like `python3 scripts/validation/pre_pr.py` will
+# fail silently in every consumer install just as a bare .claude/skills/ path
+# would. The path-prefix group is anchored to require `scripts/` at the start
+# of the path argument (not inside a longer resolved prefix).
 EXEC_PATTERN = re.compile(
     r"(?<![\w.])(?:(?:python3?|bash|sh)\s+(?:-\S+\s+)*|\./)"
-    r"[\"']?\.claude/skills/\S+\.(?:py|sh)(?!\.\w)[\"']?"
+    r"[\"']?(?:\.claude/skills/|scripts/)\S+\.(?:py|sh)(?!\.\w)[\"']?"
 )
 
 # Shell line-continuation: a backslash immediately before a newline splices the
@@ -236,12 +243,12 @@ def diff_against_baseline(
         allowed = baseline.get(rel, 0)
         if n > allowed:
             regressions.append(
-                f"{rel}: {n} bare '.claude/skills/...' invocation(s) (baseline "
-                f"{allowed}). Resolve the script root via a plugin-root env var "
+                f"{rel}: {n} bare '.claude/skills/...' or 'scripts/...' invocation(s) "
+                f"(baseline {allowed}). Resolve the script root via a plugin-root env var "
                 'with a source fallback, e.g. SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:'
                 '-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/..." then invoke '
                 '"$SCRIPTS_DIR/script.py"; or declare an intentional dependency '
-                "with '<!-- vendor-portability-exec: ... -->' (issue #2838)."
+                "with '<!-- vendor-portability-exec: ... -->' (issue #2838, #4013)."
             )
     improvements: list[str] = []
     for rel, allowed in sorted(baseline.items()):
@@ -354,7 +361,7 @@ def _print_report(
         for line in improvements:
             print(f"  [IMPROVED] {line}")
     if regressions:
-        print("Skill exec-path vendor-portability drift detected (issue #2838):")
+        print("Skill exec-path vendor-portability drift detected (issue #2838, #4013):")
         for line in regressions:
             print(f"  [DRIFT] {line}")
         return

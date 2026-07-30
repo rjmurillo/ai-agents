@@ -209,6 +209,12 @@ UPSTREAM_PATTERNS: tuple[re.Pattern[str], ...] = (
         _BOUNDARY + r"templates[\\/]+platforms" + _TERMINATOR,
         re.IGNORECASE,
     ),
+    # `scripts/` exists only in the upstream checkout (issue #4013). Neither
+    # plugin root ships the scripts/ tree, so a skill prose instruction that
+    # tells the agent to open or run `scripts/x.py` will silently fail in every
+    # consumer install. Require the path-separator to avoid matching the plain
+    # English word "scripts" in surrounding prose.
+    re.compile(_BOUNDARY + r"scripts[\\/]", re.IGNORECASE),
 )
 
 # A skill self-declares its upstream path dependencies with this HTML comment.
