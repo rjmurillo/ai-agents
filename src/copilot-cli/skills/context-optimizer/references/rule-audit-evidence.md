@@ -370,6 +370,34 @@ change in it. That is how the two fixes above were lost and had to be rebuilt.
 Copy the file aside and copy it back instead; the tests written moments
 earlier are what caught the loss.
 
+Round 17 found three more, and the first is the one that had been assumed
+away. Every guard above rests on the parse having decoded the escaping, so a
+string was thought to arrive fully decoded. A parse decodes exactly one layer.
+A judge that spells its second verdict `{\"\u0061ctivation_score\":5,...}`
+inside `reasoning` produces, after the parse, literal backslash-u text that no
+pattern for `"activation_score"` matches. The payload carried a corrected
+5/5/5 beside a filed 1/1/1, and both parsed-region paths published the 1/1/1
+with no mark on it. The guard now peels up to three further escape layers and
+asks the question the parse could not.
+
+The second defect was in the guards themselves. Both ambiguity walkers
+recursed, and Python's recursion limit is far lower than what the JSON
+decoder's C scanner accepts, so a healthy verdict carrying a nested member a
+thousand deep raised `RecursionError`. That subclasses `RuntimeError`, which
+the scoring call site catches as a transport error, so the sample was filed as
+a judge API failure and dropped. A defense against fabrication was silently
+deleting valid observations. Both walkers are now iterative.
+
+The third defect is the mirror image, and it corrects a bias in the rule this
+session had been applying. A judge writing `I assigned "activation_score": 5
+because ...` while filing 5 was refused as carrying two verdicts. It carries
+one, stated twice. Refusing it is not the conservative choice: a dropped
+sample moves a published median exactly as a fabricated one does. The
+discriminator is disagreement, not mention. The guard now compares the named
+value against the value actually filed and refuses only on a conflict, or when
+the two cannot be compared at all. All 288 archived payloads are unaffected by
+all three changes; none carries either shape.
+
 
 Reproduce the recovery from any archived run. The failed samples store the
 truncated raw payload in their `reasoning` field behind a
