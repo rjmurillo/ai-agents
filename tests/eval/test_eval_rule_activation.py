@@ -1102,15 +1102,108 @@ def test_judge_parse_failure_rejects_a_non_numeric_score():
     assert result["judge_failed"] is True
 
 
-def test_salvage_scores_clamps_an_out_of_range_value():
+def test_salvage_rejects_out_of_range_scores_instead_of_clamping():
+    """Clamping an out-of-range score turns a garbage measurement into a
+    passing one. Main tightened the parsed path to fail closed on that; salvage
+    has to fail closed the same way or it becomes the way around the gate."""
     salvaged = eval_mod._judge_parse_failure(
         '{"activation_score": 99, "citation_score": 4, "behavior_score": -3} "',
         "parse error",
     )
 
-    assert salvaged["judge_failed"] is False
-    assert salvaged["activation_score"] == eval_mod._clamp_score(99)
-    assert salvaged["behavior_score"] == eval_mod._clamp_score(-3)
+    assert salvaged["judge_failed"] is True
+    assert salvaged["activation_score"] == 0
+    assert salvaged["behavior_score"] == 0
+
+
+def test_salvage_rejects_non_integral_scores():
+    """A non-integral score is a failed measurement, not something to round.
+    Reading only the integer part would turn 4.5 into a 4 the judge never
+    gave, which is fabrication rather than salvage."""
+    assert (
+        eval_mod._salvage_scores(
+            '{"activation_score": 4.5, "citation_score": 3, "behavior_score": 5}'
+        )
+        is None
+    )
+
+
+def test_salvage_returns_ints_so_the_shape_gate_accepts_them():
+    """Regression guard on a cross-branch break. The shape gate requires an
+    exact int; salvage returning floats made every salvage fail that gate and
+    silently reverted the cell to a zeroed judge failure. The two paths must
+    agree on the score type."""
+    salvaged = eval_mod._salvage_scores(
+        '{"activation_score": 4, "citation_score": 3, "behavior_score": 5}'
+    )
+
+    assert salvaged == {
+        "activation_score": 4,
+        "citation_score": 3,
+        "behavior_score": 5,
+    }
+    assert all(type(v) is int for v in salvaged.values())
+    assert eval_mod._judge_score_shape_error(salvaged) is None
+
+
+def test_salvage_rejects_scores_stitched_from_separate_objects():
+    """An agentic judge emits tool traces and retries alongside its verdict.
+    Unanchored field searches would take one score from each and report a
+    composite the judge never gave, with judge_failed set to False."""
+    assert (
+        eval_mod._salvage_scores(
+            '{"activation_score": 1} trace '
+            '{"activation_score": 4, "citation_score": 3, "behavior_score": 5}'
+        )
+        is None
+    )
+
+
+def test_salvage_rejects_scientific_notation():
+    """5e-1 is 0.5. Reading the mantissa alone turns it into a 5, which is a
+    fabricated passing score rather than a recovered one."""
+    assert (
+        eval_mod._salvage_scores(
+            '{"activation_score": 5e-1, "citation_score": 3, "behavior_score": 5}'
+        )
+        is None
+    )
+
+
+def test_salvage_ignores_score_fields_quoted_inside_reasoning():
+    """A judge that quotes the rubric back carries score-shaped text in its
+    prose. The window stops at the reasoning key so the real verdict wins."""
+    salvaged = eval_mod._salvage_scores(
+        '{"activation_score": 4, "citation_score": 3, "behavior_score": 5, '
+        '"reasoning": "the rubric says "activation_score": 0 for this"'
+    )
+
+    assert salvaged == {
+        "activation_score": 4,
+        "citation_score": 3,
+        "behavior_score": 5,
+    }
+
+
+def test_salvage_rejects_scores_found_only_inside_reasoning():
+    """Scores that appear only after the reasoning key are quoted text, not a
+    verdict. Salvaging them would grade the response on its own words."""
+    assert (
+        eval_mod._salvage_scores(
+            '{"reasoning": "it claimed "activation_score": 4, '
+            '"citation_score": 3, "behavior_score": 5"}'
+        )
+        is None
+    )
+
+
+def test_salvage_requires_an_object_to_anchor_on():
+    assert (
+        eval_mod._salvage_scores(
+            "activation_score: 4 citation_score: 3 behavior_score: 5"
+        )
+        is None
+    )
 
 
 def test_extract_json_object_returns_none_on_empty_input():

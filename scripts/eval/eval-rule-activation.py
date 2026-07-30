@@ -492,12 +492,29 @@ def _reduce_score_samples(
     return reduced
 
 _SCORE_FIELD_RE = {
-    field: re.compile(rf'"{field}"\s*:\s*(-?\d+(?:\.\d+)?)')
+    field: re.compile(rf'"{field}"\s*:\s*(-?[0-9]+(?:\.[0-9]+)?(?:[eE][-+]?[0-9]+)?)')
     for field in ("activation_score", "citation_score", "behavior_score")
 }
 
 
-def _salvage_scores(text: str) -> dict[str, float] | None:
+def _salvage_window(text: str) -> str | None:
+    """Return the leading verdict region of judge output, or ``None``.
+
+    Salvage has to read one object, not the whole transcript. An agentic judge
+    can emit tool traces, retries, or a quoted copy of the rubric, each
+    carrying its own score fields, and three unanchored searches would happily
+    take one number from each. The window runs from the first ``{`` to the
+    first ``"reasoning"`` key, which is where the scores live and where the
+    prose that breaks the parse begins.
+    """
+    start = text.find("{")
+    if start == -1:
+        return None
+    end = text.find('"reasoning"', start)
+    return text[start:end] if end != -1 else text[start:]
+
+
+def _salvage_scores(text: str) -> dict[str, int] | None:
     """Recover the three numeric scores from judge output that will not parse.
 
     The eval scores on three numbers. ``reasoning`` is diagnostic only, yet it
@@ -507,15 +524,30 @@ def _salvage_scores(text: str) -> dict[str, float] | None:
     plainly, and it does so more often for verbose models, which biases the
     comparison the eval exists to make.
 
-    Only the leading numeric fields are read, so a salvage cannot invent a
-    score the judge did not give. Returns ``None`` unless all three are found.
+    Four conditions, all required, so a salvage cannot invent a score:
+
+    1. All three fields appear in one leading window before ``"reasoning"``,
+       which keeps scores from being stitched together across objects.
+    2. Each appears exactly once in that window. A duplicate means the window
+       spans more than one verdict and there is no principled way to choose.
+    3. Each is a plain integer. ``4.5`` and ``5e-1`` both fail rather than
+       being read as ``4`` and ``5``, which would be fabrication. Non-integral
+       is a failed measurement, matching the parsed path.
+    4. Range is left to ``_judge_score_shape_error`` so both paths reject an
+       out-of-range score identically.
     """
-    salvaged: dict[str, float] = {}
+    window = _salvage_window(text)
+    if window is None:
+        return None
+    salvaged: dict[str, int] = {}
     for field, pattern in _SCORE_FIELD_RE.items():
-        match = pattern.search(text)
-        if match is None:
+        found = pattern.findall(window)
+        if len(found) != 1:
             return None
-        salvaged[field] = float(match.group(1))
+        raw = found[0]
+        if "." in raw or "e" in raw or "E" in raw:
+            return None
+        salvaged[field] = int(raw)
     return salvaged
 
 
