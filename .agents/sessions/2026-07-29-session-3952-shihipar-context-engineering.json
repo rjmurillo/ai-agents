@@ -594,6 +594,50 @@
     {
       "step": "Verification: full suite 19037 passed and 30 skipped, up 5 from the new tests. Eval suite 1583 passed and 4 skipped. ruff clean, mypy clean, 0 em/en dashes in every changed file, context-optimizer mirrors byte-identical, taste ratchet OK at baseline 616.",
       "timestamp": "2026-07-30T17:52:00Z"
+    },
+    {
+      "step": "Sol adversarial round 19 returned two BLOCKING and three NIT findings against the round-18 parser. All five were reproduced against the committed code before any fix was written.",
+      "timestamp": "2026-07-30T19:10:00Z"
+    },
+    {
+      "step": "BLOCKING 1: the value token stops at whitespace, so a judge writing \"activation_score\": 5 - 1 beside a filed 5 captured 5, compared equal, and would have published a 5 the judge corrected to 4. An unmarked fabrication reached through the fix meant to prevent that class.",
+      "timestamp": "2026-07-30T19:11:00Z"
+    },
+    {
+      "step": "BLOCKING 2: int(token) on a digit run past 4300 characters raises ValueError, which CPython imposes deliberately. eval_one_scenario catches RuntimeError only, so one adversarial judge response would have aborted every scenario after it. Reproduced as a live crash.",
+      "timestamp": "2026-07-30T19:12:00Z"
+    },
+    {
+      "step": "NIT 3, 4, 5 were over-refusals and a spelling gap: a three-layer decode budget refused a judge discussing regex escaping, ordinary sentence punctuation (5. 5; 5) and backtick) refused every judge who ended a sentence on the number, and 05 was accepted as agreement with a filed 5.",
+      "timestamp": "2026-07-30T19:13:00Z"
+    },
+    {
+      "step": "Fix: compare decimal spellings rather than converting. Strip trailing sentence closers, refuse when an arithmetic operator follows the token, delete the integer conversion entirely, and raise the decode budget from 3 to 8. Removing int() closes the crash and the 05 acceptance together.",
+      "timestamp": "2026-07-30T19:14:00Z"
+    },
+    {
+      "step": "Two self-introduced defects were caught only by negative controls. Including ( in the operator set refused ordinary parentheticals. The budget-exhaustion test kept passing after the budget was raised, because the buried field then decoded into view and refused as a contradiction: the right outcome for the wrong reason. Rewritten to carry no score field at all, so only truncation can refuse it.",
+      "timestamp": "2026-07-30T19:15:00Z"
+    },
+    {
+      "step": "The decode-budget boundary was measured rather than assumed: 256 consecutive backslashes resolve inside 8 layers, 512 exhaust it. Both sides are now pinned as tests.",
+      "timestamp": "2026-07-30T19:16:00Z"
+    },
+    {
+      "step": "Seven negative controls run, one per fix, and all seven fail as required. 22 boundary cases traced through the comparison, 0 wrong. A control that passes is treated as a failure signal.",
+      "timestamp": "2026-07-30T19:17:00Z"
+    },
+    {
+      "step": "Replaying all 288 archived judge payloads through the round-19 parser produces the same 24 recovery divergences as round 18, identical by coordinate and not merely by count. The published table is unmoved: p = 0.0703125, 7 positive and 1 negative. The book-rule cut remains unjustified.",
+      "timestamp": "2026-07-30T19:18:00Z"
+    },
+    {
+      "step": "Sol's round-19 doc finding: the round-18 write-up claimed the pattern captures the whole token and refuses anything not exactly an integer. Both halves were false. Corrected, and the archive-walking schema moved to the procedure document where reproduction steps belong. Evidence 491 lines, procedure 484, both under the 500 ceiling.",
+      "timestamp": "2026-07-30T19:19:00Z"
+    },
+    {
+      "step": "Verification: full suite 19043 passed and 30 skipped, up 6 from the net new tests. Eval suite 237 passed and 1 skipped, up from 232 collected. ruff clean after fixing a real B023 late-binding catch in a loop-scoped lambda, mypy clean, 0 em/en dashes, context-optimizer mirrors byte-identical, taste ratchet OK at baseline 616, skill_size 0 failures.",
+      "timestamp": "2026-07-30T19:20:00Z"
     }
   ],
   "endingCommit": "",
