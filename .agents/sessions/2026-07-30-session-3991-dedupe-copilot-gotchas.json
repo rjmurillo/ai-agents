@@ -1,0 +1,139 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3991,
+    "date": "2026-07-30",
+    "branch": "rjmurillo/dedupe-copilot-gotchas",
+    "startingCommit": "32af5363f",
+    "objective": "Move the Copilot inline gotchas into .agents/governance/GOTCHAS.md so the three always-on entry points cite one source"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena MCP tools are not exposed by this harness; AGENTS.md and .agents/governance/ read directly per the documented fallback"
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not available in this harness; fallback path used"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read and left unmodified"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "taste-lints and validation scripts located and run; .claude/skills/taste-lints/scripts/taste_lints.py invoked with explicit file paths"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md Boundaries and Skill-First sections read; skill-first rule honored for validation"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md consulted for the generated-artifact and always-on budget rules"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Prior session context for issue 3991 carried forward; no separate issue handoff file exists"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "rjmurillo/dedupe-copilot-gotchas"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On rjmurillo/dedupe-copilot-gotchas, branched from origin/main at 32af5363f"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Two modified files and this new session log; worktree otherwise clean"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "32af5363f"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Workspace budget gate passed at 5651/6600 bytes; taste-lints file-size passed on both changed files; dash count byte-verified at zero on both"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md unchanged"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP is not reachable in this harness. The durable knowledge from this session is a cross-harness convention, which .claude/rules/knowledge-persistence.md routes to the governance tree rather than to Serena memory: it was written to .agents/governance/GOTCHAS.md, which every harness reaches."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdown-autofix and markdown-check both passed in the pre-commit run"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This commit carries GOTCHAS.md, copilot-instructions.md, and this log. endingCommit is recorded in a follow-up commit rather than by amending, which would orphan the SHA (issue #3618)."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py run recorded in the work log below"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue 3991 referenced by the commit and the PR"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Establish that .github/copilot-instructions.md is always-on and unmeasured",
+      "outcome": "The file appears verbatim in the agent context, so it is always-on. validate_workspace_budget.py covers only CLAUDE.md, AGENTS.md, and .claude/CLAUDE.md at 3000 bytes each; instruction_budget.py covers only .github/instructions/*.instructions.md. copilot-instructions.md is in neither, at 6351 bytes. Filed as issue 3991."
+    },
+    {
+      "task": "Confirm the duplication before moving anything",
+      "outcome": "The inline uv-run entry already restated .agents/governance/GOTCHAS.md with no gate to catch drift. Confirmed the three copilot-instructions.md files in the repository (.github/, src/vs-code-agents/, src/copilot-cli/docs/) are 6351, 1565, and 1913 bytes and are not mirrors of each other, so this edit carries no mirror-sync burden."
+    },
+    {
+      "task": "Move the three unique entries into GOTCHAS.md",
+      "outcome": "PR description gate, literal pipes in Markdown table cells, and plugin-root script references moved verbatim. Added three traps found while shipping PR 3983: the three portability checkers with confusable names, taste-lints reporting a false pass when given a directory, and the session-log ordering requirement. GOTCHAS.md grew 86 to 190 lines."
+    },
+    {
+      "task": "Replace the inline section with a pointer",
+      "outcome": ".github/copilot-instructions.md fell from 6351 to 4579 bytes, a 28 percent cut, with no knowledge lost. All three always-on entry points now reach one source: AGENTS.md points at GOTCHAS.md directly, CLAUDE.md inherits through its @AGENTS.md import, and copilot-instructions.md now points at the same file."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Push the branch and open a PR referencing issue 3991.",
+    "Add .github/copilot-instructions.md to a budget gate so the 4579-byte figure cannot silently regrow."
+  ]
+}
