@@ -1,0 +1,131 @@
+{
+  "id": "episode-2026-07-30-session-3422-guard-detection-port",
+  "session": "2026-07-30-session-3422-guard-detection-port",
+  "timestamp": "2026-07-30T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Port the unique subprocess-guard detections from the superseded branch (closed PR #3835) forward onto current main, one family per commit, tests first, and verify with a differential harness that no detection is lost.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measure the abandoned branch against main before choosing a base",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Port family F2, itertools filters and heapq selectors",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix a lambda owner-name crash surfaced by F2",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Port family F1, operator selectors",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Port family F3, module alias through container and class body",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Port family F5, partial fixed capture through a container",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Port family F4, partial keyword mutation undoing a codec pin",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix main's construction-site codec-pin false positive",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Port operator.methodcaller, previously deferred as expensive",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 707f016fc222a8691266181171b24d4adfa90beb",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}
