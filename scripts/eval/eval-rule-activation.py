@@ -262,6 +262,36 @@ def _build_routed_reference_prompt(
 # ---------------------------------------------------------------------------
 
 
+def _scan_balanced_object(text: str, start: int) -> int | None:
+    """Return the index just past the object opening at ``start``, or ``None``.
+
+    String contents are skipped so that braces or escaped quotes inside a value
+    cannot terminate the scan early.
+    """
+    depth = 0
+    in_string = False
+    escaped = False
+    for index in range(start, len(text)):
+        char = text[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return index + 1
+    return None
+
+
 def _extract_json_object(text: str) -> str | None:
     """Return the first complete top-level JSON object embedded in ``text``.
 
@@ -272,33 +302,13 @@ def _extract_json_object(text: str) -> str | None:
     object recovers it without loosening the contract for providers that
     already comply, because callers only reach this after a strict parse fails.
 
-    String contents are skipped so that braces or escaped quotes inside the
-    ``reasoning`` value cannot terminate the scan early. Returns ``None`` when
-    no balanced object exists.
+    Returns ``None`` when no balanced object exists.
     """
     start = text.find("{")
     while start != -1:
-        depth = 0
-        in_string = False
-        escaped = False
-        for index in range(start, len(text)):
-            char = text[index]
-            if in_string:
-                if escaped:
-                    escaped = False
-                elif char == "\\":
-                    escaped = True
-                elif char == '"':
-                    in_string = False
-                continue
-            if char == '"':
-                in_string = True
-            elif char == "{":
-                depth += 1
-            elif char == "}":
-                depth -= 1
-                if depth == 0:
-                    return text[start : index + 1]
+        end = _scan_balanced_object(text, start)
+        if end is not None:
+            return text[start:end]
         start = text.find("{", start + 1)
     return None
 
