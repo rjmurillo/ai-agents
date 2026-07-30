@@ -337,8 +337,8 @@ The agent SHOULD monitor commit count during extended sessions to avoid oversize
    ```
 
 2. The agent SHOULD warn when commit count reaches 10 or more
-3. The agent MUST NOT exceed 20 commits (40 when the branch merges main) without splitting into a new PR
-4. When the limit is reached, the agent MUST:
+3. The agent MUST NOT exceed the active commit limit without splitting into a new PR
+4. When the active limit is exceeded, the agent MUST:
    - Stop new work
    - Complete the current unit of work
    - Prepare for PR creation (proceed to Session End Protocol)
@@ -350,17 +350,17 @@ The agent SHOULD monitor commit count during extended sessions to avoid oversize
 |-------------|--------|
 | < 10 | Continue working |
 | 10-14 | WARNING: Plan to wrap up soon. Finish current task, avoid starting new tasks. |
-| 15-20 | ALERT: Finish the current unit of work and prepare the PR. |
-| > 20 | BLOCKED: Stop work. Complete current unit and proceed to Session End Protocol. |
+| 15 through active limit | ALERT: Finish the current unit of work and prepare the PR. |
+| Above active limit | BLOCKED: Stop work. Complete current unit and proceed to Session End Protocol. |
 
-A branch that merges main raises the block threshold from 20 to 40; the ALERT band then covers 15-40. Thresholds are defined in `scripts/validation/pr_commit_count.py`.
+Use 20 for mid-session planning. Validation may report an active limit of 40 after detecting a qualifying base merge. Thresholds are defined in `scripts/validation/pr_commit_count.py`. CI and pre-push merge detection differ; issue #3997 tracks alignment.
 
 **Verification:**
 
 - Session log notes commit count checks during session
-- No PR exceeds 20 commits without documented exception
+- No PR exceeds its active commit limit without documented exception
 
-**Rationale:** PR #908 retrospective identified that large PRs (20+ commits) are harder to review, more likely to contain co-mingled changes, and have higher revert risk. See `.agents/governance/PROJECT-CONSTRAINTS.md` for the canonical commit limit policy.
+**Rationale:** PR #908 retrospective identified that large PRs are harder to review, more likely to contain co-mingled changes, and have higher revert risk.
 
 ---
 
@@ -825,7 +825,6 @@ The agent MUST run pre-PR validation before creating a pull request. This is a *
    ```
 
 2. The script validates:
-   - Commit count is within limit (< 20)
    - No BLOCKING synthesis issues detected
    - Session log exists and is valid
    - All required quality checks have passed
@@ -837,7 +836,7 @@ The agent MUST run pre-PR validation before creating a pull request. This is a *
 
 - [ ] `pre_pr.py` executed and passed (exit code 0)
 - [ ] No BLOCKING issues in validation output
-- [ ] Commit count within limits
+- [ ] Commit count checked per Session Mid Protocol
 - [ ] Session log complete and valid
 
 **Verification:**
@@ -846,7 +845,7 @@ The agent MUST run pre-PR validation before creating a pull request. This is a *
 - Exit code 0 confirms readiness
 - Session log records validation pass
 
-**Rationale:** PR #908 post-mortem revealed that PRs created without pre-validation contained co-mingled changes, missing QA reports, and exceeded commit limits. Automated validation catches these issues before PR creation, reducing review burden and revert risk.
+**Rationale:** PR #908 post-mortem revealed PRs with co-mingled changes and missing QA reports. Automated validation catches these issues before PR creation, reducing review burden and revert risk.
 
 ### Phase 3: Git Operations (REQUIRED)
 

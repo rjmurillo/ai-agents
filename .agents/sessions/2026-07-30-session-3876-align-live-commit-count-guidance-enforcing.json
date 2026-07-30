@@ -114,7 +114,7 @@
       "adrReviewEvidence": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "SESSION-PROTOCOL edit reviewed via adr-review skill debate; log at .agents/analysis/2026-07-30-session-protocol-commit-bands-debate.md."
+        "Evidence": "SESSION-PROTOCOL edit reached six-role consensus after three adr-review rounds; log at .agents/critique/SESSION-PROTOCOL-debate-log.md."
       }
     }
   },
