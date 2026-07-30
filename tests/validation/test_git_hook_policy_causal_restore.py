@@ -99,9 +99,9 @@ def _run_suppression_push(
             assert expected_range in args
             for flag in policy.TEXTUAL_DIFF_FLAGS:
                 assert flag in args
-            assert "--no-renames" in args
-            separator = args.index("--")
-            assert tuple(args[separator + 1 :]) == changed_paths
+            assert "--find-renames" in args
+            assert "--no-renames" not in args
+            assert args[-1] == "--"
             return _completed(diff_text)
         if args[0] == "show":
             return _completed("")
@@ -243,7 +243,7 @@ class TestPushedSuppressionPolicy:
 
         assert _run_suppression_push(monkeypatch, tmp_path, diff) == 0
 
-    def test_pre_existing_type_ignore_touched_elsewhere_is_allowed(self, tmp_path, monkeypatch):
+    def test_diff_without_suppression_is_allowed(self, tmp_path, monkeypatch):
         diff = """diff --git a/pkg/module.py b/pkg/module.py
 --- a/pkg/module.py
 +++ b/pkg/module.py
@@ -267,7 +267,11 @@ new file mode 100644
 
         assert _run_suppression_push(monkeypatch, tmp_path, diff, ("pkg/new.py",)) == 0
 
-    def test_type_ignore_on_context_line_adjacent_to_edit_is_allowed(self, tmp_path, monkeypatch):
+    def test_security_suppression_on_context_line_adjacent_to_edit_is_allowed(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
         suppression = "# no" "sec"
         diff = f"""diff --git a/pkg/module.py b/pkg/module.py
 --- a/pkg/module.py
@@ -330,6 +334,36 @@ new file mode 100644
                 monkeypatch,
                 tmp_path,
                 no_rename_diff,
+                ("pkg/target.py",),
+                rename_status_output=rename_status,
+            )
+            == 0
+        )
+
+    def test_rename_with_edit_preserves_existing_suppression_credit(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        suppression = "# no" "sec"
+        rename_diff = f"""diff --git a/pkg/source.py b/pkg/target.py
+similarity index 80%
+rename from pkg/source.py
+rename to pkg/target.py
+--- a/pkg/source.py
++++ b/pkg/target.py
+@@ -1 +1,2 @@
+-value = call()  {suppression}
++value = call()  {suppression}
++changed = True
+"""
+        rename_status = "\0".join(("R080", "pkg/source.py", "pkg/target.py", ""))
+
+        assert (
+            _run_suppression_push(
+                monkeypatch,
+                tmp_path,
+                rename_diff,
                 ("pkg/target.py",),
                 rename_status_output=rename_status,
             )
@@ -810,6 +844,34 @@ class TestStagedSuppressionPolicy:
 """
         assert self._run_staged(monkeypatch, tmp_path, diff) == 0
 
+    def test_staged_uppercase_security_noqa_is_blocked(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        directive = "# NO" "QA: S603"
+        diff = f"""diff --git a/pkg/module.py b/pkg/module.py
+--- a/pkg/module.py
++++ b/pkg/module.py
+@@ -0,0 +1 @@
++{directive}
+"""
+        assert self._run_staged(monkeypatch, tmp_path, diff) == 1
+
+    def test_staged_non_security_noqa_with_s_number_in_rationale_is_allowed(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        directive = "# no" "qa: E501  # explains the S3 bucket"
+        diff = f"""diff --git a/pkg/module.py b/pkg/module.py
+--- a/pkg/module.py
++++ b/pkg/module.py
+@@ -0,0 +1 @@
++{directive}
+"""
+        assert self._run_staged(monkeypatch, tmp_path, diff) == 0
+
     def test_empty_staged_diff_passes(self, tmp_path, monkeypatch):
         assert self._run_staged(monkeypatch, tmp_path, "") == 0
 
@@ -899,6 +961,22 @@ class TestStagedSuppressionPolicy:
 
         assert policy.check_staged_suppressions(repo) == 0
 
+    def test_staged_python_rename_with_edit_is_allowed(self, tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _init_push_repo(repo)
+        path = repo / "old.py"
+        source = "import subprocess  # no" "sec\n" + "".join(
+            f"value_{index} = {index}\n" for index in range(10)
+        )
+        path.write_text(source, encoding="utf-8")
+        _commit(repo, "add suppression")
+        _git(repo, "mv", "old.py", "new.py")
+        (repo / "new.py").write_text(source + "changed = True\n", encoding="utf-8")
+        _git(repo, "add", "new.py")
+
+        assert policy.check_staged_suppressions(repo) == 0
+
     def test_staged_pure_notebook_rename_is_allowed(self, tmp_path):
         repo = tmp_path / "repo"
         repo.mkdir()
@@ -975,12 +1053,21 @@ class TestStagedSuppressionPolicy:
 
     def test_precommit_globs_cover_all_suppression_suffixes(self):
         config = (_ROOT / "lefthook.yml").read_text(encoding="utf-8")
-        start = config.index("- name: security-suppressions-staged")
+        precommit = config.index("pre-commit:")
+        start = config.index("- name: security-suppressions-staged", precommit)
         end = config.index("\n    - group:", start)
         hook = config[start:end]
 
         for suffix in policy.SECURITY_SUPPRESSION_SUFFIXES:
             assert f'"**/*{suffix}"' in hook
+
+    def test_pre_merge_commit_runs_staged_suppression_gate(self):
+        config = (_ROOT / "lefthook.yml").read_text(encoding="utf-8")
+        start = config.index("pre-merge-commit:")
+        end = config.index("\npre-commit:", start)
+        hook = config[start:end]
+
+        assert "security-suppressions-staged" in hook
 
 
 class TestAdrReviewPolicyMergeScope:

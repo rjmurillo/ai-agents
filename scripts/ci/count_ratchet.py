@@ -1,8 +1,8 @@
 """Shared machinery for whole-repo violation-count ratchets.
 
-A count ratchet freezes a repository-wide violation total in a baseline file and
-fails a run only when the count INCREASES. A decrease is allowed and can lower
-the baseline, so pre-existing debt drains monotonically and can never climb back.
+A count ratchet freezes a repository-wide violation total in a baseline file.
+The measured count must equal the baseline. ``--update`` records an improvement;
+an unrecorded decrease fails because it leaves slack for later regressions.
 
 Two gates use this: ``ruff_count_ratchet.py`` (issue #2993) and
 ``taste_count_ratchet.py`` (issue #3779). Only the counting differs. Everything
@@ -23,8 +23,8 @@ Stdlib only: these gates run by path in CI (``python scripts/ci/<name>.py``) and
 must not depend on the project's import graph.
 
 Exit codes (AGENTS.md contract):
-    0 - ok (count <= baseline)
-    1 - regression (count > baseline, or baseline raised vs --base-ref)
+    0 - ok (count == baseline, or --update records a decrease)
+    1 - regression (count != baseline, or baseline raised vs --base-ref)
     2 - config error (baseline missing or malformed, bad args)
     3 - external error (the underlying linter could not run)
 """

@@ -8,6 +8,12 @@ commit-msg:
       timeout: 30s
       run: uv run --frozen python scripts/validation/git_hook_policy.py commit-message "{1}"
 
+pre-merge-commit:
+  jobs:
+    - name: security-suppressions-staged
+      timeout: 2m
+      run: uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-staged
+
 pre-commit:
   piped: true
   jobs:

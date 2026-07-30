@@ -752,3 +752,79 @@ class TestModelPinEnforcementIsWiredIntoCI:
             cwd=REPO_ROOT,
         )
         assert result.returncode == 0, result.stdout + result.stderr
+
+
+class TestTheCommitCountGateCanReadMainsTrunk:
+    """The commit-limit relief needs origin/main in the runner (issue #3997).
+
+    ``pr_commit_count.contains_main_merge`` decides the 20 vs 40 ceiling by
+    asking whether a merge parent sits on ``origin/main``'s first-parent trunk,
+    and it reads that trunk with ``git rev-list`` against the checkout. A default
+    ``actions/checkout`` is shallow and creates only ``refs/remotes/pull/<n>/
+    merge``, so the read fails, the predicate fails closed, and a branch that
+    genuinely merges main is capped at 20 in CI while the pre-push hook grants
+    it 40. That is the divergence issue #3997 removed, so the checkout that
+    hosts the gate has to carry the ref. These tests pin the wiring; the
+    predicate itself is covered in tests/validation/test_commit_limit_parity.py.
+    """
+
+    HOST_JOB = "validate-pr"
+
+    @staticmethod
+    def _jobs() -> dict:
+        return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))["jobs"]
+
+    @classmethod
+    def _host_steps(cls) -> list:
+        return cls._jobs()[cls.HOST_JOB]["steps"]
+
+    @classmethod
+    def _gate_step(cls) -> dict:
+        steps = [
+            step for step in cls._host_steps() if "pr_commit_count.py" in str(step.get("run", ""))
+        ]
+        assert len(steps) == 1, "expected exactly one commit-count step"
+        return steps[0]
+
+    @classmethod
+    def _checkout_steps(cls) -> list:
+        """The checkouts that run on the same condition as the gate.
+
+        This job also checks out on the *inverse* condition, to validate
+        workflow YAML on PRs whose author suppressed the main path. That
+        checkout never coexists with the gate, so it is not the one under test.
+        """
+        guard = cls._gate_step().get("if")
+        return [
+            step
+            for step in cls._host_steps()
+            if "actions/checkout" in str(step.get("uses")) and step.get("if") == guard
+        ]
+
+    def test_the_commit_count_gate_runs_in_the_checked_out_job(self) -> None:
+        """Positive: the gate and the checkout it depends on share a job.
+
+        The predicate resolves the repository from the process working
+        directory, so a checkout in some other job would not reach it.
+        """
+        assert len(self._checkout_steps()) == 1
+
+    def test_the_checkout_fetches_the_full_history(self) -> None:
+        """Positive: fetch-depth 0 is what populates refs/remotes/origin/main.
+
+        actions/checkout writes ``+refs/heads/*:refs/remotes/origin/*`` only on
+        an unshallow fetch. Any positive depth leaves origin/main absent or
+        truncated, and a truncated trunk is worse than an absent one because it
+        answers wrongly instead of failing closed.
+        """
+        checkout = self._checkout_steps()[0]
+        assert checkout.get("with", {}).get("fetch-depth") == 0
+
+    def test_the_hosting_job_is_not_conditional(self) -> None:
+        """Edge: a skipped host job would report no ceiling at all.
+
+        ``validate-pr`` is a required check that always reports status, so it
+        carries no job-level ``if``. A path filter here would let a PR skip the
+        commit ceiling entirely.
+        """
+        assert "if" not in self._jobs()[self.HOST_JOB]

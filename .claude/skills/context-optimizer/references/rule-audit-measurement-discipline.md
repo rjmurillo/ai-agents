@@ -1,0 +1,151 @@
+# Rule Audit Measurement Discipline: how the checks themselves went wrong
+
+Companion to `rule-audit-parser-forensics.md`, which records what broke in the
+parser. This file records what broke in the *checking* of it, and those are
+different failures with different fixes. A parser defect publishes a wrong
+number. A measurement defect publishes a wrong number and a clean report saying
+it was verified.
+
+Read this before quoting a figure you produced with a one-off command.
+
+## A check that cannot fail has not been run
+
+Two of the six negative controls covering parser round 20 were themselves false
+at first. One mutated a comment rather than the pattern. One invoked a `python`
+absent from PATH, so the interpreter never ran. Both reported clean against
+unmodified code, which is the same output a genuinely passing control produces.
+
+The control for a control is cheap and unconditional: confirm the mutation
+actually reached the file, run the suite, and confirm it now fails. `diff`
+against a backup before trusting a clean result. In this repository the
+interpreter must be invoked as `uv run --frozen python`, because bare `python`
+is not on PATH and its absence is silent inside a script that swallows the
+error.
+
+## A number needs the population it was read off
+
+Several figures in this audit were wrong not because the count was
+miscomputed but because it was computed over the wrong set.
+
+A claim that "1732 nested reasoning values name no score field" walked the
+whole archive envelope, including artifact names, session identifiers, and
+provenance prose, none of which the parser ever reads. The population the
+sentence attached to was the nested reasoning values, and there are 264 of
+them. The claim's direction did not change, but a number quoted against the
+wrong population is not evidence for anything, whichever way it points.
+
+A file-size finding was reported as three affected files when the gate scans
+markdown and code and does not scan `.xml` or `.txt`; the real figure was one.
+
+A test-addition delta was checked with `grep -o '^def test_'` against a file
+whose tests are all indented class methods, so the command returns zero and can
+never contradict the claim it is quoted for. The correction then made the same
+mistake in a second way: fixing the pattern *and* moving the comparison base
+from the commit's parent to current `origin/main` produced 76 to 87, which
+credits the change with eight tests it did not add. Measured against immutable
+revisions, `81fd0eb4` holds 84 and `ed4c4061` holds 87, so the change added 3
+with no deletions. Fixing a broken detector is only half the repair; changing
+the population at the same time hides that the first figure was right.
+
+The general form: quote a delta against two named revisions, not against a
+moving ref. `origin/main` is a different set of commits on Tuesday.
+
+The same instability afflicts running totals written into prose. Several
+documents here carried a review-round count that was accurate when written and
+silently wrong one round later, and nothing failed when it went stale. A total
+that increments while the document sits on disk is a maintenance liability, and
+the cheap repair is to write the bound the reader actually needs, more than
+twenty rounds, rather than a precise figure that has to be chased. Reserve
+exact counts for populations that are closed.
+
+The shared shape is a detector applied to a set that could not have contained
+the thing being counted. Before quoting a figure, state the denominator out
+loud and check that the detector can see a member of it.
+
+## An unintended deletion does not announce itself
+
+A find-and-replace anchored on a structural opener deletes that opener unless
+the replacement re-emits it. In this audit it took a `def` line twice, removing
+a test while leaving its body attached to the previous function, and it took
+the `<!-- vendor-portability:` marker at the foot of the forensics file,
+turning two long-declared path references back into undeclared drift.
+
+Each time, the edit reported success. The portability gate caught the third,
+but only because the gate was run.
+
+The obvious detector is `git diff | grep '^-'` after each edit, and it is
+weaker than it looks. Run against a file the base revision does not contain it
+matches only `--- /dev/null`, so a brand-new file always reports clean no
+matter what was removed from it since. That happened here: a deletion audit run
+as `git diff origin/main -- <path>` on a file created on the branch reported
+zero removals by construction, and the reassurance it produced was worth
+nothing. Assert the baseline first, and assert it precisely: `git cat-file -e`
+succeeds on a directory as well as a file, so a truncated path passes the check
+and then produces a broad, reassuring directory diff. Require the type,
+`test "$(git cat-file -t "$base:$path")" = blob`, and compare against the
+branch tip rather than the trunk when the file is new.
+
+A rename produces the same vacuum for the same reason, and the guard catches
+it: `cat-file` reports the new path absent from the base even though the
+content is there under the old name. The remedy is not to give up but to name
+both paths and enable rename detection, `git diff -M "$base" -- old new`, which
+restores the deleted lines the single-path form hid.
+
+Even with the right base, a deleted-line grep proves only that some line went
+missing, not that a particular structural anchor survived. The stronger check
+is the invariant that owns the anchor: pytest collection for a test, the
+portability gate for a vendor marker, the parity gate for a manifest. For
+multi-function edits, prefer removing an AST span to matching on a `def` line.
+
+## A helper probed alone can answer a different question than the entry point
+
+Verifying the claim that all 24 archived judge failures salvage, the obvious
+check was to call the recovery helper on each stored payload. It returned
+`None` for 24 of 24, and the strict parser raised on 24 of 24. Both counts were
+correct. Both were about a different question than the one being asked.
+
+The entry point returns `judge_failed=False` and `judge_salvaged=True` for all
+24. `_recover_verdict` returning `None` means no *embedded complete object* was
+found, which is one route among several; the three top-level integers are still
+extractable, and the function named `_judge_parse_failure` extracts them. Its
+name asserts an outcome it does not produce, which is now issue #4031.
+
+Two correct measurements pointed the opposite way from the real behaviour, and
+the reason was reading a name instead of a return value. Had the claim been
+retracted on that evidence, a true finding would have been replaced with a
+false one, and the retraction would have looked better supported than the
+original because it cited two numbers.
+
+The procedure that catches it: verify a claim about observable behaviour
+through the entry point that produces the observable, not through the helper
+that looks responsible for it. Reach for a helper only to explain a result the
+entry point already established, and when a helper's answer contradicts the
+entry point, the entry point wins and the contradiction is a finding about the
+helper.
+
+A second-order form of the same trap: this instrument has two duplicate-name
+guards, a textual one for payloads that did not parse and a structural one for
+payloads that did. Checking the wrong one is not a wrong answer, it is an
+answer to the other question, and on a population where the chosen guard cannot
+run it returns a clean zero that reads like evidence. The measurement of the 24
+failures had exactly that shape at first, because the structural guard was
+applied to payloads that by definition do not parse. Name the guard in the
+claim, and confirm with a control that the chosen one fires on a positive case
+drawn from the same population.
+
+## An over-eager refusal is not symmetric with an over-eager accept
+
+This is the asymmetry the whole instrument turns on, and it governs how much
+evidence each direction needs before shipping.
+
+A refusal is visible. It sets a marker, it moves the judge-failure count, and
+it shows up in the sample totals, so a reviewer can find it and measure its
+cost. A fabrication is an unmarked false observation: it returns through the
+clean-parse branch, sets nothing, and is indistinguishable from a judge that
+simply answered.
+
+So a fix that refuses a wider class than strictly necessary is cheap to audit
+and a fix that accepts a narrower one is not. The rule that follows: refuse the
+whole class, then measure the refusal's cost against the correct population
+before shipping it. Every round that instead enumerated the bad cases reopened
+the hole somewhere else.
