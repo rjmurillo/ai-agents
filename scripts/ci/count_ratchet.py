@@ -273,14 +273,19 @@ def run(
         return EXIT_REGRESSION
 
     if count < baseline:
-        message = f"{label}: improved {baseline} -> {count} (-{baseline - count})."
         if args.update:
             args.baseline.write_text(f"{count}\n", encoding="utf-8")
-            message += " Baseline lowered."
-        else:
-            message += " Run with --update to lower the baseline."
-        print(message)
-        return EXIT_OK
+            print(
+                f"{label}: improved {baseline} -> {count} (-{baseline - count}). Baseline lowered."
+            )
+            return EXIT_OK
+        print(
+            f"{label}: BASELINE STALE. {count} violations < baseline {baseline} "
+            f"(-{baseline - count}). Run with --update to lower the baseline and "
+            f"close the slack.",
+            file=sys.stderr,
+        )
+        return EXIT_REGRESSION
 
     print(f"{label}: OK (count == baseline {baseline}).")
     return EXIT_OK
