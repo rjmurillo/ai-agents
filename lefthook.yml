@@ -337,6 +337,11 @@ pre-push:
             run: uv run --frozen python scripts/validation/git_hook_policy.py placeholder-identity
             use_stdin: true
 
+    - name: push-ref-staleness
+      timeout: 1m
+      run: uv run --frozen python scripts/validation/push_ref_staleness.py
+      use_stdin: true
+
     - group:
         parallel: true
         jobs:
