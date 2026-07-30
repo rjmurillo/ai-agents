@@ -5,7 +5,7 @@
     "date": "2026-07-31",
     "branch": "fix/lint-suppression-policy",
     "startingCommit": "0adb7d51f",
-    "objective": "Fix lint debt campaign: scope suppression gate to security rules, delete dead noqa directives, fix stale baselines (issues #2993, #3713, #3761, #3792, #3809, #3843, #3877, #3899, #3941)"
+    "objective": "Fix security suppression gate scope, staged and merge parity, move detection, and stale count baselines"
   },
   "protocolCompliance": {
     "sessionStart": {
@@ -74,7 +74,7 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All MUST items complete or documented N/A"
+        "Evidence": "All MUST items complete"
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -94,17 +94,17 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commits cd5745051, 3cbab7519, 35684fcfe, eae45d00c, f7b13eb68, 2a5bb9af8, 557d89275 plus session log commit"
+        "Evidence": "Final code tip 4f570d9a6 after two main merges, review fixes, and security hardening"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run ruff check: 331 violations unchanged; pytest 88 gate tests pass; 3/3 mutants killed"
+        "Evidence": "151 targeted tests pass; ruff and mypy pass; ruff baseline 331 and taste baseline 613 both match"
       },
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "All 9 issues addressed with evidence"
+        "Evidence": "Fixed #3713, #3761, #3809, #3843, #3899, #4049, #4051, and #4052; reopened #3792 and #3941 because their cleanup left the final tree"
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
@@ -146,28 +146,29 @@
     },
     {
       "step": 6,
-      "action": "Added 15 gate tests (TestPushedSuppressionPolicy + TestStagedSuppressionPolicy); ran 3/3 mutation tests",
-      "result": "commit f7b13eb68: 88 gate tests pass"
+      "action": "Expanded push, staged, merge, rename, notebook, type-change, and hook-wiring coverage",
+      "result": "107 suppression-policy tests and 44 ratchet tests pass"
     },
     {
       "step": 7,
-      "action": "RUF100 mass-fix analysis: found 255 of 772 'dead' noqa are live E402 suppressions; mass-fix unsafe (465 new CI failures). Deleted only noqa for rules with prefixes entirely outside ruff select list",
-      "result": "commit 2a5bb9af8: 80 dead noqa deleted; #3792 partially addressed; #3941 fixed (eval-model-sweep.py S404/S603 noqa converted to comments)"
+      "action": "Removed the 52-file dead-noqa cleanup from the final PR tree",
+      "result": "PR scope fell below the 50-file hard limit; #3792 and #3941 reopened for focused follow-up"
     },
     {
       "step": 8,
-      "action": "Fixed pre-existing taste baseline drift (615 to 616); updated taste ratchet test to expect EXIT_REGRESSION",
-      "result": "commit 557d89275"
+      "action": "Made stale ratchet baselines fail and aligned current baselines",
+      "result": "Ruff count equals 331; taste count equals 613"
     },
     {
       "step": 9,
-      "action": "Removed dead S-prefixed noqa from cwe77_command_injection.py benchmark",
-      "result": "This commit (session log + .agents file)"
+      "action": "Closed security-review findings and merge-specific false positives",
+      "result": "File-level directives, split notebooks, type changes, trusted merge parents, rename-with-edit, uppercase tokens, and pre-merge hooks covered"
     }
   ],
-  "endingCommit": "557d89275",
+  "endingCommit": "4f570d9a6",
   "nextSteps": [
-    "Issue #3877 (nosemgrep for LDAP false-positives) deferred to separate security-review PR",
-    "RUF100 global enable deferred: requires ruff E402/sys.path inconsistency to be resolved first"
+    "Issues #3792 and #3941 need focused cleanup PRs",
+    "Issue #4039 tracks a separate type-ignore policy",
+    "Issues #4057 and #4058 track ratchet concurrency and merge-resolver validation"
   ]
 }

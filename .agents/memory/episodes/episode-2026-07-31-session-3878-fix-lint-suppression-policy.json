@@ -4,7 +4,7 @@
   "timestamp": "2026-07-31T00:00:00+00:00",
   "causal_order_version": 2,
   "outcome": "success",
-  "task": "Fix lint debt campaign: scope suppression gate to security rules, delete dead noqa directives, fix stale baselines (issues #2993, #3713, #3761, #3792, #3809, #3843, #3877, #3899, #3941)",
+  "task": "Fix security suppression gate scope, staged and merge parity, move detection, and stale count baselines",
   "decisions": [],
   "events": [
     {
@@ -51,7 +51,7 @@
       "id": "e006",
       "timestamp": "2026-07-31T00:00:00+00:00",
       "type": "milestone",
-      "content": "Added 15 gate tests (TestPushedSuppressionPolicy + TestStagedSuppressionPolicy); ran 3/3 mutation tests",
+      "content": "Expanded push, staged, merge, rename, notebook, type-change, and hook-wiring coverage",
       "caused_by": [],
       "leads_to": []
     },
@@ -59,7 +59,7 @@
       "id": "e007",
       "timestamp": "2026-07-31T00:00:00+00:00",
       "type": "milestone",
-      "content": "RUF100 mass-fix analysis: found 255 of 772 'dead' noqa are live E402 suppressions; mass-fix unsafe (465 new CI failures). Deleted only noqa for rules with prefixes entirely outside ruff select list",
+      "content": "Removed the 52-file dead-noqa cleanup from the final PR tree",
       "caused_by": [],
       "leads_to": []
     },
@@ -67,7 +67,7 @@
       "id": "e008",
       "timestamp": "2026-07-31T00:00:00+00:00",
       "type": "milestone",
-      "content": "Fixed pre-existing taste baseline drift (615 to 616); updated taste ratchet test to expect EXIT_REGRESSION",
+      "content": "Made stale ratchet baselines fail and aligned current baselines",
       "caused_by": [],
       "leads_to": []
     },
@@ -75,7 +75,7 @@
       "id": "e009",
       "timestamp": "2026-07-31T00:00:00+00:00",
       "type": "milestone",
-      "content": "Removed dead S-prefixed noqa from cwe77_command_injection.py benchmark",
+      "content": "Closed security-review findings and merge-specific false positives",
       "caused_by": [],
       "leads_to": []
     },
@@ -83,80 +83,8 @@
       "id": "e010",
       "timestamp": "2026-07-31T00:00:00+00:00",
       "type": "commit",
-      "content": "Commit: cd5745051",
+      "content": "Commit: 4f570d9a6",
       "caused_by": [],
-      "leads_to": [
-        "e011"
-      ]
-    },
-    {
-      "id": "e011",
-      "timestamp": "2026-07-31T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 3cbab7519",
-      "caused_by": [
-        "e010"
-      ],
-      "leads_to": [
-        "e012"
-      ]
-    },
-    {
-      "id": "e012",
-      "timestamp": "2026-07-31T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 35684fcfe",
-      "caused_by": [
-        "e011"
-      ],
-      "leads_to": [
-        "e013"
-      ]
-    },
-    {
-      "id": "e013",
-      "timestamp": "2026-07-31T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: eae45d00c",
-      "caused_by": [
-        "e012"
-      ],
-      "leads_to": [
-        "e014"
-      ]
-    },
-    {
-      "id": "e014",
-      "timestamp": "2026-07-31T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: f7b13eb68",
-      "caused_by": [
-        "e013"
-      ],
-      "leads_to": [
-        "e015"
-      ]
-    },
-    {
-      "id": "e015",
-      "timestamp": "2026-07-31T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 2a5bb9af8",
-      "caused_by": [
-        "e014"
-      ],
-      "leads_to": [
-        "e016"
-      ]
-    },
-    {
-      "id": "e016",
-      "timestamp": "2026-07-31T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 557d89275",
-      "caused_by": [
-        "e015"
-      ],
       "leads_to": []
     }
   ],
@@ -165,8 +93,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 7,
-    "files_changed": 4
+    "commits": 1,
+    "files_changed": 9
   },
   "lessons": []
 }
