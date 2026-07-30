@@ -325,6 +325,11 @@ CONFLICT_MARKER_RE = re.compile(r"^(?:<{7}|\|{7}|>{7}) \S")
 # taste_lints.py exit contract: 0 clean, 1 script error, 10 violations found.
 # Only 10 means the lint ran and had something to say (issue #3779).
 _TASTE_LINT_EXIT_VIOLATIONS = 10
+# A NUL in the first 8 KiB is the usual "this is binary" heuristic, and git uses
+# the same idea to decide whether to show a diff. Without it the tracked-tree
+# scan decodes every PNG and every compiled artifact in the repository to look
+# for a marker that cannot be there.
+_BINARY_SNIFF_BYTES = 8192
 MARKDOWN_FENCE_RE = re.compile(r"^\s*(?:`{3,}|~{3,})")
 GIT_ENV_KEYS = (
     "GIT_DIR",
@@ -1545,8 +1550,15 @@ def _conflict_marker_violations(path: str, content: bytes) -> list[str]:
     return violations
 
 
+def _is_unmerged_path(repo_root: Path, relative_path: str) -> bool:
+    """A path in the index but not at stage 0 is mid-conflict."""
+    result = _run_git(repo_root, ["ls-files", "-u", "--", relative_path])
+    return result.returncode == 0 and bool(result.stdout.strip())
+
+
 def check_staged_conflict_markers(paths: Sequence[str], repo_root: Path) -> int:
     violations: list[str] = []
+    unmerged: list[str] = []
     for raw_path in paths:
         path = _safe_relative_path(raw_path)
         if path is None:
@@ -1556,8 +1568,21 @@ def check_staged_conflict_markers(paths: Sequence[str], repo_root: Path) -> int:
             continue
         content = _read_index_blob(repo_root, path)
         if content is None:
+            # Stage 0 is absent during a conflict; say so instead of
+            # skipping the one state this gate exists to catch (issue #3770).
+            if _is_unmerged_path(repo_root, path):
+                unmerged.append(path)
             continue
         violations.extend(_conflict_marker_violations(path, content))
+    if unmerged:
+        print("ERROR: paths have unresolved merge conflicts:", file=sys.stderr)
+        for path in unmerged:
+            print(f"  {path}", file=sys.stderr)
+        print(
+            "Resolve the conflict and `git add` each path before committing.",
+            file=sys.stderr,
+        )
+        return 1
     if not violations:
         return 0
     print("ERROR: staged content contains git conflict markers:", file=sys.stderr)
@@ -1566,6 +1591,96 @@ def check_staged_conflict_markers(paths: Sequence[str], repo_root: Path) -> int:
     print(
         "Resolve the conflict and restage. To quote a marker in documentation, "
         "put it inside a fenced code block.",
+        file=sys.stderr,
+    )
+    return 1
+
+
+def _tracked_file_bytes(full_path: Path) -> bytes | None:
+    """Content to scan, or None when the path has no scannable content.
+
+    Symlinks and gitlink directories are skipped: the tracked object is the
+    link target string or the submodule commit, and following the link could
+    read outside the repo. A missing file is a sparse-checkout concern, not a
+    conflict. Binary detection stops at the sniff window rather than pulling
+    the rest into memory only to discard it: the 26 binary files tracked
+    today are 26.4 MB, 26.8% of the 98.5 MB this walk would otherwise read.
+    Other OSErrors propagate for the caller to map to a config error.
+    """
+    if full_path.is_symlink() or full_path.is_dir():
+        return None
+    try:
+        with full_path.open("rb") as handle:
+            head = handle.read(_BINARY_SNIFF_BYTES)
+            if b"\0" in head:
+                return None
+            return head + handle.read()
+    except FileNotFoundError:
+        return None
+
+
+def check_tracked_conflict_markers(repo_root: Path) -> int:
+    """Fail when any tracked file carries a conflict marker (issue #3770).
+
+    ``staged-conflict-markers`` runs at pre-commit over the index, which is the
+    right place to catch a marker as it is written but the wrong place to be the
+    only check. Every route that skips local hooks reaches the remote unchecked:
+    a server-side merge from the "Update branch" button, ``--no-verify``, a
+    clone where ``lefthook install`` was never run, a bot push.
+
+    One instance is already in the history. Commit ``b71580c23`` landed two
+    unresolved hunks in ``tests/test_lefthook_integration.py`` while neither
+    parent carried any, then survived four further merges. The thing that caught
+    it was CI's Python syntax check, which is incidental coverage: it exists to
+    enforce the 3.10 syntax floor, it only reads Python, and a marker in
+    Markdown or YAML has no equivalent anywhere.
+
+    This walks the whole tracked tree rather than a diff so that a marker
+    introduced by any route is caught by the PR that carries it, not by whatever
+    unrelated parser happens to choke first. The tree is clean today (0 hits
+    across 7,530 tracked files), so this is a ratchet at zero and needs no
+    allowlist.
+    """
+    result = _run_git(repo_root, ["ls-files", "-z"])
+    if result.returncode != 0:
+        print("ERROR: could not list tracked files", file=sys.stderr)
+        return 2
+    violations: list[str] = []
+    # ``-z`` NUL-terminates every entry, so a plain split leaves a trailing
+    # empty element. Strip it here rather than guarding inside the loop.
+    tracked = result.stdout.rstrip("\0").split("\0") if result.stdout else []
+    for raw_path in tracked:
+        if raw_path.startswith(SKIPPED_DASH_PREFIXES):
+            continue
+        path = _safe_relative_path(raw_path)
+        if path is None:
+            print(
+                f"ERROR: refusing unsafe tracked path {raw_path!r}",
+                file=sys.stderr,
+            )
+            return 2
+        try:
+            content = _tracked_file_bytes(repo_root / path)
+        except OSError as exc:
+            # Permissions or I/O errors are an environment the scan cannot
+            # vouch for; silently continuing would report clean on a tree it
+            # did not read.
+            print(
+                f"ERROR: could not read tracked file {path}: {exc}",
+                file=sys.stderr,
+            )
+            return 2
+        if content is None:
+            continue
+        violations.extend(_conflict_marker_violations(path, content))
+    if not violations:
+        return 0
+    print("ERROR: tracked files contain git conflict markers:", file=sys.stderr)
+    for violation in violations:
+        print(f"  {violation}", file=sys.stderr)
+    print(
+        "Resolve the conflict and push the fix. To quote a marker in "
+        "documentation, put it inside a fenced code block.",
         file=sys.stderr,
     )
     return 1
@@ -4989,6 +5104,10 @@ def _handle_staged_conflict_markers(args: argparse.Namespace) -> int:
     return check_staged_conflict_markers(args.paths, _repo_root(args))
 
 
+def _handle_tracked_conflict_markers(args: argparse.Namespace) -> int:
+    return check_tracked_conflict_markers(_repo_root(args))
+
+
 def _handle_github_bash(args: argparse.Namespace) -> int:
     return check_github_bash_scripts(args.paths, _repo_root(args))
 
@@ -5152,6 +5271,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("semgrep-push", _handle_semgrep_push),
         ("security-suppressions-push", _handle_suppressions_push),
         ("pre-push", _handle_pre_push),
+        ("tracked-conflict-markers", _handle_tracked_conflict_markers),
     )
     for name, handler in path_commands:
         _add_path_command(subparsers, name, handler)

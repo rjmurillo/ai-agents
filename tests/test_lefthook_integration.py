@@ -8349,6 +8349,41 @@ def test_conflict_marker_policy_passes_a_clean_staged_file(tmp_path: Path) -> No
     assert policy.check_staged_conflict_markers(["doc.md"], repo) == 0
 
 
+def test_conflict_marker_policy_reports_an_unmerged_path(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A conflicted, unstaged path produces a message rather than exit 0.
+
+    Stage 0 is absent mid-conflict, so the index read fails and the old code
+    skipped the path silently (issue #3770, AC3).
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "doc.md", "base\n")
+    _git(repo, "checkout", "-q", "-b", "other")
+    _commit_file(repo, "doc.md", "other\n")
+    _git(repo, "checkout", "-q", "feature/test")
+    _commit_file(repo, "doc.md", "feature\n")
+    _git(repo, "merge", "other", check=False)
+
+    assert policy.check_staged_conflict_markers(["doc.md"], repo) == 1
+    error = capsys.readouterr().err
+    assert "unresolved merge conflicts" in error
+    assert "doc.md" in error
+
+
+def test_conflict_marker_policy_still_skips_a_path_not_in_the_index(
+    tmp_path: Path,
+) -> None:
+    """Negative control: absent-from-index stays a silent skip, not an error."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "doc.md", "base\n")
+
+    assert policy.check_staged_conflict_markers(["missing.md"], repo) == 0
+
+
 def test_conflict_marker_policy_skips_the_hook_fixture_prefix(tmp_path: Path) -> None:
     """tests/hooks/fixtures carries prohibited bytes on purpose."""
     repo = tmp_path / "repo"
@@ -8544,3 +8579,283 @@ def test_a_clean_taste_lint_says_nothing(
     )
     assert policy.run_taste_advisory(["source.py"], tmp_path) == 0
     assert "advisory" not in capsys.readouterr().err
+# ---------------------------------------------------------------------------
+# Issue #3770: the conflict-marker gate needs a backstop that survives every
+# route which skips local hooks
+# ---------------------------------------------------------------------------
+
+
+def test_the_tracked_scan_passes_a_clean_tree(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "doc.md", "clean\n")
+
+    assert policy.check_tracked_conflict_markers(repo) == 0
+
+
+def test_the_tracked_scan_catches_a_marker_the_staged_scan_cannot(
+    tmp_path: Path,
+) -> None:
+    """The isolating control for this whole change.
+
+    The pre-commit gate is invoked with `{staged_files}`. Once a commit is made
+    nothing is staged, so every later hook run passes it an empty list and it
+    returns 0 without reading anything. The marker is now in the history and no
+    local hook will ever be handed its path again.
+
+    That is the gap b71580c23 fell through, and it is why a backstop has to
+    choose its own scope rather than inherit one from the staging area.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "doc.md", "<<<<<<< HEAD\nx\n>>>>>>> main\n")
+
+    # What lefthook actually invokes after the commit: nothing is staged.
+    assert _git(repo, "diff", "--name-only", "--cached").stdout.strip() == ""
+    assert policy.check_staged_conflict_markers([], repo) == 0
+
+    assert policy.check_tracked_conflict_markers(repo) == 1
+
+
+def test_the_tracked_scan_reads_the_worktree_not_the_index(
+    tmp_path: Path,
+) -> None:
+    """CI checks out the head commit, so the worktree is the thing under test."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "doc.md", "clean\n")
+    _write_file(repo, "doc.md", "<<<<<<< HEAD\nx\n>>>>>>> main\n")
+
+    assert policy.check_tracked_conflict_markers(repo) == 1
+
+
+def test_the_tracked_scan_ignores_untracked_files(tmp_path: Path) -> None:
+    """A scratch file in someone's worktree is not what a PR is shipping."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "doc.md", "clean\n")
+    _write_file(repo, "scratch.md", "<<<<<<< HEAD\nx\n>>>>>>> main\n")
+
+    assert policy.check_tracked_conflict_markers(repo) == 0
+
+
+def test_the_tracked_scan_allows_a_marker_inside_a_fence(tmp_path: Path) -> None:
+    """merge-resolver documentation quotes markers on purpose."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(
+        repo,
+        "guide.md",
+        "How to resolve:\n\n```\n<<<<<<< HEAD\nx\n>>>>>>> main\n```\n",
+    )
+
+    assert policy.check_tracked_conflict_markers(repo) == 0
+
+
+def test_the_tracked_scan_skips_binary_files(tmp_path: Path) -> None:
+    """Without the NUL sniff every tracked PNG gets decoded to look for text."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "doc.md", "clean\n")
+    (repo / "blob.bin").write_bytes(b"\x00\x01<<<<<<< HEAD\nx\n>>>>>>> main\n")
+    _git(repo, "add", "blob.bin")
+    _git(repo, "commit", "-m", "add blob")
+
+    assert policy.check_tracked_conflict_markers(repo) == 0
+
+
+def test_the_tracked_scan_finds_a_marker_past_the_sniff_window(
+    tmp_path: Path,
+) -> None:
+    """The binary sniff reads a head chunk; the rest of the file still counts.
+
+    The scan reads ``_BINARY_SNIFF_BYTES`` first so a tracked PNG never lands
+    in memory whole. That split is only safe while the text branch appends the
+    remainder: dropping it would silently stop reporting every marker beyond
+    the first 8 KB, and every existing case here sits inside that window.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    padding = "filler line\n" * (policy._BINARY_SNIFF_BYTES // 6)
+    assert len(padding.encode("utf-8")) > policy._BINARY_SNIFF_BYTES
+    _commit_file(repo, "long.md", padding + "<<<<<<< HEAD\nx\n>>>>>>> main\n")
+
+    assert policy.check_tracked_conflict_markers(repo) == 1
+
+
+def test_the_tracked_scan_skips_a_binary_whose_nul_is_in_the_head(
+    tmp_path: Path,
+) -> None:
+    """A large binary must be judged from the head chunk, not the whole file.
+
+    Pairs with the test above: that one proves the remainder is still read for
+    text, this one proves a binary is rejected before the remainder is touched,
+    so neither half of the two-stage read can be removed unnoticed.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "doc.md", "clean\n")
+    tail = b"<<<<<<< HEAD\nx\n>>>>>>> main\n"
+    (repo / "big.bin").write_bytes(
+        b"\x00" + b"\xff" * (policy._BINARY_SNIFF_BYTES * 4) + tail
+    )
+    _git(repo, "add", "big.bin")
+    _git(repo, "commit", "-m", "add big blob")
+
+    assert policy.check_tracked_conflict_markers(repo) == 0
+
+
+def test_the_tracked_scan_reads_only_the_head_of_a_binary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The point of the two-stage read is bytes, so measure bytes.
+
+    Behaviour tests cannot see the difference: reading a binary whole and
+    reading only its head both end in the same skip and the same exit code.
+    Only a byte count distinguishes them, and the byte count is the whole
+    reason the split exists. The 26 binaries tracked today are 26.4 MB, 26.8%
+    of what this walk would otherwise read.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "doc.md", "clean\n")
+    (repo / "big.bin").write_bytes(
+        b"\x00" + b"\xff" * (policy._BINARY_SNIFF_BYTES * 16)
+    )
+    _git(repo, "add", "big.bin")
+    _git(repo, "commit", "-m", "add big blob")
+
+    bytes_read: dict[str, int] = {}
+    real_open = Path.open
+
+    class _CountingHandle:
+        def __init__(self, handle: Any, name: str) -> None:
+            self._handle = handle
+            self._name = name
+
+        def __enter__(self) -> _CountingHandle:
+            return self
+
+        def __exit__(self, *exc: object) -> None:
+            self._handle.close()
+
+        def read(self, size: int = -1) -> bytes:
+            data = self._handle.read(size)
+            bytes_read[self._name] = bytes_read.get(self._name, 0) + len(data)
+            return data
+
+    def counting_open(self: Path, *args: Any, **kwargs: Any) -> Any:
+        handle = real_open(self, *args, **kwargs)
+        if self.name != "big.bin":
+            return handle
+        return _CountingHandle(handle, self.name)
+
+    monkeypatch.setattr(Path, "open", counting_open)
+    try:
+        assert policy.check_tracked_conflict_markers(repo) == 0
+    finally:
+        monkeypatch.undo()
+
+    assert bytes_read["big.bin"] <= policy._BINARY_SNIFF_BYTES, (
+        f"read {bytes_read['big.bin']} bytes of a binary, expected at most "
+        f"{policy._BINARY_SNIFF_BYTES}"
+    )
+
+
+def test_the_tracked_scan_honours_the_skipped_prefixes(tmp_path: Path) -> None:
+    """tests/hooks/fixtures carries prohibited bytes on purpose."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    fixture = "tests/hooks/fixtures/conflict.md"
+    (repo / "tests" / "hooks" / "fixtures").mkdir(parents=True)
+    (repo / fixture).write_text("<<<<<<< HEAD\nx\n>>>>>>> main\n", encoding="utf-8")
+    _git(repo, "add", fixture)
+    _git(repo, "commit", "-m", "add fixture")
+
+    assert policy.check_tracked_conflict_markers(repo) == 0
+
+
+def test_the_tracked_scan_does_not_follow_symlinks(tmp_path: Path) -> None:
+    """The tracked object for a symlink is the link, not the target.
+
+    Following the link would scan (or block on) whatever it points at,
+    including paths outside the repo.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked.txt", "clean\n")
+    outside = tmp_path / "outside.txt"
+    outside.write_text("<<<<<<< HEAD\nx\n>>>>>>> main\n", encoding="utf-8")
+    link = repo / "link.txt"
+    try:
+        link.symlink_to(outside)
+    except OSError:
+        pytest.skip("filesystem does not support symlinks")
+    _git(repo, "add", "link.txt")
+    _git(repo, "commit", "-m", "add symlink")
+
+    assert policy.check_tracked_conflict_markers(repo) == 0
+
+
+def test_the_tracked_scan_skips_a_sparse_missing_file(tmp_path: Path) -> None:
+    """A tracked path absent from the worktree is a checkout concern."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked.txt", "clean\n")
+    (repo / "tracked.txt").unlink()
+
+    assert policy.check_tracked_conflict_markers(repo) == 0
+
+
+@pytest.mark.skipif(os.name == "nt", reason="chmod 0 is a no-op on Windows")
+def test_the_tracked_scan_fails_config_on_an_unreadable_file(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Silently continuing would report clean on a tree the scan never read."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked.txt", "clean\n")
+    (repo / "tracked.txt").chmod(0)
+    try:
+        assert policy.check_tracked_conflict_markers(repo) == 2
+    finally:
+        (repo / "tracked.txt").chmod(0o644)
+    assert "could not read tracked file" in capsys.readouterr().err
+
+
+def test_the_tracked_scan_survives_a_tracked_path_missing_from_disk(
+    tmp_path: Path,
+) -> None:
+    """Sparse checkouts and submodules leave tracked paths absent."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "doc.md", "clean\n")
+    (repo / "doc.md").unlink()
+
+    assert policy.check_tracked_conflict_markers(repo) == 0
+
+
+def test_the_tracked_scan_reports_every_offending_line(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "a.md", "<<<<<<< HEAD\nx\n>>>>>>> main\n")
+    _commit_file(repo, "b.md", "y\n<<<<<<< HEAD\n")
+
+    assert policy.check_tracked_conflict_markers(repo) == 1
+    err = capsys.readouterr().err
+    assert "a.md:1" in err
+    assert "a.md:3" in err
+    assert "b.md:2" in err
+
+
+def test_the_tracked_scan_reports_a_git_failure_as_a_config_error(
+    tmp_path: Path,
+) -> None:
+    """Exit 2 is the repo-is-unusable code; 1 means markers were found."""
+    not_a_repo = tmp_path / "plain"
+    not_a_repo.mkdir()
+
+    assert policy.check_tracked_conflict_markers(not_a_repo) == 2
