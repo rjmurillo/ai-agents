@@ -209,6 +209,12 @@ UPSTREAM_PATTERNS: tuple[re.Pattern[str], ...] = (
         _BOUNDARY + r"templates[\\/]+platforms" + _TERMINATOR,
         re.IGNORECASE,
     ),
+    # `scripts/` exists only in the upstream checkout (issue #4013). Neither
+    # plugin root ships the scripts/ tree, so a skill prose instruction that
+    # tells the agent to open or run `scripts/x.py` will silently fail in every
+    # consumer install. Require the path-separator to avoid matching the plain
+    # English word "scripts" in surrounding prose.
+    re.compile(_BOUNDARY + r"scripts[\\/]", re.IGNORECASE),
 )
 
 # A skill self-declares its upstream path dependencies with this HTML comment.
@@ -403,9 +409,11 @@ def scan_plugin_roots(root: Path) -> dict[str, int]:
 def _markdown_regression_message(rel: str, count: int, allowed: int) -> str:
     return (
         f"{rel}: {count} upstream-path refs in prose (baseline {allowed}). "
-        "Resolve via plugin/skill root or consumer cwd, or declare the "
-        "dependency with an HTML comment marker "
-        "'<!-- vendor-portability: ... -->' (issue #2050)."
+        "Resolve a '.claude/...' ref via plugin/skill root or consumer cwd. "
+        "A 'scripts/' ref has no resolved form (that tree is upstream-only and "
+        "ships in neither plugin root), so drop it instead. Either kind may be "
+        "declared with an HTML comment marker "
+        "'<!-- vendor-portability: ... -->' (issues #2050, #4013)."
     )
 
 

@@ -16,6 +16,7 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -164,9 +165,7 @@ class TestScoreResponseJudgeShape:
             '{"activation_score": 5e0, "citation_score": 5, "behavior_score": 5}',
         ],
     )
-    def test_malformed_judge_score_object_sets_judge_failed(
-        self, monkeypatch, judge_json
-    ):
+    def test_malformed_judge_score_object_sets_judge_failed(self, monkeypatch, judge_json):
         monkeypatch.setattr(eval_mod, "_call_api", lambda *_args, **_kwargs: judge_json)
 
         scores = eval_mod.score_response(
@@ -302,9 +301,7 @@ class TestLoadScenariosFile:
         # Even within .claude/rules/, non-.md files must be rejected.
         f = tmp_path / "non_md.json"
         f.write_text(
-            json.dumps(
-                {"rule_path": ".claude/rules/", "scenarios": []}
-            ),
+            json.dumps({"rule_path": ".claude/rules/", "scenarios": []}),
             encoding="utf-8",
         )
         result = eval_mod._load_scenarios_file(str(f))
@@ -387,9 +384,7 @@ def _assert_fixture_routes_to_library(rule_id: str) -> None:
     data, target_paths = loaded
     skill_path, reference_path = target_paths
     assert data["rule_id"] == rule_id
-    expected_skill = (
-        REPO_ROOT / ".claude" / "skills" / "software-engineering-library" / "SKILL.md"
-    )
+    expected_skill = REPO_ROOT / ".claude" / "skills" / "software-engineering-library" / "SKILL.md"
     assert skill_path == expected_skill
     assert reference_path == (
         REPO_ROOT
@@ -924,9 +919,7 @@ class TestJudgeSampleReduction:
             },
         )()
 
-        _rule_id, result, calls = eval_mod._process_one_rule(
-            "key", scenarios_data, rule_path, args
-        )
+        _rule_id, result, calls = eval_mod._process_one_rule("key", scenarios_data, rule_path, args)
 
         assert result is None
         assert calls == len(eval_mod.MECHANISMS) * 4
@@ -980,25 +973,53 @@ def test_extract_json_object_returns_plain_object_unchanged():
     assert eval_mod._extract_json_object(_JUDGE) == _JUDGE
 
 
-def test_extract_json_object_skips_leading_cli_tool_trace():
+def _score_with_judge_text(monkeypatch: pytest.MonkeyPatch, judge_text: str) -> dict[str, Any]:
+    """Run ``score_response`` against a fixed judge payload.
+
+    Takes ``monkeypatch`` rather than assigning the attribute directly so the
+    stub is torn down even when the call under test raises, and so the module
+    attribute is set the way the rest of this file sets it.
+    """
+    monkeypatch.setattr(eval_mod, "_call_api", lambda *_args, **_kwargs: judge_text)
+    return eval_mod.score_response(
+        "sk-test",
+        {"input": "x", "expected_gate": "apply-rule"},
+        "response",
+    )
+
+
+def test_extract_json_object_refuses_a_leading_cli_tool_trace():
+    """A payload that leads with prose has no readable verdict.
+
+    The searching version walked past this trace and returned the object after
+    it. That search is what produced twelve fabrication defects, each one a
+    disagreement about which candidate was the answer. The trace is also not a
+    shape the harness still sees: ``_copilot_cli._read_session_transcript``
+    reads ``assistant.message`` events, where tool calls sit in a sibling
+    field. Refusing costs one of three judge samples and is recorded as a
+    failure; searching cost a published number and was recorded as nothing.
+    """
     text = (
         "\u25cf List working directory contents (shell)\n"
         "  \u2502 ls -la /tmp/eval-copilot-abc 2>&1 | head -50\n"
         "  \u2514 4 lines\u2026\n\n" + _JUDGE
     )
-    assert eval_mod._extract_json_object(text) == _JUDGE
+    assert eval_mod._extract_json_object(text) is None
 
 
 def test_extract_json_object_drops_trailing_prose():
-    assert (
-        eval_mod._extract_json_object(_JUDGE + "\n\nLet me know if you want more.")
-        == _JUDGE
-    )
+    assert eval_mod._extract_json_object(_JUDGE + "\n\nLet me know if you want more.") == _JUDGE
 
 
 def test_extract_json_object_handles_nested_objects():
-    text = 'noise {"a": {"b": 1}, "c": 2} tail'
+    """A nested object must not end the scan early, and a tail must not extend it."""
+    text = '{"a": {"b": 1}, "c": 2} tail'
     assert eval_mod._extract_json_object(text) == '{"a": {"b": 1}, "c": 2}'
+
+
+def test_extract_json_object_refuses_when_the_payload_leads_with_prose():
+    """Offset zero is the whole rule. One leading word is enough to refuse."""
+    assert eval_mod._extract_json_object('noise {"a": {"b": 1}, "c": 2}') is None
 
 
 def test_extract_json_object_returns_none_without_any_brace():
@@ -1009,30 +1030,62 @@ def test_extract_json_object_returns_none_on_unbalanced_object():
     assert eval_mod._extract_json_object('{"activation_score": 5') is None
 
 
-def test_extract_json_object_prefers_the_verdict_over_an_earlier_tool_result():
-    """A tool-call trace emits its own JSON before the answer.
+def test_a_leading_tool_result_is_refused_rather_than_searched_past(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The verdict is never taken from past a leading object.
 
-    Taking the first balanced object hands back the trace, the shape check
-    fails, and the real verdict is never tried. This is the shape that made
-    the extractor useless for the providers it was written for.
+    The searching version checked each candidate against the score shape and
+    returned the one that matched, so it walked past this trace and graded the
+    object after it. Now the leading object is the only one read; it fails the
+    caller's shape check, salvage finds no score fields in it, and the sample
+    is refused. No score is produced from anywhere else in the payload.
     """
     text = '{"command": "ls", "exit_code": 0}\n\nHere is my grade:\n' + _JUDGE
 
-    assert eval_mod._extract_json_object(text) == _JUDGE
+    assert eval_mod._extract_json_object(text) == '{"command": "ls", "exit_code": 0}'
+    assert eval_mod._salvage_scores(text) is None
+    assert _score_with_judge_text(monkeypatch, text)["judge_failed"] is True
 
 
-def test_extract_json_object_skips_an_unparseable_leading_object():
+def test_extract_json_object_refuses_an_unparseable_leading_object():
+    """A broken leading object ends the read. It does not start a search."""
     text = '{"broken": }\n' + _JUDGE
 
-    assert eval_mod._extract_json_object(text) == _JUDGE
+    assert eval_mod._extract_json_object(text) is None
 
 
-def test_extract_json_object_skips_a_partial_score_object():
-    """A near-miss must not win. Missing one field is not a verdict."""
+def test_extract_json_object_refuses_a_partial_object_followed_by_a_full_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A near-miss must not win, and the search that found it is gone.
+
+    Two objects each naming ``activation_score`` is exactly the ambiguity the
+    name count refuses, so the extractor declines before shape is considered.
+    The searching version instead picked the second, which is the same move
+    that let a quoted exemplar outrank the judge's own answer.
+    """
     partial = '{"activation_score": 5, "citation_score": 4}'
     text = partial + "\n\n" + _JUDGE
 
-    assert eval_mod._extract_json_object(text) == _JUDGE
+    assert eval_mod._extract_json_object(text) is None
+    assert _score_with_judge_text(monkeypatch, text)["judge_failed"] is True
+
+
+def test_extract_json_object_returns_a_partial_object_for_the_caller_to_refuse(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The extractor no longer judges shape; the caller still does.
+
+    With no second copy of a score field there is no ambiguity, so the leading
+    object is returned. It is not a verdict, and the caller's existing shape
+    check is what says so. The visible outcome is unchanged.
+    """
+    partial = '{"activation_score": 5, "citation_score": 4}'
+    text = partial + "\n\nthat is all"
+
+    assert eval_mod._extract_json_object(text) == partial
+    assert _score_with_judge_text(monkeypatch, text)["judge_failed"] is True
 
 
 def test_extract_json_object_falls_back_to_the_first_parseable_object():
@@ -1044,21 +1097,27 @@ def test_extract_json_object_falls_back_to_the_first_parseable_object():
     assert eval_mod._extract_json_object(text) == '{"refusal": "cannot grade"}'
 
 
-def test_iter_json_objects_yields_siblings_without_reentering_nested_ones():
-    text = 'a {"x": {"y": 1}} b {"z": 2} c'
+def test_a_balanced_object_scan_does_not_reenter_nested_ones():
+    """Coverage moved here when ``_iter_json_objects`` was deleted.
 
-    assert list(eval_mod._iter_json_objects(text)) == ['{"x": {"y": 1}}', '{"z": 2}']
+    The walker existed only to feed the candidate search. With the search
+    gone, the property that still matters is that a nested object does not
+    terminate the scan of the one that contains it.
+    """
+    text = '{"x": {"y": 1}} b {"z": 2} c'
+
+    assert eval_mod._scan_balanced_object(text, 0) == len('{"x": {"y": 1}}')
 
 
 # ---------------------------------------------------------------------------
 # _salvage_scores / _judge_parse_failure: an unparseable `reasoning` field must
 # not discard the three numbers the eval actually scores on.
 #
-# Observed in production: 24 of 96 Opus judge samples were thrown away, every
+# Observed in production: 24 of 144 Opus judge samples were thrown away, every
 # one of them carrying its scores in plain sight. The judge quotes the response
-# it is grading, and an unescaped quote inside that prose invalidates the whole
-# object. Verbose models trip it more often, so the loss was not random with
-# respect to the comparison being made.
+# it is grading, and a malformed `reasoning` string invalidates the whole
+# object. The loss lands entirely in Opus-labelled positive-scenario cells, so
+# it was not random with respect to the comparison being made.
 # ---------------------------------------------------------------------------
 
 
@@ -1068,7 +1127,17 @@ _UNESCAPED_QUOTE_JUDGE = (
 )
 
 
-def test_score_response_salvages_malformed_verdict_after_tool_trace(monkeypatch):
+def test_score_response_refuses_a_malformed_verdict_behind_a_tool_trace(monkeypatch):
+    """A verdict that does not lead the payload is discarded, not salvaged.
+
+    Salvage used to search for the right object among several. Seven review
+    rounds produced eleven ways for that search to pick the wrong one, so the
+    anchor is now fixed at the start of the payload. A leading tool trace is
+    the shape that costs: the judge's real verdict is right there, unread.
+
+    Losing it discards one of three samples. Reading it required a search, and
+    the search is what returned a quoted exemplar as the judge's answer.
+    """
     monkeypatch.setattr(
         eval_mod,
         "_call_api",
@@ -1083,10 +1152,893 @@ def test_score_response_salvages_malformed_verdict_after_tool_trace(monkeypatch)
         "response",
     )
 
+    assert result["judge_failed"] is True
+
+
+_SECOND_VERDICT_PAYLOADS = [
+    pytest.param(
+        json.dumps(
+            {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "first pass",
+                "revised": {
+                    "activation_score": 1,
+                    "citation_score": 1,
+                    "behavior_score": 1,
+                    "reasoning": "on reflection",
+                },
+            }
+        ),
+        id="nested-correction",
+    ),
+    pytest.param(
+        json.dumps(
+            {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "alternatives": [
+                    {
+                        "activation_score": 1,
+                        "citation_score": 2,
+                        "behavior_score": 3,
+                    }
+                ],
+            }
+        ),
+        id="verdict-in-a-list",
+    ),
+    pytest.param(
+        json.dumps(
+            {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": (
+                    'earlier I wrote {"activation_score": 1, '
+                    '"citation_score": 1, "behavior_score": 1}'
+                ),
+            }
+        ),
+        id="verdict-quoted-inside-a-string",
+    ),
+    pytest.param(
+        json.dumps(
+            {
+                "activation_score": 1,
+                "citation_score": 1,
+                "behavior_score": 1,
+                "meta": {
+                    "audit": {
+                        "final": {
+                            "activation_score": 5,
+                            "citation_score": 5,
+                            "behavior_score": 5,
+                        }
+                    }
+                },
+            }
+        ),
+        id="verdict-nested-three-deep",
+    ),
+]
+
+
+@pytest.mark.parametrize("payload", _SECOND_VERDICT_PAYLOADS)
+def test_valid_json_carrying_a_second_verdict_refuses(monkeypatch, payload):
+    """The seventeenth defect: a clean parse is not proof of a single answer.
+
+    Every payload here is valid JSON, so ``_strict_json_loads`` accepted it
+    and the result returned through the clean-parse branch. That branch sets
+    no ``judge_salvaged`` marker, so the guess was not merely wrong, it was
+    unauditable, which the recovery-path defects at least were not.
+
+    Nesting is why the parse proves nothing. A second verdict can sit inside
+    the first as a member, a list element, or a quoted string, and the
+    grammar is satisfied either way. ``_reject_duplicate_keys`` does not see
+    these because a nested key is not a repeated one.
+    """
+    monkeypatch.setattr(eval_mod, "_call_api", lambda *_args, **_kwargs: payload)
+
+    result = eval_mod.score_response(
+        "sk-test",
+        {"input": "x", "expected_gate": "apply-rule"},
+        "response",
+    )
+
+    assert result["judge_failed"] is True
+    assert result["activation_score"] == 0
+    assert result["citation_score"] == 0
+    assert result["behavior_score"] == 0
+    assert "judge_salvaged" not in result
+
+
+def test_the_ambiguity_refusal_names_itself_rather_than_a_parse_error(monkeypatch):
+    """Pins where the guard runs, not just that it runs.
+
+    The guard sits before the parse so every path inherits it, including one
+    nobody has written yet. Routing an ambiguous payload through
+    ``_judge_parse_failure`` would also refuse it today, but only because
+    ``_salvage_scores`` happens to carry its own copy of the guard. Depending
+    on a downstream helper to do the refusing is the coupling that produced
+    this defect; asserting on the reason string is what stops a later edit
+    from quietly reintroducing it.
+    """
+    payload = json.dumps(
+        {
+            "activation_score": 5,
+            "citation_score": 5,
+            "behavior_score": 5,
+            "revised": {
+                "activation_score": 1,
+                "citation_score": 1,
+                "behavior_score": 1,
+            },
+        }
+    )
+    monkeypatch.setattr(eval_mod, "_call_api", lambda *_args, **_kwargs: payload)
+
+    result = eval_mod.score_response(
+        "sk-test",
+        {"input": "x", "expected_gate": "apply-rule"},
+        "response",
+    )
+
+    assert result["reasoning"].startswith("ambiguous judge output")
+    assert "judge parse error" not in result["reasoning"]
+
+
+def test_a_single_verdict_beside_unrelated_nesting_still_parses(monkeypatch):
+    """The guard must cost nothing on the payloads the judge actually sends.
+
+    A refusal is the safe direction but it is not free: it discards one of
+    three judge samples. This is the negative control that keeps the guard
+    from being tightened into refusing every structured answer, which would
+    drain samples without any fabrication to show for it.
+    """
+    payload = json.dumps(
+        {
+            "activation_score": 4,
+            "citation_score": 3,
+            "behavior_score": 2,
+            "reasoning": "the rule fired and was cited",
+            "evidence": {"quoted_line": 12, "tags": ["cited", "applied"]},
+        }
+    )
+    monkeypatch.setattr(eval_mod, "_call_api", lambda *_args, **_kwargs: payload)
+
+    result = eval_mod.score_response(
+        "sk-test",
+        {"input": "x", "expected_gate": "apply-rule"},
+        "response",
+    )
+
+    assert result["judge_failed"] is False
+    assert result["activation_score"] == 4
+    assert result["citation_score"] == 3
+    assert result["behavior_score"] == 2
+
+
+# A judge that writes an em-dash, a curly quote, or an accented name emits a
+# unicode escape, because JSON encoders default to ASCII output. These are the
+# healthy payloads that the raw-text guard refused for prose, and they are the
+# regression tests for that false refusal.
+_UNICODE_ESCAPE_BODY = (
+    '{"activation_score": 4, "citation_score": 3, "behavior_score": 2,'
+    ' "reasoning": "the rule fired \\u2014 and was cited \\u201cexactly\\u201d"}'
+)
+
+
+@pytest.mark.parametrize(
+    ("payload", "label"),
+    [
+        (_UNICODE_ESCAPE_BODY, "plain"),
+        (f"```json\n{_UNICODE_ESCAPE_BODY}\n```", "fenced"),
+    ],
+    ids=["plain", "fenced"],
+)
+def test_a_unicode_escape_in_reasoning_is_not_an_ambiguity(monkeypatch, payload, label):
+    """A verdict whose prose carries an escape must score, not be refused.
+
+    The raw-text guard refuses any payload containing ``\\u``, because a field
+    name spelled with an escape would slip a count of raw key shapes. On a
+    payload that failed to parse that blanket costs nothing. On one that parses
+    it discards a healthy verdict for the sole reason that the judge used a
+    dash, and dashes are ordinary.
+
+    Both spellings are covered because they reach the check by different
+    routes: the plain body parses whole, the fenced one only after unwrapping.
+    """
+    monkeypatch.setattr(eval_mod, "_call_api", lambda *_args, **_kwargs: payload)
+
+    result = eval_mod.score_response(
+        "sk-test",
+        {"input": "x", "expected_gate": "apply-rule"},
+        "response",
+    )
+
+    assert result["judge_failed"] is False, label
+    assert result["activation_score"] == 4
+    assert result["citation_score"] == 3
+    assert result["behavior_score"] == 2
+
+
+def test_a_second_verdict_after_the_object_is_still_refused(monkeypatch):
+    """Narrowing the raw guard must not open the hole it was written to close.
+
+    The guard now yields to the exact structural check only when the object is
+    the whole payload. When text follows it, that text is never parsed, so a
+    second verdict could hide there and only the raw count can see it. This is
+    the control that proves the narrowing is conditional rather than a removal.
+    """
+    payload = (
+        '{"activation_score": 1, "citation_score": 1, "behavior_score": 1,'
+        ' "reasoning": "first"}\n'
+        '{"activation_score": 5, "citation_score": 5, "behavior_score": 5,'
+        ' "reasoning": "second"}'
+    )
+    monkeypatch.setattr(eval_mod, "_call_api", lambda *_args, **_kwargs: payload)
+
+    result = eval_mod.score_response(
+        "sk-test",
+        {"input": "x", "expected_gate": "apply-rule"},
+        "response",
+    )
+
+    assert result["judge_failed"] is True
+    assert result["activation_score"] == 0
+
+
+def test_count_score_bearing_objects_finds_every_depth():
+    count = eval_mod._count_score_bearing_objects
+    verdict = {"activation_score": 1, "citation_score": 1, "behavior_score": 1}
+
+    assert count({}) == 0
+    assert count({"reasoning": "none here"}) == 0
+    assert count(verdict) == 1
+    assert count({**verdict, "revised": dict(verdict)}) == 2
+    assert count({**verdict, "alts": [dict(verdict), dict(verdict)]}) == 3
+    assert count({"meta": {"audit": {"final": dict(verdict)}}}) == 1
+
+
+def test_a_verdict_serialized_into_a_string_is_two_verdicts():
+    """A quoted verdict is a second candidate, so the payload is ambiguous.
+
+    The structural count cannot see it, because a string is one value however
+    much JSON it spells. The string check is what covers this, and it runs on
+    decoded text so an escape in ordinary prose does not trip it.
+
+    Prose that merely mentions a field name refuses too, and that is the
+    deliberate outcome of round 22 rather than an accident. ``Final
+    activation_score: 1, not 5.`` published two fabricated scores, and no
+    bounded rule separates it from ``the activation_score was low``: the only
+    difference is a separator and a value, and enumerating those is what broke
+    rounds 19, 20, 21, and 22 in turn. So the whole class refuses. The cost was
+    measured, not assumed: across the 264 nested reasoning values in the 288
+    archived payloads, zero name a score field, so this refuses no sample a
+    real judge has produced. The second assertion is the control that keeps
+    this honest, because a check that refused everything would pass the first
+    and third arms too.
+    """
+    names_two = eval_mod._parsed_names_two_verdicts
+    verdict = {"activation_score": 1, "citation_score": 1, "behavior_score": 1}
+
+    assert names_two({**verdict, "reasoning": "the activation_score was low"}) is True
+    assert names_two({**verdict, "reasoning": "fired \u2014 and cited"}) is False
+    assert names_two({**verdict, "reasoning": 'was {"activation_score": 5}'}) is True
+
+
+def test_ordinary_backslash_prose_is_not_refused(monkeypatch):
+    """Peeling further layers must not turn a backslash into an accusation.
+
+    ``\\b`` is a JSON escape, so ``C:\\Users\\bob`` survives a parse still
+    carrying one, and a check that refuses any layer with decodable content
+    left would refuse a judge who merely quoted a Windows path or a regex.
+    That refusal is invisible in the published median, which is exactly why it
+    has to be tested rather than reasoned about: only the truncated walk is a
+    reason to refuse, not the presence of an escape.
+    """
+    for label, reasoning in {
+        "windows path": r"the rule at C:\Users\bob\rules.md fired",
+        "regex": r"matched \d+ in the diff",
+        "newline": "line one\nline two",
+        "tab": "col\tcol",
+    }.items():
+        payload = json.dumps(
+            {
+                "activation_score": 5,
+                "citation_score": 4,
+                "behavior_score": 5,
+                "reasoning": reasoning,
+            }
+        )
+        monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, _p=payload, **_k: _p)
+        result = eval_mod.score_response(
+            "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
+        )
+        assert result["judge_failed"] is False, f"{label} was refused"
+        assert result["activation_score"] == 5
+
+
+def test_a_twice_serialized_verdict_is_still_two_verdicts(monkeypatch):
+    """Two genuine serialization layers double the backslash, not the escape.
+
+    A decoder that matches only ``\\uXXXX`` consumes the second backslash of
+    ``\\\\u0061`` and leaves ``\\activation_score``, which no further peel can
+    decode and no field pattern can match. This is what ordinary nesting
+    produces: ``json.dumps`` applied twice, not a crafted string.
+    """
+    inner = r'{"\u0061ctivation_score":5,"\u0063itation_score":5,"\u0062ehavior_score":5}'
+    payload = json.dumps(
+        {
+            "activation_score": 1,
+            "citation_score": 1,
+            "behavior_score": 1,
+            "reasoning": "Corrected verdict: " + json.dumps(inner),
+        }
+    )
+    buried = json.loads(payload)["reasoning"].removeprefix("Corrected verdict: ")
+    assert json.loads(json.loads(buried)) == {
+        "activation_score": 5,
+        "citation_score": 5,
+        "behavior_score": 5,
+    }
+
+    for label, text in {"plain": payload, "fenced": f"```json\n{payload}\n```"}.items():
+        monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, _p=text, **_k: _p)
+        result = eval_mod.score_response(
+            "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
+        )
+        assert result["judge_failed"] is True, f"{label} accepted a twice-serialized verdict"
+
+
+def test_a_non_integer_score_token_is_not_an_agreement(monkeypatch):
+    """Equality must be established on the whole token, not a leading integer.
+
+    Reading ``1.5`` as ``1`` makes a contradiction look like a restatement of
+    the filed ``1``, which is the exact direction that publishes a fabricated
+    number. Exponent form does the same thing with ``1e1``. Neither is
+    comparable to a filed integer, so both are refused rather than equated.
+    """
+    for label, values in {
+        "float": ("1.5", "4.5", "5.0"),
+        "exponent": ("1e1", "4e1", "5e1"),
+        "quoted": ('\\"1\\"', '\\"4\\"', '\\"5\\"'),
+    }.items():
+        payload = (
+            '{"activation_score":1,"citation_score":4,"behavior_score":5,'
+            '"reasoning":"Corrected verdict: {'
+            f'\\"activation_score\\":{values[0]},'
+            f'\\"citation_score\\":{values[1]},'
+            f'\\"behavior_score\\":{values[2]}'
+            '}"}'
+        )
+        monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, _p=payload, **_k: _p)
+        result = eval_mod.score_response(
+            "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
+        )
+        assert result["judge_failed"] is True, f"{label} was read as an agreement"
+
+
+def test_an_exhausted_decode_budget_refuses_rather_than_accepts(monkeypatch):
+    """The peel bound must fail closed; an unread remainder is not agreement.
+
+    Accepting when the budget runs out accepts precisely the payload the check
+    failed to read, so the bound would become the bypass.
+
+    The payload carries no score field at all, so the contradiction arm cannot
+    fire and the refusal is attributable to truncation alone. An earlier
+    version of this test buried a real field past the bound and kept passing
+    when the bound was raised, because the field then decoded into view and
+    refused as a contradiction: it asserted the right outcome for the wrong
+    reason. A run of backslashes halves per layer, so 512 is the smallest
+    power of two that outlasts the budget, and the companion test below pins
+    the other side of that boundary.
+    """
+    payload = json.dumps(
+        {
+            "activation_score": 5,
+            "citation_score": 4,
+            "behavior_score": 5,
+            "reasoning": "\\" * 512 + " is a lot of escaping",
+        }
+    )
+    monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_k: payload)
+
+    result = eval_mod.score_response(
+        "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
+    )
+
+    assert result["judge_failed"] is True
+
+
+def test_backslash_prose_within_the_budget_is_not_refused(monkeypatch):
+    """Escaping a judge can plausibly write must decode, not exhaust the bound.
+
+    This is the other side of the boundary the test above pins. At a bound of
+    three layers a judge discussing regex escaping was refused over a
+    remainder that held no score field, which is a lost sample charged to the
+    payload rather than to the checker. 256 backslashes is far past anything
+    prose produces and still resolves inside the budget.
+    """
+    payload = json.dumps(
+        {
+            "activation_score": 5,
+            "citation_score": 4,
+            "behavior_score": 5,
+            "reasoning": "The pattern needs " + "\\" * 256 + " before the class",
+        }
+    )
+    monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_k: payload)
+
+    result = eval_mod.score_response(
+        "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
+    )
+
     assert result["judge_failed"] is False
     assert result["activation_score"] == 5
-    assert result["citation_score"] == 4
-    assert result["behavior_score"] == 5
+
+
+def test_an_arithmetic_expression_beside_an_equal_token_is_not_agreement(
+    monkeypatch,
+):
+    """``5 - 1`` beside a filed 5 states 4, and the leading token cannot say so.
+
+    The value token stops at whitespace, so the capture is ``5``, which equals
+    the filed score exactly. Reading that as agreement publishes a 5 the judge
+    corrected to 4, with nothing in the record marking it: the worst outcome
+    available to this check, since a refusal is visible through the sample
+    count and a fabrication is not.
+    """
+    payload = json.dumps(
+        {
+            "activation_score": 5,
+            "citation_score": 4,
+            "behavior_score": 5,
+            "reasoning": 'Corrected: {"activation_score": 5 - 1, "citation_score": 4}',
+        }
+    )
+    monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_k: payload)
+
+    result = eval_mod.score_response(
+        "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
+    )
+
+    assert result["judge_failed"] is True
+
+
+def test_a_value_token_past_the_integer_conversion_limit_does_not_raise(
+    monkeypatch,
+):
+    """A long digit run must refuse, not end the run.
+
+    CPython refuses to convert an integer literal longer than 4300 digits,
+    raising ``ValueError``. ``eval_one_scenario`` catches ``RuntimeError``, so
+    converting before comparing let a single judge response abort every
+    remaining scenario. Comparing decimal spellings never converts, so length
+    is just inequality.
+    """
+    payload = json.dumps(
+        {
+            "activation_score": 5,
+            "citation_score": 4,
+            "behavior_score": 5,
+            "reasoning": 'Restated "activation_score": ' + "9" * 4400,
+        }
+    )
+    monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_k: payload)
+
+    result = eval_mod.score_response(
+        "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
+    )
+
+    assert result["judge_failed"] is True
+
+
+
+
+def test_a_leading_zero_spelling_is_not_an_exact_restatement(monkeypatch):
+    """``05`` is not a JSON integer, so it cannot establish equality exactly.
+
+    Converting first accepted it as 5. The claim this check makes is equality
+    of spelling, and ``05`` does not spell the filed value; refusing costs a
+    visible sample, while accepting asserts an exactness that was not tested.
+    """
+    payload = json.dumps(
+        {
+            "activation_score": 5,
+            "citation_score": 4,
+            "behavior_score": 5,
+            "reasoning": 'Restated "activation_score": 05',
+        }
+    )
+    monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_k: payload)
+
+    result = eval_mod.score_response(
+        "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
+    )
+
+    assert result["judge_failed"] is True
+
+
+def test_a_restated_score_field_is_uncomparable_and_refused(monkeypatch):
+    """Naming a score field in a decoded string makes the payload ambiguous.
+
+    This test used to assert the opposite, that a judge writing
+    ``I assigned "activation_score": 5 because ...`` beside a filed 5 had
+    restated its answer and should score. The argument was that a dropped
+    sample moves a published median exactly as a fabricated one does, so an
+    over-eager refusal is a defect in the same family as an over-eager accept.
+    That argument still holds. What changed is the evidence that the
+    restatement can be recognised at all.
+
+    Three rounds of adversarial review broke three successive proofs of
+    equality. Comparing the value token accepted ``5 - 1``. Naming the
+    operators that could follow accepted ``5 ^ 1`` and ``5 if False else 1``.
+    Requiring a second digit accepted ``5 - True`` and ``5 minus one``, and
+    refused ``5 because all 3 concepts were present``, which is ordinary
+    judge prose. Each proof was lexical, and lexical equality over prose is
+    not equality.
+
+    The cost of giving up is measured, not assumed. The archive stores a raw
+    payload for all 288 samples, successes included, and parsing all of them
+    yields 264 nested reasoning values. Zero name a score field, so this
+    refuses no sample any real judge in the archive has produced.
+    """
+    for reasoning in (
+        'I assigned "activation_score": 5 because the rule was applied.',
+        'I set "activation_score": 5 (the rule clearly applied)',
+        'I set "activation_score": 5. The rule fired throughout.',
+        'Restating: {"activation_score":5,"citation_score":4,"behavior_score":5}',
+        # Round 22: refusing only a *quoted* name left the unquoted dialects
+        # open. JSON5 permits a bare identifier key, Python spells the same
+        # verdict with `=`, and prose needs no bracket at all. Enumerating
+        # quoting styles and separators is the same unbounded chase that broke
+        # rounds 19 through 21, so the name alone is what refuses.
+        "Corrected: {activation_score:1,citation_score:1,behavior_score:1}",
+        "Corrected: dict(activation_score=1, citation_score=1)",
+        "Final activation_score: 1, not 5.",
+        "On reflection my activation_score was too generous.",
+    ):
+        payload = json.dumps(
+            {
+                "activation_score": 5,
+                "citation_score": 4,
+                "behavior_score": 5,
+                "reasoning": reasoning,
+            }
+        )
+        monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, _p=payload, **_k: _p)
+
+        result = eval_mod.score_response(
+            "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
+        )
+
+        assert result["judge_failed"] is True, reasoning
+
+
+def test_no_written_form_of_a_second_verdict_is_accepted(monkeypatch):
+    """The forms that broke each previous proof, kept as a regression set.
+
+    Every entry here published a fabricated score under some earlier version
+    of this check. They are grouped because the fix is one rule rather than
+    one clause per form: none of them is recognised, so none of them is
+    accepted. An operand need not be a digit (``True``, ``len([None])``,
+    ``one``), punctuation is not always punctuation (``5!`` is a factorial),
+    and a delimiter can arrive before the correction does
+    (``5, but corrected it to 1``).
+    """
+    for expression in (
+        "5 - 1",
+        "5-1",
+        "5 ^ 1",
+        "5 & 1",
+        "5 << 1",
+        "5 and 0",
+        "5 if False else 1",
+        "5 ? 0 : 1",
+        "5 - True",
+        "5 ^ True",
+        "5 - len([None])",
+        "5 if False else True",
+        "5 minus one",
+        "5!",
+        "5, but corrected it to 1.",
+        "5 \\\n- True",
+        "05",
+        "1.5",
+    ):
+        payload = json.dumps(
+            {
+                "activation_score": 5,
+                "citation_score": 4,
+                "behavior_score": 5,
+                "reasoning": f'Corrected: "activation_score": {expression}',
+            }
+        )
+        monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, _p=payload, **_k: _p)
+
+        result = eval_mod.score_response(
+            "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
+        )
+
+        assert result["judge_failed"] is True, expression
+
+
+def test_reasoning_that_names_no_score_field_still_scores(monkeypatch):
+    """The refusal must key on the field name, not on prose or on digits.
+
+    Without this, "refuse anything ambiguous" could quietly widen until it
+    dropped every judge who wrote a number in a sentence, and the sample loss
+    would show up only as a smaller denominator. These are the payloads the
+    check has to keep letting through.
+    """
+    for reasoning in (
+        "The rule was applied and cited, scoring 5 on the 1-5 scale.",
+        "All 3 expected concepts were present throughout the response.",
+        "Rung 1 was followed, then rung 2; the citation appears at line 40.",
+        "No score field is named here at all.",
+    ):
+        payload = json.dumps(
+            {
+                "activation_score": 5,
+                "citation_score": 4,
+                "behavior_score": 5,
+                "reasoning": reasoning,
+            }
+        )
+        monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, _p=payload, **_k: _p)
+
+        result = eval_mod.score_response(
+            "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
+        )
+
+        assert result["judge_failed"] is False, reasoning
+        assert (
+            result["activation_score"],
+            result["citation_score"],
+            result["behavior_score"],
+        ) == (5, 4, 5), reasoning
+
+
+def test_a_nested_verdict_disagreeing_on_a_later_field_is_still_detected(
+    monkeypatch,
+):
+    """Every named field must stay discoverable, not just the first.
+
+    A greedy tail group in the field pattern consumed the rest of the layer,
+    so ``finditer`` returned one match per layer and the fields after it were
+    never examined. A judge restating ``5/1/1`` beside a filed ``5/4/5`` then
+    agreed on ``activation_score`` and published, because the two fields that
+    disagreed were inside the text the first match had already eaten. The
+    guard checked exactly the field least likely to differ.
+    """
+    payload = json.dumps(
+        {
+            "activation_score": 5,
+            "citation_score": 4,
+            "behavior_score": 5,
+            "reasoning": (
+                'Corrected verdict: {"activation_score":5,'
+                '"citation_score":1,"behavior_score":1}'
+            ),
+        }
+    )
+    monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_k: payload)
+
+    assert len(eval_mod._SCORE_FIELDS) == len(
+        list(
+            eval_mod._NAMED_SCORE_FIELD_RE.finditer(
+                '{"activation_score":5,"citation_score":1,"behavior_score":1}'
+            )
+        )
+    )
+
+    result = eval_mod.score_response(
+        "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
+    )
+
+    assert result["judge_failed"] is True
+
+
+
+
+
+
+
+
+
+
+def test_the_ambiguity_walkers_terminate_on_a_self_referential_object():
+    """JSON cannot build a cycle, but the private helpers should still be total.
+
+    Both walkers are reachable from any caller holding a parsed-looking object,
+    and a walk that hangs is worse than one that answers, so identity tracking
+    costs one set membership per container to remove the failure mode entirely.
+
+    The exact yielded set is the assertion because a finite set is the direct
+    evidence of termination, and this one carries a key and a value so both
+    branches are shown to run. ``activation_score`` is absent by design: it is
+    a schema slot, and ``_string_values`` skips those keys so a healthy payload
+    does not refuse itself. That skip has its own test.
+    """
+    cyclic: dict[str, Any] = {"activation_score": 1, "note": "cited"}
+    cyclic["self"] = cyclic
+    listish: list[Any] = []
+    listish.append(listish)
+
+    assert eval_mod._parsed_names_two_verdicts(cyclic) is False
+    assert eval_mod._count_score_bearing_objects(listish) == 0
+    assert set(eval_mod._string_values(cyclic)) == {"note", "cited", "self"}
+
+
+def test_a_verdict_spelled_with_unicode_escapes_is_still_two_verdicts(monkeypatch):
+    """A parse decodes one layer of escaping, so a verdict can hide under two.
+
+    ``{\\"\\u0061ctivation_score\\":5}`` inside ``reasoning`` survives the parse
+    as literal backslash-u text, which no pattern for ``"activation_score"``
+    matches. The payload plainly carries a corrected 5/5/5 next to a filed
+    1/1/1, and both parsed-region paths published the 1/1/1 unchallenged.
+
+    Peeling further escape layers asks what the string says once fully decoded.
+    The control is the shape that motivated dropping the old raw guard: JSON
+    encoders default to ASCII, so an em-dash in prose arrives as an escape and
+    is decoded by the parse itself, leaving nothing for this to trip on.
+    """
+    payload = (
+        '{"activation_score": 1, "citation_score": 1, "behavior_score": 1,'
+        ' "reasoning": "Corrected verdict:'
+        ' {\\"\\\\u0061ctivation_score\\":5,\\"\\\\u0063itation_score\\":5,'
+        '\\"\\\\u0062ehavior_score\\":5}"}'
+    )
+    assert json.loads(json.loads(payload)["reasoning"].removeprefix("Corrected verdict: ")) == {
+        "activation_score": 5,
+        "citation_score": 5,
+        "behavior_score": 5,
+    }
+
+    for label, text in {
+        "plain": payload,
+        "fenced": f"```json\n{payload}\n```",
+        "tail": f"{payload}\ntail",
+    }.items():
+        monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, _p=text, **_k: _p)
+        result = eval_mod.score_response(
+            "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
+        )
+        assert result["judge_failed"] is True, f"{label} accepted an escaped verdict"
+
+    unambiguous = json.dumps(
+        {
+            "activation_score": 5,
+            "citation_score": 4,
+            "behavior_score": 5,
+            "reasoning": "the rule fired \u2014 and the response cited it",
+        }
+    )
+    assert "\\u" in unambiguous
+    monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_k: unambiguous)
+    control = eval_mod.score_response(
+        "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
+    )
+    assert control["judge_failed"] is False
+    assert control["activation_score"] == 5
+
+
+
+
+def test_a_healthy_payload_with_deep_nesting_still_scores(monkeypatch):
+    """The ambiguity walkers must not turn valid nesting into an API failure.
+
+    The JSON decoder's C scanner accepts far deeper input than a recursive
+    Python walk survives, so the walkers, not the parse, were the binding
+    constraint. ``RecursionError`` subclasses ``RuntimeError``, which the
+    scoring call site catches as a transport error, so a healthy verdict
+    carrying a deeply nested member was filed as a judge API failure and
+    dropped. Both walkers are iterative for that reason.
+    """
+    payload = (
+        '{"activation_score":5,"citation_score":4,"behavior_score":5,'
+        '"reasoning":"ok","meta":' + "[" * 996 + "0" + "]" * 996 + "}"
+    )
+    monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_k: payload)
+
+    result = eval_mod.score_response(
+        "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
+    )
+
+    assert result["judge_failed"] is False
+    assert (
+        result["activation_score"],
+        result["citation_score"],
+        result["behavior_score"],
+    ) == (5, 4, 5)
+
+
+def test_a_verdict_hidden_in_an_object_key_is_two_verdicts(monkeypatch):
+    """An object key is a string, so a verdict can hide on the left of a colon.
+
+    This is a regression guard on the check that replaced the old raw-text
+    scan. The scan read the whole payload, so it saw a verdict wherever it sat;
+    the structural replacement first walked only ``dict.values()`` and let this
+    shape through as a clean 1/1/1. That made the replacement weaker than what
+    it replaced, on precisely the case it exists to stop.
+
+    The control at the end is the reason the walk cannot simply be widened back
+    into a blanket text scan: a legitimate verdict whose prose merely mentions
+    scoring must still parse.
+    """
+    hidden = json.dumps(
+        {
+            "activation_score": 1,
+            "citation_score": 1,
+            "behavior_score": 1,
+            "reasoning": "first",
+            'corrected verdict: {"activation_score": 5, "citation_score": 5,'
+            ' "behavior_score": 5}': True,
+        }
+    )
+    shapes = {
+        "plain": hidden,
+        "fenced": f"```json\n{hidden}\n```",
+        "tail": f"{hidden}\nalso: 5/5/5",
+    }
+    for label, payload in shapes.items():
+        monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, _p=payload, **_k: _p)
+        result = eval_mod.score_response(
+            "sk-test",
+            {"input": "x", "expected_gate": "apply-rule"},
+            "response",
+        )
+        assert result["judge_failed"] is True, f"{label} shape accepted a hidden verdict"
+
+    unambiguous = json.dumps(
+        {
+            "activation_score": 5,
+            "citation_score": 4,
+            "behavior_score": 5,
+            "reasoning": "the rule fired \u2014 and the response cited it",
+        }
+    )
+    monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_k: unambiguous)
+    control = eval_mod.score_response(
+        "sk-test",
+        {"input": "x", "expected_gate": "apply-rule"},
+        "response",
+    )
+    assert control["judge_failed"] is False
+    assert control["activation_score"] == 5
+    assert control["citation_score"] == 4
+
+
+def test_adjacent_string_literals_are_a_known_undetected_shape(monkeypatch):
+    """Record the limit that no textual check closes, so it stays measured.
+
+    A second verdict spelled so the field name is never a contiguous substring
+    evades any text scan; Python's adjacent string literal concatenation is one
+    such spelling and the encoding space is open, so enumerating spellings does
+    not converge. This asserts today's behavior rather than a fix: the top
+    level is the schema's answer slot, so the filed verdict wins over prose.
+
+    Zero of the 264 recovered judge payloads carry this shape. If that ever
+    changes, this test is where the argument gets reopened.
+    """
+    payload = (
+        '{"activation_score": 1, "citation_score": 1, "behavior_score": 1,'
+        " \"reasoning\": \"corrected: {'activation' '_score': 5}\"}"
+    )
+    monkeypatch.setattr(eval_mod, "_call_api", lambda *_args, **_kwargs: payload)
+
+    result = eval_mod.score_response(
+        "sk-test",
+        {"input": "x", "expected_gate": "apply-rule"},
+        "response",
+    )
+
+    assert result["judge_failed"] is False
+    assert result["activation_score"] == 1
 
 
 def test_judge_parse_failure_does_not_combine_partial_objects():
@@ -1098,17 +2050,53 @@ def test_judge_parse_failure_does_not_combine_partial_objects():
     assert result["judge_failed"] is True
 
 
-def test_salvage_scores_ignore_score_fields_inside_reasoning():
-    salvaged = eval_mod._salvage_scores(
-        '{"activation_score": 4, "citation_score": 3, "behavior_score": 5, '
-        '"reasoning": "the rubric says "activation_score": 1"}'
+def test_salvage_refuses_when_reasoning_prose_names_a_score_field():
+    """Naming a score field twice is refused, wherever the second name sits.
+
+    ``_scan_root_members`` halts at ``reasoning`` because string boundaries
+    past an unescaped quote are unknowable, which left it blind to a duplicate
+    key placed after that halt:
+
+        {"activation_score": 1, ..., "reasoning": "bad "quote",
+         "activation_score": 5, ...}
+
+    It salvaged ``1`` where a lenient parse says ``5``. Counting raw names is
+    the only check that sees the tail without trusting it, and it cannot tell
+    a duplicate key from prose quoting a field name, so both are refused.
+
+    The cost is measured, not assumed: all 24 archived recoveries name each
+    field once and are unaffected.
+    """
+    assert (
+        eval_mod._salvage_scores(
+            '{"activation_score": 4, "citation_score": 3, "behavior_score": 5, '
+            '"reasoning": "the rubric says "activation_score": 1"}'
+        )
+        is None
     )
 
-    assert salvaged == {
-        "activation_score": 4,
-        "citation_score": 3,
-        "behavior_score": 5,
-    }
+
+def test_salvage_refuses_a_duplicate_score_field_after_reasoning():
+    """The shape the raw-name count exists to catch."""
+    assert (
+        eval_mod._salvage_scores(
+            '{"activation_score": 1, "citation_score": 1, "behavior_score": 1, '
+            '"reasoning": "bad "quote", "activation_score": 5, '
+            '"citation_score": 5, "behavior_score": 5}'
+        )
+        is None
+    )
+
+
+def test_salvage_refuses_a_score_field_spelled_with_a_unicode_escape():
+    """A ``\\u`` escape could hide a duplicate from the raw-name count."""
+    assert (
+        eval_mod._salvage_scores(
+            '{"activation_score": 1, "citation_score": 1, "behavior_score": 1, '
+            '"reasoning": "x "y", "\\u0061ctivation_score": 5}'
+        )
+        is None
+    )
 
 
 def test_salvage_scores_reject_duplicate_fields_before_reasoning():
@@ -1158,18 +2146,593 @@ def test_judge_parse_failure_rejects_a_non_numeric_score():
     assert result["judge_failed"] is True
 
 
-@pytest.mark.parametrize(
-    "activation_score", ["0", "6", "-1", "05", "5.0", "5e0", "5junk"]
-)
+@pytest.mark.parametrize("activation_score", ["0", "6", "-1", "05", "5.0", "5e0", "5junk"])
 def test_salvage_scores_rejects_an_invalid_value(activation_score):
     salvaged = eval_mod._judge_parse_failure(
-        f'{{"activation_score": {activation_score}, '
-        '"citation_score": 4, "behavior_score": 3} "',
+        f'{{"activation_score": {activation_score}, "citation_score": 4, "behavior_score": 3}} "',
         "parse error",
     )
 
     assert salvaged["judge_failed"] is True
     assert salvaged["activation_score"] == 0
+    assert salvaged["behavior_score"] == 0
+
+
+def test_salvage_rejects_non_integral_scores():
+    """A non-integral score is a failed measurement, not something to round.
+    Reading only the integer part would turn 4.5 into a 4 the judge never
+    gave, which is fabrication rather than salvage."""
+    assert (
+        eval_mod._salvage_scores(
+            '{"activation_score": 4.5, "citation_score": 3, "behavior_score": 5}'
+        )
+        is None
+    )
+
+
+def test_salvage_returns_ints_so_the_shape_gate_accepts_them():
+    """Regression guard on a cross-branch break. The shape gate requires an
+    exact int; salvage returning floats made every salvage fail that gate and
+    silently reverted the cell to a zeroed judge failure. The two paths must
+    agree on the score type."""
+    salvaged = eval_mod._salvage_scores(
+        '{"activation_score": 4, "citation_score": 3, "behavior_score": 5}'
+    )
+
+    assert salvaged == {
+        "activation_score": 4,
+        "citation_score": 3,
+        "behavior_score": 5,
+    }
+    assert all(type(v) is int for v in salvaged.values())
+    assert eval_mod._judge_score_shape_error(salvaged) is None
+
+
+def test_salvage_takes_a_whole_verdict_rather_than_stitching_two_objects():
+    """An agentic judge emits tool traces and retries alongside its verdict.
+    Unanchored field searches would take one score from each and report a
+    composite the judge never gave, with judge_failed set to False.
+
+    Round 7 turned the blanket rejection into a recovery by ranking candidate
+    objects. Round 8 restored the rejection: ranking candidates is the search
+    that produced eleven fabrication defects, and here the trace both names a
+    field twice and displaces the verdict from the anchor. Two independent
+    reasons to refuse, which is the posture this payload deserves.
+    """
+    assert (
+        eval_mod._salvage_scores(
+            '{"activation_score": 1} trace '
+            '{"activation_score": 4, "citation_score": 3, "behavior_score": 5}'
+        )
+        is None
+    )
+
+
+def test_salvage_rejects_scientific_notation():
+    """5e-1 is 0.5. Reading the mantissa alone turns it into a 5, which is a
+    fabricated passing score rather than a recovered one."""
+    assert (
+        eval_mod._salvage_scores(
+            '{"activation_score": 5e-1, "citation_score": 3, "behavior_score": 5}'
+        )
+        is None
+    )
+
+
+def test_salvage_ignores_score_fields_quoted_inside_reasoning():
+    """A judge that quotes the rubric back names a score field twice.
+
+    Round 6 refused on that name count. Round 7 dropped it, arguing the scan
+    halts at ``reasoning`` so prose cannot donate a number. True, and beside
+    the point: the halt also hides a duplicate *key* after it, which round 8
+    showed silently returned the wrong one of two stated scores. The count is
+    back, and it refuses prose and duplicate alike because past an unescaped
+    quote there is no way to tell them apart.
+    """
+    assert (
+        eval_mod._salvage_scores(
+            '{"activation_score": 4, "citation_score": 3, "behavior_score": 5, '
+            '"reasoning": "the rubric says "activation_score": 1 for this"'
+        )
+        is None
+    )
+
+
+def test_salvage_rejects_scores_found_only_inside_reasoning():
+    """Scores that appear only after the reasoning key are quoted text, not a
+    verdict. Salvaging them would grade the response on its own words."""
+    assert (
+        eval_mod._salvage_scores(
+            '{"reasoning": "it claimed "activation_score": 4, '
+            '"citation_score": 3, "behavior_score": 5"}'
+        )
+        is None
+    )
+
+
+def test_salvage_requires_an_object_to_anchor_on():
+    assert (
+        eval_mod._salvage_scores("activation_score: 4 citation_score: 3 behavior_score: 5") is None
+    )
+
+
+def test_salvage_skips_a_nested_rubric_and_takes_the_real_verdict():
+    """A verdict behind a nested rubric is refused, not recovered.
+
+    Reading past the rubric needed depth tracking, and the two independently
+    written scanners that did it both counted braces without brackets, so an
+    object inside a top-level array read as a root-level verdict. Skipping
+    machinery is what made an exemplar reachable at all; without it the scan
+    stops at the first non-integer value and this payload yields nothing.
+    """
+    assert (
+        eval_mod._salvage_scores(
+            '{"rubric": {"activation_score": 1, "citation_score": 1, '
+            '"behavior_score": 1, "reasoning": "example of a bad response"}, '
+            '"activation_score": 5, "citation_score": 3, "behavior_score": 4, '
+            '"reasoning": "the real "verdict" prose"}'
+        )
+        is None
+    )
+
+
+def test_salvage_rejects_fields_completed_by_a_second_root_object():
+    """Exactly-once matching is not enough on its own: two disjoint objects
+    can each contribute a different field and satisfy it. Only depth-1 members
+    of the first object count, so the second object is never reached and the
+    incomplete first object fails."""
+    assert (
+        eval_mod._salvage_scores(
+            '{"activation_score": 1} {"citation_score": 2, "behavior_score": 3, "reasoning": "x"}'
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    ("raw", "why"),
+    [
+        ("5junk", "trailing garbage is not a JSON number"),
+        ("05", "leading zeros are invalid JSON and hint at a truncated token"),
+        ("5.", "a bare trailing point is not a JSON number"),
+        ("5e", "a bare exponent marker is not a JSON number"),
+        ("\u00a05", "a non-breaking space is not JSON whitespace"),
+        ("+5", "JSON forbids a leading plus"),
+    ],
+)
+def test_salvage_requires_the_full_json_integer_grammar(raw, why):
+    """Matching leading digits reads 5junk and 05 as 5. Each is a fabricated
+    score, not a recovered one, so the whole token has to match."""
+    assert (
+        eval_mod._salvage_scores(
+            f'{{"activation_score": {raw}, "citation_score": 3, '
+            '"behavior_score": 4, "reasoning": "x"}'
+        )
+        is None
+    ), why
+
+
+def test_salvage_rejects_a_duplicate_member_key():
+    """Two values for one field means the payload is ambiguous. There is no
+    principled way to pick, so the sample fails rather than guessing."""
+    assert (
+        eval_mod._salvage_scores(
+            '{"activation_score": 5, "activation_score": 2, '
+            '"citation_score": 3, "behavior_score": 4, "reasoning": "x"}'
+        )
+        is None
+    )
+
+
+def test_salvage_rejects_reasoning_before_scores():
+    """Documents a deliberate limitation. Text after a malformed string value
+    cannot be trusted, because the unescaped quote that broke the parse also
+    desynchronizes every later read. The judge prompt asks for scores first;
+    if that ordering ever changes, this test fails loudly instead of the
+    salvage path silently returning nothing."""
+    assert (
+        eval_mod._salvage_scores(
+            '{"reasoning": "the "quote" broke it", "activation_score": 5, '
+            '"citation_score": 3, "behavior_score": 4}'
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    ("label", "payload"),
+    [
+        ("bare_open_brace", "{"),
+        ("empty_object", "{}"),
+        ("member_missing_value", '{"activation_score":,"citation_score":3}'),
+        ("truncated_after_colon", '{"activation_score": '),
+        ("unterminated_nested_object", '{"n":{"a":1,"activation_score":5'),
+        ("unbalanced_bracket_in_array", '{"n":[{"a":1},"activation_score":5}'),
+        ("score_value_is_object", '{"activation_score":{"v":5},"citation_score":3}'),
+        ("score_value_is_boolean", '{"activation_score":true,"citation_score":3}'),
+    ],
+)
+def test_salvage_rejects_malformed_structures(label, payload):
+    """A hand-written scanner has a failure class the old regex did not: it can
+    desynchronize on truncated or malformed structure and hand back a
+    plausible-looking triple assembled from the wrong bytes. Every payload here
+    must return None rather than a partial reading."""
+    assert eval_mod._salvage_scores(payload) is None, label
+
+
+@pytest.mark.parametrize(
+    ("label", "payload"),
+    [
+        (
+            "depth_one_key_after_nested_object",
+            '{"n":{"deep":{"a":1}},"activation_score":5,"citation_score":3,'
+            '"behavior_score":4,"reasoning":"y"}',
+        ),
+        (
+            "non_string_scalars_before_scores",
+            '{"ok":true,"x":null,"activation_score":5,"citation_score":3,'
+            '"behavior_score":4,"reasoning":"y"}',
+        ),
+        (
+            "trailing_comma_before_close",
+            '{"activation_score":5,"citation_score":3,"behavior_score":4,}',
+        ),
+        (
+            "no_closing_brace",
+            '{"activation_score":5,"citation_score":3,"behavior_score":4',
+        ),
+    ],
+)
+def test_salvage_recovers_despite_structural_noise(label, payload):
+    """The scanner must skip nested containers and non-string scalars whole
+    rather than giving up, otherwise it recovers less than the regex it
+    replaced. A score nested inside a skipped array must never be mistaken for
+    the top-level verdict: every case here carries 5/3/4 at depth one."""
+    assert eval_mod._salvage_scores(payload) == {
+        "activation_score": 5,
+        "citation_score": 3,
+        "behavior_score": 4,
+    }, label
+
+
+def test_salvage_rejects_an_out_of_range_score():
+    """Salvage runs *after* the shape gate has already rejected the payload,
+    so it cannot defer range checking to that gate without re-admitting what
+    the gate just refused.
+
+    That is what happened: a judge answer of 6 failed the shape gate, reached
+    salvage, passed the integer-grammar check, and came back as a clean 5 once
+    _clamp_score had squeezed it into the rubric. The score was reported as
+    the judge's own with judge_failed set to False.
+    """
+    overflow = 10**20
+    for value in (0, 6, -1, overflow):
+        assert (
+            eval_mod._salvage_scores(
+                f'{{"activation_score":{value},"citation_score":3,'
+                '"behavior_score":4,"reasoning":"y"}'
+            )
+            is None
+        ), value
+
+
+def test_salvage_rejects_a_desynchronized_nested_object():
+    """The attack the depth check was built to stop, which it did not stop.
+
+    An unescaped quote in prose inside a nested object flips the scanner's
+    string state. A later brace that is really prose then reads as a
+    structural close, so the skip lands *inside* the nested object and its
+    members are harvested as if they were top-level. Here that hands back the
+    exemplar's zeros while the real 5/5/5 verdict sits unread further along:
+    fabrication in the worst possible direction, reported as a clean parse.
+
+    Counting quotes does not catch this. The stray quote makes the count even,
+    which is precisely why the state flips. Re-parsing the skipped span does
+    catch it, because the span is not valid JSON.
+    """
+    assert (
+        eval_mod._salvage_scores(
+            '{"rubric": {"note": "he said "hi and }, "activation_score": 0, '
+            '"citation_score": 0, "behavior_score": 0}, "activation_score": 5, '
+            '"citation_score": 5, "behavior_score": 5}'
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    ("label", "payload"),
+    [
+        (
+            "structure_valued_first_occurrence",
+            '{"activation_score": {"x": 1}, "activation_score": 5, '
+            '"citation_score": 4, "behavior_score": 3}',
+        ),
+        (
+            "escape_encoded_key",
+            '{"activation_score": 5, "\\u0061ctivation_score": 0, '
+            '"citation_score": 4, "behavior_score": 3}',
+        ),
+        (
+            "duplicate_structure_valued_key",
+            '{"rubric":{"a":1},"rubric":{"b":2},"activation_score":5,'
+            '"citation_score":3,"behavior_score":4}',
+        ),
+        (
+            "escaped_quote_in_key",
+            r'{"we\"ird":1,"activation_score":5,"citation_score":3,'
+            r'"behavior_score":4,"reasoning":"y"}',
+        ),
+    ],
+)
+def test_salvage_rejects_keys_that_defeat_duplicate_detection(label, payload):
+    """Duplicate rejection is the invariant that stops a permissive parser from
+    choosing between two conflicting answers, so anything that hides a
+    collision from it has to reject.
+
+    Two holes closed here. A structure-valued member used to be skipped
+    without being recorded, so a later repeat of the same key won unopposed.
+    And keys are compared as raw undecoded text, so an escape makes two
+    spellings of one name look like two names. Escapes never appear in the
+    fixed field names the judge is given, so refusing any escaped key costs a
+    recovery that would never have been legitimate.
+    """
+    assert eval_mod._salvage_scores(payload) is None, label
+
+
+@pytest.mark.parametrize(
+    ("label", "payload"),
+    [
+        (
+            "nested_object_containing_a_string",
+            '{"n":{"a":"x"},"activation_score":5,"citation_score":3,'
+            '"behavior_score":4,"reasoning":"y"}',
+        ),
+        (
+            "nested_string_containing_a_brace",
+            '{"n":{"a":"}"},"activation_score":5,"citation_score":3,'
+            '"behavior_score":4,"reasoning":"y"}',
+        ),
+        (
+            "nested_string_with_escaped_quotes",
+            r'{"n":{"a":"say \"hi\""},"activation_score":5,'
+            r'"citation_score":3,"behavior_score":4,"reasoning":"y"}',
+        ),
+        (
+            "empty_nested_object",
+            '{"n":{},"activation_score":5,"citation_score":3,"behavior_score":4,"reasoning":"y"}',
+        ),
+    ],
+)
+def test_salvage_still_skips_well_formed_nested_structures(label, payload):
+    """The span re-parse must not turn every nested object into a rejection.
+
+    A nested container that is itself valid JSON has a trustworthy end, so it
+    is skipped and the scan continues. These are the shapes a real judge
+    emits, including a rubric carrying its own zeroed exemplar, and all of
+    them must still yield the depth-one 5/3/4.
+    """
+    assert eval_mod._salvage_scores(payload) == {
+        "activation_score": 5,
+        "citation_score": 3,
+        "behavior_score": 4,
+    }, label
+
+
+def test_salvage_handles_deep_nesting_without_recursion():
+    """`_skip_balanced` iterates, but the span re-parse calls `json.loads`,
+    which recurses. Deep nesting must skip cleanly rather than raise."""
+    deep = (
+        '{"n":'
+        + '{"a":' * 50
+        + "1"
+        + "}" * 50
+        + (',"activation_score":5,"citation_score":3,"behavior_score":4}')
+    )
+    assert eval_mod._salvage_scores(deep) == {
+        "activation_score": 5,
+        "citation_score": 3,
+        "behavior_score": 4,
+    }
+
+
+@pytest.mark.parametrize(
+    "label,payload",
+    [
+        (
+            "two_disjoint_objects_exemplar_first",
+            '{"activation_score":1,"citation_score":1,"behavior_score":1} '
+            '{"activation_score":5,"citation_score":5,"behavior_score":5}',
+        ),
+        (
+            "two_disjoint_objects_exemplar_second",
+            '{"activation_score":5,"citation_score":5,"behavior_score":5} '
+            '{"activation_score":1,"citation_score":1,"behavior_score":1}',
+        ),
+        (
+            "second_verdict_trails_a_malformed_first",
+            '{"activation_score":1,"citation_score":1,"behavior_score":1} '
+            '{"activation_score":5,"citation_score":5,"behavior_score":5,'
+            '"reasoning":"he said "x"',
+        ),
+    ],
+)
+def test_salvage_rejects_payloads_offering_two_candidate_verdicts(label, payload):
+    """A payload offering two complete verdicts is refused outright.
+
+    Review round 6 found that reading the first object and never reaching the
+    second is safe against a second object *donating a field*, but not against
+    it *being the real verdict*. An exemplar echoed ahead of the answer
+    returned the exemplar's scores and reported a clean parse, which is the
+    same fabrication class as the round-5 desynchronization defect.
+
+    Round 6 answered that by counting field names across the whole payload.
+    Round 7 replaced the count with this rule, because the count also refused
+    a leading tool trace that merely mentions a field, which is the ordinary
+    agentic-CLI shape salvage exists to serve. Requiring exactly one
+    *complete* candidate rejects everything the count rejected here while
+    still recovering the trace case, so it is not a loosening.
+
+    Note that every exemplar below scores 1 rather than 0. A 0 is out of the
+    1-5 rubric and is discarded before it can compete, so a zero-valued
+    exemplar would make these pass without exercising the ambiguity rule at
+    all. The earlier version of this test had exactly that defect.
+    """
+    assert eval_mod._salvage_scores(payload) is None, label
+
+
+@pytest.mark.parametrize(
+    "label,payload",
+    [
+        (
+            "nested_rubric_carrying_an_exemplar_verdict",
+            '{"rubric":{"activation_score":1,"citation_score":1,'
+            '"behavior_score":1},"activation_score":5,"citation_score":3,'
+            '"behavior_score":4,"reasoning":"y"}',
+        ),
+        (
+            "exemplar_inside_an_array",
+            '{"examples":[{"activation_score":1,"citation_score":1,'
+            '"behavior_score":1}],"activation_score":5,"citation_score":3,'
+            '"behavior_score":4}',
+        ),
+    ],
+)
+def test_salvage_refuses_an_exemplar_it_cannot_tell_from_the_verdict(label, payload):
+    """Every shape here needed a search to get past, so every one is refused.
+
+    A nested object, an array element, and prose naming a field are the three
+    ways an exemplar reached the scan. Round 7 answered each with a separate
+    disqualifier and kept the recovery. Round 8 found the disqualifiers shared
+    a brace-counting definition of "root" that admitted array elements, and
+    that adding a fourth would only narrow the set of wrong answers still
+    reachable. Refusing all three removes the question instead of re-asking it.
+    """
+    assert eval_mod._salvage_scores(payload) is None, label
+
+
+def test_salvage_reads_a_verdict_whose_prose_names_a_score_field():
+    """Prose naming a dimension is not a second verdict.
+
+    An earlier version counted the *bare* identifier and refused this payload.
+    The stated justification was that the refusal is free, measured as: across
+    the 264 graded samples in the archived runs, no judge reasoning names a
+    score field. That measurement is real but it does not support the claim.
+    It describes one judge, one prompt, and one provider; a judge that states
+    its verdict and then explains it ("I set activation_score high because...")
+    is ordinary output, and this payload carries exactly one verdict, so
+    refusing it discards a sample to protect against nothing.
+
+    The guard now counts the JSON *key* shape, quoted or escaped-quoted, which
+    keeps the evasion closed (see the test below) without charging prose for
+    it.
+    """
+    assert eval_mod._salvage_scores(
+        '{"activation_score":5,"citation_score":3,"behavior_score":4,'
+        '"reasoning":"I set activation_score high because"}'
+    ) == {"activation_score": 5, "citation_score": 3, "behavior_score": 4}
+
+
+def test_salvage_refuses_a_second_verdict_serialized_inside_a_string():
+    """The evasion the bare-name count exists to close.
+
+    The payload states which triple is the answer and salvage cannot read
+    that, so it must decline rather than pick. Counting the quoted spelling
+    returned the first triple; counting the bare name refuses.
+    """
+    payload = (
+        '{"activation_score":1,"citation_score":1,'
+        '"behavior_score":1,"reasoning":"rubric "example""}\n'
+        '{"final_answer":"{\\"activation_score\\":5,\\"citation_score\\":5,'
+        '\\"behavior_score\\":5}"}'
+    )
+
+    assert eval_mod._names_a_score_field_twice(payload) is True
+    assert eval_mod._salvage_scores(payload) is None
+
+
+def test_salvage_refuses_a_second_verdict_spelled_in_the_single_quote_dialect():
+    """The third spelling of a JSON key, and the fourteenth defect.
+
+    Salvage runs only on payloads that already failed a strict parse, so the
+    input is malformed by construction and the JSON5/Python dialect
+    (``'activation_score': 5``) is exactly the kind of malformation a lenient
+    model emits. A guard that recognized only the double-quoted and
+    escaped-double-quoted spellings read this payload as carrying one verdict
+    and returned the 1/1/1 at offset zero, discarding a stated 5/5/5 without
+    recording that it had made a choice.
+
+    Same selection class as the thirteen before it: the guard did not see the
+    second candidate, so the first won by default. Found by adversarial review
+    round 11.
+
+    The false-refusal cost is measured at zero on this corpus: no reasoning in
+    the 264 graded samples and none of the 24 stored failure prefixes spells a
+    score key with single quotes. That is one judge, one prompt, and one
+    provider, so the cost is measured-here, not free. A judge that quotes JSON
+    in its prose would pay it.
+    """
+    payload = (
+        '{"activation_score":1,"citation_score":1,"behavior_score":1,'
+        '"reasoning":"bad "quote", \'activation_score\':5,'
+        "'citation_score':5, 'behavior_score':5}"
+    )
+
+    assert eval_mod._names_a_score_field_twice(payload) is True
+    assert eval_mod._salvage_scores(payload) is None
+
+
+def test_a_mismatched_quote_pair_is_not_a_key():
+    """Each spelling pairs its own quotes rather than mixing them.
+
+    A guard written as ``(?:"|')field(?:"|')`` would accept ``"field':`` and
+    ``'field":``, neither of which any decoder reads as a key. Refusing on a
+    non-key costs a real sample, which is the false-refusal failure round 10
+    finding 5 already charged this guard for once.
+    """
+    single_verdict = (
+        '{"activation_score":5,"citation_score":3,"behavior_score":4,'
+        "\"reasoning\":\"the rubric line read \\\"activation_score': high\\\"\"}"
+    )
+
+    assert eval_mod._names_a_score_field_twice(single_verdict) is False
+
+
+def test_a_prematurely_closed_rubric_is_refused_by_both_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Trailing root-level score fields make the payload ambiguous.
+
+    This payload closes a complete object and then continues with bare
+    ``"activation_score":5`` members that belong to no object. It reads like a
+    judge whose rubric block closed one brace early, so the 5/5/5 tail is
+    plausibly the answer it meant to give.
+
+    Both paths now refuse on the same name count. Previously the strict path
+    took 1/1/1 while salvage refused, so the instrument's two readers of one
+    payload disagreed and only the quieter one was audited. Where two stated
+    numbers disagree, the safe move is to state neither.
+    """
+    payload = (
+        '{"rubric":{"note":"x"},"activation_score":1,"citation_score":1,'
+        '"behavior_score":1},"activation_score":5,"citation_score":5,'
+        '"behavior_score":5}'
+    )
+
+    assert eval_mod._extract_json_object(payload) is None
+    assert eval_mod._salvage_scores(payload) is None
+    assert _score_with_judge_text(monkeypatch, payload)["judge_failed"] is True
+
+
+def test_salvage_survives_trailing_content_carrying_no_scores():
+    """Strictness is scoped to ambiguity, not to any trailing bytes.
+
+    Junk after a complete verdict leaves exactly one candidate answer, so
+    refusing it would cost recoveries without removing a fabrication path.
+    """
+    assert eval_mod._salvage_scores(
+        '{"activation_score":5,"citation_score":3,"behavior_score":4} trailing'
+    ) == {"activation_score": 5, "citation_score": 3, "behavior_score": 4}
 
 
 def test_extract_json_object_returns_none_on_empty_input():
@@ -1191,16 +2754,296 @@ def test_extract_json_object_ignores_escaped_backslash_before_quote():
     assert eval_mod._extract_json_object(text) == text
 
 
-def test_extract_json_object_advances_past_unbalanced_leading_candidate():
-    text = '{ unterminated\n' + _JUDGE
-    assert eval_mod._extract_json_object(text) == _JUDGE
+def test_extract_json_object_stops_at_an_unbalanced_leading_candidate():
+    """An unbalanced opener ends the walk instead of restarting inside it.
+
+    This test previously asserted recovery: skip the junk, take the verdict
+    that follows. Review round 6 showed that is unsafe. Once the first opener
+    never closes, every later brace is textually *inside* it, so advancing to
+    the next one descends into the malformed region rather than past it. When
+    that region holds a score-shaped object, as it does when a judge quotes
+    the rubric inside a broken ``reasoning`` string, the decoy is returned as
+    the verdict with judge_failed set to False.
+
+    The two shapes are indistinguishable from the text: junk-then-answer and
+    broken-string-containing-decoy differ only in which object you happen to
+    land on. So the recovery is given up. The cost is one judge sample; the
+    alternative cost is a fabricated score in a published mean.
+    """
+    text = "{ unterminated\n" + _JUDGE
+    assert eval_mod._extract_json_object(text) is None
+    assert eval_mod._salvage_scores(text) is None
 
 
 def test_extract_json_object_result_parses_as_json():
-    text = "trace line\n" + _JUDGE + "\ntrailing"
+    text = _JUDGE + "\ntrailing"
     extracted = eval_mod._extract_json_object(text)
     assert extracted is not None
     assert json.loads(extracted)["activation_score"] == 5
+
+
+def test_a_verdict_recovered_from_the_prefix_is_marked_salvaged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every recovery must be auditable after the run.
+
+    A whole-payload parse failure followed by a prefix recovery used to return
+    through the ordinary success branch, so it was indistinguishable from a
+    clean parse. No post-hoc audit could count how often the instrument had
+    read past a broken payload, which is why twelve defects of one class went
+    twelve rounds without the archive showing a single one.
+    """
+    result = _score_with_judge_text(monkeypatch, _JUDGE + "\ntrailing prose")
+
+    assert result["judge_failed"] is False
+    assert result["judge_salvaged"] is True
+    assert result["activation_score"] == 5
+
+
+def test_a_clean_payload_is_not_marked_salvaged(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Negative control: the marker must distinguish, not decorate."""
+    result = _score_with_judge_text(monkeypatch, _JUDGE)
+
+    assert result["judge_failed"] is False
+    assert "judge_salvaged" not in result
+
+
+# ---------------------------------------------------------------------------
+# Markdown fences (the thirteenth defect of the selection class)
+# ---------------------------------------------------------------------------
+
+_FENCE = "`" * 3
+
+
+def _fenced(body: str) -> str:
+    return f"{_FENCE}json\n{body}\n{_FENCE}"
+
+
+def test_a_fenced_exemplar_after_the_verdict_does_not_win(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The fence pre-parser was an unanchored search, and it ran first.
+
+    ``re.search`` for a fence found the exemplar, replaced the *entire*
+    payload with it, and handed the result to a strict parse that succeeded.
+    Both the offset-zero anchor and the duplicate-name guard were bypassed
+    because neither ever saw the real payload, and the recovery carried no
+    marker because the substituted text parsed cleanly. That is the thirteenth
+    defect of the selection class and the first one found upstream of
+    ``_extract_json_object``.
+    """
+    payload = (
+        '{"activation_score":1,"citation_score":1,"behavior_score":1,'
+        '"reasoning":"actual verdict"}\nRubric exemplar:\n'
+        + _fenced(
+            '{"activation_score":5,"citation_score":5,"behavior_score":5,'
+            '"reasoning":"rubric exemplar"}'
+        )
+    )
+
+    result = _score_with_judge_text(monkeypatch, payload)
+
+    assert result["judge_failed"] is True
+    assert result["activation_score"] == 0
+    # The recorded payload is the original, not the fence body, so the
+    # archived error prefix shows what the judge actually emitted.
+    assert "actual verdict" in result["reasoning"]
+
+
+def test_a_lone_fenced_verdict_is_recovered_and_marked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One fence is not a selection, so unwrapping it invents nothing.
+
+    Refusing every fence would discard a shape judges really emit. The
+    recovery is marked because the raw payload did not parse.
+    """
+    result = _score_with_judge_text(
+        monkeypatch,
+        _fenced(
+            '{"activation_score":4,"citation_score":3,"behavior_score":2,"reasoning":"actual"}'
+        ),
+    )
+
+    assert result["judge_failed"] is False
+    assert result["judge_salvaged"] is True
+    assert (result["activation_score"], result["citation_score"]) == (4, 3)
+
+
+def test_two_fences_refuse_rather_than_pick_one(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Several fences is a choice, and choosing is the defect."""
+    payload = (
+        "Consider:\n"
+        + _fenced('{"activation_score":5}')
+        + "\nverdict:\n"
+        + _fenced('{"activation_score":2,"citation_score":2,"behavior_score":2,"reasoning":"r"}')
+    )
+
+    result = _score_with_judge_text(monkeypatch, payload)
+
+    assert result["judge_failed"] is True
+
+
+def test_a_fence_whose_body_is_not_json_refuses(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Unwrapping does not lower the parse bar."""
+    result = _score_with_judge_text(monkeypatch, _fenced("activation_score: five"))
+
+    assert result["judge_failed"] is True
+
+
+def test_unwrap_lone_fence_returns_none_when_absent() -> None:
+    assert eval_mod._unwrap_lone_fence(_JUDGE) is None
+
+
+# ---------------------------------------------------------------------------
+# Fence width pairing (adversarial review round 12)
+# ---------------------------------------------------------------------------
+
+_WIDE_FENCE = "`" * 4
+
+
+def test_a_four_backtick_fence_survives_a_three_backtick_run_in_its_body() -> None:
+    """A judge reaches for four backticks because its reasoning quotes three.
+
+    Closing on a bare three-run cut the body at the inner quote and handed
+    back something that would not parse, so the sample was dropped. Pairing
+    the close to the opening width is the CommonMark rule and is what makes
+    the shape legal in the first place.
+    """
+    body = (
+        '{"activation_score":4,"citation_score":3,"behavior_score":2,'
+        f'"reasoning":"the response used {_FENCE} to open a block"}}'
+    )
+    text = f"{_WIDE_FENCE}json\n{body}\n{_WIDE_FENCE}"
+
+    assert eval_mod._unwrap_lone_fence(text) == body
+
+
+def test_two_four_backtick_fences_still_refuse() -> None:
+    """Widening the delimiter must not buy back a selection.
+
+    The exactly-one-block rule is what removed the thirteenth defect. It has
+    to hold at every delimiter width, not just at three.
+    """
+    block = f'{_WIDE_FENCE}json\n{{"activation_score":5}}\n{_WIDE_FENCE}'
+
+    assert eval_mod._unwrap_lone_fence(f"{block}\n{block}") is None
+
+
+def test_a_three_backtick_run_does_not_close_a_four_backtick_fence() -> None:
+    """A narrower run is body text, so the block stays open and is refused."""
+    text = f'{_WIDE_FENCE}json\n{{"activation_score":5}}\n{_FENCE}'
+
+    assert eval_mod._unwrap_lone_fence(text) is None
+
+
+def test_an_unterminated_fence_refuses_rather_than_running_to_the_end() -> None:
+    """Truncated judge output must not hand back the prose that followed."""
+    text = f'{_FENCE}json\n{{"activation_score":5}}'
+
+    assert eval_mod._unwrap_lone_fence(text) is None
+
+
+def test_a_wider_run_may_close_a_narrower_fence() -> None:
+    """CommonMark lets the close exceed the open, and judges do emit that."""
+    body = '{"activation_score":4,"citation_score":3,"behavior_score":2}'
+    text = f"{_FENCE}json\n{body}\n{_WIDE_FENCE}"
+
+    assert eval_mod._unwrap_lone_fence(text) == body
+
+
+def test_an_unfenced_verdict_beside_a_lone_fenced_exemplar_refuses() -> None:
+    """One fence is not one candidate, which was the sixteenth defect.
+
+    The judge wrote its real verdict as unfenced prose and fenced a rubric
+    exemplar it had explicitly labelled as one. Requiring exactly one fence
+    removed the choice among fences and left the choice between the fence and
+    everything around it, so the exemplar was published as the verdict.
+    """
+    text = (
+        "Actual verdict:\n"
+        "activation_score: 1\n"
+        "citation_score: 1\n"
+        "behavior_score: 1\n"
+        "\n"
+        "Rubric exemplar (do not use):\n"
+        f"{_FENCE}json\n"
+        '{"activation_score":5,"citation_score":5,"behavior_score":5}\n'
+        f"{_FENCE}"
+    )
+
+    assert eval_mod._unwrap_lone_fence(text) is None
+    assert eval_mod._recover_verdict(text) is None
+
+
+def test_blank_lines_around_a_lone_fence_still_recover() -> None:
+    """The refusal is about competing content, not about tidy whitespace."""
+    body = '{"activation_score":4,"citation_score":4,"behavior_score":4}'
+
+    assert eval_mod._unwrap_lone_fence(f"\n  \n{_fenced(body)}\n\t\n") == body
+
+
+@pytest.mark.parametrize(
+    "outside",
+    [
+        "the real verdict was 1/1/1",
+        '{"activation_score":1,"citation_score":1,"behavior_score":1}',
+        ".",
+        "\u200b",
+        "\u2060",
+    ],
+)
+def test_content_outside_a_recoverable_fence_may_only_cause_refusal(
+    outside: str,
+) -> None:
+    """Adding text outside a fence must never preserve or change a score.
+
+    The property adversarial review asked for: a payload that recovers must
+    stop recovering the moment something else could have been the answer. It
+    may never keep the old scores and it may never produce new ones.
+    """
+    body = '{"activation_score":5,"citation_score":5,"behavior_score":5}'
+    fenced = _fenced(body)
+    assert eval_mod._unwrap_lone_fence(fenced) == body
+
+    for polluted in (f"{outside}\n{fenced}", f"{fenced}\n{outside}"):
+        assert eval_mod._unwrap_lone_fence(polluted) is None
+        assert eval_mod._recover_verdict(polluted) is None
+
+
+def test_prose_naming_a_score_field_does_not_block_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Counting bare identifiers refused output judges really produce.
+
+    A verdict followed by a plain-English explanation naming a dimension is
+    ordinary judge behavior, not a second verdict. The guard counts the JSON
+    *key* shape instead, quoted or escaped-quoted, so prose costs nothing.
+    """
+    payload = _JUDGE + "\nThe activation_score reflects strong compliance."
+
+    assert eval_mod._names_a_score_field_twice(payload) is False
+    result = _score_with_judge_text(monkeypatch, payload)
+
+    assert result["judge_failed"] is False
+    assert result["judge_salvaged"] is True
+    assert result["activation_score"] == 5
+
+
+def test_an_escaped_quote_duplicate_still_refuses() -> None:
+    """Regression: the key-shaped count must keep round nine's fix.
+
+    A second verdict serialized inside a string spells its keys with escaped
+    quotes. Matching only the plain quoted form would let it through.
+    """
+    payload = (
+        '{"activation_score":1,"citation_score":1,"behavior_score":1,'
+        '"reasoning":"the real answer was '
+        '{\\"activation_score\\":5,\\"citation_score\\":5,\\"behavior_score\\":5}"}'
+    )
+
+    assert eval_mod._names_a_score_field_twice(payload) is True
+    assert eval_mod._salvage_scores(payload) is None
 
 
 # ---------------------------------------------------------------------------
@@ -1219,18 +3062,12 @@ def _sample(score: int, judge_failed: bool = False) -> dict[str, object]:
 
 def _ungraded_mech() -> dict[str, object]:
     """A cell where every judge sample failed, as the reducer emits it."""
-    return {
-        "scores": eval_mod._reduce_score_samples(
-            [_sample(0, judge_failed=True)], "median"
-        )
-    }
+    return {"scores": eval_mod._reduce_score_samples([_sample(0, judge_failed=True)], "median")}
 
 
 class TestReduceScoreSamples:
     def test_all_samples_graded_reduces_normally(self):
-        reduced = eval_mod._reduce_score_samples(
-            [_sample(5), _sample(3), _sample(4)], "median"
-        )
+        reduced = eval_mod._reduce_score_samples([_sample(5), _sample(3), _sample(4)], "median")
         assert reduced["activation_score"] == 4
         assert reduced["judge_failed"] is False
         assert reduced["graded"] is True
@@ -1350,3 +3187,343 @@ class TestUngradedCellsExcludedFromAverage:
         assert "Graded" in table
         assert "1/2" in table
         assert "2/2" in table
+
+
+_ARRAY_EXEMPLAR = (
+    '{"activation_score": 5, "citation_score": 5, "behavior_score": 5, "reasoning": "exemplar"}'
+)
+
+
+@pytest.mark.parametrize(
+    "label,payload",
+    [
+        (
+            "array_exemplar_then_reasoning_first_real_verdict",
+            f"[{_ARRAY_EXEMPLAR}]\n"
+            '{"reasoning": "no citations", "activation_score": 1, '
+            '"citation_score": 1, "behavior_score": 1}',
+        ),
+        (
+            "prose_then_array_exemplar_then_refusal",
+            f"Here is the rubric example:\n[{_ARRAY_EXEMPLAR}]\nI cannot score the response.",
+        ),
+        (
+            "array_exemplar_with_a_broken_string",
+            '[{"activation_score": 5, "citation_score": 5, '
+            '"behavior_score": 5, "reasoning": "he said "hi" ok"}]',
+        ),
+        ("bare_valid_array", f"[{_ARRAY_EXEMPLAR}]"),
+    ],
+)
+def test_an_object_inside_a_top_level_array_is_never_a_verdict(label, payload):
+    """An array element is a quoted exemplar, not the judge's answer.
+
+    Both root-object walkers counted braces and ignored brackets, so ``[{...}]``
+    satisfied "root level". The bare-array case is the tell: the same payload
+    with one broken string was salvaged as 5/5/5 while the intact version was
+    correctly refused as non-object JSON, which is a parser that grades higher
+    the more malformed its input gets.
+
+    The second case is the worst of them. It carried no ``judge_salvaged``
+    marker, so a fabricated 5/5/5 was indistinguishable from a clean parse in
+    the artifact and no post-hoc audit could have surfaced it.
+    """
+    assert eval_mod._salvage_scores(payload) is None, label
+    extracted = eval_mod._extract_json_object(payload)
+    if extracted is not None:
+        parsed = eval_mod._strict_json_loads(extracted)
+        assert parsed.get("activation_score") != 5, label
+
+
+def test_adding_a_second_candidate_can_only_withdraw_a_salvage():
+    """The invariant every one of the eleven fabrication defects violated.
+
+    Appending text to a payload may cause salvage to refuse. It must never
+    change which numbers come back, because a changed number means appended
+    text donated a score. Anchoring at offset 0 makes this structural rather
+    than a property each disqualifier has to preserve on its own.
+    """
+    base = (
+        '{"activation_score": 4, "citation_score": 3, "behavior_score": 5, '
+        '"reasoning": "he said "hi" then left"}'
+    )
+    original = eval_mod._salvage_scores(base)
+    assert original == {
+        "activation_score": 4,
+        "citation_score": 3,
+        "behavior_score": 5,
+    }
+    for suffix in (
+        f"\n{_ARRAY_EXEMPLAR}",
+        f"\n[{_ARRAY_EXEMPLAR}]",
+        '\n{"activation_score": 5, "citation_score": 5, "behavior_score": 5}',
+        "\nOn reflection I would score it 5/5/5.",
+    ):
+        after = eval_mod._salvage_scores(base + suffix)
+        assert after in (None, original), suffix
+
+
+_ARCHIVE_DIR = (
+    REPO_ROOT
+    / ".agents"
+    / "analysis"
+    / "eval-artifacts"
+    / "2026-07-29-unified-software-engineering"
+)
+_RECOVERED_PAYLOADS = _ARCHIVE_DIR / "recovered-judge-payloads.json"
+
+
+def _published_triples() -> dict[tuple[str, str, str, str, int], tuple[int, int, int]]:
+    """Index every published score sample by its artifact coordinates."""
+    published = {}
+    for path in sorted(_ARCHIVE_DIR.glob("*.json")):
+        if path.name == _RECOVERED_PAYLOADS.name:
+            continue
+        data = json.loads(path.read_text(encoding="utf-8"))
+        for rule_name, rule in (data.get("rules") or {}).items():
+            for scenario in rule.get("scenarios", []):
+                for mech_name, mech in (scenario.get("mechanisms") or {}).items():
+                    for sample in mech.get("score_samples") or []:
+                        key = (
+                            path.stem,
+                            rule_name,
+                            scenario.get("id"),
+                            mech_name,
+                            sample.get("sample_index"),
+                        )
+                        published[key] = sample
+    return published
+
+
+def test_every_published_cell_still_scores_to_its_archived_triple(monkeypatch):
+    """Replay the published table through the current parser, cell by cell.
+
+    For most of this parser's history only the 24 *failed* samples could be
+    replayed, because those are the ones that store raw text. That made a
+    defect on the success path unmeasurable, and the gap was published as a
+    limit rather than worked around.
+
+    It was not a real limit. The judge payloads survive in the harness session
+    transcripts, so all 288 samples were recovered and archived beside the
+    results they produced. This test is what that buys: any change to verdict
+    parsing is now checked against every published number, not against the
+    eighth of them that happened to fail.
+
+    A mismatch here means a parser change would have altered a result that has
+    already been published and argued from. That is the failure this suite
+    exists to catch.
+
+    The coverage and uniqueness assertions below are not decoration. A replay
+    that only walks the archive can stay green while the archive quietly loses
+    a coordinate, or while two coordinates are handed the same source event.
+    Both were real: an earlier archive attributed six coordinates to the wrong
+    event because it matched payloads to cells by the parsed triple and then
+    checked the match with the parsed triple.
+
+    Two populations, two contracts. The 264 samples that scored at publication
+    time must still produce the exact triple that was published. The 24 that
+    were refused then are all recovered by the current parser, so they are
+    pinned to what they now yield rather than to a published number they never
+    had. That gap is the recovery divergence tracked in issue #3999; pinning it
+    keeps it from drifting further without anyone noticing.
+    """
+    recovered = json.loads(_RECOVERED_PAYLOADS.read_text(encoding="utf-8"))
+    published = _published_triples()
+    assert recovered["sample_count"] == len(recovered["payloads"])
+
+    archived_keys = {
+        (e["artifact"], e["rule"], e["scenario"], e["mechanism"], e["sample_index"])
+        for e in recovered["payloads"]
+    }
+    assert archived_keys == set(published), (
+        "archive and published table disagree on which cells exist: "
+        f"{len(archived_keys - set(published))} archived-only, "
+        f"{len(set(published) - archived_keys)} published-only"
+    )
+    sources = [
+        (e["source_session"], e["source_event_index"]) for e in recovered["payloads"]
+    ]
+    assert len(set(sources)) == len(sources), (
+        "a source judge call is attributed to more than one published cell; "
+        "at most one of those attributions can be right"
+    )
+
+    mismatches = []
+    for entry in recovered["payloads"]:
+        key = (
+            entry["artifact"],
+            entry["rule"],
+            entry["scenario"],
+            entry["mechanism"],
+            entry["sample_index"],
+        )
+        sample = published[key]
+        monkeypatch.setattr(
+            eval_mod, "_call_api", lambda *_a, _p=entry["raw"], **_k: _p
+        )
+        result = eval_mod.score_response(
+            "sk-test",
+            {"input": "x", "expected_gate": "apply-rule"},
+            "response",
+        )
+        if entry["judge_failed"]:
+            if result["judge_failed"]:
+                mismatches.append((key, "still refused", entry["recovered_triple"], True))
+                continue
+            now = [
+                result["activation_score"],
+                result["citation_score"],
+                result["behavior_score"],
+            ]
+            if now != entry["recovered_triple"]:
+                mismatches.append((key, now, entry["recovered_triple"], False))
+            continue
+        got = (
+            result["activation_score"],
+            result["citation_score"],
+            result["behavior_score"],
+        )
+        want = (
+            sample["activation_score"],
+            sample["citation_score"],
+            sample["behavior_score"],
+        )
+        if result["judge_failed"] or got != want:
+            mismatches.append((key, got, want, result["judge_failed"]))
+
+    assert not mismatches, f"{len(mismatches)} published cells changed: {mismatches[:5]}"
+
+
+def _deeply_nested_payload(depth: int = 200_000) -> str:
+    """A payload whose nesting exceeds the JSON decoder's own recursion limit.
+
+    Nests objects rather than arrays on purpose. The recovery helpers anchor on
+    a brace, so an array-only payload is rejected before it ever reaches the
+    parse and would pass whether or not the seam converts the error.
+    """
+    return '{"a":' * depth + "1" + "}" * depth
+
+
+def test_deep_nesting_raises_value_error_not_recursion_error():
+    """The decoder's own limit must not leak past the parse seam.
+
+    ``RecursionError`` subclasses ``RuntimeError``, and the scoring call site
+    reads ``RuntimeError`` as a judge API outage. An unparseable payload filed
+    as an outage is a different count, so the two must not be confused.
+    """
+    with pytest.raises(ValueError):
+        eval_mod._strict_json_loads(_deeply_nested_payload())
+
+
+@pytest.mark.parametrize("helper", ["_extract_json_object", "_recover_verdict"])
+@pytest.mark.parametrize("shape", ["bare", "tail", "fenced"])
+def test_deep_nesting_is_refused_by_the_recovery_helpers(helper, shape):
+    """Both recovery helpers catch only ValueError, so the seam must supply it.
+
+    The payload has to *start* with the object. ``_salvage_anchor`` refuses
+    anything else outright (round 12), so a prose prefix short-circuits before
+    the parse and the test would pass whether or not the seam converts the
+    error.
+    """
+    nested = _deeply_nested_payload()
+    payload = {
+        "bare": nested,
+        "tail": nested + " trailing prose",
+        "fenced": "```json\n" + nested + "\n```",
+    }[shape]
+    assert getattr(eval_mod, helper)(payload) is None
+
+
+def test_deep_nesting_scores_as_a_parse_failure_not_an_api_failure(monkeypatch):
+    """The live path must file deep nesting as unparseable, not as an outage."""
+    payload = _deeply_nested_payload()
+    monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_k: payload)
+    result = eval_mod.score_response(
+        "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
+    )
+    assert result["judge_failed"] is True
+    assert result["activation_score"] == 0
+    assert "judge API failure" not in result["reasoning"]
+
+
+def test_the_exact_name_exemption_cannot_carry_a_verdict():
+    """Only an exact field-name *key* is skipped, and a value never is.
+
+    ``_string_values`` yields object keys, so a healthy payload's own root key
+    reaches the refusal as a string and has to be skipped or every real payload
+    fails. The skip is equality against ``_SCORE_FIELDS`` and applies to keys
+    only, which is the distinction round 23 forced.
+
+    The first repair skipped any *string* equal to a field name, on the
+    reasoning that a string holding only a name holds no number. That is true
+    of the string and false of the payload: a ``{"field": "activation_score",
+    "value": 1}`` record puts the name in one slot and the competing number in
+    its sibling, and it published a fabricated 5/4/5 over a stated 1/1/1. So a
+    field name in value position refuses, and the last case here is that
+    payload.
+
+    Padding refuses too, because the skip does not strip. A key of
+    ``"  activation_score  "`` is not the slot the schema defines, so a judge
+    that emits one is naming a field somewhere the parser does not read, which
+    is the whole trigger for a refusal.
+    """
+    names_two = eval_mod._parsed_names_two_verdicts
+    verdict = {"activation_score": 1, "citation_score": 1, "behavior_score": 1}
+
+    assert names_two({**verdict, "reasoning": "ok"}) is False
+    assert names_two({**verdict, "notes": "the rule fired and was cited"}) is False
+
+    for label, key in {
+        "ascii padding": "  activation_score  ",
+        "non breaking space": "\u00a0activation_score\u00a0",
+        "newline padding": "\nactivation_score\n",
+    }.items():
+        assert names_two({**verdict, key: True}) is True, label
+
+    assert names_two({**verdict, "reasoning": "activation_score"}) is True
+    assert names_two({**verdict, "reasoning": ["activation_score"]}) is True
+    assert names_two({**verdict, "activation_score2": '{"activation_score": 5}'}) is True
+    assert names_two({**verdict, "reasoning": {"activation_score": 5}}) is True
+    assert names_two({**verdict, "reasoning": "activation_score\uff1a5"}) is True
+
+
+def test_a_verdict_split_across_field_and_value_slots_is_refused():
+    """A record naming a field in one slot and its number in a sibling refuses.
+
+    Round 23's blocking case, kept as its own test because it is the payload
+    that broke the previous repair rather than a variation on it. The judge
+    files 5/4/5 and then states a corrected 1/1/1 as structured records, so
+    every field name sits in value position and every number sits beside it.
+    Nothing here is a schema slot, nothing is a nested score-bearing object
+    that ``_count_score_bearing_objects`` would count, and the published result
+    was an unmarked 5/4/5.
+    """
+    names_two = eval_mod._parsed_names_two_verdicts
+    payload = {
+        "activation_score": 5,
+        "citation_score": 4,
+        "behavior_score": 5,
+        "reasoning": "initial",
+        "corrected_verdict": [
+            {"field": "activation_score", "value": 1},
+            {"field": "citation_score", "value": 1},
+            {"field": "behavior_score", "value": 1},
+        ],
+    }
+    assert names_two(payload) is True
+
+
+def test_a_field_name_spelled_in_another_encoding_is_a_known_undetected_shape():
+    """Homoglyph and zero-width spellings pass, and the docstring says so.
+
+    The limit is one cause with three shapes: a field name that is not the
+    literal codepoint sequence, whether split, substituted, or interleaved. No
+    textual check closes it, so the honest move is to pin the behaviour in a
+    test rather than let a future round rediscover it as a defect. Zero of the
+    264 recovered payloads contain any of these shapes.
+    """
+    names_two = eval_mod._parsed_names_two_verdicts
+    verdict = {"activation_score": 1, "citation_score": 1, "behavior_score": 1}
+
+    assert names_two({**verdict, "reasoning": "activation_sc\u043ere: 5"}) is False
+    assert names_two({**verdict, "reasoning": "activation\u200b_score: 5"}) is False
