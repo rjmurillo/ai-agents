@@ -616,22 +616,46 @@ _KEY_SHAPED_SCORE_FIELDS = tuple(
     for field in _SCORE_FIELDS
 )
 
-# The same key shape, but capturing which field was named and the integer that
-# follows it. The count-only patterns above cannot tell a contradiction from a
-# restatement, and the difference decides whether a payload is ambiguous.
+# The same key shape, but capturing which field was named and the whole value
+# token that follows it. The count-only patterns above cannot tell a
+# contradiction from a restatement, and the difference decides whether a
+# payload is ambiguous. The value is captured up to the next JSON delimiter
+# rather than as an integer: capturing only a leading integer reads ``1.5`` as
+# ``1``, which agrees with a filed ``1`` and publishes a contradiction as a
+# restatement.
 _NAMED_SCORE_FIELD_RE = re.compile(
     "(?:\"|\\\\\"|')(" + "|".join(re.escape(f) for f in _SCORE_FIELDS) + ")"
-    + "(?:\"|\\\\\"|')\\s*:\\s*(-?[0-9]+)?"
+    + "(?:\"|\\\\\"|')\\s*:\\s*([^\\s,}\\]]+)?"
 )
 
-# A four-hex-digit JSON unicode escape, still spelled as text after a parse.
-# A real escape decodes during the parse, so one surviving here means the
-# payload carried a second encoding layer: JSON serialized into a string.
-_UNICODE_ESCAPE_RE = re.compile(r"\\u([0-9a-fA-F]{4})")
+# A value token is comparable only if it is exactly an integer. ``1.5``,
+# ``1e1``, and ``"1"`` all name a score this cannot equate with a filed
+# integer, so each is treated as uncomparable and refused.
+_EXACT_INT_RE = re.compile(r"-?[0-9]+\Z")
 
-# How many further decode layers to peel before giving up. Three covers every
-# nesting depth a cooperating judge produces; the bound exists so a crafted
-# payload cannot turn the check into unbounded work.
+# The escapes a JSON string body can carry. ``\\`` matters most: a value
+# serialized twice spells its escapes with a doubled backslash, and decoding
+# only ``\uXXXX`` consumes the second backslash of ``\\u0061`` and destroys the
+# escape instead of revealing it.
+_JSON_STRING_ESCAPES = {
+    '"': '"',
+    "\\": "\\",
+    "/": "/",
+    "b": "\b",
+    "f": "\f",
+    "n": "\n",
+    "r": "\r",
+    "t": "\t",
+}
+
+_HEX4_RE = re.compile(r"[0-9a-fA-F]{4}\Z")
+
+# How many further decode layers to peel before giving up. A parse decodes one
+# layer, so anything surviving here was serialized more than once. The bound
+# exists so a crafted payload cannot turn the check into unbounded work; when
+# it is reached with decoding still possible, the payload is refused rather
+# than accepted, since an undecoded remainder is exactly the case this cannot
+# clear.
 _MAX_ESCAPE_LAYERS = 3
 
 # The opening line of a Markdown code fence, capturing its delimiter run so
@@ -903,8 +927,13 @@ def _count_score_bearing_objects(value: object) -> int:
     """
     total = 0
     stack: list[object] = [value]
+    seen: set[int] = set()
     while stack:
         current = stack.pop()
+        if isinstance(current, (dict, list)):
+            if id(current) in seen:
+                continue
+            seen.add(id(current))
         if isinstance(current, dict):
             if any(field in current for field in _SCORE_FIELDS):
                 total += 1
@@ -932,8 +961,13 @@ def _string_values(value: object) -> Iterator[str]:
     API failure.
     """
     stack: list[object] = [value]
+    seen: set[int] = set()
     while stack:
         current = stack.pop()
+        if isinstance(current, (dict, list)):
+            if id(current) in seen:
+                continue
+            seen.add(id(current))
         if isinstance(current, str):
             yield current
         elif isinstance(current, dict):
@@ -990,28 +1024,72 @@ def _parsed_names_two_verdicts(parsed: object) -> bool:
     )
 
 
-def _escape_layers(text: str) -> Iterator[str]:
-    """Yield ``text`` and the forms it takes as unicode escapes are peeled off.
+def _peel_one_escape_layer(text: str) -> tuple[str, bool]:
+    """Decode one layer of JSON string escaping, reporting whether any applied.
+
+    Decoding only ``\\uXXXX`` is not enough. A value serialized twice spells its
+    escapes with a doubled backslash, so ``\\\\u0061`` arrives here with two
+    backslashes; a substitution that matches a single one consumes the second
+    and leaves ``\\activation_score``, which no further peel can decode and no
+    field pattern can match. Handling ``\\\\`` first turns the same input into
+    ``\\u0061``, which the next layer decodes to ``a``.
+
+    Handing the string to ``codecs.decode(s, "unicode_escape")`` instead would
+    be shorter and wrong: it decodes through latin-1, mangling characters the
+    parse already decoded correctly, and raises on invalid escapes that this
+    must merely classify.
+    """
+    out: list[str] = []
+    changed = False
+    index = 0
+    end = len(text)
+    while index < end:
+        char = text[index]
+        if char != "\\" or index + 1 >= end:
+            out.append(char)
+            index += 1
+            continue
+        marker = text[index + 1]
+        hex_digits = text[index + 2 : index + 6]
+        if marker == "u" and _HEX4_RE.match(hex_digits):
+            out.append(chr(int(hex_digits, 16)))
+            index += 6
+            changed = True
+        elif marker in _JSON_STRING_ESCAPES:
+            out.append(_JSON_STRING_ESCAPES[marker])
+            index += 2
+            changed = True
+        else:
+            out.append(char)
+            index += 1
+    return "".join(out), changed
+
+
+def _escape_layers(text: str) -> Iterator[tuple[str, bool]]:
+    """Yield each decode layer of ``text``, flagging only a truncated walk.
 
     A parse decodes exactly one layer of escaping. A verdict serialized into a
-    string can therefore spell its own field names with ``\\uXXXX`` and survive
-    the parse as literal backslash-u text, which no pattern for
-    ``"activation_score"`` will match. Peeling further layers asks the question
-    the parse could not: what does this string say once it is fully decoded?
+    string can therefore spell its own field names in escapes and survive the
+    parse as literal backslash text, which no pattern for ``"activation_score"``
+    will match. Peeling further layers asks the question the parse could not:
+    what does this string say once it is fully decoded?
 
-    Only ``\\uXXXX`` is decoded, and only into the character it names. Handing
-    the string to a general unescaper instead would mangle characters the parse
-    already decoded correctly, and could raise on input this must merely
-    classify.
+    The second element is True only on the last layer of a walk that ran out of
+    budget while more decoding remained. It is not "this layer still decodes",
+    which every layer but the last does by construction: a caller refusing on
+    that would refuse a judge who merely wrote a Windows path, since ``\\b`` is
+    a JSON escape and ``C:\\Users\\bob`` survives a parse carrying one. The flag
+    marks the case where the remainder was never read, so a caller can refuse
+    what it failed to inspect instead of accepting it by default.
     """
     seen = text
-    yield seen
     for _ in range(_MAX_ESCAPE_LAYERS):
-        peeled = _UNICODE_ESCAPE_RE.sub(lambda m: chr(int(m.group(1), 16)), seen)
-        if peeled == seen:
+        yield seen, False
+        peeled, changed = _peel_one_escape_layer(seen)
+        if not changed:
             return
         seen = peeled
-        yield seen
+    yield seen, _peel_one_escape_layer(seen)[1]
 
 
 def _string_contradicts_filed_scores(text: str, filed: dict[str, Any]) -> bool:
@@ -1019,30 +1097,34 @@ def _string_contradicts_filed_scores(text: str, filed: dict[str, Any]) -> bool:
 
     Naming a score field inside a string is not by itself a second verdict. A
     judge that writes ``I assigned "activation_score": 5 because ...`` while
-    filing 5 has restated its answer, not offered another one, and refusing that
-    payload discards a valid observation. Refusing it is not the safe direction
-    here: a dropped sample moves a published median exactly as a fabricated one
-    does, only downward in confidence rather than upward.
+    filing 5 has restated its answer, not offered another one.
 
-    What is a second verdict is a *different* value for a field the payload
-    already answered. That is the comparison this makes, across every escape
-    layer, so a nested serialization cannot hide the disagreement.
+    Refusing that restatement is not free, but it is not symmetric with
+    accepting a fabrication either. A refusal is visible: it increments
+    ``judge_failed`` and shrinks a sample count a reader can inspect. A
+    fabrication is an unmarked false observation that no downstream reader can
+    distinguish from a real one. So an equal restatement may be accepted only
+    where equality is established **exactly**, and every case where it cannot be
+    is refused:
 
-    A named field with no integer after it, or one this payload never filed at
-    top level, cannot be compared and is treated as a contradiction. That keeps
-    the ambiguous case on the refusing side without punishing agreement.
+    * a named field with no value token, or a token that is not exactly an
+      integer, so ``1.5`` and ``1e1`` are refused rather than read as ``1``
+    * a field this payload never filed as a top level integer, bools excluded
+    * a decode budget exhausted while another layer remained, since the
+      remainder is by definition unread
     """
-    for layer in _escape_layers(text):
+    for layer, truncated in _escape_layers(text):
         for match in _NAMED_SCORE_FIELD_RE.finditer(layer):
-            field, quoted = match.group(1), match.group(2)
-            if quoted is None:
+            field, token = match.group(1), match.group(2)
+            if token is None or not _EXACT_INT_RE.match(token):
                 return True
-            if not isinstance(filed.get(field), int) or isinstance(
-                filed.get(field), bool
-            ):
+            value = filed.get(field)
+            if not isinstance(value, int) or isinstance(value, bool):
                 return True
-            if int(quoted) != filed[field]:
+            if int(token) != value:
                 return True
+        if truncated:
+            return True
     return False
 
 
