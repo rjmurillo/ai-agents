@@ -51,7 +51,7 @@ def _pr_body_fallback(pr_number: str, repository: str) -> str:
     return result.stdout.strip() if result.returncode == 0 else ""
 
 
-def run(argv: list[str] | None = None) -> int:  # noqa: ARG001
+def run(_argv: list[str] | None = None) -> int:
     """Run the external signal gate and append results to step summary."""
     pr_body = os.environ.get("PR_BODY", "")
     pr_number = os.environ.get("PR_NUMBER", "")

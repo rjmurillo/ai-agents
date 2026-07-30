@@ -64,7 +64,7 @@ def _gh_issue_body(issue_ref: str, default_repo: str) -> str:
     return result.stdout.strip() if result.returncode == 0 else ""
 
 
-def run(argv: list[str] | None = None) -> int:  # noqa: ARG001
+def run(_argv: list[str] | None = None) -> int:
     """Load spec content and write to temp file."""
     spec_refs_raw = os.environ.get("SPEC_REFS", "")
     issue_refs_raw = os.environ.get("ISSUE_REFS", "")

@@ -104,7 +104,7 @@ def _extract_incremental_scope(pr_title: str) -> str:
     return result.stdout.strip() if result.returncode == 0 else ""
 
 
-def run(argv: list[str] | None = None) -> int:  # noqa: ARG001
+def run(_argv: list[str] | None = None) -> int:
     """Extract spec references and set outputs."""
     pr_title = os.environ.get("PR_TITLE_INPUT", "")
     pr_body = os.environ.get("PR_BODY_INPUT", "")

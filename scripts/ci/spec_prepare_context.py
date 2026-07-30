@@ -35,7 +35,7 @@ def _write_multiline_output(key: str, value: str, github_output: str) -> None:
         fh.write(f"{key}<<{delimiter}\n{value}\n{delimiter}\n")
 
 
-def run(argv: list[str] | None = None) -> int:  # noqa: ARG001
+def run(_argv: list[str] | None = None) -> int:
     """Prepare and write spec_context output."""
     spec_file_path = os.environ.get("SPEC_FILE", "")
     incremental_scope = os.environ.get("INCREMENTAL_SCOPE", "")
