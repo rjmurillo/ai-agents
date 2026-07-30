@@ -31,8 +31,10 @@ from scripts.github_core.api import (  # noqa: E402
     resolve_repo_params,
 )
 
-# Matches semantic version strings like "0.2.0", "1.10.3"
-_SEMVER_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
+# Matches semantic version strings like "0.2.0", "v0.4.0", "1.10.3".
+# The optional v prefix matches the repository's tag and milestone convention
+# (every milestone since 0.3.0 is v-prefixed; see issue #3945).
+_SEMVER_PATTERN = re.compile(r"^v?\d+\.\d+\.\d+$")
 
 
 # -------------------------------------------------------------------
@@ -41,8 +43,8 @@ _SEMVER_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
 
 
 def _parse_semver_tuple(version: str) -> tuple[int, ...]:
-    """Parse "X.Y.Z" into (X, Y, Z) for proper numeric sorting."""
-    return tuple(int(part) for part in version.split("."))
+    """Parse "X.Y.Z" or "vX.Y.Z" into (X, Y, Z) for proper numeric sorting."""
+    return tuple(int(part) for part in version.removeprefix("v").split("."))
 
 
 def get_latest_semantic_milestone(
