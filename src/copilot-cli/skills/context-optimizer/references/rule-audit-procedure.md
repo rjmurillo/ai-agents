@@ -385,16 +385,19 @@ number are not. The shapes recur either way.
   Because failures are not evenly distributed across mechanisms, this could
   invert the ranking. Fixed on 2026-07-29. Any result file older than that with
   a non-zero `total_judge_failures` has a biased table.
-- **A four-backtick fence is miscounted and refused.** `_FENCE_RE` matches runs
-  of exactly three backticks, so a payload fenced with four (legal Markdown,
-  and what a judge emits when its own reasoning quotes a three-backtick block)
-  closes at the inner three and yields a truncated body that will not parse.
-  The sample is dropped. This fails in the safe direction, costing one of three
-  judge samples rather than publishing a wrong one, and no archived payload
-  contains a four-backtick run (measured: 0 of 24 stored prefixes), so it is
-  recorded rather than fixed. Widening the fence regex would re-introduce the
-  candidate-selection choice that the exactly-one-fence rule exists to remove.
-  Found by adversarial review round 11.
+- **A four-backtick fence was miscounted and refused.** The fence matcher took
+  runs of exactly three backticks, so a payload fenced with four (legal
+  Markdown, and what a judge emits when its own reasoning quotes a
+  three-backtick block) closed at the inner three and yielded a truncated body
+  that would not parse. The sample was dropped. Found by adversarial review
+  round 11, and first recorded here rather than fixed on the reasoning that
+  widening the matcher would re-introduce the candidate-selection choice the
+  exactly-one-fence rule exists to remove. **That reasoning was wrong**, and
+  round 12 showed why: pairing the close to the width of the run that opened
+  it collects every block exactly as before and still refuses anything other
+  than one, so no selection returns. Fixed on 2026-07-30. The archive is
+  unaffected either way, since no stored payload contains a four-backtick run
+  (measured: 0 of 24 prefixes).
 - **Agentic CLI output is not clean JSON.** The provider reads
   `~/.copilot/session-state/<uuid>/events.jsonl` and correlates by the sandbox
   working directory, which is race-free. Falling back to stdout parsing mixes

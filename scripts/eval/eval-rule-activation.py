@@ -567,9 +567,10 @@ _KEY_SHAPED_SCORE_FIELDS = tuple(
     for field in _SCORE_FIELDS
 )
 
-# A Markdown code fence and its body. Applied only when the payload holds
-# exactly one, so no candidate is ever selected from several.
-_FENCE_RE = re.compile(r"`{3}(?:json)?\s*\n(.*?)`{3}", re.DOTALL)
+# The opening line of a Markdown code fence, capturing its delimiter run so
+# the close can be paired to the same width. Applied only when the payload
+# holds exactly one block, so no candidate is ever selected from several.
+_FENCE_OPEN_RE = re.compile(r"(`{3,})(?:json)?[ \t]*")
 
 _ASCII_SPACE = " \t\r\n"
 
@@ -858,6 +859,38 @@ def _names_a_score_field_twice(text: str) -> bool:
     return any(len(pattern.findall(text)) > 1 for pattern in _KEY_SHAPED_SCORE_FIELDS)
 
 
+def _fenced_blocks(text: str) -> list[str] | None:
+    """Return every Markdown fenced block in *text*, or ``None`` to refuse.
+
+    Refuses on an unterminated fence rather than treating the rest of the
+    payload as a body: a truncated judge response would otherwise hand back
+    whatever prose followed the opening run.
+
+    A closing run must be at least as wide as the one that opened the block
+    and may hold nothing else, which is the CommonMark rule. That is what lets
+    a four-backtick fence carry a three-backtick run in its body.
+    """
+    lines = text.splitlines()
+    blocks: list[str] = []
+    index = 0
+    while index < len(lines):
+        opening = _FENCE_OPEN_RE.fullmatch(lines[index])
+        if opening is None:
+            index += 1
+            continue
+        closing = re.compile(r"`{" + str(len(opening.group(1))) + r",}[ \t]*")
+        index += 1
+        body: list[str] = []
+        while index < len(lines) and closing.fullmatch(lines[index]) is None:
+            body.append(lines[index])
+            index += 1
+        if index == len(lines):
+            return None
+        blocks.append("\n".join(body))
+        index += 1
+    return blocks
+
+
 def _unwrap_lone_fence(text: str) -> str | None:
     """Return the body of the payload's only Markdown fence, or ``None``.
 
@@ -873,9 +906,18 @@ def _unwrap_lone_fence(text: str) -> str | None:
 
     Requiring exactly one fence removes the choice rather than adding another
     disqualifier to the search. Zero or several refuse.
+
+    The close is paired to the width of the run that opened it, per CommonMark.
+    Matching a bare three-backtick run instead closed a four-backtick fence at
+    the first inner run, and a judge reaches for four backticks precisely
+    because its own reasoning quotes a three-backtick block, so the body came
+    back truncated and unparseable. That failed in the safe direction, but it
+    is still a lost sample. Pairing by width does not restore any selection:
+    every block in the payload is still collected, and anything other than
+    exactly one still refuses. Found by adversarial review round 12.
     """
-    bodies: list[str] = _FENCE_RE.findall(text)
-    if len(bodies) != 1:
+    bodies = _fenced_blocks(text)
+    if bodies is None or len(bodies) != 1:
         return None
     return bodies[0].strip()
 

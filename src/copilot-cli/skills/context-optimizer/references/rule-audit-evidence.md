@@ -2,8 +2,8 @@
 
 Companion to `rule-audit-procedure.md`. That document is the procedure and
 carries the published table; this one carries the forensics behind it: which
-judge samples were lost, what recovering them changed, and what fourteen
-rounds of adversarial review found in the recovery code.
+judge samples were lost, what recovering them changed, and what twelve rounds
+of adversarial review found in the recovery code.
 
 Read this before citing a number from the procedure document, and before
 writing a new instrument that has to parse judge output.
@@ -71,8 +71,19 @@ longer original whose discarded tail named the score fields a second time
 would produce a byte-identical stored prefix and would be refused by the
 duplicate-name guard rather than recovered. The recomputed table therefore
 assumes no discarded tail would have changed the verdict, and the archive
-cannot check that assumption. The error has a direction: the recovered values
-are a genuine prefix of what the judge wrote, so they cannot be wrong, but a
+cannot check that assumption.
+
+An earlier draft went one step further and said the error has a direction:
+that the recovered values are a genuine prefix of what the judge wrote, so
+they cannot be wrong. **The second half does not follow from the first.**
+Genuine bytes are not a final verdict. A judge that scored, then corrected
+itself further down the payload, emits a prefix that is authentically its
+first answer and not its answer. The concrete case is the one cell this
+recovery moved: appending `and then corrected itself: "activation_score":1,
+"citation_score":1, "behavior_score":1.` to the stored `fx-opus5` S3 baseline
+prefix leaves the first 200 characters byte-identical and makes the real
+parser refuse the payload outright. So the recovered values were genuinely
+emitted but may be neither the final nor the uniquely intended verdict, and a
 sample the real parser would have refused can be present. Widen the prefix
 (issue #3975) before treating the recomputed cells as measured.
 
@@ -84,10 +95,10 @@ State the limit plainly. The extractor was written after seeing which samples
 failed, so this is post-hoc recovery, not independent replication. Recovering
 *every* failure rather than a chosen subset avoids outcome selection.
 
-**It has since survived ten rounds of adversarial review and failed the first
-nine.** The regex extractor was replaced with a structure-aware scanner, which
-review then broke repeatedly, always in the same direction: it returned a
-wrong verdict and reported it as a clean parse.
+**It has since survived twelve rounds of adversarial review and failed the
+first eleven.** The regex extractor was replaced with a structure-aware
+scanner, which review then broke repeatedly, always in the same direction: it
+returned a wrong verdict and reported it as a clean parse.
 
 Fourteen defects, all one class. A scan desynchronized by a quote inside a
 nested object; a second root object that *was* the real verdict; salvage
@@ -134,6 +145,28 @@ held-out malformed output. None has been done. Eleven rounds each hardened this
 function and each missed what the next found, so "it survived review" is
 weaker evidence here than the round count suggests. Fourteen defects of one
 class is evidence against hand-writing the parser at all (issue #3988).
+
+Round 12 was the first to find no defect of that class, and it was aimed at
+the two least-tested surfaces: the duplicate guard's paired-quote alternation,
+and the strict-parse path that eleven rounds of attacks on salvage had never
+touched. It confirmed that strict parsing rejects wrong-typed, out-of-range,
+duplicate, and array-rooted verdicts before any of them can reach a cell. One
+clean round after eleven dirty ones is a weak signal on its own; it is
+recorded as the point where the attacks moved off the surface that had been
+failing, not as convergence.
+
+Round 12 did overturn something, and it was a justification rather than a
+parser. Round 11 reported that a four-backtick fence closed at the first inner
+three-backtick run and lost the sample. That was recorded as a known limit on
+the reasoning that widening the matcher would restore the candidate selection
+the exactly-one-fence rule exists to remove. Round 12 showed that pairing the
+close to the width of the run that opened it collects every block exactly as
+before and still refuses anything other than one, so the stated cost did not
+exist and the limit was fixed instead. It is the fifteenth defect and the
+first of a different class: a delimiter boundary that refuses valid input,
+failing safe rather than fabricating. The lesson is narrower than the
+selection one and worth keeping separate from it: a declined fix needs its
+justification attacked on the same terms as the code.
 
 
 Reproduce the recovery from any archived run. The failed samples store the

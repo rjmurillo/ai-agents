@@ -2009,6 +2009,63 @@ def test_unwrap_lone_fence_returns_none_when_absent() -> None:
     assert eval_mod._unwrap_lone_fence(_JUDGE) is None
 
 
+# ---------------------------------------------------------------------------
+# Fence width pairing (adversarial review round 12)
+# ---------------------------------------------------------------------------
+
+_WIDE_FENCE = "`" * 4
+
+
+def test_a_four_backtick_fence_survives_a_three_backtick_run_in_its_body() -> None:
+    """A judge reaches for four backticks because its reasoning quotes three.
+
+    Closing on a bare three-run cut the body at the inner quote and handed
+    back something that would not parse, so the sample was dropped. Pairing
+    the close to the opening width is the CommonMark rule and is what makes
+    the shape legal in the first place.
+    """
+    body = (
+        '{"activation_score":4,"citation_score":3,"behavior_score":2,'
+        f'"reasoning":"the response used {_FENCE} to open a block"}}'
+    )
+    text = f"{_WIDE_FENCE}json\n{body}\n{_WIDE_FENCE}"
+
+    assert eval_mod._unwrap_lone_fence(text) == body
+
+
+def test_two_four_backtick_fences_still_refuse() -> None:
+    """Widening the delimiter must not buy back a selection.
+
+    The exactly-one-block rule is what removed the thirteenth defect. It has
+    to hold at every delimiter width, not just at three.
+    """
+    block = f'{_WIDE_FENCE}json\n{{"activation_score":5}}\n{_WIDE_FENCE}'
+
+    assert eval_mod._unwrap_lone_fence(f"{block}\n{block}") is None
+
+
+def test_a_three_backtick_run_does_not_close_a_four_backtick_fence() -> None:
+    """A narrower run is body text, so the block stays open and is refused."""
+    text = f'{_WIDE_FENCE}json\n{{"activation_score":5}}\n{_FENCE}'
+
+    assert eval_mod._unwrap_lone_fence(text) is None
+
+
+def test_an_unterminated_fence_refuses_rather_than_running_to_the_end() -> None:
+    """Truncated judge output must not hand back the prose that followed."""
+    text = f'{_FENCE}json\n{{"activation_score":5}}'
+
+    assert eval_mod._unwrap_lone_fence(text) is None
+
+
+def test_a_wider_run_may_close_a_narrower_fence() -> None:
+    """CommonMark lets the close exceed the open, and judges do emit that."""
+    body = '{"activation_score":4,"citation_score":3,"behavior_score":2}'
+    text = f"{_FENCE}json\n{body}\n{_WIDE_FENCE}"
+
+    assert eval_mod._unwrap_lone_fence(text) == body
+
+
 def test_prose_naming_a_score_field_does_not_block_recovery(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

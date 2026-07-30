@@ -169,7 +169,8 @@
         "e079",
         "e082",
         "e095",
-        "e100"
+        "e100",
+        "e107"
       ]
     },
     {
@@ -217,7 +218,8 @@
         "e079",
         "e082",
         "e095",
-        "e100"
+        "e100",
+        "e107"
       ]
     },
     {
@@ -633,7 +635,8 @@
         "e079",
         "e082",
         "e095",
-        "e100"
+        "e100",
+        "e107"
       ]
     },
     {
@@ -889,6 +892,66 @@
       "timestamp": "2026-07-29T00:00:00+00:00",
       "type": "milestone",
       "content": "Filed issue #3991. .github/copilot-instructions.md is injected into every Copilot session at 6351 bytes and no gate measures it: validate_workspace_budget.py covers only CLAUDE.md, AGENTS.md, and .claude/CLAUDE.md at 3000 bytes each, and instruction_budget.py covers only .github/instructions/*.instructions.md. The Copilot entry point sits in the gap at 2.1 times the ceiling its Claude-side equivalents are held to. AGENTS.md has one byte of headroom, so the gate shape actively steers new always-on guidance into the unmeasured file. Observed symptom: its Gotchas section duplicates .agents/governance/GOTCHAS.md, which exists so that detail is not paid for on every turn.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e102",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected the PR #3983 description. It claimed salvage never produced a published number, citing 0 samples carrying a judge_salvaged marker. Verified the marker is absent from all 288 archived samples rather than present-and-false: it was introduced by this line of work, so all eight runs predate it. Absence of a field that did not exist yet is not a measurement. Graded samples retain only a truncated reasoning string, not the raw payload, so the question cannot be answered from the archive at all. Fifth false published claim of one shape: a number read off a population other than the one the sentence attaches it to.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e103",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Shipped PR #3994, the deduplication half of objective item 2. .github/copilot-instructions.md carried its own inline gotchas section duplicating .agents/governance/GOTCHAS.md with no gate to catch drift. Moved the three unique entries into the governance file, added three more traps found while shipping #3983, and replaced the section with a pointer. 6351 to 4579 bytes, a 28 percent cut with no knowledge lost. All three always-on entry points now cite one source: AGENTS.md directly, CLAUDE.md through its @AGENTS.md import, copilot-instructions.md through the new pointer.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e104",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Sol adversarial round 12. First round in twelve to find no defect of the selection class, and it was aimed at the two least-tested surfaces: the duplicate guard's paired-quote alternation and the strict-parse path that eleven rounds of attacks on salvage had never touched. Confirmed no fourth score-key spelling evades the alternation, and that strict parsing rejects wrong-typed, out-of-range, duplicate, and array-rooted verdicts before any reaches a cell.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e105",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Round 12 overturned a justification rather than a parser. Round 11's four-backtick fence finding had been recorded as a known limit on the reasoning that widening the matcher would restore the candidate selection the exactly-one-fence rule removes. That reasoning was wrong: pairing the close to the width of the run that opened it collects every block exactly as before and still refuses anything other than one. Replaced _FENCE_RE with _fenced_blocks, a width-paired line scan that refuses an unterminated fence. Fifteenth defect, and the first of a different class: a delimiter boundary that refuses valid input, failing safe rather than fabricating.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e106",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified the fence fix does not move the published table. Archive regression holds exactly: 24 of 24 prefixes recover with identical triples (17x 5/4/5, 5x 5/5/5, one 2/2/1, one 2/3/1). Added five regression tests including the negative controls that pin the exactly-one-block invariant at every delimiter width: two four-backtick fences refuse, a three-run does not close a four-fence, an unterminated fence refuses. Suite 1546 passed and 4 skipped, up from 1541. Ruff clean, mypy Success.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e107",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "content": "Verified the fence fix does not move the published table. Archive regression holds exactly: 24 of 24 prefixes recover with identical triples (17x 5/4/5, 5x 5/5/5, one 2/2/1, one 2/3/1). Added five regression tests including the negative controls that pin the exactly-one-block invariant at every delimiter width: two four-backtick fences refuse, a three-run does not close a four-fence, an unterminated fence refuses. Suite 1546 passed and 4 skipped, up from 1541. Ruff clean, mypy Success.",
+      "caused_by": [
+        "e017",
+        "e022",
+        "e071"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e108",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected the sixth false published claim, found by round 12 and independently reproduced. rule-audit-evidence.md said the recovered values are a genuine prefix of what the judge wrote so they cannot be wrong. The second half does not follow: genuine bytes are not a final verdict. Verified on the exact sample that drives the one cell recovery moved, fx-opus5 S3 baseline, the only baseline cell in that run with a failed sample: appending a self-correction to the stored prefix leaves the first 200 characters byte-identical and makes the real parser refuse the payload outright.",
       "caused_by": [],
       "leads_to": []
     }
