@@ -26,8 +26,13 @@ _ARTIFACT_NAME = r"[A-Za-z0-9][A-Za-z0-9._-]*\.(?:md|json|txt|sarif|xml)"
 _WRITE_OP = r"(?:>>?|--[a-z-]*out|--body-file|--output)"
 
 # A redirect, a --body-file, or an --*-out flag whose target is a bare filename
-# with no directory part. A path containing a slash lands somewhere deliberate;
-# a bare name lands in whatever directory the step happens to run in.
+# with no directory part, which lands in whatever directory the step happens to
+# run in.
+#
+# A slash in the target is not by itself proof the write is deliberate:
+# `${VAR:-.}/name` contains a slash and still lands in the checkout root
+# whenever VAR is unset. This pattern deliberately does not try to cover that
+# case; FALLBACK_ROOTED_WRITE_RE below does, and the two are checked together.
 ARTIFACT_WRITE_RE = re.compile(
     rf"""(?:^|\s){_WRITE_OP}\s+ "?(?P<path>{_ARTIFACT_NAME})"?""",
     re.VERBOSE,
