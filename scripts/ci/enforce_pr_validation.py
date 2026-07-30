@@ -54,8 +54,8 @@ def main(argv: list[str] | None = None) -> int:
         if BYPASS_LABEL in labels:
             print(f"::warning::Commit limit bypassed via '{BYPASS_LABEL}' label")
         else:
-            # ADR-008 widens the ceiling to 40 for a main-merge branch, so the
-            # applied limit is only knowable from the producer's output. With
+            # The main-merge relief (issue #3596) widens the ceiling to 40, so
+            # the applied limit is only knowable from the producer's output. With
             # no value to report, naming none beats naming a wrong one.
             ceiling = f" (limit: {commit_limit})" if commit_limit else ""
             print(
