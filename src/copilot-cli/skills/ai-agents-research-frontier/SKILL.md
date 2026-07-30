@@ -285,7 +285,7 @@ Before acting on this skill's claims, or after editing it:
 ## Provenance and Maintenance
 
 Authored 2026-07-03, facts re-verified against the working tree on 2026-07-30.
-Full local history is present (2014 commits as of 2026-07-30) and retro-cited
+Full local history is present (~2014 commits as of 2026-07-30) and retro-cited
 short SHAs do resolve here (ddb76e0 and 01e76615a are both commits), so `git log`
 is usable for archaeology. Prefer `.agents/retrospective/` and
 `.serena/memories/` for the reasoning behind a change, which commit messages
