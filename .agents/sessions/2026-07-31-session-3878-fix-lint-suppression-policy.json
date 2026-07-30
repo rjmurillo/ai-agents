@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Final code tip 4f570d9a6 after two main merges, review fixes, and security hardening"
+        "Evidence": "Final code tip e94b5d42ad after current-main merges, review fixes, and security hardening"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "151 targeted tests pass; ruff and mypy pass; ruff baseline 331 and taste baseline 613 both match"
+        "Evidence": "156 targeted tests pass; ruff and mypy pass; ruff baseline 331 and taste baseline 613 both match"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -147,7 +147,7 @@
     {
       "step": 6,
       "action": "Expanded push, staged, merge, rename, notebook, type-change, and hook-wiring coverage",
-      "result": "107 suppression-policy tests and 44 ratchet tests pass"
+      "result": "112 suppression-policy tests and 44 ratchet tests pass"
     },
     {
       "step": 7,
@@ -165,7 +165,7 @@
       "result": "File-level directives, split notebooks, type changes, trusted merge parents, rename-with-edit, uppercase tokens, and pre-merge hooks covered"
     }
   ],
-  "endingCommit": "4f570d9a6",
+  "endingCommit": "e94b5d42ad",
   "nextSteps": [
     "Issues #3792 and #3941 need focused cleanup PRs",
     "Issue #4039 tracks a separate type-ignore policy",
