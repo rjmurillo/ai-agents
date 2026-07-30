@@ -97,6 +97,13 @@ _KEYWORDS = "keywords"
 # The dict methods that answer a question about the mapping without changing
 # it. Every other way of reaching the mapping is treated as a write.
 _KEYWORD_READERS = frozenset({"copy", "get", "items", "keys", "values"})
+# The nodes that hold the thing they walk under ``iter``. Walking a mapping
+# yields its keys and leaves the mapping itself alone. All three also accept
+# an assignment target, so the node has to be the ``iter`` to count as a read.
+_WALKING_PARENTS = (ast.For, ast.AsyncFor, ast.comprehension)
+# The nodes that only look at what they are given. A comparison answers a
+# question about the mapping; an interpolation renders it.
+_INSPECTING_PARENTS = (ast.Compare, ast.FormattedValue)
 _UNKNOWN = object()
 _PARTIAL = "functools.partial"
 # Marks the null sink. Held beside the entry points so an imported ``DEVNULL``
@@ -1222,20 +1229,25 @@ def _owner_module(node: ast.expr, modules: dict[str, str]) -> str | None:
     return None if key is None else modules.get(key)
 
 
-def _reads_only(parent: ast.AST | None) -> bool:
-    """Report whether a keywords mapping under *parent* is only being read.
+def _reads_only(node: ast.AST, parent: ast.AST | None) -> bool:
+    """Report whether the keywords mapping at *node* is only being read.
 
-    Three shapes are provably harmless: one of the dict methods that cannot
+    Five shapes are provably harmless: one of the dict methods that cannot
     change the mapping, a subscript being loaded rather than stored or
-    deleted, and a comparison. Everything else counts as a write, including
-    handing the mapping to another function, which can change it out of
-    sight.
+    deleted, a walk that yields the keys, a double-star splat that fills a
+    fresh mapping for someone else, and a comparison or an interpolation.
+    Everything else counts as a write, including handing the mapping to
+    another function, which can change it out of sight.
     """
     if isinstance(parent, ast.Attribute):
         return parent.attr in _KEYWORD_READERS
     if isinstance(parent, ast.Subscript):
         return isinstance(parent.ctx, ast.Load)
-    return isinstance(parent, ast.Compare)
+    if isinstance(parent, _WALKING_PARENTS):
+        return parent.iter is node
+    if isinstance(parent, ast.keyword):
+        return parent.arg is None
+    return isinstance(parent, _INSPECTING_PARENTS)
 
 
 def _partial_roots(
@@ -1279,7 +1291,7 @@ def _undone_pins(tree: ast.AST, roots: dict[str, str]) -> set[str]:
     for node in ast.walk(tree):
         if not isinstance(node, ast.Attribute) or node.attr != _KEYWORDS:
             continue
-        if _reads_only(parents.get(id(node))):
+        if _reads_only(node, parents.get(id(node))):
             continue
         name = _owner_name(node.value)
         if name is not None and name in roots:
@@ -2208,6 +2220,53 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             'codec = runner.keywords["encoding"]\n'
             'runner(["x"])',
             "loading one key out of the mapping leaves the mapping alone",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, text=True, encoding="utf-8"\n'
+            ')\n'
+            'for key in runner.keywords:\n'
+            '    print(key)\n'
+            'runner(["x"])',
+            "walking the mapping yields its keys and leaves the mapping alone",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, text=True, encoding="utf-8"\n'
+            ')\n'
+            'names = [key for key in runner.keywords]\n'
+            'runner(["x"])',
+            "a comprehension walks the mapping the same way a for loop does",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, text=True, encoding="utf-8"\n'
+            ')\n'
+            'print(f"{runner.keywords}")\n'
+            'runner(["x"])',
+            "interpolating the mapping into a string only formats it",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, text=True, encoding="utf-8"\n'
+            ')\n'
+            'copied = dict(**runner.keywords)\n'
+            'runner(["x"])',
+            "splatting the mapping fills a new dict and leaves the source alone",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'for key in runner.keywords:\n'
+            '    print(key)\n'
+            'runner(["x"], text=True)',
+            "a walked mapping still answers for a call site that adds the text",
         ),
         (
             'import functools, subprocess\n'
@@ -3213,6 +3272,24 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'runner.keywords.update({"encoding": None})\n'
             'runner(["x"])',
             "updating the mapping replaces the bound encoding wholesale",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, text=True, encoding="utf-8"\n'
+            ')\n'
+            'dropped = [runner.keywords.pop(k) for k in list(runner.keywords)]\n'
+            'runner(["x"])',
+            "a comprehension that walks the mapping can still empty it",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, text=True, encoding="utf-8"\n'
+            ')\n'
+            'print(f"{runner.keywords.pop(\'encoding\')}")\n'
+            'runner(["x"])',
+            "interpolation formats whatever it is given, including a mutation",
         ),
         (
             'import functools, subprocess\n'
