@@ -41,13 +41,40 @@ SCANNABLE_EXTENSIONS = {
     ".json",
 }
 
-# Path segments whose files are exempt from the file-size rule. These hold
-# append-only generated data (the episode-extraction hook writes an episode
-# record under .agents/memory/episodes/ on every session-log commit). The data
-# has no module boundaries to split on, so a line ceiling is the wrong gate,
-# and JSON cannot carry a `# taste-lint: ignore` suppression comment. A path
-# exemption is the only mechanism. See issue #2785.
-FILE_SIZE_EXEMPT_SEGMENTS: tuple[tuple[str, ...], ...] = ((".agents", "memory"),)
+# Path segments holding captured or generated JSON that is exempt from the
+# file-size rule. A line ceiling is the wrong gate for these: the content has no
+# boundaries to split on, and JSON cannot carry a `# taste-lint: ignore`
+# suppression comment, so a path exemption is the only mechanism available.
+#
+# The exemption requires the `.json` suffix as well as the path. The rationale
+# above is about JSON specifically, and without the suffix condition the
+# exemption reached every authored file that happened to sit in one of these
+# directories: a 913-line markdown catalog and a 542-line XML spec under
+# `sessions/` were silently excused, and both have ordinary section boundaries
+# to split on.
+#
+#   memory/: the episode-extraction hook appends an episode record on every
+#   session-log commit (issue #2785).
+#
+#   analysis/eval-artifacts/: raw eval result files, archived so the numbers
+#   published in an analysis can be re-derived instead of taken on faith.
+#   Splitting one would break the provenance it exists to provide, and the
+#   file-size remediation text proposes extracting "helper functions" from a
+#   JSON dump, which is advice no author can act on (issue #3970).
+#
+#   sessions/: session logs, which SESSION-PROTOCOL.md requires to carry one
+#   workLog entry per step, so length tracks how much work a session did and
+#   nothing else. validate_session_json.py validates one file per session, so
+#   splitting one is not available either.
+_AGENT_STATE_DIR = ".agents"
+
+FILE_SIZE_EXEMPT_SUFFIX = ".json"
+
+FILE_SIZE_EXEMPT_SEGMENTS: tuple[tuple[str, ...], ...] = (
+    (_AGENT_STATE_DIR, "memory"),
+    (_AGENT_STATE_DIR, "analysis", "eval-artifacts"),
+    (_AGENT_STATE_DIR, "sessions"),
+)
 
 _GENERATED_PATH_SEGMENTS: tuple[tuple[str, ...], ...] = (
     ("src", "copilot-cli"),
@@ -288,16 +315,23 @@ def has_suppression(lines: list[str], rule: str) -> bool:
 
 
 def _is_file_size_exempt(filepath: str) -> bool:
-    """True when filepath lives under a generated-data dir exempt from file-size.
+    """True when filepath is captured JSON under a dir exempt from file-size.
 
-    The exempt segment must anchor at the START of the repository-relative path,
-    not match anywhere in it. Otherwise a checkout whose parent directories happen
-    to contain ``.agents/memory`` (for example a clone under
-    ``/home/me/.agents/memory/repo``) would leak the exemption to unrelated files.
+    Both conditions are required. The exempt segment must anchor at the START of
+    the repository-relative path, not match anywhere in it. Otherwise a checkout
+    whose parent directories happen to contain ``.agents/memory`` (for example a
+    clone under ``/home/me/.agents/memory/repo``) would leak the exemption to
+    unrelated files. The suffix must be ``.json``, because the reason these
+    directories are exempt at all is that JSON cannot carry a suppression
+    comment; an authored markdown or XML file sitting in one of them has
+    ordinary boundaries to split on and is not excused.
+
     Absolute paths are first made relative to the current working directory (the
     linter runs from the repo root); a path outside the repo is never exempt.
     """
     path = Path(filepath).expanduser()
+    if path.suffix.lower() != FILE_SIZE_EXEMPT_SUFFIX:
+        return False
     if path.is_absolute():
         try:
             parts = path.resolve().relative_to(Path.cwd().resolve()).parts

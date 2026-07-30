@@ -117,6 +117,9 @@ The pass-rate table has no cost column. Passive context is paid on every request
 
 - [model-context-doctrine.md](references/model-context-doctrine.md) - What the current doctrine is, why Vercel and Shihipar do not conflict, per-model levers, and how to update when a new model ships. **Read this before arguing about always-on content.**
 - [rule-audit-procedure.md](references/rule-audit-procedure.md) - Repeatable procedure for deciding whether an always-on rule earns its slot, including the eval commands, the noise floor, and known instrument gotchas
+- [rule-audit-evidence.md](references/rule-audit-evidence.md) - Forensics behind the published table: which judge samples were lost, what recovering them changed, and what the loss does to the headline claim. Read before citing a cell
+- [rule-audit-parser-forensics.md](references/rule-audit-parser-forensics.md) - Repair history of the parser that produced the table: what more than twenty rounds of adversarial review found, and which fixes were themselves wrong. Read before writing a new instrument that parses judge output
+- [rule-audit-measurement-discipline.md](references/rule-audit-measurement-discipline.md) - How the checks themselves went wrong: false negative controls, numbers read off the wrong population, and edits that silently deleted what they anchored on. Read before quoting a figure from a one-off command
 - [Vercel: AGENTS.md outperforms skills](https://vercel.com/blog/agents-md-outperforms-skills-in-our-agent-evals)
 - Analysis: `.agents/analysis/vercel-passive-context-vs-skills-research.md`
 - Memory: `passive-context-vs-skills-vercel-research`
