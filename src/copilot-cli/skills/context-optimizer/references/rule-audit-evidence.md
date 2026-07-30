@@ -2,7 +2,7 @@
 
 Companion to `rule-audit-procedure.md`. That document is the procedure and
 carries the published table; this one carries the forensics behind it: which
-judge samples were lost, what recovering them changed, and what twelve rounds
+judge samples were lost, what recovering them changed, and what thirteen rounds
 of adversarial review found in the recovery code.
 
 Read this before citing a number from the procedure document, and before
@@ -95,12 +95,12 @@ State the limit plainly. The extractor was written after seeing which samples
 failed, so this is post-hoc recovery, not independent replication. Recovering
 *every* failure rather than a chosen subset avoids outcome selection.
 
-**It has since survived twelve rounds of adversarial review and failed the
-first eleven.** The regex extractor was replaced with a structure-aware
-scanner, which review then broke repeatedly, always in the same direction: it
-returned a wrong verdict and reported it as a clean parse.
+**Thirteen rounds of adversarial review have found sixteen defects in it, the
+most recent in round 13.** The regex extractor was replaced with a
+structure-aware scanner, which review then broke repeatedly, always in the
+same direction: it returned a wrong verdict and reported it as a clean parse.
 
-Fourteen defects, all one class. A scan desynchronized by a quote inside a
+Fifteen defects of one class. A scan desynchronized by a quote inside a
 nested object; a second root object that *was* the real verdict; salvage
 running after the range gate, re-admitting a `6` as a clean `5`; brace
 counting that ignored brackets, so `[{5/5/5 exemplar}]` read as root; the same
@@ -141,19 +141,23 @@ raw counts and for what they cannot answer.
 That is not a blind test, because the same author wrote all six parsers.
 Falsifying it properly still takes one of: blinded manual transcription of the
 failed payloads, a second parser written by someone who has not seen them, or
-held-out malformed output. None has been done. Eleven rounds each hardened this
+held-out malformed output. None has been done. Twelve rounds each hardened this
 function and each missed what the next found, so "it survived review" is
-weaker evidence here than the round count suggests. Fourteen defects of one
+weaker evidence here than the round count suggests. Fifteen defects of one
 class is evidence against hand-writing the parser at all (issue #3988).
 
-Round 12 was the first to find no defect of that class, and it was aimed at
-the two least-tested surfaces: the duplicate guard's paired-quote alternation,
-and the strict-parse path that eleven rounds of attacks on salvage had never
-touched. It confirmed that strict parsing rejects wrong-typed, out-of-range,
-duplicate, and array-rooted verdicts before any of them can reach a cell. One
-clean round after eleven dirty ones is a weak signal on its own; it is
-recorded as the point where the attacks moved off the surface that had been
-failing, not as convergence.
+Round 12 found no defect of that class and was aimed at the two least-tested
+surfaces: the duplicate guard's paired-quote alternation, and the strict-parse
+path that eleven rounds of attacks on salvage had never touched. It confirmed
+that strict parsing rejects wrong-typed, out-of-range, duplicate, and
+array-rooted verdicts before any of them can reach a cell.
+
+That was first written up here as the first clean round. It was not. Round 13
+found a defect of exactly that class in the code round 12 had just examined,
+so the round was clean only in the sense that the attacks went somewhere else.
+Recording a quiet round as evidence of soundness is the same
+inference-from-absence that produced two of the false claims corrected above:
+no finding is a fact about the attack, not about the code.
 
 Round 12 did overturn something, and it was a justification rather than a
 parser. Round 11 reported that a four-backtick fence closed at the first inner
@@ -167,6 +171,24 @@ first of a different class: a delimiter boundary that refuses valid input,
 failing safe rather than fabricating. The lesson is narrower than the
 selection one and worth keeping separate from it: a declined fix needs its
 justification attacked on the same terms as the code.
+
+Round 13 returned to the selection class and found the sixteenth defect, in
+the exactly-one-fence rule itself. Requiring exactly one fence removes the
+choice among fences. It does not remove the choice between the fence and the
+prose around it. A payload whose unfenced lines carried the judge's real
+verdict of 1/1/1, and whose single fenced block held a rubric exemplar the
+judge had labelled "do not use", was answered with the exemplar: 5/5/5,
+marked recovered, into the reducer. The rule now also requires that nothing
+but whitespace sit outside the fence, which is the only condition under which
+unwrapping is a rewrite rather than a choice. Every one of the twenty-four
+archived prefixes recovers to a byte-identical triple afterwards, because none
+of them contains a fence at all, so the published table cannot move on this.
+
+The sixteenth defect is the strongest available evidence that the round count
+is not a convergence signal. The exactly-one-fence rule was written in round
+11 specifically to remove a selection, was reviewed in round 12, was extended
+in round 12 with a proof that the extension restored no selection, and still
+contained one. Each of those steps was correct about the thing it examined.
 
 
 Reproduce the recovery from any archived run. The failed samples store the

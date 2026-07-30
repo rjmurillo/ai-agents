@@ -859,12 +859,17 @@ def _names_a_score_field_twice(text: str) -> bool:
     return any(len(pattern.findall(text)) > 1 for pattern in _KEY_SHAPED_SCORE_FIELDS)
 
 
-def _fenced_blocks(text: str) -> list[str] | None:
-    """Return every Markdown fenced block in *text*, or ``None`` to refuse.
+def _fenced_blocks(text: str) -> tuple[list[str], bool] | None:
+    """Return *text*'s fenced blocks and whether they were all of it.
 
-    Refuses on an unterminated fence rather than treating the rest of the
-    payload as a body: a truncated judge response would otherwise hand back
-    whatever prose followed the opening run.
+    The second element is ``True`` when nothing but whitespace sat outside the
+    fences. The caller needs it because "exactly one fence" is not the same
+    claim as "exactly one candidate": a payload can hold one fenced block and
+    still carry a competing verdict in the prose around it.
+
+    Refuses (``None``) on an unterminated fence rather than treating the rest
+    of the payload as a body: a truncated judge response would otherwise hand
+    back whatever prose followed the opening run.
 
     A closing run must be at least as wide as the one that opened the block
     and may hold nothing else, which is the CommonMark rule. That is what lets
@@ -872,10 +877,13 @@ def _fenced_blocks(text: str) -> list[str] | None:
     """
     lines = text.splitlines()
     blocks: list[str] = []
+    outside_is_blank = True
     index = 0
     while index < len(lines):
         opening = _FENCE_OPEN_RE.fullmatch(lines[index])
         if opening is None:
+            if lines[index].strip():
+                outside_is_blank = False
             index += 1
             continue
         closing = re.compile(r"`{" + str(len(opening.group(1))) + r",}[ \t]*")
@@ -888,7 +896,7 @@ def _fenced_blocks(text: str) -> list[str] | None:
             return None
         blocks.append("\n".join(body))
         index += 1
-    return blocks
+    return blocks, outside_is_blank
 
 
 def _unwrap_lone_fence(text: str) -> str | None:
@@ -904,8 +912,13 @@ def _unwrap_lone_fence(text: str) -> str | None:
     and the duplicate-name guard could see the real payload. That was the
     thirteenth defect of the class.
 
-    Requiring exactly one fence removes the choice rather than adding another
-    disqualifier to the search. Zero or several refuse.
+    Requiring exactly one fence removes the choice *among fences*. It does not
+    remove the choice between the fence and the prose around it, which was the
+    sixteenth defect: a payload whose unfenced text held the real verdict and
+    whose single fenced block held a rubric exemplar the judge had explicitly
+    labelled as one was answered with the exemplar. Unwrapping is only ever
+    justified when the fence is the whole payload, so anything but whitespace
+    outside it refuses too. Found by adversarial review round 13.
 
     The close is paired to the width of the run that opened it, per CommonMark.
     Matching a bare three-backtick run instead closed a four-backtick fence at
@@ -916,8 +929,11 @@ def _unwrap_lone_fence(text: str) -> str | None:
     every block in the payload is still collected, and anything other than
     exactly one still refuses. Found by adversarial review round 12.
     """
-    bodies = _fenced_blocks(text)
-    if bodies is None or len(bodies) != 1:
+    scan = _fenced_blocks(text)
+    if scan is None:
+        return None
+    bodies, outside_is_blank = scan
+    if not outside_is_blank or len(bodies) != 1:
         return None
     return bodies[0].strip()
 

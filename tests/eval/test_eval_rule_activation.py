@@ -2066,6 +2066,65 @@ def test_a_wider_run_may_close_a_narrower_fence() -> None:
     assert eval_mod._unwrap_lone_fence(text) == body
 
 
+def test_an_unfenced_verdict_beside_a_lone_fenced_exemplar_refuses() -> None:
+    """One fence is not one candidate, which was the sixteenth defect.
+
+    The judge wrote its real verdict as unfenced prose and fenced a rubric
+    exemplar it had explicitly labelled as one. Requiring exactly one fence
+    removed the choice among fences and left the choice between the fence and
+    everything around it, so the exemplar was published as the verdict.
+    """
+    text = (
+        "Actual verdict:\n"
+        "activation_score: 1\n"
+        "citation_score: 1\n"
+        "behavior_score: 1\n"
+        "\n"
+        "Rubric exemplar (do not use):\n"
+        f"{_FENCE}json\n"
+        '{"activation_score":5,"citation_score":5,"behavior_score":5}\n'
+        f"{_FENCE}"
+    )
+
+    assert eval_mod._unwrap_lone_fence(text) is None
+    assert eval_mod._recover_verdict(text) is None
+
+
+def test_blank_lines_around_a_lone_fence_still_recover() -> None:
+    """The refusal is about competing content, not about tidy whitespace."""
+    body = '{"activation_score":4,"citation_score":4,"behavior_score":4}'
+
+    assert eval_mod._unwrap_lone_fence(f"\n  \n{_fenced(body)}\n\t\n") == body
+
+
+@pytest.mark.parametrize(
+    "outside",
+    [
+        "the real verdict was 1/1/1",
+        '{"activation_score":1,"citation_score":1,"behavior_score":1}',
+        ".",
+        "\u200b",
+        "\u2060",
+    ],
+)
+def test_content_outside_a_recoverable_fence_may_only_cause_refusal(
+    outside: str,
+) -> None:
+    """Adding text outside a fence must never preserve or change a score.
+
+    The property adversarial review asked for: a payload that recovers must
+    stop recovering the moment something else could have been the answer. It
+    may never keep the old scores and it may never produce new ones.
+    """
+    body = '{"activation_score":5,"citation_score":5,"behavior_score":5}'
+    fenced = _fenced(body)
+    assert eval_mod._unwrap_lone_fence(fenced) == body
+
+    for polluted in (f"{outside}\n{fenced}", f"{fenced}\n{outside}"):
+        assert eval_mod._unwrap_lone_fence(polluted) is None
+        assert eval_mod._recover_verdict(polluted) is None
+
+
 def test_prose_naming_a_score_field_does_not_block_recovery(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

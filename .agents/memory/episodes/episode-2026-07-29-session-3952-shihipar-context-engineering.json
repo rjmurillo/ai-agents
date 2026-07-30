@@ -25,6 +25,16 @@
       "rationale": "",
       "outcome": "success",
       "effects": []
+    },
+    {
+      "id": "d003",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "implementation",
+      "context": "",
+      "chosen": "Changed _fenced_blocks to report whether anything but whitespace sat outside the fences, and made _unwrap_lone_fence require that. Chose the directly-checked invariant over inferring it from the first and last lines.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
     }
   ],
   "events": [
@@ -170,7 +180,8 @@
         "e082",
         "e095",
         "e100",
-        "e107"
+        "e107",
+        "e117"
       ]
     },
     {
@@ -219,7 +230,8 @@
         "e082",
         "e095",
         "e100",
-        "e107"
+        "e107",
+        "e117"
       ]
     },
     {
@@ -636,7 +648,8 @@
         "e082",
         "e095",
         "e100",
-        "e107"
+        "e107",
+        "e117"
       ]
     },
     {
@@ -952,6 +965,98 @@
       "timestamp": "2026-07-29T00:00:00+00:00",
       "type": "milestone",
       "content": "Corrected the sixth false published claim, found by round 12 and independently reproduced. rule-audit-evidence.md said the recovered values are a genuine prefix of what the judge wrote so they cannot be wrong. The second half does not follow: genuine bytes are not a final verdict. Verified on the exact sample that drives the one cell recovery moved, fx-opus5 S3 baseline, the only baseline cell in that run with a failed sample: appending a self-correction to the stored prefix leaves the first 200 characters byte-identical and makes the real parser refuse the payload outright.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e109",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Adversarial review round 13 found the sixteenth defect, back in the selection class: a payload holding one fenced block plus an unfenced verdict was answered with the fence.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e110",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced it end-to-end through score_response with a stubbed transport. A judge verdict of 1/1/1 in unfenced prose plus a fenced exemplar labelled 'do not use' published 5/5/5 with judge_salvaged True.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e111",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured the cost of the fix before writing it: 0 of the 24 archived failed-sample prefixes contain a fence at all, so requiring a whole-payload fence cannot move the published table.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e112",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Changed _fenced_blocks to report whether anything but whitespace sat outside the fences, and made _unwrap_lone_fence require that. Chose the directly-checked invariant over inferring it from the first and last lines.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e113",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added four regression tests including the property adversarial review asked for: content added outside a recoverable fence may only cause refusal, never preserve or change a score.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e114",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The property test failed on U+00A0 and the test case was wrong, not the code: Python classifies NBSP as whitespace and it carries no verdict. Replaced with U+200B and U+2060, which are not whitespace and do refuse.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e115",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Probed the U+2028, U+2029 and U+0085 interaction with splitlines separately. All three fail safe: the unwrap can mutate a body but the strict parse then rejects it.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e116",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Suite 1553 passed / 4 skipped, up from 1546. Ruff clean, mypy Success. Archive regression exact: 24 of 24 recover with identical triples. Rounds 8 through 11 regressions all hold.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e117",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "content": "Suite 1553 passed / 4 skipped, up from 1546. Ruff clean, mypy Success. Archive regression exact: 24 of 24 recover with identical triples. Rounds 8 through 11 regressions all hold.",
+      "caused_by": [
+        "e017",
+        "e022",
+        "e071"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e118",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Retracted the published claim that round 12 was the first clean round. Round 13 found a selection defect in the code round 12 examined, so a quiet round is a fact about the attack, not about the code. Seventh false claim, second of the inference-from-absence shape.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e119",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed the PR description gate on PR 3994 by reproducing extract_mentioned_files offline instead of round-tripping through CI, and recorded the two load-bearing citation-cue constraints in the governance gotchas file.",
       "caused_by": [],
       "leads_to": []
     }

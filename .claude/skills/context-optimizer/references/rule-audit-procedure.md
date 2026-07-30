@@ -241,7 +241,7 @@ published cell uses three samples; seventeen of them get at least one of those
 three from post-hoc recovery of a truncated prefix, and seven get two.
 
 The full accounting, the confounds it creates for the table above, and the
-fourteen defects found in the recovery code across eleven review rounds are in
+sixteen defects found in the recovery code across thirteen review rounds are in
 `rule-audit-evidence.md`. Read it before citing a cell from this table.
 
 **Provenance for the eight runs, recorded by hand because the artifacts do not
@@ -398,6 +398,17 @@ number are not. The shapes recur either way.
   than one, so no selection returns. Fixed on 2026-07-30. The archive is
   unaffected either way, since no stored payload contains a four-backtick run
   (measured: 0 of 24 prefixes).
+- **A lone fence outranked an unfenced verdict beside it.** Requiring exactly
+  one fenced block removed the choice among fences and left the choice between
+  the fence and the prose around it. A judge that wrote its verdict as
+  unfenced text and fenced a rubric exemplar it had labelled "do not use" was
+  answered with the exemplar, which then parsed cleanly and was published as a
+  recovered sample. Unwrapping now also requires that nothing but whitespace
+  sit outside the fence: that is the only condition under which unwrapping is
+  a rewrite of the payload rather than a choice within it. Found by
+  adversarial review round 13, fixed on 2026-07-30. The archive is unaffected,
+  since none of the stored payloads contains a fence at all (measured: 0 of 24
+  prefixes), and all 24 recover to byte-identical triples afterwards.
 - **Agentic CLI output is not clean JSON.** The provider reads
   `~/.copilot/session-state/<uuid>/events.jsonl` and correlates by the sandbox
   working directory, which is race-free. Falling back to stdout parsing mixes
