@@ -152,6 +152,10 @@ _COPYING_READERS = frozenset({"dict"})
 # in the middle of what the source reads as a look. Spared only when every
 # bound value is a literal.
 _RENDERING_READERS = frozenset({"ascii", "format", "print", "repr", "str"})
+# Every reader a file can shadow by binding its name. Held as one set because
+# shadowing does not care what a reader does with the mapping, only that the
+# spelling no longer reaches the builtin.
+_SHADOWABLE_READERS = _MAPPING_READERS | _RENDERING_READERS | _COPYING_READERS
 _UNKNOWN = object()
 _PARTIAL = "functools.partial"
 # Marks the null sink. Held beside the entry points so an imported ``DEVNULL``
@@ -1333,19 +1337,51 @@ def _rebound_builtins(
     caller supplies. ``def sneak(len): len(runner.keywords)`` reads as the
     builtin and runs as whatever was passed in, which the file may never
     spell out: a method reached through an instance, a lambda handed on, a
-    callback the framework calls. Every parameter counts, so the answer does
-    not depend on finding the call site.
+    callback the framework calls.
 
-    Answered for the whole file rather than per scope. A reader shadowed
-    anywhere is treated as shadowed throughout, which errs toward flagging.
+    A parameter is answered per scope rather than for the whole file, because
+    a parameter binds its name only inside its own function. Reading it
+    file-wide let ``def harmless(list)`` in one helper stop every other
+    ``list`` call in a 4800 line file from reading as the builtin, which is a
+    false positive the scan does not have to take. See :func:`_scoped_shadows`.
+    Everything else here really does bind for the whole module.
     """
     found = {name for name, _ in bindings} | _imported_names(tree)
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             found.add(node.name)
-        elif isinstance(node, ast.arg):
-            found.add(node.arg)
-    return frozenset(found & (_MAPPING_READERS | _RENDERING_READERS | _COPYING_READERS))
+    return frozenset(found & _SHADOWABLE_READERS)
+
+
+def _reader_params(node: ast.AST) -> frozenset[str]:
+    """Name every mapping reader the parameters of *node* shadow."""
+    args = getattr(node, "args", None)
+    if not isinstance(args, ast.arguments):
+        return frozenset()
+    every = [*args.posonlyargs, *args.args, *args.kwonlyargs]
+    if args.vararg is not None:
+        every.append(args.vararg)
+    if args.kwarg is not None:
+        every.append(args.kwarg)
+    return frozenset(arg.arg for arg in every) & _SHADOWABLE_READERS
+
+
+def _scoped_shadows(
+    node: ast.AST, parents: dict[int, ast.AST], shadowed: frozenset[str]
+) -> frozenset[str]:
+    """Add the readers the scopes enclosing *node* shadow with a parameter.
+
+    Walked upward rather than recorded on the way down, because the parent
+    map is already built and a mapping read is rare enough that paying per
+    read costs less than paying per node. The walk is a loop, so a file that
+    nests two thousand deep costs depth rather than a blown stack.
+    """
+    found: set[str] = set()
+    current: ast.AST | None = node
+    while current is not None:
+        found.update(_reader_params(current))
+        current = parents.get(id(current))
+    return shadowed | found if found else shadowed
 
 
 def _spares_pin(
@@ -1498,9 +1534,26 @@ def _getter_names_keywords(factory: ast.Call, functions: dict[str, str]) -> bool
     the whole tuple-index hop threaded into the sparing rule for a spelling
     nothing writes, while the one-name form above is the one that appears.
     """
+    if _operator_label(factory, functions) == _OPERATOR_METHODCALLER:
+        return _dunder_methodcaller(factory)
     if _operator_label(factory, functions) != _OPERATOR_ATTRGETTER:
         return False
     return any(_names_keywords(arg) for arg in factory.args)
+
+
+def _dunder_methodcaller(factory: ast.Call) -> bool:
+    """Report whether a methodcaller runs an attribute read for ``keywords``.
+
+    ``methodcaller("__getattribute__", "keywords")`` names the dunder as a
+    string and the attribute as its argument, so neither node spells the
+    mapping and the pair reads as an ordinary call on a call. What it builds
+    fetches the same dict ``attrgetter("keywords")`` does.
+    """
+    if not factory.args or not isinstance(factory.args[0], ast.Constant):
+        return False
+    if factory.args[0].value not in _ATTR_DUNDERS:
+        return False
+    return any(_names_keywords(arg) for arg in factory.args[1:])
 
 
 def _keyword_fetchers(
@@ -1562,9 +1615,15 @@ def _dunder_fetch(call: ast.Call) -> ast.expr | None:
     func = call.func
     if not isinstance(func, ast.Attribute) or func.attr not in _ATTR_DUNDERS:
         return None
-    if len(call.args) != 1 or not _names_keywords(call.args[0]):
-        return None
-    return func.value
+    if len(call.args) == 1:
+        return func.value if _names_keywords(call.args[0]) else None
+    if len(call.args) == 2 and _names_keywords(call.args[1]):
+        # ``object.__getattribute__(runner, "keywords")`` runs the same
+        # descriptor the bound spelling runs, reached off the base class
+        # instead of off the partial, so the owner arrives as an argument
+        # rather than as the attribute's value. Measured: it drops the pin.
+        return call.args[0]
+    return None
 
 
 def _getter_fetch(
@@ -1584,6 +1643,23 @@ def _getter_fetch(
         return call.args[0] if call.args else None
     if isinstance(call.func, ast.Name):
         return _named_fetch(call, fetchers.get(call.func.id))
+    if isinstance(call.func, ast.Attribute):
+        # A fetcher reached through a dotted name fetches what the bare name
+        # fetches. ``builtins.getattr`` is the builtin itself, and a class
+        # body that binds ``fetch = getattr`` hands the same callable out as
+        # ``Holder.fetch``. Reading only the bare name lets either spelling
+        # reach the mapping in silence.
+        return _named_fetch(call, fetchers.get(call.func.attr))
+    # Known and open: a fetcher stored as a container value stays missed.
+    # ``d = {"f": getattr}`` followed by ``d["f"](runner, "keywords")`` puts an
+    # ``ast.Subscript`` in call position, and resolving it needs to know both
+    # which key the subscript reads and what that key held at that point in
+    # execution. That is data-flow analysis, not the name resolution this
+    # detector does, and the same hole covers list and tuple elements. The
+    # shape does leak: run the assignment, the subscripted call, and a render
+    # of the result and the pin moves from ``'utf-8'`` to ``None``. Left open
+    # rather than papered over, alongside the ``dict(**m)`` and multi-name
+    # ``attrgetter`` limitations recorded elsewhere in this module.
     return None
 
 
@@ -1654,7 +1730,11 @@ def _undone_pins(
         parent = parents.get(id(node))
         grandparent = parents.get(id(parent)) if parent is not None else None
         if _spares_pin(
-            node, parent, grandparent, root in literal_roots, shadowed
+            node,
+            parent,
+            grandparent,
+            root in literal_roots,
+            _scoped_shadows(node, parents, shadowed),
         ):
             continue
         if root is not None:
@@ -3031,6 +3111,17 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             'seen = fetch(runner)\n'
             'runner(["x"], text=True)',
             "a name bound to a local attrgetter fetches nothing from the partial",
+        ),
+        (
+            'import functools, subprocess\n'
+            'def harmless(list):\n'
+            '    return list\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'seen = list(runner.keywords)\n'
+            'runner(["x"], text=True)',
+            "a parameter shadows a reader inside its own function, not the file",
         ),
     ],
 )
@@ -4646,6 +4737,45 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'seen = sorted(runner.keywords)\n'
             'runner(["x"], text=True)',
             "an imported name shadows the builtin as thoroughly as a def does",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'class Holder:\n'
+            '    fetch = getattr\n'
+            'Holder.fetch(runner, "keywords")["encoding"] = None\n'
+            'runner(["x"], text=True)',
+            "a class attribute carries the fetcher as well as a bare name does",
+        ),
+        (
+            'import functools, subprocess, builtins\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'builtins.getattr(runner, "keywords")["encoding"] = None\n'
+            'runner(["x"], text=True)',
+            "the builtins module spells the same fetch as a qualified name",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'object.__getattribute__(runner, "keywords")["encoding"] = None\n'
+            'runner(["x"], text=True)',
+            "the unbound base descriptor fetches what the bound dunder fetches",
+        ),
+        (
+            'import functools, subprocess, operator\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'fetch = operator.methodcaller("__getattribute__", "keywords")\n'
+            'fetch(runner)["encoding"] = None\n'
+            'runner(["x"], text=True)',
+            "methodcaller names the dunder as a string and calls it later",
         ),
     ],
 )
