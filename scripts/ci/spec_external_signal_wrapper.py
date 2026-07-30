@@ -46,6 +46,7 @@ def _pr_body_fallback(pr_number: str, repository: str) -> str:
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
     return result.stdout.strip() if result.returncode == 0 else ""
@@ -76,6 +77,7 @@ def run(_argv: list[str] | None = None) -> int:
         [sys.executable, "scripts/quality_gate/spec_external_signal_gate.py"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         env=env,
         check=False,
     )

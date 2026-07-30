@@ -59,6 +59,7 @@ def _gh_issue_body(issue_ref: str, default_repo: str) -> str:
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
     return result.stdout.strip() if result.returncode == 0 else ""

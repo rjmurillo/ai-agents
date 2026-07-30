@@ -51,6 +51,7 @@ def _is_duplicate(title: str) -> bool:
             ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=False,
         )
         if raw.returncode != 0:
@@ -116,6 +117,7 @@ def run(_argv: list[str] | None = None) -> int:
         footer = _build_footer(server_url, repository, run_id, source)
         full_body = body + footer
 
+        sys.stdout.flush()
         result = subprocess.run(
             [
                 "gh",

@@ -58,6 +58,7 @@ def _gh_pr_field(pr_number: str, repository: str, field: str) -> str:
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
     return result.stdout.strip() if result.returncode == 0 else ""
@@ -99,6 +100,7 @@ def _extract_incremental_scope(pr_title: str) -> str:
         [sys.executable, ".github/scripts/extract_incremental_scope.py", pr_title],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
     return result.stdout.strip() if result.returncode == 0 else ""
