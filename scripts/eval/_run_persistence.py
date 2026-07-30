@@ -194,14 +194,14 @@ def _normalize_seed(payload: dict[str, Any], schema_version: int) -> None:
 
 def _validate_assertions(payload: dict[str, Any], line_context: str) -> list[AssertionResult]:
     raw_assertions = payload.get("assertions")
-    if payload.get("outcome") == "success" and not raw_assertions:
-        raise MalformedRunRecordError(
-            f"{line_context} successful record must include non-empty assertions"
-        )
     if not isinstance(raw_assertions, list):
         raise MalformedRunRecordError(
             f"{line_context} field 'assertions' has wrong type "
             f"(expected list, got {type(raw_assertions).__name__})"
+        )
+    if payload.get("outcome") == "success" and not raw_assertions:
+        raise MalformedRunRecordError(
+            f"{line_context} successful record must include non-empty assertions"
         )
     assertions: list[AssertionResult] = []
     for index, assertion in enumerate(raw_assertions):
@@ -271,13 +271,22 @@ def _parse_record(line: str) -> RunRecord | None:
 
     Raises `SchemaVersionError` on incompatible `schemaVersion`. Version 1 is
     read for compatibility and normalized with v2 optional provenance defaults.
+
+    Raises `MalformedRunRecordError` when the line parses as JSON but does not
+    describe a record. Everything below the `json.loads` is decoding untrusted
+    on-disk data, so a wrong shape is an operator-repair problem, which the CLI
+    maps to EXIT_CONFIG. Without the guard those shapes escaped as bare
+    `ValueError`, `KeyError`, or `TypeError` and bypassed that contract.
     """
     line = line.strip()
     if not line:
         return None
     payload = json.loads(line)
     if not isinstance(payload, dict):
-        raise MalformedRunRecordError("record is not a JSON object")
+        raise MalformedRunRecordError(
+            f"record does not describe a run: top-level JSON is "
+            f"{type(payload).__name__}, expected object"
+        )
     schema_version = payload.pop("schemaVersion", None)
     if schema_version not in SUPPORTED_RUN_RECORD_SCHEMA_VERSIONS:
         raise SchemaVersionError(
@@ -293,9 +302,16 @@ def _parse_record(line: str) -> RunRecord | None:
     payload.setdefault("system_fingerprint", None)
     _normalize_seed(payload, schema_version)
     payload.setdefault("seed", None)
-    _validate_payload(payload, "record")
-    payload["assertions"] = _validate_assertions(payload, "record")
-    return RunRecord(**payload)
+    try:
+        _validate_payload(payload, "record")
+        payload["assertions"] = _validate_assertions(payload, "record")
+        return RunRecord(**payload)
+    except (ValueError, KeyError, TypeError) as exc:
+        # The rejected detail is echoed for diagnosis and capped, because a
+        # corrupt record is attacker-influenced input to the operator's log.
+        raise MalformedRunRecordError(
+            f"record does not describe a run: {type(exc).__name__}: {str(exc)!r:.160}"
+        ) from exc
 
 
 @dataclasses.dataclass
@@ -377,7 +393,7 @@ class RunPersistence:
                         f"{sorted(SUPPORTED_RUN_RECORD_SCHEMA_VERSIONS)})"
                     )
                 line_context = f"{self._jsonl_path}: line {line_no}"
-                _normalize_seed(payload, schema_version)
+                _normalize_seed(payload, cast(int, schema_version))
                 existing_seed = payload.get("seed")
                 if (
                     self._resume
