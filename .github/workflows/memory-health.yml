@@ -82,12 +82,12 @@ jobs:
       - name: Run health check (JSON)
         continue-on-error: true
         run: |
-          python3 -m memory_enhancement --repo-root . health --json > health-report.json
+          uv run --frozen python3 -m memory_enhancement --repo-root . health --json > health-report.json
 
       - name: Run health check (Markdown)
         continue-on-error: true
         run: |
-          python3 -m memory_enhancement --repo-root . health --markdown > health-report.md
+          uv run --frozen python3 -m memory_enhancement --repo-root . health --markdown > health-report.md
 
       - name: Upload health reports
         if: always()

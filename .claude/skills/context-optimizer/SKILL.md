@@ -1,7 +1,7 @@
 ---
 name: context-optimizer
-version: 1.1.0
-description: Analyze skill content for optimal placement (Skill vs Passive Context vs Hybrid), compress markdown to pipe-delimited format (60-80% token reduction), and validate compliance against the decision framework. Based on Vercel research showing passive context achieves 100% pass rates vs 53-79% for skills. Use when you ask "compress this skill", "Skill vs Passive Context placement", "reduce tokens". Do NOT use for gathering knowledge before a task (use context-gather).
+version: 1.2.0
+description: Analyze skill content for optimal placement (Skill vs Passive Context vs Hybrid), compress markdown to pipe-delimited format (60-80% token reduction), and validate compliance against the decision framework. Passive context wins for what the model cannot know (post-cutoff APIs, repo gotchas); pre-trained knowledge belongs in progressive disclosure. Use when you ask "compress this skill", "Skill vs Passive Context placement", "reduce tokens". Do NOT use for gathering knowledge before a task (use context-gather).
 license: MIT
 user-invocable: true
 allowed-tools:
@@ -16,11 +16,11 @@ Tooling suite for optimizing Claude Code context placement. Passive context (AGE
 
 ## Triggers
 
-- `analyze skill placement` - classify content as Skill vs Passive Context
+- `analyze skill placement` - classify and validate content as Skill vs Passive Context
 - `compress markdown` - reduce token count for context files
-- `validate compliance` - check skill/passive context placement decisions
 - `optimize context` - lower API costs and improve agent performance
 - `extract and index` - split markdown into detail files with compact index
+- `audit always-on rules` - eval-gated procedure for whether a rule earns its slot, and the doctrine behind it, in [rule-audit-procedure.md](references/rule-audit-procedure.md) and [model-context-doctrine.md](references/model-context-doctrine.md). Also the entry point when a new model ships
 
 ## Process
 
@@ -59,13 +59,19 @@ pip install tiktoken           # or install directly
 
 ## Decision Framework
 
-### Use Passive Context For
+The first question is not "skill or passive context." It is: **does the model already know this?**
 
-- Framework knowledge (APIs, patterns, conventions)
-- Always-needed information (constraints, protocols, gates)
-- Domain concepts (terminology, relationships)
-- Routing rules (comment classification, agent selection)
-- Reference data (memory indexes, skill catalogs)
+### Passive Context Earns Its Slot Only For What The Model Cannot Know
+
+- Repo-specific gotchas (a gate that rejects one exact string, a hook that must not be bypassed)
+- Local conventions that contradict the common default
+- APIs newer than the training cutoff, which is exactly what the Vercel eval measured
+- Routing tables, catalogs, and protocols specific to this repository
+
+### Keep Out Of Passive Context
+
+- Generic engineering knowledge the model already has: SOLID, Clean Code, refactoring catalogs, testing pyramids. It does not earn an always-on slot without task-specific evidence that it changes behavior. It bills tokens on every edit, in every language, forever. The burden is on the content to prove it helps, not on the reader to prove it does not.
+- Anything already stated in another always-on file. Duplicates drift apart, and then the agent spends reasoning reconciling them instead of doing the work.
 
 ### Use Skills For
 
@@ -73,7 +79,7 @@ pip install tiktoken           # or install directly
 - User-triggered workflows (PR creation, issue management)
 - Multi-step procedures (conflict resolution, session completion)
 - Actions requiring validation (security scans, linting)
-- Versioned, team-reviewed instructions across projects
+- Depth on knowledge the model partly has, loaded on demand
 
 ### Hybrid Pattern
 
@@ -92,8 +98,25 @@ pip install tiktoken           # or install directly
 
 Skills create decision points where agents must choose whether to retrieve documentation. These introduce 4 failure modes: late retrieval, partial retrieval, integration failure, and instruction fragility. Passive context eliminates all four by being always-available.
 
+### Read That Table Honestly
+
+The 53 to 100 percent result is real and it is narrow. Vercel's suite targeted Next.js 16 APIs chosen because they were **absent from model training data**. That is a knowledge-injection problem: an agent cannot retrieve what it does not know it is missing, so putting the docs in front of it wins.
+
+It is not evidence that pre-trained knowledge belongs in passive context. Anthropic's Claude 5 context-engineering guidance points the other way for behavioral instruction, naming overconstraint as the failure mode after cutting more than 80 percent of a system prompt with no measurable coding-eval loss. Both results hold, because they answer different questions:
+
+| Content | Model already knows it | Where it goes |
+|---------|------------------------|---------------|
+| A post-cutoff framework API | No | Passive context |
+| This repo's dash ban, its gates | No | Passive context |
+| SOLID, Clean Code, refactoring | Yes | Progressive disclosure, or nowhere |
+| Deep book material | Partly | Progressive disclosure |
+
+The pass-rate table has no cost column. Passive context is paid on every request, forever, whether or not the task needs it. This repository adopted the strategy in #1022 with a stated budget of Vercel's own 8KB figure; the always-on corpus later reached about 95KB on a `.py` edit. The enforced ceilings ratchet to measured size, so a passing budget gate is not evidence the corpus is small. Measure with `scripts/validation/instruction_budget.py` before adding always-on text, and prefer deleting a duplicate over compressing one.
+
 ## References
 
+- [model-context-doctrine.md](references/model-context-doctrine.md) - What the current doctrine is, why Vercel and Shihipar do not conflict, per-model levers, and how to update when a new model ships. **Read this before arguing about always-on content.**
+- [rule-audit-procedure.md](references/rule-audit-procedure.md) - Repeatable procedure for deciding whether an always-on rule earns its slot, including the eval commands, the noise floor, and known instrument gotchas
 - [Vercel: AGENTS.md outperforms skills](https://vercel.com/blog/agents-md-outperforms-skills-in-our-agent-evals)
 - Analysis: `.agents/analysis/vercel-passive-context-vs-skills-research.md`
 - Memory: `passive-context-vs-skills-vercel-research`
@@ -111,6 +134,12 @@ Skills create decision points where agents must choose whether to retrieve docum
 **Script**: `scripts/analyze_skill_placement.py`
 
 Analyzes skill content and recommends Skill, Passive Context, or Hybrid placement.
+
+> The script's `always_needed` heuristic predates the Decision Framework above
+> and disagrees with it: it reads "always", "mandatory", and "framework
+> knowledge" as reasons to make content passive, where the framework reads them
+> as reasons to scrutinize it. **The Decision Framework wins.** Use the script
+> for size and duplication, not for admission. Tracked in #3936.
 
 **Classification Logic**:
 

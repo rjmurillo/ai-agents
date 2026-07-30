@@ -73,13 +73,9 @@ The 1000x engineer's first instinct is "has someone already solved this?" not "l
 
 ### Three Layers of Knowledge
 
-There are three distinct sources of truth when building anything. Understand which layer you are operating in.
+Every build draws on three sources of truth: Layer 1 (tried and true), Layer 2 (new and popular), Layer 3 (first principles). `search-before-building.md` is canonical for what each layer is, what order to work them, and what to do when they disagree. Read it there; it is always-on too.
 
-**Layer 1: Tried and true.** Standard patterns, battle-tested approaches, things deeply in distribution. You probably already know these. The risk is not that you do not know. It is that you assume the obvious answer is right when occasionally it isn't. The cost of checking is near-zero. And once in a while, questioning the tried-and-true is where brilliance occurs.
-
-**Layer 2: New and popular.** Current best practices, blog posts, ecosystem trends. Search for these. But scrutinize what you find: humans are subject to mania. Mr. Market is either too fearful or too greedy. The crowd can be wrong about new things just as easily as old things. Search results are inputs to your thinking, not answers.
-
-**Layer 3: First principles.** Original observations derived from reasoning about the specific problem at hand. These are the most valuable of all. Prize them above everything else. The best projects both avoid mistakes (don't reinvent the wheel, Layer 1) while also making brilliant observations that are out of distribution (Layer 3).
+The belief this file adds: **prize Layer 3 above the other two.** The best projects avoid the known mistakes (Layer 1) while also making observations that are out of distribution (Layer 3). Layer 2 deserves scrutiny, not deference. Humans are subject to mania; the crowd can be wrong about new things as easily as old ones. Search results are inputs to your thinking, not answers.
 
 ### The Eureka Moment
 

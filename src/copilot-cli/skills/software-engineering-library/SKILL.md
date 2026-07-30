@@ -9,7 +9,7 @@ license: MIT
 
 This skill routes software engineering design work to deeper book-derived references without loading them on every turn.
 
-For the everyday default, the always-on rules code-quality, pragmatic-programmer, and unified-software-engineering already apply; open a reference here only when the task needs that specific book's depth (start with one, add a second only when it changes a decision).
+For the everyday default, code-quality and pragmatic-programmer load on every turn and unified-software-engineering loads on code files; open a reference here only when the task needs that specific book's depth (start with one, add a second only when it changes a decision).
 
 ## Triggers
 
@@ -56,7 +56,7 @@ For the everyday default, the always-on rules code-quality, pragmatic-programmer
 - [ ] The selected reference matches the task type in the routing table.
 - [ ] No more than two references were opened unless the task spans more than two book domains.
 - [ ] The final recommendation names the reference that changed the decision.
-- [ ] The always-on rules remain the default for routine code quality decisions.
+- [ ] The baseline rules remain the default for routine code quality decisions.
 
 ## Anti-Patterns
 
