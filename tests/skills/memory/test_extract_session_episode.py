@@ -1344,7 +1344,7 @@ class TestStringDecisionPreservation:
 
 
 class TestSequentialEventLinks:
-    """Episode events form an evidence-ordered causal graph.
+    """Episode events form an evidence-ordered causal chain inside the episode.
 
     ADR-038 defines ``caused_by``/``leads_to`` as first-class fields (#3245); the
     extractor links events where it has timestamp, git ancestry, or reporting
@@ -1806,8 +1806,8 @@ class TestPredatingProseShaExclusion:
         data = self._log(anchor, f"reproduced against {cited}")
         events = extract_session_episode.json_events(data, "2026-05-31T00:00:00+00:00")
         commit_events = [e for e in events if e.get("type") == "commit"]
-        # json_events and json_metrics must agree, or the causal graph carries a
-        # commit node the metric does not (issue #3328 provenance consistency).
+        # json_events and json_metrics must agree, or the episode carries a
+        # commit event the metric does not (issue #3328 provenance consistency).
         assert len(commit_events) == extract_session_episode.json_metrics(data)["commits"]
         assert all(cited not in json.dumps(e) for e in commit_events)
 
@@ -1849,8 +1849,8 @@ class TestChangesCommittedIsTheCommitSource:
 
     A work-log entry legitimately cites SHAs the session did not author: a
     bot's housekeeping commits, a commit it bisected, the base of a PR it read.
-    Counting those inflated metrics.commits and seeded causal-graph commit
-    nodes for work the session never did, while the session's own commits,
+    Counting those inflated metrics.commits and seeded commit events for work
+    the session never did, while the session's own commits,
     recorded only in changesCommitted, were missed entirely.
     """
 
@@ -2023,7 +2023,7 @@ class TestOneCommitCountsOnceAcrossAbbreviations:
     that spell one commit at different abbreviation lengths must not both land.
     Exact string membership let a full 40-char `endingCommit` and a 7-char
     abbreviation of it in the evidence through as two entries, double-counting
-    `metrics.commits` and emitting two causal-graph nodes for one commit.
+    `metrics.commits` and emitting two commit events for one commit.
     """
 
     _FULL = "abc1234def5678901234567890abcdef12345678"
@@ -2082,3 +2082,318 @@ class TestOneCommitCountsOnceAcrossAbbreviations:
 
     def test_an_empty_seen_list_matches_nothing(self):
         assert not extract_session_episode._already_seen(self._FULL, [])
+
+
+class TestEventIdsAreContiguousAndUnique:
+    """`_renumber_events` numbers the final list so ids are always usable as
+    indexes (issue #3633). Before it, only the `--preserve` path renumbered,
+    and two producers could ship a list tooling cannot address: `parse_events`
+    burned an index when a line matched more than one pattern, and
+    `_filter_markdown_events` dropped events after ids were assigned.
+    """
+
+    def test_it_renumbers_a_list_with_a_burned_index(self):
+        events = [{"id": "e002", "type": "error"}, {"id": "e004", "type": "commit"}]
+        extract_session_episode._renumber_events(events)
+        assert [e["id"] for e in events] == ["e001", "e002"]
+
+    def test_it_replaces_duplicate_ids(self):
+        events = [{"id": "e001"}, {"id": "e001"}, {"id": "e001"}]
+        extract_session_episode._renumber_events(events)
+        assert [e["id"] for e in events] == ["e001", "e002", "e003"]
+
+    def test_an_empty_list_is_left_alone(self):
+        events: list = []
+        extract_session_episode._renumber_events(events)
+        assert events == []
+
+    def test_a_non_dict_entry_is_skipped_without_burning_an_id(self):
+        """A junk entry must not consume a number the ids are counted in.
+
+        Positional numbering gave the second event `e003` here, so the ids
+        this class is named for were not contiguous whenever a malformed
+        entry sat between two events. Ids label the events, not the list
+        slots, so the counter advances only when one is assigned.
+        """
+        events = [{"id": "e005"}, "not-a-dict", {"id": "e009"}]
+        extract_session_episode._renumber_events(events)
+        assert events[0]["id"] == "e001"
+        assert events[1] == "not-a-dict"
+        assert events[2]["id"] == "e002"
+
+    def test_leading_and_trailing_junk_still_numbers_from_one(self):
+        """The gap must not reappear at either end of the list."""
+        events = [None, {"id": "x"}, "junk", {"id": "y"}, 7]
+        extract_session_episode._renumber_events(events)
+        assert [e["id"] for e in events if isinstance(e, dict)] == ["e001", "e002"]
+
+    def test_a_list_of_only_junk_assigns_nothing(self):
+        """Nothing to number is not an error."""
+        events = ["a", None, 3]
+        extract_session_episode._renumber_events(events)
+        assert events == ["a", None, 3]
+
+    def test_it_pads_past_nine(self):
+        events = [{"id": "x"} for _ in range(11)]
+        extract_session_episode._renumber_events(events)
+        assert events[9]["id"] == "e010"
+        assert events[10]["id"] == "e011"
+
+    def test_a_multi_pattern_line_yields_every_matching_event(self):
+        """A work-log line naming both a commit and a failure is two events,
+        not one. `parse_events` used to increment the counter once per pattern
+        but append only the last match, dropping the earlier event and burning
+        its id.
+        """
+        events = extract_session_episode.parse_events(["- commit abc1234 failed to apply"])
+        assert [e["type"] for e in events] == ["commit", "error"]
+        assert [e["id"] for e in events] == ["e001", "e002"]
+
+
+class TestFilesChangedPrefersTheStagedDiff:
+    """`metrics.files_changed` reads the staged diff first and falls back to
+    work-log prose (issue #3617). `_FILES_RE` matches any "N files" phrase, so
+    tool output quoted in a work log used to win over the real commit.
+    """
+
+    def _repo_with_log(self, tmp_path, action, staged):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-q", "-b", "main")
+        _git(repo, "config", "user.email", "t@example.com")
+        _git(repo, "config", "user.name", "T")
+        _commit(repo, "seed.txt", "seed\n")
+        for i in range(staged):
+            (repo / f"staged{i}.txt").write_text(f"{i}\n", encoding="utf-8")
+        _git(repo, "add", "-A")
+        logs = repo / ".agents" / "sessions"
+        logs.mkdir(parents=True)
+        log = logs / f"{SESSION_DAY}-session-99.json"
+        data = _json_log([{"phase": "implementation", "summary": action}])
+        log.write_text(json.dumps(data), encoding="utf-8")
+        return repo, log
+
+    def _run(self, repo, log, out):
+        cwd = os.getcwd()
+        os.chdir(repo)
+        try:
+            rc = extract_session_episode.main([str(log), "--output-path", str(out)])
+        finally:
+            os.chdir(cwd)
+        assert rc == 0
+        written = list(out.glob("episode-*.json"))
+        assert len(written) == 1
+        return json.loads(written[0].read_text(encoding="utf-8"))
+
+    def test_the_staged_diff_beats_a_misleading_prose_count(self, tmp_path):
+        repo, log = self._repo_with_log(
+            tmp_path, "markdownlint reported Linting: 2 files, 0 issues", staged=5
+        )
+        episode = self._run(repo, log, tmp_path / "ep")
+        assert episode["metrics"]["files_changed"] == 5
+
+    def test_prose_still_applies_when_nothing_is_staged(self, tmp_path):
+        repo, log = self._repo_with_log(tmp_path, "Changed 3 files in this step", staged=0)
+        episode = self._run(repo, log, tmp_path / "ep")
+        assert episode["metrics"]["files_changed"] == 3
+
+    def test_no_prose_and_no_staged_diff_leaves_zero(self, tmp_path):
+        repo, log = self._repo_with_log(tmp_path, "Reviewed the design", staged=0)
+        episode = self._run(repo, log, tmp_path / "ep")
+        assert episode["metrics"]["files_changed"] == 0
+
+
+class TestDecisionRecordsCarryIndependentSignal:
+    """Decision records used to duplicate one string across `context` and
+    `chosen` and to hard-code `outcome` to "success" (issue #3628). In the
+    shipped corpus that produced 19 of 28 records with the two fields
+    byte-identical and 24 of 24 outcomes reading "success" while 8 of 302
+    episodes were partial or failure at the session level.
+    """
+
+    def _decision(self, entry):
+        return extract_session_episode.json_decisions({"workLog": [entry]}, "2026-01-01T00:00:00Z")
+
+    def test_a_title_alone_populates_chosen_and_leaves_context_empty(self):
+        got = self._decision({"task": "Selected the fail-closed option"})
+        assert len(got) == 1
+        assert got[0]["chosen"] == "Selected the fail-closed option"
+        assert got[0]["context"] == ""
+
+    def test_a_title_and_a_distinct_selection_populate_both_fields(self):
+        got = self._decision(
+            {"task": "Chose a gate strategy", "outcome": "Fail-closed (Option 2)"}
+        )
+        assert got[0]["context"] == "Chose a gate strategy"
+        assert got[0]["chosen"] == "Fail-closed (Option 2)"
+
+    def test_a_bare_status_word_is_not_treated_as_a_selection(self):
+        got = self._decision(
+            {"task": "Chose a gate strategy", "outcome": "success"}
+        )
+        assert got[0]["chosen"] == "Chose a gate strategy"
+        assert got[0]["context"] == ""
+
+    def test_context_never_duplicates_chosen(self):
+        for entry in (
+            {"task": "Decided to keep the ratchet"},
+            {"task": "Chose X", "outcome": "Chose X"},
+            {"summary": "opted for the narrow rule", "outcome": "Opted for the narrow rule"},
+        ):
+            got = self._decision(entry)
+            if got:
+                assert got[0]["context"] != got[0]["chosen"] or got[0]["chosen"] == ""
+
+    def test_both_fields_are_always_strings(self):
+        got = self._decision({"task": None, "summary": "decided to ship"})
+        for dec in got:
+            assert isinstance(dec["context"], str)
+            assert isinstance(dec["chosen"], str)
+
+    def test_the_stamp_applies_the_measured_session_outcome(self):
+        decisions = [{"id": "d001", "outcome": "success"}, {"id": "d002", "outcome": "success"}]
+        extract_session_episode._stamp_decision_outcomes(decisions, "failure")
+        assert [d["outcome"] for d in decisions] == ["failure", "failure"]
+
+    def test_the_stamp_skips_a_non_dict_entry(self):
+        decisions = [{"id": "d001", "outcome": "success"}, "not-a-dict"]
+        extract_session_episode._stamp_decision_outcomes(decisions, "partial")
+        assert decisions[0]["outcome"] == "partial"
+        assert decisions[1] == "not-a-dict"
+
+    def test_an_empty_decision_list_is_left_alone(self):
+        decisions: list = []
+        extract_session_episode._stamp_decision_outcomes(decisions, "failure")
+        assert decisions == []
+
+    def test_a_failed_session_produces_decisions_distinguishable_from_a_successful_one(
+        self, tmp_path
+    ):
+        """The acceptance test issue #3628 names: a record extracted from a
+        known failure must be distinguishable from one extracted from a known
+        success.
+        """
+        outcomes = {}
+        for label, complete in (("succeeded", True), ("failed", False)):
+            log_dir = tmp_path / label
+            log_dir.mkdir()
+            log = log_dir / f"{SESSION_DAY}-session-77.json"
+            data = _json_log(
+                [
+                    {"phase": "implementation", "summary": "Chose the narrow rule"},
+                    {"phase": "validation", "summary": "1 test failed"},
+                ],
+                end_complete=complete,
+            )
+            log.write_text(json.dumps(data), encoding="utf-8")
+            out = log_dir / "ep"
+            rc = extract_session_episode.main([str(log), "--output-path", str(out)])
+            assert rc == 0
+            episode = json.loads(next(out.glob("episode-*.json")).read_text(encoding="utf-8"))
+            assert episode["decisions"], f"{label} produced no decision record"
+            outcomes[label] = {d["outcome"] for d in episode["decisions"]}
+        assert outcomes["succeeded"] == {"success"}
+        assert outcomes["failed"] != outcomes["succeeded"]
+
+
+class TestValidateModeRejectsUnusableEventIds:
+    """`--validate` exits 2 on an episode whose event ids cannot be indexed.
+
+    `_renumber_events` makes duplicates unrepresentable on the write path, so
+    the write path can never trip this. Issue #3633 names the population it is
+    for: a hand edit or a merge-conflict resolution lands a file that never
+    passes through the extractor again. Prevention at write time and detection
+    at rest cover different files; neither subsumes the other.
+
+    The check found a real one on introduction:
+    `.agents/memory/episodes/episode-2026-05-31-session-1857.json` shipped a
+    list starting at `e002`, exactly as the issue reported. It is repaired in
+    the same change.
+    """
+
+    @staticmethod
+    def _episode(path: Path, events: list) -> Path:
+        path.write_text(
+            json.dumps({"session_id": "s1", "events": events}),
+            encoding="utf-8",
+        )
+        return path
+
+    def test_a_duplicate_id_is_rejected(self, tmp_path):
+        target = self._episode(
+            tmp_path / "episode-dup.json",
+            [{"id": "e001"}, {"id": "e001"}],
+        )
+        problems = extract_session_episode.validate_episode_file(target)
+        assert any("duplicate event id e001" in p for p in problems)
+
+    def test_a_duplicate_id_exits_2(self, tmp_path, capsys):
+        self._episode(tmp_path / "episode-dup.json", [{"id": "e001"}, {"id": "e001"}])
+        assert extract_session_episode.main([str(tmp_path), "--validate"]) == 2
+        assert "duplicate event id e001" in capsys.readouterr().err
+
+    def test_a_burned_index_exits_2(self, tmp_path, capsys):
+        """The shape found live: the list starts at e002."""
+        self._episode(tmp_path / "episode-gap.json", [{"id": "e002"}, {"id": "e003"}])
+        assert extract_session_episode.main([str(tmp_path), "--validate"]) == 2
+        assert "expected e001" in capsys.readouterr().err
+
+    def test_a_missing_id_exits_2(self, tmp_path, capsys):
+        self._episode(tmp_path / "episode-noid.json", [{"type": "commit"}])
+        assert extract_session_episode.main([str(tmp_path), "--validate"]) == 2
+        assert "has no id" in capsys.readouterr().err
+
+    def test_a_contiguous_list_exits_0(self, tmp_path):
+        self._episode(
+            tmp_path / "episode-ok.json",
+            [{"id": "e001"}, {"id": "e002"}, {"id": "e003"}],
+        )
+        assert extract_session_episode.main([str(tmp_path), "--validate"]) == 0
+
+    def test_an_episode_with_no_events_exits_0(self, tmp_path):
+        self._episode(tmp_path / "episode-empty.json", [])
+        assert extract_session_episode.main([str(tmp_path), "--validate"]) == 0
+
+    def test_a_non_list_events_field_is_rejected(self, tmp_path):
+        (tmp_path / "episode-bad.json").write_text(
+            json.dumps({"events": {"id": "e001"}}), encoding="utf-8"
+        )
+        assert extract_session_episode.main([str(tmp_path), "--validate"]) == 2
+
+    def test_a_non_object_entry_is_rejected(self, tmp_path):
+        self._episode(tmp_path / "episode-str.json", [{"id": "e001"}, "nope"])
+        problems = extract_session_episode.validate_episode_file(
+            tmp_path / "episode-str.json"
+        )
+        assert any("event 2 is not an object" in p for p in problems)
+
+    def test_unparseable_json_is_reported_not_raised(self, tmp_path):
+        (tmp_path / "episode-broken.json").write_text("{not json", encoding="utf-8")
+        assert extract_session_episode.main([str(tmp_path), "--validate"]) == 2
+
+    def test_a_missing_path_exits_1(self, tmp_path):
+        assert extract_session_episode.main([str(tmp_path / "nope"), "--validate"]) == 1
+
+    def test_an_empty_directory_exits_2(self, tmp_path):
+        assert extract_session_episode.main([str(tmp_path), "--validate"]) == 2
+
+    def test_a_traversal_path_is_refused_before_any_read(self, tmp_path):
+        assert extract_session_episode.main(["../etc/passwd", "--validate"]) == 2
+
+    def test_a_single_file_target_is_accepted(self, tmp_path):
+        target = self._episode(tmp_path / "episode-one.json", [{"id": "e001"}])
+        assert extract_session_episode.main([str(target), "--validate"]) == 0
+
+    def test_the_committed_episode_store_is_clean(self):
+        """Regression pin: the repaired file must not come back, and no new
+        episode may land with ids that tooling cannot index.
+        """
+        store = Path(__file__).resolve().parents[3] / ".agents" / "memory" / "episodes"
+        if not store.is_dir():
+            pytest.skip("episode store not present")
+        problems = [
+            problem
+            for path in sorted(store.glob("*.json"))
+            for problem in extract_session_episode.validate_episode_file(path)
+        ]
+        assert problems == []

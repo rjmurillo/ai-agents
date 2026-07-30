@@ -34,6 +34,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.external_scratch import outside_every_repository
+
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Tree roots whose `*/tests` directories this module runs. Each root is executed
@@ -61,7 +63,11 @@ def _suite_dirs(root: Path) -> list[Path]:
 def _run_tree(root: Path) -> subprocess.CompletedProcess[str]:
     """Run every bundle suite under one tree root in a dedicated subprocess."""
     targets = [str(p.relative_to(_REPO_ROOT)) for p in _suite_dirs(root)]
-    temp_root = _REPO_ROOT.parent / f".pytest-external-{_REPO_ROOT.name}" / uuid.uuid4().hex
+    temp_root = (
+        outside_every_repository(_REPO_ROOT)
+        / f".pytest-external-{_REPO_ROOT.name}"
+        / uuid.uuid4().hex
+    )
     env = os.environ.copy()
     # tempfile consults TMPDIR, TEMP, and TMP (Windows tools may ignore TMPDIR);
     # set all three so isolation holds across platforms.

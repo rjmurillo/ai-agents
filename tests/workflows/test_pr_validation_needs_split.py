@@ -32,6 +32,8 @@ import yaml
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _WORKFLOW_PATH = _REPO_ROOT / ".github" / "workflows" / "pr-validation.yml"
+_LABEL_SCRIPT = _REPO_ROOT / "scripts" / "ci" / "update_needs_split_label.py"
+_ENFORCE_SCRIPT = _REPO_ROOT / "scripts" / "ci" / "enforce_pr_validation.py"
 
 _APPLY_STEP_NAME = "Apply needs-split label"
 _REMOVE_STEP_NAME = "Remove needs-split label when below threshold"
@@ -68,6 +70,10 @@ def _find_step(name: str) -> dict[str, Any] | None:
         if step.get("name") == name:
             return step
     return None
+
+
+def _script_text(path: Path) -> str:
+    return path.read_text(encoding="utf-8")
 
 
 def _executable_lines(run_block: str) -> str:
@@ -139,18 +145,18 @@ class TestApplyNeedsSplitStep:
         step = _find_step(_APPLY_STEP_NAME)
         assert step is not None
         run = _executable_lines(step.get("run") or "")
+        script = _script_text(_LABEL_SCRIPT)
+        assert "python3 scripts/ci/update_needs_split_label.py --mode add" in run
         # The mutation path must use Write-Warning (or ::warning), NOT throw.
         # The READ-labels `gh pr view` call may keep its throw — the issue
         # explicitly notes REST reads succeed where GraphQL mutations 401.
         # We catch any `throw` after the mutation marker.
-        mutation_marker = "--add-label"
+        mutation_marker = '"POST"'
         api_marker = "/labels"
-        assert mutation_marker in run or api_marker in run, (
-            "step body should still attempt to add the label somehow"
-        )
+        assert mutation_marker in script and api_marker in script
         # Split on whichever marker is present and check the trailing block.
-        marker = mutation_marker if mutation_marker in run else api_marker
-        tail = run.split(marker, 1)[1]
+        marker = mutation_marker if mutation_marker in script else api_marker
+        tail = script.split(marker, 1)[1]
         assert "throw" not in tail.lower(), (
             f"{_APPLY_STEP_NAME!r} must not `throw` after the label-mutation "
             "call — log `::warning` (Write-Warning) instead so an advisory "
@@ -171,25 +177,26 @@ class TestApplyNeedsSplitStep:
         step = _find_step(_APPLY_STEP_NAME)
         assert step is not None
         run = _executable_lines(step.get("run") or "")
+        script = _script_text(_LABEL_SCRIPT)
+        assert "python3 scripts/ci/update_needs_split_label.py --mode add" in run
         assert "gh pr edit" not in run or "--add-label" not in run, (
             f"{_APPLY_STEP_NAME!r} must not invoke `gh pr edit --add-label` "
             "(GraphQL — fails with HTTP 401 on installation tokens). "
             "Use `gh api -X POST .../issues/{N}/labels` (REST) instead."
         )
-        assert "gh api" in run and "/labels" in run, (
-            f"{_APPLY_STEP_NAME!r} must call the REST labels endpoint via "
-            "`gh api`. Expected `gh api ... /labels` in the step body."
-        )
+        assert '"gh"' in script and '"api"' in script and "/labels" in script
 
     def test_step_reads_labels_via_rest_not_graphql(self) -> None:
         step = _find_step(_APPLY_STEP_NAME)
         assert step is not None
         run = _executable_lines(step.get("run") or "")
+        script = _script_text(_LABEL_SCRIPT)
+        assert "python3 scripts/ci/update_needs_split_label.py --mode add" in run
         assert "gh pr view" not in run, (
             f"{_APPLY_STEP_NAME!r} must not read labels with `gh pr view`, "
             "which can use GraphQL under this token shape"
         )
-        assert "issues/$env:PR_NUMBER/labels" in run
+        assert "issues/{pr_number}/labels" in script
 
 
 class TestRemoveNeedsSplitStep:
@@ -209,13 +216,13 @@ class TestRemoveNeedsSplitStep:
         step = _find_step(_REMOVE_STEP_NAME)
         assert step is not None
         run = _executable_lines(step.get("run") or "")
-        mutation_marker = "--remove-label"
-        api_marker = "/labels/"  # REST DELETE form: .../labels/needs-split
-        assert mutation_marker in run or api_marker in run, (
-            "step body should still attempt to remove the label somehow"
-        )
-        marker = mutation_marker if mutation_marker in run else api_marker
-        tail = run.split(marker, 1)[1]
+        script = _script_text(_LABEL_SCRIPT)
+        assert "python3 scripts/ci/update_needs_split_label.py --mode remove" in run
+        mutation_marker = '"DELETE"'
+        api_marker = "}/{LABEL}"  # REST DELETE form: .../labels/needs-split
+        assert mutation_marker in script and api_marker in script
+        marker = mutation_marker if mutation_marker in script else api_marker
+        tail = script.split(marker, 1)[1]
         assert "throw" not in tail.lower(), (
             f"{_REMOVE_STEP_NAME!r} must not `throw` after the label-mutation "
             "call — log `::warning` instead"
@@ -225,25 +232,26 @@ class TestRemoveNeedsSplitStep:
         step = _find_step(_REMOVE_STEP_NAME)
         assert step is not None
         run = _executable_lines(step.get("run") or "")
+        script = _script_text(_LABEL_SCRIPT)
+        assert "python3 scripts/ci/update_needs_split_label.py --mode remove" in run
         assert "gh pr edit" not in run or "--remove-label" not in run, (
             f"{_REMOVE_STEP_NAME!r} must not invoke `gh pr edit --remove-label` "
             "(GraphQL — fails with HTTP 401 on installation tokens). Use "
             "`gh api -X DELETE .../issues/{N}/labels/{name}` (REST) instead."
         )
-        assert "gh api" in run and "/labels/" in run, (
-            f"{_REMOVE_STEP_NAME!r} must call the REST labels DELETE endpoint "
-            "via `gh api`. Expected `gh api -X DELETE .../labels/<name>`."
-        )
+        assert '"gh"' in script and '"api"' in script and "}/{LABEL}" in script
 
     def test_step_reads_labels_via_rest_not_graphql(self) -> None:
         step = _find_step(_REMOVE_STEP_NAME)
         assert step is not None
         run = _executable_lines(step.get("run") or "")
+        script = _script_text(_LABEL_SCRIPT)
+        assert "python3 scripts/ci/update_needs_split_label.py --mode remove" in run
         assert "gh pr view" not in run, (
             f"{_REMOVE_STEP_NAME!r} must not read labels with `gh pr view`, "
             "which can use GraphQL under this token shape"
         )
-        assert "issues/$env:PR_NUMBER/labels" in run
+        assert "issues/{pr_number}/labels" in script
 
 
 class TestBlockTierStillFails:
@@ -269,22 +277,29 @@ class TestBlockTierStillFails:
         step = _find_step(_ENFORCE_STEP_NAME)
         assert step is not None
         run = step.get("run") or ""
-        assert 'COMMIT_STATUS -eq "BLOCKED"' in run, (
+        script = _script_text(_ENFORCE_SCRIPT)
+        assert "python3 scripts/ci/enforce_pr_validation.py" in run
+        assert 'commit_status == "BLOCKED"' in script, (
             f"{_ENFORCE_STEP_NAME!r} must still branch on COMMIT_STATUS == "
             "BLOCKED to enforce the 20-commit cap"
         )
-        assert "exit 1" in run, f"{_ENFORCE_STEP_NAME!r} must still `exit 1` on the BLOCK tier"
+        assert "return LOGIC_ERROR" in script, (
+            f"{_ENFORCE_STEP_NAME!r} must still exit 1 on the BLOCK tier"
+        )
 
     def test_enforce_step_reads_bypass_label_via_rest_and_fails_closed(self) -> None:
         step = _find_step(_ENFORCE_STEP_NAME)
         assert step is not None
         run = _executable_lines(step.get("run") or "")
+        script = _script_text(_ENFORCE_SCRIPT)
+        assert "python3 scripts/ci/enforce_pr_validation.py" in run
         assert "gh pr view" not in run, (
             f"{_ENFORCE_STEP_NAME!r} must not use GraphQL-backed `gh pr view` "
             "for bypass-label reads"
         )
-        assert "issues/$env:PR_NUMBER/labels" in run
-        assert "throw \"Failed to fetch PR labels" in run, (
+        assert "issues/{pr_number}/labels" in script
+        assert "Failed to fetch PR labels" in script
+        assert "return LOGIC_ERROR" in script, (
             f"{_ENFORCE_STEP_NAME!r} must fail closed when the bypass-label "
             "REST read fails"
         )

@@ -25,7 +25,7 @@ configuration, and installed shims (`scripts/validation/checks_plugin.py`).
 | Rule | Limit | Enforcement |
 |------|-------|-------------|
 | Files per commit | 5 or fewer | `.claude/rules/universal.md` MUST 4; AGENTS.md Boundaries |
-| Commits per PR | Block at 20 | `pr-validation.yml:369` (`$blockThreshold = 20`); human override only via the `commit-limit-bypass` label (`pr-validation.yml:483`) |
+| Commits per PR | Block at 20, or 40 when the branch carries a merge from main | `scripts/validation/pr_commit_count.py:58` (`BLOCK_THRESHOLD = 20`) and `:64` (`MAIN_MERGE_BLOCK_THRESHOLD = 40`, ADR-008 relief, issue #3596), wired at `pr-validation.yml:145-155`; human override only via the `commit-limit-bypass` label (`scripts/ci/enforce_pr_validation.py:11,54`) |
 | Mid-session check | Warn above 15 | `git rev-list --count HEAD ^origin/main` (AGENTS.md Mid gate, ADR-008) |
 | Lint scope | Changed files only | PR #908 fix: scope `markdownlint --fix` to `git diff --name-only` output, never `**/*.md` |
 

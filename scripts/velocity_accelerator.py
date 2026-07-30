@@ -174,6 +174,8 @@ def get_pr_diff(pr_number: int) -> str:
             ["gh", "pr", "diff", str(pr_number), "--color=never"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
             check=False,
         )
@@ -405,6 +407,8 @@ def get_changed_files_from_push() -> list[str]:
             ["git", "diff", "--name-only", before_sha, after_sha],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=15,
             check=False,
         )

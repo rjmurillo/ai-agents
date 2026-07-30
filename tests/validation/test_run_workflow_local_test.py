@@ -1283,6 +1283,65 @@ def test_act_limitation_hint_matches_empty_pr_env_patterns() -> None:
     )
 
 
+def test_act_limitation_hint_matches_argparse_empty_pr_number() -> None:
+    """argparse's ``type=int`` prints a different message than a bare int().
+
+    post_issue_comment.py takes --issue as an argparse int, so an empty
+    PR_NUMBER under act surfaces as "argument --issue: invalid int value: ''"
+    rather than the "invalid literal for int()" form. Same act-only cause,
+    different surface text.
+    """
+    assert (
+        w._act_limitation_hint(
+            "post_issue_comment.py: error: argument --issue: invalid int value: ''",
+            "pull_request",
+        )
+        is not None
+    )
+    # Event-scoped: workflow_dispatch keeps it blocking.
+    assert (
+        w._act_limitation_hint(
+            "post_issue_comment.py: error: argument --issue: invalid int value: ''",
+            "workflow_dispatch",
+        )
+        is None
+    )
+    # A non-empty value is a real defect, not the empty-env signature.
+    assert (
+        w._act_limitation_hint(
+            "error: argument --issue: invalid int value: 'abc'",
+            "pull_request",
+        )
+        is None
+    )
+
+
+def test_adr035_wrapper_annotation_is_explained_only_alongside_a_limitation() -> None:
+    """run_with_retry.py's ADR-035 annotation is derived, not a cause.
+
+    When the wrapped script failed for an attributed act limitation, the
+    wrapper annotation restates that limitation one layer up and must not veto
+    the downgrade. On its own it stays unexplained, so a genuine configuration
+    error still blocks.
+    """
+    wrapper = "::error::Configuration error (ADR-035 exit 2). Check command output."
+    limitation = "error: argument --issue: invalid int value: ''"
+
+    combined = f"{limitation}\n{wrapper}\n"
+    assert w._unexplained_error_annotations(combined, "pull_request") == []
+    assert w._act_limitation_hint(combined, "pull_request") is not None
+
+    # Negative: the wrapper alone is a real configuration error.
+    assert len(w._unexplained_error_annotations(wrapper, "pull_request")) == 1
+
+    # Negative: event-scoped, so workflow_dispatch keeps both blocking.
+    assert len(w._unexplained_error_annotations(combined, "workflow_dispatch")) == 1
+
+    # Negative: a genuine annotation riding along still blocks.
+    with_genuine = f"{combined}::error::Genuine action bug\n"
+    assert w._act_limitation_hint(with_genuine, "pull_request") is None
+
+
 def test_format_text_surfaces_warning_detail_on_ok() -> None:
     report = w.Report(
         exit_code=0,
@@ -1313,6 +1372,16 @@ def test_act_limitation_hint_matches_paths_filter_missing_base() -> None:
     # Not event-scoped: the payload gap is identical on every act event.
     assert w._act_limitation_hint(verbatim, "pull_request") is not None
     assert w._act_limitation_hint(verbatim, "workflow_dispatch") is not None
+
+
+def test_act_limitation_hint_matches_local_server_port_collision() -> None:
+    text = (
+        'time="2026-07-28T02:03:00-07:00" level=fatal '
+        'msg="listen tcp 192.168.1.179:34567: bind: address already in use"'
+    )
+    hint = w._act_limitation_hint(text)
+    assert hint is not None
+    assert "local reusable-workflow server port" in hint
 
 
 def test_act_limitation_hint_does_not_match_unrelated_base_error() -> None:
@@ -1353,6 +1422,20 @@ def test_act_limitation_hint_explains_paths_filter_git_rev_parse_annotation() ->
     assert w._act_limitation_hint(combined, "push") is not None
 
 
+def test_act_limitation_hint_attributes_aggregator_cascade_to_limitation() -> None:
+    combined = (
+        "[CLI Smoke/Check Changed Paths]   ::error::The process "
+        "'git rev-parse --abbrev-ref HEAD' failed with exit code 128\n"
+        "[CLI Smoke/Smoke Result]   ::error::Check changed paths result: failure"
+    )
+    assert w._act_limitation_hint(combined, "push") is not None
+
+
+def test_act_limitation_hint_blocks_aggregator_cascade_without_limitation() -> None:
+    combined = "[CLI Smoke/Smoke Result]   ::error::Check changed paths result: failure"
+    assert w._act_limitation_hint(combined, "push") is None
+
+
 def test_act_limitation_hint_ignores_non_annotation_noise() -> None:
     # act prints job-level failure lines that carry no attribution. Treating
     # those as unexplained would make every downgrade unreachable.
@@ -1377,3 +1460,117 @@ def test_pr_context_annotation_is_unexplained_outside_pull_request() -> None:
     )
     assert w._act_limitation_hint(combined, "pull_request") is not None
     assert w._act_limitation_hint(combined, "workflow_dispatch") is None
+
+
+# --- act artifact-service limitation (#3690) -----------------------------
+
+# The verbatim tail of a real local act run against agent-metrics.yml. act's
+# embedded artifact server rejects the protobuf field the current
+# actions/upload-artifact client sends, the client reads the rejection as
+# malformed JSON, retries five times, then aborts.
+_ARTIFACT_TRANSPORT_FAILURE = (
+    "[Agent Metrics/Collect]   | Root directory input is valid!\n"
+    'level=error msg="Error decode request body: proto: (line 1:143): '
+    'unknown field \\"mime_type\\""\n'
+    "[Agent Metrics/Collect]   | Attempt 1 of 5 failed with error: "
+    "Unexpected end of JSON input. Retrying request in 3000 ms...\n"
+    "[Agent Metrics/Collect]   \u2757  ::error::Failed to CreateArtifact: "
+    "Failed to make request after 5 attempts: Unexpected end of JSON input\n"
+    "[Agent Metrics/Collect]   \u274c  Failure - Main Upload metrics artifact\n"
+    "Error: Job 'Collect Agent Metrics' failed"
+)
+
+
+def test_artifact_transport_failure_is_act_limitation() -> None:
+    # Positive: the observed CreateArtifact transport failure downgrades.
+    assert w._act_limitation_hint(_ARTIFACT_TRANSPORT_FAILURE) is not None
+
+
+def test_artifact_transport_failure_downgrades_regardless_of_event() -> None:
+    # The artifact server gap is not event-scoped: act lacks the service under
+    # every event, so the rule must hold for each one the gate can select.
+    for event in (None, "push", "workflow_dispatch", "pull_request", "schedule"):
+        assert w._act_limitation_hint(_ARTIFACT_TRANSPORT_FAILURE, event) is not None
+
+
+def test_artifact_transport_failure_matches_any_artifact_verb() -> None:
+    # Anchored on the retry-exhaustion suffix, so download- and finalize-side
+    # transport failures downgrade too without enumerating every verb.
+    for verb in ("CreateArtifact", "FinalizeArtifact", "ListArtifacts",
+                 "GetSignedArtifactURL", "DeleteArtifact"):
+        text = (
+            f"::error::Failed to {verb}: Failed to make request after "
+            "5 attempts: Unexpected end of JSON input"
+        )
+        assert w._act_limitation_hint(text) is not None, verb
+
+
+def test_artifact_no_files_found_still_blocks() -> None:
+    # Negative control. A real artifact defect carries no retry-exhaustion
+    # suffix, so the rule must not swallow it.
+    text = (
+        "::error::No files were found with the provided path: dist/. "
+        "No artifacts will be uploaded."
+    )
+    assert w._act_limitation_hint(text) is None
+
+
+def test_artifact_invalid_name_still_blocks() -> None:
+    # Negative control. An invalid artifact name is a workflow defect.
+    text = (
+        "::error::The artifact name is not valid: bad/name. "
+        "Contains the following character: Forward slash /"
+    )
+    assert w._act_limitation_hint(text) is None
+
+
+def test_artifact_limitation_does_not_excuse_a_real_failure() -> None:
+    # Edge: a genuine action failure alongside the artifact limitation keeps
+    # blocking, because the unexplained annotation vetoes the downgrade.
+    combined = (
+        _ARTIFACT_TRANSPORT_FAILURE
+        + "\n[Agent Metrics/Collect]   ::error::collect_metrics.py exited 2"
+    )
+    assert w._act_limitation_hint(combined) is None
+
+
+def test_retry_suffix_without_artifact_verb_does_not_match() -> None:
+    # Edge: the rule requires the "Failed to <verb>:" prefix, so an unrelated
+    # retry-exhaustion message is not silently downgraded.
+    text = "::error::Failed after 5 attempts: Unexpected end of JSON input"
+    assert w._act_limitation_hint(text) is None
+
+
+def test_act_full_artifact_transport_failure_warns(monkeypatch, tmp_path):
+    # Integration: the full act stage downgrades to a passing WARN instead of
+    # blocking the push. This is the #3690 symptom.
+    wf = _write_wf(tmp_path, "name: x\non: workflow_dispatch\njobs: {}\n")
+    monkeypatch.setattr(
+        w,
+        "_run",
+        lambda cmd, *, timeout, cwd=None, env=None: (
+            1,
+            _ARTIFACT_TRANSPORT_FAILURE,
+            "",
+        ),
+    )
+    res = w._act_full_stage([wf.name], tmp_path)
+    assert res.ok is True
+    assert "[WARN]" in res.detail
+    assert "artifact" in res.detail
+
+
+def test_act_full_artifact_defect_still_fails(monkeypatch, tmp_path):
+    # Integration negative control: a real artifact defect keeps the stage red.
+    wf = _write_wf(tmp_path, "name: x\non: workflow_dispatch\njobs: {}\n")
+    monkeypatch.setattr(
+        w,
+        "_run",
+        lambda cmd, *, timeout, cwd=None, env=None: (
+            1,
+            "::error::No files were found with the provided path: dist/.",
+            "",
+        ),
+    )
+    res = w._act_full_stage([wf.name], tmp_path)
+    assert res.ok is False

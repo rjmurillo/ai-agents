@@ -1,0 +1,119 @@
+{
+  "id": "episode-2026-07-29-session-3509-trigger-phrase-provenance",
+  "session": "2026-07-29-session-3509-trigger-phrase-provenance",
+  "timestamp": "2026-07-29T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Close the closed-loop gap in the skill trigger standard. Reproduce the claim that documented trigger phrases are authored rather than observed, record the measurement and the authoring rules in the standard, and settle sibling issue #3494 with data instead of shipping the phrase promotion it proposed.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read issue #3494 and reproduced its measurement before trusting it. The issue claims 150 documented trigger phrases across 21 skills never reach the router. My first probe extracted the frontmatter description with a single-line regex and reported 15 skills and 70 phrases, with several descriptions measuring 2 bytes. Those 2-byte values were the YAML block scalar marker, which proved the probe was truncating multi-line descriptions rather than reading them.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-measured with a real YAML parse. Correct exact-substring figures are 48 skills carrying a Triggers table, 8 whose description matches zero documented phrases, 37 phrases in those 8, and 108 across all skills. The issue's headline of 150 phrases across 21 skills does not reproduce.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Checked the issue's designated first change, the 13 skills said to carry no quoted user phrase of any kind. That set is now empty. Every one of the 8 remaining skills carries between 1 and 4 quoted phrases in its description, so the scope the issue marked as actionable no longer exists.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replaced the exact-substring test with a content-word overlap test, because the router is a language model doing semantic matching and not a substring matcher. Found and fixed a second probe defect on the way: the tokenizer kept hyphens, so the skill name chestertons-fence never matched the phrase chestertons fence. Corrected figures are 29 of 224 phrases below 50 percent coverage, across 21 skills.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Classified all 29 by hand. Eleven are not promotable at all: template placeholders such as improve skill {name} and execute the plan at plans/X.md, slash commands such as /spec, and single generic words such as research and scan that would cause false routing. The rest are near-miss paraphrases already covered by the description in prose.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Investigated a suspected over-claim in security-scan, whose description states that CWE-22 is delegated to CodeQL while its Triggers table lists check for path traversal. Read the table row before editing. The Operation column already reads NOT handled by this scanner, CWE-22 detection is delegated to CodeQL. The row is an honest redirect, not an over-claim, so no edit was made. This is the fourth time this session that reading the artifact before claiming a defect prevented a wrong change.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read sibling issue #3509 and found it refutes #3494's fix direction. Mined 1713 local Claude Code transcripts for 524 unique user prompts and matched trigger phrases on word boundaries after dropping slash commands and single words. 5 of 211 table phrases and 7 of 280 description phrases have ever been typed, which is 2.4 and 2.5 percent against the 10.4 and 5.7 percent reported in #3509. Two independent corpora agree on direction. Also recorded that only 59 of 524 prompts carry promptSource typed, so most of the corpus is agent-injected and any realism figure must report that split.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rejected two candidate changes with reasons rather than shipping them. First, bulk promotion of table phrases into descriptions, because it optimizes the closed loop and buys permanent context cost for phrases with a 2 to 10 percent chance of ever being typed. Second, the CI eval requested by #3509 item 1, because the transcript store lives on a developer machine and is absent on a runner, so the arm would be silently inert in the same way a git-history lookup would be under a depth-1 checkout. Recorded the reproduction procedure in the standard instead, and folded #3509 item 3 into the document because the knowledge-persistence rule puts binding conventions in the governance tree rather than in memory alone.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 87c2439de3",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}

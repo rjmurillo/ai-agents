@@ -34,6 +34,7 @@ from checks_plugin import (  # noqa: E402
     validate_install_parity,
     validate_lefthook_installed,
     validate_plugin_version_bump,
+    validate_shipped_skill_routes,
     validate_workflow_local_run,
 )
 from checks_spec import (  # noqa: E402
@@ -42,8 +43,10 @@ from checks_spec import (  # noqa: E402
     validate_canonical_citations,
     validate_model_pins,
     validate_orchestrator_citations,
+    validate_rule_activation_coverage,
     validate_skill_md_portability,
     validate_skill_shells,
+    validate_skill_skip_clauses,
     validate_spec_contradiction,
     validate_spec_id_uniqueness,
     validate_sync_registry,
@@ -239,6 +242,42 @@ def run_all_validations(
         lambda: validate_skill_shells(repo_root),
     )
 
+    # 3.767 Skill SKIP clauses (Issue #3484). Fails when a multi-member
+    # leading-token skill family lacks a well-formed route to a real sibling.
+    run_validation(
+        "Skill SKIP Clause Routing",
+        state,
+        lambda: validate_skill_skip_clauses(repo_root),
+    )
+
+    # 3.768 Rule and Skill Activation Coverage (ratchet; Issue #3457). Fails
+    # when a rule or skill has no activation scenario and is not baselined, or
+    # when a scenario points at a deleted artifact. Fail-closed on any config
+    # or structural fault so an unmeasured artifact never reads as clean.
+    run_validation(
+        "Rule Activation Coverage",
+        state,
+        lambda: validate_rule_activation_coverage(repo_root),
+    )
+
+    # 3.769 Copilot Routing Exclusions: ensure Copilot shipped skills do not
+    # route to an excluded skill name (templates/platforms/copilot-cli.yaml)
+    try:
+        from checks_copilot import validate_copilot_routing_exclusions
+
+        run_validation(
+            "Copilot Routing Exclusions",
+            state,
+            lambda: validate_copilot_routing_exclusions(repo_root),
+        )
+    except Exception:
+        # Import errors should not break the runner; surface as a failure
+        run_validation(
+            "Copilot Routing Exclusions",
+            state,
+            lambda: (_ for _ in ()).throw(Exception("Failed to import copilot checks")),
+        )
+
     # 3.77 Sync Registry Provenance (Issue #1909)
     run_validation(
         "Sync Registry Provenance",
@@ -251,6 +290,14 @@ def run_all_validations(
         "Agent Catalog Drift",
         state,
         lambda: validate_agent_catalog(repo_root),
+    )
+
+    # 3.79 Shipped Skill Routes (Issue #2026 coordination drift). Fails when a
+    # routing table in a shipped tree points at a skill that tree does not ship.
+    run_validation(
+        "Shipped Skill Routes",
+        state,
+        lambda: validate_shipped_skill_routes(repo_root),
     )
 
     # 3.8 Canonical Citation Check (heuristic; soft warn unless

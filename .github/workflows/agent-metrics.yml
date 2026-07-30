@@ -53,30 +53,40 @@ jobs:
         with:
           python-version: '3.14'
 
+      # ADR-006: source selection is a GitHub expression (configuration), and
+      # validation lives in scripts/workflows/resolve_dispatch_input.py. Two
+      # deliberate behaviour changes: the `||` fallback now supplies the
+      # declared default when the input is blank (the old `case` failed the
+      # step instead), and `days=0` is now rejected (the old digit glob let it
+      # through even though its own error message said "positive integer").
       - name: Determine analysis period
         id: period
+        env:
+          DAYS_RAW: ${{ (github.event_name == 'workflow_dispatch' && inputs.days) || '7' }}
+          FORMAT_RAW: ${{ (github.event_name == 'workflow_dispatch' && inputs.output_format) || 'markdown' }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "days=${{ inputs.days }}" >> $GITHUB_OUTPUT
-            echo "format=${{ inputs.output_format }}" >> $GITHUB_OUTPUT
-          else
-            echo "days=7" >> $GITHUB_OUTPUT
-            echo "format=markdown" >> $GITHUB_OUTPUT
-          fi
+          OUTPUT_NAME=days INPUT_VALUE="$DAYS_RAW" VALUE_KIND=integer \
+            python scripts/workflows/resolve_dispatch_input.py
+          OUTPUT_NAME=format INPUT_VALUE="$FORMAT_RAW" VALUE_KIND=choice \
+            ALLOWED_CHOICES=summary,markdown,json \
+            python scripts/workflows/resolve_dispatch_input.py
 
       - name: Collect metrics
         id: metrics
+        env:
+          PERIOD_DAYS: ${{ steps.period.outputs.days }}
+          PERIOD_FORMAT: ${{ steps.period.outputs.format }}
         run: |
           python .claude/skills/metrics/collect_metrics.py \
-            --since ${{ steps.period.outputs.days }} \
-            --output ${{ steps.period.outputs.format }} \
+            --since "$PERIOD_DAYS" \
+            --output "$PERIOD_FORMAT" \
             > metrics-report.txt
 
           # Capture summary for job output
           echo "## Agent Metrics Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          if [ "${{ steps.period.outputs.format }}" = "json" ]; then
+          if [ "$PERIOD_FORMAT" = "json" ]; then
             echo '```json' >> $GITHUB_STEP_SUMMARY
             cat metrics-report.txt >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
@@ -148,14 +158,17 @@ jobs:
           echo "alert=$ALERT" >> $GITHUB_OUTPUT
 
       - name: Summary
+        env:
+          CHECK_COVERAGE: ${{ steps.check.outputs.coverage }}
+          CHECK_INFRA_RATE: ${{ steps.check.outputs.infra_rate }}
         run: |
           echo "## Threshold Check Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Metric | Current | Target | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|--------|---------|--------|--------|" >> $GITHUB_STEP_SUMMARY
 
-          COVERAGE="${{ steps.check.outputs.coverage }}"
-          INFRA_RATE="${{ steps.check.outputs.infra_rate }}"
+          COVERAGE="$CHECK_COVERAGE"
+          INFRA_RATE="$CHECK_INFRA_RATE"
 
           if (( $(echo "$COVERAGE >= 50" | bc -l) )); then
             echo "| Agent Coverage | ${COVERAGE}% | 50% | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY

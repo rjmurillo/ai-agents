@@ -75,6 +75,7 @@ from checks_plugin import (  # noqa: E402, F401
     validate_install_parity,
     validate_lefthook_installed,
     validate_plugin_version_bump,
+    validate_shipped_skill_routes,
     validate_workflow_local_run,
 )
 from checks_spec import (  # noqa: E402, F401
@@ -239,6 +240,16 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Run with verbose output",
     )
+    parser.add_argument(
+        "--markdown-lint-only",
+        action="store_true",
+        help="Run only markdownlint against positional markdown files",
+    )
+    parser.add_argument(
+        "markdown_files",
+        nargs="*",
+        help=argparse.SUPPRESS,
+    )
     return parser
 
 
@@ -252,6 +263,11 @@ def main(argv: list[str] | None = None) -> int:
     if not repo_root.is_dir():
         print(f"[FAIL] Invalid repository root: {repo_root}", file=sys.stderr)
         return 2
+
+    if args.markdown_lint_only:
+        return 0 if validate_markdown_lint(repo_root, args.markdown_files) else 1
+    if args.markdown_files:
+        parser.error("markdown files can only be passed with --markdown-lint-only")
 
     quick = args.quick
     mode = "Quick (fast checks only)" if quick else "Full"
