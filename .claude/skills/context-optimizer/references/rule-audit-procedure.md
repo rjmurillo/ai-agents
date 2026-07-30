@@ -193,8 +193,8 @@ Recorded so a later re-run has something to compare against. Scenario is
 `unified-software-engineering`, three positive cells plus one negative,
 one generation per cell, judge samples medianed. Scores are 0 to 5.
 
-The numbers below are the positive-scenario average, and they only reproduce
-if you reduce in this order:
+The numbers below are the positive-scenario average. **They came from a
+reduction the instrument no longer uses**, and reproduce only in that order:
 
 1. The judge returns three fields per sample: `activation_score`,
    `citation_score`, `behavior_score`.
@@ -202,15 +202,12 @@ if you reduce in this order:
    samples of each field separately. Three medians.
 3. The cell score is the **mean of those three medians**.
 4. The published figure is the **mean of the three positive-scenario cells**
-   for that mechanism. The negative scenario is scored and reported but does
-   not gate the verdict, so read its column yourself (issue #3933).
+   for that mechanism. The negative scenario was scored but did not gate.
 
-Three positive cells times three fields is nine medians, which is why a full
-run lands on a 1/9 grid. 3.89 is 35/9. Reducing in a different order, for
-example averaging the three fields before taking the median, gives different
-numbers.
+Three positive cells times three fields is nine medians, which is why a run
+lands on a 1/9 grid: 3.89 is 35/9. A different order gives different numbers.
 
-**Step 2 is a defect, not a choice, and the numbers below carry it.** Taking
+**Step 2 was a defect, not a choice, and the numbers below carry it.** Taking
 each field's median independently is a coordinate-wise median, and the result
 need not be any sample the judge gave. Three samples of 5/5/1, 5/1/5, and
 1/5/5 reduce to 5/5/5, a cell of 5.0, when every judge rated the triple at
@@ -220,7 +217,17 @@ median of those scalars gives 3.67. Measured across all 96 archived cells,
 `t-sol56` S2 description and S3 baseline, and `var-sol-2` S3 full. Recomputed
 end to end, the sign count is unchanged at seven positive against one
 negative, p = 0.0703, so the conclusion holds; two of the eight rows shift.
-Tracked as issue #3989. Do not reproduce this reduction in a new instrument.
+
+**Both defects are now fixed (issues #3989 and #3933).** Post-fix runs carry a
+`cell_score` reduced in that second order, so a published cell is a score some
+judge could have given, and negative scenarios gate: a worst rule-enhanced
+mechanism below `MIN_RESTRAINT_SCORE` returns `FAIL_OVER_ACTIVATION` ahead of
+the positive gates. Archived runs carry no `cell_score`, so the reader falls
+back to the mean of three medians and the table below still reproduces byte for
+byte. That fallback is deliberate: those runs are a closed record, and restating
+one under a rule it was not computed with would be a fabrication. **Distrust the
+archived cells at the 0.1 level and do not edit them; run new comparisons on the
+fixed instrument throughout.**
 
 | Model | baseline | description | full | delta desc | delta full | discarded samples |
 |---|---|---|---|---|---|---|
@@ -302,9 +309,10 @@ Other limits, all real:
   the user prompt (`scripts/eval/_copilot_cli.py`). A `copilot-cli` result
   measures user-message priming. Whether it transfers to always-on placement
   is an assumption, not a measurement (issue #3934).
-- **Negative scenarios cannot fail a rule.** `aggregate` computes the negative
-  average and the verdict never reads it (issue #3933). Over-activation is
-  invisible to the verdict.
+- **Negative scenarios could not fail a rule until #3933.** `aggregate` now
+  returns `FAIL_OVER_ACTIVATION` below `MIN_RESTRAINT_SCORE`. **The gate is
+  vacuous here**: this suite's one negative scenario scored 5.0 at every
+  mechanism in all eight runs. Unit tests exercise it; this suite cannot.
 
 ## Step 3. Decide
 
