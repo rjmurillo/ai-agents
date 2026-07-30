@@ -1491,10 +1491,32 @@ def _pins_codec(value: ast.expr, functions: dict[str, str]) -> bool:
     )
 
 
+def _imported_names(tree: ast.Module) -> set[str]:
+    """Name every binding an import statement makes.
+
+    ``from subprocess import run as runner`` rebinds a name to the bare entry
+    point, exactly as ``runner = subprocess.run`` does, and the scan reads
+    neither as pinning a codec. A construction that pinned one earlier under
+    that name says nothing about the call that follows.
+
+    The answer is order-blind, which matches how a rebinding is read
+    everywhere else here: a name bound bare anywhere carries no pin, whether
+    the bare binding comes before the pinned one or after.
+    """
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Import, ast.ImportFrom)):
+            continue
+        for alias in node.names:
+            found.add(alias.asname or alias.name.split(".")[0])
+    return found
+
+
 def _prepinned(
     bindings: list[tuple[str, ast.expr]],
     functions: dict[str, str],
     undone: set[str],
+    imported: set[str],
 ) -> set[str]:
     """Name every callable whose codec was pinned where it was built.
 
@@ -1515,6 +1537,9 @@ def _prepinned(
     unrelated function says nothing about the runner called out here. The
     same holds after the fixpoint has grown the set, because a name can
     inherit a pin from an alias and then be rebound to something bare.
+
+    A name an import binds is one of those bare bindings. It carries no
+    keywords, so it pins nothing.
     """
     pinning: dict[str, bool] = {}
     source_groups: dict[int, tuple[bool, bool, list[str], set[str]]] = {}
@@ -1536,7 +1561,7 @@ def _prepinned(
     seed = {
         name: name
         for name, pins in pinning.items()
-        if pins and name not in undone
+        if pins and name not in undone and name not in imported
     }
     bound = set(pinning)
     blocked: set[str] = set()
@@ -1719,7 +1744,7 @@ def _subprocess_names(tree: ast.Module) -> _Names:
             for name, value in bindings
             if name in undone and isinstance(value, ast.Call)
         },
-        _prepinned(bindings, functions, undone),
+        _prepinned(bindings, functions, undone, _imported_names(tree)),
     )
 
 
@@ -3835,6 +3860,25 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'getattr(runner, "keywords", {})["encoding"] = None\n'
             'runner(["x"], text=True)',
             "a default argument does not stop getattr reaching the mapping",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'from subprocess import run as runner\n'
+            'runner(["x"], text=True)',
+            "an import rebinds the name to the bare entry point",
+        ),
+        (
+            'import functools\n'
+            'import subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8"\n'
+            ')\n'
+            'import subprocess.run as runner\n'
+            'runner(["x"], text=True)',
+            "a plain import rebinds the name the same way a from-import does",
         ),
     ],
 )
