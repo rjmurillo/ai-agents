@@ -118,13 +118,17 @@ _ENCODING = "encoding"
 # keyword mapping exactly as the attribute does.
 _GETATTR = "getattr"
 # The builtins that consume a mapping by walking its keys. A partial's keys
-# are always strings, so none of these can reach a value or run code from the
-# module under scan. Every other callee can hand the mapping on, so the
-# mapping is treated as at risk.
+# are always strings, so what these answer with holds no way back to the
+# mapping: a number, a bool, one key, or a fresh container of keys. Measured
+# rather than assumed, by walking ``gc.get_referents`` from each answer.
+# ``iter``, ``reversed``, and ``id`` were dropped for failing that walk: the
+# first two answer with an iterator that holds the mapping, and the third
+# answers with its address, which ``ctypes`` will dereference. Every other
+# callee can hand the mapping on, so the mapping is treated as at risk.
 _MAPPING_READERS = frozenset(
     {
-        "all", "any", "bool", "frozenset", "id", "iter", "len",
-        "list", "max", "min", "reversed", "set", "sorted", "sum", "tuple",
+        "all", "any", "bool", "frozenset", "len",
+        "list", "max", "min", "set", "sorted", "sum", "tuple",
     }
 )
 # The builtin that answers with a mapping rather than with the keys. ``dict``
@@ -2819,6 +2823,34 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             'runner(["x"], text=True)',
             "calling a value reader over literals is still the read it always was",
         ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env=guard\n'
+            ')\n'
+            'seen = len(runner.keywords) + max(runner.keywords).count("a")\n'
+            'runner(["x"], text=True)',
+            "a reader that answers with a number or a key hands back no way in",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env=guard\n'
+            ')\n'
+            'seen = frozenset(runner.keywords) | set(sorted(runner.keywords))\n'
+            'runner(["x"], text=True)',
+            "a fresh container of keys holds strings and nothing that leads back",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env=guard\n'
+            ')\n'
+            'for key in runner.keywords:\n'
+            '    seen = key\n'
+            'runner(["x"], text=True)',
+            "a plain walk yields the keys without ever naming an iterator",
+        ),
     ],
 )
 def test_detector_stays_quiet(source: str, why: str) -> None:
@@ -4205,6 +4237,33 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'runner.keywords.copy.__self__["encoding"] = None\n'
             'runner(["x"], text=True)',
             "every dict method carries __self__, not just the ones that read keys",
+        ),
+        (
+            'import functools, subprocess, gc\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env=guard\n'
+            ')\n'
+            'gc.get_referents(iter(runner.keywords))[0]["encoding"] = None\n'
+            'runner(["x"], text=True)',
+            "an iterator holds the mapping it walks, and hands it back on request",
+        ),
+        (
+            'import functools, subprocess, gc\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env=guard\n'
+            ')\n'
+            'gc.get_referents(reversed(runner.keywords))[0]["encoding"] = None\n'
+            'runner(["x"], text=True)',
+            "walking a mapping backwards holds it exactly as walking it forwards does",
+        ),
+        (
+            'import functools, subprocess, ctypes\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env=guard\n'
+            ')\n'
+            'ctypes.cast(id(runner.keywords), ctypes.py_object).value["encoding"] = None\n'
+            'runner(["x"], text=True)',
+            "an address is a reference to the mapping for anyone willing to follow it",
         ),
         (
             'import functools, subprocess\n'
