@@ -148,16 +148,22 @@ class TestScan:
 
     def test_scan_collects_both_trees(self, tmp_path: Path) -> None:
         self._skill_md(
-            tmp_path, (".claude", "skills"), "alpha/SKILL.md",
+            tmp_path,
+            (".claude", "skills"),
+            "alpha/SKILL.md",
             "python3 .claude/skills/alpha/x.py\n",
         )
         self._skill_md(
-            tmp_path, ("src", "copilot-cli", "skills"), "beta/SKILL.md",
+            tmp_path,
+            ("src", "copilot-cli", "skills"),
+            "beta/SKILL.md",
             "bash .claude/skills/beta/y.sh\nsh .claude/skills/beta/z.sh\n",
         )
         # Clean file contributes nothing.
         self._skill_md(
-            tmp_path, (".claude", "skills"), "gamma/SKILL.md",
+            tmp_path,
+            (".claude", "skills"),
+            "gamma/SKILL.md",
             'python3 "$SCRIPTS_DIR/clean.py"\n',
         )
         counts = cep.scan_skill_execs(tmp_path)
@@ -178,8 +184,7 @@ class TestScan:
             tmp_path,
             (".claude", "skills"),
             "alpha/scripts/README-tool.md",
-            "bash .claude/skills/alpha/scripts/tool.sh\n"
-            "sh .claude/skills/alpha/scripts/other.sh\n",
+            "bash .claude/skills/alpha/scripts/tool.sh\nsh .claude/skills/alpha/scripts/other.sh\n",
         )
         self._skill_md(
             tmp_path,
@@ -205,7 +210,9 @@ class TestScan:
 
     def test_scan_skips_marked_files(self, tmp_path: Path) -> None:
         self._skill_md(
-            tmp_path, (".claude", "skills"), "alpha/SKILL.md",
+            tmp_path,
+            (".claude", "skills"),
+            "alpha/SKILL.md",
             "<!-- vendor-portability-exec: declared -->\npython3 .claude/skills/a/x.py\n",
         )
         assert cep.scan_skill_execs(tmp_path) == {}
@@ -213,7 +220,9 @@ class TestScan:
     def test_scan_skips_missing_root(self, tmp_path: Path) -> None:
         # Only one of the two trees exists; scan must not error.
         self._skill_md(
-            tmp_path, (".claude", "skills"), "alpha/SKILL.md",
+            tmp_path,
+            (".claude", "skills"),
+            "alpha/SKILL.md",
             "python3 .claude/skills/alpha/x.py\n",
         )
         counts = cep.scan_skill_execs(tmp_path)
@@ -268,9 +277,7 @@ class TestMainCli:
         assert data["files"] == {".claude/skills/a/SKILL.md": 1}
 
     def test_drift_returns_exit_1(self, tmp_path: Path) -> None:
-        self._make_skill(
-            tmp_path, "python3 .claude/skills/a/x.py\npython3 .claude/skills/a/y.py\n"
-        )
+        self._make_skill(tmp_path, "python3 .claude/skills/a/x.py\npython3 .claude/skills/a/y.py\n")
         baseline = tmp_path / "baseline.json"
         baseline.write_text(
             json.dumps({"files": {".claude/skills/a/SKILL.md": 1}}), encoding="utf-8"
@@ -339,3 +346,111 @@ class TestWorkflowPathFilter:
             "'src/copilot-cli/skills/**/scripts/README-*.md'",
         ):
             assert pattern in text
+
+
+class TestScriptsExecDetection:
+    """Executable invocation detection for scripts/ paths (issue #4013).
+
+    The scripts/ tree is upstream-only; python3 scripts/x.py in a SKILL.md
+    will fail silently in every consumer install just like a bare
+    .claude/skills/ invocation would.
+    """
+
+    def test_counts_scripts_python_invocation(self) -> None:
+        """python3 scripts/... is counted as a non-portable exec invocation.
+
+        Isolating negative control: reverting EXEC_PATTERN to only match
+        .claude/skills/ causes count_exec_invocations to return 0, failing
+        this assertion. The text contains no .claude/skills/ invocation, so
+        only the scripts/ component triggers detection.
+        """
+        text = "python3 scripts/validation/check_vendor_portability.py --repo-root .\n"
+        assert cep.count_exec_invocations(text) == 1
+
+    def test_counts_scripts_bash_invocation(self) -> None:
+        """bash scripts/... is counted as a non-portable exec invocation."""
+        text = "bash scripts/bootstrap-vm.sh --dev\n"
+        assert cep.count_exec_invocations(text) == 1
+
+    def test_ignores_scripts_prose_mention_without_interpreter(self) -> None:
+        """A scripts/ path mentioned in prose without an interpreter is not an exec.
+
+        The prose guard (check_skill_md_portability.py) owns bare prose mentions.
+        The exec checker requires an interpreter prefix (python3/bash/sh) or a
+        ./ lead-in before the path.
+        """
+        text = "See `scripts/validation/pre_pr.py` for details.\n"
+        assert cep.count_exec_invocations(text) == 0
+
+    def test_ignores_build_scripts_nested_path(self) -> None:
+        """python3 build/scripts/... is not counted; scripts is not at root.
+
+        The EXEC_PATTERN requires the path argument to start with scripts/
+        (or .claude/skills/), so a path like build/scripts/x.py does not match.
+        """
+        text = "python3 build/scripts/generate_rules.py\n"
+        assert cep.count_exec_invocations(text) == 0
+
+
+class TestDotSlashScriptsExecDetection:
+    """``./scripts/...`` invocations are detected (PR #4029 review).
+
+    A review raised that EXEC_PATTERN's path-prefix group only lists
+    ``scripts/`` with no optional ``./``, so ``python3 ./scripts/x.py`` would
+    slip past the gate. It does not: such text is matched by the *other*
+    lead-in alternative, the direct ``\\./`` executable branch, which consumes
+    ``./`` and leaves ``scripts/`` for the path-prefix group.
+
+    That makes the coverage real but *incidental*: it depends on two separate
+    regex branches lining up, and no test pinned it. These tests pin it. Each
+    one is killed by either mutation:
+      - drop ``scripts/`` from the path-prefix group -> the ``\\./`` branch has
+        nothing to match after ``./``, count becomes 0;
+      - drop the ``\\./`` lead-in alternative -> the interpreter branch cannot
+        match ``./scripts/`` (the group is anchored at ``scripts/``), count
+        becomes 0.
+    """
+
+    def test_counts_dot_slash_scripts_python_invocation(self) -> None:
+        """python3 ./scripts/... is counted despite the ./ prefix."""
+        text = "python3 ./scripts/validation/check_vendor_portability.py --repo-root .\n"
+        assert cep.count_exec_invocations(text) == 1
+
+    def test_counts_dot_slash_scripts_under_uv_run(self) -> None:
+        """The `uv run python ./scripts/...` form used in this repo is counted.
+
+        The runner prefix (`uv run`) is not part of the match; the interpreter
+        token inside it is what anchors the lead-in.
+        """
+        text = "uv run python ./scripts/validation/pre_pr.py\n"
+        assert cep.count_exec_invocations(text) == 1
+
+    def test_counts_dot_slash_scripts_with_interpreter_option(self) -> None:
+        """A short option between the interpreter and ./scripts/... still counts."""
+        text = "python3 -u ./scripts/validation/pre_pr.py\n"
+        assert cep.count_exec_invocations(text) == 1
+
+    def test_counts_bare_dot_slash_scripts_shell_invocation(self) -> None:
+        """./scripts/x.sh with no interpreter token is counted."""
+        text = "./scripts/bootstrap-vm.sh --dev\n"
+        assert cep.count_exec_invocations(text) == 1
+
+    def test_ignores_dot_slash_nested_scripts_path(self) -> None:
+        """./build/scripts/... is not counted; scripts is not at the path root.
+
+        Negative control for the ./ branch: the path-prefix group stays
+        anchored, so prefixing a nested path with ./ does not launder it into
+        a match.
+        """
+        text = "./build/scripts/generate_rules.py\n"
+        assert cep.count_exec_invocations(text) == 0
+
+    def test_ignores_parent_relative_scripts_path(self) -> None:
+        """python3 ../scripts/... is not counted.
+
+        Edge case bounding the ./ branch: `../` is not `./`, and the
+        path-prefix group does not match at `../scripts/`, so a parent-relative
+        path is out of scope for this gate.
+        """
+        text = "python3 ../scripts/x.py\n"
+        assert cep.count_exec_invocations(text) == 0
