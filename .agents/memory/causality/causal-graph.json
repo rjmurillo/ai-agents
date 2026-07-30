@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-28T05:18:53.542312+00:00",
+  "updated": "2026-07-30T00:56:21.302795+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -23320,6 +23320,60 @@
         "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
       ],
       "created": "2026-07-28T05:06:51.357047+00:00"
+    },
+    {
+      "id": "610d8c21fbe2",
+      "type": "milestone",
+      "label": "milestone: Read task, issue #3869, root AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/HANDOFF.md, and relevant ADR context.",
+      "episodes": [
+        "episode-2026-07-30-session-3608-workflow-local-run-cascade-attribution"
+      ],
+      "created": "2026-07-30T00:56:21.284328+00:00"
+    },
+    {
+      "id": "325671ea3478",
+      "type": "milestone",
+      "label": "milestone: Added failing regression test for cli-smoke aggregator cascade, verified RED with targeted pytest.",
+      "episodes": [
+        "episode-2026-07-30-session-3608-workflow-local-run-cascade-attribution"
+      ],
+      "created": "2026-07-30T00:56:21.284669+00:00"
+    },
+    {
+      "id": "f4df3d911016",
+      "type": "milestone",
+      "label": "milestone: Implemented scoped aggregator cascade attribution in scripts/validation/run_workflow_local_test.py and added hard-failure regression for cascade without an explained upstream limitation.",
+      "episodes": [
+        "episode-2026-07-30-session-3608-workflow-local-run-cascade-attribution"
+      ],
+      "created": "2026-07-30T00:56:21.284967+00:00"
+    },
+    {
+      "id": "db5f26fc64bd",
+      "type": "milestone",
+      "label": "milestone: Validation passed: 105 run_workflow_local_test tests, 1066 validation tests, ruff on touched files, py_compile, and pre_pr validations.",
+      "episodes": [
+        "episode-2026-07-30-session-3608-workflow-local-run-cascade-attribution"
+      ],
+      "created": "2026-07-30T00:56:21.285260+00:00"
+    },
+    {
+      "id": "97d3bb0064f1",
+      "type": "commit",
+      "label": "commit: Commit: cf10e2d4",
+      "episodes": [
+        "episode-2026-07-30-session-3608-workflow-local-run-cascade-attribution"
+      ],
+      "created": "2026-07-30T00:56:21.285564+00:00"
+    },
+    {
+      "id": "f4c2d86db148",
+      "type": "outcome",
+      "label": "Outcome: success - Fix #3869 workflow-local-run aggregator cascade attribution",
+      "episodes": [
+        "episode-2026-07-30-session-3608-workflow-local-run-cascade-attribution"
+      ],
+      "created": "2026-07-30T00:56:21.285862+00:00"
     }
   ],
   "patterns": [
