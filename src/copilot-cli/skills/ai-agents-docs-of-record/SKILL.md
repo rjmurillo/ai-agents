@@ -256,7 +256,7 @@ relying on them:
 | Fact | Source | Re-verify |
 |------|--------|-----------|
 | Session log MUSTs, blocking phases | `.agents/SESSION-PROTOCOL.md` (Phases 0-5, 2.5) | `grep -n "MUST NOT defer" .agents/SESSION-PROTOCOL.md` |
-| Branch naming pattern | `scripts/validate_session_json.py` (`BRANCH_PATTERN`) | `grep -n "BRANCH_PATTERN" scripts/validate_session_json.py` |
+| Branch naming pattern | `scripts/validate_session_json.py` (`BRANCH_PATTERN`) | `grep -n "^BRANCH_PATTERN = re.compile" scripts/validate_session_json.py` |
 | Schema required keys, top level and nested session | `.agents/schemas/session-log.schema.json` | `python3 -c "import json;s=json.load(open('.agents/schemas/session-log.schema.json'));print(s['required'], s['properties']['session']['required'])"` |
 | ADR collision history, next-number helper | `scripts/validation/check_adr_uniqueness.py` docstring | `python3 scripts/validation/check_adr_uniqueness.py --print-next` |
 | ADR-073 lifecycle fields | `.agents/architecture/ADR-073-adr-lifecycle-frontmatter.md:1-9` | `head -10 .agents/architecture/ADR-073-adr-lifecycle-frontmatter.md` |
