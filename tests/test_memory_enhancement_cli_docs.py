@@ -205,6 +205,8 @@ def _tracked_docs() -> list[str]:
         ["git", "ls-files", "--", *DOC_ROOTS],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=True,
         cwd=REPO_ROOT,
     )
