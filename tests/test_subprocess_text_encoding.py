@@ -2482,6 +2482,18 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             "a later splat cannot overwrite a call keyword without raising first",
         ),
         (
+            "import functools, subprocess\n"
+            "base = functools.partial(subprocess.run, capture_output=True)\n"
+            "alias = base\n"
+            "alias([1], capture_output=False, text=True)",
+            "an alias carries the capture keywords its source pre-bound",
+        ),
+        (
+            "import subprocess\n"
+            'subprocess.run([1], capture_output=True, text=True, **dict(**{"encoding": "utf-8"}))',
+            "a dict call is opened through the splat it merges",
+        ),
+        (
             "import subprocess\n"
             'subprocess.run([1], capture_output=True, text=True, **{"encoding": "utf-8"}, **KW)',
             "an unbound later splat cannot overwrite the codec either",
@@ -3460,6 +3472,24 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             "import subprocess\nfrom operator import attrgetter\nname = 'run'\n"
             "attrgetter(name)(subprocess)([1], capture_output=True, text=True)",
             "a computed attribute on a known module reaches some entry point",
+        ),
+        (
+            "import subprocess\n"
+            "def options():\n"
+            "    return {}\n"
+            "subprocess.run([1], capture_output=True, text=True, "
+            '**{"encoding": "utf-8", **options()})',
+            "a merge this scan cannot open still hides what follows the codec",
+        ),
+        (
+            "import subprocess\nk = 'text'\nsubprocess.run([1], capture_output=True, **{k: True})",
+            "a computed key may be the one that selects text mode",
+        ),
+        (
+            "import subprocess\n"
+            'subprocess.run([1], capture_output=True, text=True, **{"encoding": "utf-8", '
+            '"encoding": None})',
+            "a key repeated in one display keeps the value written last",
         ),
         (
             "import subprocess\n"
