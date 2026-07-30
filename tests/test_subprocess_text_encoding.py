@@ -115,7 +115,12 @@ _STDOUT = "subprocess.STDOUT"
 # element out of whatever container it is given. The factory call and the
 # call that uses it are two separate nodes, so a scan that only reads the
 # outer ``func`` sees a call on a call and stops.
-_OPERATOR_GETTERS = frozenset({"attrgetter"})
+_OPERATOR_METHODCALLER = "methodcaller"
+# methodcaller reads an attribute off its argument exactly as attrgetter does.
+# What sets it apart is that it also calls the result, so the keywords that
+# decide the codec sit on the factory rather than on the call this scan
+# resolves. See _keyword_site.
+_OPERATOR_GETTERS = frozenset({"attrgetter", _OPERATOR_METHODCALLER})
 _OPERATOR_SELECTOR = "itemgetter"
 _OPERATOR_FACTORIES = _OPERATOR_GETTERS | frozenset({_OPERATOR_SELECTOR})
 _OPERATOR_MODULE = "operator"
@@ -1628,6 +1633,27 @@ def _pins_utf8(call: ast.Call) -> bool:
         return False
 
 
+def _keyword_site(call: ast.Call, functions: dict[str, str]) -> ast.Call:
+    """Return the call whose keywords decide what *call* does.
+
+    ``methodcaller("run", ["x"], text=True)(subprocess)`` runs
+    ``subprocess.run(["x"], text=True)``, but the keywords are given to the
+    factory, not to the call this scan resolves. Reading the resolved node
+    alone finds no keywords at all and reports nothing, which is what let the
+    shape through.
+
+    Every other shape answers for itself, so the call handed in comes back
+    unchanged.
+    """
+    factory = call.func
+    if (
+        isinstance(factory, ast.Call)
+        and _operator_label(factory, functions) == _OPERATOR_METHODCALLER
+    ):
+        return factory
+    return call
+
+
 def unpinned_lines(source: str) -> list[int]:
     """Return the line numbers of text-capturing calls that do not pin UTF-8."""
     tree = ast.parse(source)
@@ -1644,15 +1670,16 @@ def unpinned_lines(source: str) -> list[int]:
             # move is to not use it.
             offenders.append(node.lineno)
             continue
+        site = _keyword_site(node, names.functions)
         if target not in _DECODES_UNCONDITIONALLY and not _captures_text(
-            node, names.functions, target, names.modules, names.presupplied
+            site, names.functions, target, names.modules, names.presupplied
         ):
             continue
-        if _pins_utf8(node) and id(node) not in names.voided:
+        if _pins_utf8(site) and id(node) not in names.voided:
             continue
         if (
-            _keyword(node, "encoding") is None
-            and not _has_splat(node)
+            _keyword(site, "encoding") is None
+            and not _has_splat(site)
             and _call_label(node) in names.prepinned
         ):
             # The codec was pinned where this callable was built, and nothing
@@ -2199,6 +2226,18 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             'runner = holders[0]\n'
             'runner(["x"], text=True)',
             "the pin follows the partial through a container",
+        ),
+        (
+            "import operator, subprocess\n"
+            'operator.methodcaller(\n'
+            '    "run", ["x"], capture_output=True, text=True, encoding="utf-8"\n'
+            ")(subprocess)",
+            "a methodcaller carrying the codec pins it where the keywords sit",
+        ),
+        (
+            "import operator, subprocess\n"
+            'operator.methodcaller("run", ["x"])(subprocess)',
+            "a methodcaller that captures nothing decodes nothing",
         ),
     ],
 )
@@ -3228,6 +3267,24 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'alias.keywords["encoding"] = None\n'
             'runner(["x"], text=True)',
             "an alias shares the keyword mapping rather than copying it",
+        ),
+        (
+            "import operator, subprocess\n"
+            'operator.methodcaller("run", ["x"], capture_output=True, text=True)(\n'
+            "    subprocess\n"
+            ")",
+            "methodcaller runs the entry point with keywords held one call out",
+        ),
+        (
+            "import operator as op, subprocess\n"
+            'op.methodcaller("run", ["x"], capture_output=True, text=True)(subprocess)',
+            "an operator alias hides the methodcaller the same way",
+        ),
+        (
+            "from operator import methodcaller\n"
+            "import subprocess\n"
+            'methodcaller("run", ["x"], capture_output=True, text=True)(subprocess)',
+            "a directly imported methodcaller needs no module name at all",
         ),
     ],
 )
