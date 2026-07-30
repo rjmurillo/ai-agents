@@ -1422,6 +1422,20 @@ def test_act_limitation_hint_explains_paths_filter_git_rev_parse_annotation() ->
     assert w._act_limitation_hint(combined, "push") is not None
 
 
+def test_act_limitation_hint_attributes_aggregator_cascade_to_limitation() -> None:
+    combined = (
+        "[CLI Smoke/Check Changed Paths]   ::error::The process "
+        "'git rev-parse --abbrev-ref HEAD' failed with exit code 128\n"
+        "[CLI Smoke/Smoke Result]   ::error::Check changed paths result: failure"
+    )
+    assert w._act_limitation_hint(combined, "push") is not None
+
+
+def test_act_limitation_hint_blocks_aggregator_cascade_without_limitation() -> None:
+    combined = "[CLI Smoke/Smoke Result]   ::error::Check changed paths result: failure"
+    assert w._act_limitation_hint(combined, "push") is None
+
+
 def test_act_limitation_hint_ignores_non_annotation_noise() -> None:
     # act prints job-level failure lines that carry no attribution. Treating
     # those as unexplained would make every downgrade unreachable.
