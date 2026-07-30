@@ -50,12 +50,16 @@ The third one directly contradicts the carve-out.
 
 ## The result that looks like a contradiction
 
-Source: Vercel passive-context research, 2026-02-08. Local copy at
-`.agents/analysis/vercel-passive-context-vs-skills-research.md`.
+Source: Vercel, "AGENTS.md outperforms skills in our agent evals", published
+January 27, 2026 by Jude Gao. Local analysis at
+`.agents/analysis/vercel-passive-context-vs-skills-research.md`, whose own
+`Date: 2026-02-08` header is when this repo wrote the analysis, not when
+Vercel published. Cite the January date when citing the finding.
 
 Vercel measured 100% pass rate for always-on passive context against 53% to
 79% for skills. Read plainly, that says put everything always-on. This repo
-read it that way and grew its always-on corpus to roughly 95KB.
+read it that way and grew its always-on corpus to 9 rules and roughly 81KB,
+with a Python edit pulling in roughly 94KB.
 
 **What Vercel actually measured was knowledge injection.** The task was
 Next.js 16 APIs that were absent from the model's training data. Passive
@@ -156,8 +160,10 @@ is a single uncontrolled trial and an anecdote, not a measurement. It is
 recorded because the failure mode is expensive and the anecdote is the only
 evidence anyone has produced so far, not because it settles the question.
 
-The load-bearing control is the **effort tier**, not the prompt. The settled
-position in this repo is **Medium** for routine work.
+The load-bearing control is believed to be the **effort tier**, not the
+prompt. This repo uses **Medium** for routine Sol work. That is a settled
+convention, not a measured result: no effort-tier comparison has been run, and
+the relative effectiveness of tier versus prompt rules is unmeasured.
 
 **Integrity flag.** METR recorded the highest detected cheating rate of any
 public model it has evaluated for Sol, including exploiting bugs in the eval
@@ -167,15 +173,32 @@ as an implementer.
 
 ## Where this repo stands
 
-Measured 2026-07-29. Two numbers, and they are not interchangeable. The
-**always-on corpus is 75,528 bytes across 8 rules**: the ones that load
-regardless of what you touch. The **effective context on a `.py` edit is
-94,088 bytes across 11 files**, which is the always-on corpus plus the
-path-scoped rules that a Python file activates. Use the first when arguing
-about what every session pays. Use the second when arguing about what a
-specific edit pays.
+Measured 2026-07-30. Two numbers, and they are not interchangeable. The
+**always-on corpus is 9 rules, 80,969 bytes**: the ones that load regardless
+of what you touch. The **effective context on a `.py` edit is 94,088 bytes
+across 11 files**, which is the always-on corpus plus the path-scoped rules
+that a Python file activates. Use the first when arguing about what every
+session pays. Use the second when arguing about what a specific edit pays.
 
-The two book rules that load on every file are the largest single block:
+Regenerate both with the repo's own gate, which is the authority these
+figures come from:
+
+```bash
+uv run --frozen python scripts/validation/instruction_budget.py --format table
+```
+
+**State the basis whenever you quote a number.** That command measures the
+generated `.github/instructions/` mirrors. The `.claude/rules/` sources are
+139 bytes larger in total (81,108 always-on) because `generate_rules.py`
+strips the `priority:` frontmatter key that the Copilot tree does not use.
+An earlier draft of this document mixed the two bases in one paragraph and
+published a corpus size that matched neither. If a figure here disagrees with
+the command above by roughly a hundred bytes, that is the reason; if it
+disagrees by more, the document is stale and the command wins.
+
+The two book rules that load on every file are the largest book-derived block.
+They are not the largest rules: `voice.md` at 19,624 bytes is the single
+biggest always-on file, larger than either of them.
 
 | Rule | Bytes | Loading | Eval coverage |
 |---|---|---|---|
@@ -183,9 +206,9 @@ The two book rules that load on every file are the largest single block:
 | `pragmatic-programmer.md` | 12,219 | always-on | none |
 | `unified-software-engineering.md` | 8,242 | code files only | 3 positive, 1 negative |
 
-That is 26,371 always-on bytes, roughly 35% of the 75,528-byte always-on
-corpus, and neither has behavioral eval coverage, which is why they grew
-unchallenged.
+That is 26,371 always-on bytes, 32.5% of the 81,108-byte always-on corpus
+measured at source, and neither has behavioral eval coverage, which is why
+they grew unchallenged.
 
 **The rule that was measured is not in that corpus.**
 `unified-software-engineering.md` declares `paths:` scoped to source files, so
@@ -193,9 +216,18 @@ it loads on a code edit and not otherwise. Carrying its result across to the
 two always-on book rules is an extrapolation, not a measurement. State it that
 way whenever the number gets quoted.
 
-Always-on status is declared two ways in this tree: `applyTo: '**'` on six
-rules and `alwaysApply: true` on the other two, including both book rules
-above. A survey that greps one convention misses the other.
+Always-on status is declared **three** ways in this tree, which is the trap:
+
+| Form | Rules |
+|---|---|
+| `applyTo: '**'` | `builder-ethos`, `claude-model-patches`, `lsp-first`, `search-before-building`, `universal`, `voice` |
+| `alwaysApply: true` | `code-quality`, `pragmatic-programmer` |
+| `paths: ["**"]` | `knowledge-persistence` |
+
+A survey that greps one convention misses the others. The first audit of this
+corpus grepped two and reported 8 rules; `knowledge-persistence.md` loads on
+every file and was absent from the count for a full review cycle. Enumerate by
+parsing frontmatter, never by grep.
 
 They are fenced. The `software-engineering-library` skill contains an explicit
 design sentence saying these baseline rules stay loaded while the other eight
@@ -212,8 +244,8 @@ It was real. Commit `77edc827` (PR #1022, 2026-01-31) adopted the Vercel
 strategy and wrote "Total passive context: ~4.5KB (well under Vercel's 8KB
 threshold)".
 
-The corpus is now roughly 95KB, about 12x the threshold cited as the reason
-the strategy works. The enforced budget ceiling in
+The always-on corpus is 9.9x that threshold and a Python edit sees 11.5x,
+measured at source. The enforced budget ceiling in
 `scripts/validation/instruction_budget_constants.py` ratcheted upward to track
 measured size instead of holding at the goal, which made every increase look
 compliant.
