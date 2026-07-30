@@ -40,6 +40,7 @@ def find_issues() -> tuple[list[str], int]:
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
     if result.returncode != 0:
         return [], result.returncode

@@ -36,6 +36,7 @@ def main() -> int:
         return EXIT_CONFIG
 
     print(f"Starting context synthesis for issue #{issue_number}")
+    sys.stdout.flush()
     result = subprocess.run(
         [sys.executable, _SYNTHESIS_SCRIPT, "--issue-number", issue_number],
     )

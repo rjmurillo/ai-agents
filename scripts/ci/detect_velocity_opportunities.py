@@ -75,6 +75,7 @@ def main() -> int:
         [sys.executable, *args],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         env=env,
     )
 

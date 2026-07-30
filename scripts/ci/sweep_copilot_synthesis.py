@@ -25,7 +25,7 @@ _SYNTHESIS_SCRIPT = ".claude/skills/github/scripts/issue/invoke_copilot_assignme
 def _process_issue(issue_number: str) -> bool:
     """Synthesize context for one issue. Returns True on success."""
     print(f"\n=== Processing Issue #{issue_number} ===")
-
+    sys.stdout.flush()
     result = subprocess.run(
         [sys.executable, _SYNTHESIS_SCRIPT, "--issue-number", issue_number],
     )
@@ -39,6 +39,7 @@ def _process_issue(issue_number: str) -> bool:
         ["gh", "issue", "edit", issue_number, "--remove-label", "copilot-ready"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
     if gh_result.returncode == 0:
         print(f"::notice::Issue #{issue_number} - Removed copilot-ready label")

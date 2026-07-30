@@ -28,7 +28,7 @@ _SAFE_PUSH = ".trusted-helper/.github/scripts/safe_push_pr_branch.py"
 
 
 def _git(args: list[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(["git", *args], capture_output=True, text=True)
+    return subprocess.run(["git", *args], capture_output=True, text=True, encoding="utf-8")
 
 
 def extract_json(text: str) -> str:
@@ -131,6 +131,7 @@ def main() -> int:
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
     if push_result.returncode != 0:
         print(
