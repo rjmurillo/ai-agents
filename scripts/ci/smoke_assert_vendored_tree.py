@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 
 
-def run(argv: list[str] | None = None) -> int:  # noqa: ARG001
+def run(_argv: list[str] | None = None) -> int:
     """Assert expected paths exist in the vendored tree."""
     demo = os.environ.get("DEMO", "")
     if not demo:

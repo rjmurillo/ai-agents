@@ -21,7 +21,7 @@ import os
 import sys
 
 
-def run(argv: list[str] | None = None) -> int:  # noqa: ARG001
+def run(_argv: list[str] | None = None) -> int:
     """Validate smoke matrix results and report."""
     check_paths_result = os.environ.get("CHECK_PATHS_RESULT", "")
     cli_changed = os.environ.get("CLI_CHANGED", "")

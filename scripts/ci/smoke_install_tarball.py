@@ -35,7 +35,7 @@ def write_github_output(key: str, value: str) -> None:
         print(f"{key}={value}")
 
 
-def run(argv: list[str] | None = None) -> int:  # noqa: ARG001
+def run(_argv: list[str] | None = None) -> int:
     """Install the tarball and run ai-agents init."""
     tarball = os.environ.get("TARBALL", "")
     if not tarball:
