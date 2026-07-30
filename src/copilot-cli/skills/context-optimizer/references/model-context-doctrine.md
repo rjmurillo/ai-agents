@@ -93,6 +93,34 @@ Always-on content earns its slot only if it passes all three:
 
 A rule that fails any of the three belongs in progressive disclosure.
 
+### Arbitration is not restatement
+
+Test 1 has a trap, and this repo walked into it from the other side. Eight
+eval runs on `unified-software-engineering.md`, four each on Opus 5 and
+Sol 5.6, found that the **full rule body beat baseline in 7 of 8 runs
+(pooled +0.67), while its description alone beat baseline in 1 of 8
+(pooled -0.13)**. See `rule-audit-procedure.md` for the table and the caveats.
+
+Under a naive reading of test 1 this rule should have been cut. It is
+synthesized from Clean Code, Pragmatic Programmer, and SOLID, all of which the
+model has read. The measurement says otherwise, consistently, across two model
+families that share no weights.
+
+The reason is in the rule's own first line: it is a **tiebreaker**. It says
+which principle wins when two the model already knows collide. The model knows
+DRY. The model knows YAGNI. It does not know which one this repo prefers when
+they conflict, because that is a local decision, not a fact about software.
+
+**Restating a principle fails test 1. Arbitrating between principles passes
+it.** The arbitration is the thing the model cannot know. When auditing a rule
+that looks like restatement, check whether it is actually resolving conflicts,
+setting local thresholds, or ranking priorities. That content is
+repo-knowledge wearing a textbook's clothes.
+
+This is a refinement of Shihipar, not a refutation. Anthropic cut restated
+constraint. It did not claim that policy about which constraint wins is free
+to cut.
+
 ## Per-model levers
 
 The two models this repo ships against respond to different controls. Do not

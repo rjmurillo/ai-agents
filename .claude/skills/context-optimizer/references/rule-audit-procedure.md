@@ -94,28 +94,47 @@ The repo already knew this before the 2026-07-29 audit re-derived it.
 issue #3445). The rule path is single-shot against an LLM judge and cannot
 average that away.
 
-Measured 2026-07-29 on `unified-software-engineering.json`, repeat runs of
-identical inputs through `EVAL_PROVIDER=copilot-cli`:
+Measured 2026-07-29 on `unified-software-engineering.json`, eight runs of
+identical inputs through `EVAL_PROVIDER=copilot-cli`, four per model:
 
-| Model | run | baseline | description | full |
-|---|---|---|---|---|
-| Opus 5 | A | 3.83 | 3.67 (-0.16) | 4.11 (+0.28) |
-| Opus 5 | B | 3.67 | 3.89 (+0.22) | 4.78 (+1.11) |
-| Sol 5.6 | A | 3.89 | 3.78 (-0.11) | 3.56 (-0.33) |
-| Sol 5.6 | B | 3.44 | 3.33 (-0.11) | 4.22 (+0.78) |
+| Model | baseline | description | full |
+|---|---|---|---|
+| Opus 5 | 3.83 | 3.67 (-0.16) | 4.11 (+0.28) |
+| Opus 5 | 3.67 | 3.89 (+0.22) | 4.78 (+1.11) |
+| Opus 5 | 3.67 | 3.67 (+0.00) | 4.89 (+1.22) |
+| Opus 5 | 3.67 | 3.67 (+0.00) | 4.89 (+1.22) |
+| Sol 5.6 | 3.89 | 3.78 (-0.11) | 3.56 (-0.33) |
+| Sol 5.6 | 3.44 | 3.33 (-0.11) | 4.22 (+0.78) |
+| Sol 5.6 | 3.22 | 3.22 (+0.00) | 4.00 (+0.78) |
+| Sol 5.6 | 4.11 | 3.22 (-0.89) | 4.44 (+0.33) |
 
-Run-to-run spread on the `full` delta was **0.83 on Opus 5 and 1.11 on
-Sol 5.6**. Sol's `full` delta changed sign, from -0.33 to +0.78, on identical
-inputs. Opus's `description` delta changed sign too.
+Run-to-run spread on the `full` delta was **0.94 on Opus 5 and 1.11 on
+Sol 5.6**. Sol's `full` delta changed sign, -0.33 to +0.78, on identical
+inputs. Baseline alone moved 3.22 to 4.11 with nothing changed.
 
-**Practical rule: at 3 positive scenarios and one generation per cell, this
-instrument cannot resolve an effect smaller than about 1.0 on a 0-5 scale.**
-That is most of the usable range. Treat a single run as a point estimate with
-no error bar, and do not cut or keep content on one.
+**Practical rule: at 3 positive scenarios and one generation per cell, a
+single run cannot resolve an effect smaller than about 1.0 on a 0-5 scale.**
+That is most of the usable range. Never cut or keep content on one run.
 
-An earlier draft of this document put the floor near 0.3, from two runs. Three
-more runs widened it more than threefold. Expect the same if you add runs: the
-number below is a lower bound on the noise, not a measurement of it.
+An earlier draft of this document put the floor near 0.3, from two runs. Six
+more runs widened it more than threefold. Expect the same if you add runs.
+
+### Read direction, not magnitude
+
+The means are swamped. The **sign is not**:
+
+| Mechanism | beats baseline | pooled mean delta |
+|---|---|---|
+| `description` only | 1 of 8 runs | -0.13 |
+| `full` body | **7 of 8 runs** | **+0.67** |
+
+Seven of eight in one direction is p is about 0.035 under a fair-coin null.
+That survives noise the means do not, and it holds across two model families
+that share no weights.
+
+**So run the eval at least four times per model and count signs.** A
+consistent direction across runs is evidence. A large delta in one run is not.
+This is the only reading of this instrument that has held up.
 
 Other limits, all real:
 
