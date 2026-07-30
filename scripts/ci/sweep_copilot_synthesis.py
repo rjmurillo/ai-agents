@@ -48,7 +48,7 @@ def _process_issue(issue_number: str) -> bool:
     return True
 
 
-def main(argv: list[str] | None = None) -> int:  # noqa: ARG001
+def main() -> int:
     issues_str = os.environ.get("ISSUES", "").strip()
     if not issues_str:
         print("No issues to process")

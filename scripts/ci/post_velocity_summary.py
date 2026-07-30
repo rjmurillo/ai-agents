@@ -113,7 +113,7 @@ def post_comment(repo: str, number: str, body: str, existing_id: int | None) -> 
     return result.returncode
 
 
-def main(argv: list[str] | None = None) -> int:  # noqa: ARG001
+def main() -> int:
     repo = os.environ.get("GITHUB_REPOSITORY", "")
     if not repo:
         print("ERROR: GITHUB_REPOSITORY not set", file=sys.stderr)

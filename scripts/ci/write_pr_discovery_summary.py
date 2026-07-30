@@ -53,7 +53,7 @@ def build_summary(parsed: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def main(argv: list[str] | None = None) -> int:  # noqa: ARG001
+def main() -> int:
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY", "")
     if not summary_path:
         print("ERROR: GITHUB_STEP_SUMMARY not set", file=sys.stderr)

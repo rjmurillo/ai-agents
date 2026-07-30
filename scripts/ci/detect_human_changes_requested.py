@@ -30,7 +30,7 @@ _BOT_AUTHORS = frozenset(
 )
 
 
-def main(argv: list[str] | None = None) -> int:  # noqa: ARG001
+def main() -> int:
     output_path = os.environ.get("GITHUB_OUTPUT", "")
     if not output_path:
         print("ERROR: GITHUB_OUTPUT not set", file=sys.stderr)

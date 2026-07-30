@@ -31,7 +31,7 @@ class _SubprocessRecorder:
         self.calls: list[list[str]] = []
         self._returncode = returncode
 
-    def __call__(self, argv, **kwargs):  # noqa: ANN001
+    def __call__(self, argv: list[str], **kwargs: object):
         self.calls.append(list(argv))
         return subprocess.CompletedProcess(argv, self._returncode)
 

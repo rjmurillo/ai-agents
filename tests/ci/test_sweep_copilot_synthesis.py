@@ -28,7 +28,7 @@ finally:
 def _make_run(results: dict[str, int]) -> object:
     """Return a subprocess.run stub keyed by command list contents."""
 
-    def _run(argv, **kwargs):  # noqa: ANN001
+    def _run(argv: list[str], **kwargs: object):
         cmd = argv[1] if len(argv) > 1 else argv[0]
         rc = results.get(cmd, 0)
         return subprocess.CompletedProcess(argv, rc, "", "")
@@ -86,7 +86,7 @@ def test_multiple_issues_all_processed(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ISSUES", "1 2 3")
     calls: list[list[str]] = []
 
-    def _run(argv, **kwargs):  # noqa: ANN001
+    def _run(argv: list[str], **kwargs: object):
         calls.append(list(argv))
         return subprocess.CompletedProcess(argv, 0, "", "")
 
@@ -103,7 +103,7 @@ def test_partial_failures_count_reported(
     monkeypatch.setenv("ISSUES", "1 2 3")
     call_count = [0]
 
-    def _run(argv, **kwargs):  # noqa: ANN001
+    def _run(argv: list[str], **kwargs: object):
         if "invoke_copilot_assignment.py" in str(argv):
             call_count[0] += 1
             rc = 1 if call_count[0] == 2 else 0
@@ -125,7 +125,7 @@ def test_partial_failures_count_reported(
 def test_gh_label_removal_called_on_success(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[list[str]] = []
 
-    def _run(argv, **kwargs):  # noqa: ANN001
+    def _run(argv: list[str], **kwargs: object):
         calls.append(list(argv))
         return subprocess.CompletedProcess(argv, 0, "", "")
 
@@ -139,7 +139,7 @@ def test_gh_label_removal_called_on_success(monkeypatch: pytest.MonkeyPatch) -> 
 def test_gh_label_failure_logged_as_warning(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    def _run(argv, **kwargs):  # noqa: ANN001
+    def _run(argv: list[str], **kwargs: object):
         rc = 1 if "gh" in str(argv) else 0
         return subprocess.CompletedProcess(argv, rc, "", "label error")
 

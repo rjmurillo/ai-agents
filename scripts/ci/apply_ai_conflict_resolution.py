@@ -77,7 +77,7 @@ def apply_resolution(res: dict[str, Any]) -> None:
         raise ValueError(f"Unknown strategy: {strategy}")
 
 
-def main(argv: list[str] | None = None) -> int:  # noqa: ARG001
+def main() -> int:
     pr_number = os.environ.get("PR_NUMBER", "")
     head_ref = os.environ.get("HEAD_REF", "")
     base_ref = os.environ.get("BASE_REF", "")

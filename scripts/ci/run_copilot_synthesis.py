@@ -23,7 +23,7 @@ EXIT_CONFIG = 2
 _SYNTHESIS_SCRIPT = ".claude/skills/github/scripts/issue/invoke_copilot_assignment.py"
 
 
-def main(argv: list[str] | None = None) -> int:  # noqa: ARG001
+def main() -> int:
     issue_number = os.environ.get("ISSUE_NUMBER", "").strip()
     if not issue_number:
         print("ERROR: ISSUE_NUMBER not set", file=sys.stderr)

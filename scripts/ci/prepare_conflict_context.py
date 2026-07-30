@@ -74,7 +74,7 @@ def build_context(blocked_files: list[str], base_ref: str) -> str:
     return "\n".join(sections)
 
 
-def main(argv: list[str] | None = None) -> int:  # noqa: ARG001
+def main() -> int:
     output_path = os.environ.get("GITHUB_OUTPUT", "")
     if not output_path:
         print("ERROR: GITHUB_OUTPUT not set", file=sys.stderr)
