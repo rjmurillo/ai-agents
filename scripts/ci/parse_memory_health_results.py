@@ -4,16 +4,22 @@
 Extracted from ``.github/workflows/memory-health.yml`` under ADR-006 (no logic
 in workflow YAML). Issue #3541.
 
-The shell this replaces read five ``.summary.*`` fields with five separate
-``jq`` calls and derived a ``has_stale`` flag from the stale count. Two
-behaviours are load-bearing and preserved exactly:
+Reads the schema that ``scripts/memory_enhancement/__main__.py::_cmd_health``
+actually emits. The original version read a ``summary`` object with ``total``,
+``healthy``, ``stale``, ``exempt``, and ``errors``. That shape belonged to an
+implementation deleted in ``2aeb4fddd``; the surviving one emits flat
+top-level keys and no ``summary`` at all, so every field rendered as ``null``
+and ``has_stale`` was permanently ``false`` (issue #3971).
+
+Two behaviours from the shell this originally replaced are load-bearing and
+still preserved:
 
 * A missing report is not a failure. It emits ``has_stale=false`` and
-  ``total=0`` and nothing else, so the downstream comment step still runs.
-* A stale count that is not an integer (a missing key makes ``jq`` emit
-  ``null``) reads as "not stale". In shell, ``[ "null" -gt 0 ]`` errors and
-  the ``if`` takes its else branch; the same outcome is produced here rather
-  than crashing.
+  ``total_memories=0`` and nothing else, so the downstream comment step still
+  runs.
+* A stale count that is not an integer reads as "not stale" rather than
+  crashing. In shell, ``[ "null" -gt 0 ]`` errored and the ``if`` took its
+  else branch; the same outcome is produced here.
 """
 
 from __future__ import annotations
@@ -24,7 +30,17 @@ import os
 import sys
 from pathlib import Path
 
-_SUMMARY_FIELDS = ("total", "healthy", "stale", "exempt", "errors")
+# The keys ``_cmd_health`` emits that the PR comment renders. Kept as a tuple
+# so a regression test can assert it is a subset of the producer's output.
+_REPORT_FIELDS = (
+    "total_memories",
+    "total_citations",
+    "valid_citations",
+    "stale_citations",
+    "broken_citations",
+    "unverified_citations",
+    "health_score",
+)
 
 
 def _write_outputs(pairs: list[tuple[str, str]], output_path: str | None) -> None:
@@ -53,21 +69,41 @@ def _is_stale(value: object) -> bool:
 def parse_results(results: Path) -> list[tuple[str, str]]:
     """Return the step outputs for a health report, present or not."""
     if not results.is_file():
-        return [("has_stale", "false"), ("total", "0")]
+        return [("has_stale", "false"), ("total_memories", "0")]
 
     payload = json.loads(results.read_text(encoding="utf-8"))
-    summary = payload.get("summary") if isinstance(payload, dict) else None
-    if not isinstance(summary, dict):
-        # jq emitted null for non-object shapes instead of crashing; a report
-        # whose summary is an array or scalar reads as absent, not fatal.
-        summary = {}
-    pairs = [(field, _render(summary.get(field))) for field in _SUMMARY_FIELDS]
-    pairs.append(("has_stale", "true" if _is_stale(summary.get("stale")) else "false"))
+    if not isinstance(payload, dict):
+        # A report that is an array or a scalar reads as absent, not fatal,
+        # so a malformed report never blocks the comment step.
+        payload = {}
+    pairs = [(field, _render(payload.get(field))) for field in _REPORT_FIELDS]
+    stale_memories = _count(payload.get("stale_memories"))
+    pairs.append(("stale_memory_count", _render(stale_memories)))
+    pairs.append(("has_stale", "true" if _has_issues(payload) else "false"))
     return pairs
 
 
+def _has_issues(payload: dict[str, object]) -> bool:
+    """Mirror the producer's own issue test so the comment matches the exit code.
+
+    ``_cmd_health`` returns 1 when broken citations, stale citations, or stale
+    memories are present. Reading only the citation counts would report Pass on
+    a corpus the tool itself considers unhealthy.
+    """
+    return (
+        _is_stale(payload.get("broken_citations"))
+        or _is_stale(payload.get("stale_citations"))
+        or _count(payload.get("stale_memories")) > 0
+    )
+
+
+def _count(value: object) -> int:
+    """Return the length of a list field, or zero for any other shape."""
+    return len(value) if isinstance(value, list) else 0
+
+
 def _render(value: object) -> str:
-    """Render a summary value the way ``jq`` rendered it for the shell."""
+    """Render a report value the way ``jq`` rendered it for the shell."""
     if value is None:
         return "null"
     if isinstance(value, bool):
