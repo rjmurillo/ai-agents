@@ -306,6 +306,55 @@ class TestValidateSessionSection:
         assert not result.is_valid
         assert any("Invalid commit SHA" in e for e in result.errors)
 
+    def test_future_date_emits_warning(self) -> None:
+        """A session date in the future warns about branch-context-policy invisibility (#3717)."""
+        session = {
+            "number": 1,
+            "date": "2099-12-31",
+            "branch": "fix/test",
+            "startingCommit": "abcdef1",
+            "objective": "Test",
+        }
+        result = ValidationResult()
+
+        validate_session_section(session, result)
+
+        assert any("future" in w for w in result.warnings)
+        assert any("2099-12-31" in w for w in result.warnings)
+
+    def test_today_date_is_accepted(self) -> None:
+        """A session date matching today does not produce a future-date warning (#3717)."""
+        from datetime import datetime, timezone
+
+        today = datetime.now(tz=timezone.utc).date().isoformat()
+        session = {
+            "number": 1,
+            "date": today,
+            "branch": "fix/test",
+            "startingCommit": "abcdef1",
+            "objective": "Test",
+        }
+        result = ValidationResult()
+
+        validate_session_section(session, result)
+
+        assert not any("future" in w for w in result.warnings)
+
+    def test_past_date_is_accepted(self) -> None:
+        """A past session date does not trigger the future-date warning (#3717)."""
+        session = {
+            "number": 1,
+            "date": "2024-01-01",
+            "branch": "fix/test",
+            "startingCommit": "abcdef1",
+            "objective": "Test",
+        }
+        result = ValidationResult()
+
+        validate_session_section(session, result)
+
+        assert not any("future" in w for w in result.warnings)
+
 
 class TestValidateSessionStart:
     """Tests for validate_session_start function."""
@@ -627,10 +676,14 @@ class TestEvidenceContradiction:
             "1,234 skipped",
             # Whitespace between digit and token (multiple spaces / tab).
             "12   skipped",
+            # Pytest summary with non-delimiter word between count and "skipped" (#3939).
+            "94 passed plus 1 skipped",
+            # Multi-word summary with errors keyword.
+            "103 passed, 2 errors, 5 skipped",
         ],
     )
     def test_numeric_skipped_count_not_flagged(self, evidence: str) -> None:
-        """A pytest numeric 'N skipped' count is not a contradiction (#3141)."""
+        """A pytest numeric 'N skipped' count is not a contradiction (#3141, #3939)."""
         assert not self._warn(self._item(evidence)), f"false positive on {evidence!r}"
 
     @pytest.mark.parametrize(
@@ -2442,8 +2495,8 @@ class TestEndingCommitReachability:
         monkeypatch.setattr(validate_session_json, "_PROJECT_ROOT", repo)
         log = _make_valid_log()
         log["endingCommit"] = "0" * 40
-        assert any("issue #3618" in w for w in validate_session_log(log).warnings), (
-            "an unresolvable endingCommit must be reported"
+        assert any("issue #3618" in e for e in validate_session_log(log).errors), (
+            "an unresolvable endingCommit must be reported as an error (#3883)"
         )
 
     def test_a_sound_ending_commit_does_not_warn(
@@ -2456,7 +2509,7 @@ class TestEndingCommitReachability:
         monkeypatch.setattr(validate_session_json, "_PROJECT_ROOT", repo)
         log = _make_valid_log()
         log["endingCommit"] = reachable
-        assert not any("issue #3618" in w for w in validate_session_log(log).warnings)
+        assert not any("issue #3618" in e for e in validate_session_log(log).errors)
 
     def test_an_existing_log_is_never_rechecked(self) -> None:
         """427 committed logs carry a broken SHA. They are records, not claims,
@@ -2465,13 +2518,13 @@ class TestEndingCommitReachability:
         log = _make_valid_log()
         log["endingCommit"] = "0" * 40
         result = validate_session_log(log, existing_log=True)
-        assert not any("issue #3618" in w for w in result.warnings)
+        assert not any("issue #3618" in e for e in result.errors)
 
     def test_a_malformed_value_is_left_to_the_schema(self) -> None:
         """Reporting it here too would print one fact under two spellings."""
         log = _make_valid_log()
         log["endingCommit"] = "not-a-sha"
-        assert not any("issue #3618" in w for w in validate_session_log(log).warnings)
+        assert not any("issue #3618" in e for e in validate_session_log(log).errors)
 
     def test_an_empty_value_keeps_its_own_warning(self) -> None:
         log = _make_valid_log()
