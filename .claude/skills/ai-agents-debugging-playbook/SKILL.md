@@ -126,7 +126,7 @@ Before declaring the failure triaged and fixed:
 
 ## Provenance and Maintenance
 
-Verified against the working tree on 2026-07-03. Retro-cited short SHAs do not resolve locally even with full history present (~1471 commits as of 2026-07-03); use `.agents/retrospective/` and `.serena/memories/` for archaeology, not `git log`.
+Verified against the working tree on 2026-07-03. Retro-cited short SHAs are not reachable from `main`: every PR squash-merges into a new commit, so the PR-branch SHA a retro recorded never lands on `main`. Whether it still resolves locally depends on which refs your clone carries. Use `.agents/retrospective/` and `.serena/memories/` for archaeology, not `git log`.
 
 | Fact | Source | Re-verify with |
 |------|--------|----------------|
