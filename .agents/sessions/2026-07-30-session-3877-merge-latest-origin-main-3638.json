@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Merge commit 18301aa49 created with both parents. This session log is included by immediate amendment."
+        "Evidence": "Merge commit 763d9512ae04f54df236d6803ed26fb16b2b87cd exists with both expected parents. This follow-up records its SHA."
       },
       "validationPassed": {
         "level": "MUST",
@@ -133,8 +133,12 @@
     {
       "time": "2026-07-30T07:02:00Z",
       "entry": "Created merge commit 18301aa49 with parents 25e4d064e and c52e97cc9 after all targeted checks passed."
+    },
+    {
+      "time": "2026-07-30T07:05:00Z",
+      "entry": "Recorded final merge commit 763d9512ae04f54df236d6803ed26fb16b2b87cd in a follow-up so session validation can verify ancestry."
     }
   ],
-  "endingCommit": "18301aa49",
+  "endingCommit": "763d9512a",
   "nextSteps": []
 }

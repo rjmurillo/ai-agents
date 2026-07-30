@@ -9,71 +9,67 @@
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-07-30T06:52:00+00:00",
+      "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
       "content": "Fetched origin, live-state gate returned ACT, and GitHub reported PR head 25e4d064e4ac266eb0203cbee5f7e6e2753ea900, matching local HEAD and remote branch.",
       "caused_by": [],
-      "leads_to": [
-        "e002"
-      ]
+      "leads_to": []
     },
     {
       "id": "e002",
-      "timestamp": "2026-07-30T06:54:00+00:00",
+      "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
       "content": "Recorded ancestry: prior main parent ae64b725e is the merge base and an ancestor of origin/main c52e97cc9. Divergence was 37 PR commits and one new main commit, PR #3940.",
-      "caused_by": [
-        "e001"
-      ],
-      "leads_to": [
-        "e003"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e003",
-      "timestamp": "2026-07-30T06:55:00+00:00",
+      "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
       "content": "Non-committing trial merge of origin/main exited 1 with conflicts only in the paired project-toolkit manifests. Main buy-vs-build skill content merged exactly.",
-      "caused_by": [
-        "e002"
-      ],
-      "leads_to": [
-        "e004"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e004",
-      "timestamp": "2026-07-30T06:57:00+00:00",
+      "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
       "content": "Resolved both manifest-only conflicts to 0.6.5426, one patch above PR 3638 version 0.6.5425 and main version 0.6.5424.",
-      "caused_by": [
-        "e003"
-      ],
-      "leads_to": [
-        "e006"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e005",
-      "timestamp": "2026-07-30T07:02:00+00:00",
+      "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
       "content": "Created merge commit 18301aa49 with parents 25e4d064e and c52e97cc9 after all targeted checks passed.",
-      "caused_by": [
-        "e006"
-      ],
+      "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e006",
-      "timestamp": "2026-07-30T07:01:43+00:00",
+      "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 18301aa49",
-      "caused_by": [
-        "e004"
-      ],
-      "leads_to": [
-        "e005"
-      ]
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recorded final merge commit 763d9512ae04f54df236d6803ed26fb16b2b87cd in a follow-up so session validation can verify ancestry.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 763d9512a",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -81,7 +77,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 2
   },
   "lessons": []
