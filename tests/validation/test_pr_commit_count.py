@@ -12,6 +12,7 @@ import ast
 import json
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
@@ -806,7 +807,7 @@ def test_main_first_parent_shas_uses_an_injected_runner(tmp_path: Path) -> None:
     """
     seen: list[list[str]] = []
 
-    def fake_runner(_root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+    def fake_runner(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
         seen.append(list(args))
         return subprocess.CompletedProcess(["git", *args], 0, "sha-a sha-b\n", "")
 
@@ -821,7 +822,7 @@ def test_main_first_parent_shas_fails_closed_on_an_injected_runner_failure(
 ) -> None:
     """Negative: an injected runner that fails buys no relief either."""
 
-    def failing_runner(_root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+    def failing_runner(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
         return subprocess.CompletedProcess(["git", *args], 1, "", "fatal: bad revision")
 
     assert mod.main_first_parent_shas(tmp_path, run_git=failing_runner) == frozenset()
@@ -896,7 +897,7 @@ def test_evidence_does_not_read_the_trunk_for_a_linear_branch(tmp_path: Path) ->
     """
     calls: list[Path] = []
 
-    def counting_runner(root: Path, _args: object) -> subprocess.CompletedProcess[str]:
+    def counting_runner(root: Path, _args: Sequence[str]) -> subprocess.CompletedProcess[str]:
         calls.append(root)
         return subprocess.CompletedProcess(["git"], 1, "", "")
 

@@ -17,6 +17,7 @@ and a history that should not be relieved is tested through both paths.
 from __future__ import annotations
 
 import subprocess
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -247,12 +248,12 @@ def test_the_hook_reads_the_trunk_through_its_own_hardened_runner(
     real_policy_run_git = policy._run_git
     real_module_run_git = commit_count._run_git
 
-    def spy_policy(root: Path, args: Any) -> subprocess.CompletedProcess[str]:
+    def spy_policy(root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
         if list(args)[:1] == ["rev-list"] and "--first-parent" in list(args):
             runners.append("git_hook_policy")
         return real_policy_run_git(root, args)
 
-    def spy_module(root: Path, args: Any) -> subprocess.CompletedProcess[str]:
+    def spy_module(root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
         runners.append("pr_commit_count")
         return real_module_run_git(root, args)
 
