@@ -27,6 +27,11 @@ provider uses the repository's core `anthropic` dependency. The default
 `anthropic` provider stays on the dependency-free urllib path in
 `_anthropic_api`, so the default eval needs no SDK and existing baselines do not
 move.
+
+The `copilot-cli` provider needs no SDK and no API key at all: it shells out to
+an authenticated GitHub Copilot CLI. That makes it the cheapest way to eval
+against the exact models this repository's owner uses day to day, so prefer it
+when the question is "does this change help the models we actually run."
 """
 
 from __future__ import annotations
@@ -35,7 +40,13 @@ import os
 import re
 from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast
+
+# Sibling import; loaded under the same EVAL_DIR sys.path entry that the CLI
+# uses. A package-qualified import would bind a second copy of the module
+# when a caller has the repo root on sys.path, and a monkeypatch applied to
+# one copy would not reach the other.
+from _copilot_cli import _CopilotCLIProvider
 
 # GitHub Models inference endpoint (OpenAI-compatible). Verified 2026-06:
 # https://models.github.ai/inference with a GitHub PAT as the bearer token.
@@ -294,6 +305,26 @@ class _AnthropicSDKProvider:
         return "".join(parts)
 
 
+def _make_copilot_cli() -> EvalProvider:
+    timeout = os.environ.get("COPILOT_CLI_TIMEOUT")
+    kwargs: dict[str, object] = {}
+    if timeout:
+        try:
+            kwargs["timeout"] = float(timeout)
+        except ValueError as exc:
+            raise RuntimeError(
+                f"COPILOT_CLI_TIMEOUT must be a number of seconds, got {timeout!r}."
+            ) from exc
+    executable = os.environ.get("COPILOT_CLI_BIN")
+    if executable:
+        kwargs["executable"] = executable
+    # The sibling import is a flat module rather than a package path, so mypy
+    # resolves it to Any under `ignore_missing_imports`. Pin the contract at
+    # this boundary instead of letting Any leak into the registry.
+    provider: EvalProvider = _CopilotCLIProvider(**cast("dict[str, Any]", kwargs))
+    return provider
+
+
 def _make_openai() -> EvalProvider:
     return _OpenAICompatibleProvider(
         name="openai",
@@ -324,6 +355,8 @@ _REGISTRY: dict[str, Callable[[], EvalProvider]] = {
     "github": _make_github,
     "github-models": _make_github,
     "anthropic-sdk": _make_anthropic_sdk,
+    "copilot": _make_copilot_cli,
+    "copilot-cli": _make_copilot_cli,
 }
 
 # Provider names that mean "use the default urllib Anthropic path in
