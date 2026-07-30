@@ -1,0 +1,119 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3875,
+    "date": "2026-07-30",
+    "branch": "wt/t_51c7b14b",
+    "startingCommit": "87b11766",
+    "objective": "Fix issue #3875 by revisiting ADR-079 Decision point 4 with measured packaged-plugin-source PR traffic."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Project context and required repository documents loaded through Hermes session context."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Repository agent instructions and implementer profile requirements applied."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read as read-only reference."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This JSON session log was created for the ADR update."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Current branch verified as wt/t_51c7b14b."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Current branch wt/t_51c7b14b is not main or master."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Started from a clean kanban worktree before edits."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Starting commit 87b11766 recorded."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ADR update, regression test, adr-review skill evidence, and validation completed."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md preserved unchanged."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No durable memory update needed; this is issue-specific ADR maintenance."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint hook ran on staged ADR path and reported zero issues in configured scope."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Commit is created by this pre-commit run after session-policy validation."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "42 targeted pytest tests passed; ruff passed; git diff check passed; quick pre_pr.py passed."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "## Retrospective\n\nLearnings captured: ADR updates that alter accepted decision cost models need adr-review evidence plus a session log that records the debate and validation evidence."
+      },
+      "adrReviewEvidence": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ADR-079 update reviewed via adr-review skill; debate log at .agents/analysis/2026-07-30-adr-079-issue-3875-debate.md."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-07-30T00:05:00Z",
+      "entry": "Read issue #3875, ADR-079, the debate log, repository constraints, and relevant rules."
+    },
+    {
+      "time": "2026-07-30T00:10:00Z",
+      "entry": "Added tests/test_adr_079_plugin_version_bump.py and watched the test fail against the old unmeasured assumption."
+    },
+    {
+      "time": "2026-07-30T00:15:00Z",
+      "entry": "Updated ADR-079 to record the 33% merged-PR measurement, the stronger collision cost statement, and the git merge driver option as not chosen here."
+    },
+    {
+      "time": "2026-07-30T00:16:00Z",
+      "entry": "Ran targeted pytest, ruff, git diff check, and quick pre_pr.py successfully."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Open a PR for issue #3875 with the ADR update and regression test.",
+    "Queue QA review of the PR before merge."
+  ]
+}
