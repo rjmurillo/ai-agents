@@ -40,6 +40,13 @@ def test_non_numeric_input_is_rejected(raw: str) -> None:
         top_n_flag(raw)
 
 
+@pytest.mark.parametrize("raw", ["٥", "５", "١٠"])
+def test_non_ascii_digits_are_rejected(raw: str) -> None:
+    """The replaced bash regex ^[0-9]+$ only accepted ASCII digits."""
+    with pytest.raises(ValueError, match="numeric"):
+        top_n_flag(raw)
+
+
 class _Grader:
     """Stand-in for subprocess.run that records argv and returns canned stdout."""
 

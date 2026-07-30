@@ -15,7 +15,8 @@ The grader path is supplied by the caller rather than hardcoded so this script
 carries no dependency on the skills tree layout.
 
 EXIT CODES (ADR-035):
-  0  - Success: both reports written and the summary appended
+  0  - Success: both reports written; the summary is appended only when
+       GITHUB_STEP_SUMMARY is set (absent outside Actions, still success)
   1  - Error: the grader failed
   2  - Error: usage/configuration (non-numeric top_n, grader not found)
 """
@@ -44,7 +45,9 @@ def top_n_flag(raw: str) -> list[str]:
     value = raw.strip()
     if value in ("", "0"):
         return []
-    if not value.isdecimal():
+    # isascii() first: isdecimal() alone accepts non-ASCII Unicode digits the
+    # replaced bash regex ^[0-9]+$ rejected.
+    if not (value.isascii() and value.isdecimal()):
         raise ValueError("top_n must be numeric")
     return ["--top-n", value]
 
