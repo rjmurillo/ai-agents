@@ -88,7 +88,7 @@
       "type": "test",
       "content": "29 passed, ruff clean, both workflows parse as valid YAML",
       "caused_by": [
-        "e023"
+        "e030"
       ],
       "leads_to": []
     },
@@ -207,6 +207,66 @@
         "e012"
       ],
       "leads_to": [
+        "e030"
+      ]
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Proved the rule kind end to end, the last of the three the optimizer declares",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Found the gate's cross-model refusal was dead for the rule kind",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Made the rule kind record the model and seed that produced its scores",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e027",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Grounded the fix on a second live run rather than on my own tests",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e028",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Stopped the rule dry run from quoting a sonnet dollar rate for quota billed providers",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e029",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Checked the sibling scripts for the same fabricated dollar figure",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e030",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: c7154520f",
+      "caused_by": [
+        "e023"
+      ],
+      "leads_to": [
         "e009"
       ]
     }
@@ -216,7 +276,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 6
   },
   "lessons": []

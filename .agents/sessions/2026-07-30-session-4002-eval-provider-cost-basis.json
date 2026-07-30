@@ -173,24 +173,64 @@
       "action": "Fixed finding 2 in the model sweep",
       "detail": "dict.get's default could not cover the case: the key is present and holds None, so the default never fires and float(None) raises. The sweep now carries the child's null through unchanged and records the child's own cost_basis beside it, rather than re-deriving an answer the child already settled. Serialization renders the null instead of substituting 0.0. Reports predating cost_basis read as usd, so old artifacts parse as before. Four tests written first, all four red with the TypeError.",
       "outcome": "Commit 04fde6ebf"
+    },
+    {
+      "phase": "verification",
+      "action": "Proved the rule kind end to end, the last of the three the optimizer declares",
+      "detail": "optimize-artifact.py declares --kind {agent,rule,hook}. hook and agent were proven; rule was not. eval-rule-activation.py has no --provider flag, but call_api and verify_model_available both fall back to EVAL_PROVIDER, so the env var reaches the transport. Ran 18 real calls over tests/evals/rule-scenarios/secret-redaction.json through GitHub Models on openai/gpt-4o-mini: verdict computed, report written, exit 0. The optimizer then extracted three scored tasks from it. All three kinds now run on live data.",
+      "outcome": "Rule kind proven; a provenance defect surfaced in the process"
+    },
+    {
+      "phase": "diagnosis",
+      "action": "Found the gate's cross-model refusal was dead for the rule kind",
+      "detail": "The live extraction recorded upstream_model 'not-applicable' for a run that made 18 model calls. _provenance_mismatch compares every provenance key, upstream_model included, so it refuses to gate two extractions from different models. cmd_extract's rule branch never passed the report to _extract_provenance, so both sides recorded the same literal string and compared equal. Built a discrimination proof rather than asserting the bug: agent A sonnet vs agent B gpt-4o-mini refused with 'extraction parameter mismatch: upstream_model differs', while the rule pair returned no refusal. The protection exists and was missing for exactly one kind. Adding provider support is what made this reachable: an incumbent scored before the Anthropic cap and a challenger scored through GitHub Models after it would have been compared as though one model produced both.",
+      "outcome": "Defect reproduced with a control before any code changed"
+    },
+    {
+      "phase": "implementation",
+      "action": "Made the rule kind record the model and seed that produced its scores",
+      "detail": "Two halves, committed separately because either alone is inert. Consumer: _rule_upstream_metadata returns the model and seed in the shape _extract_provenance already reads off an agent report, so the rule kind resolves upstream identity through the same code rather than a second copy. A second copy is exactly how the cost_basis defect happened earlier on this branch. Runs that disagree fail closed, for the same reason the envelope already requires matching rule names: reducing across runs assumes one population. Absent metadata records 'unknown-model', honest about ignorance, where 'not-applicable' asserted a falsehood. Producer: the report writes model_id and seed beside rules, not inside it, because a key inside would be scored as a rule name. 11 consumer tests written first with 10 red, 6 producer tests with 4 red.",
+      "outcome": "Commits 700a66c46 and 1fd9174a0"
+    },
+    {
+      "phase": "verification",
+      "action": "Grounded the fix on a second live run rather than on my own tests",
+      "detail": "Producer tests and consumer tests are two loops written against code written in the same session, so passing both proves only internal consistency. Ran the rule eval again through GitHub Models with a seed of 3: the report carried model_id openai/gpt-4o-mini and seed 3, the extractor read both into provenance, and the pair the gate previously accepted is now refused with 'extraction parameter mismatch: upstream_model differs'. Refusing is correct there, because nothing in the older report says which model scored it.",
+      "outcome": "Full chain verified on data no test produced"
+    },
+    {
+      "phase": "implementation",
+      "action": "Stopped the rule dry run from quoting a sonnet dollar rate for quota billed providers",
+      "detail": "_print_dry_run_summary multiplied estimated tokens by 3, the sonnet per-million input rate, and printed the product unconditionally. Measured: the same plan printed the same sonnet input rate figure under both anthropic and github-models, byte identical. The second run spends no dollars and does not use sonnet. Fixed by asking cost_basis, which resolves the provider exactly as the transport does, so this file gets no separate opinion about which provider is which. The call count still prints under both bases because it is the one figure that is true regardless of who bills. An unrecognized provider keeps the USD estimate, because an unknown transport is not evidence of a free one. 8 tests written first, 5 red.",
+      "outcome": "Commit c7154520f"
+    },
+    {
+      "phase": "verification",
+      "action": "Checked the sibling scripts for the same fabricated dollar figure",
+      "detail": "eval-agents.py, eval-knowledge-integration.py, and eval-prompt-change.py print call counts and token counts with no dollar figure, so none can fabricate one. eval-skill-overlap.py prints USD but raises PricingError when the model has no rate entry, so it refuses rather than inventing a number. The rule script was the only one that fabricated. No follow-up needed.",
+      "outcome": "Scope confirmed complete, not assumed"
     }
   ],
   "outcomes": {
-    "summary": "--provider works. A non-Anthropic provider now plans, runs, and reports, proven by a live eval through GitHub Models while the Anthropic account is budget-capped. The cost basis follows the transport that actually gets billed, so no fabricated USD figure can reach an operator-facing report, and no third-party price was invented to achieve it.",
-    "filesChanged": 9,
-    "testsAdded": 24
+    "summary": "--provider works. A non-Anthropic provider now plans, runs, and reports, proven by live evals through GitHub Models while the Anthropic account is budget-capped. The cost basis follows the transport that actually gets billed, so no fabricated USD figure can reach an operator-facing report or a dry-run plan, and no third-party price was invented to achieve it. All three optimizer kinds, agent, rule, and hook, now run on live data, and the rule kind records which model produced its scores so the gate's cross-model refusal works for it as it already did for agents.",
+    "filesChanged": 13,
+    "testsAdded": 49
   },
   "learnings": {
     "primary": "When two pieces of code answer the same question, the one that decides the consequence is the authority. cost_basis and resolve_provider both answered \"which provider is this\", and cost_basis answered differently. Because resolve_provider picks the transport that actually gets charged, any disagreement makes cost_basis wrong by construction, not merely inconsistent. The fix was not to add cases to a lookup but to delete the second answer and defer to the first.",
     "secondary": [
       "dict.get's default does not fire when the key exists and holds None. Making a field nullable silently breaks every consumer that relied on that default, and those consumers do not appear in a grep of the diff.",
       "An adversarial review on a different model family found three real regressions that my own None-safety audit missed, including a consumer in a module I never opened. All three reproduced; none was taken on the reviewer's word.",
-      "Proving a plan-time gate opens is not proving the capability works. The live run was the evidence that mattered, and it was cheap to get once the gate was open."
+      "Proving a plan-time gate opens is not proving the capability works. The live run was the evidence that mattered, and it was cheap to get once the gate was open.",
+      "A required field filled with a placeholder passes validation and defeats the check it feeds. upstream_model is validated non-empty and compared by _provenance_mismatch to refuse cross-model gating. The rule kind auto-filled the literal 'not-applicable', which satisfied non-empty while carrying no information, so every rule comparison passed. A placeholder that is grammatically valid and semantically false is worse than a missing field, because the missing field would have raised.",
+      "Proving a capability on one input kind does not prove it on the others the same tool declares. The optimizer declares agent, rule, and hook. Running rule for the first time surfaced a dead gate protection immediately. A kind nobody has run is a kind nobody has tested.",
+      "A discrimination proof is stronger than a failure demonstration and costs one extra control. Showing the rule pair compared would have proved only that something was permissive; showing the agent pair refused through the same function established that the protection exists and was absent for exactly one kind, which told me which side to fix."
     ]
   },
-  "endingCommit": "04fde6ebf",
+  "endingCommit": "c7154520f",
   "nextSteps": [
     "Drive PR 4005 to closure and answer any bot review threads.",
+    "eval-rule-activation.py has no --provider flag and only honors EVAL_PROVIDER, so it lacks the ergonomics parity the agent script has. Working as designed, but worth filing as a gap.",
     "eval-skill-overlap.py line 158 carries the same Anthropic-only raise, but that script has no provider flag or plumbing at all, so giving it provider support is new scope rather than a bug fix. Decide whether to file it.",
     "cli_main mutating global process environment is a latent trap for every future in-process CLI test. Not yet filed."
   ]
