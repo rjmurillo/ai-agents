@@ -918,7 +918,11 @@ def _bindings(tree: ast.Module) -> list[tuple[str, ast.expr]]:
             found.extend(_class_bindings(node))
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
             found.extend(_defaults(node.args))
-            found.extend(_return_bindings(node))
+            if not isinstance(node, ast.Lambda):
+                # A lambda body is an expression, so it holds no return for
+                # _return_bindings to attribute, and no name to attribute it
+                # to. Asking anyway read an attribute lambdas do not have.
+                found.extend(_return_bindings(node))
     return found
 
 
@@ -1782,6 +1786,26 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
 def test_detector_stays_quiet(source: str, why: str) -> None:
     """The guard must not fire on calls that decode nothing."""
     assert unpinned_lines(source) == [], f"false positive on {why}"
+
+
+def test_a_lambda_carries_no_return_for_the_scan_to_attribute() -> None:
+    """A lambda has no name, and no return to bind to one.
+
+    ``_return_bindings`` reads ``node.name`` while building its result, and
+    ``ast.Lambda`` has no such attribute. The read sat behind a comprehension
+    that a lambda always leaves empty, because a lambda body is an expression
+    and an expression cannot hold a ``return``. That made the call latent
+    rather than live, but it was one edit away from an ``AttributeError`` and
+    the type checker flagged it on every run. The scan now asks only the two
+    node types that carry a name. The lambda default case in
+    ``test_detector_flags_an_unpinned_call`` is the control proving the other
+    half of the branch, ``_defaults``, still runs for lambdas.
+    """
+    lam = ast.parse("f = lambda a=subprocess.run: a").body[0]
+    assert isinstance(lam, ast.Assign)
+    assert isinstance(lam.value, ast.Lambda)
+    assert not hasattr(lam.value, "name")
+    assert [node for node in ast.walk(lam.value) if isinstance(node, ast.Return)] == []
 
 
 def test_detector_reports_every_offender_in_one_file() -> None:
