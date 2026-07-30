@@ -30,6 +30,50 @@ python3 scripts/eval/eval-skill-overlap.py \
   --pairs scripts/eval/examples/example-overlap-pairs.json --dry-run
 ```
 
+## Providers
+
+`--provider` selects the transport. Most take an API key; one does not.
+
+| Name | Transport | Credential |
+|------|-----------|------------|
+| `anthropic` (default) | urllib, dependency-free | `ANTHROPIC_API_KEY` |
+| `anthropic-sdk` | `anthropic` package | `ANTHROPIC_API_KEY` |
+| `openai`, `codex` | `openai` package | `OPENAI_API_KEY` |
+| `github`, `github-models` | `openai` package, Models base URL | `GITHUB_TOKEN` |
+| `copilot`, `copilot-cli` | GitHub Copilot CLI subprocess | none, reuses `copilot` auth |
+
+Prefer `copilot-cli` when the question is "does this change help the models we
+actually run." It costs no separate API billing and reaches the ids this
+repository's owner works in. The confirmed panel is
+`scripts/eval/panels/owner-copilot-cli.json`:
+
+```bash
+python3 scripts/eval/eval-model-panel.py \
+  --panel-config scripts/eval/panels/owner-copilot-cli.json
+```
+
+Three things about `copilot-cli` that will cost you a run if you miss them:
+
+- **It runs in an empty temp directory, deliberately.** The CLI loads
+  `AGENTS.md`, `CLAUDE.md`, and `.github/instructions/**` from its working
+  directory. In this repository those files are usually the variable under
+  test, so running from the repo root would put the treatment into the control
+  cell and quietly destroy the comparison.
+- **Do not compare its scores to an HTTP provider's.** User-level config in
+  `~/.copilot/` still loads (the auth token lives there), so it is a constant
+  within a run but not across transports. Same reasoning ADR-058 already
+  applies to cross-provider comparison.
+- **Do not use the CLI's reported token counts as a measurement.** They are
+  non-monotonic: the same trivial prompt reported 109.3k tokens from `/tmp` and
+  95.9k from inside the repo, because the figure folds in tool definitions and
+  cache accounting. For byte and token budgets use
+  `scripts/validation/instruction_budget.py`, which is deterministic.
+
+It ignores `max_tokens`, `temperature`, and `seed`, because the CLI exposes no
+sampling controls. Fixtures still run unchanged; if you need sampling
+determinism, use an HTTP provider. `COPILOT_CLI_BIN` and `COPILOT_CLI_TIMEOUT`
+override the executable and the default 900s timeout.
+
 ## Scripts
 
 | Script | Purpose | ADR |
