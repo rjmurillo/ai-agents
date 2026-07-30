@@ -48,8 +48,8 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 # Shared infrastructure (subprocess wrapper, SKIP signal, base-ref helpers).
 from active_plan_closeout import validate_active_plan_closeout
-from check_nested_tests import validate_no_nested_tests  # noqa: E402, F401
-from check_unreachable_code import validate_unreachable_code  # noqa: E402, F401
+from check_nested_tests import validate_no_nested_tests
+from check_unreachable_code import validate_unreachable_code
 from checks_common import (  # noqa: E402, F401
     MissingScriptSkip,
     _gh_base_ref,

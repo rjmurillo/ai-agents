@@ -24,8 +24,8 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 from active_plan_closeout import validate_active_plan_closeout
-from check_nested_tests import validate_no_nested_tests  # noqa: E402
-from check_unreachable_code import validate_unreachable_code  # noqa: E402
+from check_nested_tests import validate_no_nested_tests
+from check_unreachable_code import validate_unreachable_code
 from checks_coverage import (  # noqa: E402
     validate_review_marker,
 )

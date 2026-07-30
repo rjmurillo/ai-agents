@@ -37,16 +37,18 @@ class _NestedTestFinder(ast.NodeVisitor):
         self.findings: list[tuple[int, str]] = []
         self._func_depth = 0
 
-    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+    def _visit_function(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
         if node.name.startswith("test_") and self._func_depth > 0:
             self.findings.append((node.lineno, node.name))
         self._func_depth += 1
         self.generic_visit(node)
         self._func_depth -= 1
 
-    # Reuse the same logic for async test functions.  The name is dictated by
-    # the ast.NodeVisitor dispatch protocol (visit_<classname>).
-    visit_AsyncFunctionDef = visit_FunctionDef  # type: ignore[assignment]  # noqa: N815
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self._visit_function(node)
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        self._visit_function(node)
 
 
 def _tracked_test_files(repo_root: Path) -> list[Path]:

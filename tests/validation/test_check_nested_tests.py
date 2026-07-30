@@ -28,7 +28,7 @@ _VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
 if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
 
-from check_nested_tests import (  # noqa: E402
+from check_nested_tests import (
     _NestedTestFinder,
     _walk_test_files,
     find_nested_tests,
