@@ -1186,6 +1186,72 @@ class TestPreserveCli:
         rc = extract_session_episode.main([str(log), "--output-path", str(out), "--preserve"])
         assert rc == 1
 
+    def test_preserve_cli_exits_2_for_malformed_event_config(self, tmp_path):
+        out = tmp_path / "episodes"
+        out.mkdir()
+        ep = out / "episode-2026-01-08-session-807.json"
+        ep.write_text(
+            json.dumps(
+                {
+                    "id": "episode-2026-01-08-session-807",
+                    "session": "2026-01-08-session-807",
+                    "timestamp": "2026-01-08T00:00:00+00:00",
+                    "outcome": "success",
+                    "task": "prior",
+                    "decisions": [],
+                    "events": [
+                        {
+                            "id": "e001",
+                            "timestamp": "2026-01-08T00:00:00+00:00",
+                            "type": "mystery",
+                            "content": "bad type",
+                            "caused_by": [],
+                            "leads_to": [],
+                        }
+                    ],
+                    "metrics": {},
+                    "lessons": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        log = self._write_log(tmp_path)
+        rc = extract_session_episode.main([str(log), "--output-path", str(out), "--preserve"])
+        assert rc == 2
+
+    def test_preserve_cli_exits_1_for_invalid_causal_logic(self, tmp_path):
+        out = tmp_path / "episodes"
+        out.mkdir()
+        ep = out / "episode-2026-01-08-session-807.json"
+        ep.write_text(
+            json.dumps(
+                {
+                    "id": "episode-2026-01-08-session-807",
+                    "session": "2026-01-08-session-807",
+                    "timestamp": "2026-01-08T00:00:00+00:00",
+                    "outcome": "success",
+                    "task": "prior",
+                    "decisions": [],
+                    "events": [
+                        {
+                            "id": "e001",
+                            "timestamp": "2026-01-08T00:00:00+00:00",
+                            "type": "milestone",
+                            "content": "dangling ref",
+                            "caused_by": [],
+                            "leads_to": ["e999"],
+                        },
+                    ],
+                    "metrics": {},
+                    "lessons": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        log = self._write_log(tmp_path)
+        rc = extract_session_episode.main([str(log), "--output-path", str(out), "--preserve"])
+        assert rc == 1
+
 
 class TestFailCountFilter:
     """_FAIL_COUNT_RE + _valid_fail_match must not count issue refs or HTTP status
@@ -1281,12 +1347,11 @@ class TestSequentialEventLinks:
     """Episode events form an evidence-ordered causal chain inside the episode.
 
     ADR-038 defines ``caused_by``/``leads_to`` as first-class fields (#3245); the
-    extractor links events where it has evidence. The ordering still follows the
-    session lifecycle to protect #3260, so a commit that ``json_events`` appends
-    last is never ``caused_by`` a later milestone. Rank alone no longer emits an
-    edge when every event shares one timestamp, which avoids #3464's pre-code
-    milestone inversion. Linking runs on final ids (after ``_dedupe_events``
-    reassignment) so references never dangle.
+    extractor links events where it has timestamp, git ancestry, or reporting
+    boundary evidence. Rank alone no longer emits an edge when every event
+    shares one timestamp, which avoids #3464's pre-code milestone inversion.
+    Linking runs on final ids (after ``_dedupe_events`` reassignment) so
+    references never dangle.
     """
 
     @staticmethod
@@ -1304,8 +1369,8 @@ class TestSequentialEventLinks:
         events = [self._evt("e001"), self._evt("e002", "test"), self._evt("e003", "commit")]
         extract_session_episode._link_sequential_events(events)
         assert [e["id"] for e in events] == ["e001", "e002", "e003"]
-        assert events[2]["caused_by"] == [] and events[2]["leads_to"] == []
-        assert events[1]["caused_by"] == [] and events[1]["leads_to"] == []
+        assert events[2]["caused_by"] == [] and events[2]["leads_to"] == ["e002"]
+        assert events[1]["caused_by"] == ["e003"] and events[1]["leads_to"] == []
         assert events[0]["caused_by"] == [] and events[0]["leads_to"] == []
 
     def test_single_event_has_no_links(self):
@@ -1319,14 +1384,12 @@ class TestSequentialEventLinks:
         extract_session_episode._link_sequential_events(events)
         assert events == []
 
-    def test_events_without_id_are_skipped(self):
-        # Defensive: a malformed entry with no id must not enter the chain or crash.
+    def test_events_without_id_are_malformed_configuration(self):
         malformed = {"type": "milestone", "content": "no id"}
         events = [self._evt("e001"), malformed, self._evt("e002", "commit")]
-        extract_session_episode._link_sequential_events(events)
-        assert events[2]["caused_by"] == [] and events[2]["leads_to"] == []
-        assert events[0]["caused_by"] == [] and events[0]["leads_to"] == []
-        assert "caused_by" not in malformed
+        with pytest.raises(extract_session_episode.EpisodeValidationError) as exc_info:
+            extract_session_episode._link_sequential_events(events)
+        assert exc_info.value.exit_code == 2
 
     def test_commit_is_never_caused_by_a_milestone(self):
         # #3260 regression: json_events appends commits last, so a positional
@@ -1344,25 +1407,39 @@ class TestSequentialEventLinks:
         assert not (set(by_id["e003"]["caused_by"]) & milestone_ids)
         assert by_id["e003"]["caused_by"] == []
 
-    def test_same_rank_events_keep_original_order(self):
-        # Same lifecycle rank and timestamp must preserve append order (stable sort).
-        events = [self._evt(f"e{n:03d}") for n in range(1, 4)]  # three milestones
-        extract_session_episode._link_sequential_events(events)
-        assert events[0]["caused_by"] == [] and events[0]["leads_to"] == ["e002"]
-        assert events[1]["caused_by"] == ["e001"] and events[1]["leads_to"] == ["e003"]
-        assert events[2]["caused_by"] == ["e002"] and events[2]["leads_to"] == []
-
-    def test_unknown_type_at_default_rank_produces_no_edges(self):
+    def test_commit_leads_to_same_timestamp_test_event(self):
+        # #3260 positive direction: tests report on the commit they validate.
         events = [
-            self._evt("e001", "error", "boom"),
-            self._evt("e002", "mystery", "?"),
-            self._evt("e003", "commit", "Commit: abc"),
+            self._evt("e001", "milestone", "Review"),
+            self._evt("e002", "commit", "Commit: abc1234"),
+            self._evt("e003", "test", "Tests passed"),
         ]
         extract_session_episode._link_sequential_events(events)
         by_id = {e["id"]: e for e in events}
-        assert by_id["e003"]["caused_by"] == [] and by_id["e003"]["leads_to"] == []
-        assert by_id["e002"]["caused_by"] == [] and by_id["e002"]["leads_to"] == []
+        assert by_id["e002"]["leads_to"] == ["e003"]
+        assert by_id["e003"]["caused_by"] == ["e002"]
+        assert by_id["e001"]["caused_by"] == []
+        assert by_id["e001"]["leads_to"] == []
+
+    def test_same_timestamp_commit_and_milestone_are_incomparable(self):
+        assert extract_session_episode.CAUSAL_ORDER_VERSION == 2
+        events = [
+            self._evt("e001", "milestone", "Filed issue before code"),
+            self._evt("e002", "commit", "Commit: abc1234"),
+        ]
+        extract_session_episode._link_sequential_events(events)
+        by_id = {e["id"]: e for e in events}
         assert by_id["e001"]["caused_by"] == [] and by_id["e001"]["leads_to"] == []
+        assert by_id["e002"]["caused_by"] == [] and by_id["e002"]["leads_to"] == []
+
+    def test_unknown_type_is_malformed_configuration(self):
+        events = [
+            self._evt("e001", "mystery", "?"),
+            self._evt("e002", "commit", "Commit: abc"),
+        ]
+        with pytest.raises(extract_session_episode.EpisodeValidationError) as exc_info:
+            extract_session_episode._link_sequential_events(events)
+        assert exc_info.value.exit_code == 2
 
     def test_timestamp_dominates_lifecycle_rank(self):
         # A commit with a later timestamp must not be reordered before an earlier
@@ -1374,6 +1451,44 @@ class TestSequentialEventLinks:
         extract_session_episode._link_sequential_events(events)
         assert events[0]["caused_by"] == [] and events[0]["leads_to"] == ["e002"]
         assert events[1]["caused_by"] == ["e001"] and events[1]["leads_to"] == []
+
+    def test_offset_timestamps_are_ordered_by_utc_time(self):
+        actual_later = self._evt("e001", "milestone", "later")
+        actual_later["timestamp"] = "2026-01-01T00:00:00+00:00"
+        actual_earlier = self._evt("e002", "milestone", "earlier")
+        actual_earlier["timestamp"] = "2026-01-01T00:30:00+01:00"
+        events = [actual_later, actual_earlier]
+        extract_session_episode._link_sequential_events(events)
+        by_id = {e["id"]: e for e in events}
+        assert by_id["e002"]["leads_to"] == ["e001"]
+        assert by_id["e001"]["caused_by"] == ["e002"]
+
+    def test_duplicate_id_is_invalid_causal_logic(self):
+        events = [self._evt("e001"), self._evt("e001", "commit")]
+        with pytest.raises(extract_session_episode.EpisodeValidationError) as exc_info:
+            extract_session_episode._link_sequential_events(events)
+        assert exc_info.value.exit_code == 1
+
+    def test_wrong_type_leads_to_is_malformed_configuration(self):
+        events = [self._evt("e001")]
+        events[0]["leads_to"] = {"e002": True}
+        with pytest.raises(extract_session_episode.EpisodeValidationError) as exc_info:
+            extract_session_episode._link_sequential_events(events)
+        assert exc_info.value.exit_code == 2
+
+    def test_missing_timestamp_is_malformed_configuration(self):
+        events = [self._evt("e001")]
+        del events[0]["timestamp"]
+        with pytest.raises(extract_session_episode.EpisodeValidationError) as exc_info:
+            extract_session_episode._link_sequential_events(events)
+        assert exc_info.value.exit_code == 2
+
+    def test_self_loop_is_invalid_causal_logic(self):
+        events = [self._evt("e001")]
+        events[0]["leads_to"] = ["e001"]
+        with pytest.raises(extract_session_episode.EpisodeValidationError) as exc_info:
+            extract_session_episode._link_sequential_events(events)
+        assert exc_info.value.exit_code == 1
 
     def test_relinking_is_idempotent(self):
         events = [self._evt("e001"), self._evt("e002", "commit")]
@@ -1475,6 +1590,87 @@ def _commit(repo, name, body, when=None):
     _git(repo, "add", name)
     _git(repo, "commit", "-q", "-m", f"add {name}", when=when)
     return _git(repo, "rev-parse", "HEAD")
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
+class TestCausalCommitOrdering:
+    @staticmethod
+    def _evt(eid, etype="commit", content="x"):
+        return {
+            "id": eid,
+            "timestamp": "2026-07-19T00:00:00+00:00",
+            "type": etype,
+            "content": content,
+            "caused_by": [],
+            "leads_to": [],
+        }
+
+    @staticmethod
+    def _repo(tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-q", "-b", "main")
+        _git(repo, "config", "user.email", "t@example.com")
+        _git(repo, "config", "user.name", "T")
+        return repo
+
+    def test_same_timestamp_commits_follow_git_ancestry(self, tmp_path, monkeypatch):
+        repo = self._repo(tmp_path)
+        first = _commit(repo, "first.txt", "first")
+        second = _commit(repo, "second.txt", "second")
+        monkeypatch.setattr(extract_session_episode, "_repo_root", lambda: repo)
+        events = [
+            self._evt("e001", content=f"Commit: {second}"),
+            self._evt("e002", content=f"Commit: {first}"),
+        ]
+
+        extract_session_episode._link_sequential_events(events)
+
+        by_id = {event["id"]: event for event in events}
+        assert by_id["e002"]["leads_to"] == ["e001"]
+        assert by_id["e001"]["caused_by"] == ["e002"]
+
+    def test_unrelated_same_timestamp_commits_do_not_link(self, tmp_path, monkeypatch):
+        repo = self._repo(tmp_path)
+        first = _commit(repo, "first.txt", "first")
+        _git(repo, "checkout", "-q", "--orphan", "other")
+        _git(repo, "rm", "-q", "-rf", ".")
+        second = _commit(repo, "second.txt", "second")
+        monkeypatch.setattr(extract_session_episode, "_repo_root", lambda: repo)
+        events = [
+            self._evt("e001", content=f"Commit: {first}"),
+            self._evt("e002", content=f"Commit: {second}"),
+        ]
+
+        extract_session_episode._link_sequential_events(events)
+
+        assert events[0]["leads_to"] == []
+        assert events[1]["leads_to"] == []
+
+
+class TestIssue3464RealEpisode:
+    def test_real_3459_log_marks_v2_and_does_not_link_issue_to_commit(self, tmp_path):
+        repo_root = Path(__file__).resolve().parents[3]
+        session_log = repo_root / ".agents" / "sessions" / (
+            "2026-07-27-session-3459-templates-portability.json"
+        )
+        out = tmp_path / "episodes"
+        out.mkdir()
+
+        rc = extract_session_episode.main([str(session_log), "--output-path", str(out), "--force"])
+
+        assert rc == 0
+        episode = json.loads(
+            (out / "episode-2026-07-27-session-3459-templates-portability.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert episode["causal_order_version"] == extract_session_episode.CAUSAL_ORDER_VERSION
+        issue_event = next(
+            event for event in episode["events"]
+            if "Filed issue #3459" in event["content"]
+        )
+        assert issue_event["caused_by"] == []
 
 
 SESSION_DAY = "2026-05-11"
