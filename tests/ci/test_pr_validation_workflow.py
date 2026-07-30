@@ -574,8 +574,9 @@ def test_workflow_delegates_all_pr_validation_blocks():
 class TestBlockedMessageNamesTheLimitThatWasApplied:
     """The block message must report the ceiling the check actually used.
 
-    ADR-008 relieves the ceiling from 20 to 40 for a branch that merges its
-    base (issue #3596), and `pr_commit_count` publishes the applied value as
+    The main-merge relief lifts the ceiling from 20 to 40 for a branch that
+    merges its base (issue #3596), and `pr_commit_count` publishes the applied
+    value as
     the `commit_limit` output. The workflow already binds it into the
     environment as COMMIT_LIMIT. This script ignored it and printed a literal
     20, so a branch blocked at 41 commits was told the limit was 20 and that
