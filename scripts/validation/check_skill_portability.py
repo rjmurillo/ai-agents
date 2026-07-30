@@ -99,8 +99,7 @@ _SPLIT_CLAUDE_PATTERNS: tuple[re.Pattern[str], ...] = (
 SCRIPT_SUFFIXES = (".py", ".sh", ".ps1")
 
 _FSTRING_TOKEN_TYPES: frozenset[int] = frozenset(
-    getattr(tokenize, name, -1)
-    for name in ("FSTRING_START", "FSTRING_MIDDLE", "FSTRING_END")
+    getattr(tokenize, name, -1) for name in ("FSTRING_START", "FSTRING_MIDDLE", "FSTRING_END")
 ) - {-1}
 
 _DEFAULT_BASELINE_NAME = "skill_portability_baseline.json"
@@ -112,9 +111,7 @@ _PYTHON_DOCSTRING_NODES = (
     ast.FunctionDef,
     ast.Module,
 )
-_PROSE_KWARGS: frozenset[str] = frozenset(
-    {"help", "description", "epilog", "metavar", "usage"}
-)
+_PROSE_KWARGS: frozenset[str] = frozenset({"help", "description", "epilog", "metavar", "usage"})
 
 
 def _python_docstring_spans(text: str) -> set[tuple[int, int, int, int]]:
@@ -160,9 +157,7 @@ def _python_prose_spans(text: str) -> set[tuple[int, int, int, int]]:
     return spans
 
 
-def _span_contains(
-    spans: set[tuple[int, int, int, int]], token: tokenize.TokenInfo
-) -> bool:
+def _span_contains(spans: set[tuple[int, int, int, int]], token: tokenize.TokenInfo) -> bool:
     start_line, start_col = token.start
     end_line, end_col = token.end
     for span_start_line, span_start_col, span_end_line, span_end_col in spans:
@@ -235,9 +230,7 @@ def count_upstream_refs(text: str, suffix: str = ".py") -> int:
     """Count upstream-only path references in a single file's text."""
     runtime_text = _runtime_text(text, suffix)
     same_literal_refs = sum(len(pat.findall(runtime_text)) for pat in UPSTREAM_PATTERNS)
-    split_component_refs = sum(
-        len(pat.findall(runtime_text)) for pat in _SPLIT_CLAUDE_PATTERNS
-    )
+    split_component_refs = sum(len(pat.findall(runtime_text)) for pat in _SPLIT_CLAUDE_PATTERNS)
     return same_literal_refs + split_component_refs
 
 
@@ -363,7 +356,12 @@ def main(argv: list[str] | None = None) -> int:
                 f"{len(current)} scripts (baseline {sum(baseline.values())})."
             )
 
-    return 1 if regressions else 0
+    # Fail when the baseline has slack (current < baseline). Slack means the
+    # baseline is stale and would allow future regressions to sneak in unnoticed
+    # (issue #3730). Run --update-baseline to tighten it to the current state.
+    if regressions or improvements:
+        return 1
+    return 0
 
 
 if __name__ == "__main__":

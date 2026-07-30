@@ -1,22 +1,27 @@
 """Pytest wrapper for workspace budget enforcement.
 
 Runs on every commit via the pytest CI workflow (AC-3).
-Budget: 6.6KB total for injected files, 3KB per file max.
+Budget constants are imported from the authoritative script so the test and
+the enforcer always agree (issue #3951).
 """
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
 
-MAX_TOTAL = 6758  # 6.6KB
-MAX_PER_FILE = 3072  # 3KB
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_PROJECT_ROOT))
 
-INJECTED_FILES = [
-    "AGENTS.md",
-    "CLAUDE.md",
-]
+from scripts.validate_workspace_budget import (  # noqa: E402, I001
+    PER_FILE_BUDGET_BYTES as MAX_PER_FILE,
+    TOTAL_BUDGET_BYTES as MAX_TOTAL,
+    WORKSPACE_FILES,
+)
+
+INJECTED_FILES = WORKSPACE_FILES
 
 
 def _repo_root() -> Path:
@@ -37,9 +42,7 @@ def test_per_file_limit(filename: str) -> None:
     if not filepath.is_file():
         pytest.skip(f"{filename} not found")
     size = filepath.stat().st_size
-    assert size <= MAX_PER_FILE, (
-        f"{filename} is {size} bytes, exceeds {MAX_PER_FILE} byte limit"
-    )
+    assert size <= MAX_PER_FILE, f"{filename} is {size} bytes, exceeds {MAX_PER_FILE} byte limit"
 
 
 def test_total_budget() -> None:
@@ -49,6 +52,4 @@ def test_total_budget() -> None:
         filepath = root / name
         if filepath.is_file():
             total += filepath.stat().st_size
-    assert total <= MAX_TOTAL, (
-        f"Total workspace size {total} bytes exceeds {MAX_TOTAL} byte budget"
-    )
+    assert total <= MAX_TOTAL, f"Total workspace size {total} bytes exceeds {MAX_TOTAL} byte budget"
