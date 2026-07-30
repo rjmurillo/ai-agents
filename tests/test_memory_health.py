@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from memory_enhancement.health import (
+    _calculate_health_score,
     detect_stale_memories,
     format_report,
     generate_health_report,
@@ -14,6 +15,54 @@ from memory_enhancement.health import (
 from memory_enhancement.models import (
     HealthReport,
 )
+
+
+class TestCalculateHealthScore:
+    """Unit tests for _calculate_health_score covering all branches."""
+
+    @pytest.mark.unit
+    def test_empty_corpus_scores_one(self):
+        """Empty corpus (no memories) is vacuously healthy."""
+        counts = {"total": 0, "valid": 0, "stale": 0, "broken": 0, "unverified": 0}
+        assert _calculate_health_score(counts, total_memories=0) == 1.0
+
+    @pytest.mark.unit
+    def test_memories_with_no_citations_score_zero(self):
+        """Memories exist but have no citations: score is 0.0, not vacuously 1.0."""
+        counts = {"total": 0, "valid": 0, "stale": 0, "broken": 0, "unverified": 0}
+        assert _calculate_health_score(counts, total_memories=878) == 0.0
+
+    @pytest.mark.unit
+    def test_all_valid_citations_score_one(self):
+        """Corpus with all valid citations scores 1.0."""
+        counts = {"total": 5, "valid": 5, "stale": 0, "broken": 0, "unverified": 0}
+        assert _calculate_health_score(counts, total_memories=2) == 1.0
+
+    @pytest.mark.unit
+    def test_all_broken_citations_score_zero(self):
+        """Corpus with all broken citations scores 0.0."""
+        counts = {"total": 4, "valid": 0, "stale": 0, "broken": 4, "unverified": 0}
+        assert _calculate_health_score(counts, total_memories=2) == 0.0
+
+    @pytest.mark.unit
+    def test_mixed_corpus_scores_between_zero_and_one(self):
+        """Mixed valid/broken corpus scores between 0 and 1."""
+        counts = {"total": 4, "valid": 2, "stale": 0, "broken": 2, "unverified": 0}
+        score = _calculate_health_score(counts, total_memories=2)
+        assert 0.0 < score < 1.0
+
+    @pytest.mark.unit
+    def test_stale_citations_contribute_half(self):
+        """Stale citations count 0.5 each toward the weighted score."""
+        counts = {"total": 4, "valid": 0, "stale": 4, "broken": 0, "unverified": 0}
+        score = _calculate_health_score(counts, total_memories=2)
+        assert score == pytest.approx(0.5)
+
+    @pytest.mark.unit
+    def test_score_clamped_to_one(self):
+        """Score is capped at 1.0 even with unexpected over-count."""
+        counts = {"total": 1, "valid": 2, "stale": 0, "broken": 0, "unverified": 0}
+        assert _calculate_health_score(counts, total_memories=1) == 1.0
 
 
 class TestGenerateHealthReport:
@@ -26,13 +75,22 @@ class TestGenerateHealthReport:
         assert report.health_score == 1.0
 
     @pytest.mark.unit
+    def test_memories_with_no_citations_not_healthy(self, tmp_path):
+        """Regression for issue #3980: 878 memories with 0 citations must not score 1.0."""
+        mem_dir = tmp_path / "memories"
+        mem_dir.mkdir()
+        (mem_dir / "m1.md").write_text("# M1 (2026-01-01)\n\nNo citations here.\n")
+        report = generate_health_report(mem_dir, tmp_path)
+        assert report.total_memories == 1
+        assert report.total_citations == 0
+        assert report.health_score == 0.0
+
+    @pytest.mark.unit
     def test_with_valid_citations(self, tmp_path):
         (tmp_path / "exists.py").write_text("content\n")
         mem_dir = tmp_path / "memories"
         mem_dir.mkdir()
-        (mem_dir / "m1.md").write_text(
-            "# M1 (2026-01-01)\n\n[cite:file](exists.py) - ref\n"
-        )
+        (mem_dir / "m1.md").write_text("# M1 (2026-01-01)\n\n[cite:file](exists.py) - ref\n")
         report = generate_health_report(mem_dir, tmp_path)
         assert report.total_memories == 1
         assert report.total_citations == 1
@@ -42,9 +100,7 @@ class TestGenerateHealthReport:
     def test_with_broken_citations(self, tmp_path):
         mem_dir = tmp_path / "memories"
         mem_dir.mkdir()
-        (mem_dir / "m1.md").write_text(
-            "# M1 (2026-01-01)\n\n[cite:file](missing.py) - ref\n"
-        )
+        (mem_dir / "m1.md").write_text("# M1 (2026-01-01)\n\n[cite:file](missing.py) - ref\n")
         report = generate_health_report(mem_dir, tmp_path)
         assert report.broken_citations >= 1
         assert report.health_score < 1.0
