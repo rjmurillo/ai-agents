@@ -1,0 +1,128 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3966,
+    "date": "2026-07-30",
+    "branch": "fix/investigation-allowlist-protocol-drift",
+    "startingCommit": "d850048da",
+    "objective": "Align every prose copy of the ADR-034 investigation allowlist to the 8 patterns the module enforces, and harden the parity test against both drift directions"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena MCP is not reachable from Copilot CLI. Retrieval used the committed tree directly: .agents/architecture/ADR-034, .agents/SESSION-PROTOCOL.md, and scripts/modules/investigation_allowlist.py were read from disk."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Same harness limitation. AGENTS.md, .claude/rules/*, and .github/instructions/* were loaded by the Copilot CLI context loader instead."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read at session start; not modified"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current: fix/investigation-allowlist-protocol-drift"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/investigation-allowlist-protocol-drift in worktree /tmp/wt-allow"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short reviewed before every commit; 18 files in scope"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "d850048da, then merged origin/main to 0adb7d51f"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items carry executed evidence; two Serena items demoted with harness justification"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md absent from git diff --name-only for this branch"
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena MCP unreachable from Copilot CLI, so the durable record was written to the committed tree instead: .agents/analysis/2026-07-17-debate-adr-034-allowlist-direction.md carries the panel verdicts, the reproduced findings, and the reasoning."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 over the 9 changed markdown files: 0 issues, exit 0. Config globally excludes .agents/** and .claude/skills/**, so 1 file entered the linter."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Five commits under the 5-file cap, listed in workLog"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest tests/test_investigation_allowlist.py: 35 passed. python3 scripts/validate_session_json.py on this file: exit 0. lefthook pre-commit green on every commit."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Task list tracked through the session"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Debate log at .agents/analysis/2026-07-17-debate-adr-034-allowlist-direction.md carries the equivalent analysis for this change"
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "ADR Review Protocol for ADR-034",
+      "outcome": "The change propagates the 2026-07-08 Amendment, which reversed a recorded 5-of-6 EXCLUDE ruling on .agents/critique/, into the document agents actually read. That is a governance move, so it went to a three-model panel rather than a single review: claude-opus-4.8 (governance, SHIP WITH CHANGES), grok-4.5 (adversarial, SHIP WITH CHANGES), gpt-5.6-sol (adversarial, REQUEST CHANGES). Seven findings adopted, each reproduced by execution before action. Panel record and reasoning in .agents/analysis/2026-07-17-debate-adr-034-allowlist-direction.md."
+    },
+    {
+      "task": "Align five prose copies of the allowlist to the module",
+      "outcome": "SESSION-PROTOCOL.md (three sites), CONTRIBUTING.md, session-init/references/template-extraction.md, session/SKILL.md (three JSON examples), and tests/evals/skills/triage-prompts.json all taught 5 patterns while scripts/modules/investigation_allowlist.py returns 8. The triage-prompts entry is a grading key, so a correct 8-path answer was being scored wrong."
+    },
+    {
+      "task": "Remove three falsehoods from ai-agents-change-control",
+      "outcome": "The skill claimed 9 patterns (module returns 8), named a .agents/memory/episodes/ pattern that does not exist in the module (grep -c episodes: 0, control grep -c critique: 2), and cited ADR-034 lines 79-83 to prove the code had drifted wider than the ADR. Lines 84-86 continue the list with the other 3 patterns, each tagged Amendment 2026-07-08, and the amendment header sits at line 200. The citation window stopped one line short of the text that refutes it. Replaced with an executable count command."
+    },
+    {
+      "task": "Harden the parity test against widening",
+      "outcome": "A mutation matrix against the real document showed containment accepted a widened allowlist: adding src/ to the protocol clause passed every test. Fixed by scoping exact set equality to the enumeration span and parsing it without a prefix filter, so a forbidden path breaks equality while contrast prose outside the span stays legal. Suite grew 19 to 35 tests. Post-fix matrix: 4 widening and narrowing mutations fail, 4 formatting mutations pass."
+    },
+    {
+      "task": "Regenerate Copilot mirrors",
+      "outcome": "python3 build/scripts/build_all.py exit 0; all five canonical and mirror pairs verified byte-identical with diff -q per file rather than trusting the build summary, which undercounts rewrites."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Open the PR and validate the description with scripts/validation/pr_description.py --ci",
+    "Root-cause the Memory Health workflow failing on four open PRs with an empty health-report.json"
+  ]
+}

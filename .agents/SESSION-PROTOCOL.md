@@ -751,7 +751,7 @@ The agent MUST route to the qa agent after feature implementation. This is a **b
 3. The agent MUST NOT commit feature code without QA validation
 4. The agent MAY skip QA validation when:
    - **Docs-only**: All modified files are documentation files (e.g., Markdown), and changes are strictly editorial (spelling, grammar, or formatting) with no changes to code, configuration, tests, workflows, or code blocks of any kind. Use evidence: `SKIPPED: docs-only`
-   - **Investigation-only**: Session is investigation-only (no code/config changes), with staged files limited to investigation artifacts: `.agents/sessions/`, `.agents/analysis/`, `.agents/retrospective/`, `.serena/memories/`, `.agents/security/`. Use evidence: `SKIPPED: investigation-only` (see ADR-034)
+   - **Investigation-only**: Session is investigation-only (no code/config changes), with staged files limited to investigation artifacts: `.agents/sessions/`, `.agents/analysis/`, `.agents/retrospective/`, `.serena/memories/`, `.agents/security/`, `.agents/memory/`, `.agents/architecture/REVIEW-*`, `.agents/critique/`. Use evidence: `SKIPPED: investigation-only` (see ADR-034). The machine-readable source of truth is `scripts/modules/investigation_allowlist.py`; this list mirrors it and is locked to it by `tests/test_investigation_allowlist.py`
 
 **Session Log Exemption:**
 
@@ -782,13 +782,14 @@ Session logs (`.agents/sessions/`), analysis artifacts (`.agents/analysis/`), an
 3. **CI debugging** - Investigating CI failures, documenting in session log
 4. **Security assessments** - Writing security analysis to `.agents/security/`
 5. **Retrospectives** - Extracting learnings to `.agents/retrospective/`
+6. **Memory-graph updates** - Cross-session context written to `.agents/memory/`
+7. **Review artifacts** - Critiques in `.agents/critique/` and ADR reviews named `.agents/architecture/REVIEW-*` (Amendment 2026-07-08, issue #732)
 
 **Not investigation sessions** (require QA validation):
 
 - Planning sessions that produce PRDs
-- Architecture sessions that produce ADRs
+- Architecture sessions that produce ADR design files (`.agents/architecture/ADR-*`; the `REVIEW-*` prefix is the narrow exception above)
 - Implementation sessions that touch code
-- Critique sessions that gate implementation
 
 #### Mixed Session Recovery
 
@@ -926,7 +927,8 @@ Copy this checklist to each session log and verify completion:
 
 <!-- Investigation sessions may skip QA with evidence "SKIPPED: investigation-only"
      when only staging: .agents/sessions/, .agents/analysis/, .agents/retrospective/,
-     .serena/memories/, .agents/security/
+     .serena/memories/, .agents/security/, .agents/memory/,
+     .agents/architecture/REVIEW-*, .agents/critique/
      See ADR-034 for details. -->
 ```
 

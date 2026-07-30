@@ -366,6 +366,15 @@ Six agents reviewed ADR-034 independently:
 | CI backstop priority | KEEP P2 | Pre-commit is primary enforcement |
 | Scope split | NO SPLIT | Single coherent capability |
 
+The `.agents/critique/` ruling above was later reversed. See the Amendment
+(2026-07-08) earlier in this document: excluding critique artifacts produced
+false `E_INVESTIGATION_HAS_IMPL` failures in practice (issue #732), so the
+pattern was added back and the canonical set grew to 8. The loophole the
+original ruling feared is bounded by the allowlist being conjunctive: the
+exemption requires every staged file to match, so a critique that actually
+drives implementation stages that code and fails the exemption. The rulings
+in this section record the original decision and are left intact.
+
 ### Changes Applied
 
 1. Added MADR 4.0 frontmatter with decision-makers and consulted
