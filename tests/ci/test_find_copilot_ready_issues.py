@@ -107,15 +107,20 @@ def test_single_issue_writes_one_number(monkeypatch: pytest.MonkeyPatch, tmp_pat
 # ---------------------------------------------------------------------------
 
 
-def test_gh_failure_returns_3(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_gh_failure_degrades_to_zero_issues(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """When gh fails, script exits 0 and writes count=0 (matches original pipeline behavior)."""
     output_file = tmp_path / "output"
     output_file.write_text("")
     monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
     rec = _GhRecorder(returncode=1)
     _install(monkeypatch, rec)
-    assert main() == 3
-    # Nothing written on failure
-    assert output_file.read_text() == ""
+    assert main() == 0
+    # count=0 and issues= written on gh failure
+    content = output_file.read_text()
+    assert "count=0" in content
+    assert "issues=" in content
 
 
 # ---------------------------------------------------------------------------

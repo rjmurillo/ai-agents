@@ -5,10 +5,15 @@ Replaces the inline bash block in copilot-context-synthesis.yml
 copilot-ready label, then writes space-separated issue numbers and a
 count to GITHUB_OUTPUT.
 
+When gh CLI fails (e.g., no auth in a local test run), the script writes
+count=0 to GITHUB_OUTPUT and exits 0, matching the original pipeline
+behavior where `gh issue list | tr` would absorb a gh failure silently
+(tr exits 0 on empty input). A WARNING is emitted to stderr so the
+degradation is visible in CI logs.
+
 EXIT CODES (ADR-035):
-  0  - Success (includes zero-issues case)
+  0  - Success (includes zero-issues case and graceful gh degradation)
   2  - Configuration error (GITHUB_OUTPUT not set)
-  3  - gh CLI failure
 """
 
 from __future__ import annotations
@@ -19,7 +24,6 @@ import sys
 
 EXIT_SUCCESS = 0
 EXIT_CONFIG = 2
-EXIT_EXTERNAL = 3
 
 
 def find_issues() -> tuple[list[str], int]:
@@ -59,8 +63,11 @@ def main() -> int:
     numbers, rc = find_issues()
 
     if rc != 0:
-        print(f"ERROR: gh issue list failed (exit {rc})", file=sys.stderr)
-        return EXIT_EXTERNAL
+        print(
+            f"WARNING: gh issue list failed (exit {rc}); treating as zero issues",
+            file=sys.stderr,
+        )
+        numbers = []
 
     issues = " ".join(numbers)
     count = len(numbers)
