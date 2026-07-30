@@ -528,6 +528,7 @@ class TestExtract:
             "report.json",
             {
                 "error_count": 0,
+                "fixture_ids": ["C1"],
                 "per_fixture_pass_rates": {"C1": {"agent": [rate]}},
             },
         )

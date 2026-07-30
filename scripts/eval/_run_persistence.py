@@ -1,3 +1,12 @@
+# taste-lint: ignore file-size
+#
+# file-size suppression rationale: this module is the single owner of the
+# runs.jsonl on-disk contract, and most of its bulk is the documentation of
+# that contract: every corrupt shape, failure mode, and exit-code mapping is
+# recorded next to the guard that enforces it. Splitting the parse path from
+# the write path to satisfy a line count would separate the two halves of one
+# round-trip invariant. If the module grows real new responsibilities, split
+# by responsibility then, not by line count.
 """RunPersistence: idempotent JSONL writer for eval-agent-vs-baseline.
 
 DESIGN-004 §5.5, REQ-004 AC-9. Records are appended one per line to

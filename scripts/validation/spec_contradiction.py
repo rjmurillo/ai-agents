@@ -129,17 +129,7 @@ def fetch_current_pr_body(owner: str, repo: str) -> str | None:
     """
     try:
         result = subprocess.run(
-            [
-                "gh",
-                "pr",
-                "view",
-                "--json",
-                "body",
-                "-q",
-                ".body",
-                "--repo",
-                f"{owner}/{repo}",
-            ],
+            ["gh", "pr", "view", "--json", "body", "-q", ".body", "--repo", f"{owner}/{repo}"],
             capture_output=True,
             text=True,
             encoding="utf-8",
