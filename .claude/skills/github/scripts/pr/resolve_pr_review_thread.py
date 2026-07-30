@@ -77,6 +77,28 @@ query($owner: String!, $name: String!, $prNumber: Int!) {
     }
 }"""
 
+_THREAD_STATE_QUERY = """\
+query($threadId: ID!) {
+    node(id: $threadId) {
+        ... on PullRequestReviewThread {
+            id
+            isResolved
+            pullRequest {
+                number
+            }
+        }
+    }
+}"""
+
+
+def query_thread_state(thread_id: str) -> dict[str, object] | None:
+    """Return live thread state dict, or None if the thread is not found."""
+    data = gh_graphql(_THREAD_STATE_QUERY, {"threadId": thread_id})
+    node = data.get("node")
+    if not isinstance(node, dict):
+        return None
+    return node
+
 
 def resolve_review_thread(thread_id: str) -> bool:
     """Resolve a single review thread. Returns True on success."""
@@ -86,9 +108,7 @@ def resolve_review_thread(thread_id: str) -> bool:
         print(f"WARNING: Failed to resolve thread {thread_id}: {exc}", file=sys.stderr)
         return False
 
-    thread = (
-        data.get("resolveReviewThread", {}).get("thread", {})
-    )
+    thread = data.get("resolveReviewThread", {}).get("thread", {})
     if thread and thread.get("isResolved"):
         print(f"Resolved thread: {thread_id}")
         return True
@@ -118,10 +138,7 @@ def get_unresolved_threads(pr_number: int) -> list[dict]:
     )
 
     threads = (
-        data.get("repository", {})
-        .get("pullRequest", {})
-        .get("reviewThreads", {})
-        .get("nodes", [])
+        data.get("repository", {}).get("pullRequest", {}).get("reviewThreads", {}).get("nodes", [])
     )
     return [t for t in threads if not t.get("isResolved", True)]
 
@@ -158,7 +175,37 @@ def main(argv: list[str] | None = None) -> int:
     assert_gh_authenticated()
 
     if args.thread_id:
+        try:
+            state = query_thread_state(args.thread_id)
+        except RuntimeError as exc:
+            print(f"Error querying thread state: {exc}", file=sys.stderr)
+            return 3
+
+        if state is None:
+            result: dict[str, object] = {
+                "action": "SKIP",
+                "reason": "not_found",
+                "thread_id": args.thread_id,
+            }
+            print(json.dumps(result, indent=2))
+            return 0
+
+        if state.get("isResolved"):
+            result = {
+                "action": "SKIP",
+                "reason": "already_resolved",
+                "thread_id": args.thread_id,
+            }
+            print(json.dumps(result, indent=2))
+            return 0
+
         success = resolve_review_thread(args.thread_id)
+        result = {
+            "action": "ACT",
+            "thread_id": args.thread_id,
+            "success": success,
+        }
+        print(json.dumps(result, indent=2))
         return 0 if success else 1
 
     # Resolve all unresolved threads
@@ -179,9 +226,7 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(result, indent=2))
         return 0
 
-    print(
-        f"Found {len(unresolved)} unresolved thread(s) on PR #{args.pull_request}"
-    )
+    print(f"Found {len(unresolved)} unresolved thread(s) on PR #{args.pull_request}")
 
     resolved = 0
     failed = 0
@@ -197,10 +242,7 @@ def main(argv: list[str] | None = None) -> int:
             if first.get("databaseId"):
                 comment_id = first["databaseId"]
 
-        print(
-            f"  Resolving thread {thread['id']} "
-            f"(comment {comment_id} by @{author})..."
-        )
+        print(f"  Resolving thread {thread['id']} (comment {comment_id} by @{author})...")
 
         if resolve_review_thread(thread["id"]):
             resolved += 1

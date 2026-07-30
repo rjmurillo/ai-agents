@@ -71,17 +71,38 @@ mutation($threadId: ID!) {
     }
 }"""
 
+_THREAD_STATE_QUERY = """\
+query($threadId: ID!) {
+    node(id: $threadId) {
+        ... on PullRequestReviewThread {
+            id
+            isResolved
+        }
+    }
+}"""
+
+
+def query_thread_state(thread_id: str) -> dict[str, object] | None:
+    """Return live thread state dict, or None if the thread is not found."""
+    data = gh_graphql(_THREAD_STATE_QUERY, {"threadId": thread_id})
+    node = data.get("node")
+    if not isinstance(node, dict):
+        return None
+    return node
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Add a reply to a PR review thread via GraphQL.",
     )
     parser.add_argument(
-        "--thread-id", required=True,
+        "--thread-id",
+        required=True,
         help="GraphQL thread ID (e.g., PRRT_kwDOQoWRls5m3L76)",
     )
     parser.add_argument(
-        "--resolve", action="store_true",
+        "--resolve",
+        action="store_true",
         help="Resolve the thread after posting the reply",
     )
 
@@ -114,6 +135,29 @@ def main(argv: list[str] | None = None) -> int:
     assert_gh_authenticated()
 
     try:
+        state = query_thread_state(args.thread_id)
+    except RuntimeError as exc:
+        error_and_exit(f"Failed to check thread state: {exc}", 3)
+
+    if state is None:
+        output: dict[str, object] = {
+            "action": "SKIP",
+            "reason": "not_found",
+            "thread_id": args.thread_id,
+        }
+        print(json.dumps(output, indent=2))
+        return 0
+
+    if state.get("isResolved"):
+        output = {
+            "action": "SKIP",
+            "reason": "thread_resolved",
+            "thread_id": args.thread_id,
+        }
+        print(json.dumps(output, indent=2))
+        return 0
+
+    try:
         reply_data = gh_graphql(
             _REPLY_MUTATION,
             {"threadId": args.thread_id, "body": body},
@@ -136,8 +180,7 @@ def main(argv: list[str] | None = None) -> int:
                 {"threadId": args.thread_id},
             )
             thread_resolved = (
-                resolve_data
-                .get("resolveReviewThread", {})
+                resolve_data.get("resolveReviewThread", {})
                 .get("thread", {})
                 .get("isResolved", False)
             )
@@ -149,6 +192,7 @@ def main(argv: list[str] | None = None) -> int:
 
     author = comment.get("author")
     output = {
+        "action": "ACT",
         "success": True,
         "thread_id": args.thread_id,
         "comment_id": comment.get("databaseId"),
