@@ -1,0 +1,140 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3877,
+    "date": "2026-07-30",
+    "branch": "autofix/pr-3638-session3390",
+    "startingCommit": "25e4d064e",
+    "objective": "Merge latest origin main into PR 3638 after PR 3940"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena activate_project was not exposed by the MCP inventory. Existing repository binding used, matching session 3876."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial_instructions completed before conflict analysis."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read and preserved. No issue 3464 or PR 3638 handoff exists."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub skill inventory loaded. Invoked merge-resolver, github, and session-init."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/usage-mandatory.md read."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md and repository instructions read."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "memory-index, skills-git-index, git conflict workflow, merge preflight, and PR validation memories read."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "autofix/pr-3638-session3390"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On autofix/pr-3638-session3390"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Worktree was clean at 25e4d064e before session log creation."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "25e4d064e"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Fetched and gated live state, verified remote head, recorded ancestry, trial-merged, resolved only paired manifests, and completed targeted validation."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remains unchanged."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No new durable memory needed. Existing merge-resolver and plugin-version rules already cover this manifest-only conflict pattern."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No Markdown was authored. Scoped markdownlint ran against the two main-owned skill files; repository exclusions selected zero files."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Merge commit 18301aa49 created with both parents. This session log is included by immediate amendment."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "154 targeted validator tests passed. Orphan reference scan, plugin schema, manifest parity at 0.6.5426, version bump, conflict marker check, and git diff --check passed."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Merge phases completed in order and recorded in this work log."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-07-30T06:52:00Z",
+      "entry": "Fetched origin, live-state gate returned ACT, and GitHub reported PR head 25e4d064e4ac266eb0203cbee5f7e6e2753ea900, matching local HEAD and remote branch."
+    },
+    {
+      "time": "2026-07-30T06:54:00Z",
+      "entry": "Recorded ancestry: prior main parent ae64b725e is the merge base and an ancestor of origin/main c52e97cc9. Divergence was 37 PR commits and one new main commit, PR #3940."
+    },
+    {
+      "time": "2026-07-30T06:55:00Z",
+      "entry": "Non-committing trial merge of origin/main exited 1 with conflicts only in the paired project-toolkit manifests. Main buy-vs-build skill content merged exactly."
+    },
+    {
+      "time": "2026-07-30T06:57:00Z",
+      "entry": "Resolved both manifest-only conflicts to 0.6.5426, one patch above PR 3638 version 0.6.5425 and main version 0.6.5424."
+    },
+    {
+      "time": "2026-07-30T07:02:00Z",
+      "entry": "Created merge commit 18301aa49 with parents 25e4d064e and c52e97cc9 after all targeted checks passed."
+    }
+  ],
+  "endingCommit": "18301aa49",
+  "nextSteps": []
+}
