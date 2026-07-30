@@ -4,7 +4,7 @@
 
 Memory search performance benchmarking tool for measuring Serena (lexical) and Forgetful (semantic) search latency.
 
-**Script**: `.claude/skills/memory/scripts/measure_memory_performance.py`
+**Script**: `skills/memory/scripts/measure_memory_performance.py`, relative to the plugin root
 
 **Task**: M-008 (Phase 2A Memory System)
 
@@ -497,7 +497,7 @@ done
 
 ### Script Configuration
 
-Edit `.claude/skills/memory/scripts/measure_memory_performance.py` to customize:
+Edit `skills/memory/scripts/measure_memory_performance.py`, relative to the plugin root, to customize:
 
 ```python
 # Default queries
