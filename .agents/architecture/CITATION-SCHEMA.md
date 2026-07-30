@@ -204,6 +204,9 @@ are written by editing the memory body.
 
 ### Verify a Single Memory
 
+`security/input-validation` below is a hypothetical. The corpus currently
+carries zero citations, so this shows the output shape, not a live run.
+
 ```bash
 python -m memory_enhancement verify --memory-id security/input-validation
 ```

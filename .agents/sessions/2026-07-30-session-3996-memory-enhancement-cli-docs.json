@@ -173,9 +173,39 @@
     {
       "time": "2026-07-30T08:20:00Z",
       "entry": "Disproved my own correction: a probe showed a TypeScript file containing the comment '// def ts_func' verifies as PASS, so the citation check is a raw text search, not a definition check, and all three documents now say that."
+    },
+    {
+      "timestamp": "2026-07-30T22:10:00Z",
+      "activity": "Addressed three Copilot review comments on PR #4008. Reproduced each before acting: the scanner's git ls-files call decoded with the platform default encoding (a Windows cp1252 crash risk), the citation guide invoked the CLI as scripts.memory_enhancement, and the session log carried an empty endingCommit.",
+      "outcome": "All three confirmed. Pinned utf-8 with errors=replace, normalized three module paths to memory_enhancement, and recorded the ending commit."
+    },
+    {
+      "timestamp": "2026-07-30T22:25:00Z",
+      "activity": "Checked whether the guide's normalized command actually runs. Both module paths execute identically (rc 0), so the finding was a consistency defect rather than a break. Confirmed the skill and the guide now spell the CLI the same way.",
+      "outcome": "Single spelling of record across every document that describes the CLI."
+    },
+    {
+      "timestamp": "2026-07-30T22:40:00Z",
+      "activity": "Ran every concrete --memory-id value documented across the doc roots rather than trusting the review scope. Four ids resolved: security/input-validation (twice), security/output-encoding, and input-validation. All four exited 1 with 'Memory not found'.",
+      "outcome": "Found a defect class the guard misses entirely: it validates flag syntax but never argument values."
+    },
+    {
+      "timestamp": "2026-07-30T22:55:00Z",
+      "activity": "Read the surrounding prose before changing any of the four. examples.md already declares its fixture ('security/input-validation cites src/validate.py and src/missing.py') ahead of Examples 1 and 2, and Example 3's unknown-id output matches the real tool byte for byte. Those are correctly labelled hypotheticals.",
+      "outcome": "Left examples.md alone. Changing it would have broken a deliberate teaching fixture."
+    },
+    {
+      "timestamp": "2026-07-30T23:05:00Z",
+      "activity": "Measured whether a real memory could replace the hypotheticals. verify-all reports 'no citations' for all 878 memories and health --json returns total_citations 0, so no live memory can demonstrate citation output. Confirms the vacuity behind health_score 1.0 already tracked in issue #3980.",
+      "outcome": "A hypothetical is unavoidable in CITATION-SCHEMA.md, so declared it in prose instead of inventing a fake id."
+    },
+    {
+      "timestamp": "2026-07-30T23:15:00Z",
+      "activity": "Pointed the guide's single-memory example at security/security-002-input-validation-first-88, verified to exit 0, so the one command a reader is most likely to copy is runnable.",
+      "outcome": "Guard 71 passed, 0 em or en dashes across all changed files, no .claude changes so no version bump or mirror regeneration required."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "7c64e26c23a9e1ee091de6495b82bff7099ffb35",
   "nextSteps": [
     "File: search emits memory ids that verify --memory-id rejects for any memory in a subdirectory.",
     "File: session_end_memory.py and reinforce_memories() are unreachable because no SessionEnd hook is registered, yet hook-protocol.md lists the hook as live.",

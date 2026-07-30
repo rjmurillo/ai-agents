@@ -81,13 +81,13 @@ Global options must come before the subcommand.
 
 ```bash
 # One memory
-uv run python -m scripts.memory_enhancement verify --memory-id security/input-validation
+uv run python -m memory_enhancement verify --memory-id security/security-002-input-validation-first-88
 
 # Every memory
-uv run python -m scripts.memory_enhancement verify-all
+uv run python -m memory_enhancement verify-all
 
 # Aggregate report
-uv run python -m scripts.memory_enhancement health --json
+uv run python -m memory_enhancement health --json
 ```
 
 `verify` and `verify-all` exit 1 when any citation fails, which is what makes
