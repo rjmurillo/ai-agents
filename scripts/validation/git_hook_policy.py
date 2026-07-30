@@ -1638,10 +1638,22 @@ def check_tracked_conflict_markers(repo_root: Path) -> int:
     # ``-z`` NUL-terminates every entry, so a plain split leaves a trailing
     # empty element. Strip it here rather than guarding inside the loop.
     tracked = result.stdout.rstrip("\0").split("\0") if result.stdout else []
-    for path in tracked:
-        if path.startswith(SKIPPED_DASH_PREFIXES):
+    for raw_path in tracked:
+        if raw_path.startswith(SKIPPED_DASH_PREFIXES):
             continue
+        path = _safe_relative_path(raw_path)
+        if path is None:
+            print(
+                f"ERROR: refusing unsafe tracked path {raw_path!r}",
+                file=sys.stderr,
+            )
+            return 2
         full_path = repo_root / path
+        if full_path.is_symlink() or full_path.is_dir():
+            # The tracked object for a symlink is the link target string and
+            # for a submodule the gitlink; neither is file content to scan,
+            # and following the link could read outside the repo.
+            continue
         try:
             with full_path.open("rb") as handle:
                 head = handle.read(_BINARY_SNIFF_BYTES)
@@ -1653,10 +1665,19 @@ def check_tracked_conflict_markers(repo_root: Path) -> int:
                     # added.
                     continue
                 content = head + handle.read()
-        except OSError:
+        except FileNotFoundError:
             # A tracked path missing from the worktree is a checkout concern,
-            # not a conflict. Sparse checkouts and submodules both hit this.
+            # not a conflict. Sparse checkouts hit this.
             continue
+        except OSError as exc:
+            # Anything else (permissions, I/O error) is an environment the
+            # scan cannot vouch for; silently continuing would report clean
+            # on a tree it did not read.
+            print(
+                f"ERROR: could not read tracked file {path}: {exc}",
+                file=sys.stderr,
+            )
+            return 2
         violations.extend(_conflict_marker_violations(path, content))
     if not violations:
         return 0

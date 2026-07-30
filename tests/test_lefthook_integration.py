@@ -7793,6 +7793,55 @@ def test_the_tracked_scan_honours_the_skipped_prefixes(tmp_path: Path) -> None:
     assert policy.check_tracked_conflict_markers(repo) == 0
 
 
+def test_the_tracked_scan_does_not_follow_symlinks(tmp_path: Path) -> None:
+    """The tracked object for a symlink is the link, not the target.
+
+    Following the link would scan (or block on) whatever it points at,
+    including paths outside the repo.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked.txt", "clean\n")
+    outside = tmp_path / "outside.txt"
+    outside.write_text("<<<<<<< HEAD\nx\n>>>>>>> main\n", encoding="utf-8")
+    link = repo / "link.txt"
+    try:
+        link.symlink_to(outside)
+    except OSError:
+        pytest.skip("filesystem does not support symlinks")
+    _git(repo, "add", "link.txt")
+    _git(repo, "commit", "-m", "add symlink")
+
+    assert policy.check_tracked_conflict_markers(repo) == 0
+
+
+def test_the_tracked_scan_skips_a_sparse_missing_file(tmp_path: Path) -> None:
+    """A tracked path absent from the worktree is a checkout concern."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked.txt", "clean\n")
+    (repo / "tracked.txt").unlink()
+
+    assert policy.check_tracked_conflict_markers(repo) == 0
+
+
+@pytest.mark.skipif(os.name == "nt", reason="chmod 0 is a no-op on Windows")
+def test_the_tracked_scan_fails_config_on_an_unreadable_file(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Silently continuing would report clean on a tree the scan never read."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked.txt", "clean\n")
+    (repo / "tracked.txt").chmod(0)
+    try:
+        assert policy.check_tracked_conflict_markers(repo) == 2
+    finally:
+        (repo / "tracked.txt").chmod(0o644)
+    assert "could not read tracked file" in capsys.readouterr().err
+
+
 def test_the_tracked_scan_survives_a_tracked_path_missing_from_disk(
     tmp_path: Path,
 ) -> None:
