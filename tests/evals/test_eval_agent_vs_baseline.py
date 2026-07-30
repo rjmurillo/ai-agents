@@ -15,6 +15,7 @@ import importlib.util
 import json
 import re
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -640,6 +641,58 @@ class TestCliExitCodes:
         assert "planned_calls=6" in captured.out
         assert "cost_estimate_usd=" in captured.out
         assert "rate_as_of=" in captured.out
+
+    def test_dry_run_on_a_quota_provider_exits_zero(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """The end-to-end shape #4002 reported: a non-Anthropic model planned.
+
+        `cli_main` writes --provider into the process environment, so the
+        env is pinned through monkeypatch here. Without it the value
+        survives the test and re-routes every later in-process CLI test.
+        """
+        monkeypatch.setenv("EVAL_PROVIDER", "")
+        fixtures_dir = tmp_path / "fixtures"
+        fixtures_dir.mkdir()
+        _write_fixture(fixtures_dir, "F001.json", _valid_fixture_payload())
+        rc = cli_main([
+            "--dry-run",
+            "--agent",
+            "security",
+            "--fixtures",
+            str(fixtures_dir),
+            "--provider",
+            "github-models",
+            "--model",
+            "openai/gpt-4o-mini",
+        ])
+        assert rc == 0
+        captured = capsys.readouterr()
+        assert "planned_calls=6" in captured.out
+        assert "cost_estimate_requests=6 basis=quota" in captured.out
+        assert "cost_estimate_usd=" not in captured.out
+
+    def test_dry_run_on_a_usd_provider_still_exits_config(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """An unpriced model on a per-token provider is still an operator gap."""
+        monkeypatch.setenv("EVAL_PROVIDER", "")
+        fixtures_dir = tmp_path / "fixtures"
+        fixtures_dir.mkdir()
+        _write_fixture(fixtures_dir, "F001.json", _valid_fixture_payload())
+        rc = cli_main([
+            "--dry-run",
+            "--agent",
+            "security",
+            "--fixtures",
+            str(fixtures_dir),
+            "--provider",
+            "openai",
+            "--model",
+            "gpt-4o-mini",
+        ])
+        assert rc == 2
+        assert "No pricing rate" in capsys.readouterr().err
 
 
 # ===========================================================================
@@ -2105,6 +2158,54 @@ class TestReportWriter:
             halt_due_to_flakiness=False,
             tokens_estimated=tokens_estimated,
         )
+
+    def _quota_aggregate(self) -> AggregateResult:
+        base = self._aggregate()
+        return replace(base, cost_estimate_usd=None, cost_basis="requests")
+
+    def test_quota_report_json_carries_no_dollar_figure(self, tmp_path):
+        writer = ReportWriter(tmp_path / "reports")
+        json_path, _ = writer.write(
+            aggregate=self._quota_aggregate(),
+            run_id="20260503T140000Z-aaaaaaaa",
+            model_id="openai/gpt-4o-mini",
+            agent_prompt_sha="a" * 64,
+            baseline_prompt_sha="b" * 64,
+            fixture_set_sha="c" * 64,
+            wall_clock_seconds=187.0,
+        )
+        payload = json.loads(json_path.read_text(encoding="utf-8"))
+        assert payload["cost_estimate_usd"] is None
+        assert payload["cost_basis"] == "requests"
+
+    def test_quota_report_markdown_reports_requests_not_dollars(self, tmp_path):
+        writer = ReportWriter(tmp_path / "reports")
+        _, md_path = writer.write(
+            aggregate=self._quota_aggregate(),
+            run_id="20260503T140000Z-aaaaaaaa",
+            model_id="openai/gpt-4o-mini",
+            agent_prompt_sha="a" * 64,
+            baseline_prompt_sha="b" * 64,
+            fixture_set_sha="c" * 64,
+            wall_clock_seconds=187.0,
+        )
+        body = md_path.read_text(encoding="utf-8")
+        assert "Estimated cost: metered as requests" in body
+        assert "$" not in body.split("## Cost and Resource Summary")[1].split("##")[0]
+
+    def test_usd_report_markdown_is_unchanged(self, tmp_path):
+        writer = ReportWriter(tmp_path / "reports")
+        _, md_path = writer.write(
+            aggregate=self._aggregate(),
+            run_id="20260503T140000Z-aaaaaaaa",
+            model_id="claude-sonnet-4-6",
+            agent_prompt_sha="a" * 64,
+            baseline_prompt_sha="b" * 64,
+            fixture_set_sha="c" * 64,
+            wall_clock_seconds=187.0,
+        )
+        body = md_path.read_text(encoding="utf-8")
+        assert "- Estimated cost: $0.0900 USD (rate as of 2026-05-03)" in body
 
     def test_writes_both_files_atomically(self, tmp_path):
         writer = ReportWriter(tmp_path / "reports")
