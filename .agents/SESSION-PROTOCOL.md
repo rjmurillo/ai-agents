@@ -336,8 +336,8 @@ The agent SHOULD monitor commit count during extended sessions to avoid oversize
    git rev-list --count HEAD ^origin/main
    ```
 
-2. The agent SHOULD warn when commit count reaches 15 or more
-3. The agent MUST NOT exceed 20 commits without splitting into a new PR
+2. The agent SHOULD warn when commit count reaches 10 or more
+3. The agent MUST NOT exceed 20 commits (40 when the branch merges main) without splitting into a new PR
 4. When the limit is reached, the agent MUST:
    - Stop new work
    - Complete the current unit of work
@@ -348,9 +348,12 @@ The agent SHOULD monitor commit count during extended sessions to avoid oversize
 
 | Commit Count | Action |
 |-------------|--------|
-| < 15 | Continue working |
-| 15-19 | WARNING: Plan to wrap up soon. Finish current task, avoid starting new tasks. |
-| >= 20 | BLOCKED: Stop work. Complete current unit and proceed to Session End Protocol. |
+| < 10 | Continue working |
+| 10-14 | WARNING: Plan to wrap up soon. Finish current task, avoid starting new tasks. |
+| 15-20 | ALERT: Finish the current unit of work and prepare the PR. |
+| > 20 | BLOCKED: Stop work. Complete current unit and proceed to Session End Protocol. |
+
+A branch that merges main raises the block threshold from 20 to 40; the ALERT band then covers 15-40. Thresholds are defined in `scripts/validation/pr_commit_count.py`.
 
 **Verification:**
 

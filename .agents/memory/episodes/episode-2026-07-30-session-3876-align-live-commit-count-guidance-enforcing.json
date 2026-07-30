@@ -1,0 +1,18 @@
+{
+  "id": "episode-2026-07-30-session-3876-align-live-commit-count-guidance-enforcing",
+  "session": "2026-07-30-session-3876-align-live-commit-count-guidance-enforcing",
+  "timestamp": "2026-07-30T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Align live commit-count guidance with the enforcing code (issue #3944); adr-review skill debate required for the SESSION-PROTOCOL edit",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 6
+  },
+  "lessons": []
+}
