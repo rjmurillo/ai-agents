@@ -461,6 +461,29 @@ Respond in JSON only, no other text:
 
     text = raw.strip()
 
+    if _names_a_score_field_twice(text):
+        # A second copy of a score field makes the payload carry two candidate
+        # verdicts, and picking one of two is a guess. Both recovery paths
+        # already refused on this. The strict parse did not, because a
+        # whole-payload parse succeeding was read as proof the payload named
+        # one answer. It is not: valid JSON nests, so a second verdict can sit
+        # inside the first as a member, a list element, or a quoted string,
+        # and the parse still succeeds.
+        #
+        # That gap was worse than the recovery defects it mirrors. Those at
+        # least set ``judge_salvaged``, so a guess stayed auditable. This one
+        # returned through the clean-parse branch, which sets no marker at
+        # all, so a fabricated triple was indistinguishable from a judge that
+        # simply answered.
+        #
+        # Checked once, before any parse, rather than on the success branch:
+        # the defect was a path that did not know it needed the guard, so the
+        # guard belongs where every path inherits it, including the fourth one
+        # nobody has written yet.
+        return _failed_judge(
+            f"ambiguous judge output names a score field twice: {text[:200]}"
+        )
+
     try:
         parsed = _strict_json_loads(text)
         recovered_from_prefix = False

@@ -2,8 +2,8 @@
 
 Companion to `rule-audit-procedure.md`. That document is the procedure and
 carries the published table; this one carries the forensics behind it: which
-judge samples were lost, what recovering them changed, and what thirteen rounds
-of adversarial review found in the recovery code.
+judge samples were lost, what recovering them changed, and what fourteen rounds
+of adversarial review found in the verdict-parsing code.
 
 Read this before citing a number from the procedure document, and before
 writing a new instrument that has to parse judge output.
@@ -95,23 +95,28 @@ State the limit plainly. The extractor was written after seeing which samples
 failed, so this is post-hoc recovery, not independent replication. Recovering
 *every* failure rather than a chosen subset avoids outcome selection.
 
-**Thirteen rounds of adversarial review have found sixteen defects in it, the
-most recent in round 13.** The regex extractor was replaced with a
-structure-aware scanner, which review then broke repeatedly, always in the
-same direction: it returned a wrong verdict and reported it as a clean parse.
+**Fourteen rounds of adversarial review have found seventeen defects in it, the
+most recent in round 14.** The regex extractor was replaced with a
+structure-aware scanner, which review then broke repeatedly, always in the same
+direction: it returned a wrong verdict. How visible that was varied, and the
+variation matters more than the count. Most returned through the clean-parse
+branch, which sets no marker. The sixteenth was marked `judge_salvaged` and was
+wrong anyway, which is the case that shows an audit trail is a weaker defence
+than a refusal: it makes a guess reviewable afterwards, not correct.
 
-Fifteen defects of one class. A scan desynchronized by a quote inside a
+Sixteen defects of one class. A scan desynchronized by a quote inside a
 nested object; a second root object that *was* the real verdict; salvage
 running after the range gate, re-admitting a `6` as a clean `5`; brace
 counting that ignored brackets, so `[{5/5/5 exemplar}]` read as root; the same
 search alive on the *success* path, returning an offset-past-zero verdict
-indistinguishable from a clean parse; and finally a four-line Markdown-fence
+indistinguishable from a clean parse; a four-line Markdown-fence
 stripper one layer upstream that replaced the whole payload with the first
 fence it found, so a verdict followed by a fenced rubric exemplar was answered
-with the exemplar, unmarked; and a duplicate-name guard that recognized a
+with the exemplar, unmarked; a duplicate-name guard that recognized a
 key spelled with double quotes or escaped double quotes but not the
 single-quote dialect a lenient model emits, so a stated second verdict was
-invisible to it. Full round-by-round history is in issue #3988.
+invisible to it; and finally the guard that catches all of those never being
+consulted on the one path that does not need to recover anything.
 
 Each round hardened the structural reading and each left the class standing,
 because **the defect is selection, not location**: every fix added a
@@ -141,10 +146,12 @@ raw counts and for what they cannot answer.
 That is not a blind test, because the same author wrote all six parsers.
 Falsifying it properly still takes one of: blinded manual transcription of the
 failed payloads, a second parser written by someone who has not seen them, or
-held-out malformed output. None has been done. Twelve rounds each hardened this
-function and each missed what the next found, so "it survived review" is
-weaker evidence here than the round count suggests. Fifteen defects of one
-class is evidence against hand-writing the parser at all (issue #3988).
+held-out malformed output. None has been done. Thirteen rounds each hardened
+this function and each missed what the next found, so "it survived review" is
+weaker evidence here than the round count suggests. Sixteen defects of one
+class is evidence against hand-writing the parser at all (issue #3988, which
+tracks the argument; its round log stops at nine and is not the history of
+record. This document is).
 
 Round 12 found no defect of that class and was aimed at the two least-tested
 surfaces: the duplicate guard's paired-quote alternation, and the strict-parse
@@ -189,6 +196,62 @@ is not a convergence signal. The exactly-one-fence rule was written in round
 11 specifically to remove a selection, was reviewed in round 12, was extended
 in round 12 with a proof that the extension restored no selection, and still
 contained one. Each of those steps was correct about the thing it examined.
+
+Round 14 found the seventeenth defect on the one path eleven rounds of attacks
+had treated as safe by construction: the strict parse. A whole-payload parse
+succeeding was read as proof that the payload named one answer. It is not
+proof of anything of the kind. JSON nests, so a second verdict can sit inside
+the first as a member, as a list element, or quoted inside a string, and the
+grammar is satisfied either way; `_reject_duplicate_keys` does not see these
+because a nested key is not a repeated one. Four such shapes were reproduced,
+all valid JSON, all published as clean verdicts.
+
+The guard that refuses exactly this, `_names_a_score_field_twice`, already
+existed and already carried the argument for why it applies, in its own
+docstring. It was wired into all three recovery paths and none of the strict
+one. So the defect was not a missing idea or a missing check. It was a path
+that did not know it needed one, which is why the guard now runs once, before
+any parse, where a fourth path would inherit it rather than have to remember
+it.
+
+This one was worse than the recovery defects it mirrors, and in a way that
+inverts the round-13 lesson. Those set `judge_salvaged`, so a wrong verdict
+was at least reviewable afterwards. This returned through the clean-parse
+branch, which sets no marker, so a fabricated triple was indistinguishable
+from a judge that simply answered.
+
+**The cost of this fix cannot be measured against the archive, and that is
+itself the finding.** Every one of the sixteen before it was bounded exactly,
+by replaying the twenty-four archived raw payload prefixes. That works only
+because failures store their raw text. Successes do not: the 264 published
+samples retain `activation_score`, `behavior_score`, `citation_score`,
+`judge_failed`, `reasoning`, and `sample_index`, and no raw payload. A defect
+on the success path is therefore retroactively unmeasurable by construction.
+The archive gives no evidence either way about whether any published cell came
+from an ambiguous payload. The only signal available is weak and indirect: no
+stored `reasoning` on any of the 264 trips the guard. That is not the same
+question, because `reasoning` is the parsed field rather than the payload it
+came from. Recorded as issue #3998; the fix is to retain a truncated raw
+payload on success as well as on failure.
+
+The refusal has one unmeasured cost, in the same direction. The guard refuses
+outright on any `\u` in the payload, because a score field name spelled with a
+unicode escape would evade a textual count. On the recovery paths that costs
+nothing, since those payloads are already malformed. On the strict path it can
+now refuse a healthy verdict whose `reasoning` happens to carry an escape. How
+often that happens cannot be read off the archive either, for the same reason.
+It is accepted rather than optimized away: a refusal costs one of three
+samples and announces itself, and this session has now produced seventeen
+demonstrations that the other direction does not.
+
+Round 14 left one finding unfixed by design. The two recovery helpers accept
+different payloads in both directions: a fenced verdict recovers through
+`_recover_verdict` and not `_salvage_scores`, a broken-string verdict the
+reverse. Live scoring composes both so it is covered, but archive replay calls
+`_salvage_scores` directly, which means a future archived score can depend on
+which helper the caller reached for. That is a seam rather than a wrong
+answer, and it belongs with the aggregator work rather than the parser work,
+so it is filed as issue #3999 and not fixed here.
 
 
 Reproduce the recovery from any archived run. The failed samples store the

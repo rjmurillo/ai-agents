@@ -1155,6 +1155,172 @@ def test_score_response_refuses_a_malformed_verdict_behind_a_tool_trace(monkeypa
     assert result["judge_failed"] is True
 
 
+_SECOND_VERDICT_PAYLOADS = [
+    pytest.param(
+        json.dumps(
+            {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "first pass",
+                "revised": {
+                    "activation_score": 1,
+                    "citation_score": 1,
+                    "behavior_score": 1,
+                    "reasoning": "on reflection",
+                },
+            }
+        ),
+        id="nested-correction",
+    ),
+    pytest.param(
+        json.dumps(
+            {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "alternatives": [
+                    {
+                        "activation_score": 1,
+                        "citation_score": 2,
+                        "behavior_score": 3,
+                    }
+                ],
+            }
+        ),
+        id="verdict-in-a-list",
+    ),
+    pytest.param(
+        json.dumps(
+            {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": (
+                    'earlier I wrote {"activation_score": 1, '
+                    '"citation_score": 1, "behavior_score": 1}'
+                ),
+            }
+        ),
+        id="verdict-quoted-inside-a-string",
+    ),
+    pytest.param(
+        json.dumps(
+            {
+                "activation_score": 1,
+                "citation_score": 1,
+                "behavior_score": 1,
+                "meta": {
+                    "audit": {
+                        "final": {
+                            "activation_score": 5,
+                            "citation_score": 5,
+                            "behavior_score": 5,
+                        }
+                    }
+                },
+            }
+        ),
+        id="verdict-nested-three-deep",
+    ),
+]
+
+
+@pytest.mark.parametrize("payload", _SECOND_VERDICT_PAYLOADS)
+def test_valid_json_carrying_a_second_verdict_refuses(monkeypatch, payload):
+    """The seventeenth defect: a clean parse is not proof of a single answer.
+
+    Every payload here is valid JSON, so ``_strict_json_loads`` accepted it
+    and the result returned through the clean-parse branch. That branch sets
+    no ``judge_salvaged`` marker, so the guess was not merely wrong, it was
+    unauditable, which the recovery-path defects at least were not.
+
+    Nesting is why the parse proves nothing. A second verdict can sit inside
+    the first as a member, a list element, or a quoted string, and the
+    grammar is satisfied either way. ``_reject_duplicate_keys`` does not see
+    these because a nested key is not a repeated one.
+    """
+    monkeypatch.setattr(eval_mod, "_call_api", lambda *_args, **_kwargs: payload)
+
+    result = eval_mod.score_response(
+        "sk-test",
+        {"input": "x", "expected_gate": "apply-rule"},
+        "response",
+    )
+
+    assert result["judge_failed"] is True
+    assert result["activation_score"] == 0
+    assert result["citation_score"] == 0
+    assert result["behavior_score"] == 0
+    assert "judge_salvaged" not in result
+
+
+def test_the_ambiguity_refusal_names_itself_rather_than_a_parse_error(monkeypatch):
+    """Pins where the guard runs, not just that it runs.
+
+    The guard sits before the parse so every path inherits it, including one
+    nobody has written yet. Routing an ambiguous payload through
+    ``_judge_parse_failure`` would also refuse it today, but only because
+    ``_salvage_scores`` happens to carry its own copy of the guard. Depending
+    on a downstream helper to do the refusing is the coupling that produced
+    this defect; asserting on the reason string is what stops a later edit
+    from quietly reintroducing it.
+    """
+    payload = json.dumps(
+        {
+            "activation_score": 5,
+            "citation_score": 5,
+            "behavior_score": 5,
+            "revised": {
+                "activation_score": 1,
+                "citation_score": 1,
+                "behavior_score": 1,
+            },
+        }
+    )
+    monkeypatch.setattr(eval_mod, "_call_api", lambda *_args, **_kwargs: payload)
+
+    result = eval_mod.score_response(
+        "sk-test",
+        {"input": "x", "expected_gate": "apply-rule"},
+        "response",
+    )
+
+    assert result["reasoning"].startswith("ambiguous judge output")
+    assert "judge parse error" not in result["reasoning"]
+
+
+def test_a_single_verdict_beside_unrelated_nesting_still_parses(monkeypatch):
+    """The guard must cost nothing on the payloads the judge actually sends.
+
+    A refusal is the safe direction but it is not free: it discards one of
+    three judge samples. This is the negative control that keeps the guard
+    from being tightened into refusing every structured answer, which would
+    drain samples without any fabrication to show for it.
+    """
+    payload = json.dumps(
+        {
+            "activation_score": 4,
+            "citation_score": 3,
+            "behavior_score": 2,
+            "reasoning": "the rule fired and was cited",
+            "evidence": {"quoted_line": 12, "tags": ["cited", "applied"]},
+        }
+    )
+    monkeypatch.setattr(eval_mod, "_call_api", lambda *_args, **_kwargs: payload)
+
+    result = eval_mod.score_response(
+        "sk-test",
+        {"input": "x", "expected_gate": "apply-rule"},
+        "response",
+    )
+
+    assert result["judge_failed"] is False
+    assert result["activation_score"] == 4
+    assert result["citation_score"] == 3
+    assert result["behavior_score"] == 2
+
+
 def test_judge_parse_failure_does_not_combine_partial_objects():
     result = eval_mod._judge_parse_failure(
         '{"activation_score": 5}\n{"citation_score": 4, "behavior_score": 3}',

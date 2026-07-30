@@ -241,8 +241,12 @@ published cell uses three samples; seventeen of them get at least one of those
 three from post-hoc recovery of a truncated prefix, and seven get two.
 
 The full accounting, the confounds it creates for the table above, and the
-sixteen defects found in the recovery code across thirteen review rounds are in
-`rule-audit-evidence.md`. Read it before citing a cell from this table.
+seventeen defects found in the verdict-parsing code across fourteen review
+rounds are in `rule-audit-evidence.md`. Read it before citing a cell from this
+table. One of the seventeen, the most recent, is the first whose cost against
+this table could not be measured: the archive keeps raw payloads only for
+failed samples, so a defect on the success path leaves no evidence either way
+(issue #3998).
 
 **Provenance for the eight runs, recorded by hand because the artifacts do not
 carry it (issue #3956).**
@@ -409,6 +413,21 @@ number are not. The shapes recur either way.
   adversarial review round 13, fixed on 2026-07-30. The archive is unaffected,
   since none of the stored payloads contains a fence at all (measured: 0 of 24
   prefixes), and all 24 recover to byte-identical triples afterwards.
+- **A clean parse was treated as proof of a single answer.** Eleven rounds
+  attacked recovery and left the strict parse alone, on the reasoning that a
+  payload which parses whole cannot be ambiguous. JSON nests, so it can: a
+  second verdict sits inside the first as a member, a list element, or a
+  quoted string, and the grammar is satisfied. Duplicate-key rejection does
+  not see these, because a nested key is not a repeated one. The guard that
+  refuses exactly this already existed and was wired into all three recovery
+  paths and none of the strict one, so the miss was a path that did not know
+  it needed a check rather than a missing check. It now runs once before any
+  parse. Found by adversarial review round 14, fixed on 2026-07-30. **Unlike
+  the sixteen before it, the cost against the published table is unknown**:
+  the archive stores raw payloads only for failed samples, so the 264
+  successful ones cannot be replayed (issue #3998). Refusing on any `\u` in
+  the payload carries a second unmeasured cost in the same direction, since a
+  healthy verdict whose reasoning contains an escape now refuses too.
 - **Agentic CLI output is not clean JSON.** The provider reads
   `~/.copilot/session-state/<uuid>/events.jsonl` and correlates by the sandbox
   working directory, which is race-free. Falling back to stdout parsing mixes

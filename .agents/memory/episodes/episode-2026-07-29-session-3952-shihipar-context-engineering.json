@@ -35,6 +35,16 @@
       "rationale": "",
       "outcome": "success",
       "effects": []
+    },
+    {
+      "id": "d004",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "recovery",
+      "context": "",
+      "chosen": "Fixed by running _names_a_score_field_twice once before any parse rather than on the success branch, so a fourth parse path inherits the refusal instead of having to remember it. Chose the existing textual guard over a bespoke structural one: Sol's own finding 2 is that divergent strictness between paths is itself a defect, and a second differently-shaped guard would recreate exactly that.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
     }
   ],
   "events": [
@@ -181,7 +191,8 @@
         "e095",
         "e100",
         "e107",
-        "e117"
+        "e117",
+        "e127"
       ]
     },
     {
@@ -231,7 +242,8 @@
         "e095",
         "e100",
         "e107",
-        "e117"
+        "e117",
+        "e127"
       ]
     },
     {
@@ -649,7 +661,8 @@
         "e095",
         "e100",
         "e107",
-        "e117"
+        "e117",
+        "e127"
       ]
     },
     {
@@ -1057,6 +1070,98 @@
       "timestamp": "2026-07-29T00:00:00+00:00",
       "type": "milestone",
       "content": "Fixed the PR description gate on PR 3994 by reproducing extract_mentioned_files offline instead of round-tripping through CI, and recorded the two load-bearing citation-cue constraints in the governance gotchas file.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e120",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Sol round 14 found the seventeenth defect, on the strict-parse path that eleven rounds had treated as safe by construction. A payload that parses whole was read as naming one answer; JSON nests, so a second verdict can sit inside the first and the grammar is still satisfied.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e121",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced independently with four shapes Sol did not use: a nested 'revised' object, a verdict in a list, a verdict quoted inside a string, and one nested three deep. All four are valid JSON, all four published a clean verdict, and none carried judge_salvaged, so unlike the recovery defects there was no audit trail at all.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e122",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Found the guard already existed and already argued in its own docstring why it applies. It was wired into all three recovery paths and none of the strict one. The miss was a path that did not know it needed a check, not a missing check.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e123",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed by running _names_a_score_field_twice once before any parse rather than on the success branch, so a fourth parse path inherits the refusal instead of having to remember it. Chose the existing textual guard over a bespoke structural one: Sol's own finding 2 is that divergent strictness between paths is itself a defect, and a second differently-shaped guard would recreate exactly that.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e124",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured the cost first, as with the previous sixteen, and the measurement failed in a way that is itself the finding. The archive stores raw payloads only for failed samples: 264 successful samples retain six keys and no payload. A success-path defect is retroactively unmeasurable by construction. Filed as issue #3998.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e125",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified the tests catch the defect by stashing the fix and re-running: 5 of the new tests fail without it, and the over-breadth negative control passes either way.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e126",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Archive regression exact after the fix: 24/24 recover to byte-identical triples (17x 5/4/5, 5x 5/5/5, one 2/2/1, one 2/3/1). Round 8 negative controls D and H still recover. Suite 1553 to 1559 passed, 4 skipped. Ruff and mypy clean.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e127",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "content": "Archive regression exact after the fix: 24/24 recover to byte-identical triples (17x 5/4/5, 5x 5/5/5, one 2/2/1, one 2/3/1). Round 8 negative controls D and H still recover. Suite 1553 to 1559 passed, 4 skipped. Ruff and mypy clean.",
+      "caused_by": [
+        "e017",
+        "e022",
+        "e071"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e128",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected Sol finding 3: the evidence doc claimed every defect reported a wrong verdict as a clean parse. False for the sixteenth, which was marked judge_salvaged and wrong anyway. Rewrote to distinguish the two, since the marked case is the one showing an audit trail is a weaker defence than a refusal.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e129",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected Sol finding 4: the doc cited issue #3988 as the full round-by-round history. Its log stops at nine rounds and twelve defects. Reworded so the doc is the history of record and #3988 tracks only the argument.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e130",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Filed issue #3999 for the remaining Sol finding: _recover_verdict and _salvage_scores accept different payloads in both directions, and archive replay calls the latter directly, so a future archived score can depend on which helper the caller reached for. Left unfixed here as it belongs with the aggregator work.",
       "caused_by": [],
       "leads_to": []
     }
