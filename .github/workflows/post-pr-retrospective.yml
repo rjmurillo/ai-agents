@@ -65,6 +65,14 @@ jobs:
       escalate_depth: ${{ steps.gate.outputs.escalate_depth }}
 
     steps:
+      # The gate is a repo script (ADR-006), so this job needs it on disk.
+      # Sparse: one file, not the tree.
+      - name: Checkout gate script
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: scripts/ci/retrospective_gate.py
+          sparse-checkout-cone-mode: false
+
       - name: Determine eligibility and escalation
         id: gate
         env:
@@ -79,59 +87,7 @@ jobs:
           PR_BASE_REPO: ${{ github.repository }}
           REVIEW_COMMENTS: ${{ github.event.pull_request.review_comments }}
           DISPATCH_ESCALATE: ${{ inputs.escalate_depth }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          # workflow_dispatch path: trust caller and run unconditionally.
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            {
-              echo "should_run=true"
-              echo "pr_number=$PR_NUMBER"
-              echo "merged=unknown"
-              echo "escalate_depth=${DISPATCH_ESCALATE:-false}"
-            } >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          # Skip bot-authored PRs.
-          case "$PR_AUTHOR" in
-            dependabot\[bot\]|renovate\[bot\]|github-actions\[bot\]|copilot\[bot\]|coderabbitai\[bot\])
-              echo "::notice::Skipping retrospective for bot author: $PR_AUTHOR"
-              echo "should_run=false" >> "$GITHUB_OUTPUT"
-              exit 0
-              ;;
-          esac
-
-          # Skip fork PRs (no secrets available for the action).
-          if [ "$PR_HEAD_REPO" != "$PR_BASE_REPO" ]; then
-            echo "::notice::Skipping retrospective for fork PR head=$PR_HEAD_REPO"
-            echo "should_run=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          # Escalation heuristics:
-          #   1. Unmerged close (failure case).
-          #   2. Title contains rework / fix-cycle markers.
-          #   3. Review-comment density indicates rework friction.
-          escalate=false
-          if [ "$PR_MERGED" != "true" ]; then
-            escalate=true
-          fi
-          # Title comparison done in shell against env var; never interpolated into a command.
-          if printf '%s' "$PR_TITLE" | grep -Eqi '\b(rework|retry|fix-cycle|to.improve|hotfix)\b'; then
-            escalate=true
-          fi
-          if [ "${REVIEW_COMMENTS:-0}" -ge 10 ]; then
-            escalate=true
-          fi
-
-          {
-            echo "should_run=true"
-            echo "pr_number=$PR_NUMBER"
-            echo "merged=$PR_MERGED"
-            echo "escalate_depth=$escalate"
-          } >> "$GITHUB_OUTPUT"
+        run: python3 scripts/ci/retrospective_gate.py
 
   retrospective:
     name: Run retrospective agent
@@ -164,62 +120,7 @@ jobs:
           PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
           MERGED: ${{ needs.prepare.outputs.merged }}
           ESCALATE: ${{ needs.prepare.outputs.escalate_depth }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          {
-            echo 'PROMPT<<RETRO_EOF'
-            cat <<INSTRUCTIONS
-          You are running as the retrospective agent for a closed pull request.
-
-          Step 1. Read \`.github/agents/retrospective.agent.md\` and adopt its persona,
-          style guide, and 6-phase framework (Data Gathering, Insight Generation,
-          Diagnosis, Action Planning, Learning Extraction, Meta-Retrospective).
-
-          Step 2. Gather PR execution trace using gh CLI:
-            - \`gh pr view ${PR_NUMBER} --json title,body,state,merged,commits,reviews,comments,labels,closingIssuesReferences,statusCheckRollup,additions,deletions,changedFiles\`
-            - \`gh pr diff ${PR_NUMBER} --name-only\` for file scope
-            - \`gh run list --branch <head_ref_from_above> --limit 20\` for CI history
-
-          Step 3. Apply the 6-phase framework:
-            - Phase 0 (Data Gathering): 4-step debrief, execution trace, outcome classification.
-            - Phase 1 (Insights): Five Whys on every failure, rework, or CI red. Fishbone if multiple causes.
-            - Phase 2 (Diagnosis): Critical errors, success patterns, near misses.
-            - Phase 3 (Actions): Concrete process or skill changes with owner and verification.
-            - Phase 4 (Learning Extraction): Atomic skills with execution evidence. Score atomicity 0-100%.
-            - Phase 5 (Meta-Retrospective): ROTI score for this retrospective itself.
-
-          Step 4. Delegate skill persistence to the skillbook agent. Read
-          \`.github/agents/skillbook.agent.md\`, adopt the persona, and:
-            - Score every extracted skill for atomicity, evidence, and uniqueness.
-            - Reject vague learnings; update existing skills before adding new ones.
-            - Persist accepted skills as Serena memories under \`.serena/memories/retrospective/\`.
-
-          Step 5. Write the retrospective artifact to
-          \`.agents/retrospective/<YYYY-MM-DD>-PR${PR_NUMBER}-retrospective.md\` using the
-          structure of existing files in that directory.
-
-          Step 6. Open a follow-up PR with the new artifact and any memory updates.
-          Branch prefix is configured by the action. Do not push to main directly.
-          Post a concise summary comment on PR #${PR_NUMBER} linking to the artifact.
-
-          Inputs for this run:
-            - PR_NUMBER: ${PR_NUMBER}
-            - MERGED: ${MERGED}
-            - ESCALATE_DEPTH: ${ESCALATE}
-
-          When ESCALATE_DEPTH is true, expand Phase 1 with fishbone and force-field
-          analysis, and include a dedicated "What we would do differently" section
-          tied to specific failure points.
-
-          Hard constraints:
-            - Async by design. Do not gate or modify the merged state of PR #${PR_NUMBER}.
-            - Do not edit HANDOFF.md (read-only per ADR-014).
-            - Conventional commit messages with \`chore(retrospective): ...\` scope.
-            - Quantify every learning. Replace adjectives with data.
-          INSTRUCTIONS
-            echo 'RETRO_EOF'
-          } >> "$GITHUB_OUTPUT"
+        run: python3 scripts/ci/build_retrospective_prompt.py
 
       # Pin to SHA matches rjmurillo-bot.yml.
       # https://github.com/anthropics/claude-code-action/releases/tag/v1.0.139
