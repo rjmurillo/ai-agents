@@ -200,13 +200,25 @@ if you reduce in this order:
    samples of each field separately. Three medians.
 3. The cell score is the **mean of those three medians**.
 4. The published figure is the **mean of the three positive-scenario cells**
-   for that mechanism. The negative scenario is scored but excluded here; it
-   answers a different question and is reported separately.
+   for that mechanism. The negative scenario is scored and reported but does
+   not gate the verdict, so read its column yourself (issue #3933).
 
 Three positive cells times three fields is nine medians, which is why a full
 run lands on a 1/9 grid. 3.89 is 35/9. Reducing in a different order, for
 example averaging the three fields before taking the median, gives different
 numbers.
+
+**Step 2 is a defect, not a choice, and the numbers below carry it.** Taking
+each field's median independently is a coordinate-wise median, and the result
+need not be any sample the judge gave. Three samples of 5/5/1, 5/1/5, and
+1/5/5 reduce to 5/5/5, a cell of 5.0, when every judge rated the triple at
+3.67. Reducing each sample to its own three-score mean first and taking the
+median of those scalars gives 3.67. Measured across all 96 archived cells,
+**3 diverge**, worst by 0.333 on a cell and 0.111 on a run average:
+`t-sol56` S2 description and S3 baseline, and `var-sol-2` S3 full. Recomputed
+end to end, the sign count is unchanged at seven positive against one
+negative, p = 0.0703, so the conclusion holds; two of the eight rows shift.
+Tracked as issue #3989. Do not reproduce this reduction in a new instrument.
 
 | Model | baseline | description | full | delta desc | delta full | discarded samples |
 |---|---|---|---|---|---|---|
@@ -221,104 +233,15 @@ numbers.
 
 ### The judge discarded Opus samples unevenly, and it was recoverable
 
-An earlier version of this table claimed every cell was graded on the full
-sample. **That was false.** Seventeen of the 48 Opus cells, one in three, were
-averaged over one or two judge samples instead of three: 10 cells lost one
-sample and 7 lost two. That is 24 of 144 Opus judge samples, one in six, all
-of them in positive scenarios. The `total_judge_failures` field the claim
-rested on counts affected cells, not failed samples (issue #3958), which is
-how the undercount survived. Sol lost none.
+Seventeen of the 48 Opus cells were averaged over one or two judge samples
+instead of three, and all 24 lost samples are in the four Opus artifacts.
+Recovering them moved one cell (`fx-opus5` baseline, 3.83 to 3.89) and left
+the sign count unchanged. Seven published cells rest on a single graded
+sample, all seven Opus.
 
-The split matters for reading the table. A cell reduced to two samples takes
-the median of an even count, so its score can land on a half-integer and the
-scenario average can leave the 1/9 grid a full sample would put it on. That is
-where the `fx-opus5` baseline of 3.83 came from. If you try to reconstruct a
-pre-recovery number and it will not divide by 9, this is why.
-
-The loss is not random with respect to the comparison, and that much is
-directly supported: all 24 lost samples sit in `var-opus-*.json` artifacts, so
-the loss is confined to Opus-labelled runs and to positive scenarios.
-
-**The cause is not recoverable from the archive, so do not state one.** The
-artifacts retain only a 200-character prefix of the judge output. Re-parsing
-those prefixes reports `Unterminated string` for 19 of 24, which is the
-truncation talking, and only 5 show a stray quote inside the window. An
-earlier draft asserted all 24 were unescaped quotes and that verbose models
-trip it more often. The first is unmeasurable at 200 characters; the second is
-a mechanism the artifacts never recorded. Widen the prefix before claiming a
-cause again (issue #3975).
-
-**All 24 lost samples were recovered**: each yielded three top-level integers
-ahead of the prose that broke the parse. Recovery is all-or-nothing, so a
-payload missing any of the three fails rather than recovering a partial
-verdict. The recovery is load-bearing here; the cause is not, because the
-correction works the same either way.
-
-`_salvage_scores` in `scripts/eval/eval-rule-activation.py` now recovers the
-numbers when the object will not parse, all-or-nothing, and marks the sample
-`judge_salvaged`. A salvaged sample is counted as graded, not as a failure, so
-it does not increment the run's failure counters. The table above is
-recomputed with all 24 recovered.
-
-**The correction did not change the reported sign count.** One cell moved
-(`fx-opus5` baseline, 3.83 to 3.89). The per-model split held and the pooled
-description delta shifted from -0.13 to -0.14.
-
-State the limit of that plainly. The extractor was written after seeing which
-samples failed, so this is a post-hoc recovery, not an independent
-replication. Recovering *every* failure rather than a chosen subset avoids
-outcome selection.
-
-**It has since survived seven rounds of adversarial review and failed the
-first six.** The regex extractor was replaced with a structure-aware scanner,
-which review then broke repeatedly, always in the same direction: it returned
-a wrong verdict and reported it as a clean parse.
-
-Eleven defects of one class. Round 5 desynchronized the scan with an unescaped
-quote inside a nested object, harvesting an exemplar's scores as top-level.
-Round 6 showed a second root object could *be* the real verdict, not merely
-donate a field. Round 7 found salvage running after the range gate, re-admitting
-a `6` as a clean `5`. Round 8 found both root-object walkers counted braces and
-ignored brackets, so an object inside a top-level array read as root: `[{5/5/5
-exemplar}]` was returned as the judge's answer, in one shape with no salvage
-marker at all.
-
-Each round hardened the structural reading and each left the class standing.
-The fix was to stop reading structure to decide *which* object is the verdict.
-Salvage now anchors at offset 0 and refuses any payload naming a score field
-twice, counting the bare identifier so an escaped spelling cannot evade it.
-Round 9 found the same search alive on the *success* path, returning a verdict
-found past offset 0 indistinguishable from a clean parse; that now refuses, and
-a recovery from a clean leading object is marked `judge_salvaged`. The
-generalization: when a safety argument depends on parsing what you know is
-broken, the argument is the defect. Its corollary, learned in round 9: an
-unauditable recovery is worse than an auditable refusal.
-
-That is strict, and it discards recoverable payloads: a leading tool trace, a
-nested rubric, and prose naming a field all fail now. The asymmetry justifies
-it. A refused sample costs one of three; a fabricated one silently corrupts a
-published number. The published table cannot move either way: failed samples
-are dropped from each median rather than folded in as zeros, and no archived
-sample carries a salvage marker, so salvage never produced a published number.
-See the archive README for the full accounting and for what it cannot answer.
-
-That is not a blind test, because the same author wrote all five parsers.
-Falsifying it properly still takes one of: blinded manual transcription of the
-failed payloads, a second parser written by someone who has not seen them, or
-held-out malformed output. None has been done. Six rounds each hardened this
-function and each missed what the next found, so "it survived review" is weaker
-evidence here than the round count suggests.
-
-
-Reproduce the recovery from any archived run. The failed samples store the
-truncated raw payload in their `reasoning` field behind a
-`judge parse error: ` prefix; strip that prefix and feed the remainder to
-`_salvage_scores`. Walking the artifact needs care about its shape: `rules` is
-a **dict keyed by rule name**, and each scenario's `mechanisms` is likewise a
-**dict keyed by** `baseline`/`description`/`full`, not a list. Only
-`scenarios` is a list. A script that walks
-`rules[<name>].scenarios[].mechanisms[<mech>].score_samples[]` and re-medians
-each cell reproduces the table above exactly.
+The full accounting, the confounds it creates for the table above, and the
+thirteen defects found in the recovery code across ten review rounds are in
+`rule-audit-evidence.md`. Read it before citing a cell from this table.
 
 **Provenance for the eight runs, recorded by hand because the artifacts do not
 carry it (issue #3956).**
