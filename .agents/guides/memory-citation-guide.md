@@ -97,8 +97,9 @@ them usable in CI.
 
 Failures come in two kinds, and they call for different fixes.
 
-**Stale** means the file is still there but the content moved. The reason
-mentions `exceeds` or `not found in file`:
+**Stale** means the file is still there but the target is not where the
+citation says it is. The reason mentions `exceeds` (the file is now shorter
+than the cited line) or `not found in file` (no `def name` text):
 
 ```text
 [FAIL] src/a.py:99 - Line 99 exceeds file length (2 lines)
@@ -126,8 +127,11 @@ distinction is worth keeping straight. See
 1. Run `verify --memory-id <id>` and read every `[FAIL]` line.
 2. For each one, open the cited file and find where the content went.
 3. Re-point the citation. For a Python function or method, prefer
-   `[cite:function](path::name)` over `[cite:file](path:LINE)`; a line number
-   goes stale on the next edit above it, a function name does not. For anything
+   `[cite:function](path::name)` over `[cite:file](path:LINE)`. A line number
+   is only checked against the file's length, so an edit above it keeps
+   passing while pointing at different content; it fails only once the file
+   gets shorter than the cited line. A function name does not drift that way.
+   For anything
    else use `[cite:file](path)` or `[cite:file](path:LINE)`: the `function`
    check is a text search for `def name`, so a TypeScript, C#, or Go name is
    reported stale even when it exists, and a hyphenated name such as a

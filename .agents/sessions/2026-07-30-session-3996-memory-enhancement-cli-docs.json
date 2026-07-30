@@ -203,6 +203,36 @@
       "timestamp": "2026-07-30T23:15:00Z",
       "activity": "Pointed the guide's single-memory example at security/security-002-input-validation-first-88, verified to exit 0, so the one command a reader is most likely to copy is runnable.",
       "outcome": "Guard 71 passed, 0 em or en dashes across all changed files, no .claude changes so no version bump or mirror regeneration required."
+    },
+    {
+      "timestamp": "2026-07-31T00:10:00Z",
+      "activity": "Third adversarial review round on GPT-5.6 Sol returned five findings, four marked merge blockers. Reproduced each by execution before acting rather than accepting the severities.",
+      "outcome": "Two blockers confirmed, one downgraded to medium, one partly misread. All five still worth fixing; none accepted on the reviewer's word."
+    },
+    {
+      "timestamp": "2026-07-31T00:25:00Z",
+      "activity": "DOC-2, the one that mattered. The guide and the reflect reference both claimed a line citation 'goes stale on the next edit above it'. _verify_file_line only counts lines. Proved it: cite drift.py:5 in a 10-line file, insert three lines above, and the citation still passes while line 5 now holds different content.",
+      "outcome": "The claim was backwards. It is a silent false pass, and CITATION-SCHEMA.md already said the opposite, so the docs contradicted each other. Rewrote all three to say a line number is checked against length only and fails just on truncation."
+    },
+    {
+      "timestamp": "2026-07-31T00:40:00Z",
+      "activity": "Pinned the corrected behaviour with two characterization tests, since prose cannot be verified but the behaviour it describes can. Mutation-checked both by flipping the success return in _verify_file_line; both failed, and the file restored byte-clean.",
+      "outcome": "If line citations ever become content-aware the tests fail and name the three documents that must change with them."
+    },
+    {
+      "timestamp": "2026-07-31T00:55:00Z",
+      "activity": "PORT-1 claimed the vendor-portability declarations omit cited paths. Ran the repo's own gate: 'No new vendor-portability offenders', so it is not a gate violation. On substance the reviewer was right that a declaration naming two ADRs while the skill also cites two workflow files is incomplete.",
+      "outcome": "Downgraded from blocker to medium and fixed anyway. Both declarations now name every path a vendored install loses."
+    },
+    {
+      "timestamp": "2026-07-31T01:10:00Z",
+      "activity": "DOC-3 claimed the skill presents a fictional workflow as the deployed one. It is actually labelled 'Example workflow (for reference)', so the framing was wrong, but the 35 lines of YAML did contradict the real workflow on name, path filters, blocking behaviour, and a PR-comment step that does not exist.",
+      "outcome": "Replaced the fiction with six accurate lines read off .github/workflows/citation-verify.yml. SKILL.md dropped from 360 to 322 lines."
+    },
+    {
+      "timestamp": "2026-07-31T01:20:00Z",
+      "activity": "Closed DOC-4 and the remainder of DOC-1: health does not rank, so 'ranks the damage' became 'summarizes', and the function-citation recommendation is now scoped to Python where the def-text search actually works.",
+      "outcome": "Version gate OK at 0.6.5432, build_all idempotent, 104 targeted tests pass, taste lints 0 errors, 0 em or en dashes across all 13 changed files."
     }
   ],
   "endingCommit": "7c64e26c23a9e1ee091de6495b82bff7099ffb35",

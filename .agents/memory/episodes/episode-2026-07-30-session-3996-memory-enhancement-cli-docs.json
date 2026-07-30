@@ -194,6 +194,54 @@
       "leads_to": [
         "e022"
       ]
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Two blockers confirmed, one downgraded to medium, one partly misread. All five still worth fixing; none accepted on the reviewer's word.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The claim was backwards. It is a silent false pass, and CITATION-SCHEMA.md already said the opposite, so the docs contradicted each other. Rewrote all three to say a line number is checked against length only and fails just on truncation.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "If line citations ever become content-aware the tests fail and name the three documents that must change with them.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e027",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Downgraded from blocker to medium and fixed anyway. Both declarations now name every path a vendored install loses.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e028",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replaced the fiction with six accurate lines read off .github/workflows/citation-verify.yml. SKILL.md dropped from 360 to 322 lines.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e029",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Version gate OK at 0.6.5432, build_all idempotent, 104 targeted tests pass, taste lints 0 errors, 0 em or en dashes across all 13 changed files.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

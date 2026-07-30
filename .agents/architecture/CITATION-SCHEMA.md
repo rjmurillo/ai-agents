@@ -137,8 +137,9 @@ Base directories differ by type: repo root for `file` and `function`,
 `_classify_result` in `health.py` splits failures using
 `STALE_REASON_MARKERS = ("exceeds", "not found in file")`:
 
-- **stale**: the file is present but its content moved. Line count exceeded,
-  or a function no longer defined.
+- **stale**: the file is present but the target is not where the citation says
+  it is. The file is now shorter than the cited line, or no `def name` text is
+  found.
 - **broken**: the target itself is missing or malformed.
 
 The distinction matters because stale citations count half in the health
