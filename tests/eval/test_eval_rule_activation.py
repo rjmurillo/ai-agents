@@ -157,8 +157,11 @@ class TestScoreResponseJudgeShape:
             '{"activation_score": NaN, "citation_score": 5, "behavior_score": 5}',
             '{"activation_score": Infinity, "citation_score": 5, "behavior_score": 5}',
             '{"activation_score": 6, "citation_score": 5, "behavior_score": 5}',
+            '{"activation_score": 0, "citation_score": 5, "behavior_score": 5}',
             '{"activation_score": -1, "citation_score": 5, "behavior_score": 5}',
             '{"activation_score": 4.9, "citation_score": 5, "behavior_score": 5}',
+            '{"activation_score": 5.0, "citation_score": 5, "behavior_score": 5}',
+            '{"activation_score": 5e0, "citation_score": 5, "behavior_score": 5}',
         ],
     )
     def test_malformed_judge_score_object_sets_judge_failed(
@@ -956,3 +959,394 @@ class TestJudgeSampleReduction:
         captured = capsys.readouterr()
         assert code == 2
         assert "--judge-repeats must be positive" in captured.err
+
+
+# ---------------------------------------------------------------------------
+# _extract_json_object: recovering judge scores from agentic CLI output
+#
+# The judge is told to answer with JSON only. The Anthropic path obeys, so a
+# whole-string json.loads succeeds and the extractor is never consulted.
+# Agentic CLI providers interleave tool-call traces and trailing prose around
+# the answer, which made every such judge call score 0 and flip mechanism
+# rankings. These cover the recovery path, the refusals, and the string-scan
+# edges that a naive brace count gets wrong.
+# ---------------------------------------------------------------------------
+
+
+_JUDGE = '{"activation_score": 5, "citation_score": 4, "behavior_score": 5}'
+
+
+def test_extract_json_object_returns_plain_object_unchanged():
+    assert eval_mod._extract_json_object(_JUDGE) == _JUDGE
+
+
+def test_extract_json_object_skips_leading_cli_tool_trace():
+    text = (
+        "\u25cf List working directory contents (shell)\n"
+        "  \u2502 ls -la /tmp/eval-copilot-abc 2>&1 | head -50\n"
+        "  \u2514 4 lines\u2026\n\n" + _JUDGE
+    )
+    assert eval_mod._extract_json_object(text) == _JUDGE
+
+
+def test_extract_json_object_drops_trailing_prose():
+    assert (
+        eval_mod._extract_json_object(_JUDGE + "\n\nLet me know if you want more.")
+        == _JUDGE
+    )
+
+
+def test_extract_json_object_handles_nested_objects():
+    text = 'noise {"a": {"b": 1}, "c": 2} tail'
+    assert eval_mod._extract_json_object(text) == '{"a": {"b": 1}, "c": 2}'
+
+
+def test_extract_json_object_returns_none_without_any_brace():
+    assert eval_mod._extract_json_object("I cannot score this response.") is None
+
+
+def test_extract_json_object_returns_none_on_unbalanced_object():
+    assert eval_mod._extract_json_object('{"activation_score": 5') is None
+
+
+def test_extract_json_object_prefers_the_verdict_over_an_earlier_tool_result():
+    """A tool-call trace emits its own JSON before the answer.
+
+    Taking the first balanced object hands back the trace, the shape check
+    fails, and the real verdict is never tried. This is the shape that made
+    the extractor useless for the providers it was written for.
+    """
+    text = '{"command": "ls", "exit_code": 0}\n\nHere is my grade:\n' + _JUDGE
+
+    assert eval_mod._extract_json_object(text) == _JUDGE
+
+
+def test_extract_json_object_skips_an_unparseable_leading_object():
+    text = '{"broken": }\n' + _JUDGE
+
+    assert eval_mod._extract_json_object(text) == _JUDGE
+
+
+def test_extract_json_object_skips_a_partial_score_object():
+    """A near-miss must not win. Missing one field is not a verdict."""
+    partial = '{"activation_score": 5, "citation_score": 4}'
+    text = partial + "\n\n" + _JUDGE
+
+    assert eval_mod._extract_json_object(text) == _JUDGE
+
+
+def test_extract_json_object_falls_back_to_the_first_parseable_object():
+    """No verdict anywhere still returns content, so the caller can report a
+    shape error against what the judge actually said rather than a bare parse
+    failure."""
+    text = '{"refusal": "cannot grade"}\n{"also": "not a verdict"}'
+
+    assert eval_mod._extract_json_object(text) == '{"refusal": "cannot grade"}'
+
+
+def test_iter_json_objects_yields_siblings_without_reentering_nested_ones():
+    text = 'a {"x": {"y": 1}} b {"z": 2} c'
+
+    assert list(eval_mod._iter_json_objects(text)) == ['{"x": {"y": 1}}', '{"z": 2}']
+
+
+# ---------------------------------------------------------------------------
+# _salvage_scores / _judge_parse_failure: an unparseable `reasoning` field must
+# not discard the three numbers the eval actually scores on.
+#
+# Observed in production: 24 of 96 Opus judge samples were thrown away, every
+# one of them carrying its scores in plain sight. The judge quotes the response
+# it is grading, and an unescaped quote inside that prose invalidates the whole
+# object. Verbose models trip it more often, so the loss was not random with
+# respect to the comparison being made.
+# ---------------------------------------------------------------------------
+
+
+_UNESCAPED_QUOTE_JUDGE = (
+    '{"activation_score": 5, "citation_score": 4, "behavior_score": 5, '
+    '"reasoning": "rejected it as "a rename" rather than a layer"}'
+)
+
+
+def test_score_response_salvages_malformed_verdict_after_tool_trace(monkeypatch):
+    monkeypatch.setattr(
+        eval_mod,
+        "_call_api",
+        lambda *_args, **_kwargs: (
+            '{"activation_score": 1, "command": "ls"}\n' + _UNESCAPED_QUOTE_JUDGE
+        ),
+    )
+
+    result = eval_mod.score_response(
+        "sk-test",
+        {"input": "x", "expected_gate": "apply-rule"},
+        "response",
+    )
+
+    assert result["judge_failed"] is False
+    assert result["activation_score"] == 5
+    assert result["citation_score"] == 4
+    assert result["behavior_score"] == 5
+
+
+def test_judge_parse_failure_does_not_combine_partial_objects():
+    result = eval_mod._judge_parse_failure(
+        '{"activation_score": 5}\n{"citation_score": 4, "behavior_score": 3}',
+        "parse error",
+    )
+
+    assert result["judge_failed"] is True
+
+
+def test_salvage_scores_ignore_score_fields_inside_reasoning():
+    salvaged = eval_mod._salvage_scores(
+        '{"activation_score": 4, "citation_score": 3, "behavior_score": 5, '
+        '"reasoning": "the rubric says "activation_score": 1"}'
+    )
+
+    assert salvaged == {
+        "activation_score": 4,
+        "citation_score": 3,
+        "behavior_score": 5,
+    }
+
+
+def test_salvage_scores_reject_duplicate_fields_before_reasoning():
+    result = eval_mod._judge_parse_failure(
+        '{"activation_score": 4, "activation_score": 5, '
+        '"citation_score": 3, "behavior_score": 5, "reasoning": "broken"}',
+        "parse error",
+    )
+
+    assert result["judge_failed"] is True
+
+
+def test_judge_parse_failure_salvages_scores_from_unescaped_quote_prose():
+    result = eval_mod._judge_parse_failure(_UNESCAPED_QUOTE_JUDGE, "judge parse error")
+
+    assert result["judge_failed"] is False
+    assert result["judge_salvaged"] is True
+    assert result["activation_score"] == 5
+    assert result["citation_score"] == 4
+    assert result["behavior_score"] == 5
+
+
+def test_judge_parse_failure_still_fails_when_no_scores_are_present():
+    result = eval_mod._judge_parse_failure("I refuse to grade this.", "parse error")
+
+    assert result["judge_failed"] is True
+    assert result["activation_score"] == 0
+    assert "judge_salvaged" not in result
+
+
+def test_judge_parse_failure_does_not_invent_a_missing_field():
+    """Two of three is not a score. Salvage must be all-or-nothing."""
+    result = eval_mod._judge_parse_failure(
+        '{"activation_score": 5, "citation_score": 4}', "missing behavior_score"
+    )
+
+    assert result["judge_failed"] is True
+    assert result["behavior_score"] == 0
+
+
+def test_judge_parse_failure_rejects_a_non_numeric_score():
+    result = eval_mod._judge_parse_failure(
+        '{"activation_score": "high", "citation_score": 4, "behavior_score": 5}',
+        "non-numeric activation_score",
+    )
+
+    assert result["judge_failed"] is True
+
+
+@pytest.mark.parametrize(
+    "activation_score", ["0", "6", "-1", "05", "5.0", "5e0", "5junk"]
+)
+def test_salvage_scores_rejects_an_invalid_value(activation_score):
+    salvaged = eval_mod._judge_parse_failure(
+        f'{{"activation_score": {activation_score}, '
+        '"citation_score": 4, "behavior_score": 3} "',
+        "parse error",
+    )
+
+    assert salvaged["judge_failed"] is True
+    assert salvaged["activation_score"] == 0
+
+
+def test_extract_json_object_returns_none_on_empty_input():
+    assert eval_mod._extract_json_object("") is None
+
+
+def test_extract_json_object_ignores_braces_inside_strings():
+    text = '{"reasoning": "avoid {} literals here", "activation_score": 3}'
+    assert eval_mod._extract_json_object(text) == text
+
+
+def test_extract_json_object_ignores_escaped_quotes_inside_strings():
+    text = '{"reasoning": "the model said \\"do not extract\\" here", "s": 1}'
+    assert eval_mod._extract_json_object(text) == text
+
+
+def test_extract_json_object_ignores_escaped_backslash_before_quote():
+    text = '{"reasoning": "trailing backslash \\\\", "s": 1}'
+    assert eval_mod._extract_json_object(text) == text
+
+
+def test_extract_json_object_advances_past_unbalanced_leading_candidate():
+    text = '{ unterminated\n' + _JUDGE
+    assert eval_mod._extract_json_object(text) == _JUDGE
+
+
+def test_extract_json_object_result_parses_as_json():
+    text = "trace line\n" + _JUDGE + "\ntrailing"
+    extracted = eval_mod._extract_json_object(text)
+    assert extracted is not None
+    assert json.loads(extracted)["activation_score"] == 5
+
+
+# ---------------------------------------------------------------------------
+# Judge failures must not be scored as zero (issue #3915)
+# ---------------------------------------------------------------------------
+
+
+def _sample(score: int, judge_failed: bool = False) -> dict[str, object]:
+    return {
+        "activation_score": score,
+        "citation_score": score,
+        "behavior_score": score,
+        "judge_failed": judge_failed,
+    }
+
+
+def _ungraded_mech() -> dict[str, object]:
+    """A cell where every judge sample failed, as the reducer emits it."""
+    return {
+        "scores": eval_mod._reduce_score_samples(
+            [_sample(0, judge_failed=True)], "median"
+        )
+    }
+
+
+class TestReduceScoreSamples:
+    def test_all_samples_graded_reduces_normally(self):
+        reduced = eval_mod._reduce_score_samples(
+            [_sample(5), _sample(3), _sample(4)], "median"
+        )
+        assert reduced["activation_score"] == 4
+        assert reduced["judge_failed"] is False
+        assert reduced["graded"] is True
+        assert reduced["graded_sample_count"] == 3
+        assert reduced["failed_sample_count"] == 0
+
+    def test_partial_failure_reduces_over_graded_samples_only(self):
+        # The live regression: 2 of 3 samples scored 5, one failed to parse.
+        # Folding the failure in as a zero reported the cell as 0/0/0.
+        reduced = eval_mod._reduce_score_samples(
+            [_sample(0, judge_failed=True), _sample(5), _sample(5)], "median"
+        )
+        assert reduced["activation_score"] == 5
+        assert reduced["citation_score"] == 5
+        assert reduced["behavior_score"] == 5
+        assert reduced["graded"] is True
+        assert reduced["graded_sample_count"] == 2
+        assert reduced["failed_sample_count"] == 1
+
+    def test_partial_failure_still_flags_judge_failed(self):
+        reduced = eval_mod._reduce_score_samples(
+            [_sample(0, judge_failed=True), _sample(5)], "median"
+        )
+        assert reduced["judge_failed"] is True
+
+    def test_all_samples_failed_yields_ungraded_cell(self):
+        reduced = eval_mod._reduce_score_samples(
+            [_sample(0, judge_failed=True), _sample(0, judge_failed=True)], "median"
+        )
+        assert reduced["graded"] is False
+        assert reduced["judge_failed"] is True
+        assert reduced["activation_score"] is None
+        assert reduced["citation_score"] is None
+        assert reduced["behavior_score"] is None
+        assert reduced["graded_sample_count"] == 0
+        assert reduced["failed_sample_count"] == 2
+
+    def test_single_graded_sample_survives(self):
+        reduced = eval_mod._reduce_score_samples([_sample(2)], "median")
+        assert reduced["activation_score"] == 2
+        assert reduced["graded_sample_count"] == 1
+
+
+class TestUngradedCellsExcludedFromAverage:
+    def test_ungraded_cell_does_not_drag_mean_to_zero(self):
+        scenarios = [
+            _make_scenario(baseline=5, description=5, full=5),
+            _make_scenario(baseline=5, description=5, full=5),
+        ]
+        scenarios[1]["mechanisms"]["full"] = _ungraded_mech()
+
+        summary = eval_mod.aggregate(scenarios)
+
+        # Averaging the ungraded cell as zero would report 2.5.
+        assert summary["per_mechanism"]["full"]["avg_score"] == 5.0
+        assert summary["per_mechanism"]["full"]["graded_count"] == 1
+        assert summary["per_mechanism"]["full"]["scenario_count"] == 2
+
+    def test_uneven_failure_rates_do_not_invert_ranking(self):
+        # full genuinely outscores description, but fails the judge more often.
+        # Scoring failures as zero ranked description above full.
+        scenarios = [
+            _make_scenario(baseline=1, description=2, full=5),
+            _make_scenario(baseline=1, description=2, full=5),
+        ]
+        scenarios[1]["mechanisms"]["full"] = _ungraded_mech()
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["per_mechanism"]["full"]["avg_score"] == 5.0
+        assert summary["per_mechanism"]["description"]["avg_score"] == 2.0
+        assert summary["best_mechanism"] == "full"
+
+    def test_ungraded_cell_still_counts_as_a_judge_failure(self):
+        scenarios = [_make_scenario(baseline=5, description=5, full=5)]
+        scenarios[0]["mechanisms"]["full"] = _ungraded_mech()
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["per_mechanism"]["full"]["judge_failures"] == 1
+        assert summary["total_judge_failures"] >= 1
+        assert summary["verdict"] == "FAIL_JUDGE_ERRORS"
+
+    def test_every_cell_ungraded_yields_zero_average_not_a_pass(self):
+        scenarios = [_make_scenario(baseline=5, description=5, full=5)]
+        for mech in ("baseline", "description", "full"):
+            scenarios[0]["mechanisms"][mech] = _ungraded_mech()
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["per_mechanism"]["description"]["avg_score"] == 0.0
+        assert summary["per_mechanism"]["description"]["graded_count"] == 0
+        assert summary["verdict"] == "FAIL_JUDGE_ERRORS"
+
+    def test_api_error_cell_is_excluded_and_counted(self):
+        scenarios = [
+            _make_scenario(baseline=5, description=5, full=5),
+            _make_scenario(baseline=5, description=5, full=5),
+        ]
+        scenarios[1]["mechanisms"]["full"] = {"error": "API network error", "scores": {}}
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["per_mechanism"]["full"]["avg_score"] == 5.0
+        assert summary["per_mechanism"]["full"]["graded_count"] == 1
+        assert summary["per_mechanism"]["full"]["judge_failures"] == 1
+
+    def test_graded_count_appears_in_rendered_table(self):
+        scenarios = [
+            _make_scenario(baseline=5, description=5, full=5),
+            _make_scenario(baseline=5, description=5, full=5),
+        ]
+        scenarios[1]["mechanisms"]["full"] = _ungraded_mech()
+
+        table = eval_mod.render_table("r", eval_mod.aggregate(scenarios))
+
+        assert "Graded" in table
+        assert "1/2" in table
+        assert "2/2" in table
