@@ -26,9 +26,9 @@ import sys
 
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
-if _plugin_root:
+if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib")):
     _lib_dir = os.path.join(_plugin_root, "lib")
-elif _workspace:
+elif _workspace and os.path.isdir(os.path.join(_workspace, ".claude", "lib")):
     _lib_dir = os.path.join(_workspace, ".claude", "lib")
 else:
     _lib_dir = os.path.abspath(
@@ -506,7 +506,8 @@ def main(argv: list[str] | None = None) -> int:
                 _write_merge_ref_error(payload, fmt)
                 return 1
             merge_ref_warning = (
-                str(payload.get("MergeStateWarning") or "") or "PR merge ref unusable; logs may be incomplete"
+                str(payload.get("MergeStateWarning") or "")
+                or "PR merge ref unusable; logs may be incomplete"
             )
 
     elif pr_number > 0:
@@ -585,7 +586,8 @@ def main(argv: list[str] | None = None) -> int:
                 _write_merge_ref_error(payload, fmt)
                 return 1
             merge_ref_warning = (
-                str(payload.get("MergeStateWarning") or "") or "PR merge ref unusable; logs may be incomplete"
+                str(payload.get("MergeStateWarning") or "")
+                or "PR merge ref unusable; logs may be incomplete"
             )
     else:
         write_skill_error(
