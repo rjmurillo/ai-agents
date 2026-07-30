@@ -1334,7 +1334,11 @@ def _rebound_builtins(
 
 
 def _spares_pin(
-    node: ast.AST, parent: ast.AST | None, literal: bool, shadowed: frozenset[str]
+    node: ast.AST,
+    parent: ast.AST | None,
+    grandparent: ast.AST | None,
+    literal: bool,
+    shadowed: frozenset[str],
 ) -> bool:
     """Report whether the keywords mapping at *node* leaves its codec standing.
 
@@ -1347,6 +1351,13 @@ def _spares_pin(
     including handing the mapping to a function that could pass it on, which
     can change it out of sight.
 
+    A dict method is spared only where it is called. Naming one without
+    calling it answers with a bound method, and every bound method carries
+    the mapping it came from under ``__self__``, which is the mapping itself
+    and takes a write. ``runner.keywords.keys.__self__["encoding"] = None``
+    reads as the tamest reader there is and drops the pin. *grandparent* is
+    what separates the call from the bare name.
+
     *literal* is what separates a look from a leak. Rendering or comparing a
     mapping reaches its values, so a value carrying its own ``__repr__`` or
     ``__eq__`` runs code that can drop the pin. Copying reaches them one step
@@ -1357,8 +1368,9 @@ def _spares_pin(
     the file's own code, so none of them is spared.
     """
     if isinstance(parent, ast.Attribute):
-        return parent.attr in _KEY_READERS or (
-            literal and parent.attr in _VALUE_READERS
+        called = isinstance(grandparent, ast.Call) and grandparent.func is parent
+        return called and (
+            parent.attr in _KEY_READERS or (literal and parent.attr in _VALUE_READERS)
         )
     if isinstance(parent, ast.Subscript):
         return isinstance(parent.ctx, ast.Load) or _names_other_key(parent)
@@ -1517,7 +1529,11 @@ def _undone_pins(
             continue
         name = _owner_name(owner)
         root = roots.get(name) if name is not None else None
-        if _spares_pin(node, parents.get(id(node)), root in literal_roots, shadowed):
+        parent = parents.get(id(node))
+        grandparent = parents.get(id(parent)) if parent is not None else None
+        if _spares_pin(
+            node, parent, grandparent, root in literal_roots, shadowed
+        ):
             continue
         if root is not None:
             undone.add(root)
@@ -2784,6 +2800,24 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             '    seen = sorted(runner.keywords)\n'
             'runner(["x"], text=True)',
             "a parameter named for a keyword is not a parameter named for a reader",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env=guard\n'
+            ')\n'
+            'seen = runner.keywords.keys()\n'
+            'runner(["x"], text=True)',
+            "calling the reader answers with the keys and hands out no mapping",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", timeout=1\n'
+            ')\n'
+            'seen = runner.keywords.copy()\n'
+            'runner(["x"], text=True)',
+            "calling a value reader over literals is still the read it always was",
         ),
     ],
 )
@@ -4125,6 +4159,52 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             '    sorted(runner.keywords)\n'
             'runner(["x"], text=True)',
             "a registered callback is called from outside, so its parameters are unknown",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env=guard\n'
+            ')\n'
+            'runner.keywords.keys.__self__["encoding"] = None\n'
+            'runner(["x"], text=True)',
+            "a bound method carries the mapping it came from under __self__",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env=guard\n'
+            ')\n'
+            'reader = runner.keywords.keys\n'
+            'reader.__self__["encoding"] = None\n'
+            'runner(["x"], text=True)',
+            "the bound method carries the mapping to wherever it is bound",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", env=guard\n'
+            ')\n'
+            'reader = runner.keywords.keys\n'
+            'runner(["x"], text=True)',
+            "handing the bound method out is enough, whatever is done with it later",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", timeout=1\n'
+            ')\n'
+            'runner.keywords.items.__self__["encoding"] = None\n'
+            'runner(["x"], text=True)',
+            "a mapping of literals still hands its own mapping back under __self__",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(\n'
+            '    subprocess.run, capture_output=True, encoding="utf-8", timeout=1\n'
+            ')\n'
+            'runner.keywords.copy.__self__["encoding"] = None\n'
+            'runner(["x"], text=True)',
+            "every dict method carries __self__, not just the ones that read keys",
         ),
         (
             'import functools, subprocess\n'
