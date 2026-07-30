@@ -204,7 +204,7 @@ the repo on that date. Re-verify volatile facts before trusting them:
 | LF enforcement rationale | `.gitattributes:59` and header comments | `grep -n "eol=lf" .gitattributes` |
 | Serena memory file count (158 as of 2026-07-30) | `.serena/memories/` | `ls .serena/memories/ \| wc -l` |
 | tests/test_paths.py count (28) | pytest | `uv run pytest tests/test_paths.py --collect-only -q` |
-| uv TLS var rename | uv 0.11.26 runtime warning | `uv run python -c pass` under `UV_NATIVE_TLS` |
+| uv TLS var rename | uv 0.11.26 runtime warning | `UV_NATIVE_TLS=1 uv run python -c pass 2>&1` prints a deprecation warning naming UV_SYSTEM_CERTS |
 
 Maintenance rule: if any re-verify command disagrees with this file, the repo
 won. Update this skill in the same PR that changes the underlying fact, and bump
