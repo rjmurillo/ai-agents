@@ -1440,3 +1440,81 @@ class TestReportRecordsRunIdentity:
         """Unchanged behavior. A plan that spends no calls has no identity."""
         out = self._run(tmp_path, monkeypatch, "--dry-run")
         assert not out.exists()
+
+
+# ---------------------------------------------------------------------------
+# Dry-run cost: do not invent a dollar figure for a provider that bills in
+# requests
+#
+# The summary multiplied estimated tokens by 3, the sonnet per-million input
+# rate, and printed the product unconditionally. Measured before the fix, the
+# same plan under two transports:
+#
+#   $ eval-rule-activation.py --scenarios <file> --dry-run
+#     Estimated tokens: ~126,000 (~$0.38 sonnet input rate)
+#   $ EVAL_PROVIDER=github-models eval-rule-activation.py ... --dry-run
+#     Estimated tokens: ~126,000 (~$0.38 sonnet input rate)
+#
+# The second run spends no dollars and does not use sonnet. A wrong number is
+# worse than no number, because a reader budgets against it.
+#
+# The basis comes from cost_basis(), which resolves the provider exactly as the
+# transport does. Asking it rather than re-deriving it here is the point: two
+# functions answering "which provider is this" is how they come to disagree.
+# ---------------------------------------------------------------------------
+
+
+class TestDryRunCostBasis:
+    def test_anthropic_still_prints_the_usd_estimate(self, monkeypatch, capsys):
+        monkeypatch.delenv("EVAL_PROVIDER", raising=False)
+        eval_mod._print_dry_run_summary(36)
+        out = capsys.readouterr().out
+        assert "$0.38" in out
+        assert "sonnet" in out
+
+    def test_a_quota_billed_provider_prints_no_dollar_figure(self, monkeypatch, capsys):
+        monkeypatch.setenv("EVAL_PROVIDER", "github-models")
+        eval_mod._print_dry_run_summary(36)
+        out = capsys.readouterr().out
+        assert "$" not in out
+        assert "request" in out
+
+    def test_the_call_count_is_printed_under_either_basis(self, monkeypatch, capsys):
+        """The count is the one figure that is true regardless of who bills."""
+        monkeypatch.setenv("EVAL_PROVIDER", "github-models")
+        eval_mod._print_dry_run_summary(36)
+        quota = capsys.readouterr().out
+        monkeypatch.delenv("EVAL_PROVIDER", raising=False)
+        eval_mod._print_dry_run_summary(36)
+        usd = capsys.readouterr().out
+        assert "Total calls planned: 36" in quota
+        assert "Total calls planned: 36" in usd
+
+    @pytest.mark.parametrize("value", ["GitHub-Models", "  github  ", "GITHUB"])
+    def test_the_basis_follows_the_transport_s_own_normalization(
+        self, monkeypatch, capsys, value
+    ):
+        """These all route to GitHub Models, so none of them bills in dollars.
+
+        Deferring to cost_basis() is what makes this true without a second
+        normalization rule living here.
+        """
+        monkeypatch.setenv("EVAL_PROVIDER", value)
+        eval_mod._print_dry_run_summary(36)
+        assert "$" not in capsys.readouterr().out
+
+    def test_an_unrecognized_provider_keeps_the_usd_estimate(self, monkeypatch, capsys):
+        """Fall back to the priced basis rather than silently dropping cost.
+
+        An unknown transport is not evidence of a free one.
+        """
+        monkeypatch.setenv("EVAL_PROVIDER", "some-new-vendor")
+        eval_mod._print_dry_run_summary(36)
+        assert "$0.38" in capsys.readouterr().out
+
+    def test_a_zero_call_plan_is_still_reported(self, monkeypatch, capsys):
+        monkeypatch.setenv("EVAL_PROVIDER", "github-models")
+        eval_mod._print_dry_run_summary(0)
+        out = capsys.readouterr().out
+        assert "Total calls planned: 0" in out
+        assert "$" not in out

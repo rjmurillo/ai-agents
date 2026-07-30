@@ -58,7 +58,7 @@ from _anthropic_api import call_api as _call_api
 from _anthropic_api import (
     load_api_key_for_selected_provider as _load_api_key,
 )
-from _eval_common import EST_TOKENS_PER_CALL
+from _eval_common import EST_TOKENS_PER_CALL, cost_basis
 
 # ---------------------------------------------------------------------------
 # Config
@@ -1249,9 +1249,20 @@ def _classify_verdict(verdict: str) -> tuple[bool, bool]:
 
 
 def _print_dry_run_summary(total_calls: int) -> None:
+    """Print the plan, pricing it only when the transport bills in dollars.
+
+    `cost_basis` resolves the provider the same way the transport does, so this
+    does not re-derive it. A provider metered against a request allowance gets
+    the call count and no dollar figure: there is no public per-token rate to
+    convert, and a fabricated one is worse than none because a reader budgets
+    against it.
+    """
     est_tokens = total_calls * EST_TOKENS_PER_CALL
-    est_cost = est_tokens / 1_000_000 * 3
     print(f"\nTotal calls planned: {total_calls}")
+    if cost_basis(None) == "requests":
+        print(f"Estimated tokens: ~{est_tokens:,} (metered as requests, not billed per token)")
+        return
+    est_cost = est_tokens / 1_000_000 * 3
     print(f"Estimated tokens: ~{est_tokens:,} (~${est_cost:.2f} sonnet input rate)")
 
 
