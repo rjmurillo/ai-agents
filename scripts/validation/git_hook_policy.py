@@ -4218,8 +4218,8 @@ def _suppression_renames(
     return _parse_suppression_renames(result.stdout, context=context)
 
 
-PATH_SEPARATOR_RE = re.compile(r"[\\/]")
 
+PATH_SEPARATOR_RE = re.compile(r"[\\/]")
 
 def _step_defeats_bash_subparse(shell: str | None, run: str) -> bool:
     if _body_declares_its_own_interpreter(run):
@@ -4691,6 +4691,35 @@ def _unpushed_commit_count(update: PushUpdate, repo_root: Path) -> int | None:
         return None
 
 
+def _new_commits_for_branch(update: PushUpdate, branch: str | None, repo_root: Path) -> int | None:
+    """Count commits in this push that are not yet on the remote branch.
+
+    Returns None on any git failure. Used for the needs-split bypass: a PR
+    labelled needs-split may still receive small fix commits even when the
+    branch is over the total limit (issue #3895).
+    """
+    if not branch:
+        return None
+    result = _run_git(
+        repo_root,
+        ["rev-list", "--count", update.source.local_sha, f"^origin/{branch}"],
+    )
+    if result.returncode != 0:
+        return None
+    try:
+        return int(result.stdout.strip())
+    except ValueError:
+        return None
+
+
+# Maximum new commits allowed through the needs-split bypass per push.
+# The bypass is for small fix/merge commits while the PR awaits splitting, not
+# for landing an entirely new batch of work (issue #3895).
+_NEEDS_SPLIT_NEW_COMMIT_CAP = 5
+
+_NEEDS_SPLIT_LABEL = "needs-split"
+
+
 def _check_commit_limit(update: PushUpdate, repo_root: Path) -> int:
     result = _run_git(repo_root, ["rev-list", "--count", update.range_spec])
     if result.returncode != 0:
@@ -4721,6 +4750,39 @@ def _check_commit_limit(update: PushUpdate, repo_root: Path) -> int:
             f"limit is {limit}.",
         )
         return 0
+    # needs-split bypass (issue #3895): a PR labelled needs-split is already
+    # scheduled for splitting. Block only when this push itself is large; allow
+    # small fix pushes (up to _NEEDS_SPLIT_NEW_COMMIT_CAP new commits) so the
+    # author can address review comments without being forced onto --no-verify.
+    # commit-limit-bypass (checked above) remains the unconditional escape.
+    split_args = [
+        sys.executable,
+        "scripts/validation/check_pr_bypass_label.py",
+        "--label",
+        _NEEDS_SPLIT_LABEL,
+    ]
+    if branch:
+        split_args.extend(["--branch", branch])
+    split_check = _run_command(split_args, repo_root)
+    if split_check.returncode == 0:
+        new_count = _new_commits_for_branch(update, branch, repo_root)
+        if new_count is not None and new_count <= _NEEDS_SPLIT_NEW_COMMIT_CAP:
+            print(
+                f"NOTE: PR is labelled {_NEEDS_SPLIT_LABEL!r}; this push adds "
+                f"{new_count} new commit(s) (cap {_NEEDS_SPLIT_NEW_COMMIT_CAP}). "
+                "Allowing while splitting is in progress.",
+            )
+            return 0
+        cap_msg = (
+            f"{new_count} new commit(s) exceeds the needs-split cap ({_NEEDS_SPLIT_NEW_COMMIT_CAP})"
+            if new_count is not None
+            else "could not count new commits"
+        )
+        print(
+            f"NOTE: PR has {_NEEDS_SPLIT_LABEL!r} but {cap_msg}; "
+            "use commit-limit-bypass to override the ceiling entirely.",
+            file=sys.stderr,
+        )
     _print_process_output(bypass, stdout_stream=sys.stderr)
     print(f"ERROR: push has {commit_count} commits, limit is {limit}", file=sys.stderr)
     return 1

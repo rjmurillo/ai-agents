@@ -5320,6 +5320,159 @@ def test_main_merge_detection_handles_git_errors(
     assert not policy._merge_has_main_parent("merge", tmp_path)
 
 
+def test_needs_split_bypass_allows_small_push_on_large_branch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """needs-split label + <= 5 new commits bypasses the limit (issue #3895).
+
+    PR #3688 scenario: branch has 52 commits (over limit) but only adds
+    3 new commits in this push to address review feedback. The push must
+    succeed because splitting is already in progress.
+    """
+    update = policy.PushUpdate(
+        source=policy.PushRef("refs/heads/fix/big", "a" * 40, "refs/heads/fix/big", "b" * 40),
+        base="base",
+        head="head",
+        range_spec="base..head",
+        destination_branch="fix/big",
+    )
+
+    def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        if args[:2] == ["rev-list", "--count"] and "^origin/" in " ".join(args):
+            # New commits only: 3
+            return _completed(0, "3\n")
+        if args[:2] == ["rev-list", "--count"]:
+            # Total branch commits: 52
+            return _completed(0, "52\n")
+        return _completed(0)
+
+    call_count = [0]
+
+    def fake_command(
+        args: Sequence[str], _root: Path, **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        call_count[0] += 1
+        if "--label" in args and "needs-split" in args:
+            return _completed(0, "needs-split present on PR #3688\n")
+        # commit-limit-bypass not present
+        return _completed(1, stdout="no commit-limit-bypass label (PR #3688)\n")
+
+    monkeypatch.setattr(policy, "_run_git", fake_git)
+    monkeypatch.setattr(policy, "_run_command", fake_command)
+
+    assert policy._check_commit_limit(update, tmp_path) == 0
+    assert "needs-split" in capsys.readouterr().out
+
+
+def test_needs_split_bypass_blocks_when_new_commits_exceed_cap(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """needs-split label does NOT bypass when this push is itself large (issue #3895).
+
+    If the author is adding 10 commits to an already-over-limit branch, the
+    needs-split bypass must not apply. Only commit-limit-bypass unlocks this.
+    """
+    update = policy.PushUpdate(
+        source=policy.PushRef("refs/heads/fix/big", "a" * 40, "refs/heads/fix/big", "b" * 40),
+        base="base",
+        head="head",
+        range_spec="base..head",
+        destination_branch="fix/big",
+    )
+
+    def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        if args[:2] == ["rev-list", "--count"] and "^origin/" in " ".join(args):
+            # New commits: 10 (over the cap of 5)
+            return _completed(0, "10\n")
+        if args[:2] == ["rev-list", "--count"]:
+            return _completed(0, "52\n")
+        return _completed(0)
+
+    def fake_command(
+        args: Sequence[str], _root: Path, **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        if "--label" in args and "needs-split" in args:
+            return _completed(0, "needs-split present on PR #3688\n")
+        return _completed(1, stdout="no commit-limit-bypass label (PR #3688)\n")
+
+    monkeypatch.setattr(policy, "_run_git", fake_git)
+    monkeypatch.setattr(policy, "_run_command", fake_command)
+
+    assert policy._check_commit_limit(update, tmp_path) == 1
+
+
+def test_needs_split_bypass_absent_falls_through_to_block(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When neither bypass label is present, the block stands (issue #3895)."""
+    update = policy.PushUpdate(
+        source=policy.PushRef("refs/heads/fix/big", "a" * 40, "refs/heads/fix/big", "b" * 40),
+        base="base",
+        head="head",
+        range_spec="base..head",
+        destination_branch="fix/big",
+    )
+    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "52\n"))
+    monkeypatch.setattr(
+        policy,
+        "_run_command",
+        lambda *_args, **_kwargs: _completed(1, stdout="no label\n"),
+    )
+
+    assert policy._check_commit_limit(update, tmp_path) == 1
+
+
+def test_needs_split_bypass_allows_push_at_exact_cap(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """needs-split bypass allows exactly _NEEDS_SPLIT_NEW_COMMIT_CAP new commits.
+
+    The boundary: 5 new commits on a 52-commit over-limit branch must succeed.
+    6 new commits must not. This test covers cap=5 exactly so the <= vs < mutation
+    is detected.
+    """
+    update = policy.PushUpdate(
+        source=policy.PushRef("refs/heads/fix/big", "a" * 40, "refs/heads/fix/big", "b" * 40),
+        base="base",
+        head="head",
+        range_spec="base..head",
+        destination_branch="fix/big",
+    )
+
+    def _fake_git_with_new(new_count: int) -> object:
+        def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+            if args[:2] == ["rev-list", "--count"] and "^origin/" in " ".join(args):
+                return _completed(0, f"{new_count}\n")
+            return _completed(0, "52\n")
+
+        return fake_git
+
+    def fake_command(
+        args: Sequence[str], _root: Path, **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        if "--label" in args and "needs-split" in args:
+            return _completed(0, "needs-split\n")
+        return _completed(1, stdout="no commit-limit-bypass\n")
+
+    monkeypatch.setattr(policy, "_run_command", fake_command)
+
+    # Exactly at cap (5): must pass
+    monkeypatch.setattr(policy, "_run_git", _fake_git_with_new(policy._NEEDS_SPLIT_NEW_COMMIT_CAP))
+    assert policy._check_commit_limit(update, tmp_path) == 0
+
+    # One over the cap (6): must block
+    monkeypatch.setattr(
+        policy, "_run_git", _fake_git_with_new(policy._NEEDS_SPLIT_NEW_COMMIT_CAP + 1)
+    )
+    assert policy._check_commit_limit(update, tmp_path) == 1
+
+
 def test_main_merge_detection_rejects_non_main_second_parent(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
