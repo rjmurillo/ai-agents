@@ -209,6 +209,12 @@
       "action": "Checked the sibling scripts for the same fabricated dollar figure",
       "detail": "eval-agents.py, eval-knowledge-integration.py, and eval-prompt-change.py print call counts and token counts with no dollar figure, so none can fabricate one. eval-skill-overlap.py prints USD but raises PricingError when the model has no rate entry, so it refuses rather than inventing a number. The rule script was the only one that fabricated. No follow-up needed.",
       "outcome": "Scope confirmed complete, not assumed"
+    },
+    {
+      "phase": "implementation",
+      "action": "Purged another session's events from this session's episode file",
+      "detail": "A bot review thread read the episode as a document of record and noticed it described a different change set than the diff. It was right: 12 of the 30 events came from the session log this one was copied from, extracted before commit 0fa58a1b4 rewrote the log. Rewriting the log did not fix the episode, because the commit hook always runs the extractor with --preserve, which unions the fresh extraction into the existing file. Content extracted from a wrong log therefore survives every later run by design, and --force is the only path that drops it. Regenerated with --force: 30 events become 17, every one of which traces to a workLog entry here. The general defect is that correcting a session log cannot correct its episode through any automatic path.",
+      "outcome": "Episode matches the log; the systemic gap is recorded for filing"
     }
   ],
   "outcomes": {
@@ -224,7 +230,8 @@
       "Proving a plan-time gate opens is not proving the capability works. The live run was the evidence that mattered, and it was cheap to get once the gate was open.",
       "A required field filled with a placeholder passes validation and defeats the check it feeds. upstream_model is validated non-empty and compared by _provenance_mismatch to refuse cross-model gating. The rule kind auto-filled the literal 'not-applicable', which satisfied non-empty while carrying no information, so every rule comparison passed. A placeholder that is grammatically valid and semantically false is worse than a missing field, because the missing field would have raised.",
       "Proving a capability on one input kind does not prove it on the others the same tool declares. The optimizer declares agent, rule, and hook. Running rule for the first time surfaced a dead gate protection immediately. A kind nobody has run is a kind nobody has tested.",
-      "A discrimination proof is stronger than a failure demonstration and costs one extra control. Showing the rule pair compared would have proved only that something was permissive; showing the agent pair refused through the same function established that the protection exists and was absent for exactly one kind, which told me which side to fix."
+      "A discrimination proof is stronger than a failure demonstration and costs one extra control. Showing the rule pair compared would have proved only that something was permissive; showing the agent pair refused through the same function established that the protection exists and was absent for exactly one kind, which told me which side to fix.",
+      "Correcting a fabricated session log does not correct the episode extracted from it. The commit hook only ever passes --preserve, which unions rather than replaces, so wrong content extracted once is permanent through the automatic path. --force exists and nothing invokes it. A correction mechanism that cannot reach a derived artifact leaves the derived artifact as the surviving copy of the error."
     ]
   },
   "endingCommit": "c7154520f",
@@ -232,6 +239,7 @@
     "Drive PR 4005 to closure and answer any bot review threads.",
     "eval-rule-activation.py has no --provider flag and only honors EVAL_PROVIDER, so it lacks the ergonomics parity the agent script has. Working as designed, but worth filing as a gap.",
     "eval-skill-overlap.py line 158 carries the same Anthropic-only raise, but that script has no provider flag or plumbing at all, so giving it provider support is new scope rather than a bug fix. Decide whether to file it.",
-    "cli_main mutating global process environment is a latent trap for every future in-process CLI test. Not yet filed."
+    "cli_main mutating global process environment is a latent trap for every future in-process CLI test. Not yet filed.",
+    "File the episode preserve gap: the commit hook runs extract_session_episode.py with --preserve unconditionally, so a corrected session log cannot purge wrong events from its episode without a manual --force run."
   ]
 }

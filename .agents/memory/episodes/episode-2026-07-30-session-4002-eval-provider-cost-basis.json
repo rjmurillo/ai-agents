@@ -22,7 +22,7 @@
       "id": "e001",
       "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
-      "content": "Reproduced the CI failure locally",
+      "content": "Reproduced the dead flag on the real fixture corpus",
       "caused_by": [],
       "leads_to": []
     },
@@ -30,7 +30,7 @@
       "id": "e002",
       "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
-      "content": "Compared the parser's expected schema against the producer's real output",
+      "content": "Decided the biller is the provider, not the model",
       "caused_by": [],
       "leads_to": []
     },
@@ -38,7 +38,7 @@
       "id": "e003",
       "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
-      "content": "Traced the dead PYTHONPATH and the dead path filters",
+      "content": "TDD red, then three atomic commits",
       "caused_by": [],
       "leads_to": []
     },
@@ -46,7 +46,7 @@
       "id": "e004",
       "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
-      "content": "Found a producer mismatch not recorded in the issue",
+      "content": "Caught a defect I introduced, before pushing",
       "caused_by": [],
       "leads_to": []
     },
@@ -54,7 +54,7 @@
       "id": "e005",
       "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
-      "content": "Corrected the CLI invocation and removed the dead wiring",
+      "content": "Proved the fix end to end with a before, after, and control triple",
       "caused_by": [],
       "leads_to": []
     },
@@ -62,7 +62,7 @@
       "id": "e006",
       "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
-      "content": "Rewrote the parser against the producer's real schema",
+      "content": "Ran a live eval through GitHub Models",
       "caused_by": [],
       "leads_to": []
     },
@@ -70,7 +70,7 @@
       "id": "e007",
       "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
-      "content": "Replaced the test module and added two class-level contract gates",
+      "content": "Closed the optimizer loop on that live report",
       "caused_by": [],
       "leads_to": []
     },
@@ -78,112 +78,12 @@
       "id": "e008",
       "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
-      "content": "Ran the real command and the real parser end to end",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e009",
-      "timestamp": "2026-07-30T00:00:00+00:00",
-      "type": "test",
-      "content": "29 passed, ruff clean, both workflows parse as valid YAML",
-      "caused_by": [
-        "e030"
-      ],
-      "leads_to": []
-    },
-    {
-      "id": "e010",
-      "timestamp": "2026-07-30T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Bot review found the workflow comment claimed health exits 1 only on stale citations. Verified against __main__.py: it exits 1 on broken citations, stale citations, or stale memories. Comment corrected.",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e011",
-      "timestamp": "2026-07-30T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Bot review found the PR summary labelled HEALTH_STALE_MEMORIES as 'Memories with stale citations' while the value is stale_memory_count. Relabelled 'Stale memories' so it does not collide with the citation-level Stale row below it.",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e012",
-      "timestamp": "2026-07-30T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 64800b5d9",
-      "caused_by": [],
-      "leads_to": [
-        "e023"
-      ]
-    },
-    {
-      "id": "e013",
-      "timestamp": "2026-07-30T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Reproduced the dead flag on the real fixture corpus",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e014",
-      "timestamp": "2026-07-30T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Decided the biller is the provider, not the model",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e015",
-      "timestamp": "2026-07-30T00:00:00+00:00",
-      "type": "milestone",
-      "content": "TDD red, then three atomic commits",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e016",
-      "timestamp": "2026-07-30T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Caught a defect I introduced, before pushing",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e017",
-      "timestamp": "2026-07-30T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Proved the fix end to end with a before, after, and control triple",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e018",
-      "timestamp": "2026-07-30T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Ran a live eval through GitHub Models",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e019",
-      "timestamp": "2026-07-30T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Closed the optimizer loop on that live report",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e020",
-      "timestamp": "2026-07-30T00:00:00+00:00",
-      "type": "milestone",
       "content": "Ran an adversarial review on a different model family",
       "caused_by": [],
       "leads_to": []
     },
     {
-      "id": "e021",
+      "id": "e009",
       "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
       "content": "Fixed findings 1 and 3 with one root change",
@@ -191,7 +91,7 @@
       "leads_to": []
     },
     {
-      "id": "e022",
+      "id": "e010",
       "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
       "content": "Fixed finding 2 in the model sweep",
@@ -199,19 +99,7 @@
       "leads_to": []
     },
     {
-      "id": "e023",
-      "timestamp": "2026-07-30T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 04fde6ebf",
-      "caused_by": [
-        "e012"
-      ],
-      "leads_to": [
-        "e030"
-      ]
-    },
-    {
-      "id": "e024",
+      "id": "e011",
       "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
       "content": "Proved the rule kind end to end, the last of the three the optimizer declares",
@@ -219,7 +107,7 @@
       "leads_to": []
     },
     {
-      "id": "e025",
+      "id": "e012",
       "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
       "content": "Found the gate's cross-model refusal was dead for the rule kind",
@@ -227,7 +115,7 @@
       "leads_to": []
     },
     {
-      "id": "e026",
+      "id": "e013",
       "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
       "content": "Made the rule kind record the model and seed that produced its scores",
@@ -235,7 +123,7 @@
       "leads_to": []
     },
     {
-      "id": "e027",
+      "id": "e014",
       "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
       "content": "Grounded the fix on a second live run rather than on my own tests",
@@ -243,7 +131,7 @@
       "leads_to": []
     },
     {
-      "id": "e028",
+      "id": "e015",
       "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
       "content": "Stopped the rule dry run from quoting a sonnet dollar rate for quota billed providers",
@@ -251,7 +139,7 @@
       "leads_to": []
     },
     {
-      "id": "e029",
+      "id": "e016",
       "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
       "content": "Checked the sibling scripts for the same fabricated dollar figure",
@@ -259,16 +147,20 @@
       "leads_to": []
     },
     {
-      "id": "e030",
+      "id": "e017",
       "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: c7154520f",
-      "caused_by": [
-        "e023"
-      ],
-      "leads_to": [
-        "e009"
-      ]
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Purged another session's events from this session's episode file",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -276,8 +168,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
-    "files_changed": 6
+    "commits": 1,
+    "files_changed": 2
   },
   "lessons": []
 }
