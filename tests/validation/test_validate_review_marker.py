@@ -337,7 +337,7 @@ def test_read_marker_values_rejects_option_like_ref(git_repo: Path) -> None:
     """read_marker_values rejects values git would parse as command options."""
     values, error = vrm.read_marker_values("--format=%H", git_repo)
     assert values is None
-    assert "must not start with '-'" in error
+    assert error is not None and "must not start with '-'" in error
 
 
 def test_validate_ref_reports_git_missing(monkeypatch: pytest.MonkeyPatch, git_repo: Path) -> None:
@@ -558,3 +558,106 @@ def test_main_returns_two_on_unknown_ref(git_repo: Path) -> None:
     """CLI ``main`` returns 2 when the ref cannot be resolved."""
     rc = vrm.main(["--repo-root", str(git_repo), "--ref", "no-such-ref"])
     assert rc == 2
+
+
+# --- git diagnostics reach the developer -----------------------------------
+
+
+class TestGitDiagnosticsAreNotFlattened:
+    """Every reader in this gate must carry git's own reason to the outcome.
+
+    `_run_git` produces specific text for its internal failure modes: a 15s
+    timeout, git missing from PATH, and stdout that is not valid UTF-8. When a
+    reader drops that text, `validate_ref` reports a generic "git could not
+    read the commit". The developer runs the same command by hand, their
+    terminal decodes leniently, the trailer looks fine, and the ship gate has
+    blocked them while pointing at the wrong thing.
+
+    `read_marker_values` is the highest-risk reader because its stdout is
+    commit trailer text, so a commit authored under a latin-1 locale is enough
+    to trip the strict decode. The other two read hex SHAs.
+    """
+
+    @staticmethod
+    def _fail_with(monkeypatch, reason: str) -> None:
+        monkeypatch.setattr(vrm, "_run_git", lambda *_a, **_k: (-1, "", reason))
+
+    def test_read_marker_values_carries_the_reason(self, monkeypatch, git_repo: Path):
+        self._fail_with(monkeypatch, "git output was not valid UTF-8")
+        assert vrm.read_marker_values("HEAD", git_repo) == (
+            None,
+            "git output was not valid UTF-8",
+        )
+
+    def test_read_parent_shas_carries_the_reason(self, monkeypatch, git_repo: Path):
+        self._fail_with(monkeypatch, "git command timed out after 15s")
+        assert vrm.read_parent_shas("HEAD", git_repo) == (
+            None,
+            "git command timed out after 15s",
+        )
+
+    def test_resolve_tree_sha_carries_the_reason(self, monkeypatch, git_repo: Path):
+        self._fail_with(monkeypatch, "git not found on PATH")
+        assert vrm.resolve_tree_sha("HEAD", git_repo) == (
+            None,
+            "git not found on PATH",
+        )
+
+    def test_successful_reads_report_no_error(self, git_repo: Path):
+        """Negative control: the error slot stays empty on the happy path."""
+        parents, parent_error = vrm.read_parent_shas("HEAD", git_repo)
+        values, values_error = vrm.read_marker_values("HEAD", git_repo)
+        tree, tree_error = vrm.resolve_tree_sha("HEAD", git_repo)
+        assert parents is not None and parent_error is None
+        assert values is not None and values_error is None
+        assert tree is not None and tree_error is None
+
+    def test_validate_ref_surfaces_the_decode_failure(self, monkeypatch, git_repo: Path):
+        """The motivating case: a latin-1 trailer must not read as a bad ref."""
+        _write_marker_commit(git_repo, "analyst")
+        monkeypatch.setattr(
+            vrm,
+            "read_marker_values",
+            lambda *_a, **_k: (None, "git output was not valid UTF-8"),
+        )
+        outcome = vrm.validate_ref("HEAD", git_repo)
+        assert outcome.ok is False
+        assert outcome.exit_code == 2
+        assert "git output was not valid UTF-8" in outcome.message
+
+    def test_validate_ref_surfaces_a_parent_read_failure(self, monkeypatch, git_repo: Path):
+        monkeypatch.setattr(
+            vrm,
+            "read_parent_shas",
+            lambda *_a, **_k: (None, "git command timed out after 15s"),
+        )
+        outcome = vrm.validate_ref("HEAD", git_repo)
+        assert outcome.exit_code == 2
+        assert "git command timed out after 15s" in outcome.message
+
+    def test_validate_ref_surfaces_a_tree_comparison_failure(self, monkeypatch, git_repo: Path):
+        monkeypatch.setattr(
+            vrm,
+            "resolve_tree_sha",
+            lambda *_a, **_k: (None, "git command timed out after 15s"),
+        )
+        outcome = vrm.validate_ref("HEAD", git_repo)
+        assert outcome.exit_code == 2
+        assert "git command timed out after 15s" in outcome.message
+
+    def test_absent_reason_leaves_the_message_unchanged(self):
+        """Edge: git can fail with empty stderr. No dangling colon."""
+        assert vrm._with_reason("git could not read commit 'HEAD'", None) == (
+            "git could not read commit 'HEAD'"
+        )
+        assert vrm._with_reason("base", "") == "base"
+
+    def test_empty_stderr_reports_the_exit_code_without_inventing_a_reason(
+        self, monkeypatch, git_repo: Path
+    ):
+        """Edge: git can fail with empty stderr. The exit code alone still carries."""
+        monkeypatch.setattr(vrm, "_run_git", lambda *_a, **_k: (1, "", "   "))
+        assert vrm.read_marker_values("HEAD", git_repo) == (
+            None,
+            "git log exited with 1",
+        )
