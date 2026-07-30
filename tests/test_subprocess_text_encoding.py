@@ -1151,21 +1151,24 @@ def _module_sources(value: ast.expr) -> list[str]:
     return found
 
 
-def _rebound_modules(
-    bindings: list[tuple[str, ast.expr]], modules: dict[str, str]
-) -> dict[str, str]:
-    """Grow *modules* with every name bound to a module already in it.
+def _settle(bindings: list[tuple[str, ast.expr]], seed: dict[str, str]) -> dict[str, str]:
+    """Grow *seed* with every name that inherits from a name already in it.
 
-    ``sp = subprocess`` needs no import statement and leaves an owner name an
-    import scan never sees, and so does ``sp = [subprocess][0]``. A chain of
-    them settles because each pass can only add names, and there are finitely
-    many. The sources each binding may name do not depend on what has settled
-    so far, so they are read once per value node rather than once per name.
-    An unpacking that does not line up pairs every name with the whole right
-    side, so one node can back thousands of bindings; reading it per name is
-    quadratic and measurably so.
+    ``sp = subprocess`` and ``runner = base`` are one problem twice: a name
+    takes on what another name holds, with no import or construction site of
+    its own to read. A container in between changes nothing, so sources are
+    read through one. Each pass can only add names and there are finitely
+    many, so the repetition settles.
+
+    Sources do not depend on what has settled, so they are read once per
+    value node rather than once per pass or once per name. Reading them per
+    pass re-walks a chain of length N once per link: 20000 links took 83.2
+    seconds against a 10 second budget. Reading them per name re-walks a
+    shared node once per name, and an unpacking that does not line up pairs
+    every name with the whole right side, so 4000 names took 4.5 seconds
+    against a 3 second budget.
     """
-    grown = dict(modules)
+    grown = dict(seed)
     groups: dict[int, tuple[list[str], list[str]]] = {}
     for name, value in bindings:
         key = id(value)
@@ -1225,25 +1228,17 @@ def _presupplied(
     construction site, and the call site that adds ``text=True`` carries no
     capture keyword for :func:`_captures_text` to find. Without this the two
     halves of one decoding call read as compliant apart. An alias inherits the
-    mark, because rebinding the name changes nothing about what it holds.
+    mark, through a container or not, because rebinding the name changes
+    nothing about what it holds.
     """
-    marked: set[str] = set()
-    changed = True
-    while changed:
-        changed = False
-        for name, value in bindings:
-            if name in marked:
-                continue
-            if isinstance(value, ast.Call) and _is_partial(
-                _call_label(value), functions
-            ):
-                found = _supplies_capture(value, modules, functions)
-            else:
-                found = isinstance(value, ast.Name) and value.id in marked
-            if found:
-                marked.add(name)
-                changed = True
-    return marked
+    seed = {
+        name: name
+        for name, value in bindings
+        if isinstance(value, ast.Call)
+        and _is_partial(_call_label(value), functions)
+        and _supplies_capture(value, modules, functions)
+    }
+    return set(_settle(bindings, seed))
 
 
 def _parameter_bindings(tree: ast.Module) -> list[tuple[str, ast.expr]]:
@@ -1334,7 +1329,7 @@ def _subprocess_names(
     # per name is quadratic: 4000 names took 17.76 seconds that way. Every
     # name in a group reads the same node, so one read answers for all of them.
     bindings = _bindings(tree) + _parameter_bindings(tree)
-    modules = _rebound_modules(bindings, modules)
+    modules = _settle(bindings, modules)
     containers = _containers(tree, bindings)
     groups: dict[int, tuple[ast.expr, list[str]]] = {}
     for name, value in bindings:
@@ -1982,6 +1977,22 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             'module = [subprocess][0]\n'
             'module.run(["x"])',
             "a module reached through a container still decodes nothing untold",
+        ),
+        (
+            'import functools, subprocess\n'
+            'base = functools.partial(subprocess.run, capture_output=True)\n'
+            'holders = [base]\n'
+            'runner = holders[0]\n'
+            'runner(["x"], text=True, encoding="utf-8")',
+            "a partial reached through a container is still pinned at its call site",
+        ),
+        (
+            'import functools, subprocess\n'
+            'base = functools.partial(subprocess.run)\n'
+            'holders = [base]\n'
+            'runner = holders[0]\n'
+            'runner(["x"], text=True)',
+            "a partial that fixed no capture leaves nothing to decode",
         ),
     ],
 )
@@ -2911,6 +2922,14 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             '    sp = subprocess\n'
             'Holder.sp.run(["x"], capture_output=True, text=True)',
             "a class body binds a module alias that no import statement shows",
+        ),
+        (
+            'import functools, subprocess\n'
+            'base = functools.partial(subprocess.run, capture_output=True)\n'
+            'holders = [base]\n'
+            'runner = holders[0]\n'
+            'runner(["x"], text=True)',
+            "a partial keeps its fixed capture through a container",
         ),
     ],
 )
