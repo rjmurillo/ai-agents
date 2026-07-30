@@ -2340,11 +2340,30 @@ def _is_powershell_shell(shell: str | None) -> bool:
 
 
 def _posix_shell_invocations(body: str) -> list[str]:
-    """Return every POSIX shell a PowerShell body runs as a command."""
+    """Return every POSIX shell a PowerShell body runs as a command.
+
+    Parameters bind three ways: ``-FilePath bash``, ``-FilePath: bash``, and
+    ``-FilePath:bash``. The first two leave the operand as its own word, so
+    the ``previous`` check covers them once the trailing colon is stripped;
+    the joined form carries the operand inside the word and is split here.
+    """
     invocations: list[str] = []
     previous = ""
     for word, at_command in _powershell_words(body):
-        executes = at_command or previous.strip("'\"").lower() in POWERSHELL_EXEC_PARAMETERS
+        parameter, separator, operand = word.strip("'\"").partition(":")
+        if (
+            separator
+            and operand
+            and parameter.lower() in POWERSHELL_EXEC_PARAMETERS
+            and _is_posix_shell_name(operand)
+        ):
+            invocations.append(operand.strip("'\""))
+            previous = word
+            continue
+        executes = (
+            at_command
+            or previous.strip("'\"").rstrip(":").lower() in POWERSHELL_EXEC_PARAMETERS
+        )
         if executes and _is_posix_shell_name(word):
             invocations.append(word)
         previous = word

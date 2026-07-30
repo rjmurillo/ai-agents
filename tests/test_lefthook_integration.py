@@ -7990,6 +7990,26 @@ class TestQuotingAnArgumentDoesNotHideTheShellItNames:
         assert policy._posix_shell_invocations('$x = "bash"') == []
         assert policy._posix_shell_invocations('Set-Content -Value "bash -c hi"') == []
 
+    def test_a_colon_joined_filepath_operand_is_reported(self) -> None:
+        """``-FilePath:bash`` binds the same operand as ``-FilePath bash``."""
+        body = "Start-Process -FilePath:bash -ArgumentList '-c','id'"
+        assert policy._posix_shell_invocations(body) == ["bash"]
+
+    def test_a_colon_joined_quoted_operand_is_reported(self) -> None:
+        body = 'Start-Process -FilePath:"bash" -ArgumentList "-c","id"'
+        assert policy._posix_shell_invocations(body) == ["bash"]
+
+    def test_a_colon_with_a_detached_operand_is_reported(self) -> None:
+        """``-FilePath: bash`` leaves the operand as the following word."""
+        body = "Start-Process -FilePath: bash"
+        assert policy._posix_shell_invocations(body) == ["bash"]
+
+    def test_a_colon_joined_non_shell_operand_stays_data(self) -> None:
+        """Negative control: the split must not widen past exec parameters."""
+        assert policy._posix_shell_invocations("Start-Process -FilePath:notepad") == []
+        assert policy._posix_shell_invocations('Write-Output "a:bash"') == []
+        assert policy._posix_shell_invocations("Get-Item C:\\bash") == []
+
 
 class TestACallTokenIsOnlyACallTokenUnderPowerShell:
     """``&`` and ``.`` invoke a command in PowerShell and nowhere else.
