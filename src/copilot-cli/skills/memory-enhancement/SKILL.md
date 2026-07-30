@@ -56,7 +56,7 @@ python -m memory_enhancement [--repo-root PATH] [--memories-dir PATH] <command>
 |---------|---------|------------|
 | `verify` | `--memory-id ID` | 1 if any citation is invalid, or the id is unknown |
 | `verify-all` | `--json` | 1 if any citation is invalid |
-| `health` | `--json`, `--text`, `--markdown` (default) | 1 if any citation is broken or stale |
+| `health` | `--json`, `--text`, `--markdown` (default) | 1 if any citation is broken or stale, or any memory is stale |
 | `graph` | `--start ID` (required), `--depth N` | 1 if the start id is unknown |
 | `confidence` | none | 0 |
 | `search` | `QUERY` (positional), `--top N`, `--json` | 0 |
@@ -354,6 +354,6 @@ After using this skill:
 - [examples.md](references/examples.md) - Usage examples and workflows
 - [confidence-scoring.md](references/confidence-scoring.md) - How confidence is calculated
 - [ADR-007](../../.agents/architecture/ADR-007-memory-first-architecture.md) - Memory-first architecture
-- [ADR-037](../../.agents/architecture/ADR-037-reflexion-schema.md) - Reflexion memory schema (if exists)
+- [ADR-038](../../.agents/architecture/ADR-038-reflexion-memory-schema.md) - Reflexion memory schema
 
-<!-- vendor-portability: declared. This skill links .agents/architecture/ADR-007 and ADR-037 as the memory-first and reflexion-schema ADRs. Both are documentation citations; the enhancement logic does not read them, and a vendored install loses only the links. Issue #2050. -->
+<!-- vendor-portability: declared. This skill links .agents/architecture/ADR-007 and ADR-038 as the memory-first and reflexion-schema ADRs. Both are documentation citations; the enhancement logic does not read them, and a vendored install loses only the links. Issue #2050. -->

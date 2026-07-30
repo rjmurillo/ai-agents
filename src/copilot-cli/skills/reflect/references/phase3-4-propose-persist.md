@@ -160,9 +160,11 @@ citation is markdown you write.
 | Function in file | `` `handleError()` in `src/utils.ts` `` | target=src/utils.ts |
 | Explicit citation | See: src/api.py:100 | target=src/api.py |
 
-Citation targets are paths, not path-and-line pairs. The verifier checks that
-the file exists; it does not check a line number. Put the line number in the
-context text after the dash if it helps a reader.
+A citation target may be a bare path, `path:LINE`, or `path::function`. The
+verifier checks all three: a bare path must exist, `:LINE` must be within the
+file's length, and `::function` must be defined in the file. Prefer
+`::function` over `:LINE`, because a line number goes stale on the next edit
+above it while a function name survives.
 
 **Integration Point**:
 
