@@ -1520,6 +1520,49 @@ def _event_refs(evt: dict[str, Any], key: str) -> list[str]:
     return refs
 
 
+def _validate_causal_event(
+    evt: dict[str, Any],
+    ids: set[str],
+) -> tuple[str, datetime]:
+    if not isinstance(evt, dict):
+        raise EpisodeValidationError("event entry must be an object", 2)
+    event_id = evt.get("id")
+    if not isinstance(event_id, str) or not event_id:
+        raise EpisodeValidationError("event id must be a non-empty string", 2)
+    if event_id in ids:
+        raise EpisodeValidationError(f"duplicate event id: {event_id}", 1)
+    event_type = evt.get("type")
+    if event_type not in _CAUSAL_EVENT_TYPES:
+        raise EpisodeValidationError(f"event {event_id} has unsupported type: {event_type}", 2)
+    return event_id, _parse_causal_timestamp(evt)
+
+
+def _validate_causal_reference(
+    event_id: str,
+    ref: str,
+    ids: set[str],
+    relation: str,
+) -> None:
+    if ref not in ids:
+        raise EpisodeValidationError(f"event {event_id} {relation} unknown event {ref}", 1)
+    if ref == event_id:
+        raise EpisodeValidationError(f"event {event_id} {relation} itself", 1)
+
+
+def _add_causal_references(
+    evt: dict[str, Any],
+    ids: set[str],
+    adjacency: dict[str, set[str]],
+) -> None:
+    event_id = str(evt["id"])
+    for ref in _event_refs(evt, "leads_to"):
+        _validate_causal_reference(event_id, ref, ids, "leads_to")
+        adjacency[event_id].add(ref)
+    for ref in _event_refs(evt, "caused_by"):
+        _validate_causal_reference(event_id, ref, ids, "caused_by")
+        adjacency[ref].add(event_id)
+
+
 def validate_episode_causal_graph(events: list[dict[str, Any]]) -> dict[str, datetime]:
     """Validate event ids, event types, timestamps, references, and acyclicity."""
     ids: set[str] = set()
@@ -1527,34 +1570,13 @@ def validate_episode_causal_graph(events: list[dict[str, Any]]) -> dict[str, dat
     adjacency: dict[str, set[str]] = {}
 
     for evt in events:
-        if not isinstance(evt, dict):
-            raise EpisodeValidationError("event entry must be an object", 2)
-        event_id = evt.get("id")
-        if not isinstance(event_id, str) or not event_id:
-            raise EpisodeValidationError("event id must be a non-empty string", 2)
-        if event_id in ids:
-            raise EpisodeValidationError(f"duplicate event id: {event_id}", 1)
+        event_id, timestamp = _validate_causal_event(evt, ids)
         ids.add(event_id)
-        event_type = evt.get("type")
-        if event_type not in _CAUSAL_EVENT_TYPES:
-            raise EpisodeValidationError(f"event {event_id} has unsupported type: {event_type}", 2)
-        parsed[event_id] = _parse_causal_timestamp(evt)
+        parsed[event_id] = timestamp
         adjacency[event_id] = set()
 
     for evt in events:
-        event_id = str(evt["id"])
-        for ref in _event_refs(evt, "leads_to"):
-            if ref not in ids:
-                raise EpisodeValidationError(f"event {event_id} leads_to unknown event {ref}", 1)
-            if ref == event_id:
-                raise EpisodeValidationError(f"event {event_id} leads_to itself", 1)
-            adjacency[event_id].add(ref)
-        for ref in _event_refs(evt, "caused_by"):
-            if ref not in ids:
-                raise EpisodeValidationError(f"event {event_id} caused_by unknown event {ref}", 1)
-            if ref == event_id:
-                raise EpisodeValidationError(f"event {event_id} caused_by itself", 1)
-            adjacency[ref].add(event_id)
+        _add_causal_references(evt, ids, adjacency)
 
     _validate_dag(adjacency)
     return parsed
