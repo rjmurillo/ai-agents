@@ -54,7 +54,7 @@ from __future__ import annotations
 import ast
 import codecs
 import time
-from collections import Counter
+from collections import Counter, deque
 from pathlib import Path
 from typing import NamedTuple
 
@@ -1200,6 +1200,14 @@ def _settle(bindings: list[tuple[str, ast.expr]], seed: dict[str, str]) -> dict[
     shared node once per name, and an unpacking that does not line up pairs
     every name with the whole right side, so 4000 names took 4.5 seconds
     against a 3 second budget.
+
+    Which group to revisit is decided by the dependency edges rather than by
+    repeating the sweep. A sweep that repeats until nothing changes learns
+    one link per pass on a chain of aliases and scans every group on every
+    pass, which is quadratic: 8000 links took 14.0 seconds. Indexing each
+    group under the names it waits on wakes only the groups a newly settled
+    name can answer for, and a group that has settled is skipped outright, so
+    each group is read once and each edge is followed once.
     """
     grown = dict(seed)
     groups: dict[int, tuple[list[str], list[str]]] = {}
@@ -1208,19 +1216,28 @@ def _settle(bindings: list[tuple[str, ast.expr]], seed: dict[str, str]) -> dict[
         if key not in groups:
             groups[key] = (_module_sources(value), [])
         groups[key][1].append(name)
-    changed = True
-    while changed:
-        changed = False
-        for candidates, names in groups.values():
-            pending = [one for one in names if one not in grown]
-            if not pending:
-                continue
-            source = next((one for one in candidates if one in grown), None)
-            if source is None:
-                continue
-            for one in pending:
-                grown[one] = grown[source]
-            changed = True
+    waiting: dict[str, list[int]] = {}
+    for key, (candidates, _) in groups.items():
+        for candidate in candidates:
+            waiting.setdefault(candidate, []).append(key)
+    settled: set[int] = set()
+    queue = deque(groups)
+    while queue:
+        key = queue.popleft()
+        if key in settled:
+            continue
+        candidates, names = groups[key]
+        pending = [one for one in names if one not in grown]
+        if not pending:
+            settled.add(key)
+            continue
+        source = next((one for one in candidates if one in grown), None)
+        if source is None:
+            continue
+        for one in pending:
+            grown[one] = grown[source]
+            queue.extend(waiting.get(one, ()))
+        settled.add(key)
     return grown
 
 
@@ -3572,6 +3589,40 @@ def test_name_resolution_stays_linear_on_a_deep_reverse_chain() -> None:
 
     assert flagged, "a chain of any depth still reaches a subprocess entry point"
     assert elapsed < 10.0, f"name resolution took {elapsed:.1f}s for {depth} bindings"
+
+
+def test_a_deep_module_alias_chain_stays_linear() -> None:
+    """A chain of module aliases must cost one pass, not one pass per link.
+
+    The sibling test above ends its chain at ``subprocess.run``. That is an
+    attribute rather than a module name, so no link ever resolves as a module
+    alias, the fixpoint makes a single pass and the shape is linear whatever
+    the implementation does. Ending the chain at the module instead is what
+    makes every link resolvable, and a sweep that repeats until nothing
+    changes then learns exactly one link per pass.
+
+    That difference is worth 14.0 seconds at this depth: repeated sweeps
+    measured 0.235s at 1000 links, 0.887 at 2000, 3.425 at 4000 and 14.047 at
+    8000, near enough 4x per doubling. Propagating along the dependency edges
+    instead settles the whole chain in one pass over the edges.
+
+    The budget is loose on purpose. Linear finishes this in well under a
+    second, so anything near the ceiling is the sweep coming back rather than
+    a slow machine.
+    """
+    depth = 8000
+    source = "\n".join(
+        ["import subprocess"]
+        + [f"m{index} = m{index + 1}" for index in range(depth)]
+        + [f"m{depth} = subprocess", 'm0.run(["x"], capture_output=True, text=True)']
+    )
+
+    started = time.perf_counter()
+    flagged = unpinned_lines(source)
+    elapsed = time.perf_counter() - started
+
+    assert flagged == [depth + 3], "the module survives every alias on the way"
+    assert elapsed < 3.0, f"alias resolution took {elapsed:.1f}s for {depth} links"
 
 
 def test_unpacking_a_wide_container_stays_linear() -> None:
