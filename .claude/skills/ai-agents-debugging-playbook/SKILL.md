@@ -85,7 +85,7 @@ If three read-only commands have not identified the cause, stop and escalate to 
    - Tests: `uv run pytest tests/ -x` (note: `.claude/skills/*/tests/` are NOT collected by default; run them explicitly, e.g. `uv run pytest .claude/skills/<name>/tests/ -q`)
    - Full shift-left sweep: `python3 scripts/validation/pre_pr.py` (exit codes per ADR-035: 0 ok, 1 logic, 2 config)
    - Drift: the specific surface command from the table above
-3. Commit with the discipline gates expect: 5 files or fewer per commit, 20 commits or fewer per PR (`git rev-list --count HEAD ^origin/main`).
+3. Commit with the discipline gates expect: 5 files or fewer per commit. Plan for 20 commits per PR; validation may allow 40 after a qualifying base merge (`git rev-list --count HEAD ^origin/main`).
 4. Escape hatches (`[skip-drift-check]`, etc.) require documented justification and are cataloged in `ai-agents-config-catalog`. Using one IS the incident report; say so in the PR.
 
 ## Traps That Cost Real Time
