@@ -45,7 +45,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import re
 import statistics
 import sys
@@ -427,9 +426,7 @@ Respond in JSON only, no other text:
         except json.JSONDecodeError:
             return _judge_parse_failure(text, f"judge parse error: {text[:200]}")
     if not isinstance(parsed, dict):
-        return _judge_parse_failure(
-            text, f"judge returned non-object JSON: {text[:200]}"
-        )
+        return _failed_judge(f"judge returned non-object JSON: {text[:200]}")
     score_error = _judge_score_shape_error(parsed)
     if score_error is not None:
         return _judge_parse_failure(text, score_error)
@@ -447,22 +444,10 @@ Respond in JSON only, no other text:
 
 
 def _clamp_score(value: object) -> int:
-    """Coerce a judge-supplied score to int in [0, 5], failing closed.
-
-    Strings, None, out-of-range values, and non-finite floats all resolve to 0
-    or a clamped value. ``json.loads`` accepts ``Infinity``, ``-Infinity``, and
-    ``NaN`` by default, so a judge response can carry a non-finite float.
-    ``int(float("inf"))`` raises ``OverflowError`` and ``int(float("nan"))``
-    raises ``ValueError``; both are caught below so a garbage score lowers the
-    activation average instead of crashing the evaluator.
-    """
-    if not isinstance(value, (int, float, str)):
-        return 0
-    try:
-        n = int(value)
-    except (OverflowError, TypeError, ValueError):
-        return 0
-    return max(0, min(5, n))
+    """Return an exact judge score, or 0 after shape validation fails."""
+    if isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 5:
+        return value
+    return 0
 
 
 def _reduce_score_samples(
@@ -505,12 +490,12 @@ def _reduce_score_samples(
     return reduced
 
 _SCORE_FIELD_RE = {
-    field: re.compile(rf'"{field}"\s*:\s*(-?\d+(?:\.\d+)?)')
+    field: re.compile(rf'"{field}"\s*:\s*([1-5])(?=\s*[,}}])')
     for field in ("activation_score", "citation_score", "behavior_score")
 }
 
 
-def _salvage_scores(text: str) -> dict[str, float] | None:
+def _salvage_scores(text: str) -> dict[str, int] | None:
     """Recover the three numeric scores from judge output that will not parse.
 
     The eval scores on three numbers. ``reasoning`` is diagnostic only, yet it
@@ -523,19 +508,22 @@ def _salvage_scores(text: str) -> dict[str, float] | None:
     Only the leading numeric fields are read, so a salvage cannot invent a
     score the judge did not give. Returns ``None`` unless all three are found.
     """
-    salvaged: dict[str, float] = {}
-    for field, pattern in _SCORE_FIELD_RE.items():
-        match = pattern.search(text)
-        if match is None:
-            return None
-        salvaged[field] = float(match.group(1))
-    return salvaged
+    for candidate in _iter_json_objects(text):
+        salvaged: dict[str, int] = {}
+        for field, pattern in _SCORE_FIELD_RE.items():
+            match = pattern.search(candidate)
+            if match is None:
+                break
+            salvaged[field] = int(match.group(1))
+        if len(salvaged) == len(_SCORE_FIELD_RE):
+            return salvaged
+    return None
 
 
 def _judge_parse_failure(text: str, reason: str) -> dict[str, Any]:
     """Build a failed-judge record, salvaging scores when they are recoverable."""
     salvaged = _salvage_scores(text)
-    if salvaged is not None and _judge_score_shape_error(salvaged) is None:
+    if salvaged is not None:
         return {
             "activation_score": _clamp_score(salvaged["activation_score"]),
             "citation_score": _clamp_score(salvaged["citation_score"]),
@@ -544,6 +532,10 @@ def _judge_parse_failure(text: str, reason: str) -> dict[str, Any]:
             "judge_failed": False,
             "judge_salvaged": True,
         }
+    return _failed_judge(reason)
+
+
+def _failed_judge(reason: str) -> dict[str, Any]:
     return {
         "activation_score": 0,
         "citation_score": 0,
@@ -560,15 +552,13 @@ def _judge_score_shape_error(parsed: dict[str, Any]) -> str | None:
         return f"judge returned missing score field(s): {', '.join(missing)}"
     for field in required_fields:
         value = parsed[field]
-        if (
-            not isinstance(value, (int, float))
-            or isinstance(value, bool)
-            or not math.isfinite(value)
-        ):
+        if not isinstance(value, int) or isinstance(value, bool):
             return (
-                f"judge returned non-numeric {field}: "
+                f"judge returned non-integral {field}: "
                 f"{type(value).__name__}"
             )
+        if not 1 <= value <= 5:
+            return f"judge returned out-of-range {field}: {value!r}"
     return None
 
 

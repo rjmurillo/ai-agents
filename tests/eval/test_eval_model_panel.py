@@ -71,7 +71,11 @@ def _fake_runner(deltas):
         key = (unit, tier.label)
         if key not in deltas:
             raise RuntimeError(f"no fake result for {key}")
-        return {"recall_delta": deltas[key], "bootstrap_ci_95": [0.0, 1.0]}
+        return {
+            "error_count": 0,
+            "recall_delta": deltas[key],
+            "bootstrap_ci_95": [0.0, 1.0],
+        }
     return run
 
 

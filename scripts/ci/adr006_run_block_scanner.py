@@ -104,6 +104,39 @@ def _strip_static_output(line: str) -> str:
     return _blank_static_operands(line)
 
 
+# A quoted heredoc delimiter (``<<'EOF'`` or ``<<"EOF"``) disables every
+# expansion, so the body is inert text the shell copies out verbatim.
+_HEREDOC_OPEN = re.compile(r"<<-?\s*(?P<q>[\"'])(?P<delim>[A-Za-z_][A-Za-z0-9_]*)(?P=q)")
+
+
+def _mask_quoted_heredocs(lines: Sequence[str]) -> list[str]:
+    """Blank the body of every quoted heredoc, keeping its delimiters.
+
+    A quoted delimiter disables all expansion, so the body is data the shell
+    copies verbatim, not shell source. Counting it as code overstates the block
+    and scanning it for keywords produces false positives: the remediation
+    comment in ``investigation-claim-backstop.yml`` ends "See ADR-034 for
+    details", and that ``for`` alone marked a static comment as shell logic.
+
+    An unquoted delimiter still expands, so those bodies are left alone.
+    """
+    masked: list[str] = []
+    delim: str | None = None
+    for line in lines:
+        if delim is not None:
+            if line.strip() == delim:
+                masked.append(line)
+                delim = None
+            else:
+                masked.append("")
+            continue
+        masked.append(line)
+        match = _HEREDOC_OPEN.search(line)
+        if match is not None:
+            delim = match.group("delim")
+    return masked
+
+
 def _strip_static_output_body(lines: Sequence[str]) -> list[str]:
     """Apply :func:`_strip_static_output` across a body, following continuations.
 
@@ -184,18 +217,20 @@ def scan_text(text: str) -> list[RunBlock]:
         body, nxt = _body_lines(lines, i, key_indent)
         body_text = "\n".join(body)
         # Filter out comments and blank lines before logic detection to avoid
-        # false positives from keywords appearing only in comment text, and
-        # blank the message text of pure output commands for the same reason
-        # (prose in a remediation `echo` is not shell logic).
+        # false positives from keywords appearing only in comment text, blank
+        # the message text of pure output commands for the same reason (prose
+        # in a remediation `echo` is not shell logic), and blank quoted heredoc
+        # bodies, which are inert text rather than shell source.
+        code_body = _mask_quoted_heredocs(body)
         code_only_text = "\n".join(
             _strip_static_output_body(
-                [line for line in body if line.strip() and not line.strip().startswith("#")]
+                [line for line in code_body if line.strip() and not line.strip().startswith("#")]
             )
         )
         blocks.append(
             RunBlock(
                 line=i + 1,
-                code_lines=_count_code_lines(body),
+                code_lines=_count_code_lines(code_body),
                 has_logic=bool(_LOGIC.search(code_only_text)),
                 body=body_text,
             )

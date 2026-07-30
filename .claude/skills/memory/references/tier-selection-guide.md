@@ -17,24 +17,24 @@ Deep guidance for selecting the correct memory tier.
 Factual questions about concepts, patterns, or rules.
 
 ```bash
-python3 .claude/skills/memory/scripts/search_memory.py --query "PowerShell array handling"
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "shell array handling"
 ```
 
 ### "What happened when...?" → Tier 2
 
 Historical questions about past sessions.
 
-```powershell
-Get-Episode -SessionId "2026-01-01-session-126"
-Get-Episodes -Outcome "failure" -Since (Get-Date).AddDays(-7)
+```python
+get_episode("2026-01-01-session-126")
+get_episodes(outcome="failure", since=datetime.now(UTC) - timedelta(days=7))
 ```
 
 ### "Why did X lead to Y?" → Tier 2
 
 Read the episodes that recorded the decision and its outcome.
 
-```powershell
-Get-Episodes -Outcome "failure" -MaxResults 20
+```python
+get_episodes(outcome="failure", max_results=20)
 ```
 
 ### "What should I try?" → Multi-Tier
@@ -63,7 +63,7 @@ Complex questions requiring synthesis.
 Primary tier unavailable?
 │
 ├── Tier 1 (Forgetful part) unavailable
-│   └── Use -LexicalOnly (Serena always works)
+│   └── Pass lexical_only=True (Serena always works)
 │
 ├── Tier 2 unavailable
 │   └── Check .agents/memory/episodes/ exists
@@ -74,24 +74,33 @@ Primary tier unavailable?
 
 ### Mistake: Using Tier 1 for session history
 
-**Wrong**: `Search-Memory -Query "what did I do yesterday"`
-**Right**: `Get-Episodes -Since (Get-Date).AddDays(-1)`
+**Wrong**: `search_memory("what did I do yesterday")`
+**Right**: `get_episodes(since=datetime.now(UTC) - timedelta(days=1))`
 
 ### Mistake: Using Tier 2 for fact lookup
 
 **Wrong**: Scanning episodes for API documentation
-**Right**: `Search-Memory -Query "API authentication"`
+**Right**: `search_memory("API authentication")`
 
 ## Multi-Tier Query Example
 
 When answering "How should I handle authentication errors?":
 
-```bash
-# Tier 1: Get documented patterns
-facts=$(python3 .claude/skills/memory/scripts/search_memory.py --query "authentication error handling")
+```python
+import os
+import sys
+from datetime import datetime, timedelta, UTC
 
-# Tier 2: Find relevant past sessions and how they ended
-$episodes = Get-Episodes -Task "authentication" -MaxResults 10
+_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT") or ".claude"
+sys.path.insert(0, f"{_root}/skills/memory")
+from memory_core.memory_router import search_memory
+from memory_core.reflexion_memory import get_episode, get_episodes
 
-# Synthesize answer from both tiers
+# Tier 1: documented patterns
+facts = search_memory("authentication error handling")
+
+# Tier 2: relevant past sessions and how they ended
+episodes = get_episodes(task="authentication", max_results=10)
+
+# Synthesize the answer from both tiers
 ```

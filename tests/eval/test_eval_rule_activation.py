@@ -156,6 +156,12 @@ class TestScoreResponseJudgeShape:
             '{"activation_score": 5, "citation_score": 5}',
             '{"activation_score": NaN, "citation_score": 5, "behavior_score": 5}',
             '{"activation_score": Infinity, "citation_score": 5, "behavior_score": 5}',
+            '{"activation_score": 6, "citation_score": 5, "behavior_score": 5}',
+            '{"activation_score": 0, "citation_score": 5, "behavior_score": 5}',
+            '{"activation_score": -1, "citation_score": 5, "behavior_score": 5}',
+            '{"activation_score": 4.9, "citation_score": 5, "behavior_score": 5}',
+            '{"activation_score": 5.0, "citation_score": 5, "behavior_score": 5}',
+            '{"activation_score": 5e0, "citation_score": 5, "behavior_score": 5}',
         ],
     )
     def test_malformed_judge_score_object_sets_judge_failed(
@@ -629,12 +635,12 @@ class TestClampScore:
             (0, 0),
             (5, 5),
             (-1, 0),
-            (10, 5),
-            ("4", 4),
+            (10, 0),
+            ("4", 0),
             ("abc", 0),
             (None, 0),
-            (True, 1),  # bool is int subclass; True -> 1, False -> 0
-            (3.7, 3),  # float coerces to int via int()
+            (True, 0),
+            (3.7, 0),
             (float("inf"), 0),
         ],
     )
@@ -1062,6 +1068,36 @@ _UNESCAPED_QUOTE_JUDGE = (
 )
 
 
+def test_score_response_salvages_malformed_verdict_after_tool_trace(monkeypatch):
+    monkeypatch.setattr(
+        eval_mod,
+        "_call_api",
+        lambda *_args, **_kwargs: (
+            '{"activation_score": 1, "command": "ls"}\n' + _UNESCAPED_QUOTE_JUDGE
+        ),
+    )
+
+    result = eval_mod.score_response(
+        "sk-test",
+        {"input": "x", "expected_gate": "apply-rule"},
+        "response",
+    )
+
+    assert result["judge_failed"] is False
+    assert result["activation_score"] == 5
+    assert result["citation_score"] == 4
+    assert result["behavior_score"] == 5
+
+
+def test_judge_parse_failure_does_not_combine_partial_objects():
+    result = eval_mod._judge_parse_failure(
+        '{"activation_score": 5}\n{"citation_score": 4, "behavior_score": 3}',
+        "parse error",
+    )
+
+    assert result["judge_failed"] is True
+
+
 def test_judge_parse_failure_salvages_scores_from_unescaped_quote_prose():
     result = eval_mod._judge_parse_failure(_UNESCAPED_QUOTE_JUDGE, "judge parse error")
 
@@ -1099,15 +1135,18 @@ def test_judge_parse_failure_rejects_a_non_numeric_score():
     assert result["judge_failed"] is True
 
 
-def test_salvage_scores_clamps_an_out_of_range_value():
+@pytest.mark.parametrize(
+    "activation_score", ["0", "6", "-1", "05", "5.0", "5e0", "5junk"]
+)
+def test_salvage_scores_rejects_an_invalid_value(activation_score):
     salvaged = eval_mod._judge_parse_failure(
-        '{"activation_score": 99, "citation_score": 4, "behavior_score": -3} "',
+        f'{{"activation_score": {activation_score}, '
+        '"citation_score": 4, "behavior_score": 3} "',
         "parse error",
     )
 
-    assert salvaged["judge_failed"] is False
-    assert salvaged["activation_score"] == eval_mod._clamp_score(99)
-    assert salvaged["behavior_score"] == eval_mod._clamp_score(-3)
+    assert salvaged["judge_failed"] is True
+    assert salvaged["activation_score"] == 0
 
 
 def test_extract_json_object_returns_none_on_empty_input():

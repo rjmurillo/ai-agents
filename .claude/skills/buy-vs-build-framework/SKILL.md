@@ -68,10 +68,7 @@ Select appropriate analysis depth to prevent over-engineering.
 
 **Why:** Time-box effort proportional to decision magnitude. Prevents analysis paralysis on small decisions while ensuring rigor for strategic decisions.
 
-```bash
-python3 scripts/select_depth.py --budget 100000 --impact medium --reversibility moderate
-# Output: STANDARD tier (1-2 days, full 4 phases)
-```
+**Example:** A $100K budget with medium impact and moderate reversibility matches the Standard row on all three axes, so the depth is Standard: 1-2 days, full 4 phases.
 
 ### Phase 1: Classify (Core vs Context)
 

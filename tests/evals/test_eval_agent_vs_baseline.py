@@ -932,7 +932,7 @@ class TestRunPersistenceJsonlRoundTrip:
         assert len(records) == 1
         assert records[0].schema_version == 1
         assert records[0].system_fingerprint is None
-        assert records[0].seed is None
+        assert records[0].seed == 0
 
 
 class TestRunPersistenceSchemaGuard:
@@ -1000,6 +1000,52 @@ class TestRunPersistenceMalformedJsonl:
         with pytest.raises(MalformedRunRecordError, match=expected_msg):
             RunPersistence(run_dir, resume=True)
 
+    @pytest.mark.parametrize(
+        "mutate, expected_msg",
+        [
+            (
+                lambda payload: payload.pop("assertions"),
+                r"missing required field\(s\): assertions",
+            ),
+            (
+                lambda payload: payload.update({"assertions": []}),
+                "successful record must include non-empty assertions",
+            ),
+            (
+                lambda payload: payload["assertions"][0].update({"passed": "false"}),
+                "assertion 0 field 'passed'.*expected bool",
+            ),
+            (
+                lambda payload: payload.update({"schemaVersion": True}),
+                "schemaVersion=True",
+            ),
+            (
+                lambda payload: payload.update({"seed": False}),
+                "field 'seed'.*expected int or null",
+            ),
+            (
+                lambda payload: payload.update({"tokens_estimated": "false"}),
+                "field 'tokens_estimated'.*expected bool",
+            ),
+        ],
+    )
+    def test_persisted_records_are_strictly_validated(
+        self, tmp_path, mutate, expected_msg
+    ):
+        payload = json.loads(_record_json_for_test(_make_record(seed=0)))
+        mutate(payload)
+        run_dir = self._seed(tmp_path, json.dumps(payload) + "\n")
+
+        with pytest.raises((MalformedRunRecordError, SchemaVersionError), match=expected_msg):
+            RunPersistence(run_dir, resume=True, seed=0)
+
+    def test_duplicate_persisted_identity_raises_malformed(self, tmp_path):
+        payload = _record_json_for_test(_make_record(seed=0))
+        run_dir = self._seed(tmp_path, payload + "\n" + payload + "\n")
+
+        with pytest.raises(MalformedRunRecordError, match="duplicates identity"):
+            RunPersistence(run_dir, resume=True, seed=0)
+
     def test_malformed_is_distinct_from_duplicate_run_error(self):
         # Sanity: the new exception is its own class, so a CLI catch on
         # `DuplicateRunError` cannot accidentally absorb on-disk
@@ -1028,7 +1074,14 @@ class TestRunPersistenceMalformedJsonl:
                 "prompt_ref": "<test>",
                 "fixture_sha": "f" * 64,
                 "raw_response": "ok",
-                "assertions": [],
+                "assertions": [
+                    {
+                        "kind": "verdict",
+                        "expected_value": "IDENTIFY",
+                        "passed": True,
+                        "extracted": "IDENTIFY",
+                    }
+                ],
                 "outcome": "success",
                 "latency_ms": 1.0,
                 "tokens_in": 1,
@@ -1047,6 +1100,203 @@ class TestRunPersistenceMalformedJsonl:
         )
         with pytest.raises(MalformedRunRecordError, match=r"line 2 is not valid JSON"):
             list(persistence.iter_records())
+
+    def test_resume_accepts_error_record_with_null_raw_response(self, tmp_path):
+        # `RunRecord.raw_response` is `str | None`; error-path records are
+        # written with `raw_response=None` (see `_eval_api_adapter.py`).
+        # Resume must not fail closed on a legitimate error record just
+        # because the field is null.
+        payload = json.loads(
+            _record_json_for_test(
+                _make_record(outcome="error", seed=0)
+            )
+        )
+        payload["raw_response"] = None
+        payload["assertions"] = []
+        run_dir = self._seed(tmp_path, json.dumps(payload) + "\n")
+
+        persistence = RunPersistence(run_dir, resume=True, seed=0)
+
+        assert not persistence.is_completed("F001", "agent", 0)
+
+    def test_non_object_json_line_raises_malformed(self, tmp_path):
+        # A line that parses as valid JSON but is not an object (e.g. a
+        # bare array) must surface as `MalformedRunRecordError`, not an
+        # unhandled `AttributeError` from calling `.get()` on a list.
+        run_dir = self._seed(tmp_path, "[]\n")
+        with pytest.raises(MalformedRunRecordError, match="not a JSON object"):
+            RunPersistence(run_dir, resume=True)
+
+
+class TestParseRecordShapeGuard:
+    """A line that is valid JSON but is not a record must still map to
+    EXIT_CONFIG (2).
+
+    `_parse_record` rehydrates untrusted on-disk data. Before the guard,
+    seven distinct corrupt shapes escaped as bare `ValueError`, `KeyError`,
+    or `TypeError`, none of which the CLI catches, so each surfaced as an
+    unhandled traceback instead of the documented operator-repair exit.
+    """
+
+    def _payload(self, **overrides):
+        payload = {
+            "fixture_id": "F001",
+            "variant": "agent",
+            "run_index": 0,
+            "model_id": "claude-sonnet-4-6",
+            "prompt_sha": "p" * 64,
+            "prompt_ref": "<test>",
+            "fixture_sha": "f" * 64,
+            "raw_response": "ok",
+            "assertions": [
+                {
+                    "kind": "verdict",
+                    "expected_value": "IDENTIFY",
+                    "passed": True,
+                    "extracted": "IDENTIFY",
+                }
+            ],
+            "outcome": "success",
+            "latency_ms": 1.0,
+            "tokens_in": 1,
+            "tokens_out": 1,
+            "error_category": None,
+            "attempts": 1,
+            "tokens_estimated": True,
+            "schemaVersion": 1,
+        }
+        payload.update(overrides)
+        return payload
+
+    @pytest.mark.parametrize("kind", ["verdict", "regex"])
+    def test_every_declared_assertion_kind_still_parses(self, kind):
+        """Control: the guard must reject only shapes outside the contract.
+
+        A guard that rejected everything would still pass the cases below.
+        """
+        payload = self._payload()
+        payload["assertions"][0]["kind"] = kind
+
+        record = persistence_mod._parse_record(json.dumps(payload))
+
+        assert record.assertions[0].kind.value == kind
+
+    def test_an_error_record_with_no_assertions_still_parses(self):
+        """Control: error records can carry no measured assertions."""
+        record = persistence_mod._parse_record(
+            json.dumps(self._payload(assertions=[], outcome="error", raw_response=None))
+        )
+
+        assert record.assertions == []
+
+    def test_a_blank_line_is_still_skipped(self):
+        """Control: the early return must survive the added guard."""
+        assert persistence_mod._parse_record("   \n") is None
+
+    @pytest.mark.parametrize("line", ["[]", '"x"', "1", "null", "true"])
+    def test_a_non_object_top_level_raises_malformed(self, line):
+        """Valid JSON that is not an object is a corrupt record, not a crash.
+
+        Before the guard, `payload.pop` raised a bare `AttributeError` that
+        bypassed the EXIT_CONFIG mapping.
+        """
+        with pytest.raises(MalformedRunRecordError):
+            persistence_mod._parse_record(line)
+
+    @pytest.mark.parametrize(
+        "mutate, expected_msg, cause_name",
+        [
+            (
+                lambda p: p["assertions"][0].update({"kind": "nope"}),
+                "ValueError",
+                "ValueError",
+            ),
+            # Edge: an unhashable value cannot be looked up in the enum's
+            # value map at all, yet still raises `ValueError` on 3.14.
+            (
+                lambda p: p["assertions"][0].update({"kind": ["regex"]}),
+                "ValueError",
+                "ValueError",
+            ),
+            (
+                lambda p: p["assertions"][0].update({"kind": {"a": 1}}),
+                "ValueError",
+                "ValueError",
+            ),
+            (lambda p: p["assertions"][0].pop("kind"), "missing field: kind", None),
+            (
+                lambda p: p.update({"assertions": {"a": 1}}),
+                "expected list, got dict",
+                None,
+            ),
+            (
+                lambda p: p.update({"assertions": ["not-a-dict"]}),
+                "expected object, got str",
+                None,
+            ),
+            # Falsy non-list shapes: `or []` used to coerce these to zero
+            # assertions silently instead of naming the corrupt shape.
+            (
+                lambda p: p.update({"assertions": ""}),
+                "expected list, got str",
+                None,
+            ),
+            (
+                lambda p: p.update({"assertions": {}}),
+                "expected list, got dict",
+                None,
+            ),
+            (
+                lambda p: p.update({"assertions": 0}),
+                "expected list, got int",
+                None,
+            ),
+            (
+                lambda p: p.update({"assertions": False}),
+                "expected list, got bool",
+                None,
+            ),
+            (
+                lambda p: p.update({"assertions": None}),
+                "expected list, got NoneType",
+                None,
+            ),
+            (lambda p: p.update({"surprise": 1}), "TypeError", "TypeError"),
+            (lambda p: p.pop("fixture_id"), "missing required field", None),
+        ],
+    )
+    def test_a_corrupt_shape_raises_malformed_not_a_bare_builtin(
+        self, mutate, expected_msg, cause_name
+    ):
+        payload = self._payload()
+        mutate(payload)
+
+        with pytest.raises(MalformedRunRecordError, match=expected_msg) as excinfo:
+            persistence_mod._parse_record(json.dumps(payload))
+
+        if cause_name is None:
+            assert excinfo.value.__cause__ is None
+        else:
+            assert type(excinfo.value.__cause__).__name__ == cause_name
+
+    def test_a_corrupt_shape_does_not_echo_an_unbounded_value(self):
+        """A corrupt record is attacker-influenced input to the operator log."""
+        payload = self._payload()
+        payload["assertions"][0]["kind"] = "x" * 9000
+
+        with pytest.raises(MalformedRunRecordError) as excinfo:
+            persistence_mod._parse_record(json.dumps(payload))
+
+        assert len(str(excinfo.value)) < 400
+
+    def test_an_unsupported_schema_version_keeps_its_own_error(self):
+        """Control: the guard must not absorb the sibling schema check.
+
+        `SchemaVersionError` is raised before the guarded block and carries
+        a different operator remedy, so it has to stay distinguishable.
+        """
+        with pytest.raises(SchemaVersionError):
+            persistence_mod._parse_record(json.dumps(self._payload(schemaVersion=99)))
 
 
 # ===========================================================================
@@ -1256,6 +1506,15 @@ class TestRunnerLiveLoop:
         ])
         assert rc2 == 0
         assert adapter2.call_count == 0
+        report_json = (
+            tmp_path
+            / "evals"
+            / "security-spike"
+            / "reports"
+            / run_id
+            / "report.json"
+        )
+        assert json.loads(report_json.read_text(encoding="utf-8"))["seed"] == 0
 
     def test_error_rate_above_10pct_exits_one(self, tmp_path, monkeypatch, capsys):
         self._setup(tmp_path, monkeypatch)
