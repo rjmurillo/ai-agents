@@ -1,0 +1,62 @@
+{
+  "id": "episode-2026-07-30-session-3953-fix-3974-review-threads-pin",
+  "session": "2026-07-30-session-3953-fix-3974-review-threads-pin",
+  "timestamp": "2026-07-30T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix PR 3974 review threads: pin action SHAs and minimize spelling",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Pinned every affected upload-artifact example to the repository's current v7.0.1 SHA.",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Changed minimise to minimize in the affected cost memories for repository search consistency.",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified the SHA against 17 workflow uses and filed issue #3995 for the actual documentation defect.",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-30T11:06:51+00:00",
+      "type": "commit",
+      "content": "Commit: e9bf809a645a8f5d73fb8f59c6524d77abf9ac8b",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}
