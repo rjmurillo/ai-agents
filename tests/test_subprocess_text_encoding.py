@@ -1170,11 +1170,18 @@ def _module_sources(value: ast.expr) -> list[str]:
     left to the caller's fixpoint, which already settles those, and keeping
     the walk inside one expression is what bounds it: chasing bindings from
     here re-walks a chain of length N once per link and costs N squared.
+
+    The queue is a deque because a list pops its front by shifting every
+    remaining element. A wide container puts all of its elements in at once,
+    so that shift costs the width on every pop. It hides at the sizes real
+    sources reach, where the shift is a cache-friendly move, and shows up
+    plainly past it: 50000 elements took 0.160s, 100000 took 0.664 and 200000
+    took 2.779, near enough 4x per doubling.
     """
-    queue = [value]
+    queue = deque([value])
     found: list[str] = []
     while queue:
-        node = queue.pop(0)
+        node = queue.popleft()
         if isinstance(node, ast.Name):
             found.append(node.id)
         elif isinstance(node, ast.Subscript):
@@ -3623,6 +3630,34 @@ def test_a_deep_module_alias_chain_stays_linear() -> None:
 
     assert flagged == [depth + 3], "the module survives every alias on the way"
     assert elapsed < 3.0, f"alias resolution took {elapsed:.1f}s for {depth} links"
+
+
+def test_unwinding_a_wide_container_stays_linear() -> None:
+    """Reading the names out of one wide container must not cost the width.
+
+    Every element goes into the queue at once, so a queue that pops its front
+    by shifting the rest pays the width on every pop. At the sizes a real
+    source reaches that shift is a cache-friendly move and the shape looks
+    linear, which is why the wide-unpack test above passes either way. Past
+    that it is plainly quadratic: 50000 elements took 0.160s, 100000 took
+    0.664 and 200000 took 2.779.
+
+    Only the unwinding is timed. Parsing a literal this wide costs about
+    0.45 seconds on its own and would swamp the measurement. The budget
+    leaves a wide margin: popping from both ends does this in 0.015 seconds
+    and shifting does it in about 0.95.
+    """
+    width = 120000
+    source = "WIDE = [" + ", ".join(f"n{index}" for index in range(width)) + "]"
+    container = ast.parse(source).body[0]
+    assert isinstance(container, ast.Assign)
+
+    started = time.perf_counter()
+    found = _module_sources(container.value)
+    elapsed = time.perf_counter() - started
+
+    assert len(found) == width, "every element of the container answers"
+    assert elapsed < 0.3, f"unwinding took {elapsed:.2f}s for {width} elements"
 
 
 def test_unpacking_a_wide_container_stays_linear() -> None:
