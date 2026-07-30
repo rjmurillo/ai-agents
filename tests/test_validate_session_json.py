@@ -306,8 +306,8 @@ class TestValidateSessionSection:
         assert not result.is_valid
         assert any("Invalid commit SHA" in e for e in result.errors)
 
-    def test_future_date_emits_warning(self) -> None:
-        """A session date in the future warns about branch-context-policy invisibility (#3717)."""
+    def test_future_date_emits_error(self) -> None:
+        """A session date in the future is an error (not a warning) (#3717)."""
         session = {
             "number": 1,
             "date": "2099-12-31",
@@ -319,11 +319,12 @@ class TestValidateSessionSection:
 
         validate_session_section(session, result)
 
-        assert any("future" in w for w in result.warnings)
-        assert any("2099-12-31" in w for w in result.warnings)
+        assert any("future" in e for e in result.errors)
+        assert any("2099-12-31" in e for e in result.errors)
+        assert not any("future" in w for w in result.warnings)
 
     def test_today_date_is_accepted(self) -> None:
-        """A session date matching today does not produce a future-date warning (#3717)."""
+        """A session date matching today does not produce a future-date error (#3717)."""
         from datetime import datetime, timezone
 
         today = datetime.now(tz=timezone.utc).date().isoformat()
@@ -338,10 +339,10 @@ class TestValidateSessionSection:
 
         validate_session_section(session, result)
 
-        assert not any("future" in w for w in result.warnings)
+        assert not any("future" in e for e in result.errors)
 
     def test_past_date_is_accepted(self) -> None:
-        """A past session date does not trigger the future-date warning (#3717)."""
+        """A past session date does not trigger the future-date error (#3717)."""
         session = {
             "number": 1,
             "date": "2024-01-01",
@@ -353,7 +354,7 @@ class TestValidateSessionSection:
 
         validate_session_section(session, result)
 
-        assert not any("future" in w for w in result.warnings)
+        assert not any("future" in e for e in result.errors)
 
 
 class TestValidateSessionStart:

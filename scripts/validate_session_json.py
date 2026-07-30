@@ -325,7 +325,7 @@ def validate_session_section(session: dict[str, Any], result: ValidationResult) 
             session_date = date.fromisoformat(session_date_str)
             today = datetime.now(tz=timezone.utc).date()
             if session_date > today:
-                result.warnings.append(
+                result.errors.append(
                     f"Session date '{session_date_str}' is in the future "
                     f"(today is {today.isoformat()}); branch-context-policy "
                     "will not pick up this log"
@@ -1178,10 +1178,10 @@ def parse_args() -> argparse.Namespace:
         "--existing-log",
         action="store_true",
         help=(
-            "Validate as a record only: skip the session-compliance checklist. "
-            "Set this for a log that was already committed and is only being "
-            "edited, where a checklist item cannot be made true retroactively. "
-            "A newly added log must not set it."
+            "Skip protocol-compliance and evidence-agreement checks: validate "
+            "schema and shape only. Use for (1) a log already committed where "
+            "a checklist item cannot be made true retroactively, or (2) a "
+            "freshly created log that does not yet have session-end evidence."
         ),
     )
     parser.add_argument(
