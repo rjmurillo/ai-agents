@@ -5,8 +5,8 @@
 **Context**: When uploading debug logs, verbose output, or diagnostic files
 
 **Action Pattern**:
-- MUST use `if: failure()` for debug/diagnostic artifacts
-- MUST NOT upload debug artifacts on success
+- SHOULD use `if: failure()` for debug/diagnostic artifacts
+- SHOULD NOT upload debug artifacts on success
 - SHOULD use short retention (3 days) for debug artifacts
 - SHOULD include run_id in artifact name for uniqueness
 
@@ -15,8 +15,10 @@
 - Artifact is only useful when workflow fails
 
 **Evidence**:
-- ADR-008 lines 54, 66
-- COST-GOVERNANCE.md line 94
+- ADR-015 Artifact Storage Minimization establishes the minimise-artifacts
+  posture this follows. No ADR mandates the failure condition itself, so this
+  is a practice, not a rule.
+- Repository practice: no workflow currently gates an upload on `failure()`
 
 **Quantified Savings**:
 - Prevents uploads on 90%+ successful runs
@@ -26,7 +28,7 @@
   - Savings: 1800 MB × $0.25/GB = $0.45/month
 - At 10 workflows: $4.50/month saved
 
-**RFC 2119 Level**: MUST (ADR-008 line 66, COST-GOVERNANCE line 94)
+**RFC 2119 Level**: SHOULD (no ADR mandates this; ADR-015 sets the posture)
 
 **Atomicity**: 98%
 
@@ -36,14 +38,14 @@
 
 **Created**: 2025-12-20
 
-**Validated**: 2 (ADR-008, COST-GOVERNANCE)
+**Validated**: 1 (ADR-015 posture)
 
 **Category**: CI/CD Cost Optimization
 
 **Pattern**:
 ```yaml
 - name: Upload Debug Logs
-  # ADR-008: Debug logs only on failure
+  # ADR-015: Debug logs only on failure
   uses: actions/upload-artifact@v4
   if: failure()
   with:
@@ -52,7 +54,6 @@
       logs/*.log
       !logs/verbose-*.log
     retention-days: 3
-    compression-level: 9
 ```
 
 **Anti-Pattern**:

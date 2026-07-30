@@ -16,8 +16,10 @@
 - Default retention would be excessive
 
 **Evidence**:
-- ADR-008 lines 17, 50-56
-- COST-GOVERNANCE.md line 17
+- ADR-015 Rationale, "Minimal retrieval needs: Most artifacts are for
+  debugging and rarely accessed after 7 days"
+- ADR-015 Decision: test results and metrics reports both reduced to 7 days
+- COST-GOVERNANCE.md line 121 ("Use artifact retention policies")
 
 **Quantified Savings**:
 - Example: 100 MB artifact, 50 runs/month
@@ -25,7 +27,7 @@
   - 7-day retention: 350 MB-days × $0.000336/MB-day = $0.12/month
   - Savings: $1.56/month per workflow (93% reduction)
 
-**RFC 2119 Level**: MUST (ADR-008 line 17)
+**RFC 2119 Level**: MUST (ADR-015 Decision section)
 
 **Atomicity**: 98%
 
@@ -35,7 +37,7 @@
 
 **Created**: 2025-12-20
 
-**Validated**: 2 (ADR-008, COST-GOVERNANCE)
+**Validated**: 2 (ADR-015, COST-GOVERNANCE)
 
 **Category**: CI/CD Cost Optimization
 
@@ -59,6 +61,6 @@
 
 **Comment Requirement**:
 ```yaml
-# ADR-008: 7-day retention aligns with PR merge cycle
+# ADR-015: 7-day retention aligns with PR merge cycle
 retention-days: 7
 ```

@@ -104,9 +104,9 @@ Reference document linking all cost avoidance skills with quick comparison.
 
 - [ ] Has path filters (Skill-Cost-003) - SHOULD
 - [ ] Has concurrency block (Skill-Cost-004) - SHOULD
-- [ ] No artifacts OR justified with ADR-008 (Skill-Cost-002)
-- [ ] Artifacts use compression-level: 9 (Skill-Cost-008)
-- [ ] Debug artifacts use if: failure() (Skill-Cost-009)
+- [ ] No artifacts OR justified with ADR-015 (Skill-Cost-002)
+- [ ] Artifacts set no `compression-level` (Skill-Cost-008; ADR-015 did not adopt it)
+- [ ] Debug artifacts use if: failure() (Skill-Cost-009) - SHOULD
 - [ ] Retention ≤7 days (Skill-Cost-011)
 - ~~[ ] Uses `ubuntu-24.04-arm` (Skill-Cost-001)~~ - N/A for public repos
 - ~~[ ] No Windows runner unless justified (Skill-Cost-010)~~ - N/A for public repos
@@ -122,7 +122,7 @@ Reference document linking all cost avoidance skills with quick comparison.
 
 - [COST-GOVERNANCE.md](../../.agents/governance/COST-GOVERNANCE.md)
 - [ADR-055: GitHub Actions Runner Selection](../../.agents/architecture/ADR-055-github-actions-runner-selection.md)
-- [ADR-008: Artifact Storage Minimization](../../.agents/architecture/ADR-015-artifact-storage-minimization.md)
+- [ADR-015: Artifact Storage Minimization](../../.agents/architecture/ADR-015-artifact-storage-minimization.md)
 - [SESSION-PROTOCOL.md](../../.agents/SESSION-PROTOCOL.md) Phase 5
 
 ## Version

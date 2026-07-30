@@ -1,59 +1,59 @@
-# Skill-Cost-008: Artifact Compression Required
+# Skill-Cost-008: Artifact Compression Was Considered and Rejected
 
-**Statement**: Use compression-level 9 for all text-based artifacts
+**Statement**: Do not add `compression-level` to artifact uploads. ADR-015
+evaluated compression and did not adopt it.
 
 **Context**: When uploading artifacts in GitHub Actions workflows
 
 **Action Pattern**:
-- MUST set `compression-level: 9` for text artifacts (logs, XML, JSON, markdown)
-- SHOULD NOT compress already-compressed formats (zip, tar.gz, images)
-- MUST target specific files, not entire directories
+- SHOULD NOT add `compression-level` to `actions/upload-artifact` steps
+- SHOULD reduce `retention-days` instead; that is the lever ADR-015 chose
+- MUST NOT cite an ADR for a compression mandate; none grants one
 
 **Trigger Condition**:
-- Adding `actions/upload-artifact` to workflow
-- Uploading text-based artifacts (test results, logs, reports)
+- Adding `actions/upload-artifact` to a workflow
+- Reviewing a change that proposes compressing artifacts to cut cost
 
 **Evidence**:
-- ADR-008 line 64
-- COST-GOVERNANCE.md artifact hygiene
+- ADR-015, Alternatives Considered: "Compress artifacts | Reduced storage |
+  Decompression overhead | Minimal benefit for text files". It appears in the
+  alternatives table, in the Why Not Chosen column.
+- ADR-015, Decision: the adopted lever is shorter retention, not compression.
+- Repository practice: 14 workflow files use `actions/upload-artifact` and
+  none sets `compression-level`.
 
-**Quantified Savings**:
-- Text compression: 70-90% size reduction typical
-- Example: 100 MB logs → 15 MB compressed
-- Storage cost: $0.25/GB/month
-  - Uncompressed: 100 MB × $0.25 = $0.025/month
-  - Compressed: 15 MB × $0.25 = $0.004/month
-  - Savings: $0.021/month per artifact
-- At 100 artifacts/month: $2.10/month saved
+**Correction History**:
 
-**RFC 2119 Level**: MUST (ADR-008 line 64)
+This memory previously asserted `MUST set compression-level: 9` at RFC 2119
+MUST level, citing "ADR-008 line 64". That citation was checked and failed:
+ADR-008 is "Protocol Automation via Lifecycle Hooks", its line 64 is blank,
+and it contains no compression content. The secondary citation,
+"COST-GOVERNANCE.md artifact hygiene", also failed; that file contains no
+compression content. The ADR that owns artifact storage, ADR-015, evaluated
+compression and did not adopt it. An agent retrieving the old text would have
+edited 14 workflows to satisfy a rule no authority granted.
 
 **Atomicity**: 99%
 
-**Tag**: helpful
+**Tag**: corrective
 
 **Impact**: 7/10
 
 **Created**: 2025-12-20
 
-**Validated**: 1 (ADR-008)
+**Corrected**: 2026-07-17
+
+**Validated**: 1 (ADR-015 Alternatives Considered)
 
 **Category**: CI/CD Cost Optimization
 
 **Pattern**:
+
 ```yaml
 - name: Upload Test Results
   uses: actions/upload-artifact@v4
   with:
     name: test-results
     path: TestResults/*.xml
-    retention-days: 7
-    compression-level: 9  # MUST for text artifacts
-```
-
-**Skip Compression**:
-```yaml
-# Already compressed - no benefit from re-compression
-path: release/*.tar.gz
-compression-level: 0
+    retention-days: 7  # ADR-015: shorter retention is the adopted lever
 ```
