@@ -10,26 +10,35 @@ This guide provides solutions to common issues with the memory system. Issues ar
 
 Run these commands to quickly assess system health:
 
+One command covers every tier: working memory, semantic memory (Serena and
+Forgetful), episodic memory, and the router and reflexion modules.
+
 ```bash
-# Memory Router status
-python3 .claude/skills/memory/scripts/search_memory.py --status
-
-# Reflexion Memory status
-python3 .claude/skills/memory/scripts/extract_session_episode.py --status
-
-# Forgetful health check
-python3 scripts/forgetful/check_memory_health.py
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/test_memory_health.py"
 ```
+
+Add `--format table` for a human-readable summary instead of JSON.
 
 ### Expected Healthy Output
 
+Abbreviated. The full report also carries `timestamp`, per-tier `name`
+fields, a `modules` list, and a `recommendations` list.
+
 ```json
 {
-  "SerenaAvailable": true,
-  "ForgetfulAvailable": true,
-  "SerenaPath": "/path/to/.serena/memories",
-  "SerenaMemoryCount": 460,
-  "ForgetfulUrl": "http://localhost:8020"
+  "overall": "healthy",
+  "tiers": {
+    "tier0_working": { "available": true },
+    "tier1_semantic": {
+      "available": true,
+      "serena": { "available": true, "count": 96 },
+      "forgetful": { "available": true, "endpoint": "http://localhost:8020/mcp" }
+    },
+    "tier2_episodic": {
+      "available": true,
+      "episodes": { "available": true, "count": 332 }
+    }
+  }
 }
 ```
 
@@ -77,15 +86,17 @@ Get-ChildItem $status.SerenaPath -Filter "*keyword*"
 
 **Diagnosis**:
 
-```powershell
-# Check if Forgetful is running
-python3 scripts/forgetful/check_memory_health.py
-
-# Check port
-Test-NetConnection -ComputerName localhost -Port 8020
+```bash
+# Check if Forgetful is running (reports the endpoint and the reason it failed)
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/test_memory_health.py"
 
 # Check service (Linux)
 systemctl --user status forgetful
+```
+
+```powershell
+# Check port
+Test-NetConnection -ComputerName localhost -Port 8020
 
 # Check service (Windows)
 Get-ScheduledTask -TaskName 'ForgetfulMCP' | Get-ScheduledTaskInfo
