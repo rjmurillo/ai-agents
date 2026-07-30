@@ -53,10 +53,12 @@ from __future__ import annotations
 
 import ast
 import codecs
+import math
 import time
 from collections import Counter, deque
 from pathlib import Path
 from typing import NamedTuple
+from unittest import mock
 
 import pytest
 
@@ -3863,6 +3865,13 @@ def _best_elapsed(source: str, repeats: int = 3) -> float:
         flagged = unpinned_lines(source)
         best = min(best, time.perf_counter() - started)
         assert flagged == [], "no call is made, so nothing can decode"
+    assert math.isfinite(best) and best > 0.0, (
+        f"the timer returned {best!r} over {repeats} repeats, so this reading "
+        "carries no duration and any ratio built on it is meaningless. That is "
+        "a measurement failure, not a regression in the code under test. "
+        "Without this check a zero reading reaches the divide below and raises "
+        "ZeroDivisionError, which reads as a crash instead of naming the cause."
+    )
     return best
 
 
@@ -3931,6 +3940,30 @@ def test_the_linear_scaling_ceiling_separates_the_two_regimes() -> None:
     assert worst_measured_linear_ratio < _LINEAR_SCALING_CEILING, (
         "ceiling must clear the slowest linear reading actually observed"
     )
+
+
+def test_a_zero_duration_reading_is_named_as_a_measurement_failure() -> None:
+    """The zero-reading guard proves nothing unless it can fire.
+
+    A coarse timer handing back two identical stamps yields an elapsed time of
+    zero. That reading reached the divide in the ratio test above and raised
+    ``ZeroDivisionError``, which reads as a crash in the code under test rather
+    than as the measurement failure it is. Guarding at the reading rather than
+    at the one divide covers both readings and every future caller. Refs #4048.
+    """
+    with mock.patch.object(time, "perf_counter", side_effect=[1.0, 1.0]):
+        with pytest.raises(AssertionError, match="carries no duration"):
+            _best_elapsed("x = 1", repeats=1)
+
+
+def test_a_positive_reading_passes_the_zero_duration_guard() -> None:
+    """Negative control for the guard above.
+
+    A guard that rejected every reading would also make the test above pass, so
+    pin that a normal reading survives it.
+    """
+    with mock.patch.object(time, "perf_counter", side_effect=[1.0, 1.25]):
+        assert _best_elapsed("x = 1", repeats=1) == pytest.approx(0.25)
 
 
 def test_return_bindings_stay_linear_in_a_deeply_nested_file() -> None:
