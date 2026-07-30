@@ -48,7 +48,7 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/orp
 - Current baseline (as of 2026-07-29): 190 files scanned, 535 refs checked, 0 findings, `VERDICT: PASS`, exit 0. The instrument reads green only because 187 refs are directive-suppressed: the historical specs that once produced findings now carry `orphan-ref-ignore` markers, so read the suppression count alongside the verdict.
 - Healthy delta: your PR adds zero findings. Backticked kebab names in anything you write must resolve to real `.claude/skills/<name>/` directories.
 - Unhealthy: new findings pointing at YOUR files; CI runs this on PR-relevant targets and a new critical blocks.
-- Suppression, sparingly: line-scope `orphan-ref-ignore` and file-scope `orphan-ref-ignore-file` HTML-comment directives; the file-scope directive must appear in the first 50 lines (`scan.py:225-226`, `patterns.py:82`).
+- Suppression, sparingly: line-scope `orphan-ref-ignore` and file-scope `orphan-ref-ignore-file` HTML-comment directives; the file-scope directive must appear in the first 50 lines (`scan.py:234-235`, `patterns.py:89`).
 - Trap: do not "fix" the red baseline by mass-adding ignore directives to historical specs; that destroys the instrument. Measure your delta instead.
 
 ### Golden principles
