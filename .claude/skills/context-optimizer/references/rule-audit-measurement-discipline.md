@@ -60,6 +60,32 @@ but only because the gate was run. The check that costs nothing is
 line nobody meant to remove. For multi-function edits, prefer removing an AST
 span to matching on a `def` line.
 
+## A helper probed alone can answer a different question than the entry point
+
+Verifying the claim that all 24 archived judge failures salvage, the obvious
+check was to call the recovery helper on each stored payload. It returned
+`None` for 24 of 24, and the strict parser raised on 24 of 24. Both counts were
+correct. Both were about a different question than the one being asked.
+
+The entry point returns `judge_failed=False` and `judge_salvaged=True` for all
+24. `_recover_verdict` returning `None` means no *embedded complete object* was
+found, which is one route among several; the three top-level integers are still
+extractable, and the function named `_judge_parse_failure` extracts them. Its
+name asserts an outcome it does not produce, which is now issue #4031.
+
+Two correct measurements pointed the opposite way from the real behaviour, and
+the reason was reading a name instead of a return value. Had the claim been
+retracted on that evidence, a true finding would have been replaced with a
+false one, and the retraction would have looked better supported than the
+original because it cited two numbers.
+
+The procedure that catches it: verify a claim about observable behaviour
+through the entry point that produces the observable, not through the helper
+that looks responsible for it. Reach for a helper only to explain a result the
+entry point already established, and when a helper's answer contradicts the
+entry point, the entry point wins and the contradiction is a finding about the
+helper.
+
 ## An over-eager refusal is not symmetric with an over-eager accept
 
 This is the asymmetry the whole instrument turns on, and it governs how much
