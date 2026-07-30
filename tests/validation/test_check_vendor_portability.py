@@ -587,3 +587,56 @@ def test_a_file_using_only_artifact_dir_is_not_an_offender(fake_repo: Path) -> N
     offenders = cvp.collect_offenders(fake_repo)
 
     assert not [o for o in offenders if o.relpath.endswith("reader.py")]
+
+
+# --- scripts/ detection (issue #4013) -------------------------------------
+
+
+def test_hardcoded_scripts_path_is_offender(fake_repo: Path) -> None:
+    """A skill that references scripts/ directly is flagged as an offender.
+
+    Isolating negative control: removing scripts[\\/] from _BANNED_PATH causes
+    collect_offenders to return [] for this file, failing the assertion.
+    The file contains no .agents/, .claude/lib/, or other banned prefix, so
+    only the scripts/ component can trigger detection.
+    """
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/bad.py",
+        "path = 'scripts/validation/check_vendor_portability.py'\n",
+    )
+
+    offenders = cvp.collect_offenders(fake_repo)
+
+    assert len(offenders) == 1
+    assert "scripts/" in offenders[0].excerpt
+
+
+def test_scripts_path_after_slash_prefix_is_not_offender(fake_repo: Path) -> None:
+    """A path where scripts is a subdirectory (build/scripts/) is not flagged.
+
+    The lookbehind that excludes a slash before "scripts" means
+    build/scripts/x.py does not register as an upstream-only path.
+    """
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/ok.py",
+        "path = 'build/scripts/generate_rules.py'\n",
+    )
+
+    assert cvp.collect_offenders(fake_repo) == []
+
+
+def test_scripts_as_word_suffix_is_not_offender(fake_repo: Path) -> None:
+    """A word like test_scripts/ is not flagged (word char before scripts).
+
+    The lookbehind that excludes a word character before "scripts"
+    means test_scripts/x.py does not collide with the upstream scripts/ tree.
+    """
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/ok.py",
+        "path = 'test_scripts/x.py'\n",
+    )
+
+    assert cvp.collect_offenders(fake_repo) == []
