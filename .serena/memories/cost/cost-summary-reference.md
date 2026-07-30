@@ -17,8 +17,8 @@ Reference document linking all cost avoidance skills with quick comparison.
 | Skill-Cost-005 | Serena Symbolic | 80%+ | 10/10 | MUST | ✅ Token savings |
 | Skill-Cost-006 | Memory Caching | 90% | 10/10 | MUST | ✅ Token savings |
 | Skill-Cost-007 | Haiku Quick Tasks | 98% | 9/10 | SHOULD | ✅ Token savings |
-| Skill-Cost-008 | Artifact Compression | 70-90% | 7/10 | MUST | ✅ Still applies |
-| Skill-Cost-009 | Debug on Failure | 90% | 8/10 | MUST | ✅ Still applies |
+| Skill-Cost-008 | Artifact Compression | n/a | 7/10 | none | ⚠️ No mandate; corrective record |
+| Skill-Cost-009 | Debug on Failure | 90% | 8/10 | SHOULD | ✅ Still applies |
 | ~~Skill-Cost-010~~ | ~~Avoid Windows~~ | ~~69%~~ | ~~9/10~~ | ~~MUST NOT~~ | **N/A for public repos** |
 | Skill-Cost-011 | Retention Minimum | 93% | 8/10 | MUST | ✅ Still applies |
 | Skill-Cost-012 | Offset/Limit Reads | 99% | 7/10 | SHOULD | ✅ Token savings |
@@ -56,7 +56,7 @@ Reference document linking all cost avoidance skills with quick comparison.
 | Resource | Cost | Notes |
 |----------|------|-------|
 | Storage | $0.25/GB/month | Billed daily |
-| Compression | Free | 70-90% size reduction |
+| Compression | Free | ADR-015 judged the benefit minimal for text artifacts |
 | Retention | Linear | 90 days = 12.9x cost of 7 days |
 
 ## High-Impact Quick Wins
@@ -104,8 +104,7 @@ Reference document linking all cost avoidance skills with quick comparison.
 
 - [ ] Has path filters (Skill-Cost-003) - SHOULD
 - [ ] Has concurrency block (Skill-Cost-004) - SHOULD
-- [ ] No artifacts OR justified with ADR-015 (Skill-Cost-002)
-- [ ] Artifacts set no `compression-level` (Skill-Cost-008; ADR-015 did not adopt it)
+- [ ] Artifact retention set to the minimum needed (Skill-Cost-002) - MUST
 - [ ] Debug artifacts use if: failure() (Skill-Cost-009) - SHOULD
 - [ ] Retention ≤7 days (Skill-Cost-011)
 - ~~[ ] Uses `ubuntu-24.04-arm` (Skill-Cost-001)~~ - N/A for public repos

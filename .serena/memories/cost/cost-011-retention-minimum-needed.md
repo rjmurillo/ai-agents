@@ -16,7 +16,7 @@
 - Default retention would be excessive
 
 **Evidence**:
-- ADR-015 Rationale, "Minimal retrieval needs: Most artifacts are for
+- ADR-015 Context, "Minimal retrieval needs: Most artifacts are for
   debugging and rarely accessed after 7 days"
 - ADR-015 Decision: test results and metrics reports both reduced to 7 days
 - COST-GOVERNANCE.md line 121 ("Use artifact retention policies")

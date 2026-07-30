@@ -45,7 +45,7 @@
 **Pattern**:
 ```yaml
 - name: Upload Debug Logs
-  # ADR-015: Debug logs only on failure
+  # Debug-only artifact; skip the upload on success to avoid storing noise
   uses: actions/upload-artifact@v4
   if: failure()
   with:
