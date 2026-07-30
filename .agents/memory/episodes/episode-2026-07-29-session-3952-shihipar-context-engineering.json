@@ -216,7 +216,8 @@
         "e141",
         "e148",
         "e153",
-        "e160"
+        "e160",
+        "e168"
       ]
     },
     {
@@ -271,7 +272,8 @@
         "e141",
         "e148",
         "e153",
-        "e160"
+        "e160",
+        "e168"
       ]
     },
     {
@@ -694,7 +696,8 @@
         "e141",
         "e148",
         "e153",
-        "e160"
+        "e160",
+        "e168"
       ]
     },
     {
@@ -1446,6 +1449,74 @@
       "timestamp": "2026-07-29T00:00:00+00:00",
       "type": "test",
       "content": "Verification: full suite 19032 passed and 30 skipped, up 3 from the new tests. ruff clean, mypy clean after annotating the filed-scores parameter, 0 em/en dashes, mirrors byte-identical, taste ratchet OK at baseline 616. Shipped as dea1e35f and 8a52e03a on PR #3983.",
+      "caused_by": [
+        "e017",
+        "e022",
+        "e071"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e161",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Sol round 18 returned three BLOCKING findings and one NIT, and also rebutted the load-bearing claim round 17 rested on. Round 17 argued an over-eager refusal is the same class of defect as an over-eager accept. Sol: a refusal is visible in judge_failed and the sample count, a fabrication is an unmarked false observation. An equal restatement may be accepted only where equality is established exactly. Two of the four findings are cases where round 17 claimed equality without establishing it exactly.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e162",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced all four in /tmp/r18.py. (1) json.dumps applied twice yields two backslashes; a uXXXX-only peel consumes the second, leaving \\activation_score that nothing can decode or match. (2) The named-value pattern captured an integer prefix, so a judge filing 1 while writing 1.5 read as agreement; 1e1 the same. (3) A four-layer escape exhausted the peel budget and the exhausted walk returned no contradiction, which the caller read as agreement. (4) Round 17 made both ambiguity walkers iterative, which removed the recursion limit that had been terminating self-referential objects by accident.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e163",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed all four. _peel_one_escape_layer now handles backslash-backslash first, then quote, solidus, the control escapes, and uXXXX. The named-value pattern captures the whole token and _EXACT_INT_RE refuses anything not exactly an integer. _escape_layers yields a truncated flag and the caller refuses on a truncated walk. Both walkers carry an identity-keyed seen set. Five new tests.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e164",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "My own negative control caught a fifth defect I introduced while fixing the third. The first truncation fix refused on any layer that still had anything to decode rather than on a truncated walk. A judge quoting a Windows path leaves a literal backslash-b, which is a JSON escape, so that payload would have been refused. The symptom was a negative control PASSING: disabling the backslash handling left the double-serialization test green because the refusal was coming from the truncation arm. A negative control that passes is as informative as one that fails.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e165",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Five negative controls all discriminate against the corrected code. Dropping backslash handling fails the double-serialization test; an integer-prefix capture fails the non-integer test; accepting a truncated walk fails the budget test; dropping the cycle guards hangs at 30s; refusing on any undecoded layer fails the new backslash-prose test.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e166",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replayed all 288 archived judge payloads through both the committed parser and the round-18 parser. Both produce 24 recovery divergences and the sets are identical by coordinate, not merely equal in count. None of the five shapes occurs in the archive, so the published table is unmoved. The 24 remain issue #3999.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e167",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verification: full suite 19037 passed and 30 skipped, up 5 from the new tests. Eval suite 1583 passed and 4 skipped. ruff clean, mypy clean, 0 em/en dashes in every changed file, context-optimizer mirrors byte-identical, taste ratchet OK at baseline 616.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e168",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "content": "Verification: full suite 19037 passed and 30 skipped, up 5 from the new tests. Eval suite 1583 passed and 4 skipped. ruff clean, mypy clean, 0 em/en dashes in every changed file, context-optimizer mirrors byte-identical, taste ratchet OK at baseline 616.",
       "caused_by": [
         "e017",
         "e022",
