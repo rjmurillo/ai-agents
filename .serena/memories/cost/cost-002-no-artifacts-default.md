@@ -1,16 +1,18 @@
 # Skill-Cost-002: Artifacts Earn Their Retention
 
-**Statement**: Artifact uploads MUST set the shortest retention that serves
-their purpose; ADR-015 decided the retention numbers, not a ban on artifacts
+**Statement**: ADR-015 sets 1-day retention for operational artifacts and
+7-day retention for test results and metrics reports. It does not ban
+artifacts or set retention for other artifact types.
 
 **Context**: When writing GitHub Actions workflows
 
 **Action Pattern**:
-- MUST set `retention-days` to the minimum needed; ADR-015 Decision sets
-  7 days for test results and metrics reports, 1 day for operational output
-- SHOULD say in a comment why the artifact is needed; no ADR requires this,
-  it just keeps the next reader from guessing
-- SHOULD gate debug-only uploads on failure (see Skill-Cost-009)
+- MUST use 1 day for operational artifacts and 7 days for test results and
+  metrics reports
+- For other artifact types, choose retention from the documented consumer
+  need; no repository-wide duration exists
+- Gate debug-only uploads on failure when no success-case consumer exists
+  (see Skill-Cost-009)
 
 **Trigger Condition**:
 - Adding artifact upload to workflow
@@ -30,8 +32,8 @@ their purpose; ADR-015 decided the retention numbers, not a ban on artifacts
 - $0.25/GB/month storage cost avoided
 - For 10GB artifacts with 90-day retention: ~$2.50/month vs 7-day: ~$0.20/month
 
-**RFC 2119 Level**: MUST for the retention number (ADR-015 Decision);
-SHOULD for the rest, which no authority mandates
+**RFC 2119 Level**: MUST for the three artifact classes in ADR-015; none for
+other artifact types or failure-only upload gating
 
 **Atomicity**: 96%
 
@@ -57,8 +59,8 @@ SHOULD for the rest, which no authority mandates
 
 **Correct Pattern**:
 ```yaml
-# ADR-015: Test results justified for CI visibility
-# 7-day retention aligns with PR merge cycle
+# ADR-015: Keep test results for 7 days to debug recent failures
+# Older results remain in git history
 - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
   if: always()
   with:

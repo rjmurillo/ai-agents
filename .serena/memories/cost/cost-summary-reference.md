@@ -11,16 +11,16 @@ Reference document linking all cost avoidance skills with quick comparison.
 | Skill ID | Focus Area | Savings % | Impact | RFC Level | Notes |
 |----------|-----------|-----------|--------|-----------|-------|
 | ~~Skill-Cost-001~~ | ~~ARM Runners~~ | ~~37.5%~~ | ~~9/10~~ | ~~MUST~~ | **N/A for public repos** |
-| Skill-Cost-002 | Artifacts Earn Their Retention | 60-80% | 8/10 | MUST | ✅ Still applies |
+| Skill-Cost-002 | Artifacts Earn Their Retention | 60-80% | 8/10 | MUST (ADR types) | ✅ ADR values only |
 | Skill-Cost-003 | Path Filters | Reduce noise | 7/10 | SHOULD | ✅ Reduces bot runs |
 | Skill-Cost-004 | Concurrency Cancel | Reduce noise | 6/10 | SHOULD | ✅ Reduces bot runs |
 | Skill-Cost-005 | Serena Symbolic | 80%+ | 10/10 | MUST | ✅ Token savings |
 | Skill-Cost-006 | Memory Caching | 90% | 10/10 | MUST | ✅ Token savings |
 | Skill-Cost-007 | Haiku Quick Tasks | 98% | 9/10 | SHOULD | ✅ Token savings |
 | Skill-Cost-008 | Artifact Compression | n/a | 7/10 | none | ⚠️ No mandate; corrective record |
-| Skill-Cost-009 | Debug on Failure | 90% | 8/10 | SHOULD | ✅ Still applies |
+| Skill-Cost-009 | Debug on Failure | 90% | 8/10 | none | ⚠️ Optional tactic |
 | ~~Skill-Cost-010~~ | ~~Avoid Windows~~ | ~~69%~~ | ~~9/10~~ | ~~MUST NOT~~ | **N/A for public repos** |
-| Skill-Cost-011 | Retention Minimum | 93% | 8/10 | MUST | ✅ Still applies |
+| Skill-Cost-011 | Retention Minimum | 93% | 8/10 | MUST (ADR types) | ✅ 1-day and 7-day values |
 | Skill-Cost-012 | Offset/Limit Reads | 99% | 7/10 | SHOULD | ✅ Token savings |
 
 ## Cost Reference Table
@@ -79,8 +79,8 @@ Reference document linking all cost avoidance skills with quick comparison.
 
 4. **Audit artifacts** (Skill-Cost-002, 008, 009, 011)
    - Review each upload
-   - Add justifications
-   - Set short retention
+   - Apply ADR-015 values to covered artifact types
+   - Document consumer need for other retention periods
    - 60-80% storage savings
 
 **Workflow Efficiency** (Reduces bot noise, not costs):
@@ -104,9 +104,10 @@ Reference document linking all cost avoidance skills with quick comparison.
 
 - [ ] Has path filters (Skill-Cost-003) - SHOULD
 - [ ] Has concurrency block (Skill-Cost-004) - SHOULD
-- [ ] Artifact retention set to the minimum needed (Skill-Cost-002) - MUST
-- [ ] Debug artifacts use if: failure() (Skill-Cost-009) - SHOULD
-- [ ] Retention ≤7 days (Skill-Cost-011)
+- [ ] Operational artifacts use 1-day retention (Skill-Cost-002, 011) - MUST
+- [ ] Test results and metrics reports use 7-day retention (Skill-Cost-002, 011) - MUST
+- [ ] Other artifact retention has documented consumer need (Skill-Cost-002, 011)
+- [ ] Failure-only artifacts use `if: failure()` when no success consumer exists (Skill-Cost-009)
 - ~~[ ] Uses `ubuntu-24.04-arm` (Skill-Cost-001)~~ - N/A for public repos
 - ~~[ ] No Windows runner unless justified (Skill-Cost-010)~~ - N/A for public repos
 

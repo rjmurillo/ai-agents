@@ -1,14 +1,16 @@
 # Skill-Cost-009: Debug Artifacts Only on Failure
 
-**Statement**: Use if: failure() for debug artifacts to avoid unnecessary uploads
+**Statement**: Failure-only upload is an optional cost tactic for artifacts
+that have no value after a successful run.
 
 **Context**: When uploading debug logs, verbose output, or diagnostic files
 
 **Action Pattern**:
-- SHOULD use `if: failure()` for debug/diagnostic artifacts
-- SHOULD NOT upload debug artifacts on success
-- SHOULD use short retention (3 days) for debug artifacts
-- SHOULD include run_id in artifact name for uniqueness
+- Use `if: failure()` when the artifact has no success-case consumer
+- Do not gate artifacts that consumers need after successful runs
+- Choose retention from the documented consumer need; ADR-015 sets no
+  debug-log duration
+- Add `run_id` only when same-name collisions are possible
 
 **Trigger Condition**:
 - Uploading logs, stack traces, or debug output
@@ -28,7 +30,7 @@
   - Savings: 1800 MB × $0.25/GB = $0.45/month
 - At 10 workflows: $4.50/month saved
 
-**RFC 2119 Level**: SHOULD (no ADR mandates this; ADR-015 sets the posture)
+**RFC 2119 Level**: none; no authority mandates failure-only uploads
 
 **Atomicity**: 98%
 
@@ -53,7 +55,6 @@
     path: |
       logs/*.log
       !logs/verbose-*.log
-    retention-days: 3
 ```
 
 **Anti-Pattern**:

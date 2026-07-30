@@ -1,15 +1,15 @@
 # Skill-Cost-011: Artifact Retention Minimum Needed
 
-**Statement**: Set retention-days to minimum needed, default ≤7 days
+**Statement**: Use ADR-015 retention values for the artifact classes it
+governs. Derive other retention periods from documented consumer need.
 
 **Context**: When uploading artifacts in GitHub Actions workflows
 
 **Action Pattern**:
-- MUST set `retention-days` explicitly (no default)
-- MUST use ≤7 days for most artifacts
-- SHOULD use 1 day for build outputs consumed by dependent jobs
-- SHOULD use 3 days for debug logs
-- MAY use 30 days for release artifacts with justification
+- MUST use 1 day for operational artifacts
+- MUST use 7 days for test results and metrics reports
+- For other artifact types, document the consumer need and choose retention
+  from that need; ADR-015 sets no default
 
 **Trigger Condition**:
 - Adding artifact upload to workflow
@@ -27,7 +27,8 @@
   - 7-day retention: 350 MB-days × $0.000336/MB-day = $0.12/month
   - Savings: $1.56/month per workflow (93% reduction)
 
-**RFC 2119 Level**: MUST (ADR-015 Decision section)
+**RFC 2119 Level**: MUST only for operational artifacts, test results, and
+metrics reports in ADR-015; none for other artifact types
 
 **Atomicity**: 98%
 
@@ -44,11 +45,10 @@
 **Retention Guidelines**:
 | Artifact Type | Retention | Justification |
 |---------------|-----------|---------------|
-| Build outputs (consumed by workflow) | 1 day | Ephemeral |
-| Debug logs | 3 days | Recent debugging |
-| Test results | 7 days | PR merge cycle |
-| Coverage reports | 7 days | Trend tracking |
-| Release binaries | 30 days | Distribution window |
+| Operational artifacts | 1 day | Needed within the same workflow |
+| Test results | 7 days | Debug recent failures |
+| Metrics reports | 7 days | Review the latest report |
+| Other artifacts | No repository default | Document consumer need |
 
 **Pattern**:
 ```yaml
@@ -59,8 +59,8 @@
     retention-days: 7  # Explicit, not default
 ```
 
-**Comment Requirement**:
+**Example Rationale**:
 ```yaml
-# ADR-015: 7-day retention aligns with PR merge cycle
+# ADR-015: Keep test results for 7 days to debug recent failures
 retention-days: 7
 ```
