@@ -2868,3 +2868,131 @@ class TestValidateMetricsConsistency:
             encoding="utf-8",
         )
         assert extract_session_episode.validate_episode_file(ep) == []
+
+
+class TestDurationFromWorklogs:
+    """Tests for _duration_from_worklogs (issue #3972)."""
+
+    def test_two_timestamps_computes_duration(self):
+        entries = [
+            {"time": "2026-07-30T06:00:00Z", "entry": "start"},
+            {"time": "2026-07-30T06:45:00Z", "entry": "end"},
+        ]
+        assert extract_session_episode._duration_from_worklogs(entries) == 45
+
+    def test_multiple_entries_uses_first_and_last(self):
+        entries = [
+            {"time": "2026-07-30T06:00:00Z", "entry": "a"},
+            {"time": "2026-07-30T06:20:00Z", "entry": "b"},
+            {"time": "2026-07-30T06:30:00Z", "entry": "c"},
+        ]
+        assert extract_session_episode._duration_from_worklogs(entries) == 30
+
+    def test_single_entry_returns_zero(self):
+        entries = [{"time": "2026-07-30T06:00:00Z", "entry": "only"}]
+        assert extract_session_episode._duration_from_worklogs(entries) == 0
+
+    def test_empty_list_returns_zero(self):
+        assert extract_session_episode._duration_from_worklogs([]) == 0
+
+    def test_entries_without_time_are_skipped(self):
+        entries = [
+            {"entry": "no time here"},
+            {"time": "2026-07-30T06:00:00Z", "entry": "start"},
+            {"entry": "also no time"},
+            {"time": "2026-07-30T06:10:00Z", "entry": "end"},
+        ]
+        assert extract_session_episode._duration_from_worklogs(entries) == 10
+
+    def test_invalid_time_value_is_skipped(self):
+        entries = [
+            {"time": "not-a-date", "entry": "bad"},
+            {"time": "2026-07-30T06:00:00Z", "entry": "start"},
+            {"time": "2026-07-30T06:05:00Z", "entry": "end"},
+        ]
+        assert extract_session_episode._duration_from_worklogs(entries) == 5
+
+
+class TestDurationFromMetricsBlock:
+    """Tests for _duration_from_metrics_block (issue #3972)."""
+
+    def test_parses_tilde_minutes_string(self):
+        assert (
+            extract_session_episode._duration_from_metrics_block({"duration": "~20 minutes"}) == 20
+        )
+
+    def test_parses_plain_minutes_string(self):
+        assert (
+            extract_session_episode._duration_from_metrics_block({"duration": "25 minutes"}) == 25
+        )
+
+    def test_parses_integer_duration(self):
+        assert extract_session_episode._duration_from_metrics_block({"duration": 30}) == 30
+
+    def test_parses_duration_minutes_key(self):
+        assert extract_session_episode._duration_from_metrics_block({"duration_minutes": 15}) == 15
+
+    def test_missing_key_returns_zero(self):
+        assert extract_session_episode._duration_from_metrics_block({}) == 0
+
+    def test_unparseable_string_returns_zero(self):
+        assert extract_session_episode._duration_from_metrics_block({"duration": "unknown"}) == 0
+
+
+class TestJsonMetricsDuration:
+    """Tests that json_metrics populates duration_minutes from session data (issue #3972)."""
+
+    def test_duration_computed_from_worklogs(self):
+        data = {
+            "workLog": [
+                {"time": "2026-07-30T08:00:00Z", "entry": "start"},
+                {"time": "2026-07-30T08:30:00Z", "entry": "end"},
+            ],
+        }
+        metrics = extract_session_episode.json_metrics(data)
+        assert metrics["duration_minutes"] == 30
+
+    def test_duration_from_old_schema_metrics_block(self):
+        data = {
+            "metrics": {"duration": "~20 minutes", "toolCalls": 10},
+        }
+        metrics = extract_session_episode.json_metrics(data)
+        assert metrics["duration_minutes"] == 20
+
+    def test_worklogs_timestamp_wins_over_metrics_block(self):
+        """Structured timestamps take priority over the prose metrics block."""
+        data = {
+            "workLog": [
+                {"time": "2026-07-30T08:00:00Z", "entry": "start"},
+                {"time": "2026-07-30T08:45:00Z", "entry": "end"},
+            ],
+            "metrics": {"duration": "~20 minutes"},
+        }
+        metrics = extract_session_episode.json_metrics(data)
+        assert metrics["duration_minutes"] == 45
+
+    def test_no_time_data_stays_zero(self):
+        """Modern sessions with no timestamps produce zero, not a false value."""
+        data: dict = {}
+        metrics = extract_session_episode.json_metrics(data)
+        assert metrics["duration_minutes"] == 0
+
+    def test_tool_calls_from_old_schema(self):
+        data = {
+            "metrics": {"duration": "~15 minutes", "toolCalls": 24},
+        }
+        metrics = extract_session_episode.json_metrics(data)
+        assert metrics["tool_calls"] == 24
+
+    def test_tool_calls_zero_for_modern_session(self):
+        """Modern sessions without toolCalls in metrics block produce zero."""
+        data = {
+            "workLog": [
+                {"time": "2026-07-30T08:00:00Z", "entry": "start"},
+                {"time": "2026-07-30T08:30:00Z", "entry": "end"},
+            ],
+        }
+        metrics = extract_session_episode.json_metrics(data)
+        assert metrics["tool_calls"] == 0
+        # duration IS populated (from timestamps)
+        assert metrics["duration_minutes"] == 30
