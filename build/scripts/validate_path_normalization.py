@@ -26,6 +26,8 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+GIT_CHECK_IGNORE_TIMEOUT_SECONDS = 30
+
 
 @dataclass(frozen=True)
 class ForbiddenPattern:
@@ -87,7 +89,16 @@ INLINE_CODE_PATTERN = re.compile(r"`[^`]+`")
 
 
 def _filter_git_ignored(root: Path, files: list[Path]) -> list[Path]:
-    """Drop files ignored by git, failing open when git is unavailable."""
+    """Drop files ignored by git, failing open when git is unavailable.
+
+    Scanning ignored trees made the gate fail on transient artifacts, for
+    example a `.pytest_cache/basetemp/` fixture holding a deliberate
+    `/home/runner` string. Naming each cache directory in the exclude list is
+    a blocklist that loses to the next tool; git already knows the answer.
+
+    The timeout is not decorative: this runs inside a pre-push hook, and a git
+    that blocks on an index lock would otherwise hang the push with no output.
+    """
     if not files:
         return files
 
@@ -99,11 +110,14 @@ def _filter_git_ignored(root: Path, files: list[Path]) -> list[Path]:
             ["git", "-C", str(root), "check-ignore", "--stdin", "-z"],
             input=payload,
             capture_output=True,
+            timeout=GIT_CHECK_IGNORE_TIMEOUT_SECONDS,
             check=False,
         )
-    except (FileNotFoundError, OSError):
+    except (OSError, subprocess.SubprocessError):
         return files
 
+    # 0 means some paths are ignored, 1 means none are. Anything else (128 for
+    # "not a git repository") means the answer is unusable, so scan everything.
     if result.returncode not in (0, 1):
         return files
 

