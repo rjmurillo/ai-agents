@@ -1,0 +1,129 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3953,
+    "date": "2026-07-30",
+    "branch": "fix/cost-memory-adr-misattribution",
+    "startingCommit": "56e14c6f1",
+    "objective": "Fix PR 3974 review threads: pin action SHAs and minimize spelling"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Project already active in harness; mcp__serena__initial_instructions invoked this session"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions tool output present this session"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read: read-only historical reference as of 2025-12-22, no PR-3974-specific carryover"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github/scripts/pr/*.py via SKILL.md Decision Tree; used get_pr_context.py, get_pr_review_threads.py, get_pr_review_comments.py, get_pr_checks.py, get_pr_check_logs.py"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__read_memory usage-mandatory.md content in context"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md content in context (Language, Skill Usage, Workflow sections)"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "usage-mandatory.md loaded via read_memory"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/cost-memory-adr-misattribution"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/cost-memory-adr-misattribution"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short --branch confirmed isolated worktree at /tmp/wt-3974 clean before edits"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "56e14c6f1"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All PR #3974 review findings addressed, source issue #3995 filed, and PR linkage corrected"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remained unchanged"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Corrected the four affected cost memories directly"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 completed with zero issues; repository config excludes .serena memories"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation committed as e9bf809a6"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Action SHA matched 17 repository workflow uses; session validation and pre-PR validation passed"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "PR #3974 review threads ready for resolution after push"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "SKIPPED: narrow documentation correction with no new process learning"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Pinned every affected upload-artifact example to the repository's current v7.0.1 SHA."
+    },
+    {
+      "step": "Changed minimise to minimize in the affected cost memories for repository search consistency."
+    },
+    {
+      "step": "Verified the SHA against 17 workflow uses and filed issue #3995 for the actual documentation defect."
+    }
+  ],
+  "endingCommit": "e9bf809a645a8f5d73fb8f59c6524d77abf9ac8b",
+  "nextSteps": []
+}
