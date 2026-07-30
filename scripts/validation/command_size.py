@@ -119,7 +119,11 @@ def get_command_files(
 ) -> list[Path]:
     """Return command .md files to validate."""
     if changed_files is not None:
-        return [Path(f) for f in changed_files if f.endswith(".md") and "/commands/" in f and Path(f).exists()]
+        return [
+            Path(f)
+            for f in changed_files
+            if f.endswith(".md") and "/commands/" in f and Path(f).exists()
+        ]
 
     if path is None:
         target = _PROJECT_ROOT / ".claude" / "commands"
@@ -168,7 +172,6 @@ def main(argv: list[str] | None = None) -> int:
     warnings = 0
     for f in files:
         result = check_command_size(f)
-        status = "OK" if result.passed and not result.warning else ("WARN" if result.passed else "FAIL")
         if not result.passed:
             failures += 1
             print(f"  [FAIL] {f} ({result.line_count} lines)")
