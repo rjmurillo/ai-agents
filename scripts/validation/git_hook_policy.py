@@ -2267,7 +2267,7 @@ def _added_suppression_violations(
 
 def _suppression_violations_in_diff(head: str, diff_text: str) -> list[str]:
     # Pass 1: collect suppression payloads from removed lines, keyed by file.
-    # Counter allows duplicate payloads (e.g. three identical # nosec lines).
+    # Counter allows duplicate payloads (the same suppression repeated on multiple lines).
     removed: dict[str, Counter[str]] = {}
     current_path: str | None = None
     in_hunk = False
