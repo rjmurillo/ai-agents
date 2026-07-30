@@ -220,7 +220,7 @@ Before marking complete:
 
 A command body is progressive disclosure, so it is not billed on every request
 the way an always-on rule is. That makes the admission test in
-`.claude/skills/context-optimizer/references/model-context-doctrine.md` the
+`../context-optimizer/references/model-context-doctrine.md` the
 wrong gate here: apply it to always-on text, not to a command body. What does
 carry over is the second half of the doctrine. A body is loaded in full the
 moment the command runs, so length still costs, and content the model already
