@@ -23,11 +23,8 @@ import warnings
 from pathlib import Path
 
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
-_workspace = os.environ.get("GITHUB_WORKSPACE")
 if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib")):
     _lib_dir = os.path.join(_plugin_root, "lib")
-elif _workspace and os.path.isdir(os.path.join(_workspace, ".claude", "lib")):
-    _lib_dir = os.path.join(_workspace, ".claude", "lib")
 else:
     _lib_dir = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
@@ -121,6 +118,22 @@ def _resolve_body(args: argparse.Namespace) -> str:
     return str(args.body)
 
 
+def _thread_skip_output(thread_id: str) -> dict[str, object] | None:
+    """Return a SKIP output dict if thread should be skipped, else None.
+
+    Exits non-zero on API error.
+    """
+    try:
+        state = query_thread_state(thread_id)
+    except RuntimeError as exc:
+        error_and_exit(f"Failed to check thread state: {exc}", 3)
+    if state is None:
+        return {"action": "SKIP", "reason": "not_found", "thread_id": thread_id}
+    if state.get("isResolved"):
+        return {"action": "SKIP", "reason": "thread_resolved", "thread_id": thread_id}
+    return None
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
@@ -134,27 +147,9 @@ def main(argv: list[str] | None = None) -> int:
 
     assert_gh_authenticated()
 
-    try:
-        state = query_thread_state(args.thread_id)
-    except RuntimeError as exc:
-        error_and_exit(f"Failed to check thread state: {exc}", 3)
-
-    if state is None:
-        output: dict[str, object] = {
-            "action": "SKIP",
-            "reason": "not_found",
-            "thread_id": args.thread_id,
-        }
-        print(json.dumps(output, indent=2))
-        return 0
-
-    if state.get("isResolved"):
-        output = {
-            "action": "SKIP",
-            "reason": "thread_resolved",
-            "thread_id": args.thread_id,
-        }
-        print(json.dumps(output, indent=2))
+    skip_out = _thread_skip_output(args.thread_id)
+    if skip_out is not None:
+        print(json.dumps(skip_out, indent=2))
         return 0
 
     try:

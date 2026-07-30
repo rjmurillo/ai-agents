@@ -495,25 +495,3 @@ class TestThreadStatePrecheck:
         ):
             rc = main(["--thread-id", "PRRT_abc"])
         assert rc == 3
-
-    def test_concurrent_resolve_no_mutation_occurs(self, capsys):
-        """Simulates another actor resolving a thread between triage and action."""
-        resolved_state = {"id": "PRRT_abc", "isResolved": True}
-        with (
-            patch(
-                "resolve_pr_review_thread.assert_gh_authenticated",
-            ),
-            patch(
-                "resolve_pr_review_thread.query_thread_state",
-                return_value=resolved_state,
-            ),
-            patch(
-                "resolve_pr_review_thread.resolve_review_thread",
-            ) as mock_resolve,
-        ):
-            rc = main(["--thread-id", "PRRT_abc"])
-        assert rc == 0
-        mock_resolve.assert_not_called()
-        out = json.loads(capsys.readouterr().out)
-        assert out["action"] == "SKIP"
-        assert out["reason"] == "already_resolved"

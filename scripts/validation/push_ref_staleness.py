@@ -79,6 +79,7 @@ def _current_remote_sha(remote_name: str, remote_ref: str) -> str | None:
         ["git", "ls-remote", remote_name, remote_ref],
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
     if result.returncode != 0:
         raise RuntimeError(

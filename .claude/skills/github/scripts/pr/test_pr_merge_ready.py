@@ -50,11 +50,8 @@ from collections import defaultdict
 logger = logging.getLogger(__name__)
 
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
-_workspace = os.environ.get("GITHUB_WORKSPACE")
 if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib")):
     _lib_dir = os.path.join(_plugin_root, "lib")
-elif _workspace and os.path.isdir(os.path.join(_workspace, ".claude", "lib")):
-    _lib_dir = os.path.join(_workspace, ".claude", "lib")
 else:
     _lib_dir = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")

@@ -22,11 +22,8 @@ import subprocess
 import sys
 
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
-_workspace = os.environ.get("GITHUB_WORKSPACE")
 if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib")):
     _lib_dir = os.path.join(_plugin_root, "lib")
-elif _workspace and os.path.isdir(os.path.join(_workspace, ".claude", "lib")):
-    _lib_dir = os.path.join(_workspace, ".claude", "lib")
 else:
     _lib_dir = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
@@ -170,43 +167,41 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _handle_single_thread(thread_id: str) -> int:
+    """Resolve one thread with pre-mutation state check. Returns exit code."""
+    try:
+        state = query_thread_state(thread_id)
+    except RuntimeError as exc:
+        print(f"Error querying thread state: {exc}", file=sys.stderr)
+        return 3
+    if state is None:
+        result: dict[str, object] = {
+            "action": "SKIP",
+            "reason": "not_found",
+            "thread_id": thread_id,
+        }
+        print(json.dumps(result, indent=2))
+        return 0
+    if state.get("isResolved"):
+        result = {
+            "action": "SKIP",
+            "reason": "already_resolved",
+            "thread_id": thread_id,
+        }
+        print(json.dumps(result, indent=2))
+        return 0
+    success = resolve_review_thread(thread_id)
+    result = {"action": "ACT", "thread_id": thread_id, "success": success}
+    print(json.dumps(result, indent=2))
+    return 0 if success else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     assert_gh_authenticated()
 
     if args.thread_id:
-        try:
-            state = query_thread_state(args.thread_id)
-        except RuntimeError as exc:
-            print(f"Error querying thread state: {exc}", file=sys.stderr)
-            return 3
-
-        if state is None:
-            result: dict[str, object] = {
-                "action": "SKIP",
-                "reason": "not_found",
-                "thread_id": args.thread_id,
-            }
-            print(json.dumps(result, indent=2))
-            return 0
-
-        if state.get("isResolved"):
-            result = {
-                "action": "SKIP",
-                "reason": "already_resolved",
-                "thread_id": args.thread_id,
-            }
-            print(json.dumps(result, indent=2))
-            return 0
-
-        success = resolve_review_thread(args.thread_id)
-        result = {
-            "action": "ACT",
-            "thread_id": args.thread_id,
-            "success": success,
-        }
-        print(json.dumps(result, indent=2))
-        return 0 if success else 1
+        return _handle_single_thread(args.thread_id)
 
     # Resolve all unresolved threads
     try:
@@ -217,7 +212,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if not unresolved:
         print(f"All threads on PR #{args.pull_request} are already resolved")
-        result = {
+        result: dict[str, object] = {
             "TotalUnresolved": 0,
             "Resolved": 0,
             "Failed": 0,
