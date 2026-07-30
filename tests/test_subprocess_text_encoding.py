@@ -164,9 +164,35 @@ _CONTAINER_OPERATORS = (ast.Add, ast.Mult, ast.Sub, ast.BitOr, ast.BitAnd, ast.B
 #: Builtins that pass an element of their argument straight back out.
 #: ``next(iter([subprocess.run]))`` reaches the runner with no comprehension
 #: and no attribute, so resolving the first argument is what closes it.
+#: ``operator.getitem`` is here because it is a subscript spelled as a call.
 _ELEMENT_BUILTINS = frozenset(
-    {"next", "iter", "list", "tuple", "set", "frozenset", "sorted", "reversed", "min", "max"}
+    {
+        "next",
+        "iter",
+        "list",
+        "tuple",
+        "set",
+        "frozenset",
+        "sorted",
+        "reversed",
+        "min",
+        "max",
+        "getitem",
+    }
 )
+
+#: Callables that hand back an element of their *second* argument. The first
+#: is a predicate or a count, so resolving argument zero reaches the wrong
+#: expression entirely: ``filter(None, [subprocess.run])`` keeps the runner in
+#: the sequence and holds only ``None`` in the slot the element family reads.
+_SECOND_ARG_ELEMENTS = frozenset(
+    {"filter", "filterfalse", "takewhile", "dropwhile", "nlargest", "nsmallest"}
+)
+
+#: Callables that hand back an element of *any* argument, because every one of
+#: them is a sequence: ``chain([], [subprocess.run])`` yields the runner from
+#: the second, and nothing in the spelling says which one holds it.
+_ANY_ARG_ELEMENTS = frozenset({"chain"})
 
 #: Calls that hand their first argument straight back out, so the caller ends
 #: up holding whatever was passed in. ``staticmethod`` unwraps on attribute
@@ -187,6 +213,21 @@ _YIELDING_CALLS = _ELEMENT_BUILTINS | _TRANSPARENT_CALLS
 #: then called with the owner, so ``attrgetter("run")(subprocess)`` and
 #: ``methodcaller("run", cmd)(subprocess)`` both reach ``subprocess.run``.
 _OPERATOR_GETTERS = frozenset({"attrgetter", "methodcaller"})
+
+#: The :mod:`operator` factory that reaches an *element* rather than an
+#: attribute. ``itemgetter(0)([subprocess.run])`` is a subscript with the two
+#: halves swapped: the index is bound to the factory and the container is the
+#: argument, so what it returns is whatever the container holds.
+_OPERATOR_SELECTOR = "itemgetter"
+
+#: Marks the place in a merged mapping that could not be read. It sits where
+#: the unreadable segment sat, so position still decides: a codec spelled
+#: after it survives no matter what the merge holds, while one spelled before
+#: it may be overwritten. Recording unreadability as a verdict instead of a
+#: position read ``{**opaque, "encoding": "utf-8"}`` as unpinned, which it
+#: never is. No keyword can collide with this, because ``*`` cannot appear in
+#: a Python identifier.
+_OPAQUE_KEY = "*opaque*"
 
 #: Marks the capture keywords a partial pre-bound, by name. A call site that
 #: repeats one of them overrides it, so the name is what says which.
@@ -282,16 +323,6 @@ def _keyword(call: ast.Call, name: str) -> ast.expr | None:
         if keyword.arg == name:
             return keyword.value
     return None
-
-
-def _has_splat(call: ast.Call) -> bool:
-    """Report whether *call* forwards ``**kwargs``.
-
-    Live, and load bearing. This helper was dead once, and the reason it was
-    dead was a hole in :func:`_captures_text`, not an excess of caution. See
-    the splat cases in ``test_detector_closes_the_evasions``.
-    """
-    return any(keyword.arg is None for keyword in call.keywords)
 
 
 def _is_literal_falsy(node: ast.expr | None) -> bool:
@@ -462,7 +493,14 @@ def _resolve_indirect(
         # ``staticmethod(...)`` and friends hand the argument back whole, so
         # whatever that argument resolves to is what the caller ends up with.
         return _resolve_callable(call.args[0], modules, functions)
-    getter = _resolve_operator_getter(call, modules)
+    if label in _SECOND_ARG_ELEMENTS and len(call.args) >= 2:
+        # The sequence is the second argument here, so reading the first
+        # resolves a predicate or a count and misses the runner entirely.
+        return _resolve_callable(call.args[1], modules, functions)
+    if label in _ANY_ARG_ELEMENTS and call.args:
+        # Every argument is a sequence, and the runner may be in any of them.
+        return _resolve_elements(call.args, modules, functions)
+    getter = _resolve_operator_getter(call, modules, functions)
     if getter is not None:
         return getter
     if isinstance(call.func, ast.Attribute) and call.func.attr in _ELEMENT_METHODS:
@@ -514,30 +552,41 @@ def _resolve_getattr(
     return _entry_point(origin, attr.value)
 
 
-def _resolve_operator_getter(call: ast.Call, modules: dict[str, str]) -> str | None:
-    """Resolve ``attrgetter("run")(subprocess)`` and its methodcaller twin.
+def _resolve_operator_getter(
+    call: ast.Call, modules: dict[str, str], functions: dict[str, str]
+) -> str | None:
+    """Resolve ``attrgetter("run")(subprocess)`` and the shapes that wear it.
 
-    Both spell the attribute as a string handed to a factory and the owner as
-    the argument of the object that factory returns, so the entry point is in
-    the source twice over with no dot between the halves. The outer call's
-    ``func`` is itself a call, which is what separates this shape from every
-    other one resolved here.
+    Every one of these spells the thing it reaches as an argument handed to a
+    factory and the thing it reads from as the argument of the object that
+    factory returns, so both halves are in the source with no dot between
+    them. The outer call's ``func`` is itself a call, which is what separates
+    this shape from every other one resolved here.
 
-    A non-constant attribute name is refused rather than widened. Unlike
-    ``getattr``, where the owner proves a subprocess module is in play, here
-    the factory could be reaching into anything.
+    ``itemgetter`` selects an element rather than an attribute, so the owner
+    is a container and resolving it is the whole job. The two attribute
+    factories need the owner to be a module, and a computed attribute on one
+    reaches some entry point of it: the owner proves a subprocess module is in
+    play exactly as it does for ``getattr``, so refusing the pair outright
+    left ``attrgetter(name)(subprocess)`` unflagged while the ``getattr``
+    spelling of the same thing was caught.
     """
     factory = call.func
     if not isinstance(factory, ast.Call) or not call.args:
         return None
-    if _call_label(factory) not in _OPERATOR_GETTERS or not factory.args:
+    owner = call.args[0]
+    label = _call_label(factory)
+    if label == _OPERATOR_SELECTOR:
+        return _resolve_callable(owner, modules, functions)
+    if label not in _OPERATOR_GETTERS or not factory.args:
+        return None
+    origin = modules.get(owner.id) if isinstance(owner, ast.Name) else None
+    if origin is None:
         return None
     attr = factory.args[0]
-    owner = call.args[0]
-    if not isinstance(attr, ast.Constant) or not isinstance(owner, ast.Name):
-        return None
-    origin = modules.get(owner.id)
-    return None if origin is None else _entry_point(origin, attr.value)
+    if not isinstance(attr, ast.Constant):
+        return _DYNAMIC
+    return _entry_point(origin, attr.value)
 
 
 def _resolve_elements(
@@ -1094,7 +1143,31 @@ def _dependents(groups: dict[int, tuple[ast.expr, list[str]]]) -> dict[str, list
     return found
 
 
-def _module_aliases(bindings: list[tuple[str, ast.expr]], modules: dict[str, str]) -> None:
+def _module_source(node: ast.expr, containers: dict[str, _Container]) -> list[str]:
+    """Return every name *node* may evaluate to, opening any container on the way.
+
+    ``sp = subprocess`` names the module outright, but ``[subprocess][0]`` and
+    ``HOLDER[0]`` reach the same module object through a container, and an
+    attribute read off the result is an ordinary entry-point call. Reading only
+    a bare name left both unflagged.
+
+    A subscript chain is unwound in a loop for the same reason it is in
+    :func:`_resolve_callable`: the parser caps no depth, so recursion crashes.
+    """
+    while isinstance(node, ast.Subscript):
+        selected = _element(node, containers)
+        node = node.value if selected is None else selected
+    if isinstance(node, ast.Name):
+        return [node.id]
+    elements = _element_expressions(node)
+    if elements is None:
+        return []
+    return [item.id for item in elements if isinstance(item, ast.Name)]
+
+
+def _module_aliases(
+    bindings: list[tuple[str, ast.expr]], modules: dict[str, str], containers: dict[str, _Container]
+) -> None:
     """Extend *modules* with the names bound to a module already in it.
 
     ``import subprocess`` and ``sp = subprocess`` reach the same entry points,
@@ -1103,21 +1176,37 @@ def _module_aliases(bindings: list[tuple[str, ast.expr]], modules: dict[str, str
     which terminates because every pass that changes anything adds a name and
     the supply of names is finite.
 
+    What each binding may name is read once, before the repeats begin. The
+    source of a binding cannot change between passes, only what is known about
+    it, so reading it inside the loop pays the walk once per pass for an answer
+    that never moves: a file of several thousand bindings took minutes that
+    way against seconds this way.
+
     The first binding of a name wins, matching how callables are recorded. A
     name rebound away from a module keeps reading as that module, which costs
     a redundant ``encoding="utf-8"`` rather than a missed decode.
     """
+    sources = [(name, _module_source(value, containers)) for name, value in bindings]
     learned = True
     while learned:
         learned = False
-        for name, value in bindings:
-            if name in modules or not isinstance(value, ast.Name):
+        for name, candidates in sources:
+            if name in modules:
                 continue
-            module = modules.get(value.id)
+            module = _first_module(candidates, modules)
             if module is None:
                 continue
             modules[name] = module
             learned = True
+
+
+def _first_module(sources: list[str], modules: dict[str, str]) -> str | None:
+    """Return the first of *sources* that already names a subprocess module."""
+    for source in sources:
+        module = modules.get(source)
+        if module is not None:
+            return module
+    return None
 
 
 def _subprocess_names(
@@ -1148,8 +1237,8 @@ def _subprocess_names(
     # per name is quadratic: 4000 names took 17.76 seconds that way. Every
     # name in a group reads the same node, so one read answers for all of them.
     bindings = _bindings(tree)
-    _module_aliases(bindings, modules)
     containers = _containers(tree, bindings)
+    _module_aliases(bindings, modules, containers)
     groups: dict[int, tuple[ast.expr, list[str]]] = {}
     for name, value in bindings:
         groups.setdefault(id(value), (value, []))[1].append(name)
@@ -1232,10 +1321,21 @@ def _write_targets(node: ast.AST) -> list[ast.expr]:
 
 
 def _keywords_owner(target: ast.expr) -> str | None:
-    """Return the name whose ``keywords`` attribute *target* refers to."""
+    """Return the name whose ``keywords`` attribute *target* refers to.
+
+    An attribute receiver answers with its own attribute name, because that is
+    the name the construction was bound to: ``holder.runner.keywords["enc"]``
+    rewrites whatever ``holder.runner`` holds, and the construction that filled
+    it is spelled ``runner = ...`` or ``runner: ... = ...`` wherever it lives.
+    Reading only a bare receiver left the attribute spelling of the same
+    rewrite unflagged, so the pin it undid still counted.
+    """
     if not isinstance(target, ast.Attribute) or target.attr != "keywords":
         return None
-    return target.value.id if isinstance(target.value, ast.Name) else None
+    owner = target.value
+    if isinstance(owner, ast.Name):
+        return owner.id
+    return owner.attr if isinstance(owner, ast.Attribute) else None
 
 
 def _target(
@@ -1275,7 +1375,11 @@ def _supplies_capture(call: ast.Call, modules: dict[str, str]) -> bool:
 
 
 def _captures_text(
-    call: ast.Call, functions: dict[str, str], target: str, modules: dict[str, str]
+    call: ast.Call,
+    functions: dict[str, str],
+    target: str,
+    modules: dict[str, str],
+    containers: dict[str, _Container] | None = None,
 ) -> bool:
     """Report whether *call* may decode captured output into ``str``.
 
@@ -1297,9 +1401,11 @@ def _captures_text(
     A ``**kwargs`` splat is treated as text mode outright. The keywords it
     carries are not visible here, so ``text`` may be among them, and reading
     the absence of a literal keyword as proof of bytes mode is the hole an
-    adversarial review walked through.
+    adversarial review walked through. A splat this scan opened and found
+    empty is the one exception: ``**{}`` supplies nothing at all, so it can
+    hide neither the capture nor the mode.
     """
-    if _has_splat(call):
+    if _splat_items(call, containers or {}):
         return True
     if len(call.args) > 1:
         # Only the command is ever passed positionally in this repository:
@@ -1397,13 +1503,19 @@ def _names_utf8(node: ast.expr | None) -> bool:
 
 def _mapping_items(
     node: ast.expr, containers: dict[str, _Container], depth: int = 0
-) -> list[tuple[str, ast.expr]] | None:
-    """Return the keywords a mapping expression is known to carry, or ``None``.
+) -> list[tuple[str, ast.expr]]:
+    """Return the keywords a mapping expression carries, marking what it hides.
 
-    ``None`` means unreadable, which is not the same as empty: a mapping this
-    scan cannot open may carry any codec at all, while one it opened and found
-    nothing in carries nothing. Collapsing the two would read an opaque
-    ``**kwargs`` as proof that no encoding is present.
+    Unreadability is recorded as an :data:`_OPAQUE_KEY` entry at the position
+    the unreadable segment sat, not as a verdict over the whole mapping. That
+    distinction is what runtime merge order demands: ``{**opaque, "encoding":
+    "utf-8"}`` decodes as UTF-8 whatever ``opaque`` holds, while ``{"encoding":
+    "utf-8", **opaque}`` may not. Discarding the position read the first one as
+    unpinned, which it never is.
+
+    An empty list still means readable and empty, and is not the same as an
+    opaque entry: a mapping this scan opened and found nothing in carries
+    nothing, while one it could not open may carry any codec at all.
 
     Three spellings are read. A literal, a ``dict(...)`` call, and a name bound
     once to a literal that nothing writes to, which is the same guarantee
@@ -1412,75 +1524,66 @@ def _mapping_items(
     if depth > _MAPPING_DEPTH:
         # A mapping nested deeper than this is not something a real call site
         # writes, and refusing it is what bounds the recursion.
-        return None
+        return [(_OPAQUE_KEY, node)]
     if isinstance(node, ast.Name):
         literal = containers.get(node.id)
-        return None if literal is None else _mapping_items(literal, containers, depth + 1)
+        if literal is None:
+            return [(_OPAQUE_KEY, node)]
+        return _mapping_items(literal, containers, depth + 1)
     if isinstance(node, ast.Dict):
         return _dict_items(node, containers, depth)
     if isinstance(node, ast.Call) and _call_label(node) == "dict" and not node.args:
         return _keyword_items(node.keywords, containers, depth)
-    return None
+    return [(_OPAQUE_KEY, node)]
 
 
 def _dict_items(
     node: ast.Dict, containers: dict[str, _Container], depth: int
-) -> list[tuple[str, ast.expr]] | None:
+) -> list[tuple[str, ast.expr]]:
     """Return the keywords a dict literal carries, following any merge in it.
 
     A ``None`` key is how the parser spells ``{**inner}``, so the merged
     mapping is opened in turn. A key that is not a literal string names a
-    keyword this scan cannot spell, and one unreadable key makes the whole
-    mapping unreadable: the encoding may be exactly the one that could not be
-    read.
+    keyword this scan cannot spell, so it is recorded as opaque where it sits:
+    it may be the encoding, and anything spelled after it still wins.
     """
     items: list[tuple[str, ast.expr]] = []
     for key, value in zip(node.keys, node.values, strict=True):
         if key is None:
-            merged = _mapping_items(value, containers, depth + 1)
-            if merged is None:
-                return None
-            items.extend(merged)
+            items.extend(_mapping_items(value, containers, depth + 1))
             continue
         if not isinstance(key, ast.Constant) or not isinstance(key.value, str):
-            return None
+            items.append((_OPAQUE_KEY, value))
+            continue
         items.append((key.value, value))
     return items
 
 
 def _keyword_items(
     keywords: list[ast.keyword], containers: dict[str, _Container], depth: int
-) -> list[tuple[str, ast.expr]] | None:
+) -> list[tuple[str, ast.expr]]:
     """Return the keywords a ``dict(...)`` call carries, following any splat."""
     items: list[tuple[str, ast.expr]] = []
     for keyword in keywords:
         if keyword.arg is None:
-            merged = _mapping_items(keyword.value, containers, depth + 1)
-            if merged is None:
-                return None
-            items.extend(merged)
+            items.extend(_mapping_items(keyword.value, containers, depth + 1))
             continue
         items.append((keyword.arg, keyword.value))
     return items
 
 
-def _splat_items(
-    call: ast.Call, containers: dict[str, _Container]
-) -> list[tuple[str, ast.expr]] | None:
-    """Return the keywords every mapping splat on *call* carries, or ``None``.
+def _splat_items(call: ast.Call, containers: dict[str, _Container]) -> list[tuple[str, ast.expr]]:
+    """Return the keywords every mapping splat on *call* carries, in order.
 
     An empty list means the call has no splat, or none that carried anything.
-    ``None`` means at least one could not be read, which is what keeps an
-    opaque ``**kwargs`` blocking rather than quietly proving nothing.
+    A splat that could not be read contributes an :data:`_OPAQUE_KEY` entry
+    where it sat, which is what keeps an opaque ``**kwargs`` blocking while
+    letting a codec spelled after it survive.
     """
     items: list[tuple[str, ast.expr]] = []
     for keyword in call.keywords:
-        if keyword.arg is not None:
-            continue
-        carried = _mapping_items(keyword.value, containers)
-        if carried is None:
-            return None
-        items.extend(carried)
+        if keyword.arg is None:
+            items.extend(_mapping_items(keyword.value, containers))
     return items
 
 
@@ -1488,13 +1591,32 @@ def _last_value(items: list[tuple[str, ast.expr]], key: str) -> ast.expr | None:
     """Return the value *key* ends up with once the mappings are merged.
 
     A later mapping overwrites an earlier one, which is how ``{**base, **more}``
-    behaves at runtime, so the last occurrence is the one that survives.
+    behaves at runtime, so the last occurrence is the one that survives. An
+    opaque entry may carry *key* itself, so it clears whatever came before it.
     """
     found: ast.expr | None = None
     for name, value in items:
         if name == key:
             found = value
+        elif name == _OPAQUE_KEY:
+            found = None
     return found
+
+
+def _shadows(items: list[tuple[str, ast.expr]], key: str) -> bool:
+    """Report whether an unreadable segment sits at or after the last *key*.
+
+    :func:`_last_value` returning ``None`` cannot tell absent from hidden, and
+    the two answers differ: nothing carried leaves the call site's own keyword
+    to decide, while something hidden means the codec is unknowable.
+    """
+    blocked = False
+    for name, _ in items:
+        if name == key:
+            blocked = False
+        elif name == _OPAQUE_KEY:
+            blocked = True
+    return blocked
 
 
 def _pins_utf8(call: ast.Call) -> bool:
@@ -1528,14 +1650,15 @@ def _codec_is_pinned(
     A splat is opened rather than refused outright. ``**{"encoding": "utf-8"}``
     reaches the interpreter as the keyword it spells, so reading it as proof
     of nothing asks a compliant call to repeat itself. One that cannot be
-    opened still blocks: the codec may be exactly what it hides.
+    opened blocks only what it can still overwrite: a codec spelled after it
+    survives, because the interpreter applies the merges left to right.
     """
     if id(call) in repinned:
         return False
     if _pins_utf8(call):
         return True
     carried = _splat_items(call, containers or {})
-    if carried is None:
+    if _shadows(carried, "encoding"):
         return False
     splatted = _last_value(carried, "encoding")
     if splatted is not None:
@@ -1582,7 +1705,7 @@ def unpinned_lines(source: str) -> list[int]:
             continue
         reading = _arguments_reaching(node)
         if target not in _DECODES_UNCONDITIONALLY and not _captures_text(
-            reading, functions, target, modules
+            reading, functions, target, modules, containers
         ):
             continue
         if not _codec_is_pinned(reading, functions, repinned, containers):
@@ -2088,6 +2211,88 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             "    runner = classmethod(subprocess.run)\n"
             'Runner().runner(["x"], capture_output=True, text=True)',
             "classmethod passes the class first, so the call raises before decoding",
+        ),
+        (
+            'import subprocess\nsubprocess.run(["x"], **{})',
+            "a splat proven empty supplies no keyword, so nothing captures",
+        ),
+        (
+            "import subprocess\nEMPTY = {}\nsubprocess.run(['x'], **EMPTY)",
+            "a name bound to an empty literal is as readable as the literal",
+        ),
+        (
+            'import subprocess\nkwargs = {}\nsubprocess.run(["x"], **kwargs)',
+            "an empty splat carries no text keyword and returns bytes",
+        ),
+        (
+            "import subprocess\n"
+            "def go(**opts):\n"
+            "    subprocess.run(['x'], capture_output=True, text=True, "
+            '**{**opts, "encoding": "utf-8"})',
+            "a codec spelled after an unreadable merge wins at runtime",
+        ),
+        (
+            "import subprocess\n"
+            "def go(**opts):\n"
+            "    subprocess.run(['x'], capture_output=True, text=True, "
+            '**dict(**opts, encoding="utf-8"))',
+            "the dict-call spelling of a trailing codec wins the same way",
+        ),
+        (
+            "import subprocess\n"
+            "def go(**opts):\n"
+            "    subprocess.run(['x'], capture_output=True, text=True, **opts, "
+            '**{"encoding": "utf-8"})',
+            "a later splat overrides an earlier unreadable one",
+        ),
+        (
+            "import subprocess\nfrom operator import attrgetter\n"
+            "attrgetter()(subprocess)(['x'], capture_output=True, text=True)",
+            "an argless factory raises before it reaches anything",
+        ),
+        (
+            "import os\nfrom operator import attrgetter\n"
+            "attrgetter('run')(os)(['x'], capture_output=True, text=True)",
+            "the owner has to be a subprocess module for the attribute to matter",
+        ),
+        (
+            "import subprocess\nfrom operator import methodcaller\n"
+            "methodcaller('run', ['x'])(subprocess)",
+            "the keywords a methodcaller stores are the ones that decide the mode",
+        ),
+        (
+            "import subprocess\nfrom operator import methodcaller\n"
+            "methodcaller('run', ['x'], capture_output=True, text=True, "
+            "encoding='utf-8')(subprocess)",
+            "a codec stored on the factory pins the call it reaches",
+        ),
+        (
+            "import subprocess\nvars(object)['r'] = subprocess.run\n"
+            "r(['x'], capture_output=True, text=True)",
+            "vars of an argument is not the module namespace and binds no global",
+        ),
+        (
+            "import subprocess\nclass H: pass\n"
+            "setattr(H, 'r')\nH.r(['x'], capture_output=True, text=True)",
+            "a setattr missing its value raises before it binds anything",
+        ),
+        (
+            "import subprocess\n"
+            "subprocess.run(['x'], capture_output=True, text=True, "
+            "**{1: 'x', 'encoding': 'utf-8'})",
+            "a codec spelled after an unspellable key still wins",
+        ),
+        (
+            "import functools, subprocess\n"
+            "runner = functools.partial(subprocess.run, capture_output=True)\n"
+            "runner(['x'], capture_output=False, text=True)",
+            "shadowing the only capture keyword leaves no pipe to decode",
+        ),
+        (
+            "import functools, subprocess\n"
+            "runner = functools.partial(subprocess.run, encoding='utf-8')\n"
+            "runner(['x'], capture_output=True, text=True)",
+            "a pin nothing rewrites survives to the site that calls it",
         ),
     ],
 )
@@ -2983,6 +3188,130 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             "runner([1])",
             "a partial's keywords are mutable, so an inherited pin can be undone",
         ),
+        (
+            "import subprocess\nfrom operator import itemgetter\n"
+            "itemgetter(0)([subprocess.run])([1], capture_output=True, text=True)",
+            "itemgetter hands back the element it selects, runner and all",
+        ),
+        (
+            "import subprocess\nfrom operator import itemgetter\n"
+            "HOLDER = [subprocess.run]\n"
+            "itemgetter(0)(HOLDER)([1], capture_output=True, text=True)",
+            "the container itemgetter reads can be a name bound to a literal",
+        ),
+        (
+            "import subprocess\nfrom operator import getitem\n"
+            "getitem([subprocess.run], 0)([1], capture_output=True, text=True)",
+            "operator.getitem selects an element the same way a subscript does",
+        ),
+        (
+            "import subprocess\n"
+            "next(filter(None, [subprocess.run]))([1], capture_output=True, text=True)",
+            "filter holds its sequence in the second argument, not the first",
+        ),
+        (
+            "import subprocess\nfrom itertools import filterfalse\n"
+            "next(filterfalse(None, [subprocess.run]))([1], capture_output=True, text=True)",
+            "filterfalse forwards an element of its second argument",
+        ),
+        (
+            "import subprocess\nfrom itertools import takewhile\n"
+            "next(takewhile(None, [subprocess.run]))([1], capture_output=True, text=True)",
+            "takewhile forwards an element of its second argument",
+        ),
+        (
+            "import subprocess\nfrom itertools import dropwhile\n"
+            "next(dropwhile(None, [subprocess.run]))([1], capture_output=True, text=True)",
+            "dropwhile forwards an element of its second argument",
+        ),
+        (
+            "import subprocess\nfrom heapq import nlargest\n"
+            "nlargest(1, [subprocess.run])[0]([1], capture_output=True, text=True)",
+            "nlargest forwards elements of its second argument",
+        ),
+        (
+            "import subprocess\nfrom heapq import nsmallest\n"
+            "nsmallest(1, [subprocess.run])[0]([1], capture_output=True, text=True)",
+            "nsmallest forwards elements of its second argument",
+        ),
+        (
+            "import subprocess\nfrom itertools import chain\n"
+            "next(chain([], [subprocess.run]))([1], capture_output=True, text=True)",
+            "chain forwards an element of any argument, not just the first",
+        ),
+        (
+            "import subprocess\nmodule = [subprocess][0]\n"
+            "module.run([1], capture_output=True, text=True)",
+            "a container can hold the module itself, not only the runner",
+        ),
+        (
+            "import subprocess\nHOLDER = (subprocess,)\nmodule = HOLDER[0]\n"
+            "module.run([1], capture_output=True, text=True)",
+            "the container a module alias reads can be a name bound to a literal",
+        ),
+        (
+            "import subprocess\nfrom operator import attrgetter\nname = 'run'\n"
+            "attrgetter(name)(subprocess)([1], capture_output=True, text=True)",
+            "a computed attribute on a known module reaches some entry point",
+        ),
+        (
+            "import subprocess\n"
+            'subprocess.run([1], capture_output=True, text=True, **{"encoding": "utf-8"}, '
+            "**KW)",
+            "an unreadable merge after the codec can still override it",
+        ),
+        (
+            "import subprocess\n"
+            "def go(**opts):\n"
+            "    subprocess.run([1], capture_output=True, text=True, "
+            '**{"encoding": "utf-8", **opts})',
+            "a merge spelled after the codec overrides it at runtime",
+        ),
+        (
+            "import subprocess\nfrom contextlib import nullcontext\n"
+            "async def go():\n"
+            "    async with nullcontext(subprocess.run) as r:\n"
+            "        r([1], capture_output=True, text=True)",
+            "an async with binds its target exactly as a plain with does",
+        ),
+        (
+            "import subprocess\nclass H: pass\n"
+            'setattr(H, "r", subprocess.run)\nH.r([1], capture_output=True, text=True)',
+            "setattr binds an attribute without an assignment statement",
+        ),
+        (
+            "import functools, subprocess\nclass A:\n"
+            "    b = functools.partial(subprocess.run, capture_output=True, "
+            'text=True, encoding="utf-8")\n'
+            "a = A()\n"
+            'a.b.keywords["encoding"] = None\n'
+            "a.b([1])",
+            "an attribute receiver rewrites the same keywords a bare name does",
+        ),
+        (
+            "import functools, subprocess\n"
+            "runner = functools.partial(subprocess.run, capture_output=True, "
+            "stdout=subprocess.PIPE)\n"
+            "runner([1], capture_output=False, text=True)",
+            "shadowing one capture keyword leaves the other pipe open",
+        ),
+        (
+            "import subprocess\n"
+            'subprocess.run([1], capture_output=True, text=True, **{"encoding": "latin-1"})',
+            "a splatted codec is read as the codec it names, not waved through",
+        ),
+        (
+            "import functools, subprocess\n"
+            "base = functools.partial(subprocess.run, capture_output=True)\n"
+            "alias = base\nalias([1], text=True)",
+            "an alias of a partial carries the capture the original pre-bound",
+        ),
+        (
+            "import functools, subprocess\n"
+            "runner = functools.partial(subprocess.run, capture_output=True)\n"
+            "runner([1], capture_output=True, text=True)",
+            "repeating a capture keyword with the same value changes nothing",
+        ),
     ],
 )
 def test_detector_closes_the_evasions(source: str, why: str) -> None:
@@ -3034,8 +3363,30 @@ def test_detector_survives_malformed_source(source: str, why: str) -> None:
             "the later binding wins at runtime, but not in a flow-blind scan",
         ),
         (
-            'import subprocess\nkwargs = {}\nsubprocess.run(["x"], **kwargs)',
-            "an empty splat carries no text keyword and returns bytes",
+            'import subprocess\nkwargs = {}\nkwargs["text"] = True\n'
+            'subprocess.run(["x"], **kwargs)',
+            "a name written to after binding is no longer readable as empty",
+        ),
+        (
+            "import subprocess\n"
+            'subprocess.run(["x"], capture_output=True, text=True, '
+            "**dict([('encoding', 'utf-8')]))",
+            "a dict built from positional pairs is not read, so its codec is hidden",
+        ),
+        (
+            "import subprocess\n"
+            'subprocess.run(["x"], capture_output=True, text=True, **'
+            + "{**" * 9
+            + "{'encoding': 'utf-8'}"
+            + "}" * 9
+            + ")",
+            "a mapping nested past the depth bound stops being read",
+        ),
+        (
+            "import functools, subprocess\n"
+            "runner = functools.partial(subprocess.run, capture_output=False)\n"
+            'runner(["x"], text=True)',
+            "a pre-bound capture is recorded by name, so an off value still counts",
         ),
         (
             "import subprocess\nclass C:\n    def __init__(self):\n"
@@ -3249,6 +3600,76 @@ def test_a_value_reading_many_names_stays_linear() -> None:
 def test_detector_resolves_out_of_order_chains(source: str, why: str) -> None:
     """Source order does not decide resolution order, so neither can evade."""
     assert unpinned_lines(source) != [], f"missed {why}"
+
+
+@pytest.mark.parametrize(
+    ("source", "why"),
+    [
+        (
+            "import subprocess\nfrom operator import attrgetter\n"
+            "def pick():\n"
+            "    return subprocess\n"
+            "attrgetter('run')(pick())(['x'], capture_output=True, text=True)",
+            "a module returned by a call is not traced back to its import",
+        ),
+        (
+            "import subprocess\nk = 'r'\nglobals()[k] = subprocess.run\n"
+            "r(['x'], capture_output=True, text=True)",
+            "a namespace key spelled as a name bound to a string is not read",
+        ),
+        (
+            "import subprocess\nclass H: pass\nn = 'r'\n"
+            "setattr(H, n, subprocess.run)\nH.r(['x'], capture_output=True, text=True)",
+            "a setattr name spelled as a name bound to a string is not read",
+        ),
+    ],
+)
+def test_detector_stops_at_a_known_limit(source: str, why: str) -> None:
+    """Shapes that decode at runtime and this scan does not reach. Recorded, not excused.
+
+    Each one is a false negative, which is the direction this file exists to
+    prevent, so each is pinned here rather than left to be rediscovered. The
+    first needs a value to be followed out of a function and back, which is
+    the same interprocedural step tracked separately. The other two need a
+    name bound to a string constant to be read as that constant.
+
+    A widening that closes any of these fails this test, which is the point:
+    the limit moves by a deliberate edit, never by accident.
+    """
+    assert unpinned_lines(source) == [], f"limit moved, update the record: {why}"
+
+
+def test_a_popped_pin_stops_answering_for_the_call_site() -> None:
+    """A rewritten pin has to be dropped at both the construction and the call.
+
+    Two mechanisms carry this, and each is the only one that answers in a
+    different case. A construction that captures is scanned as an offender in
+    its own right, and the id set is what unpins it there. A construction that
+    captures nothing is never scanned, so only dropping the recorded pin
+    reaches the site that calls it. Asserting both lines is what tells the two
+    apart: dropping either mechanism alone still leaves the other line flagged.
+    """
+    source = (
+        "import functools, subprocess\n"
+        "runner = functools.partial(subprocess.run, encoding='utf-8')\n"
+        "runner.keywords['encoding'] = None\n"
+        "runner(['x'], capture_output=True, text=True)"
+    )
+
+    assert unpinned_lines(source) == [2, 4], "both the construction and the call lose the pin"
+
+
+def test_a_deleted_keyword_undoes_an_inherited_pin() -> None:
+    """Deleting a pre-bound codec is a rewrite, the same as assigning over it."""
+    source = (
+        "import functools, subprocess\n"
+        "runner = functools.partial(subprocess.run, capture_output=True, "
+        "text=True, encoding='utf-8')\n"
+        "del runner.keywords['encoding']\n"
+        "runner(['x'])"
+    )
+
+    assert unpinned_lines(source) == [2], "a delete rewrites the keywords it removes"
 
 
 def test_name_resolution_survives_a_deep_subscript_chain() -> None:
