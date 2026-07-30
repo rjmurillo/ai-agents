@@ -2323,7 +2323,7 @@ def _suppression_violations_in_diff(head: str, diff_text: str) -> list[str]:
             m = SECURITY_SUPPRESSION_RE.search(line[1:])
             if m:
                 file_removed = removed.get(current_path)
-                if file_removed and file_removed.get(m.group(0), 0) > 0:
+                if file_removed and file_removed[m.group(0)] > 0:
                     file_removed[m.group(0)] -= 1
                 else:
                     violations.append(f"{head[:12]}:{current_path}:{current_line}")

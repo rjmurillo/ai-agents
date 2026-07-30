@@ -720,15 +720,13 @@ class _GitStub:
     def __call__(
         self, repo: Path, args: list[str]
     ) -> subprocess.CompletedProcess[str]:
-        import subprocess as _sp  # noqa: PLC0415 (import inside function is intentional)
-
         if "--name-only" in args:
             stdout = "\0".join((*self._paths, ""))
         elif "--name-status" in args:
             stdout = self._rename_status_output
         else:
             stdout = self._diff_output
-        return _sp.CompletedProcess(args, self._returncode, stdout, "")
+        return subprocess.CompletedProcess(args, self._returncode, stdout, "")
 
 
 class TestStagedSuppressionPolicy:
@@ -763,8 +761,7 @@ class TestStagedSuppressionPolicy:
 @@ -0,0 +1 @@
 +subprocess.call(cmd)  {comment}
 """
-        rc = self._run_staged(monkeypatch, tmp_path, diff)
-        assert rc == 1
+        assert self._run_staged(monkeypatch, tmp_path, diff) == 1
         assert "pkg/module.py:1" in capsys.readouterr().err
 
     def test_staged_non_security_noqa_is_not_blocked(self, tmp_path, monkeypatch):
