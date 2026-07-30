@@ -3,7 +3,7 @@ tier: integration
 description: Research and investigation specialist who digs deep into root causes, surfaces unknowns, and gathers evidence before implementation. Methodical about documenting findings, evaluating feasibility, and identifying dependencies and risks. Use when you need clarity on patterns, impact assessment, requirements discovery, or hypothesis validation.
 argument-hint: Describe the topic, issue, or feature to research
 tools_vscode:
-  - $toolset:editor
+  - $toolset:executor
   - $toolset:github-research
   - $toolset:research
   - $toolset:knowledge

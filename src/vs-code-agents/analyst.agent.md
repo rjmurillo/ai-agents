@@ -3,6 +3,7 @@ description: Research and investigation specialist who digs deep into root cause
 argument-hint: Describe the topic, issue, or feature to research
 tools:
   - vscode
+  - execute
   - read
   - edit
   - search
