@@ -131,7 +131,7 @@
       "outcome": "ruff check on 8 changed files -> 'All checks passed!'; pytest on the 3 changed test files -> '118 passed in 1.00s'."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "e083e6204c48dcb3b15ed683d0268e8b88c016c5",
   "nextSteps": [
     "Open the PR for issue #3978 and let CI run the full suite."
   ]
