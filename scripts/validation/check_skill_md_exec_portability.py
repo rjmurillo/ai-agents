@@ -97,10 +97,10 @@ SCAN_ROOTS: tuple[tuple[str, ...], ...] = (
     ("src", "copilot-cli", "skills"),
 )
 
-# An executable invocation of a bare .claude/skills script. The negative
-# lookbehind (?<![\w.]) keeps the lead-in a standalone token so that the
-# "sh" inside "bash"/"flash" does not match, while still allowing a backtick,
-# whitespace, line start, or shell operator immediately before it.
+# An executable invocation of a bare .claude/skills or scripts/ path. The
+# negative lookbehind (?<![\w.]) keeps the lead-in a standalone token so that
+# the "sh" inside "bash"/"flash" does not match, while still allowing a
+# backtick, whitespace, line start, or shell operator immediately before it.
 #
 # Two execution lead-ins are recognized, both anchored to an execution context
 # so bare *prose* path mentions stay exempt (the sibling prose guard owns those):
@@ -109,9 +109,32 @@ SCAN_ROOTS: tuple[tuple[str, ...], ...] = (
 #   2. A direct `./`-prefixed executable (`./.claude/skills/x/y.sh`).
 # Shell line continuations (`python3 \<newline>.claude/...`) are normalized to a
 # single line before matching so a split invocation is not missed (issue #2838).
+#
+# `scripts/` is added alongside `.claude/skills/` (issue #4013): the scripts/
+# tree exists only in the upstream checkout and does not ship in either plugin
+# root. A skill instruction like `python3 scripts/validation/pre_pr.py` will
+# fail silently in every consumer install just as a bare .claude/skills/ path
+# would. The path-prefix group is anchored to require `scripts/` at the start
+# of the path argument (not inside a longer resolved prefix).
+#
+# `./`-prefixed forms (`python3 ./scripts/x.py`, `uv run python ./scripts/x.py`)
+# ARE covered, but by the second lead-in alternative rather than the first: the
+# `\./` branch consumes the `./` and the path-prefix group then matches
+# `scripts/`. Do not "simplify" by deleting that branch as redundant with the
+# interpreter branch, and do not drop `scripts/` from the path-prefix group:
+# either edit alone silently un-covers every `./scripts/...` invocation. Both
+# mutations are pinned by TestDotSlashScriptsExecDetection (PR #4029 review).
+#
+# Alternative considered and rejected: fold `./` into the path-prefix group
+# (`(?:\.claude/skills/|\.?/?scripts/)`) so the interpreter branch matches
+# `./scripts/` directly and the coverage stops being split across two branches.
+# Rejected because it changes no observable output, and a redundant prefix
+# alternative invites the opposite mistake later (deleting the `\./` branch as
+# dead). If that branch is ever removed for another reason, make the prefix
+# group explicit at the same time and delete this note.
 EXEC_PATTERN = re.compile(
     r"(?<![\w.])(?:(?:python3?|bash|sh)\s+(?:-\S+\s+)*|\./)"
-    r"[\"']?\.claude/skills/\S+\.(?:py|sh)(?!\.\w)[\"']?"
+    r"[\"']?(?:\.claude/skills/|scripts/)\S+\.(?:py|sh)(?!\.\w)[\"']?"
 )
 
 # Shell line-continuation: a backslash immediately before a newline splices the
@@ -236,12 +259,16 @@ def diff_against_baseline(
         allowed = baseline.get(rel, 0)
         if n > allowed:
             regressions.append(
-                f"{rel}: {n} bare '.claude/skills/...' invocation(s) (baseline "
-                f"{allowed}). Resolve the script root via a plugin-root env var "
+                f"{rel}: {n} bare '.claude/skills/...' or 'scripts/...' invocation(s) "
+                f"(baseline {allowed}). For a '.claude/skills/...' invocation, resolve "
+                "the script root via a plugin-root env var "
                 'with a source fallback, e.g. SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:'
                 '-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/..." then invoke '
-                '"$SCRIPTS_DIR/script.py"; or declare an intentional dependency '
-                "with '<!-- vendor-portability-exec: ... -->' (issue #2838)."
+                "\"$SCRIPTS_DIR/script.py\". A 'scripts/...' invocation has no such "
+                "resolved form: that tree is upstream-only and ships in neither "
+                "plugin root, so drop the invocation instead. Either kind may be "
+                "declared as an intentional dependency "
+                "with '<!-- vendor-portability-exec: ... -->' (issue #2838, #4013)."
             )
     improvements: list[str] = []
     for rel, allowed in sorted(baseline.items()):
@@ -303,15 +330,20 @@ def _write_baseline(baseline_path: Path, current: dict[str, int]) -> int:
             {
                 "_comment": (
                     "Exec-path vendor-portability ratchet baseline for skill "
-                    "Markdown files (issue #2838). Counts of bare "
-                    "'.claude/skills/...' executable invocations per file "
+                    "Markdown files (issues #2838, #4013). Counts of bare "
+                    "'.claude/skills/...' or 'scripts/...' executable "
+                    "invocations per file "
                     "under SKILL.md, references/**/*.md, and scripts/README-*.md "
                     "(files with a '<!-- vendor-portability-exec: ... -->' marker "
                     "excluded). Generated by "
                     "check_skill_md_exec_portability.py --update-baseline. "
-                    "Lower is better; migrate offenders to the "
+                    "Lower is better; migrate '.claude/skills/...' offenders to "
+                    "the "
                     "'${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}' "
-                    "resolved form and tighten this baseline."
+                    "resolved form and tighten this baseline. The 'scripts/' "
+                    "tree is upstream-only and has no resolved form: drop the "
+                    "invocation or declare it with a "
+                    "'<!-- vendor-portability-exec: ... -->' marker."
                 ),
                 "files": dict(sorted(current.items())),
             },
@@ -354,7 +386,7 @@ def _print_report(
         for line in improvements:
             print(f"  [IMPROVED] {line}")
     if regressions:
-        print("Skill exec-path vendor-portability drift detected (issue #2838):")
+        print("Skill exec-path vendor-portability drift detected (issue #2838, #4013):")
         for line in regressions:
             print(f"  [DRIFT] {line}")
         return
