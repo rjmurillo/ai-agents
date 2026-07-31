@@ -1,6 +1,6 @@
 # PR-Review-015: ALL Comments Are Blocking (Bot and Human)
 
-**Statement**: ALL PR comments—whether from bots (cursor[bot], CodeRabbit, etc.) or humans—are blocking and MUST be addressed before merge.
+**Statement**: ALL PR comments, whether from bots (cursor[bot], CodeRabbit, etc.) or humans, are blocking and MUST be addressed before merge.
 
 **Context**: PR review completion criteria (BLOCKING gate)
 
