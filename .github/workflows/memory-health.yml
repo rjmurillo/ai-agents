@@ -48,7 +48,7 @@ jobs:
             memories:
               - '.serena/memories/**'
             code:
-              - '.claude/skills/memory-enhancement/src/memory_enhancement/**'
+              - 'scripts/memory_enhancement/**'
               - 'scripts/**/*.py'
               - 'pyproject.toml'
 
@@ -80,16 +80,14 @@ jobs:
           enable-git-hooks: false
 
       - name: Run health check (JSON)
-        id: health-json
         continue-on-error: true
         run: |
-          PYTHONPATH=.claude/skills/memory-enhancement/src python3 -m memory_enhancement health --json --repo-root . > health-report.json
-          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          uv run --frozen python3 -m memory_enhancement --repo-root . health --json > health-report.json
 
       - name: Run health check (Markdown)
         continue-on-error: true
         run: |
-          PYTHONPATH=.claude/skills/memory-enhancement/src python3 -m memory_enhancement health --markdown --repo-root . > health-report.md
+          uv run --frozen python3 -m memory_enhancement --repo-root . health --markdown > health-report.md
 
       - name: Upload health reports
         if: always()
@@ -111,12 +109,15 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
-          HEALTH_STALE: ${{ steps.parse.outputs.has_stale }}
-          HEALTH_TOTAL: ${{ steps.parse.outputs.total }}
-          HEALTH_HEALTHY: ${{ steps.parse.outputs.healthy }}
-          HEALTH_STALE_COUNT: ${{ steps.parse.outputs.stale }}
-          HEALTH_EXEMPT: ${{ steps.parse.outputs.exempt }}
-          HEALTH_ERRORS: ${{ steps.parse.outputs.errors }}
+          HEALTH_HAS_ISSUES: ${{ steps.parse.outputs.has_issues }}
+          HEALTH_SCORE: ${{ steps.parse.outputs.health_score }}
+          HEALTH_TOTAL: ${{ steps.parse.outputs.total_memories }}
+          HEALTH_STALE_MEMORIES: ${{ steps.parse.outputs.stale_memories }}
+          HEALTH_TOTAL_CITATIONS: ${{ steps.parse.outputs.total_citations }}
+          HEALTH_VALID_CITATIONS: ${{ steps.parse.outputs.valid_citations }}
+          HEALTH_STALE_CITATIONS: ${{ steps.parse.outputs.stale_citations }}
+          HEALTH_BROKEN_CITATIONS: ${{ steps.parse.outputs.broken_citations }}
+          HEALTH_UNVERIFIED_CITATIONS: ${{ steps.parse.outputs.unverified_citations }}
         with:
           script: |
             const fs = require('fs');
@@ -127,8 +128,8 @@ jobs:
               console.log('No markdown report file found');
             }
 
-            const hasStale = process.env.HEALTH_STALE === 'true';
-            const status = hasStale ? 'Warning' : 'Pass';
+            const hasIssues = process.env.HEALTH_HAS_ISSUES === 'true';
+            const status = hasIssues ? 'Warning' : 'Pass';
 
             const message = [
               '<!-- MEMORY-HEALTH -->',
@@ -140,11 +141,14 @@ jobs:
               '<details>',
               '<summary>Health Check Details</summary>',
               '',
+              `- **Health score**: ${process.env.HEALTH_SCORE}`,
               `- **Total memories**: ${process.env.HEALTH_TOTAL}`,
-              `- **Healthy**: ${process.env.HEALTH_HEALTHY}`,
-              `- **Stale**: ${process.env.HEALTH_STALE_COUNT}`,
-              `- **Exempt**: ${process.env.HEALTH_EXEMPT}`,
-              `- **Errors**: ${process.env.HEALTH_ERRORS}`,
+              `- **Stale memories**: ${process.env.HEALTH_STALE_MEMORIES}`,
+              `- **Total citations**: ${process.env.HEALTH_TOTAL_CITATIONS}`,
+              `- **Valid citations**: ${process.env.HEALTH_VALID_CITATIONS}`,
+              `- **Stale citations**: ${process.env.HEALTH_STALE_CITATIONS}`,
+              `- **Broken citations**: ${process.env.HEALTH_BROKEN_CITATIONS}`,
+              `- **Unverified citations**: ${process.env.HEALTH_UNVERIFIED_CITATIONS}`,
               '',
               '</details>',
             ].join('\n');
@@ -177,11 +181,16 @@ jobs:
             }
 
       - name: Set job status
-        if: steps.parse.outputs.has_stale == 'true'
+        if: steps.parse.outputs.has_issues == 'true'
         env:
-          STALE_COUNT: ${{ steps.parse.outputs.stale }}
+          STALE_MEMORIES: ${{ steps.parse.outputs.stale_memories }}
+          BROKEN_CITATIONS: ${{ steps.parse.outputs.broken_citations }}
+          STALE_CITATIONS: ${{ steps.parse.outputs.stale_citations }}
         run: |
-          echo "::warning::Found $STALE_COUNT memories with stale citations"
+          echo "::warning::Memory health issues: \
+          $STALE_MEMORIES stale memories, \
+          $BROKEN_CITATIONS broken citations, \
+          $STALE_CITATIONS stale citations"
 
   skip-health-check:
     name: Skip health check (no changes)

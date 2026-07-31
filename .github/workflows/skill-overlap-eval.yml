@@ -49,5 +49,5 @@ jobs:
         with:
           name: skill-overlap-eval-${{ github.run_id }}
           path: evals/reports/overlap-quarterly-${{ github.run_id }}
-          retention-days: 90
+          retention-days: 7
           if-no-files-found: warn
