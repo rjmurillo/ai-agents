@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -90,8 +91,47 @@ class TestIsBotReviewer:
         assert is_bot_reviewer({"nodes": []}) is False
 
 
+def _run(name: str, conclusion: str, completed_at: str) -> dict[str, Any]:
+    return {
+        "name": name,
+        "conclusion": conclusion,
+        "status": "COMPLETED",
+        "startedAt": completed_at,
+        "completedAt": completed_at,
+    }
+
+
+def _pr_with_contexts(
+    nodes: list[dict[str, Any]], state: str, *, has_next: bool = False
+) -> dict[str, Any]:
+    return {
+        "number": 4040,
+        "commits": {
+            "nodes": [
+                {
+                    "commit": {
+                        "oid": "308e2094",
+                        "statusCheckRollup": {
+                            "state": state,
+                            "contexts": {
+                                "nodes": nodes,
+                                "totalCount": len(nodes),
+                                "pageInfo": {
+                                    "hasNextPage": has_next,
+                                    "endCursor": "CUR" if has_next else "",
+                                },
+                            },
+                        },
+                    }
+                }
+            ]
+        },
+    }
+
+
 class TestHasFailingChecks:
-    def test_returns_true_for_failure_state(self) -> None:
+    def test_stale_failure_state_with_no_failing_latest_run(self) -> None:
+        """rollup.state retains superseded runs; latest runs decide. Refs #3978."""
         rollup = {"state": "FAILURE", "contexts": {"nodes": []}}
         pr = {
             "commits": {
@@ -100,6 +140,33 @@ class TestHasFailingChecks:
                 ]
             }
         }
+        assert has_failing_checks(pr) is False
+
+    def test_superseded_failure_then_success_reads_as_passing(self) -> None:
+        pr = _pr_with_contexts(
+            [
+                _run("Validate PR", "FAILURE", "2026-07-30T10:00:00Z"),
+                _run("Validate PR", "SUCCESS", "2026-07-30T11:00:00Z"),
+            ],
+            "FAILURE",
+        )
+        assert has_failing_checks(pr) is False
+
+    def test_superseded_success_then_failure_reads_as_failing(self) -> None:
+        pr = _pr_with_contexts(
+            [
+                _run("Validate PR", "SUCCESS", "2026-07-30T10:00:00Z"),
+                _run("Validate PR", "FAILURE", "2026-07-30T11:00:00Z"),
+            ],
+            "SUCCESS",
+        )
+        assert has_failing_checks(pr) is True
+
+    def test_truncated_contexts_fall_back_to_rollup_state(self) -> None:
+        """No owner or repo to page with, so an incomplete set fails closed."""
+        pr = _pr_with_contexts(
+            [_run("ci", "SUCCESS", "2026-07-30T10:00:00Z")], "FAILURE", has_next=True
+        )
         assert has_failing_checks(pr) is True
 
     def test_returns_false_for_success_state(self) -> None:
@@ -393,6 +460,69 @@ class TestMain:
         mock_rate.return_value = self._rate_limit_ok()
         result = main(["--output-json"])
         assert result == 0
+
+    def _bot_pr(self, nodes: list[dict[str, Any]], state: str) -> dict[str, Any]:
+        pr = _pr_with_contexts(nodes, state)
+        pr.update(
+            {
+                "title": "PR 4040",
+                "author": {"login": "rjmurillo-bot"},
+                "headRefName": "feat/x",
+                "baseRefName": "main",
+                "mergeable": "MERGEABLE",
+                "reviewDecision": None,
+                "reviewRequests": {"nodes": []},
+                "reviewThreads": {"totalCount": 0, "nodes": []},
+            }
+        )
+        return pr
+
+    @patch(
+        "scripts.invoke_pr_maintenance.resolve_repo_params",
+        return_value=RepoInfo(owner="owner", repo="repo"),
+    )
+    @patch("scripts.invoke_pr_maintenance.check_workflow_rate_limit")
+    def test_superseded_failure_is_not_dispatched(
+        self, mock_rate: MagicMock, _repo: MagicMock, capsys
+    ) -> None:
+        mock_rate.return_value = self._rate_limit_ok()
+        pr = self._bot_pr(
+            [
+                _run("Validate PR", "FAILURE", "2026-07-30T10:00:00Z"),
+                _run("Validate PR", "SUCCESS", "2026-07-30T11:00:00Z"),
+            ],
+            "FAILURE",
+        )
+
+        with patch("scripts.invoke_pr_maintenance.get_open_prs", return_value=[pr]):
+            result = main(["--output-json"])
+
+        assert result == 0
+        assert json.loads(capsys.readouterr().out)["prs"] == []
+
+    @patch(
+        "scripts.invoke_pr_maintenance.resolve_repo_params",
+        return_value=RepoInfo(owner="owner", repo="repo"),
+    )
+    @patch("scripts.invoke_pr_maintenance.check_workflow_rate_limit")
+    def test_latest_failure_is_still_dispatched(
+        self, mock_rate: MagicMock, _repo: MagicMock, capsys
+    ) -> None:
+        mock_rate.return_value = self._rate_limit_ok()
+        pr = self._bot_pr(
+            [
+                _run("Validate PR", "SUCCESS", "2026-07-30T10:00:00Z"),
+                _run("Validate PR", "FAILURE", "2026-07-30T11:00:00Z"),
+            ],
+            "SUCCESS",
+        )
+
+        with patch("scripts.invoke_pr_maintenance.get_open_prs", return_value=[pr]):
+            result = main(["--output-json"])
+
+        assert result == 0
+        dispatched = json.loads(capsys.readouterr().out)["prs"]
+        assert [entry["reason"] for entry in dispatched] == ["HAS_FAILING_CHECKS"]
 
     @patch(
         "scripts.invoke_pr_maintenance.get_open_prs",

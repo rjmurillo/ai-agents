@@ -43,6 +43,16 @@ BOT_CATEGORIES = _mod.BOT_CATEGORIES
 # ---------------------------------------------------------------------------
 
 
+def _run(name: str, conclusion: str, completed_at: str) -> dict:
+    return {
+        "name": name,
+        "conclusion": conclusion,
+        "status": "COMPLETED",
+        "startedAt": completed_at,
+        "completedAt": completed_at,
+    }
+
+
 def _make_pr(
     number: int = 1,
     author: str = "human-user",
@@ -52,7 +62,12 @@ def _make_pr(
     review_decision: str | None = None,
     check_state: str = "SUCCESS",
     check_conclusion: str = "SUCCESS",
+    contexts: list[dict] | None = None,
+    has_next_page: bool = False,
 ) -> dict:
+    nodes = contexts if contexts is not None else [
+        {"name": "ci", "conclusion": check_conclusion, "status": "COMPLETED"}
+    ]
     return {
         "number": number,
         "title": f"PR #{number}",
@@ -65,14 +80,16 @@ def _make_pr(
         "commits": {
             "nodes": [{
                 "commit": {
+                    "oid": "deadbeef",
                     "statusCheckRollup": {
                         "state": check_state,
                         "contexts": {
-                            "nodes": [{
-                                "name": "ci",
-                                "conclusion": check_conclusion,
-                                "status": "COMPLETED",
-                            }]
+                            "nodes": nodes,
+                            "totalCount": len(nodes),
+                            "pageInfo": {
+                                "hasNextPage": has_next_page,
+                                "endCursor": "CUR" if has_next_page else "",
+                            },
                         },
                     }
                 }
@@ -160,12 +177,38 @@ class TestHasConflicts:
 
 
 class TestHasFailingChecks:
-    def test_failure_state(self):
+    def test_stale_failure_state_with_every_latest_run_green(self):
+        """rollup.state retains superseded runs; latest runs decide. Refs #3978."""
         pr = _make_pr(check_state="FAILURE")
+        assert has_failing_checks(pr) is False
+
+    def test_stale_error_state_with_every_latest_run_green(self):
+        pr = _make_pr(check_state="ERROR")
+        assert has_failing_checks(pr) is False
+
+    def test_superseded_failure_then_success_reads_as_passing(self):
+        pr = _make_pr(
+            check_state="FAILURE",
+            contexts=[
+                _run("Validate PR", "FAILURE", "2026-07-30T10:00:00Z"),
+                _run("Validate PR", "SUCCESS", "2026-07-30T11:00:00Z"),
+            ],
+        )
+        assert has_failing_checks(pr) is False
+
+    def test_superseded_success_then_failure_reads_as_failing(self):
+        pr = _make_pr(
+            check_state="SUCCESS",
+            contexts=[
+                _run("Validate PR", "SUCCESS", "2026-07-30T10:00:00Z"),
+                _run("Validate PR", "FAILURE", "2026-07-30T11:00:00Z"),
+            ],
+        )
         assert has_failing_checks(pr) is True
 
-    def test_error_state(self):
-        pr = _make_pr(check_state="ERROR")
+    def test_truncated_contexts_fall_back_to_rollup_state(self):
+        """No owner or repo to page with, so an incomplete set fails closed."""
+        pr = _make_pr(check_state="FAILURE", has_next_page=True)
         assert has_failing_checks(pr) is True
 
     def test_success_state(self):
