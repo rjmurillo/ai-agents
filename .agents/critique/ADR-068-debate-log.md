@@ -15,6 +15,32 @@
 This review reconciled the shipped implementation with its decision record.
 It did not change the dispatcher decision.
 
+## 2026-07-31 Issue #3218 Closure Amendment
+
+### Scope
+
+Issue #3218 closed on 2026-07-28 after repository evidence showed its
+retirement premise was wrong. The expansion seam and matcher union remain live
+generation paths. Parity tests cover the generated surfaces.
+
+### Roles and Vote Record
+
+| Agent | Vote |
+|-------|------|
+| architect | Accept |
+| critic | Accept |
+| independent-thinker | Accept |
+| security | Accept |
+| analyst | Accept |
+| high-level-advisor | Accept |
+
+### Resolution
+
+The amendment corrected all stale #3218 ownership claims, preserved the
+low process-savings finding, and replaced the dead issue-based trigger with a
+new architecture-decision trigger. ADR-082 contained no #3218 reference.
+Existing debate history remains unchanged.
+
 ## Round 1
 
 ### Roles and Vote Record

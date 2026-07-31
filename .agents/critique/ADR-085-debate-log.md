@@ -16,6 +16,31 @@ initial review remains at
 the first decision kept test auto-approval. It is not rewritten to imply that
 the later runner-name trust finding existed during the initial review.
 
+## 2026-07-31 Issue #3218 Closure Amendment
+
+### Scope
+
+Issue #3218 closed on 2026-07-28 after repository evidence showed its
+retirement premise was wrong. The amendment records the component review as
+complete and requires a new architecture decision for future simplification.
+
+### Roles and Vote Record
+
+| Agent | Vote |
+|-------|------|
+| architect | Accept |
+| critic | Accept |
+| independent-thinker | Accept |
+| security | Accept |
+| analyst | Accept |
+| high-level-advisor | Accept |
+
+### Resolution
+
+The amendment corrected stale issue state, set `implemented` to true, and
+preserved all prior owner decisions and security findings. Existing debate
+history remains unchanged.
+
 ## Related Work
 
 | Item | State on 2026-07-20 | Relevance |
@@ -27,6 +52,9 @@ the later runner-name trust finding existed during the initial review.
 | PR #3259 | Merged | Replaced `.githooks` with Lefthook and triggered the D-A framework amendment |
 | PR #3293 | Merged | Selected and implemented D-A Retirement |
 | ADR-086 | Accepted | Records the Lefthook migration and makes custom-hook paths historical evidence |
+
+This table preserves the 2026-07-20 review snapshot. The 2026-07-31 amendment
+above records the current #3218 state.
 
 ## Lefthook Framework Amendment Review
 

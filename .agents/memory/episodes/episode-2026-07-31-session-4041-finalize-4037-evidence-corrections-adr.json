@@ -1,0 +1,44 @@
+{
+  "id": "episode-2026-07-31-session-4041-finalize-4037-evidence-corrections-adr",
+  "session": "2026-07-31-session-4041-finalize-4037-evidence-corrections-adr",
+  "timestamp": "2026-07-31T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Finalize PR 4037 evidence corrections and ADR closure amendment",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged concurrent PR branch changes and current main after the push guard detected divergence",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran repeated independent full-diff reviews and corrected every reported factual defect",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran /adr-review with six roles on the ADR-068 and ADR-085 issue #3218 closure amendment",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 7
+  },
+  "lessons": []
+}
