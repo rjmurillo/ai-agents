@@ -99,7 +99,7 @@ jobs:
             activation-threshold-report.json
             .eval-state/software-engineering-library-activation-state.json
           if-no-files-found: warn
-          retention-days: 90
+          retention-days: 7
 
       - name: Create or update rollback alert issue
         if: github.event_name != 'pull_request' && steps.live-eval.outcome == 'failure'
