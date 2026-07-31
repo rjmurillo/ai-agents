@@ -135,8 +135,8 @@ ignore = []
 # rule set is exempt for these trees. Without this, regenerating a single mirror
 # surfaces the tree's pre-existing generator-induced violations (~1200) the
 # moment the file enters a changed-set.
-"src/copilot-cli/hooks/**/*.py" = ["E", "F", "W", "I", "N", "UP", "B", "ANN"]
-"src/copilot-cli/skills/**/*.py" = ["E", "F", "W", "I", "N", "UP", "B", "ANN"]
+"src/copilot-cli/hooks/**/*.py" = ["E", "F", "W", "I", "N", "UP", "B", "ANN", "RUF100"]
+"src/copilot-cli/skills/**/*.py" = ["E", "F", "W", "I", "N", "UP", "B", "ANN", "RUF100"]
 "packages/**/*.py" = ["ANN", "E501"]
 # The skillbook schema checker validates values of arbitrary JSON type;
 # `Any` is the honest annotation for an instance the checker will narrow.

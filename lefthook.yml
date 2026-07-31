@@ -1,3 +1,6 @@
+# taste-lint: ignore file-size
+# lefthook.yml is a configuration registry, not source code; each push/pre-commit gate
+# occupies 5-12 lines by design, and file-size warnings discourage adding necessary gates.
 min_version: 2.1.10
 lefthook: uv run --frozen lefthook
 glob_matcher: doublestar
