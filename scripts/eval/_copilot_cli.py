@@ -264,8 +264,9 @@ class _CopilotCLIProvider:
 
         Walks backwards from the end, dropping blank lines and footer-shaped
         lines, and stops at the first line that is neither. Anchoring at the
-        end (rather than searching forward for the first match) keeps a model
-        answer that legitimately contains the word "Tokens" intact.
+        end keeps a stats-shaped line intact anywhere except the end. An
+        answer whose last line is stats-shaped is truncated, because nothing
+        on this path separates it from the chrome it imitates. See #4125.
         """
         lines = text.splitlines()
         end = len(lines)

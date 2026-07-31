@@ -695,6 +695,30 @@ def test_strip_footer_returns_empty_when_output_is_only_a_footer() -> None:
     assert _providers._CopilotCLIProvider._strip_footer(raw) == ""
 
 
+@pytest.mark.parametrize(
+    ("raw", "kept"),
+    [
+        ("Model answer:\nTokens     42\n\nTokens     1.2k\n", "Model answer:"),
+        ("The count is:\nTokens     42\n", "The count is:"),
+    ],
+    ids=["footer-follows-the-lost-line", "no-footer-present-at-all"],
+)
+def test_strip_footer_truncates_an_answer_that_ends_in_a_stats_shaped_line(
+    raw: str, kept: str
+) -> None:
+    """Record the truncation this stripper cannot avoid. Refs #4125.
+
+    Both inputs end in a line the model wrote. The second carries no CLI
+    chrome at all, so nothing was there to strip. The stripper removes the
+    line anyway, because a short stats-shaped value is indistinguishable
+    from the chrome it imitates once it sits at the end of the output.
+
+    This pins the loss so a change in it is visible, not because the loss is
+    wanted. The issue holds the options for removing it.
+    """
+    assert _providers._CopilotCLIProvider._strip_footer(raw) == kept
+
+
 class _FakeCompleted:
     def __init__(self, *, stdout: str = "", stderr: str = "", returncode: int = 0):
         self.stdout = stdout
