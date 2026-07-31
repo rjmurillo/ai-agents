@@ -35,6 +35,8 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EVAL_DIR = REPO_ROOT / "scripts" / "eval"
 AGENTS_SCRIPT = EVAL_DIR / "eval-agents.py"
@@ -361,3 +363,73 @@ class TestEvalSuiteAgentsDryRun:
         assert result["passed"] is False
         assert result["skills"]["demo"]["passed"] is False
         assert result["skills"]["demo"]["exit_code"] == 3
+
+
+class TestJudgeFailureKeepsItsPayload:
+    """A judge payload that does not parse must survive whole (#3975).
+
+    The failure record kept a 200-character prefix of the payload and dropped
+    the rest. That prefix does not reproduce the error the eval saw: cutting a
+    JSON object mid-string re-parses as "Unterminated string" no matter what
+    actually broke it, so the archive named the truncation instead of the
+    judge.
+    """
+
+    @staticmethod
+    def _score(monkeypatch, judge_text):
+        monkeypatch.setattr(
+            eval_agents,
+            "_call_api_for_agents",
+            lambda *_args, **_kwargs: judge_text,
+        )
+        return eval_agents.score_agent_response(
+            "sk-test", "prompt", "response", "expected", "demo"
+        )
+
+    def test_an_unparseable_payload_is_stored_whole(self, monkeypatch):
+        payload = "I will not grade this. " + "x" * 4000
+
+        scores = self._score(monkeypatch, payload)
+
+        assert scores["judge_raw"] == payload
+        assert len(scores["judge_raw"]) > 200
+
+    def test_the_stored_payload_reproduces_the_live_parse_error(self, monkeypatch):
+        # The prefix re-parses as an unterminated string; the whole payload
+        # fails on the missing comma that actually broke it.
+        payload = (
+            '{"role_adherence": 5, "actionability": 4, "quality": 4, '
+            '"appropriateness": 3, "reasoning": "' + "a" * 300 + '" "trailing"}'
+        )
+
+        scores = self._score(monkeypatch, payload)
+
+        assert scores["judge_raw"] == payload
+        with pytest.raises(json.JSONDecodeError) as prefix_error:
+            json.loads(payload[:200])
+        with pytest.raises(json.JSONDecodeError) as whole_error:
+            json.loads(scores["judge_raw"])
+        assert "Unterminated string" in str(prefix_error.value)
+        assert "Unterminated string" not in str(whole_error.value)
+
+    def test_a_clean_payload_stores_no_raw(self, monkeypatch):
+        # Negative control: only a failure carries evidence.
+        payload = (
+            '{"role_adherence": 5, "actionability": 4, "quality": 4, '
+            '"appropriateness": 3, "reasoning": "ok"}'
+        )
+
+        scores = self._score(monkeypatch, payload)
+
+        assert "judge_raw" not in scores
+        assert scores["role_adherence"] == 5
+
+    def test_the_extra_key_does_not_reach_any_average(self, monkeypatch):
+        # Edge: `_avg_scores` reads a fixed dimension list, so a record with
+        # `judge_raw` must average exactly as one without it.
+        scores = self._score(monkeypatch, "not json")
+
+        averaged = eval_agents._avg_scores([scores])
+
+        assert "judge_raw" not in averaged
+        assert set(averaged) == set(eval_agents.DIMENSIONS)

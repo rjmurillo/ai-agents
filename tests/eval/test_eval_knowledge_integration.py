@@ -10,9 +10,12 @@ with an actionable message naming the unprompted skill.
 from __future__ import annotations
 
 import importlib.util
+import json
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EVAL_DIR = REPO_ROOT / "scripts" / "eval"
@@ -97,3 +100,63 @@ class TestCliZeroPromptGuard:
         assert "no prompts found" not in result.stderr
         assert "STOP" in result.stderr
         assert "NO_DATA" not in result.stderr
+
+
+class TestJudgeFailureKeepsItsPayload:
+    """A judge payload that does not parse must survive whole (#3975).
+
+    The failure record kept a 200-character prefix and dropped the rest. A
+    prefix cut mid-string re-parses as "Unterminated string" whatever actually
+    broke the object, so the archive recorded the truncation's error rather
+    than the judge's.
+    """
+
+    @staticmethod
+    def _score(monkeypatch, judge_text):
+        monkeypatch.setattr(eval_mod, "_call_api", lambda *_args, **_kwargs: judge_text)
+        return eval_mod.score_response("sk-test", "prompt", "response", "expected")
+
+    def test_an_unparseable_payload_is_stored_whole(self, monkeypatch):
+        payload = "I will not grade this. " + "x" * 4000
+
+        scores = self._score(monkeypatch, payload)
+
+        assert scores["judge_raw"] == payload
+        assert len(scores["judge_raw"]) > 200
+
+    def test_the_stored_payload_reproduces_the_live_parse_error(self, monkeypatch):
+        payload = (
+            '{"accuracy": 5, "depth": 4, "specificity": 4, "reasoning": "'
+            + "a" * 300
+            + '" "trailing"}'
+        )
+
+        scores = self._score(monkeypatch, payload)
+
+        assert scores["judge_raw"] == payload
+        with pytest.raises(json.JSONDecodeError) as prefix_error:
+            json.loads(payload[:200])
+        with pytest.raises(json.JSONDecodeError) as whole_error:
+            json.loads(scores["judge_raw"])
+        assert "Unterminated string" in str(prefix_error.value)
+        assert "Unterminated string" not in str(whole_error.value)
+
+    def test_a_clean_payload_stores_no_raw(self, monkeypatch):
+        # Negative control: only a failure carries evidence.
+        scores = self._score(
+            monkeypatch,
+            '{"accuracy": 5, "depth": 4, "specificity": 4, "reasoning": "ok"}',
+        )
+
+        assert "judge_raw" not in scores
+        assert scores["accuracy"] == 5
+
+    def test_the_extra_key_does_not_reach_any_average(self, monkeypatch):
+        # Edge: `_avg_scores` reads a fixed dimension list, so a record with
+        # `judge_raw` averages exactly as one without it.
+        scores = self._score(monkeypatch, "not json")
+
+        averaged = eval_mod._avg_scores([scores])
+
+        assert "judge_raw" not in averaged
+        assert set(averaged) == {"accuracy", "depth", "specificity"}

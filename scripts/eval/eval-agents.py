@@ -635,12 +635,19 @@ Respond in JSON only, no other text:
         # Note: if appropriateness is missing, we leave it out and _avg_scores will exclude it
     except json.JSONDecodeError:
         print(f"WARNING: Failed to parse LLM response: {text[:100]}", file=sys.stderr)
+        # `judge_raw` holds the payload whole. A 200-character prefix is not
+        # evidence of the failure it names: every archived truncation re-parsed
+        # as "Unterminated string" while the untruncated payloads failed at
+        # offsets past 160, so the excerpt reproduced the cut, not the judge
+        # (#3975). `_avg_scores` reads a fixed dimension list, so the extra key
+        # rides along without touching any average.
         scores = {
             "role_adherence": 0,
             "actionability": 0,
             "quality": 0,
             "appropriateness": 0,
             "reasoning": f"Failed to parse: {text[:200]}",
+            "judge_raw": text,
         }
 
     return scores

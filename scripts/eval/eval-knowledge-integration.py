@@ -238,7 +238,17 @@ Respond in JSON only, no other text:
         scores: dict[str, Any] = json.loads(text)
     except json.JSONDecodeError:
         print(f"WARNING: Failed to parse LLM response: {text[:100]}", file=sys.stderr)
-        scores = {"accuracy": 0, "depth": 0, "specificity": 0, "reasoning": f"Failed to parse: {text[:200]}"}
+        # `judge_raw` holds the payload whole. A 200-character prefix
+        # reproduces the truncation's parse error, not the judge's (#3975).
+        # `_avg_scores` reads a fixed dimension list, so the extra key does not
+        # reach any average.
+        scores = {
+            "accuracy": 0,
+            "depth": 0,
+            "specificity": 0,
+            "reasoning": f"Failed to parse: {text[:200]}",
+            "judge_raw": text,
+        }
 
     return scores
 
