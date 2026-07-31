@@ -42,6 +42,23 @@ SKILL_MD = PROJECT_ROOT / "src" / "copilot-cli" / "skills" / "spec" / "SKILL.md"
 # namespace from the tree's plugin.json.
 SKILLS_DIR = SKILL_MD.parent.parent
 
+# Reference files extracted by issue #3632 (progressive disclosure split).
+# Agents read both spec.md and these files during a /spec invocation.
+SPEC_STEP0_GATES = (
+    PROJECT_ROOT / ".claude" / "skills" / "spec-generator" / "references" / "spec-step0-gates.md"
+)
+SPEC_PRIOR_ART_SCHEMA = (
+    PROJECT_ROOT / ".claude" / "skills" / "spec-generator" / "references" / "spec-prior-art-schema.md"
+)
+
+# Copilot mirrors of the reference files (verbatim copies, not translated)
+SKILL_STEP0_GATES = (
+    PROJECT_ROOT / "src" / "copilot-cli" / "skills" / "spec-generator" / "references" / "spec-step0-gates.md"
+)
+SKILL_PRIOR_ART_SCHEMA = (
+    PROJECT_ROOT / "src" / "copilot-cli" / "skills" / "spec-generator" / "references" / "spec-prior-art-schema.md"
+)
+
 _build_scripts_dir = str(PROJECT_ROOT / "build" / "scripts")
 _original_sys_path = sys.path.copy()
 try:
@@ -58,17 +75,48 @@ finally:
 
 @pytest.fixture(scope="module")
 def spec_text() -> str:
+    """Return spec.md content only (for structural and identical-block tests)."""
     return SPEC_MD.read_text(encoding="utf-8")
 
 
 @pytest.fixture(scope="module")
 def skill_text() -> str:
+    """Return SKILL.md content only (for identical-block tests)."""
     return SKILL_MD.read_text(encoding="utf-8")
 
 
 @pytest.fixture(scope="module")
-def hedge_phrases(spec_text: str) -> list[str]:
-    return parse_hedge_phrases(spec_text)
+def spec_step0_gates_text() -> str:
+    """Return spec-step0-gates.md content (hedge table and gate logic)."""
+    return SPEC_STEP0_GATES.read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def spec_prior_art_text() -> str:
+    """Return spec-prior-art-schema.md content (steps 1-9, PriorArtBlock schema)."""
+    return SPEC_PRIOR_ART_SCHEMA.read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def skill_prior_art_text() -> str:
+    """Return the Copilot mirror of spec-prior-art-schema.md (verbatim copy)."""
+    return SKILL_PRIOR_ART_SCHEMA.read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def skill_step0_gates_text() -> str:
+    """Return the Copilot mirror of spec-step0-gates.md (verbatim copy)."""
+    return SKILL_STEP0_GATES.read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def hedge_phrases(spec_step0_gates_text: str) -> list[str]:
+    """Parse hedge phrases from the step0-gates reference file.
+
+    After issue #3632, the hedge phrase table lives in spec-step0-gates.md,
+    not in spec.md. The parser sentinel is unchanged.
+    """
+    return parse_hedge_phrases(spec_step0_gates_text)
 
 
 # ---------------------------------------------------------------------------
@@ -76,24 +124,33 @@ def hedge_phrases(spec_text: str) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def test_step0_heading_precedes_step1_in_spec_md(spec_text: str) -> None:
-    """AC-1a: the Step 0 heading appears before Step 1 in the file."""
+def test_step0_heading_precedes_step1_in_spec_md(
+    spec_text: str, spec_prior_art_text: str
+) -> None:
+    """AC-1a: the Step 0 heading appears in spec.md; Step 1 lives in the prior-art reference.
+
+    After issue #3632, steps 1-9 are in spec-prior-art-schema.md. The ordering
+    contract is preserved: spec.md MUST contain the Step 0 heading, and the
+    reference file MUST contain '1. Clarify the problem.'.
+    """
     step0_offset = spec_text.find("### Step 0:")
-    step1_offset = spec_text.find("\n1. Clarify the problem")
-    assert step0_offset != -1, "missing '### Step 0:' heading"
-    assert step1_offset != -1, "missing Step 1 list item"
-    assert step0_offset < step1_offset, "Step 0 must appear before Step 1"
+    step1_offset = spec_prior_art_text.find("1. Clarify the problem.")
+    assert step0_offset != -1, "missing '### Step 0:' heading in spec.md"
+    assert step1_offset != -1, "missing Step 1 item in spec-prior-art-schema.md"
 
 
-def test_step1_references_step0_block(spec_text: str) -> None:
-    """AC-7a, AC-7b: Step 1 prose references the Step 0 block and forbids re-elicitation."""
-    step1_text = extract_step1_paragraph(spec_text)
+def test_step1_references_step0_block(spec_prior_art_text: str) -> None:
+    """AC-7a, AC-7b: Step 1 prose references the Step 0 block and forbids re-elicitation.
+
+    After issue #3632, Step 1 lives in spec-prior-art-schema.md.
+    """
+    step1_text = extract_step1_paragraph(spec_prior_art_text)
     assert "Step 0" in step1_text
     assert "Q1-Q6" in step1_text
     assert "Do not re-elicit" in step1_text
 
 
-def test_tier5_replaces_why_not_simpler(spec_text: str) -> None:
+def test_tier5_replaces_why_not_simpler(spec_prior_art_text: str) -> None:
     """AC-8: Tier 5 bullet must contain `Re-validate Step 0 Q4` AND must
     NOT contain the phrase `why not simpler?`.
 
@@ -101,36 +158,49 @@ def test_tier5_replaces_why_not_simpler(spec_text: str) -> None:
     3213975270/3213975277): the meta-reference to v1 text was removed
     from the spec.md and SKILL.md Tier 5 bullets so the grep check is
     strict (REQ-016 AC-8: the phrase must be absent).
+    After issue #3632, Tier 5 bullet lives in spec-prior-art-schema.md.
     """
-    tier5_text = extract_tier5_bullet(spec_text)
+    tier5_text = extract_tier5_bullet(spec_prior_art_text)
     assert "Re-validate Step 0 Q4" in tier5_text
     assert "why not simpler?" not in tier5_text
 
 
-def test_step9_contains_binary_checks(spec_text: str) -> None:
-    """AC-9: Step 9 critic pre-mortem contains Check 9a/9b/9c with PASS/FAIL phrasing."""
-    assert "Check 9a" in spec_text
-    assert "Check 9b" in spec_text
-    assert "Check 9c" in spec_text
-    assert "PASS:" in spec_text
-    assert "FAIL" in spec_text
-    assert "SHALL NOT return APPROVED" in spec_text
+def test_step9_contains_binary_checks(spec_prior_art_text: str) -> None:
+    """AC-9: Step 9 critic pre-mortem contains Check 9a/9b/9c with PASS/FAIL phrasing.
+
+    After issue #3632, Step 9 lives in spec-prior-art-schema.md.
+    """
+    assert "Check 9a" in spec_prior_art_text
+    assert "Check 9b" in spec_prior_art_text
+    assert "Check 9c" in spec_prior_art_text
+    assert "PASS:" in spec_prior_art_text
+    assert "FAIL" in spec_prior_art_text
+    assert "SHALL NOT return APPROVED" in spec_prior_art_text
 
 
-def test_step0_kill_criteria_reference(spec_text: str) -> None:
-    """AC-13: Step 0 references kill criteria + tally infrastructure."""
-    assert "STEP-0-METRICS.md" in spec_text
-    assert "kill criteria" in spec_text.lower()
+def test_step0_kill_criteria_reference(spec_step0_gates_text: str) -> None:
+    """AC-13: Step 0 gate logic references kill criteria + tally infrastructure.
+
+    After issue #3632, the gate logic lives in spec-step0-gates.md.
+    """
+    assert "STEP-0-METRICS.md" in spec_step0_gates_text
+    assert "kill criteria" in spec_step0_gates_text.lower()
 
 
-def test_auto_mode_halt_token_in_spec_md(spec_text: str) -> None:
-    """AC-12 (static): the auto-mode halt reason appears verbatim."""
-    assert "STEP_0_REQUIRES_ELICITATION" in spec_text
+def test_auto_mode_halt_token_in_spec_md(spec_step0_gates_text: str) -> None:
+    """AC-12 (static): the auto-mode halt reason appears verbatim in the gates file.
+
+    After issue #3632, the halt token lives in spec-step0-gates.md.
+    """
+    assert "STEP_0_REQUIRES_ELICITATION" in spec_step0_gates_text
 
 
-def test_auto_mode_halt_token_in_skill_md(skill_text: str) -> None:
-    """AC-12 (static): SKILL.md mirrors the auto-mode halt reason."""
-    assert "STEP_0_REQUIRES_ELICITATION" in skill_text
+def test_auto_mode_halt_token_in_skill_gates(skill_step0_gates_text: str) -> None:
+    """AC-12 (static): the Copilot mirror of the step0-gates reference has the halt token.
+
+    After issue #3632, the halt token lives in spec-step0-gates.md and its mirror.
+    """
+    assert "STEP_0_REQUIRES_ELICITATION" in skill_step0_gates_text
 
 
 def test_ac6_step0_block_directive_in_spec_md(spec_text: str) -> None:
@@ -152,26 +222,30 @@ def test_ac6_q1_to_q6_subhead_directive_in_spec_md(spec_text: str) -> None:
     ), "spec.md must reference Q1..Q6 subhead directives for the PRD block"
 
 
-def test_halt_emission_format_present(spec_text: str) -> None:
-    """REQ-016-12 + Gate 5 #2: spec.md MUST define the machine-readable
-    `step0-halt` fenced-block format (info-string + 5 keys). Free-form
-    halt prose is non-conforming."""
-    assert "step0-halt" in spec_text, "halt emission info-string missing"
+def test_halt_emission_format_present(spec_step0_gates_text: str) -> None:
+    """REQ-016-12 + Gate 5 #2: the machine-readable `step0-halt` fenced-block
+    format (info-string + 5 keys) must appear in the gates reference file.
+
+    After issue #3632, the halt format lives in spec-step0-gates.md.
+    """
+    assert "step0-halt" in spec_step0_gates_text, "halt emission info-string missing"
     for required_key in ["trigger:", "question:", "answer:", "test_failed:", "deferral:"]:
-        assert required_key in spec_text, f"halt emission key missing: {required_key}"
+        assert required_key in spec_step0_gates_text, f"halt emission key missing: {required_key}"
 
 
-def test_halt_emission_example_block_well_formed(spec_text: str) -> None:
-    """QA F1: the example `step0-halt` block in spec.md must parse cleanly:
+def test_halt_emission_example_block_well_formed(spec_step0_gates_text: str) -> None:
+    """QA F1: the example `step0-halt` block must parse cleanly:
     every required key is present, every key has a non-empty value, the
-    trigger value is one of H1-H5. This pins the documented exemplar so
-    a future spec.md edit that breaks the format example is caught."""
+    trigger value is one of H1-H5.
+
+    After issue #3632, the halt block lives in spec-step0-gates.md.
+    """
     block_match = re.search(
         r"```step0-halt\n(.*?)\n```",
-        spec_text,
+        spec_step0_gates_text,
         re.DOTALL,
     )
-    assert block_match is not None, "no `step0-halt` example block in spec.md"
+    assert block_match is not None, "no `step0-halt` example block in spec-step0-gates.md"
     body = block_match.group(1)
     parsed: dict[str, str] = {}
     for line in body.splitlines():
@@ -240,25 +314,50 @@ def _translated(block: str) -> str:
 
 
 def test_step0_block_identical(spec_text: str, skill_text: str) -> None:
-    """AC-10: Step 0 block matches after translation (carries Skill() calls)."""
+    """AC-10: Step 0 block in spec.md matches SKILL.md after translation.
+
+    Step 0 heading and Q1-Q6 table remain in spec.md / SKILL.md body, so the
+    translation contract still applies here.
+    """
     assert extract_step0_block(skill_text) == _translated(extract_step0_block(spec_text))
 
 
-def test_step1_paragraph_identical(spec_text: str, skill_text: str) -> None:
-    """AC-10: Step 1 narrowed paragraph matches after translation."""
-    assert extract_step1_paragraph(skill_text) == _translated(
-        extract_step1_paragraph(spec_text)
-    )
+def test_step1_paragraph_identical(
+    spec_prior_art_text: str, skill_prior_art_text: str
+) -> None:
+    """AC-10: Step 1 paragraph is verbatim-identical in both reference files.
+
+    After issue #3632, Step 1 lives in spec-prior-art-schema.md, which is
+    copied verbatim (no translation) into the Copilot mirror. The identity
+    check therefore uses raw equality, not _translated().
+    """
+    src = extract_step1_paragraph(spec_prior_art_text)
+    dst = extract_step1_paragraph(skill_prior_art_text)
+    assert src is not None, "extract_step1_paragraph returned None for spec-prior-art-schema.md"
+    assert dst is not None, "extract_step1_paragraph returned None for skill-prior-art-schema.md"
+    assert src == dst, "Step 1 paragraph differs between spec and skill reference files"
 
 
-def test_tier5_bullet_identical(spec_text: str, skill_text: str) -> None:
-    """AC-10: Tier 5 bullet matches after translation (identity: no calls)."""
-    assert extract_tier5_bullet(skill_text) == _translated(extract_tier5_bullet(spec_text))
+def test_tier5_bullet_identical(
+    spec_prior_art_text: str, skill_prior_art_text: str
+) -> None:
+    """AC-10: Tier 5 bullet is verbatim-identical in both reference files."""
+    src = extract_tier5_bullet(spec_prior_art_text)
+    dst = extract_tier5_bullet(skill_prior_art_text)
+    assert src is not None, "extract_tier5_bullet returned None for spec-prior-art-schema.md"
+    assert dst is not None, "extract_tier5_bullet returned None for skill-prior-art-schema.md"
+    assert src == dst, "Tier 5 bullet differs between spec and skill reference files"
 
 
-def test_step9_block_identical(spec_text: str, skill_text: str) -> None:
-    """AC-10: Step 9 critic block matches after translation (Task()/Skill())."""
-    assert extract_step9_block(skill_text) == _translated(extract_step9_block(spec_text))
+def test_step9_block_identical(
+    spec_prior_art_text: str, skill_prior_art_text: str
+) -> None:
+    """AC-10: Step 9 block is verbatim-identical in both reference files."""
+    src = extract_step9_block(spec_prior_art_text)
+    dst = extract_step9_block(skill_prior_art_text)
+    assert src is not None, "extract_step9_block returned None for spec-prior-art-schema.md"
+    assert dst is not None, "extract_step9_block returned None for skill-prior-art-schema.md"
+    assert src == dst, "Step 9 block differs between spec and skill reference files"
 
 
 # ---------------------------------------------------------------------------
@@ -266,17 +365,23 @@ def test_step9_block_identical(spec_text: str, skill_text: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_hedge_phrase_list_parsed(spec_text: str) -> None:
-    """The parser finds at least 15 hedge phrases in spec.md."""
-    phrases = parse_hedge_phrases(spec_text)
+def test_hedge_phrase_list_parsed(spec_step0_gates_text: str) -> None:
+    """The parser finds at least 15 hedge phrases in the gates reference file.
+
+    After issue #3632, the hedge phrase table lives in spec-step0-gates.md.
+    """
+    phrases = parse_hedge_phrases(spec_step0_gates_text)
     assert len(phrases) >= 15
     for required in ["would be nice", "we believe", "stakeholders want", "probably"]:
         assert required in phrases
 
 
-def test_no_standalone_should_might_could(spec_text: str) -> None:
-    """REQ-016-02: standalone 'should'/'might'/'could' MUST NOT be hedge phrases."""
-    phrases = parse_hedge_phrases(spec_text)
+def test_no_standalone_should_might_could(spec_step0_gates_text: str) -> None:
+    """REQ-016-02: standalone 'should'/'might'/'could' MUST NOT be hedge phrases.
+
+    After issue #3632, the hedge phrase table lives in spec-step0-gates.md.
+    """
+    phrases = parse_hedge_phrases(spec_step0_gates_text)
     for forbidden in ["should", "might", "could"]:
         assert forbidden not in phrases
 
@@ -538,13 +643,13 @@ class TestQ5Speculative:
 class TestParseHedgePhrases:
     """Direct unit tests for `parse_hedge_phrases`."""
 
-    def test_returns_list(self, spec_text: str) -> None:
-        phrases = parse_hedge_phrases(spec_text)
+    def test_returns_list(self, spec_step0_gates_text: str) -> None:
+        phrases = parse_hedge_phrases(spec_step0_gates_text)
         assert isinstance(phrases, list)
         assert all(isinstance(p, str) for p in phrases)
 
-    def test_required_phrases_present(self, spec_text: str) -> None:
-        phrases = parse_hedge_phrases(spec_text)
+    def test_required_phrases_present(self, spec_step0_gates_text: str) -> None:
+        phrases = parse_hedge_phrases(spec_step0_gates_text)
         for required in [
             "would be nice",
             "we believe",
@@ -554,7 +659,7 @@ class TestParseHedgePhrases:
         ]:
             assert required in phrases
 
-    def test_no_standalone_words(self, spec_text: str) -> None:
-        phrases = parse_hedge_phrases(spec_text)
+    def test_no_standalone_words(self, spec_step0_gates_text: str) -> None:
+        phrases = parse_hedge_phrases(spec_step0_gates_text)
         for forbidden in ["should", "might", "could"]:
             assert forbidden not in phrases

@@ -57,6 +57,12 @@ from tests.commands.step0_5_parser import (
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SPEC_MD = PROJECT_ROOT / ".claude" / "commands" / "spec.md"
 SKILL_MD = PROJECT_ROOT / "src" / "copilot-cli" / "skills" / "spec" / "SKILL.md"
+SPEC_PRIOR_ART_SCHEMA = (
+    PROJECT_ROOT / ".claude" / "skills" / "spec-generator" / "references" / "spec-prior-art-schema.md"
+)
+SKILL_PRIOR_ART_SCHEMA = (
+    PROJECT_ROOT / "src" / "copilot-cli" / "skills" / "spec-generator" / "references" / "spec-prior-art-schema.md"
+)
 # The skills output tree (two levels above the mirror) locates the plugin.json
 # that the #2743 translation reads for the agent_type namespace.
 SKILLS_DIR = SKILL_MD.parent.parent
@@ -89,13 +95,26 @@ def skill_text() -> str:
 
 
 @pytest.fixture(scope="module")
+def spec_prior_art_text() -> str:
+    """Return spec-prior-art-schema.md (steps 0.5 halt details, steps 1-9)."""
+    return SPEC_PRIOR_ART_SCHEMA.read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def skill_prior_art_text() -> str:
+    """Return the Copilot verbatim mirror of spec-prior-art-schema.md."""
+    return SKILL_PRIOR_ART_SCHEMA.read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
 def step0_5_block(spec_text: str) -> str:
     return extract_step0_5_block(spec_text)
 
 
 @pytest.fixture(scope="module")
-def step9_block(spec_text: str) -> str:
-    return extract_step9_block(spec_text)
+def step9_block(spec_prior_art_text: str) -> str:
+    """Step 9 lives in spec-prior-art-schema.md after issue #3632."""
+    return extract_step9_block(spec_prior_art_text)
 
 
 # ---------------------------------------------------------------------------
@@ -103,20 +122,23 @@ def step9_block(spec_text: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def test_s1_heading_order_step_0_then_step_0_5_then_step_1(spec_text: str):
+def test_s1_heading_order_step_0_then_step_0_5_then_step_1(
+    spec_text: str, spec_prior_art_text: str
+):
+    """After issue #3632: Step 0 and Step 0.5 headings are in spec.md;
+    Step 1 ('1. Clarify the problem.') is in spec-prior-art-schema.md.
+    The per-file ordering is preserved even though the files differ.
+    """
     step0 = spec_text.find("### Step 0: First Principles Gate")
     step0_5 = spec_text.find(
         "### Step 0.5: Memory-First Gate (blocking, runs after Step 0)"
     )
-    step1 = re.search(r"^1\. Clarify the problem\.", spec_text, re.MULTILINE)
+    step1 = re.search(r"^1\. Clarify the problem\.", spec_prior_art_text, re.MULTILINE)
 
-    assert step0 != -1, "Step 0 heading missing"
-    assert step0_5 != -1, "Step 0.5 heading missing"
-    assert step1 is not None, "Step 1 numbered-list anchor missing"
-    assert step0 < step0_5 < step1.start(), (
-        f"Heading order wrong: Step 0={step0}, Step 0.5={step0_5}, "
-        f"Step 1={step1.start()}"
-    )
+    assert step0 != -1, "Step 0 heading missing from spec.md"
+    assert step0_5 != -1, "Step 0.5 heading missing from spec.md"
+    assert step1 is not None, "Step 1 numbered-list anchor missing from spec-prior-art-schema.md"
+    assert step0 < step0_5, f"Step 0 must precede Step 0.5 in spec.md (got {step0} >= {step0_5})"
 
 
 # ---------------------------------------------------------------------------
@@ -296,18 +318,21 @@ def test_s8_blast_radius_thresholds_2_human_3_auto(spec_text: str):
 # ---------------------------------------------------------------------------
 
 
-def test_s9_step0_5_halt_info_string_with_five_fields(step0_5_block: str):
-    assert "step0_5-halt" in step0_5_block
+def test_s9_step0_5_halt_info_string_with_five_fields(spec_prior_art_text: str):
+    """After issue #3632, the halt block format lives in spec-prior-art-schema.md."""
+    assert "step0_5-halt" in spec_prior_art_text
     for field in ("trigger", "check", "evidence", "test_failed", "deferral"):
-        assert f"{field}:" in step0_5_block, f"halt field missing: {field}"
+        assert f"{field}:" in spec_prior_art_text, f"halt field missing: {field}"
 
 
-def test_s9_h11_trigger_documented(step0_5_block: str):
-    assert "H11" in step0_5_block
+def test_s9_h11_trigger_documented(spec_prior_art_text: str):
+    """After issue #3632, H11 trigger documentation is in spec-prior-art-schema.md."""
+    assert "H11" in spec_prior_art_text
 
 
-def test_s9_canonical_deferral_text_present(step0_5_block: str):
-    assert CANONICAL_DEFERRAL_TEXT in step0_5_block
+def test_s9_canonical_deferral_text_present(spec_prior_art_text: str):
+    """After issue #3632, canonical deferral text is in spec-prior-art-schema.md."""
+    assert CANONICAL_DEFERRAL_TEXT in spec_prior_art_text
 
 
 # ---------------------------------------------------------------------------
@@ -315,9 +340,10 @@ def test_s9_canonical_deferral_text_present(step0_5_block: str):
 # ---------------------------------------------------------------------------
 
 
-def test_s10_phases_needed_formula_present(spec_text: str):
+def test_s10_phases_needed_formula_present(spec_prior_art_text: str):
+    """After issue #3632, the supplemental traversal hook is in spec-prior-art-schema.md."""
     body = extract_step0_5_subsection(
-        spec_text,
+        spec_prior_art_text,
         "#### Step 0.5 supplemental traversal hook (cross-step)",
     )
     assert "phases_needed" in body
@@ -329,8 +355,9 @@ def test_s10_phases_needed_formula_present(spec_text: str):
     assert "phases_needed(T) = 5  if T >= 4" in body
 
 
-def test_s10_supplemental_subblock_heading_documented(step0_5_block: str):
-    assert "### Supplemental (Phase" in step0_5_block
+def test_s10_supplemental_subblock_heading_documented(spec_prior_art_text: str):
+    """After issue #3632, supplemental sub-block heading is in spec-prior-art-schema.md."""
+    assert "### Supplemental (Phase" in spec_prior_art_text
 
 
 # ---------------------------------------------------------------------------
@@ -338,9 +365,10 @@ def test_s10_supplemental_subblock_heading_documented(step0_5_block: str):
 # ---------------------------------------------------------------------------
 
 
-def test_s11_metrics_file_path_and_format(spec_text: str):
+def test_s11_metrics_file_path_and_format(spec_prior_art_text: str):
+    """After issue #3632, the metrics tally subsection is in spec-prior-art-schema.md."""
     body = extract_step0_5_subsection(
-        spec_text,
+        spec_prior_art_text,
         "#### Step 0.5 metrics tally",
     )
     assert ".agents/sessions/STEP-0.5-METRICS.md" in body
@@ -1031,24 +1059,26 @@ def test_extract_step9_block_missing_raises():
 # ---------------------------------------------------------------------------
 
 
-def test_s12_prior_art_heading_contract_documented(step0_5_block: str):
-    """The PriorArtBlock schema states the exact-heading + substring-9d rule."""
-    assert "The h2 heading MUST be exactly `## Prior Art / Constraints`" in (
-        step0_5_block
-    )
-    assert "any trailing parenthetical" in step0_5_block
-    assert "matches by substring" in step0_5_block
+def test_s12_prior_art_heading_contract_documented(spec_prior_art_text: str):
+    """The PriorArtBlock schema states the exact-heading + substring-9d rule.
 
-
-def test_s12_prior_art_heading_contract_present_in_skill_mirror(skill_text: str):
-    """The contract sentence is mirrored in the Copilot CLI SKILL.md block.
-
-    The byte-identical parity test covers this implicitly, but a direct
-    assertion fails with a clearer message if the mirror drifts.
+    After issue #3632, this content lives in spec-prior-art-schema.md.
     """
-    skill_block = extract_step0_5_block(skill_text)
     assert "The h2 heading MUST be exactly `## Prior Art / Constraints`" in (
-        skill_block
+        spec_prior_art_text
+    )
+    assert "any trailing parenthetical" in spec_prior_art_text
+    assert "matches by substring" in spec_prior_art_text
+
+
+def test_s12_prior_art_heading_contract_present_in_skill_mirror(skill_prior_art_text: str):
+    """The contract sentence is mirrored verbatim in the Copilot reference file.
+
+    After issue #3632, the verbatim mirror lives in
+    src/copilot-cli/skills/spec-generator/references/spec-prior-art-schema.md.
+    """
+    assert "The h2 heading MUST be exactly `## Prior Art / Constraints`" in (
+        skill_prior_art_text
     )
 
 

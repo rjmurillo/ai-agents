@@ -296,7 +296,7 @@ def baseline_answers() -> dict[str, str]:
 
 def extract_step0_block(text: str) -> str:
     match = re.search(
-        r"### Step 0:.*?(?=\n1\. Clarify the problem)", text, re.DOTALL
+        r"### Step 0:.*?(?=\n### Step 0\.5:)", text, re.DOTALL
     )
     if match is None:
         raise ValueError("Step 0 block not found")
