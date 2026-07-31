@@ -46,6 +46,7 @@ import subprocess
 import sys
 import time
 from collections import defaultdict
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -608,7 +609,7 @@ def stale_dirty_suspected(mergeable: str | None, merge_state_status: str | None)
 
 
 def _evaluate_review_threads(
-    pr: dict,
+    pr: dict[str, Any],
     ignore_threads: bool,
     reasons: list[str],
     owner: str,
