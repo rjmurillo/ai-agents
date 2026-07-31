@@ -1206,6 +1206,46 @@ def test_copilot_transcript_ignores_sessions_from_other_sandboxes(
     assert out == "my stdout answer"
 
 
+def test_copilot_refuses_a_relative_session_state_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A relative override can never name the directory the CLI writes.
+
+    The CLI inherits this variable and runs with cwd set to a per-call
+    sandbox, so it resolves a relative value against that sandbox while this
+    process resolves it against its own cwd. The two never agree, so every
+    call would report a missing transcript. That refusal blames the transcript
+    and reads as a reason to set the unverified-model opt-in, which grades raw
+    stdout and drops the model check the transcript exists to perform. Naming
+    the variable keeps a fixable config error from turning into a degraded run.
+    """
+    _capture_run(monkeypatch, _FakeCompleted(stdout="answer\n"))
+    monkeypatch.setenv("COPILOT_SESSION_STATE_DIR", "session-state")
+    provider = _providers._CopilotCLIProvider()
+
+    with pytest.raises(RuntimeError) as exc_info:
+        provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
+
+    message = str(exc_info.value)
+    assert "COPILOT_SESSION_STATE_DIR" in message
+    assert "absolute" in message
+    assert "session-state" in message
+
+
+def test_copilot_accepts_an_absolute_session_state_override(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """Guard against over-refusing. The absolute path is the supported form."""
+    _allow_unverified_model(monkeypatch)
+    _capture_run(monkeypatch, _FakeCompleted(stdout="answer\n"))
+    monkeypatch.setenv("COPILOT_SESSION_STATE_DIR", str(tmp_path))
+    provider = _providers._CopilotCLIProvider()
+
+    out = provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
+
+    assert out == "answer"
+
+
 def test_copilot_falls_back_to_stdout_when_session_root_is_missing(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:

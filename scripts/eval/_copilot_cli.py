@@ -112,9 +112,22 @@ class _CopilotCLIProvider:
     @classmethod
     def _session_state_root(cls) -> Path:
         override = os.environ.get(cls._SESSION_STATE_ENV)
-        if override:
-            return Path(override)
-        return Path.home() / ".copilot" / "session-state"
+        if not override:
+            return Path.home() / ".copilot" / "session-state"
+        root = Path(override)
+        if not root.is_absolute():
+            # The CLI inherits this variable but runs with cwd set to a
+            # per-call sandbox, so it resolves a relative value there while
+            # this process resolves it here. The two never agree, so every
+            # transcript reads as missing, and that refusal blames the
+            # transcript and invites the opt-in that grades raw stdout. Name
+            # the real cause instead of failing the same way each call.
+            raise RuntimeError(
+                f"{cls._PROVIDER_LABEL} needs {cls._SESSION_STATE_ENV} to be "
+                f"absolute; got {override!r}, which the CLI resolves against a "
+                "per-call sandbox this process cannot read."
+            )
+        return root
 
     @classmethod
     def _read_session_transcript(
