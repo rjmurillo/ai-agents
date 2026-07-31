@@ -159,11 +159,19 @@ class StagedBlobError(RuntimeError):
 
 
 def _relative_display(file_path: Path) -> str:
-    """Best-effort cwd-relative string for display; absolute path on failure."""
-    try:
-        return str(file_path.relative_to(Path.cwd()))
-    except ValueError:
-        return str(file_path)
+    """Repo-relative string for display; cwd-relative, then absolute, as fallbacks.
+
+    ``_PROJECT_ROOT`` comes first because ``default_corpus_files`` is anchored
+    there, so a default audit run from a subdirectory would otherwise print
+    absolute paths, and one run from ``/`` would print a slash-stripped path
+    that resolves to nothing.
+    """
+    for base in (_PROJECT_ROOT, Path.cwd()):
+        try:
+            return str(file_path.relative_to(base))
+        except ValueError:
+            continue
+    return str(file_path)
 
 
 @dataclass
