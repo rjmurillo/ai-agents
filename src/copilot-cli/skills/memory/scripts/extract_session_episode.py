@@ -844,24 +844,32 @@ def json_outcome(data: dict, additional_worklogs: list | None = None) -> str:
     return "success" if all_complete else "partial"
 
 
-def json_events(data: dict, now_iso: str) -> list[dict]:
-    """Type events from the work-log structure, not substring matching."""
+def json_events(data: dict, now_iso: str, *, session_id: str = "") -> list[dict]:
+    """Type events from the work-log structure, not substring matching.
+
+    ``session_id`` stamps each emitted event with ``_source_session`` so that
+    ``_dedupe_events`` can evict events carried over from a different session
+    during a ``--preserve`` merge (issue #4024).  Callers that do not supply a
+    session_id get events without a stamp, which ``_dedupe_events`` treats as
+    same-session for backward compatibility.
+    """
     events: list[dict] = []
     idx = 0
 
     def add(evt_type: str, content: str, timestamp: str = now_iso) -> None:
         nonlocal idx
         idx += 1
-        events.append(
-            {
-                "id": f"e{idx:03d}",
-                "timestamp": timestamp,
-                "type": evt_type,
-                "content": content,
-                "caused_by": [],
-                "leads_to": [],
-            }
-        )
+        entry: dict = {
+            "id": f"e{idx:03d}",
+            "timestamp": timestamp,
+            "type": evt_type,
+            "content": content,
+            "caused_by": [],
+            "leads_to": [],
+        }
+        if session_id:
+            entry["_source_session"] = session_id
+        events.append(entry)
 
     for entry in _as_list(data.get("workLog")):
         event_timestamp = _entry_timestamp(entry, now_iso)
@@ -1168,11 +1176,28 @@ def _dedupe_decisions(existing: list, new: list) -> list[dict]:
     return out
 
 
-def _dedupe_events(existing: list, new: list, midnight: str | None) -> list[dict]:
-    """Union events by (type, content); normalize timestamps; reassign ids."""
+def _dedupe_events(
+    existing: list, new: list, midnight: str | None, *, session_id: str = ""
+) -> list[dict]:
+    """Union events by (type, content); normalize timestamps; reassign ids.
+
+    When ``session_id`` is supplied, existing events that carry a
+    ``_source_session`` stamp from a *different* session are dropped before the
+    union.  Events with no stamp (legacy episodes written before #4024) are kept
+    unchanged, preserving backward compatibility.  Events stamped with the
+    current session are kept unconditionally so accumulated commit events
+    survive ``--preserve`` regeneration (issue #3123).
+    """
     out: list[dict] = []
     seen: set[tuple[str, str]] = set()
-    for evt in list(existing) + list(new):
+    filtered_existing: list[dict] = []
+    for evt in existing:
+        entry = _as_dict(evt)
+        source = entry.get("_source_session", "")
+        if source and session_id and source != session_id:
+            continue  # cross-session stamp: evict
+        filtered_existing.append(entry)
+    for evt in filtered_existing + list(new):
         entry = _as_dict(evt)
         key = (_norm(entry.get("type")), _norm(entry.get("content")))
         if key in seen:
@@ -1239,7 +1264,8 @@ def merge_preserving(new: dict, existing: dict, *, session_id: str = "") -> dict
         _as_list(existing.get("decisions")), _as_list(new.get("decisions"))
     )
     merged["events"] = _dedupe_events(
-        _as_list(existing.get("events")), _as_list(new.get("events")), midnight
+        _as_list(existing.get("events")), _as_list(new.get("events")), midnight,
+        session_id=session_id,
     )
     merged["metrics"] = _merge_metrics(
         _as_dict(new.get("metrics")), _as_dict(existing.get("metrics"))
@@ -1330,10 +1356,16 @@ def _filter_markdown_events(events: list[dict]) -> list[dict]:
     return filtered
 
 
-def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
+def extract_from_json(
+    data: dict, *, archive_fallback: bool = True, session_id: str = ""
+) -> dict:
     """Build the episode component bundle from a JSON session log.
 
-    When `archive_fallback` is True and the primary JSON log yields no events
+    ``session_id`` is forwarded to ``json_events`` so each emitted event is
+    stamped with ``_source_session``.  Pass the value from
+    ``get_session_id_from_path`` at the call site.
+
+    When ``archive_fallback`` is True and the primary JSON log yields no events
     of its own (no milestone/test/error, even if the workLog list is
     technically non-empty, e.g. ``[{}]`` or whitespace stubs), attempts to
     locate and parse the corresponding archive file (JSON first, then markdown)
@@ -1344,7 +1376,7 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
     session_ts = json_timestamp(data)
     session = _as_dict(data.get("session"))
 
-    events = json_events(data, session_ts)
+    events = json_events(data, session_ts, session_id=session_id)
     decisions = json_decisions(data, session_ts)
     lessons = _json_lessons(data)
     metrics_source = data
@@ -1368,7 +1400,7 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
                     archive_content = archive_json_path.read_text(encoding="utf-8")
                     archive_data = looks_like_json_session(archive_content)
                     if archive_data and _as_list(archive_data.get("workLog")):
-                        archive_events = json_events(archive_data, session_ts)
+                        archive_events = json_events(archive_data, session_ts, session_id=session_id)
                         archive_decisions = json_decisions(archive_data, session_ts)
                         archive_lessons = _json_lessons(archive_data)
                         if not has_own_events:
@@ -1933,7 +1965,7 @@ def main(argv: list[str] | None = None) -> int:
     json_data = looks_like_json_session(content)
     if json_data is not None:
         print("  Parsing JSON session log...", file=sys.stderr)
-        bundle = extract_from_json(json_data)
+        bundle = extract_from_json(json_data, session_id=session_id)
         timestamp = bundle["timestamp"]
         task = bundle["task"]
         outcome = bundle["outcome"]
