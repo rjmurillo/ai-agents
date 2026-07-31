@@ -1810,10 +1810,24 @@ def _route_missed_target(scenario: dict[str, Any], mech: str) -> bool:
     False` is False, and so is `"false" is False`, so a damaged record and a
     recorded miss both certify the route they failed to make. Refuse instead,
     because a refusal is visible where a fabricated match is not.
+
+    The same split applies one level up, to the routing block itself. A cell
+    with no `routing` key is the archived shape and counts zero. A cell whose
+    `routing` is present but is not a mapping recorded a route the run cannot
+    read, and treating that as absence hands it the same silence a legacy
+    record earns, so the score is published under the target reference with
+    no evidence the reference was opened. All 96 cells in the archived record
+    carry no `routing` key at all, so refusing here moves no stored number.
     """
-    routing = scenario["mechanisms"].get(mech, {}).get("routing")
-    if not isinstance(routing, dict):
+    mech_data = scenario["mechanisms"].get(mech, {})
+    if "routing" not in mech_data:
         return False
+    routing = mech_data["routing"]
+    if not isinstance(routing, dict):
+        raise ValueError(
+            f"mechanisms[{mech}].routing must be a mapping, "
+            f"got {type(routing).__name__} {routing!r}"
+        )
     if "reference_matched" not in routing:
         return False
     matched = routing["reference_matched"]

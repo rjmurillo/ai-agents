@@ -5821,12 +5821,19 @@ class TestARoutedCellThatMissedTheTargetIsDisclosed:
         assert summary["per_mechanism"]["description"]["route_mismatch_count"] == 0
         assert not [c for c in eval_mod._render_caveats(summary) if c.startswith("Routing:")]
 
-    def test_a_routing_record_that_is_not_a_dict_counts_zero(self):
+    def test_a_routing_record_that_is_not_a_dict_is_refused(self):
+        """Shipped asserting zero, which was the defect this now refuses.
+
+        An unparsed record is a route the run could not read, not a route it
+        did not attempt. Counting it zero gave a damaged cell the silence a
+        legacy cell earns and published its score under the target reference
+        with no evidence the reference was opened.
+        """
         scenario = _routed_scenario(False, None)
         mechanisms: dict[str, Any] = scenario["mechanisms"]
         mechanisms["description"]["routing"] = "unparsed"
-        summary = eval_mod.aggregate([scenario])
-        assert summary["per_mechanism"]["description"]["route_mismatch_count"] == 0
+        with pytest.raises(ValueError, match="routing must be a mapping"):
+            eval_mod.aggregate([scenario])
 
 
 class TestTheRouteRecordsWhichReferenceItActuallyOpened:
@@ -7578,8 +7585,65 @@ class TestARouteResultMustSayWhetherItMatched:
         with pytest.raises(ValueError, match=r"got str 'no'"):
             eval_mod._route_missed_target(self._cell({"reference_matched": "no"}), "full")
 
-    def test_a_routing_block_that_is_not_a_dict_counts_no_miss(self):
-        assert eval_mod._route_missed_target(self._cell("routing"), "full") is False
+    @pytest.mark.parametrize(
+        "routing", ["corrupt", ["reference_matched"], 1, 0, 0.0, True, "", []]
+    )
+    def test_a_routing_block_that_is_not_a_mapping_is_refused(self, routing):
+        """Round 28 pinned this as no-miss, which was the defect, not the fix.
+
+        A present unreadable block is a recorded route the run cannot check.
+        Counting it as no miss gives it the same silence a legacy cell earns
+        and publishes the score under the target reference with no evidence
+        the reference was opened.
+        """
+        with pytest.raises(ValueError, match="routing must be a mapping"):
+            eval_mod._route_missed_target(self._cell(routing), "full")
+
+    def test_a_present_null_routing_block_is_refused_not_read_as_absent(self):
+        """`.get` cannot tell a stored null from a missing key. Presence can."""
+        cell = {"mechanisms": {"full": {"routing": None}}}
+        with pytest.raises(ValueError, match="routing must be a mapping"):
+            eval_mod._route_missed_target(cell, "full")
+
+    def test_the_block_refusal_names_the_mechanism_and_what_it_got(self):
+        with pytest.raises(ValueError, match=r"mechanisms\[description\].*got str 'x'"):
+            eval_mod._route_missed_target(
+                {"mechanisms": {"description": {"routing": "x"}}}, "description"
+            )
+
+    def test_the_run_refuses_rather_than_publishing_a_zero_mismatch_count(self):
+        """End to end: the corrupt block must not reach a published verdict."""
+        scenarios = [
+            {
+                "id": f"s{i}",
+                "negative_case": False,
+                "mechanisms": {
+                    "baseline": {"scores": {"cell_score": 2.0}},
+                    "description": {
+                        "scores": {"cell_score": 5.0},
+                        "routing": "corrupt",
+                    },
+                    "full": {"scores": {"cell_score": 5.0}},
+                },
+            }
+            for i in range(3)
+        ]
+        with pytest.raises(ValueError, match="routing must be a mapping"):
+            eval_mod.aggregate(scenarios)
+
+    def test_no_archived_cell_carries_a_routing_key_so_the_refusal_moves_nothing(self):
+        """Why the refusal is safe against the closed record, measured not assumed."""
+        seen = 0
+        for path in sorted(_ARCHIVE_DIR.glob("*.json")):
+            if "recovered" in path.name:
+                continue
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            for rule in payload["rules"].values():
+                for scenario in rule.get("scenarios", []):
+                    for mech_data in scenario.get("mechanisms", {}).values():
+                        seen += 1
+                        assert "routing" not in mech_data
+        assert seen == 96, f"expected the 96 archived cells, walked {seen}"
 
     def test_the_shipped_writer_always_records_a_boolean(self):
         """The refusal is unreachable from the runner, and reachable from a file."""
