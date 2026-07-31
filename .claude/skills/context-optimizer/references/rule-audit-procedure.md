@@ -106,24 +106,30 @@ Settling the direction needs a two-by-two: ambient on and off crossed with
 ## Step 2. Read the table honestly
 
 ```
-| Mechanism    | Pos avg | Neg avg | Δ vs baseline | Graded |
-|--------------|---------|---------|---------------|--------|
-| baseline     |    3.89 |     5.0 |               |    3/3 |
-| description  |    3.67 |     5.0 |         -0.22 |    3/3 |
-| full         |    4.11 |     5.0 |         +0.22 |    3/3 |
+| Mechanism    | Pos avg | Neg avg | Δ vs baseline | Pos graded | Neg graded |
+|--------------|---------|---------|---------------|------------|------------|
+| baseline     |    3.89 |     5.0 |               |        3/3 |        1/1 |
+| description  |    3.67 |     5.0 |         -0.22 |        3/3 |        1/1 |
+| full         |    4.11 |     5.0 |         +0.22 |        3/3 |        1/1 |
 ```
 
 Check in this order:
 
-1. **`total_judge_failures` must be 0.** Any non-zero count means some cells
-   were not graded. The verdict will say `FAIL_JUDGE_ERRORS`. Fix the failures
-   before reading any number in the table.
-2. **The `Graded` column must read `n/n` on every row.** A mean over one
-   scenario and a mean over three look identical in the average column. They
-   are not comparable.
-3. **The negative case should be high on every mechanism.** If it drops, the
-   rule is firing on work it should ignore, which is a real defect regardless
-   of the positive scores.
+1. **`gating_judge_failures` must be 0.** A non-zero gating count means a cell
+   the verdict rests on went ungraded, and the verdict says
+   `FAIL_JUDGE_ERRORS`. `total_judge_failures` may exceed it, counting `full`
+   on a routed target and `baseline` on the negative pool, neither of which
+   gates anything. The table names the excluded cells when the counts differ.
+2. **The negative case should be high on every mechanism the target can reach.**
+   Checked before coverage: an observed harm outranks an unproven benefit. A
+   drop means the rule fires on work it should ignore, whatever the positive
+   scores say. For a skill reference the gate reads `description` only: `full`
+   force-injects the reference routing exists to keep out.
+3. **The graded columns must read `n/n`.** An off-rubric cell is unmeasured, so
+   it leaves the average without raising `judge_failed`, and a mean over one
+   scenario looks identical to a mean over three. Each pool is gated on the
+   mechanisms its verdict names: the negative pool on what the target can
+   reach, the positive pool on `baseline` and `description` only, never `full`.
 4. **Only then read the deltas**, against the noise floor below.
 
 ## What the instrument can and cannot resolve
@@ -193,8 +199,8 @@ Recorded so a later re-run has something to compare against. Scenario is
 `unified-software-engineering`, three positive cells plus one negative,
 one generation per cell, judge samples medianed. Scores are 0 to 5.
 
-The numbers below are the positive-scenario average, and they only reproduce
-if you reduce in this order:
+The numbers below are the positive-scenario average. **They came from a
+reduction the instrument no longer uses**, and reproduce only in that order:
 
 1. The judge returns three fields per sample: `activation_score`,
    `citation_score`, `behavior_score`.
@@ -202,25 +208,28 @@ if you reduce in this order:
    samples of each field separately. Three medians.
 3. The cell score is the **mean of those three medians**.
 4. The published figure is the **mean of the three positive-scenario cells**
-   for that mechanism. The negative scenario is scored and reported but does
-   not gate the verdict, so read its column yourself (issue #3933).
+   for that mechanism. The negative scenario was scored but did not gate.
 
-Three positive cells times three fields is nine medians, which is why a full
-run lands on a 1/9 grid. 3.89 is 35/9. Reducing in a different order, for
-example averaging the three fields before taking the median, gives different
-numbers.
+Nine medians per run is why a run lands on a 1/9 grid: 3.89 is 35/9.
 
-**Step 2 is a defect, not a choice, and the numbers below carry it.** Taking
-each field's median independently is a coordinate-wise median, and the result
-need not be any sample the judge gave. Three samples of 5/5/1, 5/1/5, and
-1/5/5 reduce to 5/5/5, a cell of 5.0, when every judge rated the triple at
-3.67. Reducing each sample to its own three-score mean first and taking the
-median of those scalars gives 3.67. Measured across all 96 archived cells,
-**3 diverge**, worst by 0.333 on a cell and 0.111 on a run average:
-`t-sol56` S2 description and S3 baseline, and `var-sol-2` S3 full. Recomputed
-end to end, the sign count is unchanged at seven positive against one
-negative, p = 0.0703, so the conclusion holds; two of the eight rows shift.
-Tracked as issue #3989. Do not reproduce this reduction in a new instrument.
+**Step 2 was a defect, not a choice, and the numbers below carry it.** A
+coordinate-wise median need not be any sample the judge gave: three samples of
+5/5/1, 5/1/5, and 1/5/5 reduce to 5/5/5, a cell of 5.0, when every judge rated
+the triple at 3.67. Reducing each sample to its own mean first and medianing
+those scalars gives 3.67. Across all 96 archived cells **3 diverge**, worst by
+0.333 on a cell and 0.111 on a run average (`t-sol56` S2 description and S3
+baseline, `var-sol-2` S3 full). Recomputed end to end the sign count holds at
+seven positive against one negative, p = 0.0703; two rows shift.
+
+**Both defects are now fixed (issues #3989 and #3933).** Post-fix runs carry a
+`cell_score` reduced in that second order; with an even sample count that median
+is a midpoint, so it need not be a score any judge returned. Negative scenarios
+now gate. Archived runs carry no `cell_score`, so the reader falls back to the
+mean of three medians and reports the substitution; those runs are a closed
+record and restating one under a rule it was not computed with would be a
+fabrication. A `cell_score` present but null or off the rubric never came from
+the writer, so it is damage, and the cell reads as unmeasured. **Distrust the
+archived cells at the 0.1 level and do not edit them.**
 
 | Model | baseline | description | full | delta desc | delta full | discarded samples |
 |---|---|---|---|---|---|---|
@@ -287,24 +296,26 @@ Other limits, all real:
 - **The sign-counting rule was chosen after seeing these runs.** It is the
   reading that survived the noise, not a rule fixed in advance, so the p-value
   above is exploratory (issue #3957). Treat the four-runs-per-model protocol as
-  a hypothesis this document proposes, and the next audit as its first real
-  test.
-- **The judge is the same model family being evaluated.** Treat it as a known
-  validity weakness, not a settled one.
+  a hypothesis this document proposes, and the next audit as its first test.
+- **The judge is the same model family being evaluated.** A known validity
+  weakness, not a settled one.
 - **Per-cell scores are a median of 3 judge samples.** That smooths judge
   noise, not model noise. Model noise needs repeat runs.
-- **Runs carry no provenance.** Result artifacts record only `rules`. Provider,
-  requested and actual model, commit, and CLI version are not stored, so model
-  attribution rests on the filename. Record them by hand until that is fixed
-  (issue #3956).
+- **Runs carry no provenance.** Artifacts record only `rules`: no provider,
+  model, commit, or CLI version, so attribution rests on the filename. Record
+  them by hand until that is fixed (issue #3956).
 - **The Copilot provider does not test passive context.** Copilot CLI has no
   separate system channel, so `_CopilotCLIProvider` folds the treatment into
   the user prompt (`scripts/eval/_copilot_cli.py`). A `copilot-cli` result
   measures user-message priming. Whether it transfers to always-on placement
   is an assumption, not a measurement (issue #3934).
-- **Negative scenarios cannot fail a rule.** `aggregate` computes the negative
-  average and the verdict never reads it (issue #3933). Over-activation is
-  invisible to the verdict.
+- **Negative scenarios could not fail a rule until #3933.** `aggregate` now
+  returns `FAIL_OVER_ACTIVATION` below `MIN_RESTRAINT_SCORE`, and
+  `FAIL_NEGATIVE_INCOMPLETE` or `FAIL_POSITIVE_INCOMPLETE` when a gating pool
+  was not fully graded. Harm outranks coverage, and an unproven harm outranks
+  an unproven benefit. **The gate is
+  vacuous here**: this suite's one negative scenario scored 5.0 at every
+  mechanism in all eight runs. Unit tests exercise it; this suite cannot.
 
 ## Step 3. Decide
 
@@ -399,15 +410,13 @@ number are not. The shapes recur either way.
   runs of exactly three backticks, so a payload fenced with four (legal
   Markdown, and what a judge emits when its own reasoning quotes a
   three-backtick block) closed at the inner three and yielded a truncated body
-  that would not parse. The sample was dropped. Found by adversarial review
-  round 11, and first recorded here rather than fixed on the reasoning that
-  widening the matcher would re-introduce the candidate-selection choice the
-  exactly-one-fence rule exists to remove. **That reasoning was wrong**, and
-  round 12 showed why: pairing the close to the width of the run that opened
+  that would not parse. The sample was dropped. Recorded rather than fixed at
+  first, on the reasoning that widening the matcher would re-introduce the
+  candidate selection the exactly-one-fence rule exists to remove. **That
+  reasoning was wrong**: pairing the close to the width of the run that opened
   it collects every block exactly as before and still refuses anything other
-  than one, so no selection returns. Fixed on 2026-07-30. The archive is
-  unaffected either way, since no stored payload contains a four-backtick run
-  (measured: 0 of 24 prefixes).
+  than one, so no selection returns. Fixed on 2026-07-30, archive unaffected
+  (measured: 0 of 24 prefixes carry a four-backtick run).
 - **A lone fence outranked an unfenced verdict beside it.** Requiring exactly
   one fenced block removed the choice among fences and left the choice between
   the fence and the prose around it. A judge that wrote its verdict as
