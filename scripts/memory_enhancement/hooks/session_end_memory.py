@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
 """Hook: session_end - Reflection and confidence decay.
 
-Recalculates confidence scores for accessed memories.
-Generates reflection summary via stderr.
+Recalculates confidence scores for accessed memories, persisting them
+to memory frontmatter, and prints a reflection summary to stderr.
+
+Hook Type: SessionEnd
+Exit Codes:
+    0 = always. SessionEnd cannot inject context: exit code 2 there only
+        shows stderr to the user, and the session is already over, so the
+        value is the confidence persistence, not the summary (issue #4011).
 """
 
 from __future__ import annotations
@@ -27,7 +33,6 @@ def main() -> int:
     summary = _generate_reflection(memories_dir, repo_root)
     if summary:
         print(summary, file=sys.stderr)
-        return 2
 
     return 0
 

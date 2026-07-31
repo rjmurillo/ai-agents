@@ -48,11 +48,34 @@ def _read_tool_result() -> tuple[str, str]:
     try:
         data = json.loads(raw)
         tool_name = str(data.get("tool_name", ""))
-        result = str(data.get("result", ""))
+        result = str(data.get("result") or "")
+        if not result:
+            result = _flatten_tool_response(data.get("tool_response"))
     except (json.JSONDecodeError, TypeError, AttributeError):
         return "", ""
 
     return tool_name, result
+
+
+# Claude Code's PostToolUse payload carries the output under "tool_response",
+# not "result", so a hook that reads only "result" is inert against the real
+# harness (issue #4011). "result" stays first for the payload shapes that do
+# send it.
+_TOOL_RESPONSE_KEYS = ("stdout", "stderr", "content", "output")
+
+
+def _flatten_tool_response(response: object) -> str:
+    """Reduce a tool_response of any shape to searchable text."""
+    if response is None:
+        return ""
+    if isinstance(response, str):
+        return response
+    if isinstance(response, dict):
+        parts = [str(response[key]) for key in _TOOL_RESPONSE_KEYS if response.get(key)]
+        return "\n".join(parts)
+    if isinstance(response, list):
+        return "\n".join(_flatten_tool_response(item) for item in response)
+    return str(response)
 
 
 def _analyze_tool_result(tool_name: str, result_text: str) -> str:
