@@ -1,23 +1,19 @@
-"""Regression guard for .markdownlint-cli2.yaml invariants (Issue #1837).
+"""Regression guard for .markdownlint-cli2.yaml invariants.
 
 Issue #1837: ``python3 scripts/validation/pre_pr.py`` failed Markdown Linting on
 a pristine ``main`` because the regenerated Copilot CLI skills under
 ``src/copilot-cli/skills/**`` carried 403 MD040/MD041/MD036 violations, while
 their source counterparts under ``.claude/skills/**`` were excluded from lint
-scope. The fix excludes the Copilot mirror the same way and scopes MD024 to
-siblings so the intentional repeated platform sub-headings in
-``docs/installation.md`` pass.
+scope. The fix at the time excluded both trees. Those violations were
+subsequently fixed, so both blanket exclusions are now stale (issue #4038,
+measured 2026-07-30: 0 violations in either tree under the project config).
 
-These tests pin the config decisions so a future edit cannot silently drop them
-and reintroduce the baseline failure.
+These tests guard the invariants that matter going forward:
+- The blanket skill-tree exclusions are ABSENT (to catch a regression
+  back to the stale exclusion pattern).
+- MD024, MD040, MD041 remain in their required states.
 
-Canonical source: ``.markdownlint-cli2.yaml`` (repo root). The exclusion claim
-"the Copilot skills tree is excluded the same way ``.claude/skills/**`` is"
-is asserted directly against that file's ``ignores`` list rather than
-paraphrased, per ``.claude/rules/canonical-source-mirror.md``. The Copilot
-skills tree is itself a verbatim directory-copy of ``.claude/skills/`` produced
-by ``build/scripts/generate_skills.py`` (module docstring line 2: "Generate
-Copilot CLI skill artifacts from .claude/skills/ (REQ-003-001)").
+Canonical source: ``.markdownlint-cli2.yaml`` (repo root).
 """
 
 from __future__ import annotations
@@ -46,17 +42,36 @@ def test_config_parses_as_mapping(config: dict[str, object]) -> None:
     assert "ignores" in config
 
 
-def test_copilot_skills_excluded_like_claude_skills(config: dict[str, object]) -> None:
-    """Copilot CLI skills get the same blanket lint exclusion as Claude skills.
+def test_blanket_claude_skills_exclusion_removed(config: dict[str, object]) -> None:
+    """Blanket ``.claude/skills/**`` exclusion must not be in ignores.
 
-    The Copilot tree is a verbatim copy of ``.claude/skills/``; both are
-    plugin-class content. Excluding one but not the other made pre_pr.py fail on
-    a clean checkout (Issue #1837). Assert both globs are present together so the
-    asymmetry cannot return.
+    The exclusion was added in PR #331 under the label "third-party plugins."
+    Measured 2026-07-30: 0 violations in 357 ``.claude/skills/**/*.md`` files
+    under the project config.  The stated rationale is false; the exclusion
+    is a detector that cannot fail on the paths it covers (issue #4038).
+
+    This test is the negative control: it fails if the blanket exclusion
+    is re-added, preventing silent regression to the stale suppression.
     """
     ignores = cast(list[str], config["ignores"])
-    assert ".claude/skills/**" in ignores
-    assert "src/copilot-cli/skills/**" in ignores
+    assert ".claude/skills/**" not in ignores, (
+        ".claude/skills/** blanket exclusion was re-added; "
+        "see issue #4038 for the measured rationale that it is stale."
+    )
+
+
+def test_blanket_copilot_skills_exclusion_removed(config: dict[str, object]) -> None:
+    """Blanket ``src/copilot-cli/skills/**`` exclusion must not be in ignores.
+
+    Issue #1837 added this exclusion because the mirror tree carried 403
+    violations at the time.  Measured 2026-07-30: 0 violations in 367
+    ``src/copilot-cli/skills/**/*.md`` files (issue #4038).
+    """
+    ignores = cast(list[str], config["ignores"])
+    assert "src/copilot-cli/skills/**" not in ignores, (
+        "src/copilot-cli/skills/** blanket exclusion was re-added; "
+        "see issue #4038 for the measured rationale that it is stale."
+    )
 
 
 def test_md024_scoped_to_siblings(config: dict[str, object]) -> None:
@@ -83,3 +98,4 @@ def test_md040_remains_enabled(config: dict[str, object]) -> None:
 def test_md041_remains_enabled(config: dict[str, object]) -> None:
     """MD041 (first-line-heading) stays on; agent files keep their H1 to pass it."""
     assert cast(dict[str, Any], config["config"]).get("MD041") is True
+
