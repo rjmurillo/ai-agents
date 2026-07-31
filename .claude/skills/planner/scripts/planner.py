@@ -32,7 +32,7 @@ def get_planning_step_guidance(step_number: int, total_steps: int) -> dict:
     if is_complete:
         return {
             "actions": [
-                "FINAL VERIFICATION — complete each section before writing.",
+                "FINAL VERIFICATION: complete each section before writing.",
                 "",
                 "<planning_context_verification>",
                 "TW and QR consume this section VERBATIM. Quality here =",
@@ -305,19 +305,19 @@ def get_planning_step_guidance(step_number: int, total_steps: int) -> dict:
                 "<step_3_refine_milestones>",
                 "Verify EACH milestone has:",
                 "",
-                "FILES — exact paths:",
+                "FILES, exact paths:",
                 "  CORRECT: src/auth/handler.py",
                 "  WRONG:   'auth files'",
                 "",
-                "REQUIREMENTS — specific behaviors:",
+                "REQUIREMENTS, specific behaviors:",
                 "  CORRECT: 'retry 3x with exponential backoff, max 30s'",
                 "  WRONG:   'handle errors'",
                 "",
-                "ACCEPTANCE CRITERIA — testable pass/fail:",
+                "ACCEPTANCE CRITERIA, testable pass/fail:",
                 "  CORRECT: 'Returns 429 after 3 failed attempts within 60s'",
                 "  WRONG:   'Handles errors correctly'",
                 "",
-                "CODE CHANGES — diff format for non-trivial logic.",
+                "CODE CHANGES: diff format for non-trivial logic.",
                 "</step_3_refine_milestones>",
                 "",
                 "<step_3_file_classification>",
@@ -540,7 +540,7 @@ Examples:
         if is_complete:
             print("FINAL CHECKLIST:")
         else:
-            print(f"REQUIRED ACTIONS:")
+            print("REQUIRED ACTIONS:")
         for action in guidance["actions"]:
             if action:  # Skip empty strings used for spacing
                 print(f"  {action}")
