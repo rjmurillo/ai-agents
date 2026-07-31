@@ -73,4 +73,4 @@ jobs:
         with:
           name: hook-bypass-audit
           path: artifacts/hook-bypass-audit.json
-          retention-days: 90
+          retention-days: 7

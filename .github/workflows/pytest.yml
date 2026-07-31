@@ -143,7 +143,7 @@ jobs:
       # Issue #2993 acceptance criterion 2 (regression guard, option C). The
       # diff-scoped ratchet above cannot see debt a PR adds to a file it does
       # not otherwise touch, so the whole-tree total is frozen in
-      # scripts/ci/ruff_count_baseline.txt and may only go down. Lower it with
+      # scripts/ci/ruff_count_baseline.txt. Record a lower count with
       # `python scripts/ci/ruff_count_ratchet.py --update` after a cleanup.
       # `uv run --frozen` pins ruff to the lockfile. The dev extra declares an
       # open-ended `ruff>=`, so a `uv pip install` resolves whatever is newest
@@ -291,7 +291,7 @@ jobs:
           always() &&
           (github.event_name != 'pull_request' ||
           github.event.pull_request.head.repo.full_name == github.repository)
-        uses: github/codeql-action/upload-sarif@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81  # v4
+        uses: github/codeql-action/upload-sarif@f205ea1c3313d32999d8d6a48b4f6530d4437b38  # v4
         with:
           sarif_file: bandit.sarif
           category: bandit

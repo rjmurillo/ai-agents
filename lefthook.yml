@@ -8,6 +8,12 @@ commit-msg:
       timeout: 30s
       run: uv run --frozen python scripts/validation/git_hook_policy.py commit-message "{1}"
 
+pre-merge-commit:
+  jobs:
+    - name: security-suppressions-staged
+      timeout: 2m
+      run: uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-staged
+
 pre-commit:
   piped: true
   jobs:
@@ -167,6 +173,21 @@ pre-commit:
             timeout: 5m
             run: uv run --frozen python scripts/validation/git_hook_policy.py taste {staged_files}
             glob: "**/*.{py,ps1,psm1,sh,bash,yml,yaml,md,json}"
+
+          - name: security-suppressions-staged
+            timeout: 2m
+            run: uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-staged
+            glob:
+              - "**/*.py"
+              - "**/*.pyi"
+              - "**/*.pyw"
+              - "**/*.js"
+              - "**/*.ts"
+              - "**/*.ps1"
+              - "**/*.psm1"
+              - "**/*.yaml"
+              - "**/*.yml"
+              - "**/*.ipynb"
 
     - group:
         piped: true

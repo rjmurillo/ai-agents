@@ -1,0 +1,108 @@
+{
+  "id": "episode-2026-07-31-session-3878-fix-lint-suppression-policy",
+  "session": "2026-07-31-session-3878-fix-lint-suppression-policy",
+  "timestamp": "2026-07-31T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix security suppression gate scope, staged and merge parity, move detection, and stale count baselines",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-measured all premises for 9 issues",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Narrowed SECURITY_SUPPRESSION_RE to security rules only; added two-pass move-detection; added staged check",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added security-suppressions-staged to lefthook pre-commit",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated ruff baseline 334 to 331; stale baseline now returns EXIT_REGRESSION",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated ruff ratchet tests for new EXIT_REGRESSION on stale baseline",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Expanded push, staged, merge, rename, notebook, type-change, and hook-wiring coverage",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed the 52-file dead-noqa cleanup from the final PR tree",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Made stale ratchet baselines fail and aligned current baselines",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed security-review findings and merge-specific false positives",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Aligned the governance gotcha with the final suppression contract",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 1ea9161081",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 5
+  },
+  "lessons": []
+}

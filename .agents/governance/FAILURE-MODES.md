@@ -86,7 +86,7 @@ Context window approaches its limit. The harness compacts prior messages. Compre
 ### Enforcement Pattern
 
 - Persist task and decision state to `.agents/sessions/*.json` on a durable cadence, not only at session end.
-- Display `Commit X/20 (ADR-008)` every turn so the counter survives compaction visibly.
+- Display `Commit X/20`, or `X/40` once the branch merges main, every turn so the counter survives compaction visibly. Thresholds live in `scripts/validation/pr_commit_count.py`.
 - On resume, require the agent to read the session log before taking any mutating action.
 
 See ADR-008 (protocol automation lifecycle hooks) and `.agents/SESSION-PROTOCOL.md`.

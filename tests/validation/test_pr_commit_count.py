@@ -12,6 +12,7 @@ import ast
 import json
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
@@ -20,6 +21,33 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_PROJECT_ROOT))
 
 from scripts.validation import pr_commit_count as mod  # noqa: E402
+
+
+def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        check=True,
+    )
+
+
+def _init_repo(repo: Path) -> None:
+    repo.mkdir(parents=True, exist_ok=True)
+    _git(repo, "init", "-q", "-b", "main")
+    _git(repo, "config", "user.name", "Test User")
+    _git(repo, "config", "user.email", "user@example.com")
+
+
+def _commit(repo: Path, name: str) -> str:
+    f = repo / f"{name}.md"
+    f.write_text(f"{name}\n", encoding="utf-8")
+    _git(repo, "add", "--", str(f.name))
+    _git(repo, "commit", "-qm", f"test: {name}")
+    return _git(repo, "rev-parse", "HEAD").stdout.strip()
 
 
 def _completed(
@@ -66,11 +94,12 @@ def test_the_block_boundary_agrees_with_the_local_hook(count: int, blocked: bool
     pushed cleanly and then failed the pull request check gave an author a red
     pull request with no local signal (issue #3721).
 
-    The hook widens ``limit`` to 40 when the update contains a merge of main.
-    This check never sees the push shape, so it cannot mirror that widening,
-    and a main-merge push of 21 through 40 still needs the
-    commit-limit-bypass label. That gap is out of scope here and is not what
-    this test pins.
+    The hook widens ``limit`` to 40 when the update contains a merge of main,
+    and CI applies the same widening: ``count_pr_commits`` reads the pull
+    request's own commit list through ``contains_base_merge``. A main-merge
+    branch at 21 through 40 therefore needs no bypass label. This test pins
+    only the default boundary; ``test_classify_count_honours_an_explicit_limit``
+    pins the widened one.
     """
     assert (mod.classify_count(count) == "BLOCKED") is blocked
 
@@ -318,7 +347,7 @@ def test_main_blocked_emits_error_annotation(
 
 
 # ---------------------------------------------------------------------------
-# Issue #3596: the ADR-008 main-merge relief must apply in CI, not only in the
+# Issue #3596: the main-merge relief must apply in CI, not only in the
 # pre-push hook, and both ceilings must come from this module.
 # ---------------------------------------------------------------------------
 
@@ -333,9 +362,7 @@ def _merge_commits_json(n: int, external_parent: bool) -> str:
         {"sha": f"{i:040x}", "parents": [{"sha": f"{i - 1:040x}"}]} for i in range(n - 1)
     ]
     second = "f" * 40 if external_parent else f"{0:040x}"
-    commits.append(
-        {"sha": f"{n - 1:040x}", "parents": [{"sha": f"{n - 2:040x}"}, {"sha": second}]}
-    )
+    commits.append({"sha": f"{n - 1:040x}", "parents": [{"sha": f"{n - 2:040x}"}, {"sha": second}]})
     return json.dumps(commits)
 
 
@@ -403,8 +430,11 @@ def test_a_branch_merging_main_is_not_blocked_below_forty(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """25 commits with a merge from main passes CI, matching the pre-push hook."""
+    external_sha = "f" * 40
+    monkeypatch.setattr(mod, "_run_gh", lambda argv: _completed(0, _merge_commits_json(25, True)))
+    # main_first_parent_shas needs to confirm the external parent is on trunk.
     monkeypatch.setattr(
-        mod, "_run_gh", lambda argv: _completed(0, _merge_commits_json(25, True))
+        mod, "main_first_parent_shas", lambda _root, _run=None: frozenset([external_sha])
     )
     monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "gh_out"))
     assert mod.main(["--pr-number", "42"]) == 0
@@ -418,9 +448,7 @@ def test_a_linear_branch_of_twenty_five_is_still_blocked(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """Negative control: the relief must not fire without a merge from the base."""
-    monkeypatch.setattr(
-        mod, "_run_gh", lambda argv: _completed(0, _merge_commits_json(25, False))
-    )
+    monkeypatch.setattr(mod, "_run_gh", lambda argv: _completed(0, _merge_commits_json(25, False)))
     monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "gh_out"))
     assert mod.main(["--pr-number", "42"]) == 0
     assert "::error::PR exceeds commit limit" in capsys.readouterr().out
@@ -467,9 +495,9 @@ def _ceilings_imported_in(source: str) -> set[str]:
 
 def test_the_hook_and_ci_read_the_same_two_ceilings() -> None:
     """Issue #3596: one number in one place. A second literal would drift."""
-    source = (
-        _PROJECT_ROOT / "scripts" / "validation" / "git_hook_policy.py"
-    ).read_text(encoding="utf-8")
+    source = (_PROJECT_ROOT / "scripts" / "validation" / "git_hook_policy.py").read_text(
+        encoding="utf-8"
+    )
 
     assert _ceilings_restated_in(source) == set()
     assert _ceilings_imported_in(source) == set(_CEILING_NAMES)
@@ -540,8 +568,417 @@ def test_malformed_parents_do_not_grant_the_relaxed_ceiling(
         ("empty payload", [], False),
     ],
 )
-def test_contains_base_merge_controls(
-    label: str, payload: list[object], expected: bool
-) -> None:
+def test_contains_base_merge_controls(label: str, payload: list[object], expected: bool) -> None:
     """Behaviour that must survive the malformed-parent narrowing unchanged."""
     assert mod.contains_base_merge(payload) is expected, label
+
+
+# ---------------------------------------------------------------------------
+# contains_main_merge: precise predicate using origin/main first-parent history
+# ---------------------------------------------------------------------------
+
+
+def test_contains_main_merge_grants_relief_when_external_parent_is_on_trunk(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The external parent is on origin/main's trunk: relief is granted."""
+    external_sha = "e" * 40
+    commits = [
+        {"sha": "a" * 40, "parents": [{"sha": "0" * 40}]},
+        {"sha": "b" * 40, "parents": [{"sha": "a" * 40}, {"sha": external_sha}]},
+    ]
+    monkeypatch.setattr(
+        mod, "main_first_parent_shas", lambda _root, _run=None: frozenset([external_sha])
+    )
+    assert mod.contains_main_merge(commits, tmp_path) is True
+
+
+def test_contains_main_merge_denies_relief_when_external_parent_is_not_on_trunk(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The critical divergence case from issue #3997.
+
+    An external parent that is NOT on origin/main's first-parent history (for
+    example, a side branch that was never merged to main) must NOT grant the
+    40-commit relief. The old contains_base_merge returned True here; the new
+    contains_main_merge returns False, matching the pre-push hook.
+    """
+    external_sha = "e" * 40
+    commits = [
+        {"sha": "a" * 40, "parents": [{"sha": "0" * 40}]},
+        {"sha": "b" * 40, "parents": [{"sha": "a" * 40}, {"sha": external_sha}]},
+    ]
+    # origin/main trunk does not contain the external SHA.
+    monkeypatch.setattr(
+        mod, "main_first_parent_shas", lambda _root, _run=None: frozenset(["c" * 40])
+    )
+    assert mod.contains_main_merge(commits, tmp_path) is False
+
+
+def test_contains_main_merge_fails_closed_on_empty_trunk(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """No origin/main means no relief: fail closed."""
+    external_sha = "e" * 40
+    commits = [
+        {"sha": "a" * 40, "parents": [{"sha": "0" * 40}, {"sha": external_sha}]},
+    ]
+    monkeypatch.setattr(mod, "main_first_parent_shas", lambda _root, _run=None: frozenset())
+    assert mod.contains_main_merge(commits, tmp_path) is False
+
+
+def test_contains_main_merge_is_false_for_linear_branch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """No merge commit means no relief."""
+    monkeypatch.setattr(
+        mod, "main_first_parent_shas", lambda _root, _run=None: frozenset(["m" * 40])
+    )
+    commits = [{"sha": f"{i:040x}", "parents": [{"sha": f"{i - 1:040x}"}]} for i in range(1, 5)]
+    assert mod.contains_main_merge(commits, tmp_path) is False
+
+
+def test_contains_main_merge_is_false_for_internal_merge(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A merge between two commits on the PR branch does not grant relief."""
+    commits = [
+        {"sha": "a" * 40, "parents": [{"sha": "0" * 40}]},
+        {"sha": "b" * 40, "parents": [{"sha": "0" * 40}]},
+        {"sha": "c" * 40, "parents": [{"sha": "a" * 40}, {"sha": "b" * 40}]},
+    ]
+    monkeypatch.setattr(
+        mod, "main_first_parent_shas", lambda _root, _run=None: frozenset(["m" * 40])
+    )
+    assert mod.contains_main_merge(commits, tmp_path) is False
+
+
+def test_contains_main_merge_fails_closed_on_malformed_payload(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Malformed payload: no external SHAs found, no relief."""
+    monkeypatch.setattr(
+        mod, "main_first_parent_shas", lambda _root, _run=None: frozenset(["m" * 40])
+    )
+    assert mod.contains_main_merge(["not-a-dict"], tmp_path) is False
+
+
+# ---------------------------------------------------------------------------
+# main_first_parent_shas: git-based trunk reader
+# ---------------------------------------------------------------------------
+
+
+def test_main_first_parent_shas_returns_trunk_commits(tmp_path: Path) -> None:
+    """main_first_parent_shas returns the SHAs on origin/main's trunk."""
+    repo = tmp_path / "main-trunk"
+    _init_repo(repo)
+    sha1 = _commit(repo, "first")
+    sha2 = _commit(repo, "second")
+    _git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+
+    result = mod.main_first_parent_shas(repo)
+
+    assert sha1 in result
+    assert sha2 in result
+
+
+def test_main_first_parent_shas_returns_empty_when_origin_main_missing(
+    tmp_path: Path,
+) -> None:
+    """Fail closed: no origin/main means empty frozenset, no relief."""
+    repo = tmp_path / "no-origin"
+    _init_repo(repo)
+    _commit(repo, "base")
+
+    result = mod.main_first_parent_shas(repo)
+
+    assert result == frozenset()
+
+
+def test_main_first_parent_shas_excludes_non_first_parent_commits(tmp_path: Path) -> None:
+    """A branch that was merged into main is NOT on the trunk.
+
+    Its commits sit on the non-first parent of the landing merge, so they must
+    not be counted as trunk commits.
+    """
+    repo = tmp_path / "landed-branch"
+    _init_repo(repo)
+    _commit(repo, "base")
+    _git(repo, "branch", "side")
+    _git(repo, "checkout", "-q", "side")
+    side_sha = _commit(repo, "side-commit")
+    _git(repo, "checkout", "-q", "main")
+    _git(repo, "merge", "-q", "--no-ff", "-m", "land side", "side")
+    _commit(repo, "after")
+    _git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+
+    result = mod.main_first_parent_shas(repo)
+
+    assert side_sha not in result
+
+
+# ---------------------------------------------------------------------------
+# _run_git: the trunk reader's process hygiene (PR #4030 review)
+#
+# The pre-push hook now shares this module's trunk reader, so this runner sits
+# on a push path as well as a CI path. git_hook_policy's own runner bounds every
+# git call and disables the commit graph; the shared reader has to be at least
+# as careful or unifying the predicate would have traded a correctness bug for a
+# reliability one.
+# ---------------------------------------------------------------------------
+
+
+def _capture_run(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, object]]:
+    """Record the argv and kwargs of every subprocess.run this module makes."""
+    calls: list[dict[str, object]] = []
+
+    def spy(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append({"argv": list(args), **kwargs})
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(mod.subprocess, "run", spy)
+    return calls
+
+
+def test_run_git_bounds_the_call_with_a_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An unbounded `git rev-list` in a pre-push hook can wedge a push."""
+    calls = _capture_run(monkeypatch)
+
+    mod._run_git(Path("/repo"), ["rev-list", "--first-parent", "origin/main"])
+
+    assert calls[0]["timeout"] == mod._GIT_TIMEOUT_SECONDS
+    assert mod._GIT_TIMEOUT_SECONDS > 0
+
+
+def test_run_git_disables_the_commit_graph(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A stale commit-graph can report a trunk the repository does not have.
+
+    git_hook_policy reads every commit this way. The relief decision must not
+    depend on which of the two gates happened to warm a cache.
+    """
+    calls = _capture_run(monkeypatch)
+
+    mod._run_git(Path("/repo"), ["rev-list", "--first-parent", "origin/main"])
+
+    assert calls[0]["argv"] == [
+        "git",
+        "-c",
+        "core.commitGraph=false",
+        "rev-list",
+        "--first-parent",
+        "origin/main",
+    ]
+
+
+def test_run_git_reports_a_timeout_instead_of_raising(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Negative: a hung git denies relief; it does not crash the gate."""
+
+    def hang(args: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise subprocess.TimeoutExpired(args, mod._GIT_TIMEOUT_SECONDS)
+
+    monkeypatch.setattr(mod.subprocess, "run", hang)
+
+    result = mod._run_git(Path("/repo"), ["rev-list"])
+
+    assert result.returncode != 0
+    assert mod.main_first_parent_shas(Path("/repo")) == frozenset()
+
+
+def test_run_git_reports_a_missing_binary_instead_of_raising(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Negative: the docstring promises fail-closed, so absent git cannot raise."""
+
+    def absent(args: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr(mod.subprocess, "run", absent)
+
+    result = mod._run_git(Path("/repo"), ["rev-list"])
+
+    assert result.returncode != 0
+    assert mod.main_first_parent_shas(Path("/repo")) == frozenset()
+
+
+def test_main_first_parent_shas_uses_an_injected_runner(tmp_path: Path) -> None:
+    """The hook supplies its own runner; the traversal stays shared.
+
+    Positive control for the seam that lets a hook keep its scrubbed git
+    environment without restating the first-parent walk.
+    """
+    seen: list[list[str]] = []
+
+    def fake_runner(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        seen.append(list(args))
+        return subprocess.CompletedProcess(["git", *args], 0, "sha-a sha-b\n", "")
+
+    result = mod.main_first_parent_shas(tmp_path, run_git=fake_runner)
+
+    assert result == frozenset({"sha-a", "sha-b"})
+    assert seen == [["rev-list", "--first-parent", "origin/main"]]
+
+
+def test_main_first_parent_shas_fails_closed_on_an_injected_runner_failure(
+    tmp_path: Path,
+) -> None:
+    """Negative: an injected runner that fails buys no relief either."""
+
+    def failing_runner(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(["git", *args], 1, "", "fatal: bad revision")
+
+    assert mod.main_first_parent_shas(tmp_path, run_git=failing_runner) == frozenset()
+
+
+# ---------------------------------------------------------------------------
+# main_merge_evidence: telling "no main merge" apart from "no readable trunk"
+#
+# Both deny relief, but only one is an infrastructure fault. A gate that cannot
+# say which one it hit sends an author to re-cut a branch that was never the
+# problem, which is how a missing origin/main stayed invisible in the first
+# place (PR #4030 review).
+# ---------------------------------------------------------------------------
+
+
+def _merge_of(external_sha: str) -> list[object]:
+    return [
+        {"sha": "a" * 40, "parents": [{"sha": "b" * 40}]},
+        {"sha": "b" * 40, "parents": [{"sha": "c" * 40}, {"sha": external_sha}]},
+    ]
+
+
+def test_evidence_reports_a_readable_trunk_that_grants_relief(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Positive: relief granted, and nothing was wrong with the trunk read."""
+    external = "d" * 40
+    monkeypatch.setattr(
+        mod, "main_first_parent_shas", lambda _root, _run=None: frozenset([external])
+    )
+
+    evidence = mod.main_merge_evidence(_merge_of(external), tmp_path)
+
+    assert evidence.granted is True
+    assert evidence.trunk_unreadable is False
+
+
+def test_evidence_separates_an_honest_denial_from_an_unreadable_trunk(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Negative: a real trunk that simply does not contain the merge parent.
+
+    This is the case an author can act on, so it must not be reported as an
+    infrastructure fault.
+    """
+    monkeypatch.setattr(
+        mod, "main_first_parent_shas", lambda _root, _run=None: frozenset(["e" * 40])
+    )
+
+    evidence = mod.main_merge_evidence(_merge_of("d" * 40), tmp_path)
+
+    assert evidence.granted is False
+    assert evidence.trunk_unreadable is False
+
+
+def test_evidence_flags_an_unreadable_trunk(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Negative: an empty trunk is a fault, not evidence about the branch."""
+    monkeypatch.setattr(mod, "main_first_parent_shas", lambda _root, _run=None: frozenset())
+
+    evidence = mod.main_merge_evidence(_merge_of("d" * 40), tmp_path)
+
+    assert evidence.granted is False
+    assert evidence.trunk_unreadable is True
+
+
+def test_evidence_does_not_read_the_trunk_for_a_linear_branch(tmp_path: Path) -> None:
+    """Edge: no merge means no trunk read, so no fault to report either.
+
+    A linear branch must not be blamed on a checkout that was never consulted.
+    """
+    calls: list[Path] = []
+
+    def counting_runner(root: Path, _args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        calls.append(root)
+        return subprocess.CompletedProcess(["git"], 1, "", "")
+
+    linear = [{"sha": "a" * 40, "parents": [{"sha": "b" * 40}]}]
+
+    evidence = mod.main_merge_evidence(linear, tmp_path, counting_runner)
+
+    assert evidence == mod.ReliefEvidence(granted=False, trunk_unreadable=False)
+    assert calls == []
+
+
+def test_an_unreadable_trunk_warns_instead_of_failing_silently(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The CI gate has to say why it withheld the relief.
+
+    Without this the operator reads BLOCKED with no way to tell a branch that
+    merges nothing from a checkout that never fetched origin/main.
+    """
+    external = "d" * 40
+    monkeypatch.setattr(
+        mod, "_run_gh", lambda _argv: _completed(0, json.dumps(_merge_of(external)))
+    )
+    monkeypatch.setattr(mod, "main_first_parent_shas", lambda _root, _run=None: frozenset())
+
+    outcome = mod.fetch_commit_count(1, "o", "r")
+
+    assert outcome.limit == mod.BLOCK_THRESHOLD
+    out = capsys.readouterr().out
+    assert "::warning::" in out
+    assert "origin/main" in out
+    assert "fetch-depth: 0" in out
+
+
+def test_a_readable_trunk_warns_about_nothing(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Negative control: the warning must not fire on the healthy path."""
+    external = "d" * 40
+    monkeypatch.setattr(
+        mod, "_run_gh", lambda _argv: _completed(0, json.dumps(_merge_of(external)))
+    )
+    monkeypatch.setattr(
+        mod, "main_first_parent_shas", lambda _root, _run=None: frozenset([external])
+    )
+
+    outcome = mod.fetch_commit_count(1, "o", "r")
+
+    assert outcome.limit == mod.MAIN_MERGE_BLOCK_THRESHOLD
+    assert "::warning::" not in capsys.readouterr().out
+
+
+def test_the_hook_and_ci_give_the_trunk_read_the_same_budget() -> None:
+    """Both gates walk the same trunk, so they must be allowed the same time.
+
+    A shorter CI budget would let a slow runner time out on a walk the hook
+    completes, and the ceilings would diverge again on nothing but machine
+    speed. pr_commit_count cannot import the hook's constant (git_hook_policy
+    imports from this module, so the dependency only runs one way), which is
+    exactly why the equality needs a test rather than a shared name.
+    """
+    from scripts.validation import git_hook_policy
+
+    assert mod._GIT_TIMEOUT_SECONDS == git_hook_policy.DEFAULT_SUBPROCESS_TIMEOUT_SECONDS
+
+
+def test_a_git_timeout_is_not_reported_in_the_transient_vocabulary() -> None:
+    """A git timeout denies relief; it must not read as gh transport noise.
+
+    is_transient_error degrades the whole commit count to UNKNOWN. That is the
+    right answer for a flaky GitHub API and the wrong one for a wedged
+    rev-list, so the two must not share wording.
+    """
+
+    def timed_out(args: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise subprocess.TimeoutExpired(args, mod._GIT_TIMEOUT_SECONDS)
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(mod.subprocess, "run", timed_out)
+        result = mod._run_git(Path("/repo"), ["rev-list"])
+
+    assert result.returncode != 0
+    assert mod.is_transient_error(result.stderr) is False

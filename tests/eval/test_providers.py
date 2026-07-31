@@ -1,4 +1,4 @@
-"""Tests for scripts/eval/_providers.py and the call_api provider dispatch.
+"""Tests for scripts/eval/_providers.py, _copilot_cli.py, and provider dispatch.
 
 Offline only: no network, no real SDK. The OpenAI-compatible provider is
 exercised through a fake `openai` module injected into sys.modules, so the
@@ -7,6 +7,8 @@ tests run without `pip install openai` and without any API key.
 
 from __future__ import annotations
 
+import json
+import os
 import sys
 import types
 from pathlib import Path
@@ -25,6 +27,12 @@ try:
     import _providers  # noqa: E402
 finally:
     sys.path[:] = _ORIGINAL_SYS_PATH
+
+# Reach the extracted transport through the object `_providers` actually bound,
+# not through a second import. A fresh import could resolve to a different
+# module object depending on sys.path order, and a patch applied to one copy
+# would silently miss the copy under test.
+_copilot_cli = sys.modules[_providers._CopilotCLIProvider.__module__]
 
 # --- Registry resolution ------------------------------------------------
 
@@ -567,3 +575,511 @@ def test_normal_model_keeps_max_tokens_and_temperature(
     assert sent["max_tokens"] == 512
     assert sent["temperature"] == 0.0
     assert "max_completion_tokens" not in sent
+
+
+# --- Copilot CLI provider -----------------------------------------------
+
+
+@pytest.mark.parametrize("alias", ["copilot", "copilot-cli"])
+def test_copilot_aliases_resolve_to_the_cli_provider(alias: str) -> None:
+    provider = _providers.resolve_provider(alias)
+
+    assert provider.name == "copilot-cli"
+
+
+def test_known_provider_names_includes_copilot_aliases() -> None:
+    names = _providers.known_provider_names()
+
+    assert "copilot" in names
+    assert "copilot-cli" in names
+
+
+def test_strip_footer_removes_the_cli_stats_block() -> None:
+    raw = (
+        "PONG\n\n\n"
+        "Changes    +0 -0\n"
+        "AI Credits 68.3 (6s)\n"
+        "Tokens     109.3k written\n"
+        "Resume     copilot --resume=abc123\n"
+    )
+
+    assert _providers._CopilotCLIProvider._strip_footer(raw) == "PONG"
+
+
+def test_strip_footer_preserves_multiline_answer_body() -> None:
+    raw = "line one\nline two\n\nChanges    +1 -1\nResume     copilot --resume=x\n"
+
+    assert _providers._CopilotCLIProvider._strip_footer(raw) == "line one\nline two"
+
+
+def test_strip_footer_keeps_prose_that_merely_starts_with_a_footer_word() -> None:
+    """Single-spaced prose is not the CLI's 2+-space column format."""
+    raw = "Tokens are the unit of billing.\n\nChanges    +0 -0\n"
+
+    assert (
+        _providers._CopilotCLIProvider._strip_footer(raw)
+        == "Tokens are the unit of billing."
+    )
+
+
+def test_strip_footer_keeps_prose_opening_with_a_long_footer_label() -> None:
+    """A label longer than the value column satisfies the column test on its
+    own, so prose starting with one was stripped off the end of real answers.
+
+    ``Total duration`` is 14 characters against an 11-character column, which
+    made the column check vacuous for every sentence beginning that way.
+    """
+    raw = "Total duration and latency are the two things to measure.\n"
+
+    assert (
+        _providers._CopilotCLIProvider._strip_footer(raw)
+        == "Total duration and latency are the two things to measure."
+    )
+
+
+def test_strip_footer_still_removes_a_long_label_with_a_real_value() -> None:
+    raw = "PONG\n\nTotal duration 1m2s\nWall time  2.4s\n"
+
+    assert _providers._CopilotCLIProvider._strip_footer(raw) == "PONG"
+
+
+def test_strip_footer_returns_empty_when_output_is_only_a_footer() -> None:
+    raw = "\nChanges    +0 -0\nResume     copilot --resume=abc\n"
+
+    assert _providers._CopilotCLIProvider._strip_footer(raw) == ""
+
+
+class _FakeCompleted:
+    def __init__(self, *, stdout: str = "", stderr: str = "", returncode: int = 0):
+        self.stdout = stdout
+        self.stderr = stderr
+        self.returncode = returncode
+
+
+def _capture_run(monkeypatch: pytest.MonkeyPatch, result: object) -> dict:
+    """Patch subprocess.run inside _copilot_cli and record how it was called."""
+    seen: dict = {}
+
+    def fake_run(argv: list[str], **kwargs: object) -> object:
+        seen["argv"] = argv
+        seen["kwargs"] = kwargs
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    monkeypatch.setattr(_copilot_cli.subprocess, "run", fake_run)
+    return seen
+
+
+def test_copilot_complete_returns_stripped_answer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen = _capture_run(
+        monkeypatch,
+        _FakeCompleted(stdout="the answer\n\nChanges    +0 -0\n"),
+    )
+    provider = _providers._CopilotCLIProvider()
+
+    out = provider.complete(
+        messages=[{"role": "user", "content": "the question"}],
+        system="be terse",
+        model="claude-opus-5",
+    )
+
+    assert out == "the answer"
+    argv = seen["argv"]
+    assert argv[0] == "copilot"
+    assert "--model" in argv
+    assert argv[argv.index("--model") + 1] == "claude-opus-5"
+    # System text is folded into the single prompt channel, ahead of the user turn.
+    prompt = argv[argv.index("--prompt") + 1]
+    assert prompt == "be terse\n\nthe question"
+
+
+def test_copilot_complete_isolates_cwd_and_disables_builtin_mcps(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The repo's own instruction files are the variable under test; the CLI
+    must not load them from the working directory."""
+    seen = _capture_run(monkeypatch, _FakeCompleted(stdout="ok\n"))
+    provider = _providers._CopilotCLIProvider()
+
+    provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
+
+    assert "--disable-builtin-mcps" in seen["argv"]
+    cwd = seen["kwargs"]["cwd"]
+    assert cwd != str(_REPO_ROOT)
+    assert not (Path(cwd) / "AGENTS.md").exists()
+    assert seen["kwargs"].get("shell", False) is False
+
+
+def test_copilot_complete_disables_ambient_custom_instructions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Sandboxing cwd only drops repo-level instruction files. User-level ones
+    in ``~/.copilot/`` load regardless of working directory, and measured 13.5k
+    input tokens on a live call: several times the size of the rule bodies
+    these evals compare, overlapping them semantically. Without this flag every
+    cell carries them and deltas compress toward zero."""
+    seen = _capture_run(monkeypatch, _FakeCompleted(stdout="ok\n"))
+    provider = _providers._CopilotCLIProvider()
+
+    provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
+
+    assert "--no-custom-instructions" in seen["argv"]
+
+
+def test_copilot_complete_raises_on_empty_prompt() -> None:
+    provider = _providers._CopilotCLIProvider()
+
+    with pytest.raises(RuntimeError, match="non-empty prompt"):
+        provider.complete(messages=[{"role": "user", "content": "  "}], model="m")
+
+
+def test_copilot_complete_nonzero_exit_reports_the_exit_code_not_an_http_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The message must say what the number is, and still categorize.
+
+    An earlier version borrowed the Anthropic HTTP wording so that
+    `_categorize_error` would classify the failure. A subprocess exit code is
+    not an HTTP status, and POSIX truncates it to 0-255, so the borrowed shape
+    was both wrong to read and unreachable at the codes it claimed to carry.
+    Categorization now comes from the CLI's own stderr text.
+    """
+    _capture_run(
+        monkeypatch,
+        _FakeCompleted(stderr="rate limit exceeded", returncode=1),
+    )
+    provider = _providers._CopilotCLIProvider()
+
+    with pytest.raises(RuntimeError) as exc_info:
+        provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
+
+    message = str(exc_info.value)
+    assert "exited with code 1" in message
+    assert "HTTP" not in message
+    assert _eval_api_adapter._categorize_error(exc_info.value) == "rate_limit"
+
+
+def test_copilot_complete_generic_exit_code_stays_transient(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """255 is a common generic-failure code and is three digits.
+
+    Under the borrowed HTTP wording it read as "HTTP 255", matched no status
+    band, and categorized as non-transient `unknown`, so a retryable failure
+    was recorded once and dropped.
+    """
+    _capture_run(
+        monkeypatch,
+        _FakeCompleted(stderr="unexpected failure", returncode=255),
+    )
+    provider = _providers._CopilotCLIProvider()
+
+    with pytest.raises(RuntimeError) as exc_info:
+        provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
+
+    category = _eval_api_adapter._categorize_error(exc_info.value)
+    assert category == "server_error"
+    assert _eval_api_adapter._is_transient(category)
+
+
+def test_copilot_complete_timeout_is_categorized_as_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run(
+        monkeypatch,
+        _copilot_cli.subprocess.TimeoutExpired(cmd="copilot", timeout=900),
+    )
+    provider = _providers._CopilotCLIProvider()
+
+    with pytest.raises(RuntimeError) as exc_info:
+        provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
+
+    assert "timed out" in str(exc_info.value)
+    assert _eval_api_adapter._categorize_error(exc_info.value) == "timeout"
+
+
+def test_copilot_complete_missing_executable_names_the_binary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run(monkeypatch, FileNotFoundError("no such file"))
+    provider = _providers._CopilotCLIProvider(executable="copilot-nope")
+
+    with pytest.raises(RuntimeError, match="copilot-nope"):
+        provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
+
+
+def test_copilot_complete_blank_stdout_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_run(monkeypatch, _FakeCompleted(stdout="\nChanges    +0 -0\n"))
+    provider = _providers._CopilotCLIProvider()
+
+    with pytest.raises(RuntimeError, match="no choices"):
+        provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
+
+
+def test_copilot_factory_reads_timeout_and_binary_from_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("COPILOT_CLI_TIMEOUT", "42")
+    monkeypatch.setenv("COPILOT_CLI_BIN", "/opt/copilot")
+
+    provider = _providers.resolve_provider("copilot-cli")
+
+    assert provider._timeout == 42.0
+    assert provider._executable == "/opt/copilot"
+
+
+def test_copilot_factory_rejects_a_non_numeric_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("COPILOT_CLI_TIMEOUT", "soon")
+
+    with pytest.raises(RuntimeError, match="COPILOT_CLI_TIMEOUT"):
+        _providers.resolve_provider("copilot-cli")
+
+
+# ---------------------------------------------------------------------------
+# Session transcript reading
+#
+# The CLI writes structured per-session events to session-state/*/events.jsonl,
+# where assistant.message.content holds the reply and tool calls sit in a
+# separate toolRequests field. Reading that beats scraping stdout, where tool
+# traces and the stats footer interleave with the answer. Sessions are matched
+# on the sandbox cwd, which is unique per call, so parallel runs cannot swap
+# transcripts.
+# ---------------------------------------------------------------------------
+
+
+def _write_session(root, cwd: str, *, model: str, contents: list[str]) -> None:
+    """Write one events.jsonl shaped like the CLI's, under a fresh session id."""
+    import uuid
+
+    session_dir = root / str(uuid.uuid4())
+    session_dir.mkdir(parents=True, exist_ok=True)
+    events = [
+        {
+            "type": "session.start",
+            "data": {"selectedModel": model, "context": {"cwd": cwd}},
+        }
+    ]
+    for content in contents:
+        events.append(
+            {
+                "type": "assistant.message",
+                "data": {"content": content, "model": model, "toolRequests": []},
+            }
+        )
+    (session_dir / "events.jsonl").write_text(
+        "\n".join(json.dumps(e) for e in events) + "\n", encoding="utf-8"
+    )
+
+
+def _run_writing_session(
+    monkeypatch: pytest.MonkeyPatch,
+    root,
+    *,
+    model: str,
+    contents: list[str],
+    stdout: str = "stdout fallback text\n",
+):
+    """Patch subprocess.run so it records a session for the sandbox it is given."""
+
+    def fake_run(argv: list[str], **kwargs: object) -> _FakeCompleted:
+        _write_session(root, str(kwargs["cwd"]), model=model, contents=contents)
+        return _FakeCompleted(stdout=stdout)
+
+    monkeypatch.setattr(_copilot_cli.subprocess, "run", fake_run)
+    monkeypatch.setenv("COPILOT_SESSION_STATE_DIR", str(root))
+
+
+def test_copilot_prefers_the_session_transcript_over_stdout(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    _run_writing_session(
+        monkeypatch,
+        tmp_path,
+        model="claude-opus-5",
+        contents=["the real answer"],
+        stdout="\u25cf tool trace\n  \u2502 ls -la\nthe real answer\n\nTokens     1.2k\n",
+    )
+    provider = _providers._CopilotCLIProvider()
+
+    out = provider.complete(
+        messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+    )
+
+    assert out == "the real answer"
+
+
+def test_copilot_transcript_joins_multiple_assistant_messages(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    _run_writing_session(
+        monkeypatch,
+        tmp_path,
+        model="claude-opus-5",
+        contents=["first part", "second part"],
+    )
+    provider = _providers._CopilotCLIProvider()
+
+    out = provider.complete(
+        messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+    )
+
+    assert out == "first part\n\nsecond part"
+
+
+def test_copilot_transcript_skips_tool_only_messages(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    # A turn that only issues a tool call carries content "".
+    _run_writing_session(
+        monkeypatch,
+        tmp_path,
+        model="claude-opus-5",
+        contents=["", "   ", "only real content"],
+    )
+    provider = _providers._CopilotCLIProvider()
+
+    out = provider.complete(
+        messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+    )
+
+    assert out == "only real content"
+
+
+def test_copilot_transcript_ignores_sessions_from_other_sandboxes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    def fake_run(argv: list[str], **kwargs: object) -> _FakeCompleted:
+        _write_session(
+            tmp_path, "/tmp/some-other-sandbox", model="claude-opus-5",
+            contents=["someone else's answer"],
+        )
+        return _FakeCompleted(stdout="my stdout answer\n")
+
+    monkeypatch.setattr(_copilot_cli.subprocess, "run", fake_run)
+    monkeypatch.setenv("COPILOT_SESSION_STATE_DIR", str(tmp_path))
+    provider = _providers._CopilotCLIProvider()
+
+    out = provider.complete(
+        messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+    )
+
+    assert out == "my stdout answer"
+
+
+def test_copilot_falls_back_to_stdout_when_session_root_is_missing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    _capture_run(monkeypatch, _FakeCompleted(stdout="stdout answer\n"))
+    monkeypatch.setenv("COPILOT_SESSION_STATE_DIR", str(tmp_path / "absent"))
+    provider = _providers._CopilotCLIProvider()
+
+    out = provider.complete(
+        messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+    )
+
+    assert out == "stdout answer"
+
+
+def test_copilot_transcript_survives_malformed_lines(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    def fake_run(argv: list[str], **kwargs: object) -> _FakeCompleted:
+        session_dir = tmp_path / "s1"
+        session_dir.mkdir(parents=True, exist_ok=True)
+        lines = [
+            "not json at all",
+            "[1, 2, 3]",
+            json.dumps(
+                {
+                    "type": "session.start",
+                    "data": {
+                        "selectedModel": "claude-opus-5",
+                        "context": {"cwd": kwargs["cwd"]},
+                    },
+                }
+            ),
+            json.dumps({"type": "assistant.message", "data": None}),
+            json.dumps({"type": "assistant.message"}),
+            json.dumps(
+                {"type": "assistant.message", "data": {"content": "survived"}}
+            ),
+        ]
+        (session_dir / "events.jsonl").write_text(
+            "\n".join(lines) + "\n", encoding="utf-8"
+        )
+        return _FakeCompleted(stdout="stdout answer\n")
+
+    monkeypatch.setattr(_copilot_cli.subprocess, "run", fake_run)
+    monkeypatch.setenv("COPILOT_SESSION_STATE_DIR", str(tmp_path))
+    provider = _providers._CopilotCLIProvider()
+
+    out = provider.complete(
+        messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+    )
+
+    assert out == "survived"
+
+
+def test_copilot_raises_when_the_session_ran_a_different_model(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    # Silent model substitution would attribute one model's behavior to
+    # another, which corrupts every downstream comparison.
+    _run_writing_session(
+        monkeypatch,
+        tmp_path,
+        model="gpt-5.6-sol",
+        contents=["an answer"],
+    )
+    provider = _providers._CopilotCLIProvider()
+
+    with pytest.raises(RuntimeError, match="ran gpt-5.6-sol instead"):
+        provider.complete(
+            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+        )
+
+
+def test_copilot_ignores_session_logs_written_before_this_call(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    stale = tmp_path / "stale"
+    stale.mkdir(parents=True)
+    events = stale / "events.jsonl"
+
+    def fake_run(argv: list[str], **kwargs: object) -> _FakeCompleted:
+        _write_session_stale(events, str(kwargs["cwd"]))
+        return _FakeCompleted(stdout="stdout answer\n")
+
+    def _write_session_stale(path, cwd: str) -> None:
+        payload = [
+            {
+                "type": "session.start",
+                "data": {
+                    "selectedModel": "claude-opus-5",
+                    "context": {"cwd": cwd},
+                },
+            },
+            {"type": "assistant.message", "data": {"content": "stale answer"}},
+        ]
+        path.write_text(
+            "\n".join(json.dumps(e) for e in payload) + "\n", encoding="utf-8"
+        )
+        # Backdate well past the `since` window this call uses.
+        os.utime(path, (1_000_000, 1_000_000))
+
+    monkeypatch.setattr(_copilot_cli.subprocess, "run", fake_run)
+    monkeypatch.setenv("COPILOT_SESSION_STATE_DIR", str(tmp_path))
+    provider = _providers._CopilotCLIProvider()
+
+    out = provider.complete(
+        messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+    )
+
+    assert out == "stdout answer"

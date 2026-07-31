@@ -1,0 +1,155 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3989,
+    "date": "2026-07-30",
+    "branch": "rjmurillo/eval-reduction-and-negative-gate",
+    "startingCommit": "3dbb52bf",
+    "objective": "Fix two defects in scripts/eval/eval-rule-activation.py found while auditing the instrument behind the eight archived rule-activation runs. Issue 3989: the per-field median is a coordinate-wise reduction, so a published cell could be a triple no judge gave. Issue 3933: aggregate computed the negative-case average and no verdict ever read it, so a rule that fired where it must not still returned PASS."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena MCP tools are not exposed by this harness; AGENTS.md and .agents/governance/ read directly per the documented fallback"
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not available in this harness; fallback path used"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read and left unmodified"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "taste_lints.py located at src/copilot-cli/skills/taste-lints/scripts/ after the .claude path failed, and run with an explicit file argument; taste_count_ratchet.py and build_all.py run from their real paths"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md Boundaries and Skill-First sections read; generator run rather than hand-copying the Copilot mirror"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md consulted for the generated-artifact and plugin-manifest rules"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Issue 3989 and 3933 discourse read; the design was carried forward from the audit that filed them"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "rjmurillo/eval-reduction-and-negative-gate"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Worktree at /tmp/evalfix2 branched from origin/main at 3dbb52bf"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Four modified files across two commits plus this log; worktree otherwise clean"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "3dbb52bf"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "taste-lints file-size passed on rule-audit-procedure.md after trimming from 513 to 499 lines; taste count ratchet OK at baseline 613; dash count byte-verified at zero on all three authored files"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md unchanged"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP is not reachable in this harness. The durable knowledge is the reduction-order distinction, which belongs with the numbers it qualifies, so it was written into .claude/skills/context-optimizer/references/rule-audit-procedure.md beside the archived table and mirrored to the Copilot tree."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdown hooks passed in both pre-commit runs. Recorded with the caveat from issue 4038: .claude/skills/** sits in the markdownlint ignore list, so that pass is silent for the changed reference file and taste-lints carried the real check."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "46638664 carries the fix and its tests; 261cdc94 carries the documentation, the regenerated mirror and both manifest bumps. endingCommit is recorded in a follow-up commit rather than by amending, which would orphan the SHA (issue #3618)."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Full suite green; all eight archived artifacts replay to their published summaries; thirteen of seventeen new tests verified to fail against the pre-fix source"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issues 3989 and 3933 closed by the commit trailers and the PR"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Fix issue 3989, the coordinate-wise reduction",
+      "outcome": "Added cell_score to _reduce_score_samples, collapsing each judge sample to its own three-field mean before reducing across samples. _scenario_score_triple prefers it and falls back to the triple mean when absent. The fallback is deliberate rather than lazy: the eight archived runs carry no cell_score, and restating a closed record under a rule it was not computed with would be a fabrication."
+    },
+    {
+      "task": "Fix issue 3933, the unread negative-case average",
+      "outcome": "aggregate now returns FAIL_OVER_ACTIVATION when the worst rule-enhanced mechanism falls below MIN_RESTRAINT_SCORE. The gate is a floor, not a ceiling, because the negative rubric is inverted: 5 means the response correctly did not activate. A ceiling would have inverted the gate and failed every rule. Checked ahead of the positive gates, and behind FAIL_JUDGE_ERRORS."
+    },
+    {
+      "task": "Guard the empty-pool trap",
+      "outcome": "_mechanism_summary reports avg_score 0.0 for a pool it never graded, and 0.0 sits below every floor. Gating on that number unguarded would have failed every rule in a suite with no negative scenarios. The gate reads graded_count and reports None instead. Two tests cover it: no negative scenarios at all, and negative scenarios present but wholly ungraded."
+    },
+    {
+      "task": "Fix the table that printed a non-measurement as a measurement",
+      "outcome": "render_table printed Neg avg 0.0 for an unmeasured pool, which reads as total over-activation and contradicts the guard above. It now prints a dash and reports the restraint floor on its own line. Found while writing the gate, fixed on the same path."
+    },
+    {
+      "task": "Verify the new tests can actually fail",
+      "outcome": "Restored the pre-fix source from HEAD over a cp backup, ran the two new test classes, and confirmed 13 of 17 fail. The 4 that pass assert preserved behaviour: the legacy fallback, the corrupt-cell_score fallback, the ungraded-cell case, and judge errors still outranking over-activation. Source restored and diffed against the backup before continuing."
+    },
+    {
+      "task": "Verify the archived numbers did not move",
+      "outcome": "Replayed all eight artifacts through the new aggregate and compared verdict, baseline_avg, best_avg_score, best_mechanism, both deltas and total_judge_failures against their published summaries. All eight reproduce exactly. The replay also confirms the new gate is vacuous on this suite: worst_negative_avg is 5.0 on every run."
+    },
+    {
+      "task": "Correct the procedure document",
+      "outcome": "rule-audit-procedure.md documented the coordinate-wise order as the order you must follow, correctly flagged as a defect. It now separates how the instrument reduces from how the archive was reduced, states that the new gate is vacuous on the current suite and why, and keeps the archived table intact. Trimmed to stay under the 500-line reference ceiling, which the first draft exceeded at 513."
+    },
+    {
+      "task": "Regenerate and bump",
+      "outcome": "build_all.py regenerated the Copilot mirror of the reference file; verified identical by diff. Both plugin manifests bumped 0.6.5436 to 0.6.5437 in the same commit as the content they ship."
+    }
+  ],
+  "endingCommit": "7116afe111336fa71a917fb0928652f5afb54d58",
+  "nextSteps": [
+    "Push the branch and open a PR closing issues 3989 and 3933.",
+    "The negative-case gate is vacuous on the current suite. A scenario file that means to test restraint needs negative scenarios that can plausibly score below the floor, which changes the measurement suite and so must not ride along with a comparability-preserving change."
+  ]
+}
