@@ -3658,6 +3658,36 @@ class TestCellScoreReduction:
             assert score is None, f"corrupt cell_score {corrupt!r} was read as a score"
             assert legacy is False
 
+    def test_an_unconvertible_integer_cell_score_reads_as_unmeasured(self):
+        # JSON has no integer width limit, so a damaged artifact can carry a
+        # literal that Python parses to an int too large to convert to float.
+        # `math.isfinite` converts, so asking it about that value raises
+        # OverflowError and takes the whole run down. An off-rubric cell must
+        # report as unmeasured; a crash is not a verdict.
+        huge = json.loads('{"cell_score": ' + "1" + "0" * 400 + "}")["cell_score"]
+        assert isinstance(huge, int), "the JSON parser must yield an int here"
+
+        for corrupt in (huge, -huge):
+            assert eval_mod._is_valid_score(corrupt) is False
+
+            scenario = {
+                "negative_case": False,
+                "mechanisms": {
+                    "full": {
+                        "scores": {
+                            "activation_score": 3,
+                            "citation_score": 3,
+                            "behavior_score": 3,
+                            "cell_score": corrupt,
+                            "graded": True,
+                        }
+                    }
+                },
+            }
+            score, _, legacy = eval_mod._scenario_score_triple(scenario, "full")
+            assert score is None, "an unconvertible cell_score was read as a score"
+            assert legacy is False, "damage is not a pre-cell_score artifact"
+
     def test_a_null_cell_score_is_damage_rather_than_a_legacy_artifact(self):
         # `_reduce_score_samples` writes `cell_score` only on a graded cell and
         # always from a reducer over a non-empty list, so it cannot emit null.
