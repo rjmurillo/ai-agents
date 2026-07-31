@@ -292,14 +292,16 @@ jobs:
       # cannot catch an exit-code defect.
       #
       # This gates the observable property instead of tracing sentinels: an
-      # extracted CI script whose CLI is never proven to exit nonzero. Equality
+      # extracted CI script whose CLI is never proven to exit nonzero. Credit
+      # needs a nonzero assertion and a call into that script's CLI in the same
+      # test function, so a helper-level assertion counts for nothing. Equality
       # ratchet, same policy and same shared harness as the taste gate above.
       # Record a lower count after adding coverage with
       # `python scripts/ci/cli_exit_contract_ratchet.py --update`.
       #
-      # Hosted here rather than in pytest.yml because the gate reads workflow
-      # wiring and test files together, and a PR that adds a script without its
-      # test must fail even when the paths filter would skip a Python job.
+      # Hosted here rather than in pytest.yml because a PR that adds a script
+      # under scripts/ci or .github/scripts without a test that drives its CLI
+      # must fail even when the paths filter would skip a Python job.
       - name: Run CLI exit-contract ratchet
         env:
           BASE_REF: ${{ github.base_ref }}
