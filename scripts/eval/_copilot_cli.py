@@ -352,6 +352,12 @@ class _CopilotCLIProvider:
         # ignore max_tokens/temperature/seed rather than failing, so the same
         # fixture runs unchanged across providers. Callers that need sampling
         # determinism must use an HTTP provider.
+        #
+        # Roles go with them: every message contributes its content and nothing
+        # records who said it. The one caller builds a single user message, so
+        # nothing is lost today. A multi-turn caller would hand the model its
+        # own prior replies as user instructions, and this signature accepts
+        # that input without complaint, so the loss would be silent. See #4128.
         del max_tokens, temperature, seed
         parts = [system.strip()] if system.strip() else []
         parts.extend(

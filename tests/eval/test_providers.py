@@ -778,6 +778,35 @@ def test_copilot_complete_returns_stripped_answer(
     assert prompt == "be terse\n\nthe question"
 
 
+def test_copilot_complete_drops_roles_when_folding_a_conversation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Characterization, not endorsement. See #4128.
+
+    The CLI has one prompt channel, so a conversation can only be folded flat.
+    Nothing in the fold records who spoke, so an assistant turn reaches the
+    model as user-authored instruction text. No caller sends one today: the
+    eval adapter builds a single user message, which is what the test above
+    covers. This pins the loss so whoever adds a role guard is told the
+    behaviour moved, instead of finding out from a changed eval score.
+    """
+    _allow_unverified_model(monkeypatch)
+    seen = _capture_run(monkeypatch, _FakeCompleted(stdout="ok\n"))
+    provider = _providers._CopilotCLIProvider()
+
+    provider.complete(
+        messages=[
+            {"role": "user", "content": "Question"},
+            {"role": "assistant", "content": "Prior assistant answer"},
+            {"role": "user", "content": "Follow-up"},
+        ],
+        model="m",
+    )
+
+    prompt = seen["argv"][seen["argv"].index("--prompt") + 1]
+    assert prompt == "Question\n\nPrior assistant answer\n\nFollow-up"
+
+
 def test_copilot_complete_isolates_cwd_and_disables_builtin_mcps(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
