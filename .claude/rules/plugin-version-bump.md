@@ -39,24 +39,29 @@ Measured 2026-07-31: base was `0.6.5447`, so `base + 2` would have been
 `0.6.5449`, but **15 remote branches already held a higher value**, topping out at
 `0.6.5472`. Any one of them merging first flips your gate red.
 
-Enumerate the pack before you pick a number, reading the manifest whose line you
-are bumping. The two lines are far apart, so reading the wrong one hands you a
-number off by orders of magnitude: measured the same day, the parity line topped
-out at `0.6.5472` and the `src/claude` line at `0.3.57`.
+Enumerate the pack before you pick a number. The two lines are far apart, so
+reading the wrong one hands you a number off by orders of magnitude: measured the
+same day, the parity line topped out at `0.6.5472` and the `src/claude` line at
+`0.3.57`. Report every line in one pass rather than picking a manifest by hand,
+then bump the parity pair together to one value and `src/claude` to its own.
 
 ```bash
 git fetch origin --quiet
-MANIFEST=.claude/.claude-plugin/plugin.json  # src/claude/.claude-plugin/plugin.json for the 0.3.x line
-VERSIONS=$(for b in $(git ls-remote --heads origin | awk '{print $2}' | sed 's#refs/heads/##'); do
-  git show "origin/$b:$MANIFEST" 2>/dev/null \
-    | python3 -c 'import json,sys;print(json.load(sys.stdin)["version"])' 2>/dev/null
-done)
-[ -n "$VERSIONS" ] || { echo "ERROR: read zero versions from $MANIFEST" >&2; exit 1; }
-printf '%s\n' "$VERSIONS" | sort -V | tail -1
+for MANIFEST in .claude/.claude-plugin/plugin.json \
+                src/copilot-cli/.claude-plugin/plugin.json \
+                src/claude/.claude-plugin/plugin.json; do
+  VERSIONS=$(for b in $(git ls-remote --heads origin | awk '{print $2}' | sed 's#refs/heads/##'); do
+    git show "origin/$b:$MANIFEST" 2>/dev/null \
+      | python3 -c 'import json,sys;print(json.load(sys.stdin)["version"])' 2>/dev/null
+  done)
+  [ -n "$VERSIONS" ] || { echo "ERROR: read zero versions from $MANIFEST" >&2; exit 1; }
+  MAX=$(printf '%s\n' "$VERSIONS" | sort -V | tail -1)
+  printf '%-46s %s\n' "$MANIFEST" "$MAX"
+done
 ```
 
 The emptiness check is load-bearing. Both `git show` and the decoder discard
-stderr, so a mistyped `MANIFEST` makes every read fail silently; unguarded, the
+stderr, so a mistyped manifest path makes every read fail silently; unguarded, the
 pipeline then prints nothing and still exits 0, which reads as "nobody has
 allocated" when it actually means "I measured nothing." Verified: the guarded
 form exits 1 on a bogus path. Separately, `sort -V` places a prerelease suffix
