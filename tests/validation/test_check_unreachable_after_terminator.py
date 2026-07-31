@@ -193,8 +193,8 @@ class TestCLI:
         assert exit_code == 0
 
     def test_quiet_flag_suppresses_output(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture
-    ) -> None:  # type: ignore[type-arg]
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         (tmp_path / "bad.py").write_text("def f():\n    return 1\n    x = 2\n", encoding="utf-8")
         exit_code = main(["--quiet", str(tmp_path)])
         assert exit_code == 1
