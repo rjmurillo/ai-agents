@@ -369,6 +369,14 @@ class TestAMeasurementFailureDoesNotCountAsRuleUnderperformance:
         "FAIL_NEGATIVE_INCOMPLETE",
         "FAIL_OVER_ACTIVATION",
         "FAIL_JUDGE_ERRORS",
+        # Asymmetric with NO_POSITIVE_CASES on purpose, and the asymmetry is
+        # the rollback action rather than the verdict shape. Rollback restores
+        # the always-on rule. That remediates "we cannot show the skill
+        # activates". It cannot remediate "we cannot show the skill restrains",
+        # because an always-on rule fires on everything and is the least
+        # restrained state available. Counting it would retire a skill for a
+        # missing scenario, in the direction that makes the concern worse.
+        "NO_NEGATIVE_CASES",
     )
 
     @pytest.mark.parametrize("verdict", MEASUREMENT_VERDICTS)

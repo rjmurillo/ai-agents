@@ -79,6 +79,21 @@ def _make_scenario(
     }
 
 
+def _valid_scenarios(gate: str = "apply-rule") -> list[dict[str, str]]:
+    """The smallest scenario list the loader accepts.
+
+    Both pools are required: a file with no positive case cannot show the rule
+    activating, and one with no negative case cannot show restraint, so the
+    restraint floor would compare against nothing and pass vacuously. Fixtures
+    that only need "a file the loader accepts" build it here, so the next
+    schema requirement lands in one place instead of thirty.
+    """
+    return [
+        {"id": "S1", "input": "x", "expected_gate": gate},
+        {"id": "N1", "input": "y", "expected_gate": eval_mod.NEGATIVE_GATE},
+    ]
+
+
 # ---------------------------------------------------------------------------
 # aggregate() verdicts
 # ---------------------------------------------------------------------------
@@ -86,7 +101,10 @@ def _make_scenario(
 
 class TestAggregateVerdicts:
     def test_pass_when_description_clears_threshold_and_beats_baseline(self):
-        scenarios = [_make_scenario(baseline=1, description=4, full=5)]
+        scenarios = [
+            _make_scenario(baseline=1, description=4, full=5),
+            _make_scenario(baseline=1, description=5, full=5, negative=True),
+        ]
         summary = eval_mod.aggregate(scenarios)
         assert summary["verdict"] == "PASS"
         assert summary["best_mechanism"] in ("description", "full")
@@ -299,13 +317,7 @@ class TestLoadScenariosFile:
             json.dumps(
                 {
                     "rule_path": "AGENTS.md",
-                    "scenarios": [
-                        {
-                            "id": "S1",
-                            "input": "x",
-                            "expected_gate": "invert-dependency",
-                        }
-                    ],
+                    "scenarios": _valid_scenarios("invert-dependency"),
                 }
             ),
             encoding="utf-8",
@@ -320,13 +332,7 @@ class TestLoadScenariosFile:
             json.dumps(
                 {
                     "rule_path": "../../etc/passwd",
-                    "scenarios": [
-                        {
-                            "id": "S1",
-                            "input": "x",
-                            "expected_gate": "invert-dependency",
-                        }
-                    ],
+                    "scenarios": _valid_scenarios("invert-dependency"),
                 }
             ),
             encoding="utf-8",
@@ -359,13 +365,7 @@ class TestLoadScenariosFile:
                 {
                     "rule_path": ".claude/rules/unified-software-engineering.md",
                     "rule_id": "unified-software-engineering",
-                    "scenarios": [
-                        {
-                            "id": "S1",
-                            "input": "x",
-                            "expected_gate": "invert-dependency",
-                        }
-                    ],
+                    "scenarios": _valid_scenarios("invert-dependency"),
                 }
             ),
             encoding="utf-8",
@@ -389,13 +389,7 @@ class TestLoadScenariosFile:
                         "references/working-with-legacy-code.md"
                     ),
                     "rule_id": "working-with-legacy-code",
-                    "scenarios": [
-                        {
-                            "id": "S1",
-                            "input": "x",
-                            "expected_gate": "invert-dependency",
-                        }
-                    ],
+                    "scenarios": _valid_scenarios("invert-dependency"),
                 }
             ),
             encoding="utf-8",
@@ -419,13 +413,7 @@ class TestLoadScenariosFile:
                 {
                     "skill_path": ".claude/skills/software-engineering-library/SKILL.md",
                     "reference_path": ".claude/skills/autoplan/SKILL.md",
-                    "scenarios": [
-                        {
-                            "id": "S1",
-                            "input": "x",
-                            "expected_gate": "invert-dependency",
-                        }
-                    ],
+                    "scenarios": _valid_scenarios("invert-dependency"),
                 }
             ),
             encoding="utf-8",
@@ -736,13 +724,7 @@ class TestSkillPathResolution:
                 {
                     "skill_path": ".claude/skills/security-scan/SKILL.md",
                     "skill_id": "security-scan",
-                    "scenarios": [
-                        {
-                            "id": "S1",
-                            "input": "scan for injection",
-                            "expected_gate": "flag-injection-sink",
-                        }
-                    ],
+                    "scenarios": _valid_scenarios("flag-injection-sink"),
                 }
             ),
             encoding="utf-8",
@@ -3851,7 +3833,10 @@ class TestNegativeCaseGate:
         # The positive side of this suite passes outright. Over-activation has
         # to win anyway: firing where it must not is harmful, under-firing is
         # merely useless.
-        scenarios = [_make_scenario(baseline=1, description=5, full=5)]
+        scenarios = [
+            _make_scenario(baseline=1, description=5, full=5),
+            _make_scenario(baseline=1, description=5, full=5, negative=True),
+        ]
         assert eval_mod.aggregate(scenarios)["verdict"] == "PASS"
 
         scenarios.append(_make_scenario(baseline=5, description=1, full=1, negative=True))
@@ -3928,15 +3913,22 @@ class TestNegativeCaseGate:
         assert summary["worst_negative_avg"] == 1.0
         assert summary["verdict"] == "FAIL_OVER_ACTIVATION"
 
-    def test_a_suite_with_no_negative_scenarios_is_not_failed(self):
+    def test_a_suite_with_no_negative_scenarios_is_not_floored(self):
         # An empty pool has no average. It used to report 0.0, which sits below
         # every floor, so gating on it unguarded failed every rule. The guard
-        # stays either way: `None` is not comparable against a floor at all.
+        # stays: `None` is not comparable against a floor at all, so the
+        # verdict is never FAIL_OVER_ACTIVATION.
+        #
+        # It is not PASS either. The floor cannot fire over an empty pool, so
+        # a clean positive result used to read as a clean run and certify
+        # restraint nothing measured. The sibling test one down already holds
+        # that an ungraded negative pool must not pass; an empty pool is less
+        # measured than that one, so it cannot pass either.
         summary = eval_mod.aggregate([_make_scenario(baseline=1, description=5, full=5)])
 
         assert summary["negative_case_per_mechanism"]["full"]["avg_score"] is None
         assert summary["worst_negative_avg"] is None
-        assert summary["verdict"] == "PASS"
+        assert summary["verdict"] == "NO_NEGATIVE_CASES"
 
     def test_negative_scenarios_nobody_graded_fail_rather_than_pass(self):
         # One step in from the empty pool: the pool is non-empty but nothing in
@@ -4388,6 +4380,7 @@ class TestPositivePoolCoverageGates:
         scenarios = [
             _make_scenario(baseline=1, description=5, full=5),
             _make_scenario(baseline=1, description=5, full=5),
+            _make_scenario(baseline=1, description=5, full=5, negative=True),
         ]
 
         summary = eval_mod.aggregate(scenarios)
@@ -4438,6 +4431,8 @@ class TestPositivePoolCoverageGates:
                 }
             )
         ]
+
+        scenarios.append(_make_scenario(baseline=1, description=5, full=5, negative=True))
 
         summary = eval_mod.aggregate(scenarios)
 
@@ -4574,6 +4569,7 @@ class TestVerdictRankingLivesInOnePlace:
             gating_judge_failures=1,
             worst_neg_avg=1.0,
             has_positive_cases=False,
+            has_negative_cases=True,
             desc_avg=1.0,
             baseline_avg=5.0,
         )
@@ -4585,6 +4581,7 @@ class TestVerdictRankingLivesInOnePlace:
             gating_judge_failures=0,
             worst_neg_avg=1.0,
             has_positive_cases=True,
+            has_negative_cases=True,
             desc_avg=5.0,
             baseline_avg=1.0,
         )
@@ -4596,6 +4593,7 @@ class TestVerdictRankingLivesInOnePlace:
             gating_judge_failures=0,
             worst_neg_avg=5.0,
             has_positive_cases=True,
+            has_negative_cases=True,
             desc_avg=5.0,
             baseline_avg=1.0,
         )
@@ -4607,6 +4605,7 @@ class TestVerdictRankingLivesInOnePlace:
             gating_judge_failures=0,
             worst_neg_avg=5.0,
             has_positive_cases=True,
+            has_negative_cases=True,
             desc_avg=5.0,
             baseline_avg=1.0,
         )
@@ -5711,8 +5710,11 @@ class TestAnUnreadableGateIsRefusedRatherThanReclassified:
         scenario: dict[str, Any] = {"id": "S1", "input": "do a thing"}
         if gate is not None:
             scenario["expected_gate"] = gate
+        # Carries a negative so an accepted gate is not then refused for the
+        # empty pool. This helper isolates the gate check, not the pool check.
+        negative = {"id": "N1", "input": "y", "expected_gate": eval_mod.NEGATIVE_GATE}
         return eval_mod._validate_scenarios_shape(
-            {"scenarios": [scenario]}, Path("scenarios.json")
+            {"scenarios": [scenario, negative]}, Path("scenarios.json")
         )
 
     def test_a_missing_gate_is_refused(self):
@@ -6056,6 +6058,7 @@ class TestARoutedMissWithholdsTheCertification:
             gating_judge_failures=0,
             worst_neg_avg=None,
             has_positive_cases=True,
+            has_negative_cases=True,
             desc_avg=5.0,
             baseline_avg=1.0,
         )
@@ -6123,9 +6126,7 @@ class TestOneTargetPublishesUnderOneId:
         body: dict[str, Any] = {
             "skill_path": self.SKILL,
             "reference_path": f"{self.REFS}/{reference}",
-            "scenarios": [
-                {"id": "S1", "input": "x", "expected_gate": "invert-dependency"}
-            ],
+            "scenarios": _valid_scenarios("invert-dependency"),
         }
         if rule_id is not None:
             body["rule_id"] = rule_id
@@ -6409,9 +6410,7 @@ class TestTheRunAccumulatesTheWorstOutcomeItSaw:
                 {
                     "rule_path": ".claude/rules/unified-software-engineering.md",
                     "rule_id": name.split(".")[0],
-                    "scenarios": [
-                        {"id": "S1", "input": "x", "expected_gate": "invert-dependency"}
-                    ],
+                    "scenarios": _valid_scenarios("invert-dependency"),
                 }
             )
         )
@@ -6641,3 +6640,115 @@ class TestAHardRefusalNeverLowersTheExit:
         monkeypatch.setattr(sys, "argv", ["eval", "--dry-run", "--scenarios", *paths])
         assert eval_mod.main() == 2
         assert seen["n"] == 1
+
+
+class TestRestraintIsNeverCertifiedOnAnEmptyPool:
+    """The restraint floor compares against the negative pool. Over an empty
+    pool it cannot fire, and a gate that cannot fire has not been run.
+
+    Left alone, a clean positive result then read as a clean run: the summary
+    reported `worst_negative_avg` of None, `negative_gate_incomplete` of [],
+    and a verdict of PASS. That certified restraint nothing had measured.
+    """
+
+    @staticmethod
+    def _scen(baseline, description, full, negative=False):
+        return _make_scenario(baseline, description, full, negative=negative)
+
+    def test_a_file_with_no_negative_is_refused_before_spend(self, capsys):
+        data = {
+            "scenarios": [
+                {"id": "S1", "input": "x", "expected_gate": "apply-rule"},
+                {"id": "S2", "input": "y", "expected_gate": "apply-rule"},
+            ]
+        }
+        assert eval_mod._validate_scenarios_shape(data, Path("s.json")) == 2
+        err = capsys.readouterr().err
+        assert "no negative scenario" in err
+        assert eval_mod.NEGATIVE_GATE in err
+
+    def test_the_refusal_says_why_an_empty_pool_is_not_free(self, capsys):
+        """The message has to name the consequence, not just the rule."""
+        eval_mod._validate_scenarios_shape(
+            {"scenarios": [{"id": "S1", "input": "x", "expected_gate": "g"}]},
+            Path("s.json"),
+        )
+        err = capsys.readouterr().err
+        assert "restraint" in err
+        assert "PASS" in err
+
+    def test_an_empty_list_is_refused_on_its_own_terms(self, capsys):
+        """Not through the positive-pool message, which would be false here.
+
+        `Every expected_gate is <sentinel>` is vacuously true of an empty list
+        and tells the reader to go look at gates that do not exist.
+        """
+        assert eval_mod._validate_scenarios_shape({"scenarios": []}, Path("s.json")) == 2
+        err = capsys.readouterr().err
+        assert "no scenarios" in err
+        assert "Every expected_gate" not in err
+
+    def test_a_file_carrying_both_pools_is_accepted(self):
+        """Negative control. Without it the check could be refusing everything."""
+        data = {"scenarios": _valid_scenarios()}
+        assert eval_mod._validate_scenarios_shape(data, Path("s.json")) is None
+
+    def test_aggregate_fails_closed_without_the_loader(self):
+        """Replay and direct callers skip scenario-file validation entirely."""
+        summary = eval_mod.aggregate([self._scen(1, 5, 5)])
+        assert summary["verdict"] == "NO_NEGATIVE_CASES"
+
+    def test_the_floor_is_still_not_compared_against_nothing(self):
+        """The older guard stays: None is not comparable against a floor."""
+        summary = eval_mod.aggregate([self._scen(1, 5, 5)])
+        assert summary["worst_negative_avg"] is None
+        assert summary["verdict"] != "FAIL_OVER_ACTIVATION"
+
+    def test_a_measured_negative_pool_still_certifies(self):
+        summary = eval_mod.aggregate([self._scen(1, 5, 5), self._scen(1, 5, 5, True)])
+        assert summary["verdict"] == "PASS"
+
+    def test_the_config_error_reports_as_a_config_exit(self):
+        assert eval_mod._classify_verdict("NO_NEGATIVE_CASES") == 2
+
+    @pytest.mark.parametrize(
+        ("kwargs", "expected"),
+        [
+            ({"gating_judge_failures": 1}, "FAIL_JUDGE_ERRORS"),
+            ({"worst_neg_avg": 1.0}, "FAIL_OVER_ACTIVATION"),
+            ({"desc_avg": 1.0, "baseline_avg": 1.0}, "FAIL_THRESHOLD"),
+        ],
+    )
+    def test_it_never_preempts_a_verdict_the_run_actually_earned(
+        self, kwargs, expected
+    ):
+        """Placement, not just presence.
+
+        Ahead of the other gates this would replace an actionable defect with a
+        coverage complaint, and would drop a real FAIL_THRESHOLD out of the
+        rollback set. Only the unearned PASS is taken.
+        """
+        args = {
+            "gating_judge_failures": 0,
+            "worst_neg_avg": 5.0,
+            "has_positive_cases": True,
+            "has_negative_cases": False,
+            "desc_avg": 5.0,
+            "baseline_avg": 1.0,
+        }
+        args.update(kwargs)
+        summary = {"negative_gate_incomplete": [], "positive_gate_incomplete": []}
+        assert eval_mod._decide_verdict(summary, **args) == expected
+
+    def test_every_shipped_scenario_file_declares_both_pools(self):
+        """The corpus guard the positive check already has.
+
+        A requirement nothing enforces on the shipped files is a requirement
+        that drifts. This is how the template shipped without gates twice.
+        """
+        shipped = sorted((REPO_ROOT / "tests" / "evals" / "rule-scenarios").glob("*.json"))
+        shipped.append(REPO_ROOT / "scripts" / "eval" / "examples" / "example-scenarios.json")
+        assert shipped, "no shipped scenario files found"
+        for path in shipped:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            assert eval_mod._validate_scenarios_shape(data, path) is None, path.name

@@ -2030,6 +2030,7 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
         gating_judge_failures=gating_judge_failures,
         worst_neg_avg=worst_neg_avg,
         has_positive_cases=bool(pos_scenarios),
+        has_negative_cases=bool(neg_scenarios),
         desc_avg=desc_avg,
         baseline_avg=baseline_avg,
     )
@@ -2087,6 +2088,7 @@ def _decide_verdict(
     gating_judge_failures: int,
     worst_neg_avg: float | None,
     has_positive_cases: bool,
+    has_negative_cases: bool,
     desc_avg: float | None,
     baseline_avg: float | None,
 ) -> str:
@@ -2124,7 +2126,19 @@ def _decide_verdict(
         # (dropping a mechanism's failures would inflate that mechanism); what
         # is withheld is the certification.
         return "FAIL_ROUTE_MISSED_TARGET"
-    return _positive_verdict(desc_avg, baseline_avg)
+    verdict = _positive_verdict(desc_avg, baseline_avg)
+    if verdict == "PASS" and not has_negative_cases:
+        # Last, not first. The defect an empty negative pool causes is a false
+        # certification: the restraint floor compares against nothing, cannot
+        # fire, and a clean positive result then reads as a clean run. Every
+        # gate above already withholds the certification on its own evidence,
+        # so preempting them would replace an actionable defect with a coverage
+        # complaint and would drop a genuine threshold failure out of the
+        # rollback set. Only the PASS is unearned, so only the PASS is taken.
+        # The scenario loader refuses such a file before any spend; this is the
+        # fallback for replay and for direct callers that skip that path.
+        return "NO_NEGATIVE_CASES"
+    return verdict
 
 
 # ---------------------------------------------------------------------------
@@ -2376,6 +2390,51 @@ def _validate_scenario_gate(
     return None
 
 
+def _validate_scenario_pools(scenarios: list[Any], spath: Path) -> int | None:
+    """Require both a positive and a negative pool. Exit code 2 on error.
+
+    Separate from the per-scenario shape checks above because it is a different
+    question. Those ask whether each entry is well formed; this asks whether the
+    set of entries can answer anything. Both pools are knowable without a single
+    API call, so refuse here rather than spending a run that cannot answer.
+    They are checked together because they are the same defect: a gate computed
+    over an empty pool cannot fail, and a gate that cannot fail has not been run.
+    """
+    if not scenarios:
+        print(
+            f"ERROR: {spath} declares no scenarios. Every gate would pass "
+            "over an empty pool, so the run would certify the rule without "
+            "measuring it once.",
+            file=sys.stderr,
+        )
+        return 2
+    positives: list[Any] = []
+    negatives: list[Any] = []
+    for sc in scenarios:
+        gate = _normalize_gate(sc.get("expected_gate", ""))
+        target = negatives if _is_negative_gate(gate) else positives
+        target.append(sc)
+    if not positives:
+        print(
+            f"ERROR: {spath} declares no positive scenario. Every "
+            f"expected_gate is {NEGATIVE_GATE!r}, so the run could only ever "
+            "report NO_POSITIVE_CASES. Add a scenario whose expected_gate "
+            "names the gate the rule should reach.",
+            file=sys.stderr,
+        )
+        return 2
+    if not negatives:
+        print(
+            f"ERROR: {spath} declares no negative scenario, so the restraint "
+            "floor would be computed over an empty pool. It cannot fail there, "
+            "and the run would report PASS for restraint it never measured. "
+            f"Add a scenario whose expected_gate is {NEGATIVE_GATE!r}.",
+            file=sys.stderr,
+        )
+        return 2
+    return None
+
+
 def _validate_scenarios_shape(data: dict[str, Any], spath: Path) -> int | None:
     """Validate scenarios array shape. Return exit code 2 on error, None on ok."""
     scenarios = data.get("scenarios")
@@ -2401,25 +2460,7 @@ def _validate_scenarios_shape(data: dict[str, Any], spath: Path) -> int | None:
                     file=sys.stderr,
                 )
                 return 2
-    positives = [
-        sc
-        for sc in scenarios
-        if not _is_negative_gate(_normalize_gate(sc.get("expected_gate", "")))
-    ]
-    if not positives:
-        # Knowable without a single API call, so refuse here rather than
-        # spending a run to reach NO_POSITIVE_CASES. Negative cases show
-        # restraint; only a positive case can show the rule activating, so a
-        # file without one cannot validate activation at any price.
-        print(
-            f"ERROR: {spath} declares no positive scenario. Every "
-            f"expected_gate is {NEGATIVE_GATE!r}, so the run could only ever "
-            "report NO_POSITIVE_CASES. Add a scenario whose expected_gate "
-            "names the gate the rule should reach.",
-            file=sys.stderr,
-        )
-        return 2
-    return None
+    return _validate_scenario_pools(scenarios, spath)
 
 
 def _resolve_rule_path(rule_path_str: str) -> Path | int:
@@ -2765,12 +2806,13 @@ def _classify_verdict(verdict: str) -> int:
     """Return the process exit code this verdict implies.
 
     Codes follow the repository convention: 0 ok, 1 logic, 2 config, 3
-    external. NO_POSITIVE_CASES is a config error, not a logic one. It says
-    the scenario file cannot validate activation and reports nothing at all
-    about the rule, so returning 1 would attach a rule failure to a file
-    problem and a run could not tell an under-firing rule from a
-    misconfigured input. FAIL_JUDGE_ERRORS is external so CI can distinguish
-    transient infrastructure trouble from a genuine activation failure.
+    external. NO_POSITIVE_CASES and NO_NEGATIVE_CASES are config errors, not
+    logic ones. Each says the scenario file cannot measure one of the two
+    pools and reports nothing at all about the rule, so returning 1 would
+    attach a rule failure to a file problem and a run could not tell an
+    under-firing rule from a misconfigured input. FAIL_JUDGE_ERRORS is external
+    so CI can distinguish transient infrastructure trouble from a genuine
+    activation failure.
 
     A run reduces these with max(), which makes the precedence a property of
     the ordering rather than a branch kept in sync with it: external outranks
@@ -2781,7 +2823,7 @@ def _classify_verdict(verdict: str) -> int:
         return 0
     if verdict == "FAIL_JUDGE_ERRORS":
         return 3
-    if verdict == "NO_POSITIVE_CASES":
+    if verdict in ("NO_POSITIVE_CASES", "NO_NEGATIVE_CASES"):
         return 2
     return 1
 
