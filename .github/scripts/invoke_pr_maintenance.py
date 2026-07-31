@@ -21,6 +21,7 @@ from scripts.github_core.api import (  # noqa: E402
     resolve_repo_params,
 )
 from scripts.github_core.checks_rollup import (  # noqa: E402
+    CONTEXT_NODE_FIELDS,
     rollup_has_failing_checks,
 )
 
@@ -53,7 +54,8 @@ BOT_CATEGORIES: dict[str, list[str]] = {
 # GraphQL query: fetch open PRs with status checks and review info
 # ---------------------------------------------------------------------------
 
-_OPEN_PRS_QUERY = """\
+_OPEN_PRS_QUERY = (
+    """\
 query($owner: String!, $name: String!, $limit: Int!) {
     repository(owner: $owner, name: $name) {
         pullRequests(first: $limit, states: OPEN, orderBy: {field: UPDATED_AT, direction: DESC}) {
@@ -90,18 +92,9 @@ query($owner: String!, $name: String!, $limit: Int!) {
                                     totalCount
                                     pageInfo { hasNextPage endCursor }
                                     nodes {
-                                        ... on CheckRun {
-                                            name
-                                            conclusion
-                                            status
-                                            startedAt
-                                            completedAt
-                                        }
-                                        ... on StatusContext {
-                                            context
-                                            state
-                                            createdAt
-                                        }
+"""
+    + CONTEXT_NODE_FIELDS
+    + """
                                     }
                                 }
                             }
@@ -112,6 +105,7 @@ query($owner: String!, $name: String!, $limit: Int!) {
         }
     }
 }"""
+)
 
 
 # ---------------------------------------------------------------------------

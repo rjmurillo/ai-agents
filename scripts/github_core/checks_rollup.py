@@ -129,30 +129,41 @@ _FAILING_CONCLUSIONS = frozenset(
 _FAILING_STATES = frozenset({"FAILURE", "ERROR"})
 _CONTEXTS_MAX_PAGES = 50
 
-_CONTEXTS_PAGE_QUERY = """\
+# The selection every caller must request inside `contexts { nodes { ... } }`.
+# It is one constant because the field set is not a caller's choice: this module
+# reads `completedAt`, `startedAt`, and `createdAt` for recency, and
+# `checkSuite.workflowRun.workflow.name` for the grouping key, so a caller that
+# queried fewer fields would collapse groups that must stay apart and rank runs
+# it cannot order. Both invoke_pr_maintenance.py copies build their PR query
+# around this constant.
+CONTEXT_NODE_FIELDS = """\
+... on CheckRun {
+    name
+    status
+    conclusion
+    startedAt
+    completedAt
+    checkSuite { workflowRun { workflow { name } } }
+}
+... on StatusContext {
+    context
+    state
+    createdAt
+}"""
+
+_CONTEXTS_PAGE_QUERY = (
+    """\
 query($owner: String!, $repo: String!, $oid: GitObjectID!, $cursor: String!) {
     repository(owner: $owner, name: $repo) {
         object(oid: $oid) {
             ... on Commit {
                 statusCheckRollup {
                     contexts(first: 100, after: $cursor) {
-                        pageInfo {
-                            hasNextPage
-                            endCursor
-                        }
+                        pageInfo { hasNextPage endCursor }
                         nodes {
-                            ... on CheckRun {
-                                name
-                                status
-                                conclusion
-                                startedAt
-                                completedAt
-                            }
-                            ... on StatusContext {
-                                context
-                                state
-                                createdAt
-                            }
+"""
+    + CONTEXT_NODE_FIELDS
+    + """
                         }
                     }
                 }
@@ -160,6 +171,7 @@ query($owner: String!, $repo: String!, $oid: GitObjectID!, $cursor: String!) {
         }
     }
 }"""
+)
 
 
 def _context_name(node: dict[str, Any]) -> str:
@@ -177,6 +189,43 @@ def _context_time(node: dict[str, Any]) -> str:
     return node.get("completedAt") or node.get("startedAt") or node.get("createdAt") or ""
 
 
+def _context_workflow(node: dict[str, Any]) -> str:
+    """Return the name of the workflow that owns this check run.
+
+    A StatusContext carries no workflow and returns "". That is correct for
+    it: a commit status is already one row per context name.
+    """
+    check_suite = node.get("checkSuite") or {}
+    workflow_run = check_suite.get("workflowRun") or {}
+    workflow = workflow_run.get("workflow") or {}
+    return workflow.get("name") or ""
+
+
+def _context_key(node: dict[str, Any]) -> tuple[str, str]:
+    """Return the grouping key for a context node: (check name, workflow).
+
+    The workflow half is load bearing. One check name can be recorded on a
+    single head commit by several workflows: this repository has 9 workflows
+    with a job named "Check Changed Paths" and 2 with "Aggregate Results".
+    Those runs are concurrent siblings, not re-runs of each other, so the
+    recency comparison between them is meaningless, and grouping on the name
+    alone lets a passing job in one workflow discard a genuinely failing job
+    in another. Measured on PR 4069: three FAILURE runs of "Check Changed
+    Paths" completing at 01:26:07Z, 01:26:08Z, and 01:26:10Z were all
+    discarded by a SUCCESS of the same name from the Python Tests workflow at
+    01:26:11Z.
+
+    The workflow name, not the check-suite id, is the discriminator that
+    keeps re-run dedupe working: a re-run lands in a NEW check suite under
+    the SAME workflow. Measured on PR 4040, oid 308e2094: the superseded
+    "Validate PR" FAILURE sits in check suite 82979074639 and the later
+    SUCCESS in 82982663213, both under workflow "PR Validation". Keying on
+    the suite id would put them in different groups and lose the dedupe that
+    Issue #3978 asked for.
+    """
+    return (_context_name(node), _context_workflow(node))
+
+
 def _context_is_failing(node: dict[str, Any]) -> bool:
     """Return True if this single context node reports a failure."""
     return (
@@ -185,22 +234,24 @@ def _context_is_failing(node: dict[str, Any]) -> bool:
     )
 
 
-def latest_contexts_by_name(nodes: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    """Keep only the most recent run for each check name.
+def latest_contexts_by_run(
+    nodes: list[dict[str, Any]],
+) -> dict[tuple[str, str], dict[str, Any]]:
+    """Keep only the most recent run for each (check name, workflow) pair.
 
     Ties on timestamp break on fetch order, so the last node returned by the
     API wins. Falsy nodes are dropped.
     """
-    winners: dict[str, tuple[tuple[str, int], dict[str, Any]]] = {}
+    winners: dict[tuple[str, str], tuple[tuple[str, int], dict[str, Any]]] = {}
     for index, node in enumerate(nodes):
         if not node:
             continue
-        key = (_context_time(node), index)
-        name = _context_name(node)
-        current = winners.get(name)
-        if current is None or key > current[0]:
-            winners[name] = (key, node)
-    return {name: entry[1] for name, entry in winners.items()}
+        recency = (_context_time(node), index)
+        key = _context_key(node)
+        current = winners.get(key)
+        if current is None or recency > current[0]:
+            winners[key] = (recency, node)
+    return {key: entry[1] for key, entry in winners.items()}
 
 
 def _page_contexts(data: dict[str, Any]) -> dict[str, Any]:
@@ -319,5 +370,5 @@ def rollup_has_failing_checks(
         return rollup.get("state") in _FAILING_STATES
 
     return any(
-        _context_is_failing(node) for node in latest_contexts_by_name(nodes).values()
+        _context_is_failing(node) for node in latest_contexts_by_run(nodes).values()
     )

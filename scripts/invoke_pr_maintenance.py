@@ -33,7 +33,10 @@ from scripts.github_core import (
     check_workflow_rate_limit,
     resolve_repo_params,
 )
-from scripts.github_core.checks_rollup import rollup_has_failing_checks
+from scripts.github_core.checks_rollup import (
+    CONTEXT_NODE_FIELDS,
+    rollup_has_failing_checks,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +152,8 @@ def has_unresolved_threads(pr: dict[str, Any]) -> bool:
     return False
 
 
-GRAPHQL_QUERY = """
+GRAPHQL_QUERY = (
+    """
 query($owner: String!, $name: String!, $limit: Int!) {
     repository(owner: $owner, name: $name) {
         pullRequests(first: $limit, states: OPEN,
@@ -187,18 +191,9 @@ query($owner: String!, $name: String!, $limit: Int!) {
                                     totalCount
                                     pageInfo { hasNextPage endCursor }
                                     nodes {
-                                        ... on CheckRun {
-                                            name
-                                            conclusion
-                                            status
-                                            startedAt
-                                            completedAt
-                                        }
-                                        ... on StatusContext {
-                                            context
-                                            state
-                                            createdAt
-                                        }
+"""
+    + CONTEXT_NODE_FIELDS
+    + """
                                     }
                                 }
                             }
@@ -210,6 +205,7 @@ query($owner: String!, $name: String!, $limit: Int!) {
     }
 }
 """
+)
 
 
 def get_open_prs(owner: str, repo: str, limit: int) -> list[dict[str, Any]]:
