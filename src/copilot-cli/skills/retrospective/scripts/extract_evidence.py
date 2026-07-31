@@ -65,7 +65,7 @@ _LIB_DIR = _resolve_paths_lib_dir()
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-from paths import artifact_dir as _resolve_artifact_dir
+from paths import artifact_dir as _resolve_artifact_dir  # noqa: E402
 
 
 def _artifact_root_is_set() -> bool:

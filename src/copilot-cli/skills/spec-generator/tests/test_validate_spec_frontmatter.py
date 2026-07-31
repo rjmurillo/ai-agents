@@ -14,7 +14,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from validate_spec_frontmatter import (
+from validate_spec_frontmatter import (  # noqa: E402
     extract_frontmatter,
     main,
     validate_fields,

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E501
 """Generate a structured threat matrix document.
 
 Creates a markdown threat model template with STRIDE categories
@@ -27,7 +28,7 @@ if not os.path.isdir(_LIB_DIR):
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-from hook_utilities.path_safety import validate_path_no_traversal
+from hook_utilities.path_safety import validate_path_no_traversal  # noqa: E402
 
 STRIDE_CATEGORIES = [
     ("S", "Spoofing", "Pretending to be something or someone else"),

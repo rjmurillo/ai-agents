@@ -50,7 +50,7 @@ _LIB_DIR = _resolve_paths_lib_dir()
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-from paths import resolve_artifact_root
+from paths import resolve_artifact_root  # noqa: E402
 
 # Sibling-module loader for rework_warning (REQ-010).
 # Loaded lazily inside main() to keep import-time failures from breaking

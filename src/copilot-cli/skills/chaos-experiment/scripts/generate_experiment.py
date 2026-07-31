@@ -46,7 +46,7 @@ try:
 except ImportError as exc:  # pragma: no cover - guarded by explicit path check
     raise RuntimeError(f"Failed to import portability helper paths.py from {_LIB_DIR}") from exc
 
-from hook_utilities.path_safety import validate_path_no_traversal
+from hook_utilities.path_safety import validate_path_no_traversal  # noqa: E402
 
 # Default artifact subdirectory written under the artifact root (Issue #2050).
 _CHAOS_SUBDIR = "chaos"

@@ -24,7 +24,7 @@ _THIS_DIR = Path(__file__).resolve().parent
 if str(_THIS_DIR) not in sys.path:
     sys.path.insert(0, str(_THIS_DIR))
 
-from inventory import (
+from inventory import (  # noqa: E402
     InventoryError,
     MissingInventoryError,
     Thread,
@@ -32,7 +32,7 @@ from inventory import (
     read_inventory,
     render_inventory,
 )
-from synthesis import (
+from synthesis import (  # noqa: E402
     SynthesisError,
     build_gold_found,
 )

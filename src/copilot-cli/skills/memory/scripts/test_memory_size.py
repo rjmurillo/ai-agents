@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E402, I001
 """
 Validate Serena memory file sizes against context engineering thresholds.
 

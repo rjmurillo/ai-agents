@@ -22,7 +22,7 @@ from pathlib import Path
 _SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 sys.path.insert(0, str(_SCRIPTS_DIR))
 
-from validate_slash_command import validate_slash_command
+from validate_slash_command import validate_slash_command  # noqa: E402, I001
 
 
 # ---------------------------------------------------------------------------

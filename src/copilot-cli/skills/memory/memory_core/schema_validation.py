@@ -271,7 +271,7 @@ def test_schema_valid(
 
 
 # Prevent pytest from collecting this production function as a test
-setattr(test_schema_valid, "__test__", False)
+setattr(test_schema_valid, "__test__", False)  # noqa: B010
 
 
 def write_validated_json(
