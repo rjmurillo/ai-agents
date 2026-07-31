@@ -20,6 +20,9 @@ from scripts.github_core.api import (  # noqa: E402
     gh_graphql,
     resolve_repo_params,
 )
+from scripts.github_core.checks_rollup import (  # noqa: E402
+    rollup_has_failing_checks,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -80,18 +83,24 @@ query($owner: String!, $name: String!, $limit: Int!) {
                 commits(last: 1) {
                     nodes {
                         commit {
+                            oid
                             statusCheckRollup {
                                 state
                                 contexts(first: 100) {
+                                    totalCount
+                                    pageInfo { hasNextPage endCursor }
                                     nodes {
                                         ... on CheckRun {
                                             name
                                             conclusion
                                             status
+                                            startedAt
+                                            completedAt
                                         }
                                         ... on StatusContext {
                                             context
                                             state
+                                            createdAt
                                         }
                                     }
                                 }
@@ -182,41 +191,26 @@ def has_conflicts(pr: dict) -> bool:
     return pr.get("mergeable") == "CONFLICTING"
 
 
-def has_failing_checks(pr: dict) -> bool:
-    """Return True if the PR's latest commit has failing status checks."""
-    commits = pr.get("commits")
-    if not commits:
-        return False
+def has_failing_checks(pr: dict, *, owner: str = "", repo: str = "") -> bool:
+    """Return True when the latest run of any check on the head commit failed.
 
-    nodes = commits.get("nodes", [])
+    Superseded runs are discarded, so a re-run that goes green clears the flag.
+    Without ``owner`` and ``repo`` a truncated set falls back to ``rollup.state``.
+    Refs Issue #3978.
+    """
+    commits = pr.get("commits") or {}
+    nodes = commits.get("nodes") or []
     if not nodes:
         return False
 
-    commit = nodes[0].get("commit")
-    if not commit:
-        return False
-
-    rollup = commit.get("statusCheckRollup")
-    if not rollup:
-        return False
-
-    state = rollup.get("state")
-    if state in ("FAILURE", "ERROR"):
-        return True
-
-    contexts = rollup.get("contexts")
-    if not contexts:
-        return False
-
-    for ctx in contexts.get("nodes", []):
-        if not ctx:
-            continue
-        conclusion = ctx.get("conclusion")
-        ctx_state = ctx.get("state")
-        if conclusion == "FAILURE" or ctx_state == "FAILURE":
-            return True
-
-    return False
+    commit = nodes[0].get("commit") or {}
+    return rollup_has_failing_checks(
+        commit.get("statusCheckRollup"),
+        owner=owner,
+        repo=repo,
+        oid=commit.get("oid") or "",
+        pr_number=pr.get("number", "?"),
+    )
 
 
 def has_unresolved_threads(pr: dict) -> bool:
@@ -345,7 +339,7 @@ def discover_and_classify(owner: str, repo: str, max_prs: int) -> dict:
             is_bot_reviewer = has_bot_reviewer(pr.get("reviewRequests"))
             pr_has_changes_requested = pr.get("reviewDecision") == "CHANGES_REQUESTED"
             pr_has_conflicts = has_conflicts(pr)
-            pr_has_failing = has_failing_checks(pr)
+            pr_has_failing = has_failing_checks(pr, owner=owner, repo=repo)
             pr_has_unresolved = has_unresolved_threads(pr)
 
             needs_action = (

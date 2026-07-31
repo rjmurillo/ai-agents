@@ -33,6 +33,7 @@ from scripts.github_core import (
     check_workflow_rate_limit,
     resolve_repo_params,
 )
+from scripts.github_core.checks_rollup import rollup_has_failing_checks
 
 logger = logging.getLogger(__name__)
 
@@ -100,28 +101,26 @@ def is_bot_reviewer(review_requests: dict[str, Any] | None) -> bool:
     return False
 
 
-def has_failing_checks(pr: dict[str, Any]) -> bool:
-    commits = pr.get("commits", {})
-    nodes = commits.get("nodes", [])
+def has_failing_checks(pr: dict[str, Any], *, owner: str = "", repo: str = "") -> bool:
+    """Return True when the latest run of any check on the head commit failed.
+
+    Superseded runs are discarded, so a re-run that goes green clears the flag.
+    Without ``owner`` and ``repo`` a truncated set falls back to ``rollup.state``.
+    Refs Issue #3978.
+    """
+    commits = pr.get("commits") or {}
+    nodes = commits.get("nodes") or []
     if not nodes:
         return False
 
-    commit = nodes[0].get("commit", {})
-    rollup = commit.get("statusCheckRollup")
-    if not rollup:
-        return False
-
-    state = rollup.get("state", "")
-    if state in ("FAILURE", "ERROR"):
-        return True
-
-    contexts = rollup.get("contexts", {})
-    context_nodes = contexts.get("nodes", [])
-    for ctx in context_nodes:
-        if ctx.get("conclusion") == "FAILURE" or ctx.get("state") == "FAILURE":
-            return True
-
-    return False
+    commit = nodes[0].get("commit") or {}
+    return rollup_has_failing_checks(
+        commit.get("statusCheckRollup"),
+        owner=owner,
+        repo=repo,
+        oid=commit.get("oid") or "",
+        pr_number=pr.get("number", "?"),
+    )
 
 
 def has_unresolved_threads(pr: dict[str, Any]) -> bool:
@@ -181,18 +180,24 @@ query($owner: String!, $name: String!, $limit: Int!) {
                 commits(last: 1) {
                     nodes {
                         commit {
+                            oid
                             statusCheckRollup {
                                 state
                                 contexts(first: 100) {
+                                    totalCount
+                                    pageInfo { hasNextPage endCursor }
                                     nodes {
                                         ... on CheckRun {
                                             name
                                             conclusion
                                             status
+                                            startedAt
+                                            completedAt
                                         }
                                         ... on StatusContext {
                                             context
                                             state
+                                            createdAt
                                         }
                                     }
                                 }
@@ -286,7 +291,7 @@ def classify_prs(
             is_reviewer = is_bot_reviewer(pr.get("reviewRequests"))
             has_changes = pr.get("reviewDecision") == "CHANGES_REQUESTED"
             has_conflicts = pr.get("mergeable") == "CONFLICTING"
-            has_failures = has_failing_checks(pr)
+            has_failures = has_failing_checks(pr, owner=owner, repo=repo)
             has_unresolved = has_unresolved_threads(pr)
 
             needs_action = (
