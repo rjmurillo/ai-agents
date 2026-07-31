@@ -93,7 +93,9 @@
       "caused_by": [
         "e008"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e013"
+      ]
     },
     {
       "id": "e010",
@@ -102,6 +104,35 @@
       "content": "Reconciled ADR-085 with the full issue #3217 closure discourse",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged current origin/main after PR #4037 became conflict-marked",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4041-finalize-4037-evidence-corrections-adr"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Repaired Markdown auto-fix corruption found by the final pre-PR gate",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4041-finalize-4037-evidence-corrections-adr"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: f10f48e2d85edea11a81b6e76d86e4a73d866ed5",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4041-finalize-4037-evidence-corrections-adr"
     }
   ],
   "metrics": {
@@ -109,7 +140,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 5,
+    "commits": 6,
     "files_changed": 7
   },
   "lessons": []

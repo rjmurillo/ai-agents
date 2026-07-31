@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "ADR-085 closure correction is committed at bdd31f2d1; current main is merged with conflicts resolved for the next merge commit"
+        "Evidence": "ADR corrections, current-main merge, and Markdown auto-fix safeguards are committed through f10f48e2d"
       },
       "validationPassed": {
         "level": "MUST",
@@ -137,9 +137,13 @@
     {
       "action": "Merged current origin/main after PR #4037 became conflict-marked",
       "outcome": "Preserved the PR provenance corrections, took main's scanner and review-gate fixes, advanced both project-toolkit manifests to 0.6.5476, regenerated artifacts, and cleared all conflict markers"
+    },
+    {
+      "action": "Repaired Markdown auto-fix corruption found by the final pre-PR gate",
+      "outcome": "Wrapped line-start issue references in inline code, regenerated both Copilot skill mirrors, advanced both project-toolkit manifests to 0.6.5478, and filed issue #4118 for the validator defect"
     }
   ],
-  "endingCommit": "bdd31f2d19697e157cfb33512128444cb5d2bd38",
+  "endingCommit": "f10f48e2d85edea11a81b6e76d86e4a73d866ed5",
   "nextSteps": [
     "Create a fresh SHA-bound review marker, push without force, and update PR #4037 and PR #4059 descriptions.",
     "Reply to and resolve all PR #4037 review threads, run completion gates, and merge ready PRs."
