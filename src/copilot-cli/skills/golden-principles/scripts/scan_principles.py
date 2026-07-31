@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import re
 import sys
 from pathlib import Path
 
@@ -27,12 +29,8 @@ if _SCRIPTS_DIR not in sys.path:
 
 from scan_principles_core import (  # noqa: E402
     _AGENTS_PATH_PARTS,
-    _ALLOWED_MODEL_ALIASES,
-    _COST_EXCEPTION_ALIASES,
-    _MODEL_FIELD_RE,
     _SKILLS_PATH_PARTS,
     _WORKFLOWS_PATH_PARTS,
-    AGENT_REQUIRED_SECTIONS,
     ALL_RULES,
     EXIT_ERROR,
     EXIT_SUCCESS,
@@ -64,7 +62,7 @@ def check_skill_frontmatter(filepath: str, lines: list[str]) -> list[Violation]:
     ids (e.g. claude-opus-4-6) are forbidden for skills.
     """
     if not filepath.endswith("SKILL.md") or not _has_path_parts(
-        filepath, _marker_parts(_SKILLS_PATH_MARKER)
+        filepath, _SKILLS_PATH_PARTS
     ):
         return []
     if has_suppression(lines, "skill-frontmatter"):
@@ -161,7 +159,7 @@ def _find_long_run_blocks(lines: list[str]) -> list[tuple[int, int]]:
 
 def check_yaml_logic(filepath: str, lines: list[str]) -> list[Violation]:
     """GP-005: No inline logic in workflow YAML."""
-    if not _has_path_parts(filepath, _marker_parts(_WORKFLOWS_PATH_MARKER)):
+    if not _has_path_parts(filepath, _WORKFLOWS_PATH_PARTS):
         return []
     if Path(filepath).suffix not in (".yml", ".yaml"):
         return []
@@ -192,7 +190,7 @@ def _yaml_logic_violation(filepath: str, line: int, count: int) -> Violation:
 
 def check_actions_pinned(filepath: str, lines: list[str]) -> list[Violation]:
     """GP-006: GitHub Actions must be pinned to SHA."""
-    if not _has_path_parts(filepath, _marker_parts(_WORKFLOWS_PATH_MARKER)):
+    if not _has_path_parts(filepath, _WORKFLOWS_PATH_PARTS):
         return []
     suffix = Path(filepath).suffix
     if suffix not in (".yml", ".yaml"):
@@ -264,16 +262,16 @@ def _is_applicable(filepath: str) -> bool:
 
     if suffix in (".sh", ".bash"):
         return True
-    if name == "SKILL.md" and _has_path_parts(filepath, _marker_parts(_SKILLS_PATH_MARKER)):
+    if name == "SKILL.md" and _has_path_parts(filepath, _SKILLS_PATH_PARTS):
         return True
     if (
         suffix == ".md"
-        and _has_path_parts(filepath, _marker_parts(_AGENTS_PATH_MARKER))
+        and _has_path_parts(filepath, _AGENTS_PATH_PARTS)
         and name != "CLAUDE.md"
     ):
         return True
     if suffix in (".yml", ".yaml") and _has_path_parts(
-        filepath, _marker_parts(_WORKFLOWS_PATH_MARKER)
+        filepath, _WORKFLOWS_PATH_PARTS
     ):
         return True
     return False
