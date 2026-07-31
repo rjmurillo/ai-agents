@@ -221,8 +221,8 @@ Uses `git diff --cached --check MERGE_HEAD` when a merge is in progress (MERGE_H
 
 | Criterion | Evidence |
 |-----------|----------|
-| All conflicts resolved | `git diff --cached --check MERGE_HEAD` returns empty |
-| No merge markers remain | `python3 .claude/skills/merge-resolver/scripts/verify_no_conflict_markers.py` exits 0 (uses `git diff --cached --check MERGE_HEAD` during merge; falls back to `git diff HEAD --check` outside merge state; ignores intentional fenced examples in committed docs -- issues #2424, #4058) |
+| All conflicts resolved | `git status --porcelain \| grep -c '^UU'` returns 0 |
+| No merge markers remain | `python3 .claude/skills/merge-resolver/scripts/verify_no_conflict_markers.py` exits 0 (during merge: checks staged vs MERGE_HEAD AND working tree vs index; outside merge: checks working tree+index vs HEAD; ignores intentional fenced examples in committed docs -- issues #2424, #4058) |
 | Session protocol valid | `validate_session_json.py` exits 0 |
 | Markdown lint passes | `npx markdownlint-cli2` exits 0 |
 | Push successful | Remote ref updated |

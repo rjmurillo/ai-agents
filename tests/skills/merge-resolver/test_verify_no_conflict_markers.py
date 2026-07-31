@@ -378,6 +378,8 @@ class TestRealConflictsFlagged:
             cwd=str(empty_repo),
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         )
         # Merge returns non-zero when a conflict occurs
         assert proc.returncode != 0, "expected a merge conflict"
@@ -399,6 +401,54 @@ class TestRealConflictsFlagged:
             "A staged file with leftover conflict markers must be caught "
             "even during an in-progress merge."
         )
+
+    def test_unstaged_marker_during_merge_is_caught(self, empty_repo: Path) -> None:
+        """Markers left in the working tree (not staged) are caught during a merge.
+
+        Reproduces the gap fixed in thread PRRT_kwDOQoWRls6VXCuu: the staged
+        check (MERGE_HEAD) only sees staged files; a second git diff --check
+        (working tree vs index) catches markers that were not yet staged.
+        """
+        shared = empty_repo / "shared.txt"
+
+        # Initial commit on main
+        shared.write_text("original content\n")
+        _git(empty_repo, "add", "shared.txt")
+        _git(empty_repo, "commit", "-q", "-m", "base: add shared.txt")
+
+        # Diverge on feature branch
+        _git(empty_repo, "checkout", "-q", "-b", "feature")
+        shared.write_text("feature content\n")
+        _git(empty_repo, "add", "shared.txt")
+        _git(empty_repo, "commit", "-q", "-m", "feature: update shared.txt")
+
+        # Diverge on main too
+        _git(empty_repo, "checkout", "-q", "main")
+        shared.write_text("main content\n")
+        _git(empty_repo, "add", "shared.txt")
+        _git(empty_repo, "commit", "-q", "-m", "main: update shared.txt")
+
+        # Merge feature into main -- this conflicts
+        proc = subprocess.run(
+            ["git", "merge", "feature", "--no-ff"],
+            cwd=str(empty_repo),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        assert proc.returncode != 0, "expected a merge conflict"
+        assert (empty_repo / ".git" / "MERGE_HEAD").exists()
+
+        # Write markers into the working tree but do NOT stage -- simulates a
+        # resolver that started editing but hasn't run git add yet.
+        shared.write_text(
+            "<<<<<<< HEAD\nmain content\n=======\nfeature content\n>>>>>>> feature\n"
+        )
+        # shared.txt is NOT staged at this point.
+
+        markers = find_leftover_markers(empty_repo)
+        assert markers, "Unstaged conflict markers must be caught during an in-progress merge."
 
     def test_merge_head_absence_uses_head_check(self, empty_repo: Path) -> None:
         """Outside a merge, MERGE_HEAD is absent and the HEAD form is used.
