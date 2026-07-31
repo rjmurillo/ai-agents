@@ -99,7 +99,7 @@ durable competitive surface and everything else is plumbing.
 
 ### This repo's asset
 
-- 98 skill directories, 25 rules, 121 retrospectives, 879 Serena memory files
+- 98 skill directories, 25 rules, 121 retrospectives, 879 Serena Markdown memory files
   (counts as of 2026-07-30; re-verify with the Phase 1 corpus-size command).
 - Gates that produce inspectable artifacts (verification-based governance,
   SESSION-PROTOCOL.md): every rule violation leaves evidence, so compliance is
