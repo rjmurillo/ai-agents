@@ -295,7 +295,7 @@ Sources and re-verification:
 
 - ADR-069 thesis and status: `.agents/architecture/ADR-069-context-corpus-is-the-product.md:2` (status: proposed), title at line 9. Re-verify: `head -12 .agents/architecture/ADR-069-context-corpus-is-the-product.md`.
 - ADR-072 status, review verdict, five conditions, harness list: `.agents/architecture/ADR-072-jtbd-plugin-architecture.md:3-19`. Re-verify: `sed -n '1,25p' .agents/architecture/ADR-072-jtbd-plugin-architecture.md`.
-- ADR-068 status and #2295 measurements (3/197 kills, ~246 ms cold start, 40 shims): `.agents/architecture/ADR-068-consolidated-hook-dispatcher.md`. Re-verify: `grep -n -e "197" -e "246" -e "N=40" .agents/architecture/ADR-068-consolidated-hook-dispatcher.md`.
+- ADR-068 status and #2295 measurements (3/197 kills, ~246 ms cold start, 40 shims): `.agents/architecture/ADR-068-consolidated-hook-dispatcher.md`. Re-verify: `grep -n -A1 -e "Three of" -e "246" -e "N=40" .agents/architecture/ADR-068-consolidated-hook-dispatcher.md`.
 - Rule-activation eval mechanisms, judge dimensions, exit codes: `scripts/eval/eval-rule-activation.py:1-40` docstring. Re-verify: `sed -n '1,40p' scripts/eval/eval-rule-activation.py`.
 - FM-1 95.8% evidence: `.agents/governance/FAILURE-MODES.md:44`. Re-verify: `grep -n "95.8" .agents/governance/FAILURE-MODES.md`.
 - Detect-Log-Graduate and explicit retrieval: the `reflect` skill, `.claude/skills/memory/SKILL.md`, and `.claude/skills/memory-search/SKILL.md`. Re-verify the deleted advisory hooks' absence with the Phase 1 test command.
