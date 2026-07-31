@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import ast
 import importlib.util
+import subprocess
 import sys
 from pathlib import Path
 
@@ -788,8 +789,8 @@ def test_backslash_alone_is_not_a_regex_metachar_signal() -> None:
     A backslash is the Windows path separator, so admitting it as a "this is a
     regex" signal would exempt every raw Windows path literal.
     """
-    assert cvp._is_raw_string_regex(r'r".\scripts\pre_pr.py"') is False
-    assert cvp._is_raw_string_regex(r'r"^scripts/"') is True
+    assert cvp._is_regex_pattern("scripts/", r'r".\scripts\pre_pr.py"', True) is False
+    assert cvp._is_regex_pattern("scripts/", r'r"^scripts/"', True) is True
 
 
 def test_bare_scripts_directory_in_prose_is_not_an_offender(fake_repo: Path) -> None:
@@ -855,14 +856,14 @@ def test_hyphen_and_dot_start_a_path_component(fake_repo: Path) -> None:
     assert len(cvp.collect_offenders(fake_repo)) == 2
 
 
-def test_skill_test_suite_is_not_scanned(fake_repo: Path) -> None:
-    """A fixture string under a skill's tests/ directory is not an offender.
+def test_scripts_literal_in_skill_test_suite_is_not_scanned(fake_repo: Path) -> None:
+    """A `scripts/` fixture string under a skill's tests/ directory is exempt.
 
     Evidence: four of the nine #4046 false positives are bare fixture paths such
     as `"scripts/session_log.py"` with no syntactic signal separating them from
     a real dependency. A skill's tests never execute in a consumer install, so
-    the literal cannot break one. Isolating negative control: drop "tests" from
-    _is_skipped_file and this file is flagged again.
+    the literal cannot break one. Isolating negative control: drop the
+    `in_tests` branch from _is_exempt_match and this file is flagged again.
     """
     _write(
         fake_repo,
@@ -873,12 +874,12 @@ def test_skill_test_suite_is_not_scanned(fake_repo: Path) -> None:
     assert cvp.collect_offenders(fake_repo) == []
 
 
-def test_agents_path_in_skill_test_suite_is_not_scanned(fake_repo: Path) -> None:
-    """The tests/ skip covers every banned prefix, not just scripts/.
+def test_agents_path_in_skill_test_suite_is_still_an_offender(fake_repo: Path) -> None:
+    """The tests/ exemption is scoped to `scripts/`; #4046 AC3 froze the rest.
 
-    Deliberate coverage change, recorded so it is not reversed by accident: four
-    pre-existing `.agents/` baseline entries lived in skill test suites and drop
-    out with this skip. The consumer-facing risk is zero for the same reason.
+    Widening it to every prefix would drop four pre-existing `.agents/` baseline
+    entries (memory, merge-resolver, session, session-end test suites) and
+    change the #2050 gate the issue said to leave alone.
     """
     _write(
         fake_repo,
@@ -886,7 +887,7 @@ def test_agents_path_in_skill_test_suite_is_not_scanned(fake_repo: Path) -> None
         "out = '.agents/analysis/x.md'\n",
     )
 
-    assert cvp.collect_offenders(fake_repo) == []
+    assert len(cvp.collect_offenders(fake_repo)) == 1
 
 
 def test_test_named_file_outside_tests_dir_is_still_scanned(fake_repo: Path) -> None:
@@ -924,3 +925,158 @@ def test_main_fails_on_new_scripts_offender_in_shipped_script(fake_repo: Path) -
     )
 
     assert cvp.main(["--repo-root", str(fake_repo)]) == 1
+
+
+# --- Issue #4046 review round 2: AC3 and the dynamic scripts/ shapes ---------
+#
+# Two holes were opened by the first #4046 fix and are pinned here.
+#
+# AC3 ("`.agents/` and `.claude/lib/` detection is unchanged"): the widened
+# metacharacter set admits `* ? [ ]`, which are glob wildcards as well as regex
+# metacharacters. Applied to every prefix it exempted real reads of the upstream
+# tree. The set is now scoped to the `scripts/` prefix.
+#
+# AC2 ("a genuine hard-coded scripts/ path in a shipped non-test skill script is
+# still flagged"): requiring a literal path component after the separator
+# un-flagged every dynamically built path, which is the common shape.
+
+
+@pytest.mark.parametrize(
+    "name,source",
+    [
+        ("raw_glob", 'import glob\nfiles = glob.glob(r".agents/analysis/*.md")\n'),
+        ("raw_recursive_glob", 'p = r".agents/**/*.json"\n'),
+        ("raw_bracket", 'p = r".agents/x[0].md"\n'),
+        ("raw_alternation", 'p = r".agents/a|b/x.md"\n'),
+        ("plain_glob", 'import glob\nfiles = glob.glob(".agents/analysis/*.md")\n'),
+    ],
+)
+def test_raw_agents_path_with_glob_metachar_is_still_an_offender(
+    fake_repo: Path, name: str, source: str
+) -> None:
+    """AC3: a glob over `.agents/` reads the upstream tree, so it stays flagged.
+
+    `*` is both a regex metacharacter and a path wildcard. Isolating negative
+    control: point _is_regex_pattern at _REGEX_METACHAR for every prefix and
+    each of these files goes silent.
+    """
+    _write(fake_repo, f".claude/skills/foo/scripts/{name}.py", source)
+
+    assert len(cvp.collect_offenders(fake_repo)) == 1
+
+
+def test_raw_claude_lib_path_with_paren_is_still_an_offender(fake_repo: Path) -> None:
+    """AC3: the `.claude/lib/` prefix keeps the pre-#4046 escaped-dot signal."""
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/cache.py",
+        'CACHE = r".claude/lib/cache(v2)/x.json"\n',
+    )
+
+    assert len(cvp.collect_offenders(fake_repo)) == 1
+
+
+def test_escaped_dot_still_exempts_an_agents_regex(fake_repo: Path) -> None:
+    """AC3, positive side: the #2510 exemption itself is unchanged."""
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/patterns.py",
+        'import re\n\nPATTERN = re.compile(r"\\.agents/")\n',
+    )
+
+    assert cvp.collect_offenders(fake_repo) == []
+
+
+@pytest.mark.parametrize(
+    "name,source",
+    [
+        ("fstring", 'import subprocess\nsubprocess.run(["python3", f"scripts/{tool}.py"])\n'),
+        ("concat", 'import subprocess\nsubprocess.run(["python3", "scripts/" + tool])\n'),
+        ("join", 'import os\n\ntarget = os.path.join("scripts/", rel)\n'),
+        ("percent", 'target = "scripts/%s" % rel\n'),
+        ("format", 'target = "scripts/{}".format(rel)\n'),
+    ],
+)
+def test_dynamically_built_scripts_path_is_an_offender(
+    fake_repo: Path, name: str, source: str
+) -> None:
+    """AC2: a `scripts/` path assembled at runtime is still a real dependency.
+
+    The consumer install breaks at runtime on a tree that ships in neither
+    plugin root, which is what the #4013 guard exists to prevent. Isolating
+    negative control: drop the fourth _BANNED_PATH alternation and all five go
+    silent.
+    """
+    _write(fake_repo, f".claude/skills/foo/scripts/{name}.py", source)
+
+    assert len(cvp.collect_offenders(fake_repo)) == 1
+
+
+def test_sentence_ending_in_scripts_directory_is_not_an_offender(fake_repo: Path) -> None:
+    """The bare-separator alternation is anchored on the start of the literal.
+
+    Evidence: .claude/skills/SkillForge/scripts/validate-skill.py:622 builds
+    `f"...bash examples - consider adding scripts/"`. That names the directory
+    as advice, not as a path being assembled. Isolating negative control: drop
+    the `(?:^|(?<=['\\"]))` anchor and this file is flagged.
+    """
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/advise.py",
+        'msg = f"Skill has {n} bash examples - consider adding scripts/"\n',
+    )
+
+    assert cvp.collect_offenders(fake_repo) == []
+
+
+def test_cli_exit_codes_for_the_reopened_shapes(fake_repo: Path, tmp_path: Path) -> None:
+    """End-to-end through the CLI, in a subprocess, for both reopened shapes.
+
+    Drives the real entry point rather than the imported function so the
+    ADR-035 exit code is observed the way CI observes it.
+    """
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/dyn.py",
+        'import subprocess\nsubprocess.run(["python3", f"scripts/{tool}.py"])\n',
+    )
+    _write(
+        fake_repo,
+        ".claude/skills/bar/scripts/glob_agents.py",
+        'import glob\nfiles = glob.glob(r".agents/analysis/*.md")\n',
+    )
+
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT_PATH), "--repo-root", str(fake_repo)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert ".claude/skills/foo/scripts/dyn.py" in result.stdout
+    assert ".claude/skills/bar/scripts/glob_agents.py" in result.stdout
+
+
+def test_cli_exit_zero_when_only_exempt_shapes_present(fake_repo: Path) -> None:
+    """Negative control for the CLI test: the exempt shapes exit 0."""
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/patterns.py",
+        'import re\n\nPATTERN = re.compile(r"^scripts/")\n',
+    )
+    _write(
+        fake_repo,
+        ".claude/skills/foo/tests/test_fixture.py",
+        'path = "scripts/validation/pre_pr.py"\n',
+    )
+
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT_PATH), "--repo-root", str(fake_repo)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "[PASS]" in result.stdout

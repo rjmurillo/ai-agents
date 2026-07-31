@@ -11,11 +11,15 @@
 .claude/skills/memory/scripts/extract_session_episode.py
 .claude/skills/memory/scripts/search_memory.py
 .claude/skills/memory/scripts/test_memory_health.py
+.claude/skills/memory/tests/test_memory_health.py
 .claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py
+.claude/skills/merge-resolver/tests/test_resolve_pr_conflicts.py
 .claude/skills/orphan-ref-validator/scripts/scan.py
 .claude/skills/quality-grades/scripts/grade_domains.py
 .claude/skills/session-end/scripts/rework_warning.py
+.claude/skills/session-end/tests/test_complete_session_log.py
 .claude/skills/session/scripts/test_investigation_eligibility.py
+.claude/skills/session/tests/test_session_eligibility.py
 .claude/skills/steering-matcher/get_applicable_steering.py
 .claude/skills/steering-matcher/scripts/get_applicable_steering.py
 .claude/skills/taste-lints/scripts/taste_lints.py
