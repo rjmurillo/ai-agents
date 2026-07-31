@@ -1289,6 +1289,15 @@ def merge_preserving(new: dict, existing: dict, *, session_id: str = "") -> dict
     return merged
 
 
+def default_episodes_dir() -> Path:
+    """Where episodes live, for this script and for the repair pass.
+
+    One definition so a sibling script does not have to restate the upstream
+    path literal, which the vendor-portability ratchet counts per file.
+    """
+    return _repo_root() / ".agents" / "memory" / "episodes"
+
+
 def _repo_root() -> Path:
     """Locate the repository root by walking up to the nearest `.agents` dir.
 
@@ -1950,7 +1959,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.output_path:
         output_path = args.output_path
     else:
-        output_path = _repo_root() / ".agents" / "memory" / "episodes"
+        output_path = default_episodes_dir()
 
     # Read session log
     try:

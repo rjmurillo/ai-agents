@@ -40,9 +40,8 @@ from extract_session_episode import (  # noqa: E402
     _git_commit_timestamp,
     _link_sequential_events,
     _norm,
+    default_episodes_dir,
 )
-
-_DEFAULT_EPISODES_DIR = Path(".agents/memory/episodes")
 
 
 def _commit_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -132,7 +131,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("paths", nargs="*", help="Episode files. Default: the whole corpus.")
     parser.add_argument(
         "--episodes-dir",
-        default=str(_DEFAULT_EPISODES_DIR),
+        default=str(default_episodes_dir()),
         help="Directory scanned when no paths are given.",
     )
     parser.add_argument(
