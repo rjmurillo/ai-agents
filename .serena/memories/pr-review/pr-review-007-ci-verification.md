@@ -87,20 +87,40 @@ Before claiming PR review complete, ALL must be true:
 | No unresolved threads | GraphQL query for unresolved reviewThreads | Yes |
 | Commits pushed | `git status` shows "up to date with origin" | Yes |
 
-The resolved-marker count uses a basic regular expression, where `\|` is
-alternation. It is shown outside the table because a table cell would need
-`\\|`, and whether that still matches depends on how many literal-processing
-layers sit between the author and grep's argv. Only the bytes grep receives
-decide it: one backslash is alternation and matches, two is an escaped
-backslash followed by a literal pipe and matches nothing. Each layer either
-collapses the pair or preserves it. Measured against a two-line fixture
-holding both markers, using the table form of the pattern:
+The resolved-marker count uses a GNU basic regular expression, where `\|` is
+alternation. That spelling is a GNU extension, not portable POSIX BRE.
+`man 7 regex` says of obsolete ("basic") REs: "'|', '+', and '?' are ordinary
+characters and there is no equivalent for their functionality." Measured here
+on GNU grep 3.11.
+
+It is shown outside the table because a table cell would need `\\|`, and
+whether that still matches depends on two things, not one.
+
+First, the bytes grep receives. One backslash is alternation and matches, two
+is an escaped backslash followed by a literal pipe and matches nothing. Each
+layer between the author and grep's argv either collapses the pair or
+preserves it. Measured against a two-line fixture holding both markers, using
+the table form of the pattern:
 
 - bash inline double quotes: collapses, reports 2
 - bash single quotes: preserves, reports 0
 - bash double-quoted variable expansion: preserves, reports 0
+- bash ANSI-C quoting, `$'...'`: collapses, reports 2
 - Python non-raw string literal: collapses, reports 2
 - Python raw string literal: preserves, reports 0
+- `xargs` default mode: strips every backslash, including the ones guarding
+  `[`, so grep receives bracket expressions where literals were written. It
+  reports 2 for a pattern that no longer means what the author wrote, which is
+  the right answer for the wrong reason. `xargs -d '\n'` preserves, reports 0.
+
+Second, the dialect flag. Argv bytes are necessary but not sufficient, because
+`-E` inverts the escaping. Against the same fixture: `grep` with one backslash
+reports 2; `grep -E` with one backslash reports 0, because that is a literal
+pipe in ERE; `grep -E` with a bare pipe reports 2; `grep -E` with the table
+form reports 1, reading it as a literal backslash alternated with the second
+marker. A reader who copies the pattern and adds `-E` gets a silent zero, so
+any claim about this pattern has to name both the dialect and the
+implementation.
 
 So neither "double quotes work" nor "no shell means it breaks" holds on its
 own. Fencing the command removes the ambiguity.
