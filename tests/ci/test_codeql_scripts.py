@@ -203,6 +203,15 @@ class TestVerifyCodeqlSarifStructure:
         rc = vcss.main(["--results-dir", str(tmp_path / "nonexistent")])
         assert rc == vcss.EXIT_INVALID
 
+    def test_run_without_results_key_does_not_crash(self, tmp_path: Path) -> None:
+        """A SARIF run with no 'results' key must not KeyError."""
+        results_dir = tmp_path / "results"
+        results_dir.mkdir()
+        _write_sarif(results_dir / "empty_run.sarif", {"version": "2.1.0", "runs": [{}]})
+        all_valid, errors = vcss.validate_sarif_directory(results_dir)
+        assert all_valid
+        assert errors == []
+
     def test_cli_ok_dir_returns_0(self, tmp_path: Path) -> None:
         results_dir = tmp_path / "results"
         results_dir.mkdir()

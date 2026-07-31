@@ -78,11 +78,12 @@ def main(argv: list[str] | None = None) -> int:
 
     size_bytes, detail = measure_pack_size(package_dir)
     if size_bytes is None:
-        print(f"Pack size: {detail}")
-    else:
-        print(f"Pack size: {detail}")
-        if size_bytes > _SIZE_LIMIT_BYTES:
-            print("::warning::Pack size exceeds 50MB threshold")
+        print(f"::error::{detail}", file=sys.stderr)
+        return EXIT_ERROR
+
+    print(f"Pack size: {detail}")
+    if size_bytes > _SIZE_LIMIT_BYTES:
+        print("::warning::Pack size exceeds 50MB threshold")
 
     return EXIT_OK
 

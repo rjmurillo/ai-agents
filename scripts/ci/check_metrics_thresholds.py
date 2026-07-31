@@ -3,11 +3,11 @@
 
 Runs collect_metrics.py --output json, parses the result, compares coverage
 and infrastructure-review rate against targets, and writes coverage,
-infra_rate, and alert to GITHUB_OUTPUT.
+infra_rate, and alert to GITHUB_OUTPUT when the env var is set.
 Replaces the "Check thresholds" step in agent-metrics.yml (issue #3531).
 
 EXIT CODES (ADR-035):
-  0  - Thresholds checked and outputs written
+  0  - Thresholds checked; outputs written when GITHUB_OUTPUT is set
   1  - collect_metrics.py failed or output unparseable
   2  - Usage error
 """

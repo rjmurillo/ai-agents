@@ -54,7 +54,7 @@ def validate_sarif_directory(results_dir: Path) -> tuple[bool, list[str]]:
             data = json.loads(sarif_file.read_text(encoding="utf-8"))
             print(f"  Version: {data['version']}")
             print(f"  Runs: {len(data['runs'])}")
-            print(f"  Results: {len(data['runs'][0]['results'])}")
+            print(f"  Results: {len(data['runs'][0].get('results', []))}")
 
     return not errors, errors
 

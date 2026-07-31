@@ -147,6 +147,19 @@ class TestMeasureNpmPackSize:
             size, _ = mnps.measure_pack_size(tmp_path)
         assert size is None
 
+    def test_npm_failure_main_returns_error(self, tmp_path: Path) -> None:
+        mock_fail = MagicMock(returncode=1, stdout="", stderr="npm ERR!")
+        with patch("subprocess.run", return_value=mock_fail):
+            rc = mnps.main(["--package-dir", str(tmp_path)])
+        assert rc == mnps.EXIT_ERROR
+
+    def test_bad_json_main_returns_error(self, tmp_path: Path) -> None:
+        mock_json = MagicMock(returncode=0, stdout="not json", stderr="")
+        mock_human = MagicMock(returncode=0, stdout="unknown\n", stderr="")
+        with patch("subprocess.run", side_effect=[mock_json, mock_human]):
+            rc = mnps.main(["--package-dir", str(tmp_path)])
+        assert rc == mnps.EXIT_ERROR
+
 
 # ---------------------------------------------------------------------------
 # verify_npm_published
@@ -206,7 +219,13 @@ class TestVerifyNpmPublished:
         assert rc == vp.EXIT_NOT_PUBLISHED
 
     def test_get_published_version_returns_empty_on_error(self) -> None:
-        mock_result = MagicMock(returncode=1, stdout="  \n  ", stderr="error")
+        mock_result = MagicMock(returncode=1, stdout="error: package not found\n", stderr="error")
         with patch("subprocess.run", return_value=mock_result):
             v = vp.get_published_version("@x/y", "1.0.0")
         assert v == ""
+
+    def test_get_published_version_returns_version_on_success(self) -> None:
+        mock_result = MagicMock(returncode=0, stdout="1.0.0\n", stderr="")
+        with patch("subprocess.run", return_value=mock_result):
+            v = vp.get_published_version("@x/y", "1.0.0")
+        assert v == "1.0.0"

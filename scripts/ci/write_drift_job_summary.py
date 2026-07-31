@@ -7,8 +7,7 @@ pass/fail summary with monitored paths.
 Replaces the "Write job summary" step in agent-drift-detection.yml (issue #3521).
 
 EXIT CODES (ADR-035):
-  0  - Summary written
-  1  - Missing GITHUB_STEP_SUMMARY
+  0  - Summary written to GITHUB_STEP_SUMMARY, or printed to stdout when unset
   2  - Usage error
 """
 
