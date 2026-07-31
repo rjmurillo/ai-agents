@@ -13,9 +13,7 @@
       "type": "milestone",
       "content": "Reproduced all four defects against the worktree base and re-read the code rather than trusting the triage fix plans",
       "caused_by": [],
-      "leads_to": [
-        "e007"
-      ]
+      "leads_to": []
     },
     {
       "id": "e002",
@@ -23,9 +21,7 @@
       "type": "milestone",
       "content": "Stored the whole judge payload and the model on every judge sample; renamed _judge_parse_failure to _salvaged_or_failed_judge",
       "caused_by": [],
-      "leads_to": [
-        "e007"
-      ]
+      "leads_to": []
     },
     {
       "id": "e003",
@@ -33,9 +29,7 @@
       "type": "milestone",
       "content": "Split the published average from the gated average at _mechanism_summary and routed the restraint, activation, and delta gates through avg_score_exact",
       "caused_by": [],
-      "leads_to": [
-        "e007"
-      ]
+      "leads_to": []
     },
     {
       "id": "e004",
@@ -43,9 +37,7 @@
       "type": "milestone",
       "content": "Carried judge_salvaged through _reduce_score_samples to the run summary and added --max-salvaged-fraction",
       "caused_by": [],
-      "leads_to": [
-        "e007"
-      ]
+      "leads_to": []
     },
     {
       "id": "e005",
@@ -53,9 +45,7 @@
       "type": "milestone",
       "content": "Revived test_dry_run_counts_repeated_judge_calls, found dead on the path",
       "caused_by": [],
-      "leads_to": [
-        "e007"
-      ]
+      "leads_to": []
     },
     {
       "id": "e006",
@@ -63,22 +53,33 @@
       "type": "milestone",
       "content": "Drafted ADR-091 for the recovery bounds and updated the two skill references plus the archive README",
       "caused_by": [],
-      "leads_to": [
-        "e007"
-      ]
+      "leads_to": []
     },
     {
       "id": "e007",
-      "timestamp": "2026-07-31T04:20:22+00:00",
+      "timestamp": "2026-07-31T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: a3bf87800",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Review round: committed ADR-091, stored judge_raw on the third salvage path in score_response, ranked best_mechanism on the unrounded average, disclosed the salvage rate in the rendered report, corrected the _delta_exact docstring, and kept the whole judge payload in eval-agents.py and eval-knowledge-integration.py",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "test",
+      "content": "Review round: committed ADR-091, stored judge_raw on the third salvage path in score_response, ranked best_mechanism on the unrounded average, disclosed the salvage rate in the rendered report, corrected the _delta_exact docstring, and kept the whole judge payload in eval-agents.py and eval-knowledge-integration.py      1728 passed, 3 skipped in tests/eval; ruff clean on every changed file. Mutation checks confirm each new test fails against the pre-fix code",
       "caused_by": [
-        "e001",
-        "e002",
-        "e003",
-        "e004",
-        "e005",
-        "e006"
+        "e007"
       ],
       "leads_to": []
     }
@@ -89,7 +90,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 3
+    "files_changed": 4
   },
   "lessons": []
 }
