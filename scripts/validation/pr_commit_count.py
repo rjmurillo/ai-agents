@@ -216,11 +216,12 @@ def _is_external_parent(parent: object, own_shas: set[str]) -> bool:
 def _external_non_first_parent_shas(commits: list[Any]) -> set[str]:
     """Collect SHAs of non-first parents that are not in the PR's own commit list.
 
-    The candidate set, not the decision. ``main_merge_evidence`` (line 291) is
-    the only consumer: it intersects these SHAs with origin/main's first-parent
-    trunk at line 299, and that intersection is what grants the relief.
-    ``contains_main_merge`` and ``count_pr_commits`` both reach it through that
-    one call, so this helper never decides anything on its own.
+    The candidate set, not the decision. ``main_merge_evidence`` is the only
+    consumer: it intersects these SHAs with origin/main's first-parent trunk
+    (``return ReliefEvidence(granted=bool(external_shas & trunk), ...)``) and
+    that intersection is what grants the relief. ``contains_main_merge`` and
+    ``count_pr_commits`` both reach it through that one call, so this helper
+    never decides anything on its own.
     """
     own_shas: set[str] = set()
     for commit in commits:
