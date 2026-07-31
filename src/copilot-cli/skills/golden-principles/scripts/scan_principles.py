@@ -4,6 +4,10 @@
 Checks repository files against mechanically enforced golden principles
 defined in .agents/governance/golden-principles.md.
 
+Core types, path utilities, model validation helpers, and git helpers live
+in ``scan_principles_core.py`` (split per issue #4028 to keep both files
+under the 500-line ceiling).
+
 Exit codes: 0 = clean, 1 = script error, 10 = violations detected.
 """
 
@@ -13,335 +17,40 @@ import argparse
 import json
 import os
 import re
-import subprocess
 import sys
-from dataclasses import dataclass, field
 from pathlib import Path
 
-EXIT_SUCCESS = 0
-EXIT_ERROR = 1
-EXIT_VIOLATIONS = 10
+# Allow sibling-module import of scan_principles_core when this script is run
+# directly or loaded via importlib (tests). The scripts directory is not a
+# package, so sys.path must include it for a bare ``import`` to resolve.
+_SCRIPTS_DIR = str(Path(__file__).resolve().parent)
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
 
-SUPPRESSION_PATTERN = re.compile(
-    r"#\s*golden-principle:\s*ignore\s+([\w-]+)",
-    re.IGNORECASE,
+from scan_principles_core import (  # noqa: E402
+    _AGENTS_PATH_PARTS,
+    _SKILLS_PATH_PARTS,
+    _WORKFLOWS_PATH_PARTS,
+    ALL_RULES,
+    EXIT_ERROR,
+    EXIT_SUCCESS,
+    EXIT_VIOLATIONS,
+    FIRST_PARTY_ACTIONS,
+    REQUIRED_SKILL_FIELDS,
+    SHA_PIN_PATTERN,
+    TAG_PIN_PATTERN,
+    ScanResult,
+    Violation,
+    _check_skill_model_adr080,
+    _has_path_parts,
+    check_agent_definition,
+    check_script_language,
+    get_diff_files,
+    get_repo_files,
+    has_suppression,
+    is_safe_path,
+    read_file_lines,
 )
-
-ALL_RULES = (
-    "script-language",
-    "skill-frontmatter",
-    "agent-definition",
-    "yaml-logic",
-    "actions-pinned",
-)
-
-REQUIRED_SKILL_FIELDS = ("name", "version", "description", "license")
-
-# ADR-080: skills inherit the harness model by default; model: is optional.
-# When present it must be a bare rolling alias (no versioned id) with a
-# model-rationale: field. Versioned ids like claude-opus-4-6 are forbidden.
-# Per ADR-080 rule 3, model-rationale is a cost exception: only an alias
-# priced below the harness default qualifies; in practice that is haiku.
-_ALLOWED_MODEL_ALIASES: frozenset[str] = frozenset({"sonnet", "opus", "haiku"})
-_COST_EXCEPTION_ALIASES: frozenset[str] = frozenset({"haiku"})
-_MODEL_FIELD_RE = re.compile(r"^model:\s*(.*?)\s*$", re.MULTILINE)
-
-AGENT_REQUIRED_SECTIONS = ("description", "model")
-
-# Path markers used to scope rules to their file-type domain. Defined once and
-# reused by every checker so the marker appears a single time, keeping the
-# upstream-path portability ratchet (issue #2050) at its existing baseline
-# instead of growing one ref per checker. These are membership tests against an
-# already-resolved filepath, not runtime path construction.
-_SKILLS_PATH_MARKER = ".claude/skills/"
-_AGENTS_PATH_MARKER = ".claude/agents/"
-_WORKFLOWS_PATH_MARKER = ".github/workflows/"
-
-# SHA pattern for pinned actions
-SHA_PIN_PATTERN = re.compile(r"uses:\s+[\w-]+/[\w.-]+@([a-f0-9]{40})")
-TAG_PIN_PATTERN = re.compile(r"uses:\s+([\w-]+/[\w.-]+)@(v[\d.]+|[\w.-]+)")
-FIRST_PARTY_ACTIONS = {"actions/checkout", "actions/setup-python", "actions/setup-node"}
-
-
-@dataclass
-class Violation:
-    """A detected principle violation with remediation."""
-
-    rule: str
-    principle: str
-    severity: str
-    file: str
-    line: int
-    message: str
-    remediation: str
-
-
-@dataclass
-class ScanResult:
-    """Scan result container."""
-
-    files_scanned: int = 0
-    applicable_files: int = 0
-    violations: list[Violation] = field(default_factory=list)
-
-    @property
-    def error_count(self) -> int:
-        return sum(1 for v in self.violations if v.severity == "error")
-
-    @property
-    def warning_count(self) -> int:
-        return sum(1 for v in self.violations if v.severity == "warning")
-
-
-def is_safe_path(filepath: str) -> bool:
-    """Check if a path is safe from path traversal attacks (CWE-22)."""
-    if os.path.isabs(filepath):
-        return True
-    parts = Path(filepath).parts
-    return ".." not in parts
-
-
-def _path_parts(filepath: str) -> tuple[str, ...]:
-    """Return path components with Windows separators normalized."""
-    return Path(filepath.replace("\\", "/")).parts
-
-
-def _marker_parts(marker: str) -> tuple[str, ...]:
-    """Return path marker components without adding duplicate path literals."""
-    return tuple(marker.strip("/").split("/"))
-
-
-def _has_path_parts(filepath: str, marker: tuple[str, ...]) -> bool:
-    """Return True when marker appears as contiguous path components."""
-    parts = _path_parts(filepath)
-    width = len(marker)
-    return any(parts[index : index + width] == marker for index in range(len(parts) - width + 1))
-
-
-def read_file_lines(filepath: str) -> list[str]:
-    """Read file lines, returning empty list on error."""
-    try:
-        with open(filepath, encoding="utf-8", errors="replace") as f:
-            return f.readlines()
-    except OSError:
-        return []
-
-
-def has_suppression(lines: list[str], rule: str) -> bool:
-    """Check if file has a suppression comment for the given rule."""
-    for line in lines[:10]:
-        match = SUPPRESSION_PATTERN.search(line)
-        if match and match.group(1) == rule:
-            return True
-    return False
-
-
-def get_repo_files(directory: str) -> list[str]:
-    """Recursively collect files, skipping hidden dirs except .claude, .agents, .github."""
-    files = []
-    for root, dirs, filenames in os.walk(directory):
-        dirs[:] = [
-            d for d in dirs if not d.startswith(".") or d in (".claude", ".agents", ".github")
-        ]
-        for filename in filenames:
-            filepath = os.path.join(root, filename)
-            if is_safe_path(filepath):
-                files.append(filepath)
-    return sorted(files)
-
-
-# Bound git subprocess calls so a hung or wedged git process cannot stall the
-# diff-scope pre-flight indefinitely.
-_GIT_TIMEOUT_SECONDS = 30
-
-
-def _git_root() -> str:
-    """Return the absolute path of the git working tree root.
-
-    Raises:
-        RuntimeError: git is unavailable, times out, or the command fails (for
-            example when run outside a repository). Surfacing the failure stops
-            the gate from silently anchoring diff paths to the wrong place and
-            scanning zero files.
-    """
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True,
-            check=True,
-            encoding="utf-8",
-            errors="ignore",
-            timeout=_GIT_TIMEOUT_SECONDS,
-        )
-    except FileNotFoundError as exc:
-        raise RuntimeError("git is not available to compute --diff-scope") from exc
-    except subprocess.TimeoutExpired as exc:
-        raise RuntimeError("git rev-parse --show-toplevel timed out") from exc
-    except subprocess.CalledProcessError as exc:
-        raise RuntimeError(f"git rev-parse --show-toplevel failed (exit {exc.returncode})") from exc
-    return result.stdout.strip()
-
-
-def get_diff_files(base: str) -> list[str]:
-    """Collect files changed in the diff against a base branch.
-
-    Derives the list from `git diff --name-only <base>...HEAD`. Path traversal
-    candidates (CWE-22) are dropped, paths are anchored to the git root so they
-    resolve regardless of the process working directory, and the result is
-    sorted.
-
-    Raises:
-        ValueError: ``base`` is empty or starts with ``-`` (CWE-88 argument
-            injection: a leading dash would be parsed by git as an option).
-        RuntimeError: git is unavailable or the diff command fails (for example
-            an unknown base). A git failure must not be mistaken for an empty
-            diff, which would let a standards pre-flight pass without scanning.
-    """
-    if not base or base.startswith("-"):
-        raise ValueError(f"invalid --diff-scope base: {base!r}")
-    root = _git_root()
-    try:
-        result = subprocess.run(
-            ["git", "diff", "--name-only", f"{base}...HEAD"],
-            capture_output=True,
-            check=True,
-            encoding="utf-8",
-            errors="ignore",
-            timeout=_GIT_TIMEOUT_SECONDS,
-        )
-    except FileNotFoundError as exc:
-        raise RuntimeError("git is not available to compute --diff-scope") from exc
-    except subprocess.TimeoutExpired as exc:
-        raise RuntimeError(f"git diff timed out for base {base!r}") from exc
-    except subprocess.CalledProcessError as exc:
-        raise RuntimeError(f"git diff failed for base {base!r} (exit {exc.returncode})") from exc
-    files = [f for f in result.stdout.splitlines() if f]
-    return sorted(os.path.join(root, f) for f in files if is_safe_path(f))
-
-
-def check_script_language(filepath: str, lines: list[str]) -> list[Violation]:
-    """GP-001: No new .sh or .bash files."""
-    suffix = Path(filepath).suffix
-    if suffix not in (".sh", ".bash"):
-        return []
-    if has_suppression(lines, "script-language"):
-        return []
-    return [
-        Violation(
-            rule="script-language",
-            principle="GP-001",
-            severity="error",
-            file=filepath,
-            line=0,
-            message=f"Shell script detected: {Path(filepath).name}",
-            remediation=(
-                "AGENT_REMEDIATION: Convert this shell script to Python per ADR-042.\n"
-                "  1. Create a new Python file with the same base name\n"
-                "  2. Use subprocess.run() for shell commands that have no Python equivalent\n"
-                "  3. Use pathlib.Path for file operations\n"
-                "  4. Add argparse for CLI arguments\n"
-                "  5. Delete the original shell script"
-            ),
-        )
-    ]
-
-
-def _check_skill_model_adr080(filepath: str, frontmatter: str) -> list[Violation]:
-    """ADR-080: validate model field in skill frontmatter when present.
-
-    Blank values, versioned ids, non-cost-exception aliases, and aliases
-    missing a rationale are all errors. Returns [] when model is absent or valid.
-    """
-    model_match = _MODEL_FIELD_RE.search(frontmatter)
-    if not model_match:
-        return []
-    model_value = model_match.group(1).strip()
-    if model_value == "":
-        return [
-            Violation(
-                rule="skill-frontmatter",
-                principle="GP-003",
-                severity="error",
-                file=filepath,
-                line=1,
-                message=(
-                    "SKILL.md model field violates ADR-080: blank value;"
-                    " omit the model: field to inherit the harness default"
-                ),
-                remediation=(
-                    "AGENT_REMEDIATION: Per ADR-080, omitting model: inherits the harness"
-                    " default, which is the correct default for skills.\n"
-                    "  Remove the empty model: line."
-                ),
-            )
-        ]
-    if model_value not in _ALLOWED_MODEL_ALIASES:
-        return [
-            Violation(
-                rule="skill-frontmatter",
-                principle="GP-003",
-                severity="error",
-                file=filepath,
-                line=1,
-                message=(
-                    f"SKILL.md model field violates ADR-080: '{model_value}' is a versioned"
-                    " id; use a rolling alias (sonnet / opus / haiku) or omit the field"
-                ),
-                remediation=(
-                    "AGENT_REMEDIATION: Per ADR-080, skills must not carry a versioned"
-                    " model id.\n"
-                    "  Remove the model: field to inherit the harness default, or use a"
-                    " rolling alias with a cost rationale:\n"
-                    "    model: haiku\n"
-                    "    model-rationale: Cost-sensitive; haiku suffices for this task."
-                ),
-            )
-        ]
-    if model_value not in _COST_EXCEPTION_ALIASES:
-        return [
-            Violation(
-                rule="skill-frontmatter",
-                principle="GP-003",
-                severity="error",
-                file=filepath,
-                line=1,
-                message=(
-                    f"SKILL.md model field violates ADR-080: '{model_value}' is not a"
-                    " cost-exception alias; per ADR-080 rule 3, only 'haiku' resolves"
-                    " to a version priced below the harness default"
-                ),
-                remediation=(
-                    "AGENT_REMEDIATION: Per ADR-080 rule 3, model-rationale is a cost"
-                    " exception only for haiku.\n"
-                    "  Omit the model: field to inherit the harness default, or replace"
-                    " with haiku if this skill needs cost-tier pricing:\n"
-                    "    model: haiku\n"
-                    "    model-rationale: Cost-sensitive; haiku suffices for this task."
-                ),
-            )
-        ]
-    if "model-rationale:" not in frontmatter:
-        return [
-            Violation(
-                rule="skill-frontmatter",
-                principle="GP-003",
-                severity="error",
-                file=filepath,
-                line=1,
-                message=(
-                    f"SKILL.md model field violates ADR-080: alias '{model_value}'"
-                    " requires a model-rationale: field"
-                ),
-                remediation=(
-                    "AGENT_REMEDIATION: Per ADR-080, a rolling alias requires a cost"
-                    " rationale.\n"
-                    "  Add model-rationale: explaining why this skill uses a cheaper"
-                    " model:\n"
-                    "    model-rationale: Cost-sensitive; haiku suffices for this task."
-                ),
-            )
-        ]
-    return []
 
 
 def check_skill_frontmatter(filepath: str, lines: list[str]) -> list[Violation]:
@@ -353,7 +62,7 @@ def check_skill_frontmatter(filepath: str, lines: list[str]) -> list[Violation]:
     ids (e.g. claude-opus-4-6) are forbidden for skills.
     """
     if not filepath.endswith("SKILL.md") or not _has_path_parts(
-        filepath, _marker_parts(_SKILLS_PATH_MARKER)
+        filepath, _SKILLS_PATH_PARTS
     ):
         return []
     if has_suppression(lines, "skill-frontmatter"):
@@ -423,62 +132,6 @@ def check_skill_frontmatter(filepath: str, lines: list[str]) -> list[Violation]:
     return []
 
 
-def check_agent_definition(filepath: str, lines: list[str]) -> list[Violation]:
-    """GP-004: Agent definitions must have required frontmatter."""
-    if not filepath.endswith(".md"):
-        return []
-    if not _has_path_parts(filepath, _marker_parts(_AGENTS_PATH_MARKER)):
-        return []
-    if Path(filepath).name in ("CLAUDE.md",):
-        return []
-    if has_suppression(lines, "agent-definition"):
-        return []
-
-    content = "".join(lines)
-    if not content.startswith("---"):
-        return [
-            Violation(
-                rule="agent-definition",
-                principle="GP-004",
-                severity="error",
-                file=filepath,
-                line=1,
-                message="Agent definition missing YAML frontmatter",
-                remediation=(
-                    "AGENT_REMEDIATION: Add YAML frontmatter with required fields.\n"
-                    "  ---\n"
-                    "  name: agent-name\n"
-                    "  description: What the agent does\n"
-                    "  model: sonnet\n"
-                    "  ---"
-                ),
-            )
-        ]
-
-    parts = content.split("---", 2)
-    if len(parts) < 3:
-        return []
-
-    frontmatter = parts[1]
-    missing = [f for f in AGENT_REQUIRED_SECTIONS if f"{f}:" not in frontmatter]
-    if missing:
-        return [
-            Violation(
-                rule="agent-definition",
-                principle="GP-004",
-                severity="warning",
-                file=filepath,
-                line=1,
-                message=f"Agent definition missing fields: {', '.join(missing)}",
-                remediation=(
-                    "AGENT_REMEDIATION: Add the missing frontmatter fields:\n"
-                    + "\n".join(f"  {f}: <value>" for f in missing)
-                ),
-            )
-        ]
-    return []
-
-
 def _find_long_run_blocks(lines: list[str]) -> list[tuple[int, int]]:
     """Find multiline run blocks exceeding 5 lines. Returns (start_line, count) pairs."""
     blocks = []
@@ -506,7 +159,7 @@ def _find_long_run_blocks(lines: list[str]) -> list[tuple[int, int]]:
 
 def check_yaml_logic(filepath: str, lines: list[str]) -> list[Violation]:
     """GP-005: No inline logic in workflow YAML."""
-    if not _has_path_parts(filepath, _marker_parts(_WORKFLOWS_PATH_MARKER)):
+    if not _has_path_parts(filepath, _WORKFLOWS_PATH_PARTS):
         return []
     if Path(filepath).suffix not in (".yml", ".yaml"):
         return []
@@ -537,7 +190,7 @@ def _yaml_logic_violation(filepath: str, line: int, count: int) -> Violation:
 
 def check_actions_pinned(filepath: str, lines: list[str]) -> list[Violation]:
     """GP-006: GitHub Actions must be pinned to SHA."""
-    if not _has_path_parts(filepath, _marker_parts(_WORKFLOWS_PATH_MARKER)):
+    if not _has_path_parts(filepath, _WORKFLOWS_PATH_PARTS):
         return []
     suffix = Path(filepath).suffix
     if suffix not in (".yml", ".yaml"):
@@ -609,16 +262,16 @@ def _is_applicable(filepath: str) -> bool:
 
     if suffix in (".sh", ".bash"):
         return True
-    if name == "SKILL.md" and _has_path_parts(filepath, _marker_parts(_SKILLS_PATH_MARKER)):
+    if name == "SKILL.md" and _has_path_parts(filepath, _SKILLS_PATH_PARTS):
         return True
     if (
         suffix == ".md"
-        and _has_path_parts(filepath, _marker_parts(_AGENTS_PATH_MARKER))
+        and _has_path_parts(filepath, _AGENTS_PATH_PARTS)
         and name != "CLAUDE.md"
     ):
         return True
     if suffix in (".yml", ".yaml") and _has_path_parts(
-        filepath, _marker_parts(_WORKFLOWS_PATH_MARKER)
+        filepath, _WORKFLOWS_PATH_PARTS
     ):
         return True
     return False
