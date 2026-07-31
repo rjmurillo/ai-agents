@@ -10,4 +10,4 @@ Guards that assert an invariant on shipped artifacts must fail loud. A silent ex
 
 ## Why one dispatcher per event (ADR-068)
 
-The dispatcher originated in Copilot CLI 1.0.57-era matcher and timeout behavior. Copilot CLI 1.0.72-1 honors supported matchers and fails open on timeout, but one dispatcher per event remains the compatibility fallback and single-producer boundary for PermissionRequest translation. Harness details are owned by `agent-harness-reference`. Issue #3218 owns removal or simplification of the transitional dispatcher.
+The dispatcher originated in Copilot CLI 1.0.57-era matcher and timeout behavior. Copilot CLI 1.0.72-1 honors supported matchers and fails open on timeout, but one dispatcher per event remains the compatibility fallback and single-producer boundary for PermissionRequest translation. Harness details are owned by `agent-harness-reference`. Issue #3218 closed after verifying the expansion seam, matcher union, and parity tests remain on the live generation path. Removing them now requires a new architecture decision, not technical-debt cleanup.

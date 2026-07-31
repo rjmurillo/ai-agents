@@ -57,7 +57,7 @@ Direction rule: generators read canonical, write mirrors. They NEVER write `.cla
 | Memory skill decomposition into tiers | ADR-063, amended by ADR-089 | Accepted; ADR-089 proposed | Tier 1 semantic (Serena plus Forgetful search), Tier 2 episodic. ADR-063's Tier 3 causal graph was removed: nothing read it |
 | Hook failure policy: prevention-first, fail-closed-and-loud | ADR-066 | Accepted (2026-07-19) | Launcher fail-open hid a broken hook from every customer for 33 days |
 | Plugin hook runtime-contract verification | ADR-071 | Accepted (six-agent adr-review) | Vendor docs were wrong by omission twice; contracts are tested, not assumed |
-| Consolidated per-event hook dispatcher for Copilot CLI | ADR-068 | Accepted (2026-07-19); transitional after the 2026-07-22 hook purge | Historical matcher and timeout behavior made one process per shim unsafe; #3218 owns removal or simplification |
+| Consolidated per-event hook dispatcher for Copilot CLI | ADR-068 | Accepted (2026-07-19); rationale narrowed after the 2026-07-22 hook purge | Historical matcher and timeout behavior made one process per shim unsafe; #3218 closed after confirming the generation machinery remains live |
 | JTBD plugin slicing, per-harness emission | ADR-072 | Proposed, five approval conditions unmet, "No code moves on this ADR alone" | Plugins are sliced by directory today, not by job-to-be-done |
 | Context corpus is the product | ADR-069 | Proposed | Thesis only; do not cite as settled |
 | LSP-first navigation (static steering) | ADR-062 | Amended 2026-07; runtime enforcement retired (#3216) | Symbol queries beat grep on token cost |
