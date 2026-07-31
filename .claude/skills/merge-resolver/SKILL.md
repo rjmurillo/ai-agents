@@ -70,7 +70,7 @@ If shell execution is unavailable, do NOT produce a step-by-step resolution plan
 | 2.2 | Auto-resolve known patterns (accept `--theirs`) | Files staged cleanly |
 | 2.3 | For manual files: run `git blame`, analyze intent | Commit messages captured |
 | 2.4 | Apply manual resolutions per decision framework | Conflict markers removed |
-| 2.5 | Stage all resolved files | `git diff --check` clean |
+| 2.5 | Stage all resolved files | `verify_no_conflict_markers.py` exits 0 |
 
 ### Phase 3: Validation (BLOCKING)
 
@@ -191,7 +191,9 @@ Verifies that resolution is complete: no still-unmerged (UU) files and no leftov
 python3 .claude/skills/merge-resolver/scripts/verify_no_conflict_markers.py [--cwd PATH] [--json]
 ```
 
-Uses `git diff HEAD --check` (catches leftover markers in working tree + index) plus `git diff --name-only --diff-filter=U` (catches files still unmerged). Both inspect in-flight changes only, so committed historical content is intentionally ignored.
+Uses `git diff <ref> --check` (catches leftover markers in working tree + index) plus `git diff --name-only --diff-filter=U` (catches files still unmerged). Both inspect in-flight changes only, so content already committed on `<ref>` is ignored.
+
+During a merge, `HEAD` is the topic tip, so a single-ref check reports everything the incoming branch brought along as newly added (issue #4058). The script instead intersects the `HEAD` diff with the `MERGE_HEAD` diff on `file:line`, which excludes content committed on either parent and leaves only markers the resolution itself introduced. Do not substitute a bare `git diff --check` or `git diff HEAD --check`; neither is merge-aware.
 
 **Exit codes:**
 
@@ -221,8 +223,8 @@ Uses `git diff HEAD --check` (catches leftover markers in working tree + index) 
 
 | Criterion | Evidence |
 |-----------|----------|
-| All conflicts resolved | `git diff --check` returns empty |
-| No merge markers remain | `python3 .claude/skills/merge-resolver/scripts/verify_no_conflict_markers.py` exits 0 (uses `git diff HEAD --check` + `git diff --diff-filter=U`; ignores intentional fenced examples in committed docs -- issue #2424) |
+| All conflicts resolved | `python3 .claude/skills/merge-resolver/scripts/verify_no_conflict_markers.py` exits 0 |
+| No merge markers remain | Same script (merge-aware `--check` intersection + `git diff --diff-filter=U`; ignores fenced examples committed on either merge parent -- issues #2424, #4058) |
 | Session protocol valid | `validate_session_json.py` exits 0 |
 | Markdown lint passes | `npx markdownlint-cli2` exits 0 |
 | Push successful | Remote ref updated |

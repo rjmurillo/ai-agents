@@ -156,13 +156,11 @@ Apply these combination rules:
 ```bash
 # Stage resolved files
 git add <resolved-files>
-
-# Verify no remaining conflict markers
-git diff --check
-
-# Verify no merge markers in any file
-grep -r "<<<<<<" . --include="*.py" --include="*.md" --include="*.ps1"
 ```
+
+Then verify with the merge-resolver skill's `verify_no_conflict_markers.py` in this install. Exit 0 means no unmerged files and no leftover markers.
+
+It is merge-aware: mid-merge it intersects the `HEAD` and `MERGE_HEAD` results of `git diff --check`, so anything already committed on either merge parent is excluded and only markers the resolution introduced are reported. Do not substitute a bare `git diff --check` (not merge-aware, and vacuous once files are staged) or a `grep -r "<<<<<<"` sweep. Both false-fail on fenced examples that the incoming branch carries (issues #2424, #4058).
 
 ### Phase 6: Resolution Report
 
