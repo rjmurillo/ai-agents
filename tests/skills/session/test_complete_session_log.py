@@ -215,6 +215,24 @@ class TestSerenaMemoryUpdated:
         mock_run.side_effect = _side_effect
         assert complete_session_log._test_serena_memory_updated("abc1234") is False
 
+    @patch("complete_session_log.subprocess.run")
+    def test_memories_backup_dir_not_detected(self, mock_run):
+        """Path .serena/memories_backup must not be confused with .serena/memories/."""
+        mock_run.return_value = MagicMock(returncode=0, stdout=".serena/memories_backup/old.md\n")
+        assert complete_session_log._test_serena_memory_updated() is False
+
+    @patch("complete_session_log.subprocess.run")
+    def test_memories_backup_in_git_log_not_detected(self, mock_run):
+        """committed .serena/memories_backup changes must not fire the check."""
+
+        def _side_effect(cmd, **kwargs):
+            if "log" in cmd:
+                return MagicMock(returncode=0, stdout=".serena/memories_backup/old.md\n")
+            return MagicMock(returncode=0, stdout="")
+
+        mock_run.side_effect = _side_effect
+        assert complete_session_log._test_serena_memory_updated("abc1234") is False
+
 
 class TestUncommittedChanges:
     """Tests for _test_uncommitted_changes function."""

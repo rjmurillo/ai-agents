@@ -1939,8 +1939,14 @@ def validate_metrics_consistency(metrics: Any) -> list[str]:
     """
     if not isinstance(metrics, dict):
         return []
-    commits = metrics.get("commits", 0)
-    files_changed = metrics.get("files_changed", 0)
+    try:
+        commits = int(metrics.get("commits") or 0)
+    except (TypeError, ValueError):
+        commits = 0
+    try:
+        files_changed = int(metrics.get("files_changed") or 0)
+    except (TypeError, ValueError):
+        files_changed = 0
     if commits == 0 and files_changed > 0:
         return [
             f"metrics.commits==0 but metrics.files_changed=={files_changed};"

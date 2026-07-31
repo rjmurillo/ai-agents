@@ -2851,6 +2851,40 @@ class TestValidateMetricsConsistency:
         assert extract_session_episode.validate_metrics_consistency(None) == []
         assert extract_session_episode.validate_metrics_consistency([]) == []
 
+    def test_string_files_changed_does_not_raise(self):
+        """Non-int files_changed must not raise TypeError."""
+        result = extract_session_episode.validate_metrics_consistency(
+            {"commits": 0, "files_changed": "7"}
+        )
+        assert any("commits==0" in p for p in result)
+
+    def test_none_files_changed_does_not_raise(self):
+        """None files_changed must not raise TypeError."""
+        assert (
+            extract_session_episode.validate_metrics_consistency(
+                {"commits": 0, "files_changed": None}
+            )
+            == []
+        )
+
+    def test_string_commits_does_not_raise(self):
+        """Non-int commits must not raise TypeError."""
+        assert (
+            extract_session_episode.validate_metrics_consistency(
+                {"commits": "1", "files_changed": "5"}
+            )
+            == []
+        )
+
+    def test_unparseable_values_treated_as_zero(self):
+        """Unparseable metric values default to zero, no crash."""
+        assert (
+            extract_session_episode.validate_metrics_consistency(
+                {"commits": "bad", "files_changed": "also-bad"}
+            )
+            == []
+        )
+
     def test_validate_episode_file_includes_metrics_check(self, tmp_path):
         """validate_episode_file surfaces metrics violations end to end."""
         ep = tmp_path / "episode-bad-metrics.json"

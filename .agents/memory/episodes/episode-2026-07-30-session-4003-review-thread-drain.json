@@ -1,0 +1,36 @@
+{
+  "id": "episode-2026-07-30-session-4003-review-thread-drain",
+  "session": "2026-07-30-session-4003-review-thread-drain",
+  "timestamp": "2026-07-30T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Drain unresolved review threads on PR #4003",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix 5 review threads on PR #4003",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: b66fc31a9",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 9
+  },
+  "lessons": []
+}
