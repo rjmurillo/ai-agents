@@ -54,11 +54,34 @@ Exit 2 is not "guidance available" on every event:
 The recall hook returned 2 on every match. Registering it unchanged would have
 erased the user's prompt on every turn a memory matched. It now writes to stdout
 and returns 0. The reflection hook also returned 2; SessionEnd cannot inject, so
-it returns 0 and its value is the confidence scores `reinforce_memories`
-persists.
+it returns 0 and the health summary on stderr is its whole output.
+
+## Registration turns a dormant writer into a live one
+
+`reinforce_memories` round-tripped every memory through `save_memory` to persist
+a confidence score. Nothing had ever called it outside pytest. Registering the
+SessionEnd hook made the first real session end rewrite 879 tracked files and
+delete 828 lines of `## Links` cross-references. The write also bought nothing:
+confidence is a pure function of citation validity, age, recency, and link
+count, recomputed on every read in `search._score_memory_file`, and no reader
+consumed the stored value. It is gone; the hook scores and reports.
+
+Before registering a dormant code path, ask what it writes and how many files it
+touches on its first live run. A test corpus of one file cannot answer that.
 
 Also: `post_tool_call_memory` read `data["result"]`. Claude Code sends the output
 under `tool_response`. The hook was inert against a real payload until that was
-fixed.
+fixed. Its success path then fired on any output containing `.py` or `.md`, so
+roughly 40% of ordinary tool calls injected an empty suggestion; only failures
+are worth an interrupt.
+
+## The registered interpreter is part of the contract
+
+`settings.json` says `python3`. Every pre-existing hook there is stdlib-only, so
+that worked. Recall and reflection import `python-frontmatter`, which lives only
+in the uv virtualenv, so both exited 0 having done nothing while
+`tests/test_memory_hook_registration.py` passed green against `sys.executable`.
+`memory_enhancement.interpreter` re-execs under `.venv`, and the test now launches
+the command settings.json names with `VIRTUAL_ENV` stripped from `PATH`.
 
 Related: `mem:pr-3284-memory-hook-bundling`, `mem:decision-claude-hook-group-dispatch`
