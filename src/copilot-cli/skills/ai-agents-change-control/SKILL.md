@@ -126,6 +126,6 @@ Before you push, confirm:
 
 ## Provenance and Maintenance
 
-Verified against the working tree on 2026-07-03. A selected index of the drift-prone cited source lines, each paired with its re-verify command, is in `references/provenance.md`. Consult and update it when you edit this skill or any reference it points to.
+Authored 2026-07-03, facts re-verified against the working tree on 2026-07-30. A selected index of the drift-prone cited source lines, each paired with its re-verify command, is in `references/provenance.md`. Consult and update it when you edit this skill or any reference it points to.
 
 Maintenance rule: any edit to a cited source line number, plugin version, or ADR status invalidates the matching row. Re-run the re-verify command and update the row in the same commit. This file is plugin content; editing it requires bumping both `.claude/.claude-plugin/plugin.json` and `src/copilot-cli/.claude-plugin/plugin.json` (parity enforced by `build/scripts/check_plugin_manifest_parity.py`).
