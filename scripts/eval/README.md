@@ -169,7 +169,17 @@ baseline by ≥0.5. `full` cannot rescue a failed description route. Any judge/A
 overriding the score-based gate. A scenarios file that contains no positive
 cases (only `skip-rule-not-applicable` scenarios) yields `NO_POSITIVE_CASES`,
 also a failing verdict because activation cannot be validated by negative
-cases alone.
+cases alone. That case is refused earlier and more cheaply: validation rejects
+a file with no positive scenario, and with an empty scenario list, before any
+API call, so the pull request dry run catches it for free.
+
+The process exit code names which kind of thing went wrong: 0 clean, 1 a rule
+that underperformed, 2 a configuration problem, 3 an external or API failure.
+`NO_POSITIVE_CASES` is a 2, not a 1. It reports that the scenario file cannot
+validate activation and says nothing at all about the rule, so reporting it as
+a rule failure would attach a verdict to a population the run never measured.
+A run reduces these codes with `max()`, so the worst outcome across all targets
+decides the exit and adding a target can never improve it.
 
 Per-rule or per-reference scenario files live in `tests/evals/rule-scenarios/{rule}.json`:
 

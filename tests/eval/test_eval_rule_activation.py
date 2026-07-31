@@ -275,27 +275,58 @@ class TestLoadScenariosFile:
 
     def test_rejects_missing_rule_path(self, tmp_path: Path):
         f = tmp_path / "no_rule_path.json"
-        f.write_text(json.dumps({"scenarios": []}), encoding="utf-8")
-        result = eval_mod._load_scenarios_file(str(f))
-        assert result == 2
-
-    def test_rejects_path_outside_rules_dir(self, tmp_path: Path):
-        # Path resolves inside the repo but outside .claude/rules/
-        f = tmp_path / "outside_rules.json"
         f.write_text(
-            json.dumps({"rule_path": "AGENTS.md", "scenarios": []}),
+            json.dumps(
+                {
+                    "scenarios": [
+                        {
+                            "id": "S1",
+                            "input": "x",
+                            "expected_gate": "invert-dependency",
+                        }
+                    ]
+                }
+            ),
             encoding="utf-8",
         )
         result = eval_mod._load_scenarios_file(str(f))
         assert result == 2
 
-    def test_rejects_path_traversal(self, tmp_path: Path):
+    def test_rejects_path_outside_rules_dir(self, tmp_path: Path, capsys):
+        # Path resolves inside the repo but outside .claude/rules/
+        f = tmp_path / "outside_rules.json"
+        f.write_text(
+            json.dumps(
+                {
+                    "rule_path": "AGENTS.md",
+                    "scenarios": [
+                        {
+                            "id": "S1",
+                            "input": "x",
+                            "expected_gate": "invert-dependency",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        result = eval_mod._load_scenarios_file(str(f))
+        assert result == 2
+        assert "under .claude/rules/" in capsys.readouterr().err
+
+    def test_rejects_path_traversal(self, tmp_path: Path, capsys):
         f = tmp_path / "traversal.json"
         f.write_text(
             json.dumps(
                 {
                     "rule_path": "../../etc/passwd",
-                    "scenarios": [],
+                    "scenarios": [
+                        {
+                            "id": "S1",
+                            "input": "x",
+                            "expected_gate": "invert-dependency",
+                        }
+                    ],
                 }
             ),
             encoding="utf-8",
@@ -328,7 +359,13 @@ class TestLoadScenariosFile:
                 {
                     "rule_path": ".claude/rules/unified-software-engineering.md",
                     "rule_id": "unified-software-engineering",
-                    "scenarios": [],
+                    "scenarios": [
+                        {
+                            "id": "S1",
+                            "input": "x",
+                            "expected_gate": "invert-dependency",
+                        }
+                    ],
                 }
             ),
             encoding="utf-8",
@@ -352,7 +389,13 @@ class TestLoadScenariosFile:
                         "references/working-with-legacy-code.md"
                     ),
                     "rule_id": "working-with-legacy-code",
-                    "scenarios": [],
+                    "scenarios": [
+                        {
+                            "id": "S1",
+                            "input": "x",
+                            "expected_gate": "invert-dependency",
+                        }
+                    ],
                 }
             ),
             encoding="utf-8",
@@ -367,20 +410,29 @@ class TestLoadScenariosFile:
         assert reference_path is not None
         assert reference_path.name == "working-with-legacy-code.md"
 
-    def test_rejects_skill_reference_outside_reference_directory(self, tmp_path: Path):
+    def test_rejects_skill_reference_outside_reference_directory(
+        self, tmp_path: Path, capsys
+    ):
         f = tmp_path / "bad_skill_ref.json"
         f.write_text(
             json.dumps(
                 {
                     "skill_path": ".claude/skills/software-engineering-library/SKILL.md",
                     "reference_path": ".claude/skills/autoplan/SKILL.md",
-                    "scenarios": [],
+                    "scenarios": [
+                        {
+                            "id": "S1",
+                            "input": "x",
+                            "expected_gate": "invert-dependency",
+                        }
+                    ],
                 }
             ),
             encoding="utf-8",
         )
 
         assert eval_mod._load_scenarios_file(str(f)) == 2
+        assert "references/" in capsys.readouterr().err
 
 
 def _assert_fixture_routes_to_library(rule_id: str) -> None:
@@ -6175,3 +6227,417 @@ class TestTheShippedTemplateTeachesTheDocumentedSchema:
     def test_the_template_demonstrates_a_negative_case(self):
         gates = [s.get("expected_gate") for s in self._template()["scenarios"]]
         assert any(eval_mod._is_negative_gate(g) for g in gates)
+
+
+class TestTheExitCodeNamesWhatActuallyWentWrong:
+    """A config problem and a rule failure must not share an exit code."""
+
+    def test_a_clean_run_exits_zero(self):
+        assert eval_mod._classify_verdict("PASS") == 0
+
+    def test_no_positive_cases_is_a_config_error_not_a_rule_failure(self):
+        """It reports on the scenario file, and nothing at all about the rule.
+
+        Exit 1 would claim the rule underperformed. The run never measured
+        the rule, so that claim has no population behind it.
+        """
+        assert eval_mod._classify_verdict("NO_POSITIVE_CASES") == 2
+
+    def test_a_judge_failure_stays_external(self):
+        assert eval_mod._classify_verdict("FAIL_JUDGE_ERRORS") == 3
+
+    @pytest.mark.parametrize(
+        "verdict",
+        [
+            "FAIL_THRESHOLD",
+            "FAIL_NO_DELTA",
+            "FAIL_OVER_ACTIVATION",
+            "FAIL_NEGATIVE_INCOMPLETE",
+            "FAIL_POSITIVE_INCOMPLETE",
+            "FAIL_ROUTE_MISSED_TARGET",
+            "NO_RESULT",
+        ],
+    )
+    def test_every_measured_failure_is_a_logic_failure(self, verdict):
+        assert eval_mod._classify_verdict(verdict) == 1
+
+    def test_an_unknown_verdict_is_not_silently_a_pass(self):
+        """A verdict added later must fail loudly, not default to success."""
+        assert eval_mod._classify_verdict("SOME_FUTURE_VERDICT") != 0
+
+
+class TestAFileWithNoPositiveCaseIsRefusedBeforeSpend:
+    """Only a positive case can show a rule activating."""
+
+    NEG = "skip-rule-not-applicable"
+
+    def _data(self, gates):
+        return {
+            "scenarios": [
+                {"id": f"S{i}", "input": "x", "expected_gate": g}
+                for i, g in enumerate(gates)
+            ]
+        }
+
+    def test_an_all_negative_file_is_refused(self, tmp_path):
+        code = eval_mod._validate_scenarios_shape(
+            self._data([self.NEG, self.NEG]), tmp_path / "s.json"
+        )
+        assert code == 2
+
+    def test_the_refusal_names_the_sentinel_and_the_remedy(self, tmp_path, capsys):
+        eval_mod._validate_scenarios_shape(
+            self._data([self.NEG]), tmp_path / "s.json"
+        )
+        err = capsys.readouterr().err
+        assert self.NEG in err
+        assert "NO_POSITIVE_CASES" in err
+
+    def test_an_empty_scenario_list_is_refused(self, tmp_path):
+        assert eval_mod._validate_scenarios_shape(
+            {"scenarios": []}, tmp_path / "s.json"
+        ) == 2
+
+    def test_one_positive_case_is_enough(self, tmp_path):
+        assert eval_mod._validate_scenarios_shape(
+            self._data(["invert-dependency", self.NEG]), tmp_path / "s.json"
+        ) is None
+
+    def test_a_near_miss_of_the_sentinel_is_still_refused_as_a_near_miss(
+        self, tmp_path, capsys
+    ):
+        """The gate guard must fire first, or a typo would count as positive."""
+        code = eval_mod._validate_scenarios_shape(
+            self._data(["skipp-rule-not-applicable"]), tmp_path / "s.json"
+        )
+        assert code == 2
+        assert "near miss" in capsys.readouterr().err
+
+    def test_the_dry_run_catches_it_before_any_call(self, tmp_path):
+        skill = REPO_ROOT / ".claude/skills/software-engineering-library/SKILL.md"
+        if not skill.is_file():
+            pytest.skip("software-engineering-library not present in this checkout")
+        path = tmp_path / "allneg.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "skill_path": ".claude/skills/software-engineering-library/SKILL.md",
+                    "reference_path": (
+                        ".claude/skills/software-engineering-library"
+                        "/references/clean-architecture.md"
+                    ),
+                    "rule_id": "all-negative",
+                    "scenarios": [
+                        {"id": "N1", "input": "x", "expected_gate": self.NEG}
+                    ],
+                }
+            )
+        )
+        args = argparse.Namespace(
+            dry_run=True,
+            judge_repeats=0,
+            judge_reducer="median",
+            seed=None,
+            model="m",
+            verbose=False,
+        )
+        results: dict[str, Any] = {"rules": {}}
+        code = eval_mod._process_scenario_file(
+            str(path), "sk-test", args, results, eval_mod._RunState()
+        )
+        assert code == 2
+        assert results["rules"] == {}
+
+
+class TestEveryShippedScenarioFileCanValidateActivation:
+    """The corpus the workflow runs must survive its own validator."""
+
+    @staticmethod
+    def _shipped():
+        directory = REPO_ROOT / "tests" / "evals" / "rule-scenarios"
+        if not directory.is_dir():
+            pytest.skip("rule-scenarios corpus not present in this checkout")
+        return sorted(directory.glob("*.json"))
+
+    def test_the_corpus_is_not_empty(self):
+        assert self._shipped()
+
+    def test_every_shipped_file_declares_a_positive_case(self):
+        for path in self._shipped():
+            data = json.loads(path.read_text())
+            assert eval_mod._validate_scenarios_shape(data, path) is None, path
+
+    def test_every_shipped_file_declares_a_negative_case(self):
+        """Restraint is half the measurement; losing it would go unnoticed."""
+        for path in self._shipped():
+            gates = [
+                s.get("expected_gate", "")
+                for s in json.loads(path.read_text())["scenarios"]
+            ]
+            assert any(
+                eval_mod._is_negative_gate(eval_mod._normalize_gate(g)) for g in gates
+            ), path
+
+
+class TestTheRunAccumulatesTheWorstOutcomeItSaw:
+    """Drives the real accumulation, not a local re-implementation of it.
+
+    An earlier version of these tests recomputed max() in the test body. That
+    passes even when the shipped reduction is deleted, which is a claim of
+    coverage the tests did not have.
+    """
+
+    @staticmethod
+    def _args():
+        return argparse.Namespace(
+            dry_run=False,
+            judge_repeats=1,
+            judge_reducer="median",
+            seed=None,
+            model="m",
+            verbose=False,
+            output=None,
+        )
+
+    def _file(self, tmp_path, name="s.json"):
+        rule = REPO_ROOT / ".claude/rules/unified-software-engineering.md"
+        if not rule.is_file():
+            pytest.skip("unified-software-engineering.md not present")
+        path = tmp_path / name
+        path.write_text(
+            json.dumps(
+                {
+                    "rule_path": ".claude/rules/unified-software-engineering.md",
+                    "rule_id": name.split(".")[0],
+                    "scenarios": [
+                        {"id": "S1", "input": "x", "expected_gate": "invert-dependency"}
+                    ],
+                }
+            )
+        )
+        return str(path)
+
+    def _run(self, tmp_path, monkeypatch, verdicts):
+        """Feed one canned verdict per scenario file through the real loop."""
+        queue = list(verdicts)
+
+        def fake_process_one_rule(api_key, scenarios_data, target_paths, args):
+            return (
+                scenarios_data["rule_id"],
+                {"summary": {"verdict": queue.pop(0)}},
+                0,
+            )
+
+        monkeypatch.setattr(eval_mod, "_process_one_rule", fake_process_one_rule)
+        state = eval_mod._RunState()
+        results: dict[str, Any] = {"rules": {}}
+        for idx in range(len(verdicts)):
+            code = eval_mod._process_scenario_file(
+                self._file(tmp_path, f"f{idx}.json"),
+                "key",
+                self._args(),
+                results,
+                state,
+            )
+            assert code is None
+        return state
+
+    def test_a_passing_run_leaves_the_exit_clean(self, tmp_path, monkeypatch):
+        assert self._run(tmp_path, monkeypatch, ["PASS"]).worst_exit == 0
+
+    def test_a_misconfigured_file_surfaces_as_a_config_exit(
+        self, tmp_path, monkeypatch
+    ):
+        assert self._run(tmp_path, monkeypatch, ["NO_POSITIVE_CASES"]).worst_exit == 2
+
+    def test_a_later_pass_does_not_erase_an_earlier_failure(
+        self, tmp_path, monkeypatch
+    ):
+        state = self._run(tmp_path, monkeypatch, ["FAIL_THRESHOLD", "PASS"])
+        assert state.worst_exit == 1
+
+    def test_a_config_error_is_not_hidden_by_a_rule_failure(
+        self, tmp_path, monkeypatch
+    ):
+        state = self._run(tmp_path, monkeypatch, ["FAIL_THRESHOLD", "NO_POSITIVE_CASES"])
+        assert state.worst_exit == 2
+
+    def test_an_external_failure_outranks_everything(self, tmp_path, monkeypatch):
+        state = self._run(
+            tmp_path, monkeypatch, ["NO_POSITIVE_CASES", "FAIL_JUDGE_ERRORS", "PASS"]
+        )
+        assert state.worst_exit == 3
+
+    def test_the_order_targets_are_processed_does_not_matter(
+        self, tmp_path, monkeypatch
+    ):
+        forward = self._run(
+            tmp_path, monkeypatch, ["FAIL_JUDGE_ERRORS", "NO_POSITIVE_CASES"]
+        )
+        backward = self._run(
+            tmp_path, monkeypatch, ["NO_POSITIVE_CASES", "FAIL_JUDGE_ERRORS"]
+        )
+        assert forward.worst_exit == backward.worst_exit == 3
+
+
+class TestTheProcessExitReportsWhatTheRunAccumulated:
+    """main() must hand the reduced code to the shell, not recompute it."""
+
+    def _main_with(self, monkeypatch, tmp_path, verdict):
+        scenario = tmp_path / "s.json"
+        scenario.write_text("{}")
+
+        def fake_process(scenario_file, api_key, args, all_results, state):
+            state.worst_exit = max(
+                state.worst_exit, eval_mod._classify_verdict(verdict)
+            )
+            return None
+
+        monkeypatch.setattr(eval_mod, "_process_scenario_file", fake_process)
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            ["eval", "--dry-run", "--scenarios", str(scenario)],
+        )
+        return eval_mod.main()
+
+    def test_a_clean_run_exits_zero(self, monkeypatch, tmp_path):
+        assert self._main_with(monkeypatch, tmp_path, "PASS") == 0
+
+    def test_a_rule_failure_exits_one(self, monkeypatch, tmp_path):
+        assert self._main_with(monkeypatch, tmp_path, "FAIL_THRESHOLD") == 1
+
+    def test_a_config_error_exits_two(self, monkeypatch, tmp_path):
+        assert self._main_with(monkeypatch, tmp_path, "NO_POSITIVE_CASES") == 2
+
+    def test_an_external_failure_exits_three(self, monkeypatch, tmp_path):
+        assert self._main_with(monkeypatch, tmp_path, "FAIL_JUDGE_ERRORS") == 3
+
+
+class TestALiveRunReportsWhatItAccumulated:
+    """The dry run and the live run must not disagree about the exit code."""
+
+    def _main_live(self, monkeypatch, tmp_path, verdict, output=None):
+        scenario = tmp_path / "s.json"
+        scenario.write_text("{}")
+
+        def fake_process(scenario_file, api_key, args, all_results, state):
+            state.worst_exit = max(
+                state.worst_exit, eval_mod._classify_verdict(verdict)
+            )
+            return None
+
+        monkeypatch.setattr(eval_mod, "_process_scenario_file", fake_process)
+        monkeypatch.setattr(eval_mod, "_load_api_key", lambda: "key")
+        monkeypatch.setattr(
+            eval_mod, "verify_model_available", lambda api_key, model: None
+        )
+        argv = ["eval", "--scenarios", str(scenario)]
+        if output is not None:
+            argv += ["--output", str(output)]
+        monkeypatch.setattr(sys, "argv", argv)
+        return eval_mod.main()
+
+    def test_a_clean_live_run_exits_zero(self, monkeypatch, tmp_path):
+        assert self._main_live(monkeypatch, tmp_path, "PASS") == 0
+
+    def test_a_rule_failure_exits_one(self, monkeypatch, tmp_path):
+        assert self._main_live(monkeypatch, tmp_path, "FAIL_THRESHOLD") == 1
+
+    def test_a_config_error_exits_two(self, monkeypatch, tmp_path):
+        assert self._main_live(monkeypatch, tmp_path, "NO_POSITIVE_CASES") == 2
+
+    def test_an_external_failure_exits_three(self, monkeypatch, tmp_path):
+        assert self._main_live(monkeypatch, tmp_path, "FAIL_JUDGE_ERRORS") == 3
+
+    def test_writing_the_artifact_does_not_clear_the_exit(
+        self, monkeypatch, tmp_path
+    ):
+        """The artifact is written before the exit is returned; both must survive."""
+        out = tmp_path / "results.json"
+        code = self._main_live(monkeypatch, tmp_path, "FAIL_THRESHOLD", output=out)
+        assert code == 1
+        assert out.is_file()
+
+    def test_the_dry_run_and_live_run_agree_on_a_clean_result(
+        self, monkeypatch, tmp_path
+    ):
+        assert self._main_live(monkeypatch, tmp_path, "PASS") == 0
+
+
+class TestAHardRefusalNeverLowersTheExit:
+    """A refusal stops the run. It must not improve what the run already saw.
+
+    This is the invariant the run-wide reduction claims: adding a target can
+    only worsen the exit. An early return that published the refusal code on
+    its own would break it, and the break is invisible because both codes are
+    nonzero and the run still looks like it failed.
+    """
+
+    def _main_with(self, monkeypatch, tmp_path, first_verdict, refusal_code):
+        scenarios = []
+        for name in ("a.json", "b.json"):
+            path = tmp_path / name
+            path.write_text("{}")
+            scenarios.append(str(path))
+        seen = {"n": 0}
+
+        def fake_process(scenario_file, api_key, args, all_results, state):
+            seen["n"] += 1
+            if seen["n"] == 1:
+                if first_verdict is not None:
+                    state.worst_exit = max(
+                        state.worst_exit, eval_mod._classify_verdict(first_verdict)
+                    )
+                return None
+            return refusal_code
+
+        monkeypatch.setattr(eval_mod, "_process_scenario_file", fake_process)
+        monkeypatch.setattr(eval_mod, "_load_api_key", lambda: "key")
+        monkeypatch.setattr(
+            eval_mod, "verify_model_available", lambda api_key, model: None
+        )
+        monkeypatch.setattr(sys, "argv", ["eval", "--scenarios", *scenarios])
+        return eval_mod.main()
+
+    def test_a_config_refusal_does_not_lower_an_earlier_api_failure(
+        self, monkeypatch, tmp_path
+    ):
+        code = self._main_with(monkeypatch, tmp_path, "FAIL_JUDGE_ERRORS", 2)
+        assert code == 3
+
+    def test_a_config_refusal_still_outranks_an_earlier_rule_failure(
+        self, monkeypatch, tmp_path
+    ):
+        code = self._main_with(monkeypatch, tmp_path, "FAIL_THRESHOLD", 2)
+        assert code == 2
+
+    def test_a_refusal_after_a_clean_target_reports_the_refusal(
+        self, monkeypatch, tmp_path
+    ):
+        code = self._main_with(monkeypatch, tmp_path, "PASS", 2)
+        assert code == 2
+
+    def test_a_refusal_on_the_first_target_reports_the_refusal(
+        self, monkeypatch, tmp_path
+    ):
+        code = self._main_with(monkeypatch, tmp_path, None, 2)
+        assert code == 2
+
+    def test_the_run_stops_at_the_refusal(self, monkeypatch, tmp_path):
+        """Continuing past a rejected file would keep feeding it crafted input."""
+        seen = {"n": 0}
+
+        def fake_process(scenario_file, api_key, args, all_results, state):
+            seen["n"] += 1
+            return 2
+
+        paths = []
+        for name in ("a.json", "b.json", "c.json"):
+            path = tmp_path / name
+            path.write_text("{}")
+            paths.append(str(path))
+        monkeypatch.setattr(eval_mod, "_process_scenario_file", fake_process)
+        monkeypatch.setattr(sys, "argv", ["eval", "--dry-run", "--scenarios", *paths])
+        assert eval_mod.main() == 2
+        assert seen["n"] == 1

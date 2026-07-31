@@ -2401,6 +2401,24 @@ def _validate_scenarios_shape(data: dict[str, Any], spath: Path) -> int | None:
                     file=sys.stderr,
                 )
                 return 2
+    positives = [
+        sc
+        for sc in scenarios
+        if not _is_negative_gate(_normalize_gate(sc.get("expected_gate", "")))
+    ]
+    if not positives:
+        # Knowable without a single API call, so refuse here rather than
+        # spending a run to reach NO_POSITIVE_CASES. Negative cases show
+        # restraint; only a positive case can show the rule activating, so a
+        # file without one cannot validate activation at any price.
+        print(
+            f"ERROR: {spath} declares no positive scenario. Every "
+            f"expected_gate is {NEGATIVE_GATE!r}, so the run could only ever "
+            "report NO_POSITIVE_CASES. Add a scenario whose expected_gate "
+            "names the gate the rule should reach.",
+            file=sys.stderr,
+        )
+        return 2
     return None
 
 
@@ -2667,27 +2685,35 @@ def main() -> int:
             scenario_file, api_key, args, all_results, state
         )
         if exit_code is not None:
-            return exit_code
+            # max, not the bare code: a hard refusal stops the run, but an
+            # earlier target may already have recorded something worse. A
+            # config refusal on file 8 must not lower an API failure seen on
+            # file 1, or adding a target could improve the exit.
+            return max(state.worst_exit, exit_code)
 
     if args.dry_run:
         _print_dry_run_summary(state.total_calls)
-        return 0
+        # A dry run produces no verdict, so this is 0 today. Returning the
+        # accumulated code rather than a literal keeps one exit path: a
+        # hardcoded success here would silently swallow anything a later
+        # change starts recording during a dry run.
+        return state.worst_exit
 
     if args.output:
         Path(args.output).write_text(json.dumps(all_results, indent=2), encoding="utf-8")
         print(f"\nWrote results: {args.output}")
 
-    if state.external_failure:
-        return 3
-    return 0 if state.overall_pass else 1
+    return state.worst_exit
 
 
 class _RunState:
     """Mutable accumulator for the main loop."""
 
     def __init__(self) -> None:
-        self.overall_pass = True
-        self.external_failure = False
+        # One reduced exit code rather than a boolean per failure kind: the
+        # precedence then falls out of the numeric ordering instead of a
+        # branch that has to be kept in sync with it.
+        self.worst_exit = 0
         self.total_calls = 0
         # Which scenario file claimed each id. Results are stored by id into a
         # plain dict, so without this a second file claiming a taken id would
@@ -2729,23 +2755,35 @@ def _process_scenario_file(
 
     if result is not None:
         all_results["rules"][rule_id] = result
-        ok, judge_failed = _classify_verdict(result["summary"]["verdict"])
-        if not ok:
-            state.overall_pass = False
-        if judge_failed:
-            state.external_failure = True
+        state.worst_exit = max(
+            state.worst_exit, _classify_verdict(result["summary"]["verdict"])
+        )
     return None
 
 
-def _classify_verdict(verdict: str) -> tuple[bool, bool]:
-    """Return (ok, judge_failed). ok=True only for PASS; judge_failed only for FAIL_JUDGE_ERRORS.
+def _classify_verdict(verdict: str) -> int:
+    """Return the process exit code this verdict implies.
 
-    NO_POSITIVE_CASES is a config error (no positive scenarios = activation
-    cannot be validated). FAIL_JUDGE_ERRORS is an external/API failure that
-    surfaces as exit code 3 so CI can distinguish transient infrastructure
-    problems from genuine activation failures.
+    Codes follow the repository convention: 0 ok, 1 logic, 2 config, 3
+    external. NO_POSITIVE_CASES is a config error, not a logic one. It says
+    the scenario file cannot validate activation and reports nothing at all
+    about the rule, so returning 1 would attach a rule failure to a file
+    problem and a run could not tell an under-firing rule from a
+    misconfigured input. FAIL_JUDGE_ERRORS is external so CI can distinguish
+    transient infrastructure trouble from a genuine activation failure.
+
+    A run reduces these with max(), which makes the precedence a property of
+    the ordering rather than a branch kept in sync with it: external outranks
+    config, config outranks logic, and adding a target can only worsen the
+    exit, never improve it.
     """
-    return verdict == "PASS", verdict == "FAIL_JUDGE_ERRORS"
+    if verdict == "PASS":
+        return 0
+    if verdict == "FAIL_JUDGE_ERRORS":
+        return 3
+    if verdict == "NO_POSITIVE_CASES":
+        return 2
+    return 1
 
 
 def _print_dry_run_summary(total_calls: int) -> None:
