@@ -89,9 +89,9 @@ durable competitive surface and everything else is plumbing.
 
 - Prompt engineering is folklore: rules ship because they sound right, and
   almost nobody measures whether a rule changes model behavior at all.
-- Rules are unmeasured even here: this repo has 30 rule files under
-  `.claude/rules/` but only 7 scenario fixtures under
-  `tests/evals/rule-scenarios/` (as of 2026-07-03). Most rules have never had
+- Rules are unmeasured even here: this repo has 25 rule files under
+  `.claude/rules/` but only 12 scenario fixtures under
+  `tests/evals/rule-scenarios/` (as of 2026-07-30). Most rules have never had
   an activation baseline.
 - Weight tuning is unavailable to a repository: you cannot fine-tune the vendor
   model, so context curation is the only lever, and the field has no shared
@@ -99,8 +99,8 @@ durable competitive surface and everything else is plumbing.
 
 ### This repo's asset
 
-- 92 skill directories, 30 rules, 95 retrospectives, 122 Serena memories
-  (counts as of 2026-07-03).
+- 98 skill directories, 25 rules, 121 retrospectives, 158 Serena memories
+  (counts as of 2026-07-30; re-verify with the Phase 1 corpus-size command).
 - Gates that produce inspectable artifacts (verification-based governance,
   SESSION-PROTOCOL.md): every rule violation leaves evidence, so compliance is
   measurable after the fact.
@@ -303,7 +303,7 @@ Sources and re-verification:
 - Guard tiers and thresholds: `.claude/skills/guard-maturity/SKILL.md:46-57`. Re-verify: `grep -n "Harmful\|Proficient\|Inert" .claude/skills/guard-maturity/SKILL.md`.
 - Runtime contract test and anchoring validator: `tests/build_scripts/test_generate_hooks_runtime_contract.py`, `scripts/validation/validate_hook_anchoring.py`. Re-verify: `ls` both paths.
 - Env-anchor decision memory: `.serena/memories/decision-copilot-cli-hook-plugin-root-contract.md`. Re-verify: `ls` the path.
-- Counts (92 skill dirs, 30 rules, 95 retros, 122 memories, 7 scenario fixtures): Phase 1 command. Volatile; re-run before quoting.
+- Counts (skill dirs, rules, retros, memories, scenario fixtures): Phase 1 command. Volatile; re-run before quoting rather than copying a snapshot from here.
 - Incident claims (#2205, #2290, #1887, #1989, #2230): see `ai-agents-failure-archaeology` for evidence paths; do not re-litigate settled battles.
 
 Unverified in this document (flagged inline): per-rule traffic data, automated

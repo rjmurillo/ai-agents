@@ -116,7 +116,7 @@ and fill keys (`ANTHROPIC_API_KEY`, `PERPLEXITY_API_KEY`, `TAVILY_API_KEY`,
 
 | Server | Transport | Role | When absent |
 |--------|-----------|------|-------------|
-| serena | stdio, `uvx --from git+https://github.com/oraios/serena` (port 24282, context claude-code) | Canonical memory (ADR-007) plus LSP symbol navigation | Memories stay readable as plain files under `.serena/memories/` (122 files as of 2026-07-03). The LSP read gate that could misfire on code files was retired in #3216 |
+| serena | stdio, `uvx --from git+https://github.com/oraios/serena` (port 24282, context claude-code) | Canonical memory (ADR-007) plus LSP symbol navigation | Memories stay readable as plain files under `.serena/memories/`. The LSP read gate that could misfire on code files was retired in #3216 |
 | forgetful | stdio, `uvx forgetful-ai` | Supplementary semantic memory search | ADR-007 fallback: use the Serena `memory-index` memory for keyword discovery. MUST NOT block work or skip memory retrieval because Forgetful is down (ADR-007 "Graceful degradation") |
 | deepwiki | http, `https://mcp.deepwiki.com/mcp` | External GitHub repo documentation | No local impact; fall back to web search |
 
