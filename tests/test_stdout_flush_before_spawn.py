@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size
 """Every subprocess spawn that inherits stdout flushes the parent buffer first.
 
 Python block-buffers ``sys.stdout`` whenever it is not a tty. A child process
