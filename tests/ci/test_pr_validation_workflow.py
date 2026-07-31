@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -566,7 +567,7 @@ def test_workflow_delegates_all_pr_validation_blocks():
     assert "python3 scripts/ci/update_needs_split_label.py --mode add" in workflow
     assert "python3 scripts/ci/update_needs_split_label.py --mode remove" in workflow
     assert "python3 scripts/ci/enforce_pr_validation.py" in workflow
-    assert "python3 scripts/ci/adr006_run_block_scanner.py --max 58" in workflow
+    assert "python3 scripts/ci/adr006_run_block_scanner.py --exact 45" in workflow
     assert "gh api `\n            -X DELETE" not in workflow
     assert "Write-Error \"PR has $env:COMMIT_COUNT commits" not in workflow
 
@@ -828,3 +829,44 @@ class TestTheCommitCountGateCanReadMainsTrunk:
         commit ceiling entirely.
         """
         assert "if" not in self._jobs()[self.HOST_JOB]
+
+
+class TestTheAdr006PinMatchesReality:
+    """The pinned `--exact` number must equal the count the scanner reports.
+
+    Issue #2967 pinned the gate at `--max 58` while the tree held 45
+    violations, so 13 fresh ADR-006 offenders could land without failing CI.
+    The comment above the step said to lower the number after each extraction
+    batch, and nothing enforced that, so it went stale for three batches.
+
+    This is the enforcement. It is deliberately coupled to the real `.github`
+    tree: any workflow edit that changes the count fails here with the new
+    number in the message, which is the whole point.
+    """
+
+    @staticmethod
+    def _pinned() -> int:
+        match = re.search(
+            r"adr006_run_block_scanner\.py --exact (\d+)",
+            WORKFLOW.read_text(encoding="utf-8"),
+        )
+        assert match is not None, (
+            "pr-validation.yml no longer pins the ADR-006 scanner with --exact"
+        )
+        return int(match.group(1))
+
+    def test_the_pinned_count_equals_the_measured_count(self) -> None:
+        scanner = _load_module("adr006_run_block_scanner")
+        measured = len(scanner.scan_repo(REPO_ROOT, scanner._DEFAULT_THRESHOLD))
+        assert self._pinned() == measured, (
+            f"pr-validation.yml pins --exact {self._pinned()} but the tree holds "
+            f"{measured} ADR-006 run-block violations. Update the number with "
+            f"`python3 scripts/ci/adr006_run_block_scanner.py` and edit both "
+            f"pr-validation.yml and this test's sibling string assertion."
+        )
+
+    def test_the_gate_is_not_pinned_with_slack(self) -> None:
+        """Negative: `--max` semantics are what allowed the drift."""
+        assert "adr006_run_block_scanner.py --max" not in WORKFLOW.read_text(
+            encoding="utf-8"
+        )
