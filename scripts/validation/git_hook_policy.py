@@ -1507,7 +1507,7 @@ def _active_git_operation(repo_root: Path) -> tuple[str, str] | None:
         if kind == "dir":
             if not git_path.is_dir():
                 continue
-            if (git_path / GIT_AM_MARKER).exists():
+            if (git_path / GIT_AM_MARKER).is_file():
                 return GIT_AM_OPERATION, GIT_AM_REMEDY
         elif not git_path.is_file():
             continue

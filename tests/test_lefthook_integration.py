@@ -4614,6 +4614,36 @@ def test_push_policy_ignores_a_directory_named_like_a_pseudo_ref(tmp_path: Path)
     assert policy.check_push_refs(io.StringIO(), repo) == 0
 
 
+def test_push_policy_ignores_a_directory_named_like_the_git_am_marker(
+    tmp_path: Path,
+) -> None:
+    """The git-am marker is a file. A directory there is not an open ``git am``.
+
+    ``rebase-apply`` is shared by ``git am`` and the apply-backend rebase, and
+    only the marker inside it tells them apart. Testing the marker with
+    ``exists()`` accepted a directory and reported ``git am`` for a rebase,
+    which hands back ``git am --continue``. That command exits 128 during a
+    rebase, so the wrong-kind marker reintroduces the dead-end remedy this
+    module exists to remove.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked.txt", "base\n")
+    rebase_apply = Path(
+        _git(repo, "rev-parse", "--git-path", "rebase-apply").stdout.strip()
+    )
+    if not rebase_apply.is_absolute():
+        rebase_apply = repo / rebase_apply
+    (rebase_apply / policy.GIT_AM_MARKER).mkdir(parents=True)
+
+    result = policy._active_git_operation(repo)
+
+    assert result is not None
+    operation, remedy = result
+    assert (operation, remedy) != (policy.GIT_AM_OPERATION, policy.GIT_AM_REMEDY)
+    assert operation == "rebase"
+
+
 def test_push_policy_allows_clean_tree_without_active_git_operation(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
