@@ -254,6 +254,84 @@ def test_all_workflow_retention_conform() -> None:
         pytest.fail("\n".join(lines))
 
 
+# ---------------------------------------------------------------------------
+# Expression-bypass tests (Thread 2 review fix)
+# ---------------------------------------------------------------------------
+
+
+def test_expression_retention_is_nonconforming() -> None:
+    """An expression-style retention-days value is a violation, not silently skipped."""
+    yaml = "          retention-days: ${{ inputs.days }}\n"
+    entries = scanner.scan_text(yaml, Path("dummy.yml"))
+    assert len(entries) == 1, "expression-style value must be captured (not skipped)"
+    assert not scanner.is_conforming(entries[0]), "expression-style value must be a violation"
+    assert isinstance(entries[0].value, str)
+
+
+def test_env_var_retention_is_nonconforming() -> None:
+    """An env-var retention-days value is captured and flagged as a violation."""
+    yaml = "          retention-days: $RETENTION_DAYS\n"
+    entries = scanner.scan_text(yaml, Path("dummy.yml"))
+    assert len(entries) == 1
+    assert not scanner.is_conforming(entries[0])
+
+
+def test_violations_includes_expression_entries() -> None:
+    """violations() includes expression-style entries alongside numeric violations."""
+    yaml = textwrap.dedent(
+        """\
+        jobs:
+          a:
+            steps:
+              - uses: actions/upload-artifact@v4
+                with:
+                  retention-days: 7
+          b:
+            steps:
+              - uses: actions/upload-artifact@v4
+                with:
+                  retention-days: ${{ inputs.days }}
+        """
+    )
+    entries = scanner.scan_text(yaml, Path("dummy.yml"))
+    bad = scanner.violations(entries)
+    assert len(bad) == 1
+    assert bad[0].value == "${{ inputs.days }}"
+
+
+# ---------------------------------------------------------------------------
+# PermissionError / OSError tests (Thread 1 review fix)
+# ---------------------------------------------------------------------------
+
+
+def test_main_exits_config_on_permission_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """main() returns EXIT_CONFIG when scan_directory raises PermissionError."""
+
+    def _raise(_dir: Path) -> list[scanner.RetentionEntry]:
+        raise PermissionError("no access")
+
+    monkeypatch.setattr(scanner, "scan_directory", _raise)
+    workflows_dir = tmp_path / "workflows"
+    workflows_dir.mkdir()
+    result = scanner.main(["--workflows-dir", str(workflows_dir)])
+    assert result == scanner.EXIT_CONFIG
+
+
+def test_main_exits_config_on_os_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """main() returns EXIT_CONFIG when scan_directory raises OSError."""
+
+    def _raise(_dir: Path) -> list[scanner.RetentionEntry]:
+        raise OSError("I/O error")
+
+    monkeypatch.setattr(scanner, "scan_directory", _raise)
+    workflows_dir = tmp_path / "workflows"
+    workflows_dir.mkdir()
+    result = scanner.main(["--workflows-dir", str(workflows_dir)])
+    assert result == scanner.EXIT_CONFIG
+
+
 if __name__ == "__main__":
     import pytest as _pytest
 

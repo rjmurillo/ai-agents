@@ -52,10 +52,13 @@ ALLOWED_DAYS: frozenset[int] = frozenset({1, 7})
 # auditable in code review rather than buried in workflow YAML comments.
 _EXCEPTIONS: dict[tuple[str, int], str] = {}
 
-# Matches ``retention-days: <n>`` with optional leading whitespace and trailing
-# inline comment.  Does not require a full YAML parse because retention-days
-# always appears as a scalar in an ``upload-artifact`` ``with:`` block.
-_RETENTION_RE = re.compile(r"^\s*retention-days:\s*(\d+)\s*(?:#.*)?$")
+# Matches ``retention-days: <value>`` with optional leading whitespace and
+# trailing inline comment.  The capture group accepts any non-whitespace token
+# so that expression-style values (``${{ inputs.days }}``, ``$RETENTION_DAYS``)
+# are captured and flagged as violations rather than silently skipped.
+# Does not require a full YAML parse because retention-days always appears as a
+# scalar in an ``upload-artifact`` ``with:`` block.
+_RETENTION_RE = re.compile(r"^\s*retention-days:\s*(\S+.*?)\s*(?:#.*)?$")
 
 _WORKFLOW_GLOBS = ("*.yml", "*.yaml")
 
@@ -69,7 +72,7 @@ class RetentionEntry:
 
     file: Path
     line_no: int  # 1-based
-    value: int
+    value: int | str  # int for numeric literals; str for expression-style values
 
 
 def scan_text(text: str, path: Path) -> list[RetentionEntry]:
@@ -86,7 +89,12 @@ def scan_text(text: str, path: Path) -> list[RetentionEntry]:
     for i, line in enumerate(text.splitlines(), start=1):
         m = _RETENTION_RE.match(line)
         if m is not None:
-            entries.append(RetentionEntry(file=path, line_no=i, value=int(m.group(1))))
+            raw = m.group(1).strip()
+            try:
+                parsed: int | str = int(raw)
+            except ValueError:
+                parsed = raw
+            entries.append(RetentionEntry(file=path, line_no=i, value=parsed))
     return entries
 
 
@@ -107,8 +115,12 @@ def is_conforming(entry: RetentionEntry) -> bool:
     """Return True when *entry* satisfies ADR-015 policy.
 
     An entry is conforming when its value is in ``ALLOWED_DAYS`` or has an
-    entry in ``_EXCEPTIONS`` for its workflow file.
+    entry in ``_EXCEPTIONS`` for its workflow file.  Non-integer values (e.g.
+    GitHub Actions expressions) are always violations because they cannot be
+    statically verified to conform.
     """
+    if not isinstance(entry.value, int):
+        return False
     if entry.value in ALLOWED_DAYS:
         return True
     return (entry.file.stem, entry.value) in _EXCEPTIONS
@@ -147,7 +159,14 @@ def main(argv: list[str] | None = None) -> int:
         )
         return EXIT_CONFIG
 
-    entries = scan_directory(args.workflows_dir)
+    try:
+        entries = scan_directory(args.workflows_dir)
+    except (PermissionError, OSError) as exc:
+        print(
+            f"[CONFIG] cannot read workflows directory: {exc}",
+            file=sys.stderr,
+        )
+        return EXIT_CONFIG
     bad = violations(entries)
     if bad:
         allowed = sorted(ALLOWED_DAYS)
