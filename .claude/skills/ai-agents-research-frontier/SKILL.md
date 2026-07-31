@@ -169,7 +169,7 @@ that would falsify the strong form of ADR-069.
 
 Label honestly: ADR-072 is PROPOSED with an explicit "APPROVE WITH CHANGES"
 review and five conditions to reach Accepted; ADR-068 reached ACCEPTED on
-2026-07-30. No code moves on ADR-072 alone. Nothing in this program may route around
+2026-07-19. No code moves on ADR-072 alone. Nothing in this program may route around
 `ai-agents-change-control`.
 
 ### First three steps
