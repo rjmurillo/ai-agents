@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size (lefthook.yml cannot be split; all hooks must live in one file per lefthook docs)
 min_version: 2.1.10
 lefthook: uv run --frozen lefthook
 glob_matcher: doublestar
