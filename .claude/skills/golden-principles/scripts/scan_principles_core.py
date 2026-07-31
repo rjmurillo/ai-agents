@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- git diff-line helpers added for #4007 pushed
+# this file from 440 to 513 lines. They cannot be extracted without circular
+# imports: they depend on _git_root, _GIT_TIMEOUT_SECONDS, is_safe_path, and
+# subprocess, all defined here. A further split is tracked separately.
 """Core types, utilities, and git helpers for the golden-principles scanner.
 
 Split from ``scan_principles.py`` (issue #4028). Rule checkers and the CLI

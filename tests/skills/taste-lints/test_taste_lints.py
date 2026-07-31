@@ -37,6 +37,11 @@ Violation = mod.Violation
 EXIT_SUCCESS = mod.EXIT_SUCCESS
 EXIT_ERROR = mod.EXIT_ERROR
 EXIT_VIOLATIONS = mod.EXIT_VIOLATIONS
+get_diff_line_numbers = mod.get_diff_line_numbers
+get_base_file_line_count = mod.get_base_file_line_count
+_parse_hunk_header = mod._parse_hunk_header
+_filter_violations_for_diff = mod._filter_violations_for_diff
+_lint_file_rules = mod._lint_file_rules
 
 
 class TestCheckFileSize:
@@ -801,3 +806,225 @@ class TestIsSafePath:
         result = run_lint(files, ("file-size",))
         # Only the safe file should be scanned
         assert result.files_scanned == 1
+
+
+class TestParseHunkHeaderTasteLints:
+    """Unit tests for _parse_hunk_header in taste_lints."""
+
+    def test_standard_hunk(self) -> None:
+        start, count = _parse_hunk_header("@@ -1,3 +1,4 @@")
+        assert start == 1
+        assert count == 4
+
+    def test_implicit_single_line(self) -> None:
+        start, count = _parse_hunk_header("@@ -5 +5 @@")
+        assert start == 5
+        assert count == 1
+
+    def test_no_match(self) -> None:
+        start, count = _parse_hunk_header("not a header")
+        assert start == 0
+        assert count == 0
+
+
+class TestGetDiffLineNumbersTasteLints:
+    """Unit tests for get_diff_line_numbers in taste_lints."""
+
+    def test_empty_base_returns_empty_dict(self) -> None:
+        result = get_diff_line_numbers("")
+        assert result == {}
+
+    def test_parses_added_lines(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        _make_repo_with_diff(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        result = get_diff_line_numbers("main")
+        assert len(result) == 1
+        key = next(iter(result))
+        assert key.endswith("changed.py")
+        assert 1 in result[key]
+
+    def test_traversal_path_excluded(self) -> None:
+        diff_text = (
+            "diff --git a/../escape.py b/../escape.py\n"
+            "--- a/../escape.py\n"
+            "+++ b/../escape.py\n"
+            "@@ -0,0 +1 @@\n"
+            "+bad\n"
+        )
+        with (
+            patch.object(mod, "_git_root", return_value="/repo"),
+            patch.object(mod, "_run_git_diff", return_value=diff_text),
+        ):
+            result = get_diff_line_numbers("main")
+        assert result == {}
+
+
+class TestGetBaseFileLineCount:
+    """Tests for get_base_file_line_count."""
+
+    def test_counts_lines(self, tmp_path: Path) -> None:
+        f = tmp_path / "test.py"
+        f.write_text("a\nb\nc\n")
+        assert get_base_file_line_count(str(f)) == 3
+
+    def test_missing_file_returns_zero(self) -> None:
+        assert get_base_file_line_count("/does/not/exist.py") == 0
+
+    def test_empty_file_returns_zero(self, tmp_path: Path) -> None:
+        f = tmp_path / "empty.py"
+        f.write_text("")
+        assert get_base_file_line_count(str(f)) == 0
+
+
+class TestFilterViolationsForDiff:
+    """Unit tests for _filter_violations_for_diff."""
+
+    def _v(self, line: int) -> object:
+        return Violation(
+            rule="file-size",
+            severity="warning",
+            file="/repo/f.py",
+            line=line,
+            message="msg",
+            remediation="fix",
+        )
+
+    def test_file_not_in_diff_returns_empty(self) -> None:
+        v = self._v(10)
+        result = _filter_violations_for_diff([v], "/repo/f.py", {}, "main")
+        assert result == []
+
+    def test_line_in_diff_kept(self) -> None:
+        v = self._v(5)
+        result = _filter_violations_for_diff([v], "/repo/f.py", {"/repo/f.py": {5, 6}}, "main")
+        assert result == [v]
+
+    def test_line_not_in_diff_suppressed(self) -> None:
+        v = self._v(99)
+        result = _filter_violations_for_diff(
+            [v], "/repo/f.py", {"/repo/f.py": {1, 2, 3}}, "main"
+        )
+        assert result == []
+
+    def test_isolating_negative_control_diff_lines_param(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Removing diff_lines from run_lint causes pre-existing violations to appear.
+
+        This is the isolating negative control: proves diff_lines is
+        individually load-bearing.  If run_lint accepted diff_lines but ignored
+        it, this test would still pass -- meaning a survivor here indicates the
+        parameter is not wired up.
+        """
+        _make_repo_with_diff(tmp_path)
+        # Add a large file pre-existing on main
+        lines = ["x = 1\n"] * 600
+        (tmp_path / "big.py").write_text("".join(lines))
+        _run_git(tmp_path, "checkout", "main")
+        _run_git(tmp_path, "add", "big.py")
+        _run_git(tmp_path, "commit", "-m", "big file on main")
+        _run_git(tmp_path, "checkout", "feature")
+        _run_git(tmp_path, "rebase", "main")
+        monkeypatch.chdir(tmp_path)
+
+        big = str(tmp_path / "big.py")
+        # Without diff filtering: big.py triggers file-size violation
+        result_no_filter = run_lint([big], ("file-size",), diff_lines=None)
+        assert any(v.file == big for v in result_no_filter.violations), (
+            "without filtering, big.py file-size violation must be present"
+        )
+
+
+class TestDiffScopeLineFilteringTasteLints:
+    """Integration tests: pre-existing lint violations are suppressed in diff mode."""
+
+    def test_preexisting_file_size_violation_suppressed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A large file on main not in the diff must not produce a file-size violation."""
+        _make_repo_with_diff(tmp_path)
+        lines = ["x = 1\n"] * 600
+        (tmp_path / "big.py").write_text("".join(lines))
+        _run_git(tmp_path, "checkout", "main")
+        _run_git(tmp_path, "add", "big.py")
+        _run_git(tmp_path, "commit", "-m", "big file on main")
+        _run_git(tmp_path, "checkout", "feature")
+        _run_git(tmp_path, "rebase", "main")
+        monkeypatch.chdir(tmp_path)
+
+        diff_lines = get_diff_line_numbers("main")
+        files = get_diff_files("main")
+        result = run_lint(files, ("file-size",), diff_lines=diff_lines, diff_base="main")
+        big = str(tmp_path / "big.py")
+        assert big not in [v.file for v in result.violations], (
+            "pre-existing big.py file-size violation must be suppressed"
+        )
+
+    def test_new_complexity_violation_reported(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A complexity violation introduced in the diff must still be flagged."""
+        _make_repo_with_diff(tmp_path)
+        # Write a complex function that will trigger check_complexity
+        complex_code = "def f(x):\n"
+        for i in range(12):
+            complex_code += f"    if x == {i}:\n        return {i}\n"
+        complex_code += "    return -1\n"
+        (tmp_path / "complex.py").write_text(complex_code)
+        _run_git(tmp_path, "add", "complex.py")
+        _run_git(tmp_path, "commit", "-m", "add complex function")
+        monkeypatch.chdir(tmp_path)
+
+        diff_lines = get_diff_line_numbers("main")
+        files = get_diff_files("main")
+        result = run_lint(files, ("complexity",), diff_lines=diff_lines, diff_base="main")
+        added = str(tmp_path / "complex.py")
+        assert any(v.file == added for v in result.violations), (
+            "complexity violation on a changed file must still be reported"
+        )
+
+    def test_preexisting_complexity_on_unchanged_line_suppressed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A complexity violation on a line NOT in the diff must be suppressed.
+
+        This is the isolating negative control for _filter_violations_for_diff.
+        The complex function lives at line 1 of the file (pre-existing on main).
+        The feature branch adds a comment at a high line number, making the file
+        appear in get_diff_files, but the diff_lines set does NOT include line 1.
+        The complexity violation must therefore be suppressed.
+        """
+        # Build a complex function at line 1 on main
+        complex_code = "def f(x):\n"
+        for i in range(12):
+            complex_code += f"    if x == {i}:\n        return {i}\n"
+        complex_code += "    return -1\n"
+        # Pad to make the file long enough that we can add a line at the end
+        padding = "# pad\n" * 50
+        content = complex_code + padding
+        _make_repo_with_diff(tmp_path)
+        (tmp_path / "complex.py").write_text(content)
+        _run_git(tmp_path, "checkout", "main")
+        _run_git(tmp_path, "add", "complex.py")
+        _run_git(tmp_path, "commit", "-m", "complex function on main")
+        _run_git(tmp_path, "checkout", "feature")
+        _run_git(tmp_path, "rebase", "main")
+        # Add one comment at the very end (high line) -- this is the ONLY change
+        appended = content + "# new comment added by feature\n"
+        (tmp_path / "complex.py").write_text(appended)
+        _run_git(tmp_path, "add", "complex.py")
+        _run_git(tmp_path, "commit", "-m", "add comment at end")
+        monkeypatch.chdir(tmp_path)
+
+        diff_lines = get_diff_line_numbers("main")
+        files = get_diff_files("main")
+        # complex.py IS in the diff (it changed), but line 1 is NOT in diff_lines
+        assert any(f.endswith("complex.py") for f in files), "complex.py must be in diff"
+        cplx = str(tmp_path / "complex.py")
+        assert cplx in diff_lines, "complex.py must be in diff_lines"
+        assert 1 not in diff_lines[cplx], "line 1 must NOT be in changed set"
+
+        result = run_lint(files, ("complexity",), diff_lines=diff_lines, diff_base="main")
+        assert not any(v.file == cplx for v in result.violations), (
+            "pre-existing complexity violation on unchanged line 1 must be suppressed"
+        )
