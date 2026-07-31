@@ -10,8 +10,8 @@ license: MIT
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
 This repo's rules are fossils of incidents. Before you challenge a gate, weaken
 a guard, or propose a "simpler" approach, check whether that battle was already
-fought and what it cost. The canon lives in `.agents/retrospective/` (121 files)
-and `.serena/memories/` (158 files), both as of 2026-07-30. Retro-cited short
+fought and what it cost. The canon lives in `.agents/retrospective/`
+and `.serena/memories/`. Retro-cited short
 SHAs (e.g. `ddb76e0`, `01e76615a`) are not reachable from `main`. GitHub permits
 squash merge only on this repo, so a PR lands as one new commit and its branch
 SHAs stay off `main`. One merge commit predates that setting (`0f13c85ab`,
