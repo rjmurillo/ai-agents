@@ -72,7 +72,9 @@ this function and each missed what the next found, so "it survived review" is
 weaker evidence here than the round count suggests. Sixteen defects of one
 class is evidence against hand-writing the parser at all (issue #3988, which
 tracks the argument; its round log stops at nine and is not the history of
-record. This document is).
+record. This document is). ADR-091 records what was decided: the bound salvage
+runs under, the residuals accepted, and provider-enforced structured output as
+the exit path.
 
 Round 12 found no defect of that class and was aimed at the two least-tested
 surfaces: the duplicate guard's paired-quote alternation, and the strict-parse

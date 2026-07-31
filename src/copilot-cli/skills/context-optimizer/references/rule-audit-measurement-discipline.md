@@ -107,8 +107,10 @@ correct. Both were about a different question than the one being asked.
 The entry point returns `judge_failed=False` and `judge_salvaged=True` for all
 24. `_recover_verdict` returning `None` means no *embedded complete object* was
 found, which is one route among several; the three top-level integers are still
-extractable, and the function named `_judge_parse_failure` extracts them. Its
-name asserts an outcome it does not produce, which is now issue #4031.
+extractable, and the entry point's record builder extracts them. At the time
+that builder was named `_judge_parse_failure`, a name asserting an outcome its
+primary path does not produce (issue #4031). It is now
+`_salvaged_or_failed_judge`, which names both branches.
 
 Two correct measurements pointed the opposite way from the real behaviour, and
 the reason was reading a name instead of a return value. Had the claim been
