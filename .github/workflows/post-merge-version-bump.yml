@@ -42,13 +42,6 @@ jobs:
           # re-trigger this workflow (GitHub Actions built-in loop prevention).
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup code environment
-        uses: ./.github/actions/setup-code-env
-        with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
-          enable-pester: false
-          enable-git-hooks: false
-
       - name: Determine if bump is needed and apply it
         id: bump
         env:
