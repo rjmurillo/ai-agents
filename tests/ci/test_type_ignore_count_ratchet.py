@@ -70,8 +70,8 @@ class TestCurrentCount:
     def test_ignores_partial_matches(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         py = tmp_path / "mod.py"
         py.write_text(
-            "# noqa: type-ignore-something\n"  # noqa only, not type: ignore
-            "# type-ignore\n"  # hyphen before ignore, not a mypy annotation
+            "# noqa: type-ignore-something\n"  # not a type: ignore suppression
+            "# type-ignore\n"  # hyphen before "ignore", not a mypy annotation
             "x: int = 'hi'  # type: ignore\n",
             encoding="utf-8",
         )
@@ -111,14 +111,15 @@ class TestMain:
         rc = ratchet.main([])
         assert rc == count_ratchet.EXIT_REGRESSION
 
-    def test_ok_when_count_below_baseline(
+    def test_regression_when_count_below_baseline_without_update(
         self, tmp_path: Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        """Stale baseline is treated as a regression; --update is required to lock in improvements."""
         baseline = _write_baseline(tmp_path, "5")
         monkeypatch.setattr(ratchet, "_BASELINE_PATH", baseline)
         monkeypatch.setattr(ratchet, "current_count", lambda _: 4)
         rc = ratchet.main([])
-        assert rc == count_ratchet.EXIT_OK
+        assert rc == count_ratchet.EXIT_REGRESSION
 
     def test_update_lowers_baseline(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
