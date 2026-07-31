@@ -147,10 +147,9 @@
       "outcome": "build_all.py regenerated the Copilot mirror of the reference file; verified identical by diff. Both plugin manifests bumped 0.6.5436 to 0.6.5437 in the same commit as the content they ship."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "7116afe111336fa71a917fb0928652f5afb54d58",
   "nextSteps": [
     "Push the branch and open a PR closing issues 3989 and 3933.",
-    "Record endingCommit in a follow-up commit once the branch is pushed, never by amending (issue #3618).",
     "The negative-case gate is vacuous on the current suite. A scenario file that means to test restraint needs negative scenarios that can plausibly score below the floor, which changes the measurement suite and so must not ride along with a comparability-preserving change."
   ]
 }

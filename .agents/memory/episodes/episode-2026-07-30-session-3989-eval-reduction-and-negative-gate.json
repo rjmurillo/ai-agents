@@ -13,9 +13,7 @@
       "type": "milestone",
       "content": "Fix issue 3989, the coordinate-wise reduction",
       "caused_by": [],
-      "leads_to": [
-        "e009"
-      ]
+      "leads_to": []
     },
     {
       "id": "e002",
@@ -23,9 +21,7 @@
       "type": "milestone",
       "content": "Fix issue 3933, the unread negative-case average",
       "caused_by": [],
-      "leads_to": [
-        "e009"
-      ]
+      "leads_to": []
     },
     {
       "id": "e003",
@@ -33,9 +29,7 @@
       "type": "milestone",
       "content": "Guard the empty-pool trap",
       "caused_by": [],
-      "leads_to": [
-        "e009"
-      ]
+      "leads_to": []
     },
     {
       "id": "e004",
@@ -43,9 +37,7 @@
       "type": "milestone",
       "content": "Fix the table that printed a non-measurement as a measurement",
       "caused_by": [],
-      "leads_to": [
-        "e009"
-      ]
+      "leads_to": []
     },
     {
       "id": "e005",
@@ -53,9 +45,7 @@
       "type": "milestone",
       "content": "Verify the new tests can actually fail",
       "caused_by": [],
-      "leads_to": [
-        "e009"
-      ]
+      "leads_to": []
     },
     {
       "id": "e006",
@@ -63,9 +53,7 @@
       "type": "milestone",
       "content": "Verify the archived numbers did not move",
       "caused_by": [],
-      "leads_to": [
-        "e009"
-      ]
+      "leads_to": []
     },
     {
       "id": "e007",
@@ -73,9 +61,7 @@
       "type": "milestone",
       "content": "Correct the procedure document",
       "caused_by": [],
-      "leads_to": [
-        "e009"
-      ]
+      "leads_to": []
     },
     {
       "id": "e008",
@@ -83,24 +69,25 @@
       "type": "milestone",
       "content": "Regenerate and bump",
       "caused_by": [],
-      "leads_to": [
-        "e009"
-      ]
+      "leads_to": []
     },
     {
       "id": "e009",
-      "timestamp": "2026-07-30T22:16:53+00:00",
+      "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 261cdc94",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 7116afe111336fa71a917fb0928652f5afb54d58",
       "caused_by": [
-        "e001",
-        "e002",
-        "e003",
-        "e004",
-        "e005",
-        "e006",
-        "e007",
-        "e008"
+        "e009"
       ],
       "leads_to": []
     }
@@ -110,7 +97,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 2
   },
   "lessons": []
