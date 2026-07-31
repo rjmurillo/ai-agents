@@ -472,10 +472,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         counter=current_count,
         scan_error="could not list tracked files",
         regression_advice=(
-            "A script under scripts/ci that defines main() must ship a test "
-            "asserting a nonzero return from main() on a failure path the shell "
-            "original failed on. Assert on main(argv), not on a helper's return "
-            "value: a helper-level assertion cannot catch an exit-code defect "
+            "A script under scripts/ci or .github/scripts that defines main() "
+            "must ship a test asserting a nonzero return from main() on a "
+            "failure path the shell original failed on. Assert on main(argv) in "
+            "the same test that calls it, not on a helper's return value: a "
+            "helper-level assertion cannot catch an exit-code defect "
             "(issue #4068)."
         ),
     )
