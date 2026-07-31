@@ -1,0 +1,159 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3975,
+    "date": "2026-07-31",
+    "branch": "fix/eval-recovery-evidence-and-gating",
+    "startingCommit": "284372561",
+    "objective": "Fix the eval judge recovery cluster: payload evidence (#3975), exact-average gates (#4070), salvage marker propagation and bound (#3988), and the inverted helper name (#4031)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Running as an isolated worktree subagent with no MCP reach (demotion: Serena tools are not callable from this harness; used grep and direct reads instead)"
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena not reachable from this harness (demotion: same as serenaActivated)"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Task brief plus the triage verdicts and full issue discourse for #3975, #4070, #4031, #3988 read before any edit"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill catalog reviewed via AGENTS.md and the harness skill listing"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md usage-mandatory reviewed"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/rules/universal.md, code-quality.md, python.md, testing.md, ci-scripts.md, plugin-version-bump.md reviewed"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/eval-recovery-evidence-and-gating"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/eval-recovery-evidence-and-gating in an isolated worktree"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status clean at worktree creation"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "284372561"
+      },
+      "memoriesLoaded": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena not reachable from this harness (demotion: triage verdicts carried the prior findings this session needed)"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items complete"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified"
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena not reachable from this harness (demotion: findings recorded in this log and in ADR-091's draft instead)"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "lefthook markdown-check ran on the staged markdown; pre_pr.py reports all validations passed"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Code and tests at a3bf87800; docs and manifests staged with this log"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "1328 tests pass across tests/eval and tests/test_eval_optimizer_adapters.py; ruff clean on both touched files; uv run python scripts/validation/pre_pr.py reports all validations passed"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Refs #3975, #4070, #3988, #4031. ADR-091 drafted but left uncommitted: the adr-review gate needs a multi-agent debate log this subagent cannot honestly produce"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Skipped: PR not yet merged"
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: two new tests were wrong on the first pass. The fabricated-parse-error test led its payload with prose, which made the 200-character prefix fail at char 0 rather than mid-string; and the salvage-gate pass test used a scenario whose verdict was FAIL_NO_DELTA, so exit 1 proved nothing about the gate"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": 1,
+      "action": "Reproduced all four defects against the worktree base and re-read the code rather than trusting the triage fix plans",
+      "result": "All four live. Confirmed 24 archived failures re-parse differently from their full payloads, judge_salvaged is written twice and read nowhere, and round(avg, 2) feeds both the table and the gates"
+    },
+    {
+      "step": 2,
+      "action": "Stored the whole judge payload and the model on every judge sample; renamed _judge_parse_failure to _salvaged_or_failed_judge",
+      "result": "judge_raw and judge_model on the failed, salvaged, clean, and judge-API-failure records. Reason strings became short labels. 14 existing tests updated for the new signature, none of their assertions weakened"
+    },
+    {
+      "step": 3,
+      "action": "Split the published average from the gated average at _mechanism_summary and routed the restraint, activation, and delta gates through avg_score_exact",
+      "result": "A 35-cell pool measuring 3.49524 now returns FAIL_OVER_ACTIVATION while the table still prints 3.5. Falsified by reverting the one line: the new tests went red, then green again on restore. All 8 archived artifacts still replay field for field"
+    },
+    {
+      "step": 4,
+      "action": "Carried judge_salvaged through _reduce_score_samples to the run summary and added --max-salvaged-fraction",
+      "result": "salvaged_sample_count, graded_sample_count, and salvaged_sample_fraction on the summary; exit 1 with the observed fraction when the bound is exceeded. Default 0.15 sits above the 8.3 percent the 2026-07-29 reference run would salvage"
+    },
+    {
+      "step": 5,
+      "action": "Revived test_dry_run_counts_repeated_judge_calls, found dead on the path",
+      "result": "It skipped on every run since its pinned rule file left the repository, and its call still passed a bare Path where _process_one_rule unpacks a tuple. Repointed at .claude/rules/testing.md and fixed the call"
+    },
+    {
+      "step": 6,
+      "action": "Drafted ADR-091 for the recovery bounds and updated the two skill references plus the archive README",
+      "result": "Skill mirrors regenerated with build/scripts/generate_skills.py; both plugin manifests bumped to 0.6.5445. ADR-091 left uncommitted for an agent that can run adr-review"
+    }
+  ],
+  "endingCommit": "a3bf87800",
+  "nextSteps": [
+    "ADR-091 is drafted at .agents/architecture/ADR-091-judge-verdict-recovery-bounds.md but uncommitted. Landing it needs the adr-review skill plus a debate log in .agents/analysis, which this subagent cannot produce",
+    "Issue #3988's remaining ask, provider-enforced structured output for the judge, needs its own issue. No response_format or tool schema exists anywhere in scripts/eval today",
+    "eval_one_scenario is at cyclomatic complexity 11, which predates this change and stays over the repo ceiling of 10"
+  ]
+}

@@ -72,12 +72,16 @@ Two limits on what this archive can support:
   marked until rounds 9 and 10 added `judge_salvaged` to them. That gap is the
   reason the marker exists, and the reason no claim about tightening the
   parser can be validated here.
-- **Re-walking the 24 failures is weaker than it looks.** Only 200 characters
-  of each payload survive (#3975), so a re-parse exercises the stored prefix,
-  not the payload the judge actually emitted. A duplicate score field in the
-  discarded tail would refuse under the current guard and is invisible here.
-  All 24 prefixes recover; that shows the hardening did not make the parser
-  worse on what was kept, not that it matches on what was not.
+- **Re-walking the 24 failures needs the recovered payloads, not the run
+  artifacts.** The run stored only a 200-character prefix of each payload
+  (#3975), so a re-parse against these files exercises the prefix, not what the
+  judge emitted. `recovered-judge-payloads.json` in this directory carries the
+  full raw for all 288 samples, recovered from the Copilot CLI session
+  transcripts rather than from the eval, so the 24 failures can be re-parsed
+  against the real thing. The eval now stores the whole payload under
+  `judge_raw`, so a future run needs no recovery step. All 24 prefixes recover;
+  that shows the hardening did not make the parser worse on what was kept, not
+  that it matches on what was not.
 
 A third figure that was published as free is not. Of the 264 graded samples,
 none has a `reasoning` string naming a score field. That was read as evidence
