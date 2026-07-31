@@ -4106,6 +4106,8 @@ class TestArchivedSummariesStillAggregate:
             "worst_negative_avg",
             "legacy_reduced_count",
             "route_mismatch_count",
+            "avg_score_exact",
+            "rounding_would_change_verdict",
         }
     )
 
@@ -6935,3 +6937,193 @@ class TestAPublishedIdMustSurviveSerialization:
                         f"{path} declares {key}={value!r}, which the loader now refuses"
                     )
         assert checked >= 10, f"only {checked} ids checked; the walk found too few files"
+
+
+def _uniform_cells(count: int, score: float, negative: bool) -> list[dict[str, Any]]:
+    """`count` scenarios whose every mechanism scores `score`."""
+    return [_make_scenario(score, score, score, negative=negative) for _ in range(count)]
+
+
+class TestAGateReadsTheMeasurementNotThePrintedNumber:
+    """The published average is rounded to 2 decimals and cannot gain precision.
+
+    Archived runs recorded it that way, so widening it breaks replay. A gate
+    that read the published number inherited the rounding: a restraint average
+    of 3.499 publishes as 3.5, `3.5 < 3.5` is false, and a measurement below the
+    floor was certified as clearing it. The gates now read the measured value
+    and the published field is untouched, so the record still reproduces.
+    """
+
+    @staticmethod
+    def _below_floor_by_rounding():
+        """Negatives averaging 3.499, which publishes as exactly the floor."""
+        negatives = _uniform_cells(499, 4, True) + _uniform_cells(501, 3, True)
+        return eval_mod.aggregate([_make_scenario(2, 5, 4), *negatives])
+
+    def test_a_restraint_average_under_the_floor_is_not_certified(self):
+        summary = self._below_floor_by_rounding()
+        assert summary["verdict"] == "FAIL_OVER_ACTIVATION"
+
+    def test_the_published_average_keeps_its_recorded_precision(self):
+        """Widening it would break every archived artifact, so it must not move."""
+        summary = self._below_floor_by_rounding()
+        assert summary["worst_negative_avg"] == 3.5
+        assert summary["negative_case_per_mechanism"]["description"]["avg_score"] == 3.5
+
+    def test_the_measured_value_is_published_beside_the_rounded_one(self):
+        summary = self._below_floor_by_rounding()
+        cell = summary["negative_case_per_mechanism"]["description"]
+        assert cell["avg_score_exact"] == 3.499
+        assert cell["avg_score"] != cell["avg_score_exact"]
+
+    def test_the_disagreement_with_the_printed_numbers_is_recorded(self):
+        assert self._below_floor_by_rounding()["rounding_would_change_verdict"] is True
+
+    def test_the_disagreement_is_disclosed_to_the_reader(self):
+        """A reader checking 3.5 against a 3.5 floor would otherwise call this a bug."""
+        caveats = eval_mod._render_caveats(self._below_floor_by_rounding())
+        precision = [c for c in caveats if c.startswith("Precision:")]
+        assert len(precision) == 1
+        assert "decided on the measured values" in precision[0]
+
+    def test_an_ordinary_run_records_no_disagreement(self):
+        """The negative control: the flag must not be always-on."""
+        summary = eval_mod.aggregate(
+            [_make_scenario(2, 5, 4), _make_scenario(5, 5, 5, negative=True)]
+        )
+        assert summary["rounding_would_change_verdict"] is False
+        assert not [
+            c for c in eval_mod._render_caveats(summary) if c.startswith("Precision:")
+        ]
+
+    @staticmethod
+    def _activation_straddle():
+        """Positives averaging 3.499 on description, which publishes as 3.5.
+
+        The activation floor is 3.5, so the measured value misses it and the
+        printed one meets it. Baseline is held far enough below that the delta
+        gate cannot be what decides the run.
+        """
+        positives = [_make_scenario(1, 4, 5) for _ in range(499)]
+        positives += [_make_scenario(1, 3, 5) for _ in range(501)]
+        return eval_mod.aggregate([*positives, _make_scenario(5, 5, 5, negative=True)])
+
+    @staticmethod
+    def _delta_straddle():
+        """Baselines averaging 3.501, which publishes as 3.5.
+
+        Description is exactly 4.0, so the measured gap is 0.499 and the
+        printed gap is 0.500 against a required 0.5.
+        """
+        positives = [_make_scenario(4, 4, 5) for _ in range(501)]
+        positives += [_make_scenario(3, 4, 5) for _ in range(499)]
+        return eval_mod.aggregate([*positives, _make_scenario(5, 5, 5, negative=True)])
+
+    def test_an_activation_average_under_the_floor_is_not_certified(self):
+        summary = self._activation_straddle()
+        assert summary["per_mechanism"]["description"]["avg_score"] == 3.5
+        assert summary["per_mechanism"]["description"]["avg_score_exact"] == 3.499
+        assert summary["verdict"] == "FAIL_THRESHOLD"
+        assert summary["rounding_would_change_verdict"] is True
+
+    def test_a_gap_under_the_required_delta_is_not_certified(self):
+        summary = self._delta_straddle()
+        assert summary["per_mechanism"]["baseline"]["avg_score"] == 3.5
+        assert summary["per_mechanism"]["baseline"]["avg_score_exact"] == 3.501
+        assert summary["verdict"] == "FAIL_NO_DELTA"
+        assert summary["rounding_would_change_verdict"] is True
+
+    def test_the_baseline_average_is_published_rounded(self):
+        """It is an archived field, so it carries the precision the record kept."""
+        summary = eval_mod.aggregate(
+            _uniform_cells(3, 4, False) + [_make_scenario(5, 5, 5, negative=True)]
+        )
+        published = summary["baseline_avg"]
+        assert published is not None
+        assert published == round(published, 2)
+
+
+class TestAnArchivedCellStillDecidesOnTheNumberItKept:
+    """Replay calls the gates on summaries written before the exact value existed.
+
+    Falling back to the published average is not a second source of truth: it
+    is the only number that run recorded. Returning None instead would make
+    every archived cell read as ungraded and move verdicts that are a closed
+    record.
+    """
+
+    def test_the_measured_value_is_preferred_when_present(self):
+        assert eval_mod._gate_avg({"avg_score": 3.5, "avg_score_exact": 3.499}) == 3.499
+
+    def test_the_published_value_is_used_when_the_measured_one_is_absent(self):
+        assert eval_mod._gate_avg({"avg_score": 3.5}) == 3.5
+
+    def test_an_explicit_null_measured_value_falls_back(self):
+        assert eval_mod._gate_avg({"avg_score": 3.5, "avg_score_exact": None}) == 3.5
+
+    def test_an_ungraded_cell_stays_ungraded(self):
+        assert eval_mod._gate_avg({"avg_score": None}) is None
+        assert eval_mod._gate_avg({}) is None
+
+
+class TestTheScenarioCountIsGuidanceNotAGate:
+    """The README claimed the harness enforces 3 to 5 positives. It does not.
+
+    Turning that claim into a check would refuse most of the tree, including
+    every file the published result was measured on, so the claim was corrected
+    rather than implemented. These tests pin the contract the loader actually
+    has, so the documentation cannot drift back into describing a detector that
+    does not exist.
+    """
+
+    @staticmethod
+    def _write(tmp_path, positives: int, negatives: int = 1):
+        scenarios = [
+            {"id": f"P{i}", "input": "x", "expected_gate": "apply-rule"}
+            for i in range(positives)
+        ] + [
+            {"id": f"N{i}", "input": "y", "expected_gate": "skip-rule-not-applicable"}
+            for i in range(negatives)
+        ]
+        path = tmp_path / "scenarios.json"
+        path.write_text(
+            json.dumps(
+                {"rule_path": ".claude/rules/universal.md", "scenarios": scenarios}
+            ),
+            encoding="utf-8",
+        )
+        return str(path)
+
+    @pytest.mark.parametrize("positives", [1, 2, 3, 5, 20])
+    def test_any_non_empty_positive_pool_is_accepted(self, tmp_path, positives):
+        assert not isinstance(
+            eval_mod._load_scenarios_file(self._write(tmp_path, positives)), int
+        )
+
+    def test_an_empty_positive_pool_is_still_refused(self, tmp_path):
+        """The one count that is a gate stays a gate."""
+        assert eval_mod._load_scenarios_file(self._write(tmp_path, 0)) == 2
+
+    def test_the_shipped_corpus_would_not_survive_a_floor_of_three(self):
+        """The evidence that the documented range could never be enforced."""
+        counts = []
+        for path in sorted((REPO_ROOT / "tests" / "evals").rglob("*.json")):
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(data, dict) or "scenarios" not in data:
+                continue
+            counts.append(
+                sum(
+                    1
+                    for s in data["scenarios"]
+                    if s.get("expected_gate") != eval_mod.NEGATIVE_GATE
+                )
+            )
+        assert counts, "no scenario files found; the walk is wrong"
+        assert min(counts) < 3, "a floor of three is now viable; revisit the README"
+
+    def test_the_readme_does_not_claim_a_count_it_cannot_enforce(self):
+        readme = (REPO_ROOT / "scripts" / "eval" / "README.md").read_text(
+            encoding="utf-8"
+        )
+        assert "with 3-5 positive scenarios" not in readme
+        assert "That range is guidance, not a check." in readme

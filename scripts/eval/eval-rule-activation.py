@@ -1792,6 +1792,13 @@ def _mechanism_summary(
     avg = round(sum(scores) / len(scores), 2) if scores else None
     return {
         "avg_score": avg,
+        # The published average is rounded, and archived runs recorded it that
+        # way, so it cannot gain precision without breaking replay. A gate that
+        # reads it inherits the rounding: a restraint average of 3.4991 is
+        # published as 3.5, and `3.5 < 3.5` is false, so a measurement below the
+        # floor is certified as clearing it. Keep the measured value beside the
+        # published one and let the gates read this.
+        "avg_score_exact": (sum(scores) / len(scores)) if scores else None,
         "scenario_count": len(pool),
         "graded_count": len(scores),
         "judge_failures": failures,
@@ -1847,8 +1854,8 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
             neg_scenarios, mech
         )
 
-    baseline_avg = summary["per_mechanism"]["baseline"]["avg_score"]
-    desc_avg = summary["per_mechanism"]["description"]["avg_score"]
+    baseline_avg = _gate_avg(summary["per_mechanism"]["baseline"])
+    desc_avg = _gate_avg(summary["per_mechanism"]["description"])
 
     # A routed target performs no `full` treatment, so it is a candidate for
     # nothing: not the ranking, not the record of what the ranking dropped.
@@ -1908,7 +1915,7 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
 
     summary["best_mechanism"] = best_mech
     summary["best_avg_score"] = best_avg
-    summary["baseline_avg"] = baseline_avg
+    summary["baseline_avg"] = _round_or_none(baseline_avg)
     pos_cells = summary["per_mechanism"]
     summary["delta_full_vs_baseline"] = _delta(pos_cells["full"], pos_cells["baseline"])
     summary["delta_description_vs_baseline"] = _delta(
@@ -1970,9 +1977,17 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     # failing every rule in it.
     gate_mechs = neg_gate_mechs
     gate_cells = {m: summary["negative_case_per_mechanism"][m] for m in gate_mechs}
-    graded_neg = [c["avg_score"] for c in gate_cells.values() if _fully_graded(c)]
+    # `_fully_graded` already implies a measured average, so the None filter is
+    # a type guard rather than a behavior change.
+    gate_avgs = (_gate_avg(c) for c in gate_cells.values() if _fully_graded(c))
+    graded_neg = [avg for avg in gate_avgs if avg is not None]
     worst_neg_avg = min(graded_neg) if graded_neg else None
-    summary["worst_negative_avg"] = worst_neg_avg
+    # `round` is monotone, so the minimum of the rounded values and the rounded
+    # minimum are the same number. The published field is unchanged; only the
+    # value the floor is compared against gained its measured precision.
+    summary["worst_negative_avg"] = (
+        None if worst_neg_avg is None else round(worst_neg_avg, 2)
+    )
     # Name the population the number was read off. An average over a subset of
     # the negative scenarios, reported as if it covered them all, is the defect
     # this whole change exists to remove.
@@ -2031,17 +2046,48 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
         for m in measured_mechs
     )
 
+    common = {
+        "gating_judge_failures": gating_judge_failures,
+        "has_positive_cases": bool(pos_scenarios),
+        "has_negative_cases": bool(neg_scenarios),
+    }
     summary["verdict"] = _decide_verdict(
         summary,
-        gating_judge_failures=gating_judge_failures,
         worst_neg_avg=worst_neg_avg,
-        has_positive_cases=bool(pos_scenarios),
-        has_negative_cases=bool(neg_scenarios),
         desc_avg=desc_avg,
         baseline_avg=baseline_avg,
+        **common,
+    )
+    # The table prints the rounded averages, so a reader who checks the verdict
+    # against them can reach a different answer than the run did whenever a
+    # threshold sits inside the rounding window. Decide again on the printed
+    # numbers and record the disagreement rather than leaving the reader to
+    # conclude the instrument is broken.
+    summary["rounding_would_change_verdict"] = summary["verdict"] != _decide_verdict(
+        summary,
+        worst_neg_avg=_round_or_none(worst_neg_avg),
+        desc_avg=_round_or_none(desc_avg),
+        baseline_avg=_round_or_none(baseline_avg),
+        **common,
     )
 
     return summary
+
+
+def _round_or_none(value: float | None) -> float | None:
+    """Round to the precision the table prints, preserving an absent value."""
+    return None if value is None else round(value, 2)
+
+
+def _gate_avg(cell: dict[str, Any]) -> float | None:
+    """The average a gate compares, at the precision it was measured.
+
+    Falls back to the published 2dp value for an archived summary written
+    before the exact value was recorded, so replaying an old run still decides
+    on the only number that run kept.
+    """
+    exact = cell.get("avg_score_exact")
+    return cell.get("avg_score") if exact is None else exact
 
 
 def _fully_graded(cell: dict[str, Any]) -> bool:
@@ -2161,6 +2207,13 @@ def _render_caveats(summary: dict[str, Any]) -> list[str]:
     silent one.
     """
     lines: list[str] = []
+    if summary.get("rounding_would_change_verdict"):
+        lines.append(
+            "Precision: the averages printed below are rounded to 2 decimals "
+            "and a gate threshold falls inside that rounding. The verdict was "
+            "decided on the measured values, so checking it against the "
+            "printed numbers will disagree."
+        )
     for label, key in (
         ("Negative", "negative_gate_incomplete"),
         ("Positive", "positive_gate_incomplete"),

@@ -223,7 +223,7 @@ Per-rule or per-reference scenario files live in `tests/evals/rule-scenarios/{ru
 
 Adding a new activation eval:
 
-1. Write `tests/evals/rule-scenarios/{rule-id}.json` with 3-5 positive scenarios and at least one negative case. The harness enforces both counts before it spends anything, so a file missing either pool fails the dry run rather than reaching a live scoring run.
+1. Write `tests/evals/rule-scenarios/{rule-id}.json` with at least one positive scenario and at least one negative case. The harness enforces that both pools are non-empty before it spends anything, so a file missing either fails the dry run rather than reaching a live scoring run. Aim for 3 to 5 positives: fewer makes the average a description of one or two observations, more mostly buys API spend. That range is guidance, not a check. Most files in the tree carry two positives, so enforcing a floor of three would refuse the corpus every published result was measured on.
 2. Give every scenario an `expected_gate`. The harness refuses a file where one is missing, because that string picks the judge rubric and the pool: an unreadable gate would grade a negative case against the positive rubric and then average it into the positive pool. `skip-rule-not-applicable` is the one value that marks a negative case, and any near miss of it in the `skip-rule` namespace is refused rather than scored as a positive.
 3. Use `rule_path` for always-on rules, or `skill_path` plus `reference_path` for progressive-disclosure references.
 4. Run `uv run python scripts/eval/eval-rule-activation.py --scenarios tests/evals/rule-scenarios/{rule-id}.json --dry-run` to confirm the script can parse the target.
