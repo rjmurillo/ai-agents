@@ -18,11 +18,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TARGET = REPO_ROOT / "scripts" / "validation" / "pr_description.py"
-TESTS = [
-    "tests/test_validation_pr_description.py::TestValidatePRDescription::test_issue_4019_what_changed_heading_extracts_inline_code[## What changed]",
-    "tests/test_validation_pr_description.py::TestValidatePRDescription::test_issue_4019_what_changed_fake_path_is_flagged_as_critical[## What changed]",
-    "tests/test_validation_pr_description.py::TestValidatePRDescription::test_issue_4019_what_changed_is_distinct_from_summary",
-]
+# Use -k keyword filter to avoid 100-char line-length limit on node ID strings.
+PYTEST_K = "test_issue_4019"
 
 # ---------------------------------------------------------------------------
 # The single mutation we test: remove the "What changed" entry from the tuple.
@@ -39,7 +36,8 @@ def _count(src: bytes, pattern: bytes) -> int:
 def _run_tests(extra_args: list[str] | None = None) -> subprocess.CompletedProcess:
     cmd = [
         sys.executable, "-m", "pytest", "--tb=no", "-q",
-        *TESTS,
+        "tests/test_validation_pr_description.py",
+        "-k", PYTEST_K,
         *(extra_args or []),
     ]
     return subprocess.run(cmd, cwd=str(REPO_ROOT), capture_output=True, text=True)
