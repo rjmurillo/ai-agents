@@ -120,11 +120,11 @@ Check in this order:
    `FAIL_JUDGE_ERRORS`. `total_judge_failures` may exceed it, counting `full`
    on a routed target and `baseline` on the negative pool, neither of which
    gates anything. The table names the excluded cells when the counts differ.
-2. **The negative case should be high on every mechanism the target can reach.**
-   Checked before coverage: an observed harm outranks an unproven benefit. A
-   drop means the rule fires on work it should ignore, whatever the positive
-   scores say. For a skill reference the gate reads `description` only: `full`
-   force-injects the reference routing exists to keep out.
+2. **The negative average must clear the floor on every reachable mechanism.**
+   Checked before coverage: observed harm outranks an unproven benefit. The
+   gate is a mean over the whole negative pool against `MIN_RESTRAINT_SCORE`,
+   so one low scenario among high ones need not fail it. For a skill reference
+   the gate reads `description` only: `full` force-injects what routing omits.
 3. **The graded columns must read `n/n`.** An off-rubric cell is unmeasured, so
    it leaves the average without raising `judge_failed`, and a mean over one
    scenario looks identical to a mean over three. Each pool is gated on the
