@@ -48,7 +48,7 @@ issue, or write-up. All commands run from the repo root.
 | ADR-068 status is Accepted as of 2026-07-30 | `sed -n '1,10p' .agents/architecture/ADR-068-consolidated-hook-dispatcher.md` |
 | Rule-activation eval exists with a no-spend path | `python3 scripts/eval/eval-rule-activation.py --help` |
 | 12 rule scenario fixtures as of 2026-07-30 | `set -- tests/evals/rule-scenarios/*; echo $#` |
-| Corpus size (98 skills, 25 rules, 121 retros, 879 Markdown memories as of 2026-07-30) | `set -- .claude/skills/*/; echo $#; set -- .claude/rules/*.md; echo $#; set -- .agents/retrospective/*; echo $#; python3 -c "from pathlib import Path; print(sum(1 for p in Path('.serena/memories').rglob('*.md') if p.is_file()))"` |
+| Corpus size (98 skill directories, 25 rule files, 121 retrospective corpus files, 879 Markdown memory files as of 2026-07-30) | `set -- .claude/skills/*/; echo $#; set -- .claude/rules/*.md; echo $#; python3 -c "from pathlib import Path; print(sum(1 for p in Path('.agents/retrospective').glob('*.md') if p.is_file())); print(sum(1 for p in Path('.serena/memories').rglob('*.md') if p.is_file()))"` |
 | Runtime contract tests pass | `uv run pytest tests/build_scripts/test_generate_hooks_runtime_contract.py -q` |
 | Apply-step hooks unregistered | `uv run pytest -q "tests/build_scripts/test_copilot_dispatcher_artifact.py::TestDispatcherArtifacts::test_retired_hooks_are_absent_and_keepers_are_plugin_only"` |
 
@@ -99,7 +99,8 @@ durable competitive surface and everything else is plumbing.
 
 ### This repo's asset
 
-- 98 skill directories, 25 rules, 121 retrospectives, 879 Serena Markdown memory files
+- 98 skill directories, 25 rule files, 121 retrospective corpus files,
+  879 Serena Markdown memory files
   (counts as of 2026-07-30; re-verify with the Phase 1 corpus-size command).
 - Gates that produce inspectable artifacts (verification-based governance,
   SESSION-PROTOCOL.md): every rule violation leaves evidence, so compliance is
@@ -295,12 +296,12 @@ Sources and re-verification:
 
 - ADR-069 thesis and status: `.agents/architecture/ADR-069-context-corpus-is-the-product.md:2` (status: proposed), title at line 9. Re-verify: `head -12 .agents/architecture/ADR-069-context-corpus-is-the-product.md`.
 - ADR-072 status, review verdict, five conditions, harness list: `.agents/architecture/ADR-072-jtbd-plugin-architecture.md:3-19`. Re-verify: `sed -n '1,25p' .agents/architecture/ADR-072-jtbd-plugin-architecture.md`.
-- ADR-068 status and #2295 measurements (3/197 kills, ~246 ms cold start, 40 shims): `.agents/architecture/ADR-068-consolidated-hook-dispatcher.md`. Re-verify: `grep -n -A1 -e "Three of" -e "246" -e "N=40" .agents/architecture/ADR-068-consolidated-hook-dispatcher.md`.
+- ADR-068 status and #2295 measurements (3/197 kills, ~246 ms cold start, 40 shims): `.agents/architecture/ADR-068-consolidated-hook-dispatcher.md`. Re-verify: `sed -n '1,10p' .agents/architecture/ADR-068-consolidated-hook-dispatcher.md; grep -n -A1 -e "Three of" -e "246" -e "N=40" .agents/architecture/ADR-068-consolidated-hook-dispatcher.md`.
 - Rule-activation eval mechanisms, judge dimensions, exit codes: `scripts/eval/eval-rule-activation.py:1-40` docstring. Re-verify: `sed -n '1,40p' scripts/eval/eval-rule-activation.py`.
 - FM-1 95.8% evidence: `.agents/governance/FAILURE-MODES.md:44`. Re-verify: `grep -n "95.8" .agents/governance/FAILURE-MODES.md`.
 - Detect-Log-Graduate and explicit retrieval: the `reflect` skill, `.claude/skills/memory/SKILL.md`, and `.claude/skills/memory-search/SKILL.md`. Re-verify the deleted advisory hooks' absence with the Phase 1 test command.
 - EVENT telemetry emitter: `.claude/hooks/PreToolUse/push_guard_base.py:19`. Re-verify: `grep -n "EVENT=" .claude/hooks/PreToolUse/push_guard_base.py`.
-- Guard tiers and thresholds: `.claude/skills/guard-maturity/SKILL.md:46-57`. Re-verify: `grep -n -e "Harmful" -e "Proficient" -e "Inert" .claude/skills/guard-maturity/SKILL.md`.
+- Guard tiers and thresholds: `.claude/skills/guard-maturity/SKILL.md:52-59`. Re-verify: `sed -n '52,59p' .claude/skills/guard-maturity/SKILL.md`.
 - Runtime contract test and anchoring validator: `tests/build_scripts/test_generate_hooks_runtime_contract.py`, `scripts/validation/validate_hook_anchoring.py`. Re-verify: `ls` both paths.
 - Env-anchor decision memory: `.serena/memories/decision-copilot-cli-hook-plugin-root-contract.md`. Re-verify: `ls` the path.
 - Counts (skill dirs, rules, retros, memories, scenario fixtures): Phase 1 command. Volatile; re-run before quoting rather than copying a snapshot from here.
