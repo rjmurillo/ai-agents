@@ -49,7 +49,7 @@ Direction rule: generators read canonical, write mirrors. They NEVER write `.cla
 
 | Decision | ADR | Status (as of 2026-07-03) | Why it exists |
 |---|---|---|---|
-| Memory-first: retrieval precedes reasoning; Serena (`.serena/memories/`, 122 files) canonical, Forgetful supplementary | ADR-007 | Accepted (revised 2026-01-01) | Agents re-derive knowledge badly; retrieval is cheaper and auditable |
+| Memory-first: retrieval precedes reasoning; Serena (`.serena/memories/`, 879 Markdown files) canonical, Forgetful supplementary | ADR-007 | Accepted (revised 2026-01-01) | Agents re-derive knowledge badly; retrieval is cheaper and auditable |
 | HANDOFF.md read-only, distributed handoffs | ADR-014 | Accepted | Single-file write target caused merge-conflict storms |
 | Two-source agent templates (shared templates plus hand-written `src/claude/`) | ADR-036 | Accepted | Claude prompts need harness-specific depth; 3 full sources would drift |
 | Python-only new scripts, bash prohibited | ADR-042 | Accepted | One toolchain, testable, cross-platform |
@@ -139,11 +139,11 @@ State these plainly when working near them; do not design as if they were sound.
 - **Hook sources serve different consumers**: `.claude/settings.json` has 3 events and 4 groups, `.claude/hooks/hooks.json` has 2 events and 2 groups; do not force parity; verify repository-only vs vendored before editing either source.
 - **`src/claude/` manual dual-edit**: shared-template edits silently skip the Claude surface unless you make the second edit.
 - **Stale docs contradict reality**: following docs verbatim fails; quote the canonical source when correcting (FM-9).
-- **ruff is advisory in CI**: lint debt accumulates invisibly; only syntax parsing blocks.
+- **Ruff debt is ratcheted, not eliminated**: changed-file and whole-tree count gates block regressions, but existing lint debt remains.
 - **Skill tests split by location**: green CI does not prove skill tests ran; run them explicitly (`ai-agents-validation-and-qa`).
 - **Proposed-ADR ambiguity**: the status field is not a reliable is-this-binding signal; check enforcement, not status.
 - **EVENT telemetry consumer is thin**: telemetry may be written and never read; verify before citing intercept ratios.
-- **Retro-cited SHAs unresolvable locally**: archaeology routes through retros and memories as primary sources, not git log.
+- **Retro-cited SHAs are clone-ref dependent and off `main`**: verify ancestry, then route archaeology through retros and memories rather than relying on `git log`.
 
 ## Anti-Patterns
 
