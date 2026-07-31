@@ -4519,7 +4519,7 @@ class TestUnmeasuredPoolsPublishNoNumber:
                 {
                     "baseline": _make_mech(1),
                     "description": _make_mech(5),
-                    "full": {"scores": {"cell_score": None}},
+                    "full": _unscored_mech(),
                 }
             )
         ]
@@ -4561,8 +4561,8 @@ class TestUnmeasuredPoolsPublishNoNumber:
             _scenario_of_mechs(
                 {
                     "baseline": _make_mech(1),
-                    "description": {"scores": {"cell_score": None}},
-                    "full": {"scores": {"cell_score": None}},
+                    "description": _unscored_mech(),
+                    "full": _unscored_mech(),
                 }
             )
         ]
@@ -4641,7 +4641,7 @@ class TestDeltasRequireACommonPopulation:
             _make_scenario(baseline=1, description=5, full=5),
             _scenario_of_mechs(
                 {
-                    "baseline": {"scores": {"cell_score": None}},
+                    "baseline": _unscored_mech(),
                     "description": _make_mech(1),
                     "full": _make_mech(1),
                 }
@@ -4666,7 +4666,7 @@ class TestDeltasRequireACommonPopulation:
         scenarios = [
             _scenario_of_mechs(
                 {
-                    "baseline": {"scores": {"cell_score": None}},
+                    "baseline": _unscored_mech(),
                     "description": _make_mech(5),
                     "full": _make_mech(5),
                 }
