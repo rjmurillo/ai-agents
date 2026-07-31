@@ -41,7 +41,7 @@ same day, the parity line topped out at `0.6.5472` and the `src/claude` line at
 then bump the parity pair together to one value and `src/claude` to its own.
 
 ```bash
-git fetch origin --quiet
+git fetch origin --quiet || { echo "ERROR: git fetch failed; refs may be stale" >&2; exit 1; }
 for MANIFEST in .claude/.claude-plugin/plugin.json \
                 src/copilot-cli/.claude-plugin/plugin.json \
                 src/claude/.claude-plugin/plugin.json; do
@@ -59,7 +59,13 @@ The emptiness check is load-bearing. Both `git show` and the decoder discard
 stderr, so a mistyped manifest path makes every read fail silently; unguarded, the
 pipeline then prints nothing and still exits 0, which reads as "nobody has
 allocated" when it actually means "I measured nothing." Verified: the guarded
-form exits 1 on a bogus path. Separately, `sort -V` places a prerelease suffix
+form exits 1 on a bogus path. The fetch guard is load-bearing for the same
+reason, one step earlier. `git show` reads local remote-tracking refs, not the
+network, so an unchecked fetch failure does not empty the output; it silently
+answers from whatever those refs held last. Verified: with the fetch failing
+(exit 128) and the return value discarded, the loop still printed a maximum and
+exited 0. That is worse than reading nothing, because a stale answer understates
+the pack and looks exactly like a fresh one. Separately, `sort -V` places a prerelease suffix
 *after* the plain version (`0.6.5471`, then `0.6.5471-rc1`), the reverse of
 SemVer precedence. No branch uses a suffix today, so that is latent rather than
 live, but do not trust this snippet if one appears.
