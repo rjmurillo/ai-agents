@@ -214,7 +214,24 @@ Before marking complete:
 | Skipping multi-agent validation | Miss security, scope, or necessity issues | Run all 4 validation agents |
 | Duplicate commands for similar purposes | Confusing discoverability | Check existing commands first |
 | Generic description without trigger keywords | Model cannot find the command | Include specific "Use when" phrases |
+| Restating pre-trained knowledge in the body | The model already knows Git, SOLID, and the refactoring catalog. A command body that recites them costs tokens on every invocation and buys no behavior change | Write only what the model cannot know: repo gotchas, local conventions, which gate blocks this branch |
+| Prose the description already carries | The description is what routes the invocation; the body is loaded in full afterward. A body that only elaborates its own description was never the reason the command worked | Put the decision rule in the description, the depth behind a file the body points at |
 | Bare `.claude/skills/...` exec path in a generated command | Works only upstream; fails in plugin installs | Resolve via `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/...` |
+
+A command body is progressive disclosure, so it is not billed on every request
+the way an always-on rule is. That makes the admission test in
+`../context-optimizer/references/model-context-doctrine.md` the
+wrong gate here: apply it to always-on text, not to a command body. What does
+carry over is the second half of the doctrine. A body is loaded in full the
+moment the command runs, so length still costs, and content the model already
+knows still buys nothing.
+
+Cut with the same caution the doctrine records. Eight eval runs found a rule
+whose full body beat its description alone in 7 of 8 runs, reversing the
+expected result. Content that looks like restatement can be arbitration:
+which principle wins here, which threshold this repo uses, which gate runs
+first. That is repo knowledge wearing a textbook's clothes, and cutting it
+unmeasured is how you lose behavior you cannot see you lost.
 
 ## Quality Gates Checklist
 
@@ -224,6 +241,9 @@ All checks from Verification section plus:
 - [ ] No duplication with existing commands
 - [ ] Appropriate scope (not too broad/narrow)
 - [ ] Frontmatter completeness validated
+- [ ] Every claim in the body is something the model could not already know; generic engineering knowledge deleted or moved behind a pointer
+- [ ] Body earns its length: if the description alone would route and drive the same behavior, cut the body to what it adds
+- [ ] Body under 200 lines (see Anti-Patterns); past that it is a skill
 
 ## Scripts
 

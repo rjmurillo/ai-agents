@@ -18,16 +18,20 @@ workspace budget covers only `CLAUDE.md`, `AGENTS.md`, and `.claude/CLAUDE.md`,
 and `instruction_budget.py` covers only `.github/instructions/*.instructions.md`.
 New always-on guidance therefore belongs here, not there (Refs #3991).
 
-## Three portability checkers exist and their names do not tell you the scope
+## Four portability checkers exist and their names do not tell you the scope
 
-Running two of them is not running the third, and only the third reads
-Markdown.
+Running three of them is not running the fourth. Two read scripts and two read
+Markdown, and the two Markdown checkers are inverses of each other: one counts
+prose references and deliberately ignores `.claude/skills/`, the other looks
+for executable invocations of exactly that tree. All four live in
+`scripts/validation/`, not `build/scripts/`.
 
 | Script | Scans | Catches |
 |---|---|---|
-| `build/scripts/check_vendor_portability.py` | skill scripts | code that reads an upstream-only path |
-| `build/scripts/check_skill_portability.py` | skill scripts | drift against the script baseline |
+| `scripts/validation/check_vendor_portability.py` | skill scripts | code that reads an upstream-only path |
+| `scripts/validation/check_skill_portability.py` | skill scripts | drift against the script baseline |
 | `scripts/validation/check_skill_md_portability.py` | skill `.md` | an upstream path cited in **prose** |
+| `scripts/validation/check_skill_md_exec_portability.py` | skill `.md` | a bare `.claude/skills/...` script **invocation** |
 
 Symptom: the first two pass, you commit, and the push is rejected by
 `pre_pr.py` with `[FAIL] Skill Markdown Portability` naming a reference file
@@ -115,20 +119,23 @@ say the corpus is small.
 Compare against the goal, not the ceiling. The always-on corpus is roughly 95KB
 on a `.py` edit.
 
-## Suppression comments block the push, including inert ones
+## Security suppression comments block commits, merges, and pushes
 
-`git_hook_policy.py security-suppressions-push` rejects any commit that **adds**
-a line matching a `noqa`, `nosec`, `nosemgrep`, `lgtm[`, or `type: ignore`
-comment. It matches the comment shape, not the rule name, so a `noqa` naming a
-rule the project does not even select is still a block.
+`git_hook_policy.py` runs the same security suppression policy at pre-commit,
+pre-merge-commit, and pre-push. It blocks bare `noqa`, `noqa` lists containing
+an `S` rule, file-level Ruff or Flake8 security directives, `nosec`,
+`nosemgrep`, `lgtm[`, `codeql[`, and `cwe-suppress`.
 
-Ruff selects `E`, `F`, `W`, `I`, `N`, `UP`, `B`, `ANN`. Anything else in a
-`noqa` is inert and should be deleted rather than carried.
+Non-security `noqa` codes pass. `type: ignore` is outside this gate; issue
+#4039 tracks its separate policy.
 
-The check diffs the whole push range, so a suppression added in one commit and
-removed in a later one nets out and passes. Existing lines on `main` are
-grandfathered because only added lines are scanned, which is why inert
-suppressions can sit in the tree looking like sanctioned precedent. Refs #3940.
+A suppression moved within one file consumes an equal removal credit. Pure
+renames and rename-with-edit changes between scanned suffixes preserve that
+credit. A rename from an unscanned suffix into a scanned suffix scans the full
+destination file, because the suppression becomes active at that boundary.
+
+Existing suppressions on `main` remain grandfathered unless the change makes
+them newly active. Refs #3940, #4049, #4051, and #4052.
 
 ## The push blocks at 21 commits, and the check runs at push time
 

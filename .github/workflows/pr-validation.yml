@@ -72,6 +72,19 @@ jobs:
       - name: Checkout repository
         if: steps.should-run.outputs.skip != 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # `Check PR commit count` reads origin/main's first-parent trunk to
+          # decide the 20 vs 40 commit ceiling (issue #3997). A default checkout
+          # is shallow and creates only refs/remotes/pull/<n>/merge, so
+          # `git rev-list --first-parent origin/main` fails, the predicate fails
+          # closed, and a branch that really does merge main is held to 20 here
+          # while the pre-push hook allows it 40. That is the exact divergence
+          # issue #3997 exists to remove, so the ref has to be present.
+          # Cost: an unshallow fetch of ~165 MiB against a 10-minute job budget,
+          # which is what 20+ workflows in this repo already pay. A shallower
+          # option would answer wrongly rather than fail closed, because a
+          # truncated trunk still reads as a trunk.
+          fetch-depth: 0
 
       - name: Setup PowerShell
         if: steps.should-run.outputs.skip != 'true'
@@ -241,11 +254,9 @@ jobs:
       # learned to ignore, which is the same training signal that teaches people
       # to ignore the naming and complexity rules in the same output.
       #
-      # Enforcing outright is not viable: 615 error-severity violations exist
-      # today (458 file-size, 133 complexity, 24 naming). So the total is frozen
-      # in scripts/ci/taste_count_baseline.txt and may only fall. Every
-      # currently-failing file keeps passing; only growth blocks. Lower the
-      # baseline after a cleanup with
+      # Enforcing outright is not viable: 613 error-severity violations exist.
+      # The total in scripts/ci/taste_count_baseline.txt must match exactly.
+      # Record a lower count after cleanup with
       # `python scripts/ci/taste_count_ratchet.py --update`.
       #
       # This job hosts it for the same reason it hosts the workflow-YAML and

@@ -30,8 +30,8 @@ Stdlib only: this runs by path in CI and must not depend on the project's
 import graph.
 
 Exit codes (AGENTS.md contract):
-    0 - ok (count <= baseline)
-    1 - regression (count > baseline, or baseline raised vs --base-ref)
+    0 - ok (count == baseline, or --update records a decrease)
+    1 - regression (count != baseline, or baseline raised vs --base-ref)
     2 - config error (baseline missing or malformed, bad args)
     3 - external error (the linter could not run)
 """
