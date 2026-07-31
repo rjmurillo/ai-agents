@@ -157,7 +157,6 @@ eight runs above were taken after that was fixed, so no cell in the table is a
 disguised provider error. A run recorded before that date is not comparable
 and should not be pooled with these.
 
-
 Model attribution rests on the filenames above and nothing else. The artifacts
 are committed at
 `.agents/analysis/eval-artifacts/2026-07-29-unified-software-engineering/`.
@@ -284,8 +283,9 @@ number are not. The shapes recur either way.
   `rules[<name>].scenarios[].mechanisms[<mech>].score_samples[]` and
   re-medianing each cell reproduces the published table exactly.
 - **Recovering discarded samples.** Failed samples store the truncated raw
-  payload in `reasoning` behind a `judge parse error: ` prefix; strip it and
-  feed the remainder to `_salvage_scores`. Successful samples store no payload
+  payload in `reasoning` behind a `judge parse error:` prefix that ends with a
+  single space; strip the whole prefix and feed the remainder to
+  `_salvage_scores`. Successful samples store no payload
   in the artifact at all. Both are recovered in full in
   `recovered-judge-payloads.json` beside it, keyed by the same coordinates and
   attributed by the input-based oracle rather than by the score.

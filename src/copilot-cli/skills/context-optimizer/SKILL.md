@@ -329,8 +329,8 @@ python3 scripts/test_skill_passive_compliance.py --path .claude/skills/github --
 
 **Input**: GitHub skill with gh pr create, gh issue close commands
 
+```json
 {"classification": "Skill", "confidence": 85, "reasoning": "High tool execution (8 calls); Many action verbs (12)"}
-
 ```
 
 ### Clear Passive Classification

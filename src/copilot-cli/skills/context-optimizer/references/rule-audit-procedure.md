@@ -105,7 +105,7 @@ Settling the direction needs a two-by-two: ambient on and off crossed with
 
 ## Step 2. Read the table honestly
 
-```
+```text
 | Mechanism    | Pos avg | Neg avg | Δ vs baseline | Pos graded | Neg graded |
 |--------------|---------|---------|---------------|------------|------------|
 | baseline     |    3.89 |     5.0 |               |        3/3 |        1/1 |
