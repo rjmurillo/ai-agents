@@ -40,8 +40,11 @@ REQUIRED_SKILL_FIELDS = ("name", "version", "description", "license")
 # ADR-080: skills inherit the harness model by default; model: is optional.
 # When present it must be a bare rolling alias (no versioned id) with a
 # model-rationale: field. Versioned ids like claude-opus-4-6 are forbidden.
+# Per ADR-080 rule 3, model-rationale is a cost exception: only an alias
+# priced below the harness default qualifies; in practice that is haiku.
 _ALLOWED_MODEL_ALIASES: frozenset[str] = frozenset({"sonnet", "opus", "haiku"})
-_MODEL_FIELD_RE = re.compile(r"^model:\s*(.+?)\s*$", re.MULTILINE)
+_COST_EXCEPTION_ALIASES: frozenset[str] = frozenset({"haiku"})
+_MODEL_FIELD_RE = re.compile(r"^model:\s*(.*?)\s*$", re.MULTILINE)
 
 AGENT_REQUIRED_SECTIONS = ("description", "model")
 
@@ -318,6 +321,25 @@ def check_skill_frontmatter(filepath: str, lines: list[str]) -> list[Violation]:
     model_match = _MODEL_FIELD_RE.search(frontmatter)
     if model_match:
         model_value = model_match.group(1).strip()
+        if model_value == "":
+            return [
+                Violation(
+                    rule="skill-frontmatter",
+                    principle="GP-003",
+                    severity="error",
+                    file=filepath,
+                    line=1,
+                    message=(
+                        "SKILL.md model field violates ADR-080: blank value;"
+                        " omit the model: field to inherit the harness default"
+                    ),
+                    remediation=(
+                        "AGENT_REMEDIATION: Per ADR-080, omitting model: inherits the harness"
+                        " default, which is the correct default for skills.\n"
+                        "  Remove the empty model: line."
+                    ),
+                )
+            ]
         if model_value not in _ALLOWED_MODEL_ALIASES:
             return [
                 Violation(
@@ -335,6 +357,29 @@ def check_skill_frontmatter(filepath: str, lines: list[str]) -> list[Violation]:
                         " model id.\n"
                         "  Remove the model: field to inherit the harness default, or use a"
                         " rolling alias with a cost rationale:\n"
+                        "    model: haiku\n"
+                        "    model-rationale: Cost-sensitive; haiku suffices for this task."
+                    ),
+                )
+            ]
+        if model_value not in _COST_EXCEPTION_ALIASES:
+            return [
+                Violation(
+                    rule="skill-frontmatter",
+                    principle="GP-003",
+                    severity="error",
+                    file=filepath,
+                    line=1,
+                    message=(
+                        f"SKILL.md model field violates ADR-080: '{model_value}' is not a"
+                        " cost-exception alias; per ADR-080 rule 3, only 'haiku' resolves"
+                        " to a version priced below the harness default"
+                    ),
+                    remediation=(
+                        "AGENT_REMEDIATION: Per ADR-080 rule 3, model-rationale is a cost"
+                        " exception only for haiku.\n"
+                        "  Omit the model: field to inherit the harness default, or replace"
+                        " with haiku if this skill needs cost-tier pricing:\n"
                         "    model: haiku\n"
                         "    model-rationale: Cost-sensitive; haiku suffices for this task."
                     ),

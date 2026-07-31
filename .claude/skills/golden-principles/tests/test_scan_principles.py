@@ -256,3 +256,71 @@ def test_adr080_check_is_isolating_load_bearing(tmp_path: Path) -> None:
     # are returned the ADR-080 check was stripped and the mutation survived.
     assert result.violations, "ADR-080 versioned-id check must be present and triggered"
     assert any("ADR-080" in v.message for v in result.violations)
+
+
+def test_skill_model_sonnet_with_rationale_fails_adr080(tmp_path: Path) -> None:
+    """model: sonnet is not a cost-exception alias per ADR-080 rule 3.
+
+    Even with model-rationale:, sonnet does not resolve to a version priced
+    below the harness default, so the field is rejected.
+    """
+    skill = _write(
+        tmp_path,
+        _SKILL_DEMO,
+        (
+            "---\nname: demo\nversion: 1.0.0\ndescription: demo\nlicense: MIT\n"
+            "model: sonnet\n"
+            "model-rationale: Fast turnaround needed.\n"
+            "---\n"
+        ),
+    )
+    result = _mod.run_scan([skill], ["skill-frontmatter"])
+    assert len(result.violations) == 1
+    v = result.violations[0]
+    assert v.rule == "skill-frontmatter"
+    assert "ADR-080" in v.message
+    assert "cost-exception" in v.message
+
+
+def test_skill_model_opus_with_rationale_fails_adr080(tmp_path: Path) -> None:
+    """model: opus is not a cost-exception alias per ADR-080 rule 3.
+
+    Even with model-rationale:, opus does not resolve to a version priced
+    below the harness default, so the field is rejected.
+    """
+    skill = _write(
+        tmp_path,
+        _SKILL_DEMO,
+        (
+            "---\nname: demo\nversion: 1.0.0\ndescription: demo\nlicense: MIT\n"
+            "model: opus\n"
+            "model-rationale: Complex reasoning required.\n"
+            "---\n"
+        ),
+    )
+    result = _mod.run_scan([skill], ["skill-frontmatter"])
+    assert len(result.violations) == 1
+    v = result.violations[0]
+    assert v.rule == "skill-frontmatter"
+    assert "ADR-080" in v.message
+    assert "cost-exception" in v.message
+
+
+def test_skill_model_blank_fails_adr080(tmp_path: Path) -> None:
+    """A blank model: value (model: with nothing after colon) is caught by ADR-080.
+
+    Previously _MODEL_FIELD_RE required at least one character after 'model:'
+    so a blank value silently skipped validation. The regex now accepts empty
+    values and flags them.
+    """
+    skill = _write(
+        tmp_path,
+        _SKILL_DEMO,
+        ("---\nname: demo\nversion: 1.0.0\ndescription: demo\nlicense: MIT\nmodel:\n---\n"),
+    )
+    result = _mod.run_scan([skill], ["skill-frontmatter"])
+    assert len(result.violations) == 1
+    v = result.violations[0]
+    assert v.rule == "skill-frontmatter"
+    assert "ADR-080" in v.message
+    assert "blank" in v.message
