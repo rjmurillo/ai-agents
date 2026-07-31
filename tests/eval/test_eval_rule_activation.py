@@ -5283,15 +5283,16 @@ class TestRankingAndItsExclusionsShareOnePopulation:
 
     @staticmethod
     def _routed_summary(full_score: int | None) -> dict[str, object]:
-        positive: dict[str, object] = {
-            "negative_case": False,
-            "mechanisms": {
-                "baseline": _make_mech(1),
-                "description": _make_mech(4),
-            },
+        mechanisms: dict[str, object] = {
+            "baseline": _make_mech(1),
+            "description": _make_mech(4),
         }
         if full_score is not None:
-            positive["mechanisms"]["full"] = _make_mech(full_score)
+            mechanisms["full"] = _make_mech(full_score)
+        positive: dict[str, object] = {
+            "negative_case": False,
+            "mechanisms": mechanisms,
+        }
         return eval_mod.aggregate(
             [positive, _make_scenario(5, 5, 5, negative=True)], routed=True
         )
@@ -5479,3 +5480,74 @@ class TestEmptyHeadlinesNameEligibilityNotJustReachability:
             "Restraint on negative cases: no reachable negative-gate mechanism "
             "graded on every negative scenario" in table
         )
+
+
+class TestTheJuneArchiveReplaysAsAClosedRecord:
+    """The 2026-06-06 archive predates the negative gate, so say what moved.
+
+    Every measurement in that run still reproduces. The `verdict` field does
+    not, because the verdict policy gained an over-activation floor after the
+    run was published. That is a policy change, not a measurement drift, and
+    the report carries a correction naming exactly which verdicts moved. This
+    pins both halves so neither can drift away from the other silently.
+    """
+
+    REPORT_DIR = Path(__file__).resolve().parents[2] / "evals" / "reports"
+    STEM = "rule-activation-conditional-loading-2026-06-06"
+    MEASURED = (
+        "best_mechanism",
+        "best_avg_score",
+        "baseline_avg",
+        "delta_full_vs_baseline",
+        "delta_description_vs_baseline",
+        "total_judge_failures",
+    )
+    MOVED = {
+        "clean-architecture": "FAIL_OVER_ACTIVATION",
+        "domain-driven-design": "FAIL_OVER_ACTIVATION",
+        "philosophy-of-software-design": "FAIL_THRESHOLD",
+        "unified-software-engineering": "FAIL_THRESHOLD",
+    }
+
+    def _archive(self):
+        path = self.REPORT_DIR / (self.STEM + ".json")
+        assert path.is_file(), path
+        return json.loads(path.read_text())["rules"]
+
+    def test_every_measured_field_still_reproduces(self):
+        rules = self._archive()
+        assert len(rules) == 7, len(rules)
+        compared = 0
+        for name, rule in rules.items():
+            current = eval_mod.aggregate(rule["scenarios"], routed=False)
+            archived = rule["summary"]
+            for field in self.MEASURED:
+                assert current[field] == archived[field], (name, field)
+                compared += 1
+            for pool in ("per_mechanism", "negative_case_per_mechanism"):
+                for mech, cell in archived[pool].items():
+                    assert current[pool][mech]["avg_score"] == cell["avg_score"], (
+                        name,
+                        pool,
+                        mech,
+                    )
+                    compared += 1
+        assert compared == 84, compared
+
+    def test_only_the_four_documented_verdicts_moved(self):
+        rules = self._archive()
+        moved = {}
+        for name, rule in rules.items():
+            current = eval_mod.aggregate(rule["scenarios"], routed=False)["verdict"]
+            if current != rule["summary"]["verdict"]:
+                moved[name] = current
+        assert moved == self.MOVED, moved
+
+    def test_the_report_correction_names_those_same_four(self):
+        text = (self.REPORT_DIR / (self.STEM + ".md")).read_text()
+        assert "## Correction" in text
+        for name, verdict in self.MOVED.items():
+            assert f"{name}: PASS to {verdict}" in text, name
+        # A rule whose verdict did not move must not be listed as one that did.
+        assert "release-it: PASS to" not in text
+        assert "working-with-legacy-code: PASS to" not in text
