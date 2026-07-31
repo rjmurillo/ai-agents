@@ -555,7 +555,18 @@ Respond in JSON only, no other text:
         # The whole payload did not parse; the verdict came from its leading
         # object. Marking it is what makes the recovery auditable after the
         # run, which the searching version it replaced never was.
+        #
+        # The payload rides along for the same reason `_salvaged_or_failed_judge`
+        # keeps it (#3975). This is the third salvage path and it was the one
+        # storing nothing: the marker reached the `--max-salvaged-fraction`
+        # gate while the text the scores were inferred from was dropped, so an
+        # operator whose run tripped the bound found evidence for some salvaged
+        # samples and none for these. The round-9 residual lives here, an
+        # exemplar object at offset 0 followed by a prose refusal that still
+        # grades 5/5/5, and that text is the only record that the triple is
+        # wrong.
         result["judge_salvaged"] = True
+        result["judge_raw"] = text
     fingerprint = metadata.get("system_fingerprint")
     if isinstance(fingerprint, str):
         result["judge_system_fingerprint"] = fingerprint
@@ -1832,9 +1843,15 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     # graded on one lucky scenario would otherwise take the headline from a
     # mechanism graded on all of them, and the table would refuse that same
     # comparison one line later as a delta.
+    # Ranked on the unrounded average for the same reason the gates read it:
+    # two mechanisms 0.004 apart round to one printed number, and `max` then
+    # keeps whichever `MECHANISMS` happens to list first. The headline named
+    # the wrong mechanism while the sibling `worst_negative_mechanism` a few
+    # lines below already ranked exactly. The published `best_avg_score` stays
+    # rounded, so archived runs still replay field for field.
     best_mech = max(
         (m for m in rule_enhanced if _fully_graded(summary["per_mechanism"][m])),
-        key=lambda m: summary["per_mechanism"][m]["avg_score"],
+        key=lambda m: summary["per_mechanism"][m]["avg_score_exact"],
         default=None,
     )
     best_avg = summary["per_mechanism"][best_mech]["avg_score"] if best_mech else None
@@ -1882,7 +1899,8 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
         pos_cells["description"], pos_cells["baseline"]
     )
     # The published deltas stay rounded, so the archived runs replay
-    # field-for-field. The delta gate reads this one.
+    # field-for-field. This unrounded twin exists for the rounding disclosure,
+    # not for the gate: the gate subtracts the two exact averages itself.
     summary["delta_description_vs_baseline_exact"] = _delta_exact(
         pos_cells["description"], pos_cells["baseline"]
     )
@@ -2005,7 +2023,14 @@ def _delta(treatment: dict[str, Any], control: dict[str, Any]) -> float | None:
 def _delta_exact(
     treatment: dict[str, Any], control: dict[str, Any]
 ) -> float | None:
-    """The same difference, off the unrounded averages, for the delta gate."""
+    """The same difference, off the unrounded averages, for disclosure.
+
+    Not what the delta gate reads. `_positive_verdict` subtracts the two exact
+    averages itself, so this value has one consumer: `_rounding_caveats`, which
+    compares it against the published rounded delta and discloses a pair that
+    straddles `MIN_DELTA_VS_BASELINE`. Naming the gate here asserted an outcome
+    this helper does not produce, which is the same defect #4031 named.
+    """
     if not _fully_graded(treatment) or not _fully_graded(control):
         return None
     return treatment["avg_score_exact"] - control["avg_score_exact"]
@@ -2120,6 +2145,29 @@ def _rounding_caveats(summary: dict[str, Any]) -> list[str]:
     return [line for line in candidates if line is not None]
 
 
+def _salvage_caveat(summary: dict[str, Any]) -> str | None:
+    """Disclose how much of the run rests on recovered payloads.
+
+    The `--max-salvaged-fraction` bound decides the exit code inside
+    `_salvage_gate_failed` and announces itself only on stderr, so the rendered
+    report printed a clean verdict beside a non-zero exit with nothing
+    explaining it. That is the publish-a-number-that-contradicts-the-verdict
+    shape the rounding caveats exist to remove, so the rate is disclosed
+    whenever recovery moved anything, whether or not the bound fired.
+    """
+    salvaged = summary.get("salvaged_sample_count") or 0
+    if not salvaged:
+        return None
+    fraction = summary.get("salvaged_sample_fraction")
+    rate = f" ({fraction:.1%})" if isinstance(fraction, float) else ""
+    return (
+        f"Salvaged judge samples: {salvaged} of "
+        f"{summary.get('graded_sample_count', 0)} graded{rate}; scores "
+        "recovered from payloads that did not parse, bounded by "
+        "--max-salvaged-fraction."
+    )
+
+
 def _render_caveats(summary: dict[str, Any]) -> list[str]:
     """Every line that qualifies the verdict above it.
 
@@ -2129,6 +2177,9 @@ def _render_caveats(summary: dict[str, Any]) -> list[str]:
     silent one.
     """
     lines: list[str] = _rounding_caveats(summary)
+    salvage_line = _salvage_caveat(summary)
+    if salvage_line is not None:
+        lines.append(salvage_line)
     for label, key in (
         ("Negative", "negative_gate_incomplete"),
         ("Positive", "positive_gate_incomplete"),

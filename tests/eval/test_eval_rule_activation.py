@@ -5109,6 +5109,86 @@ class TestJudgeFailureEvidence:
         assert result["judge_raw"] == payload
 
 
+# The round-9 residual, verbatim: a well-formed verdict object at offset 0
+# followed by an explicit English refusal. The prefix recovery reads the object
+# and publishes 5/5/5; the refusal is the only text saying the triple is wrong.
+_PREFIX_RECOVERY_REFUSAL = (
+    '{"activation_score": 5, "citation_score": 5, "behavior_score": 5, '
+    '"reasoning": "example"}\n\n'
+    "Actually, I cannot score this response: the rule text was not provided."
+)
+
+
+class TestPrefixRecoveryKeepsItsPayload:
+    """The third salvage path stored no evidence, and the gate counted it.
+
+    `_salvaged_or_failed_judge` keeps `judge_raw` on both of its branches, but
+    `score_response` has its own salvage path: whole-payload parse fails,
+    `_recover_verdict` returns the leading object, and the record used to carry
+    `judge_salvaged: True` with no payload at all. `_reduce_score_samples`
+    counts those toward `salvaged_sample_count`, so they feed the
+    `--max-salvaged-fraction` bound, and an operator whose run tripped the
+    bound found evidence for some salvaged samples and nothing for these.
+    """
+
+    def test_a_prefix_recovery_stores_the_whole_payload(self, monkeypatch):
+        result = _score_with_judge_text(monkeypatch, _PREFIX_RECOVERY_REFUSAL)
+
+        assert result["judge_salvaged"] is True
+        assert result["judge_failed"] is False
+        assert result["judge_raw"] == _PREFIX_RECOVERY_REFUSAL
+
+    def test_the_stored_payload_keeps_the_refusal_the_scores_contradict(
+        self, monkeypatch
+    ):
+        # The published triple is 5/5/5 and the payload says the judge refused.
+        # Recording the refusal is the whole point: the residual is accepted by
+        # design, so the artifact has to let a reader find it.
+        result = _score_with_judge_text(monkeypatch, _PREFIX_RECOVERY_REFUSAL)
+
+        assert result["activation_score"] == 5
+        assert "I cannot score this response" in result["judge_raw"]
+
+    def test_a_prefix_recovery_is_not_truncated(self, monkeypatch):
+        # `score_response` strips the payload before parsing, so build one with
+        # no trailing whitespace and assert the body survives whole.
+        payload = _JUDGE + "\n" + ".".join(["trailing prose"] * 500)
+
+        result = _score_with_judge_text(monkeypatch, payload)
+
+        assert result["judge_salvaged"] is True
+        assert result["judge_raw"] == payload
+        assert len(result["judge_raw"]) > 5000
+
+    def test_a_clean_payload_still_stores_no_raw(self, monkeypatch):
+        # Negative control. Only salvaged and failed records carry evidence;
+        # a clean parse has nothing to explain.
+        result = _score_with_judge_text(monkeypatch, _JUDGE)
+
+        assert "judge_salvaged" not in result
+        assert "judge_raw" not in result
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            # Prefix recovery: the object leads, prose follows.
+            _PREFIX_RECOVERY_REFUSAL,
+            # Root scan through `_salvaged_or_failed_judge`: the leading object
+            # is itself malformed, so the scores come off its readable members.
+            _UNESCAPED_QUOTE_JUDGE,
+        ],
+    )
+    def test_every_salvaged_sample_the_gate_counts_carries_its_payload(
+        self, monkeypatch, payload
+    ):
+        # One invariant over both salvage paths. The `--max-salvaged-fraction`
+        # bound does not distinguish them, so neither may the evidence.
+        result = _score_with_judge_text(monkeypatch, payload)
+
+        assert result["judge_salvaged"] is True
+        assert result["judge_raw"] == payload
+
+
 class TestJudgeSampleRecordsItsModel:
     """Acceptance 3 of #3975: model identity readable from the sample record.
 
@@ -5210,6 +5290,73 @@ def _straddling_pool(
         for _ in range(high_count)
     ]
     return low + high
+
+
+def _split_pool(
+    description_low: int, full_low: int, pool_size: int = 35
+) -> list[dict[str, object]]:
+    """A pool where `description` and `full` round alike but differ exactly.
+
+    `_mixed(4, 3, 3)` reduces to 10/3 and `_mixed(4, 4, 3)` to 11/3. Over 35
+    scenarios, 18 low and 17 high average 3.49524 while 17 low and 18 high
+    average 3.50476. Both print as 3.5, so a ranking that reads the rounded
+    column cannot tell them apart and falls back to `MECHANISMS` order.
+    """
+    scenarios: list[dict[str, object]] = []
+    for index in range(pool_size):
+        scenarios.append(
+            {
+                "negative_case": False,
+                "mechanisms": {
+                    "baseline": _mech_from([_mixed(1, 1, 1)]),
+                    "description": _mech_from(
+                        [_mixed(4, 3, 3) if index < description_low else _mixed(4, 4, 3)]
+                    ),
+                    "full": _mech_from(
+                        [_mixed(4, 3, 3) if index < full_low else _mixed(4, 4, 3)]
+                    ),
+                },
+            }
+        )
+    return scenarios
+
+
+class TestBestMechanismRanksOnTheUnroundedAverage:
+    """The headline named the wrong mechanism inside the rounding window.
+
+    `worst_negative_mechanism` already ranked on `avg_score_exact`; its
+    positive sibling still ranked on the rounded column, where two mechanisms
+    0.01 apart tie and `max` keeps whichever `MECHANISMS` lists first.
+    """
+
+    def test_the_higher_exact_average_wins_a_rounded_tie(self):
+        # `full` is exactly higher; both print 3.5. `description` is listed
+        # first, so a rounded ranking would hand it the headline.
+        summary = eval_mod.aggregate(_split_pool(description_low=18, full_low=17))
+
+        assert summary["per_mechanism"]["description"]["avg_score"] == 3.5
+        assert summary["per_mechanism"]["full"]["avg_score"] == 3.5
+        assert (
+            summary["per_mechanism"]["full"]["avg_score_exact"]
+            > summary["per_mechanism"]["description"]["avg_score_exact"]
+        )
+        assert summary["best_mechanism"] == "full"
+
+    def test_the_ranking_still_follows_the_other_direction(self):
+        # Negative control: swap which mechanism is exactly higher and the
+        # headline follows, so the assertion above is not passing on list order.
+        summary = eval_mod.aggregate(_split_pool(description_low=17, full_low=18))
+
+        assert summary["per_mechanism"]["description"]["avg_score"] == 3.5
+        assert summary["per_mechanism"]["full"]["avg_score"] == 3.5
+        assert summary["best_mechanism"] == "description"
+
+    def test_the_published_headline_average_stays_rounded(self):
+        # Edge: only the ranking key changed. `best_avg_score` is still the
+        # rounded number, so archived runs replay field for field.
+        summary = eval_mod.aggregate(_split_pool(description_low=18, full_low=17))
+
+        assert summary["best_avg_score"] == 3.5
 
 
 class TestGatesReadTheUnroundedAverage:
@@ -5385,6 +5532,46 @@ class TestSalvagedSampleCount:
         summary = eval_mod.aggregate([_make_scenario(baseline=5, description=5, full=5)])
 
         assert summary["salvaged_sample_fraction"] is None
+
+
+class TestSalvageDisclosureInTheReport:
+    """The bound moved the exit code and the report said nothing.
+
+    `_salvage_gate_failed` prints to stderr and flips the exit code. The
+    rendered table, which is what a reader keeps, showed a clean verdict beside
+    a non-zero exit with nothing explaining it: the same
+    publish-a-number-that-contradicts-the-verdict shape the rounding caveats
+    exist to remove.
+    """
+
+    def test_the_table_names_the_salvage_rate(self):
+        scenarios = [_scenario_from(_mech_from([_salvaged_sample(), _mixed(5, 5, 5)]))]
+
+        table = eval_mod.render_table("r", eval_mod.aggregate(scenarios))
+
+        assert "Salvaged judge samples: 3 of 6 graded (50.0%)" in table
+        assert "--max-salvaged-fraction" in table
+
+    def test_a_run_with_no_salvage_prints_no_disclosure(self):
+        # Negative control: the line must distinguish, not decorate.
+        scenarios = [_scenario_from(_mech_from([_mixed(5, 5, 5)] * 2))]
+
+        table = eval_mod.render_table("r", eval_mod.aggregate(scenarios))
+
+        assert "Salvaged judge samples" not in table
+
+    def test_an_archived_summary_without_the_keys_prints_no_disclosure(self):
+        # Edge: artifacts predating the counters carry neither key.
+        assert eval_mod._salvage_caveat({}) is None
+
+    def test_a_count_without_a_fraction_still_discloses(self):
+        # Edge: a hand-built or partial summary must not crash the renderer.
+        line = eval_mod._salvage_caveat(
+            {"salvaged_sample_count": 2, "graded_sample_count": 0}
+        )
+
+        assert line is not None
+        assert "2 of 0 graded" in line
 
 
 class TestSalvageGate:
