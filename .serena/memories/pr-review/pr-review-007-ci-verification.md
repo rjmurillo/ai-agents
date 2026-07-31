@@ -79,11 +79,21 @@ Before claiming PR review complete, ALL must be true:
 
 | Criterion | Verification Command | Required |
 |-----------|---------------------|----------|
-| All comments resolved | `grep -c "Status: \\[COMPLETE\\]\\|\\[WONTFIX\\]"` equals total | Yes |
+| All comments resolved | count of resolved markers equals total, see command below | Yes |
 | No new comments | Re-check after 45s wait returned 0 new | Yes |
 | **CI checks pass** | **`gh pr checks` all success/skipped** | **Yes** |
 | No unresolved threads | GraphQL query for unresolved reviewThreads | Yes |
 | Commits pushed | `git status` shows "up to date with origin" | Yes |
+
+The resolved-marker count uses a basic regular expression, where `\|` is
+alternation. It is shown outside the table because a table cell would need
+`\\|`, which BRE reads as an escaped backslash followed by a literal pipe. That
+form matches nothing and reports 0, so the criterion fails even when every
+comment is resolved.
+
+```bash
+grep -c "Status: \[COMPLETE\]\|\[WONTFIX\]"
+```
 
 ## Implementation
 
