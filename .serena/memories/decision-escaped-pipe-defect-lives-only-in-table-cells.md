@@ -33,7 +33,7 @@ the string**, and the engines disagree.
 
 | Engine that consumes the string | `\|` means | Escaped form is correct when |
 |---------------------------------|-----------|------------------------------|
-| POSIX BRE: `grep`, `sed`, `git grep` with no `-E`/`-P` | alternation | the author wants alternation |
+| GNU BRE: `grep`, `sed`, `git grep` with no `-E`/`-P` | alternation, as a GNU extension | the author wants alternation *and* GNU tooling is guaranteed |
 | POSIX ERE: `grep -E`, `egrep` | **literal pipe** | the author wants a literal pipe |
 | PCRE: `grep -P`, Python `re`, .NET `-replace` | **literal pipe** | the author wants a literal pipe |
 | A shell pipeline (`bash`) | **a literal `\|` argument**; the pipe never happens and the shell reports no error | never |
@@ -68,6 +68,13 @@ Same escaped pattern, opposite meanings, decided only by `-E`. Under ERE the
 pattern is the literal string `aaa|bbb`, so only the third line matches. Under
 BRE it is the alternation `aaa` OR `bbb`, so every line matches, including the
 third, because it contains both substrings.
+
+The BRE row is a GNU extension, not a portable guarantee. POSIX defines no
+alternation operator for basic regular expressions, so a strictly conforming
+`grep` is free to read `\|` as a literal pipe instead. Measured: GNU grep 3.11
+and BusyBox grep both return 2 matches for `grep -c 'aaa\|bbb'` against `aaa`
+and `bbb`, so both take the alternation reading. Treat the escaped BRE form as
+GNU-only rather than as something the standard blesses.
 
 **The unit of classification is the occurrence, not the cell or the file.** One
 cell can hold occurrences with different verdicts.
