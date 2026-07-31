@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
 """Validate that review-axis findings reference files in the PR diff.
 
-After each stage-2 axis returns, run this script on the axis text.  Findings
-whose ``location`` fields name a file that is absent from the three-dot diff
-are downgraded to a prefixed ``[pre-existing]`` note so they cannot affect
-the axis verdict.
+After each stage-2 axis returns, the orchestrator passes the axis text to
+this script.  The script extracts ``location:`` fields, strips line suffixes,
+and checks each path against the three-dot diff.
 
-The script answers one question: does every claimed location fall inside the
-files changed by the PR?  Out-of-scope locations are preserved in the output
-(reviewers need visibility) but clearly labelled so the orchestrator knows not
-to elevate them to a verdict trigger.
+When one or more locations fall outside the diff, the script exits 1 and
+prints the out-of-scope paths to stderr.  The orchestrator is then responsible
+for prefixing those findings with ``[pre-existing - not in this PR diff]``.
+The script itself does NOT modify axis text.
+
+When all locations are in scope (or the diff is empty/unavailable), the
+script exits 0 and the orchestrator records the axis output unmodified.
 
 EXIT CODES (ADR-035):
-    0 - All locations are in scope (or the diff file list is empty/unavailable).
+    0 - All locations are in scope, or the diff list is empty or unavailable.
     1 - One or more locations are out of scope.
-    2 - Configuration error (git unavailable, bad worktree path, bad args).
 """
 
 from __future__ import annotations
@@ -127,8 +128,13 @@ def _file_in_diff(location: str, diff_files: list[str]) -> bool:
 def validate_scope(text: str, diff_files: list[str]) -> tuple[list[str], list[str]]:
     """Return (in_scope, out_of_scope) location lists for *text*.
 
-    When *diff_files* is empty the function treats all locations as in-scope
-    (diff unavailable -> do not block).
+    When *diff_files* is empty the function treats all locations as in-scope.
+    This is intentional: an empty diff means either the diff query returned
+    no changed files (nothing to scope-check against) or the base branch
+    could not be resolved.  In both cases blocking findings would produce
+    false positives, so we degrade gracefully.  The caller (``main``) already
+    handles ``None`` (git unavailable) separately; an empty list here means
+    git succeeded but the three-dot range produced no file names.
     """
     locations = extract_locations(text)
     if not diff_files:
