@@ -57,6 +57,15 @@ fi
 
 **Source**: `.agents/security/secret-detection-patterns.md`
 
+That source file is a broader catalog written in a different dialect: its
+patterns carry `(?i)` and `\s`, which are Python and PCRE constructs, not
+POSIX ERE. Do not copy patterns between the two files without translating
+them. Measured with GNU grep 3.11: every source-file pattern containing
+`[a-zA-Z0-9-_]` aborts under `grep -E` with `Invalid range end`, because the
+mid-class hyphen opens a character range there. Python's `re` parses the same
+hyphen as a literal, so those patterns are correct for the source file's own
+engine and wrong for this one.
+
 ## Related
 
 - [security-002-input-validation-first](security-002-input-validation-first.md)
