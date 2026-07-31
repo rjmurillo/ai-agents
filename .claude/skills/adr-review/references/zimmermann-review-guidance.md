@@ -1,6 +1,6 @@
 # ADR Review Guidance (Zimmermann)
 
-Review practices, anti-patterns, and checklists adapted from Olaf Zimmermann's "How to Review ADRs, and How Not To" (2023, updated 2025).
+Review practices, anti-patterns, and checklists adapted from Olaf Zimmermann's "How to Review ADRs", subtitled "and How Not To" (2023, updated 2025).
 
 ## Three Review Perspectives
 
@@ -91,6 +91,6 @@ Done well, ADRs also produce: productivity increase (traceable community assets)
 
 ## Sources
 
-- Zimmermann, O. (2023, updated 2025). "How to Review ADRs, and How Not To." <https://www.ozimmer.ch/practices/2023/04/05/ADRReview.html>
-- Zimmermann, O. (2023). "How to Create ADRs, and How Not To." <https://www.ozimmer.ch/practices/2023/04/03/ADRCreation.html>
+- Zimmermann, O. (2023, updated 2025). "How to Review ADRs", subtitled "and How Not To." <https://www.ozimmer.ch/practices/2023/04/05/ADRReview.html>
+- Zimmermann, O. (2023). "How to Create ADRs", subtitled "and How Not To." <https://www.ozimmer.ch/practices/2023/04/03/ADRCreation.html>
 - Craske, A. "How To Make Architecture Reviews That Feel Like Peer Reviews." <https://medium.com/qe-unit/how-to-make-architecture-reviews-that-feel-like-peer-reviews-ca1316b4f17d>
