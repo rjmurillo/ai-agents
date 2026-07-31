@@ -108,10 +108,15 @@ the table form of the pattern:
 - bash ANSI-C quoting, `$'...'`: collapses, reports 2
 - Python non-raw string literal: collapses, reports 2
 - Python raw string literal: preserves, reports 0
-- `xargs` default mode: strips every backslash, including the ones guarding
-  `[`, so grep receives bracket expressions where literals were written. It
-  reports 2 for a pattern that no longer means what the author wrote, which is
-  the right answer for the wrong reason. `xargs -d '\n'` preserves, reports 0.
+- `xargs` default mode: treats backslash as an escape, which mangles the pattern
+  without flattening it. `\[` and `\]` lose their shields and become bracket
+  expressions, while `\\` collapses to a single `\`, so the GNU BRE `\|`
+  alternation survives. grep receives `Status: [COMPLETE]\|[WONTFIX]` and reports
+  2, but the hits are single characters drawn from the class `[WONTFIX]`, not the
+  literal markers: the right answer for the wrong reason. Do not restate this as
+  "strips every backslash"; a full strip yields `Status: [COMPLETE]|[WONTFIX]`,
+  whose bare pipe is literal in BRE and reports 0. `xargs -d '\n'` preserves,
+  reports 0.
 
 Second, the dialect flag. Argv bytes are necessary but not sufficient, because
 `-E` inverts the escaping. Against the same fixture: `grep` with one backslash
