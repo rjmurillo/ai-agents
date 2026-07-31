@@ -200,15 +200,16 @@ def test_a_stale_branch_is_named_as_behind_at_the_cli(tmp_path, monkeypatch, cap
 
     Baseline file 700, base ref 615, measured count 615: the base ref already
     allows what this tree measures, so nothing here added a violation and the
-    remedy is a merge, not a code fix (issue #4066).
+    sync remedy leads (issue #4066).
     """
     baseline = _write_baseline(tmp_path, "700")
     monkeypatch.setattr(subprocess, "run", _fake_scan(10, 615, base_baseline="615"))
     rc = ratchet.main(_base_ref_argv(baseline, tmp_path))
     assert rc == ratchet.EXIT_REGRESSION
     err = capsys.readouterr().err
-    assert "BRANCH BEHIND BASE" in err
-    assert "Fix the violations" not in err
+    assert "BASELINE ABOVE BASE" in err
+    assert "nothing in this tree added a violation" in err
+    assert err.index("merge or rebase") < err.index("fix the violations")
 
 
 def test_a_base_ref_without_a_baseline_yet_is_the_bootstrap_case(

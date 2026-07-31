@@ -24,8 +24,12 @@ violation and write the same lowered value. Git merges the identical one-line
 edits without a conflict, and the merged tree is then improved twice against a
 baseline that fell once, which reads as STALE on the default branch (issue
 #4057). Nothing in this module can see the other branch, so the failure text
-names that cause and the fix stays a baseline-only commit. Blocking the second
-merge needs a branch-policy gate, not a code change here.
+offers that as the usual cause and the fix stays a baseline-only commit.
+Blocking the second merge is a branch-policy gate, not a code change here: the
+enforcement point chosen for issue #4057, and the alternatives rejected, are
+recorded in ``.github/AGENTS.md`` under "Ratchet Baselines and the Concurrent
+Merge Race". The regression test that proves the gate blocks lives in
+``tests/ci/test_count_ratchet_against_real_git.py``.
 
 Stdlib only: these gates run by path in CI (``python scripts/ci/<name>.py``) and
 must not depend on the project's import graph.
@@ -227,17 +231,48 @@ def build_parser(description: str, default_baseline: Path) -> argparse.ArgumentP
     return parser
 
 
+def _above_base_message(
+    base_ref: str, *, label: str, baseline: int, base: int, count: int
+) -> str:
+    """Report a baseline above the base ref without guessing who raised it.
+
+    Two histories land on identical numbers here: a branch cut before the base
+    ref lowered its baseline, and a branch that raised the baseline itself. A
+    branch behind a base ref that dropped three violations reads
+    ``baseline 334, base 331, count 334``, and so does a branch that added
+    three violations and widened the allowance to cover them. Telling either
+    author which one they are needs the fork point, and two endpoint reads
+    cannot supply it. The base ref also arrives via ``git fetch --depth=1``
+    (``.github/workflows/pytest.yml``), so its history is not guaranteed to be
+    there to read. Naming a cause anyway is the defect issue #4066 was filed
+    for, so this states what was measured and carries both remedies.
+
+    The count is worth stating on its own: when it is one the base ref already
+    allows, nothing in this tree added a violation, and that much IS measured.
+    """
+    measured = f"The measured count is {count}. "
+    if count <= base:
+        measured = (
+            f"The measured count is {count}, which {base_ref} already allows, "
+            f"so nothing in this tree added a violation. "
+        )
+    return (
+        f"{label}: BASELINE ABOVE BASE. This tree records {baseline}, "
+        f"{base_ref} records {base} (+{baseline - base}). {measured}"
+        f"The baseline may only fall. If this branch did not edit the "
+        f"baseline, it is behind {base_ref}: merge or rebase to pick up the "
+        f"lowered value. If it did raise the baseline, restore {base} and fix "
+        f"the violations instead of widening the allowance."
+    )
+
+
 def _base_ref_verdict(
     args: argparse.Namespace, *, label: str, baseline: int, count: int
 ) -> int | None:
     """Exit code when ``--base-ref`` blocks the run, or None to keep going.
 
-    A baseline above the one at the base ref always blocks, but the reason
-    splits on the measured count and the two remedies are opposite. When the
-    count is one the base ref already allows, the branch added nothing and is
-    merely behind; telling its author to fix violations sends them hunting for
-    code that is already clean (issue #4066). ``count`` therefore has to be
-    measured before this runs, not after.
+    A baseline above the one at the base ref always blocks. ``count`` has to be
+    measured before this runs so the verdict can report it (issue #4066).
     """
     root = args.repo_root.resolve()
     if baseline_absent_at_ref(root, args.base_ref, args.baseline):
@@ -253,23 +288,12 @@ def _base_ref_verdict(
         return EXIT_EXTERNAL
     if baseline <= base:
         return None
-    if count <= base:
-        print(
-            f"{label}: BRANCH BEHIND BASE. This baseline reads {baseline}, "
-            f"{args.base_ref} reads {base}, and the measured count is {count}, "
-            f"which {args.base_ref} already allows. Nothing here added a "
-            f"violation. Merge or rebase onto {args.base_ref} to pick up the "
-            f"lowered baseline.",
-            file=sys.stderr,
-        )
-    else:
-        print(
-            f"{label}: BASELINE RAISED. {base} -> {baseline} "
-            f"(+{baseline - base}) against {args.base_ref}. The baseline "
-            f"may only fall. Fix the violations instead of widening the "
-            f"allowance.",
-            file=sys.stderr,
-        )
+    print(
+        _above_base_message(
+            args.base_ref, label=label, baseline=baseline, base=base, count=count
+        ),
+        file=sys.stderr,
+    )
     return EXIT_REGRESSION
 
 
@@ -315,11 +339,12 @@ def run(
         print(
             f"{label}: BASELINE STALE. {count} violations < baseline {baseline} "
             f"(-{baseline - count}). Run with --update to lower the baseline and "
-            f"close the slack. If this branch changed nothing here, the drift "
-            f"came from two changes that each lowered this baseline to the same "
-            f"value and merged without conflict, so the tree improved twice "
-            f"while the file fell once. The remedy is the same either way: a "
-            f"baseline-only commit recording the true count.",
+            f"close the slack. Nothing here can see why the count fell, so the "
+            f"cause is not measured: the usual one is two changes that each "
+            f"lowered this baseline to the same value and merged without "
+            f"conflict, leaving the tree improved twice while the file fell "
+            f"once. The remedy is the same whatever the cause: a baseline-only "
+            f"commit recording the true count.",
             file=sys.stderr,
         )
         return EXIT_REGRESSION

@@ -1,4 +1,4 @@
-"""Bootstrap-detection probes for the count ratchet, run against real git.
+"""Bootstrap probes and ``--base-ref`` verdicts, run against real git.
 
 The monkeypatched tests in ``test_taste_count_ratchet.py`` assert the branch
 logic but would pass just as happily if the ref syntax were wrong, because the
@@ -6,8 +6,8 @@ stand-in matches on the subcommand alone. These exercise git itself, so a
 malformed revision expression fails here instead of in CI.
 
 The ``run`` tests below drive the real entry point against a real repository
-with a fake counter. Git is the boundary under test, so it is not mocked; the
-linter is not, so it is.
+with a fake counter. The concurrent-merge race and its enforcement point live
+in ``test_count_ratchet_concurrent_merge.py``.
 """
 
 from __future__ import annotations
@@ -20,65 +20,18 @@ import pytest
 
 from scripts.ci import count_ratchet
 from scripts.ci import taste_count_ratchet as ratchet
-
-
-def _init_repo(repo: Path) -> None:
-    """A repository with an identity and a deterministic default branch."""
-    subprocess.run(["git", "init", "-q", "-b", "main", str(repo)], check=True)
-    subprocess.run(
-        ["git", "-C", str(repo), "config", "user.email", "t@example.com"], check=True
-    )
-    subprocess.run(["git", "-C", str(repo), "config", "user.name", "t"], check=True)
-
-
-def _git(repo: Path, *argv: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", "-C", str(repo), *argv],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-
-def _commit_all(repo: Path, message: str) -> None:
-    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
-    subprocess.run(["git", "-C", str(repo), "commit", "-qm", message], check=True)
-
-
-class _FakeCounter:
-    """Stand-in for the linter scan that records how often it ran.
-
-    The call count is the assertion that matters for issue #4066: the verdict
-    must not name a violation count it never measured.
-    """
-
-    def __init__(self, value: int | None) -> None:
-        self.value = value
-        self.calls = 0
-
-    def __call__(self, _root: Path) -> int | None:
-        self.calls += 1
-        return self.value
-
-
-def _run_ratchet(
-    repo: Path,
-    baseline: Path,
-    counter,
-    *,
-    base_ref: str | None = None,
-) -> int:
-    argv = ["--repo-root", str(repo), "--baseline", str(baseline)]
-    if base_ref is not None:
-        argv += ["--base-ref", base_ref]
-    args = count_ratchet.build_parser("ratchet", baseline).parse_args(argv)
-    return count_ratchet.run(
-        args,
-        label="ratchet",
-        counter=counter,
-        scan_error="scan failed",
-        regression_advice="fix them.",
-    )
+from tests.ci.count_ratchet_git_harness import (
+    FakeCounter as _FakeCounter,
+)
+from tests.ci.count_ratchet_git_harness import (
+    commit_all as _commit_all,
+)
+from tests.ci.count_ratchet_git_harness import (
+    init_repo as _init_repo,
+)
+from tests.ci.count_ratchet_git_harness import (
+    run_ratchet as _run_ratchet,
+)
 
 
 def _repo_with_committed_baseline(tmp_path: Path, value: int) -> tuple[Path, Path]:
@@ -193,12 +146,12 @@ def test_a_baseline_outside_the_repo_is_not_bootstrap_against_real_git(tmp_path)
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
-def test_a_stale_branch_is_told_to_sync_not_to_fix_violations(tmp_path, capsys):
+def test_a_stale_branch_is_told_to_sync_before_it_is_told_to_fix(tmp_path, capsys):
     """The reported bug: a branch behind a base ref that lowered its baseline.
 
     Nothing here added a violation. The measured count is one the base ref
-    already allows, so the remedy is to merge the base ref, not to hunt for
-    three violations that do not exist.
+    already allows, so the sync remedy leads and the widening remedy is offered
+    as the alternative it is, not as the diagnosis.
     """
     repo, baseline = _repo_with_committed_baseline(tmp_path, 331)
     baseline.write_text("334\n", encoding="utf-8")
@@ -208,13 +161,14 @@ def test_a_stale_branch_is_told_to_sync_not_to_fix_violations(tmp_path, capsys):
 
     assert rc == count_ratchet.EXIT_REGRESSION
     err = capsys.readouterr().err
-    assert "BRANCH BEHIND BASE" in err
-    assert "Fix the violations" not in err
+    assert "BASELINE ABOVE BASE" in err
+    assert "nothing in this tree added a violation" in err
+    assert err.index("merge or rebase") < err.index("fix the violations")
     assert counter.calls == 1
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
-def test_a_real_widened_allowance_still_reports_baseline_raised(tmp_path, capsys):
+def test_a_real_widened_allowance_still_blocks(tmp_path, capsys):
     """The gate stays closed: a genuinely widened allowance still blocks."""
     repo, baseline = _repo_with_committed_baseline(tmp_path, 331)
     baseline.write_text("334\n", encoding="utf-8")
@@ -222,7 +176,68 @@ def test_a_real_widened_allowance_still_reports_baseline_raised(tmp_path, capsys
     rc = _run_ratchet(repo, baseline, _FakeCounter(334), base_ref="HEAD")
 
     assert rc == count_ratchet.EXIT_REGRESSION
-    assert "BASELINE RAISED. 331 -> 334 (+3)" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "BASELINE ABOVE BASE. This tree records 334, HEAD records 331 (+3)" in err
+    assert "fix the violations instead of widening the allowance" in err
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+def test_a_behind_branch_that_kept_its_own_count_is_not_blamed(tmp_path, capsys):
+    """The base ref deleted violations, so the behind branch counts above it.
+
+    ``count > base`` here and the branch still edited nothing: it holds the
+    tree the base ref held before the cleanup. The old text read this as a
+    widened allowance and told the author to fix violations they never added.
+    """
+    repo, baseline = _repo_with_committed_baseline(tmp_path, 331)
+    baseline.write_text("334\n", encoding="utf-8")
+
+    rc = _run_ratchet(repo, baseline, _FakeCounter(334), base_ref="HEAD")
+
+    err = capsys.readouterr().err
+    assert rc == count_ratchet.EXIT_REGRESSION
+    assert "If this branch did not edit the baseline, it is behind HEAD" in err
+    assert "BASELINE RAISED" not in err
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+def test_a_behind_branch_that_added_a_violation_is_not_told_it_raised(
+    tmp_path, capsys
+):
+    """One added violation must not turn "behind" into an accusation.
+
+    The branch measures 335 against its own baseline of 334, so it did add
+    something, but it never made the 331 -> 334 baseline delta the old text
+    charged it with.
+    """
+    repo, baseline = _repo_with_committed_baseline(tmp_path, 331)
+    baseline.write_text("334\n", encoding="utf-8")
+
+    rc = _run_ratchet(repo, baseline, _FakeCounter(335), base_ref="HEAD")
+
+    err = capsys.readouterr().err
+    assert rc == count_ratchet.EXIT_REGRESSION
+    assert "The measured count is 335." in err
+    assert "If this branch did not edit the baseline" in err
+    assert "331 -> 334" not in err
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+def test_a_widening_that_added_nothing_is_told_how_to_undo_it(tmp_path, capsys):
+    """A deliberate widening with no new violations needs a workable remedy.
+
+    ``count <= base`` holds, so the old text sent this author to merge the base
+    ref. Merging cannot lower a baseline this branch raised itself, so the
+    advice looped. The restore remedy has to be in the message.
+    """
+    repo, baseline = _repo_with_committed_baseline(tmp_path, 331)
+    baseline.write_text("334\n", encoding="utf-8")
+
+    rc = _run_ratchet(repo, baseline, _FakeCounter(331), base_ref="HEAD")
+
+    err = capsys.readouterr().err
+    assert rc == count_ratchet.EXIT_REGRESSION
+    assert "If it did raise the baseline, restore 331" in err
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
@@ -269,113 +284,3 @@ def test_bootstrap_still_passes_when_the_base_ref_has_no_baseline(tmp_path, caps
 
     assert rc == count_ratchet.EXIT_OK
     assert "bootstrap" in capsys.readouterr().out
-
-
-# ---------------------------------------------------------------------------
-# run(): concurrent lowerings merge cleanly and leave the tree stale
-# (issue #4057)
-# ---------------------------------------------------------------------------
-
-
-def _marker_counter(repo: Path):
-    """Count the marker files still on disk. Stands in for a linter scan."""
-
-    def _count(_root: Path) -> int:
-        return len(list(repo.glob("violation_*.txt")))
-
-    return _count
-
-
-def _repo_with_markers(tmp_path: Path, count: int) -> tuple[Path, Path]:
-    """A repository holding ``count`` markers and a baseline that matches."""
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    _init_repo(repo)
-    for index in range(count):
-        (repo / f"violation_{index}.txt").write_text("x\n", encoding="utf-8")
-    baseline = repo / "base.txt"
-    baseline.write_text(f"{count}\n", encoding="utf-8")
-    _commit_all(repo, f"seed {count}")
-    return repo, baseline
-
-
-def _lower_on_branch(repo: Path, baseline: Path, name: str, marker: int, to: int) -> int:
-    """Cut ``name`` from main, drop one marker, record ``to``, and check it."""
-    subprocess.run(["git", "-C", str(repo), "checkout", "-q", "main"], check=True)
-    subprocess.run(["git", "-C", str(repo), "checkout", "-q", "-b", name], check=True)
-    (repo / f"violation_{marker}.txt").unlink()
-    baseline.write_text(f"{to}\n", encoding="utf-8")
-    _commit_all(repo, f"{name}: lower to {to}")
-    return _run_ratchet(repo, baseline, _marker_counter(repo), base_ref="main")
-
-
-@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
-def test_two_concurrent_baseline_lowerings_leave_the_merged_tree_stale(
-    tmp_path, capsys
-):
-    """Both branches pass, the identical edits merge clean, and main goes red.
-
-    This is the race issue #4057 reports. Each branch removes one violation
-    and writes the same lowered value, so git sees no conflict, but the merged
-    tree has improved twice while the baseline fell once.
-    """
-    repo, baseline = _repo_with_markers(tmp_path, 2)
-
-    assert _lower_on_branch(repo, baseline, "branch-a", 0, 1) == count_ratchet.EXIT_OK
-    assert _lower_on_branch(repo, baseline, "branch-b", 1, 1) == count_ratchet.EXIT_OK
-
-    subprocess.run(["git", "-C", str(repo), "checkout", "-q", "main"], check=True)
-    for branch in ("branch-a", "branch-b"):
-        merge = _git(repo, "merge", "--no-ff", "-q", "-m", f"merge {branch}", branch)
-        assert merge.returncode == 0, merge.stderr
-
-    assert count_ratchet.read_baseline(baseline) == 1
-    assert _marker_counter(repo)(repo) == 0
-    capsys.readouterr()
-
-    rc = _run_ratchet(repo, baseline, _marker_counter(repo))
-
-    assert rc == count_ratchet.EXIT_REGRESSION
-    err = capsys.readouterr().err
-    assert "BASELINE STALE. 0 violations < baseline 1 (-1)" in err
-    assert "merged without conflict" in err
-
-
-@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
-def test_cumulative_lowering_across_three_branches_is_stale_by_two(tmp_path, capsys):
-    """The drift scales with the number of branches that land the same edit."""
-    repo, baseline = _repo_with_markers(tmp_path, 3)
-
-    for index, name in enumerate(("branch-a", "branch-b", "branch-c")):
-        assert _lower_on_branch(repo, baseline, name, index, 2) == count_ratchet.EXIT_OK
-
-    subprocess.run(["git", "-C", str(repo), "checkout", "-q", "main"], check=True)
-    for branch in ("branch-a", "branch-b", "branch-c"):
-        merge = _git(repo, "merge", "--no-ff", "-q", "-m", f"merge {branch}", branch)
-        assert merge.returncode == 0, merge.stderr
-    capsys.readouterr()
-
-    rc = _run_ratchet(repo, baseline, _marker_counter(repo))
-
-    assert rc == count_ratchet.EXIT_REGRESSION
-    assert "BASELINE STALE. 0 violations < baseline 2 (-2)" in capsys.readouterr().err
-
-
-@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
-def test_a_branch_that_lowers_the_baseline_below_its_own_count_still_fails(tmp_path):
-    """Control: the branch legs above pass on merit, not by accident.
-
-    A branch that removes two markers but records only one of them is stale on
-    its own, before any merge. If this passed, the two tests above would prove
-    nothing about the merge.
-    """
-    repo, baseline = _repo_with_markers(tmp_path, 3)
-    subprocess.run(["git", "-C", str(repo), "checkout", "-q", "-b", "greedy"], check=True)
-    (repo / "violation_0.txt").unlink()
-    (repo / "violation_1.txt").unlink()
-    baseline.write_text("2\n", encoding="utf-8")
-    _commit_all(repo, "greedy: lower to 2 after removing two")
-
-    rc = _run_ratchet(repo, baseline, _marker_counter(repo), base_ref="main")
-
-    assert rc == count_ratchet.EXIT_REGRESSION
