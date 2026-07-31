@@ -91,15 +91,46 @@ def list_unmerged_files(cwd: Path) -> list[str]:
     return [line for line in result.stdout.splitlines() if line.strip()]
 
 
+def _merge_head(cwd: Path) -> str | None:
+    """Return the MERGE_HEAD SHA when an in-progress merge is active, else None.
+
+    ``MERGE_HEAD`` exists as a ref only while ``git merge --no-commit`` (or a
+    merge paused by a conflict) is in flight. Its absence is the authoritative
+    signal that no merge is in progress; code must NOT fall back to a plausible
+    default when it is absent during a merge.
+    """
+    result = _run_git(["rev-parse", "--verify", "MERGE_HEAD"], cwd=cwd)
+    if result.returncode == 0:
+        sha = result.stdout.strip()
+        return sha if sha else None
+    return None
+
+
 def find_leftover_markers(cwd: Path) -> list[str]:
     """Return ``file:line: message`` strings for leftover conflict markers.
 
-    Uses ``git diff HEAD --check`` which reports leftover conflict
-    markers in any in-flight change (working tree or index) relative to
-    HEAD. Exit code 2 from ``--check`` means markers were found; exit 0
-    means none.
+    During an in-progress merge (MERGE_HEAD present): uses
+    ``git diff --cached --check MERGE_HEAD`` which compares only the
+    staged index against the incoming branch tip. This avoids false
+    positives from whitespace already present in the incoming branch
+    (issue #4058).
+
+    Outside a merge: uses ``git diff HEAD --check`` which reports
+    leftover conflict markers in any in-flight change (working tree or
+    index) relative to HEAD.
+
+    Exit code 2 from ``--check`` means markers were found; exit 0 means
+    none.
     """
-    result = _run_git(["diff", "HEAD", "--check"], cwd=cwd)
+    merge_head = _merge_head(cwd)
+    if merge_head is not None:
+        git_args = ["diff", "--cached", "--check", merge_head]
+        label = "git diff --cached --check MERGE_HEAD"
+    else:
+        git_args = ["diff", "HEAD", "--check"]
+        label = "git diff HEAD --check"
+
+    result = _run_git(git_args, cwd=cwd)
 
     # --check returncodes:
     #   0 -- clean
@@ -114,9 +145,7 @@ def find_leftover_markers(cwd: Path) -> list[str]:
             if line.strip() and "leftover conflict marker" in line
         ]
 
-    raise RuntimeError(
-        f"git diff HEAD --check failed (exit {result.returncode}): {result.stderr.strip()}"
-    )
+    raise RuntimeError(f"{label} failed (exit {result.returncode}): {result.stderr.strip()}")
 
 
 def verify(cwd: Path) -> tuple[int, dict[str, object]]:

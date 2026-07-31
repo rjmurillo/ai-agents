@@ -70,7 +70,7 @@ If shell execution is unavailable, do NOT produce a step-by-step resolution plan
 | 2.2 | Auto-resolve known patterns (accept `--theirs`) | Files staged cleanly |
 | 2.3 | For manual files: run `git blame`, analyze intent | Commit messages captured |
 | 2.4 | Apply manual resolutions per decision framework | Conflict markers removed |
-| 2.5 | Stage all resolved files | `git diff --check` clean |
+| 2.5 | Stage all resolved files | `git diff --cached --check MERGE_HEAD` clean |
 
 ### Phase 3: Validation (BLOCKING)
 
@@ -191,7 +191,7 @@ Verifies that resolution is complete: no still-unmerged (UU) files and no leftov
 python3 .claude/skills/merge-resolver/scripts/verify_no_conflict_markers.py [--cwd PATH] [--json]
 ```
 
-Uses `git diff HEAD --check` (catches leftover markers in working tree + index) plus `git diff --name-only --diff-filter=U` (catches files still unmerged). Both inspect in-flight changes only, so committed historical content is intentionally ignored.
+Uses `git diff --cached --check MERGE_HEAD` when a merge is in progress (MERGE_HEAD present) to avoid false positives from whitespace already in the incoming branch (issue #4058). Falls back to `git diff HEAD --check` outside merge state. Both forms use `git diff --name-only --diff-filter=U` to catch still-unmerged files.
 
 **Exit codes:**
 
@@ -221,8 +221,8 @@ Uses `git diff HEAD --check` (catches leftover markers in working tree + index) 
 
 | Criterion | Evidence |
 |-----------|----------|
-| All conflicts resolved | `git diff --check` returns empty |
-| No merge markers remain | `python3 .claude/skills/merge-resolver/scripts/verify_no_conflict_markers.py` exits 0 (uses `git diff HEAD --check` + `git diff --diff-filter=U`; ignores intentional fenced examples in committed docs -- issue #2424) |
+| All conflicts resolved | `git diff --cached --check MERGE_HEAD` returns empty |
+| No merge markers remain | `python3 .claude/skills/merge-resolver/scripts/verify_no_conflict_markers.py` exits 0 (uses `git diff --cached --check MERGE_HEAD` during merge; falls back to `git diff HEAD --check` outside merge state; ignores intentional fenced examples in committed docs -- issues #2424, #4058) |
 | Session protocol valid | `validate_session_json.py` exits 0 |
 | Markdown lint passes | `npx markdownlint-cli2` exits 0 |
 | Push successful | Remote ref updated |
