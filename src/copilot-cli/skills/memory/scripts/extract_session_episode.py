@@ -1264,7 +1264,9 @@ def merge_preserving(new: dict, existing: dict, *, session_id: str = "") -> dict
         _as_list(existing.get("decisions")), _as_list(new.get("decisions"))
     )
     merged["events"] = _dedupe_events(
-        _as_list(existing.get("events")), _as_list(new.get("events")), midnight,
+        _as_list(existing.get("events")),
+        _as_list(new.get("events")),
+        midnight,
         session_id=session_id,
     )
     merged["metrics"] = _merge_metrics(
@@ -1356,9 +1358,7 @@ def _filter_markdown_events(events: list[dict]) -> list[dict]:
     return filtered
 
 
-def extract_from_json(
-    data: dict, *, archive_fallback: bool = True, session_id: str = ""
-) -> dict:
+def extract_from_json(data: dict, *, archive_fallback: bool = True, session_id: str = "") -> dict:
     """Build the episode component bundle from a JSON session log.
 
     ``session_id`` is forwarded to ``json_events`` so each emitted event is
@@ -1400,7 +1400,9 @@ def extract_from_json(
                     archive_content = archive_json_path.read_text(encoding="utf-8")
                     archive_data = looks_like_json_session(archive_content)
                     if archive_data and _as_list(archive_data.get("workLog")):
-                        archive_events = json_events(archive_data, session_ts, session_id=session_id)
+                        archive_events = json_events(
+                            archive_data, session_ts, session_id=session_id
+                        )
                         archive_decisions = json_decisions(archive_data, session_ts)
                         archive_lessons = _json_lessons(archive_data)
                         if not has_own_events:
@@ -1735,7 +1737,7 @@ def _immediate_causal_edges(
 ) -> set[tuple[str, str]]:
     ordered_edges: set[tuple[str, str]] = set()
     for left_index, left in enumerate(events):
-        for right in events[left_index + 1:]:
+        for right in events[left_index + 1 :]:
             relation = _event_order_relation(left, right, timestamps)
             if relation == -1:
                 ordered_edges.add((str(left["id"]), str(right["id"])))
@@ -1743,8 +1745,7 @@ def _immediate_causal_edges(
                 ordered_edges.add((str(right["id"]), str(left["id"])))
 
     return {
-        edge for edge in ordered_edges
-        if not _has_alternate_path(edge[0], edge[1], ordered_edges)
+        edge for edge in ordered_edges if not _has_alternate_path(edge[0], edge[1], ordered_edges)
     }
 
 
@@ -1793,6 +1794,7 @@ def _renumber_events(events: list) -> None:
         if isinstance(evt, dict):
             index += 1
             evt["id"] = f"e{index:03d}"
+
 
 def _link_sequential_events(events: list[dict[str, Any]]) -> None:
     """Populate ``caused_by``/``leads_to`` with evidence-gated causal edges.
@@ -1863,16 +1865,13 @@ def validate_event_ids(events: Any) -> list[str]:
             continue
         if identifier in seen:
             problems.append(
-                f"duplicate event id {identifier} at positions "
-                f"{seen[identifier]} and {position}"
+                f"duplicate event id {identifier} at positions {seen[identifier]} and {position}"
             )
             continue
         seen[identifier] = position
         expected = f"e{position:03d}"
         if identifier != expected:
-            problems.append(
-                f"event {position} has id {identifier}, expected {expected}"
-            )
+            problems.append(f"event {position} has id {identifier}, expected {expected}")
     return problems
 
 
@@ -2059,8 +2058,7 @@ def main(argv: list[str] | None = None) -> int:
                     json.dumps(
                         {
                             "Error": (
-                                "--preserve requires the existing episode to be "
-                                "a JSON object."
+                                "--preserve requires the existing episode to be a JSON object."
                             ),
                         }
                     ),
