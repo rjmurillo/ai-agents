@@ -245,6 +245,7 @@ The router owns the canonical memory scripts. Sub-skills delegate to these paths
 | `test_memory_size.py` | Memory atomicity validation | 0=pass, 1=violations |
 | `test_memory_health.py` | System health dashboard | 0=success |
 | `extract_session_episode.py` | Episode extraction from session logs | 0=success, 1=error |
+| `repair_episode_causal_links.py` | Restore causal edges in flattened episodes | 0=success, 1=an episode is invalid, 2=episodes dir missing |
 | `measure_memory_performance.py` | Serena and Forgetful benchmark | 0=success, 1=error |
 | `improve_memory_graph_density.py` | Graph density improvement | 0=success, 1=error |
 | `convert_index_table_links.py` | Index table link conversion | 0=success, 1=error |
