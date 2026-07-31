@@ -126,25 +126,27 @@ Before declaring the failure triaged and fixed:
 
 ## Provenance and Maintenance
 
-Verified against the working tree on 2026-07-03. Retro-cited short SHAs do not resolve locally even with full history present (~1471 commits as of 2026-07-03); use `.agents/retrospective/` and `.serena/memories/` for archaeology, not `git log`.
+Verified against the working tree on 2026-07-30. Retro-cited short SHAs may
+exist in a clone but remain unreachable from `main`; verify ancestry, then use
+`.agents/retrospective/` and `.serena/memories/` for archaeology.
 
 | Fact | Source | Re-verify with |
 |------|--------|----------------|
-| EVENT= stderr telemetry schema | `.claude/hooks/PreToolUse/push_guard_base.py:19,49-53,421` | `grep -n "EVENT=" .claude/hooks/PreToolUse/push_guard_base.py` |
-| 4 drift surfaces run in CI | `.github/workflows/validate-generated-agents.yml:165-225` | `grep -n -e "run_install_parity" -e "sync_plugin_lib" -e "build_all" -e "generate_agents" .github/workflows/validate-generated-agents.yml` |
+| EVENT= stderr telemetry schema | `.claude/hooks/PreToolUse/push_guard_base.py:19,49-53,436,472` | `grep -n "EVENT=" .claude/hooks/PreToolUse/push_guard_base.py` |
+| 4 drift surfaces run in CI | `.github/workflows/validate-generated-agents.yml:139-199` | `grep -n -e "run_install_parity" -e "sync_plugin_lib" -e "build_all" -e "generate_agents" .github/workflows/validate-generated-agents.yml` |
 | `[skip-drift-check]` bypass marker | `.github/workflows/agent-drift-detection.yml:17,65-69` | `grep -n "skip-drift-check" .github/workflows/agent-drift-detection.yml` |
-| Strictly-greater plugin bump rule | `build/scripts/validate_plugin_version_bump.py:20,46` | `grep -n "strictly greater" build/scripts/validate_plugin_version_bump.py` |
+| Strictly-greater plugin bump rule | `build/scripts/validate_plugin_version_bump.py:20,594` | `grep -n "strictly greater" build/scripts/validate_plugin_version_bump.py` |
 | Plugin versions (volatile) | three `.claude-plugin/plugin.json` files | `grep -m1 version .claude/.claude-plugin/plugin.json src/claude/.claude-plugin/plugin.json src/copilot-cli/.claude-plugin/plugin.json` |
 | NON_COMPLIANT verdict string | `.github/scripts/aggregate_session_verdicts.py:62` | `grep -n "NON_COMPLIANT" .github/scripts/aggregate_session_verdicts.py` |
-| Coverage pin file-set sensitivity and 63% | `.github/workflows/pytest.yml:137-147` (issue #1963) | `grep -n "63%" .github/workflows/pytest.yml` |
-| Module-name --cov form requirement | `.github/workflows/pytest.yml:150-165` (issue #2063, PR #2078) | `grep -n "Module never imported" .github/workflows/pytest.yml` |
-| Syntax gate parses at 3.10 floor | `scripts/validation/validate_python_syntax.py:2-49` (issue #2655) | `sed -n '1,50p' scripts/validation/validate_python_syntax.py` |
-| Real-HEAD mutation guard | `conftest.py:46-53` (issue #2316) | `grep -n "2316" conftest.py` |
+| Coverage pin file-set sensitivity and 63% | `.github/workflows/pytest.yml:200` (issue #1963) | `grep -n "63%" .github/workflows/pytest.yml` |
+| Module-name --cov form requirement | `.github/workflows/pytest.yml:207` (issue #2063, PR #2078) | `grep -n "Module never imported" .github/workflows/pytest.yml` |
+| Syntax gate parses at 3.10 floor | `scripts/validation/validate_python_syntax.py:1-75` (issue #2655) | `sed -n '1,75p' scripts/validation/validate_python_syntax.py` |
+| Real-HEAD mutation guard | `conftest.py:324-346` (issue #2316) | `sed -n '324,346p' conftest.py` |
 | Exit 143 SIGTERM, P0, unresolved as of retro | `.agents/retrospective/2026-06-02-issue-2290-copilot-hook-payload-format.md:16,27,59` | `grep -n "143" .agents/retrospective/2026-06-02-issue-2290-copilot-hook-payload-format.md` |
 | Payload field names depend on event-key casing | `agent-harness-reference` casing table | `grep -n "toolName" .claude/skills/agent-harness-reference/references/official-hook-contracts.md` |
 | Reproduce-on-main rule (PR #1361) | `.serena/memories/ci-infrastructure-observations.md` | `grep -n "1361" .serena/memories/ci-infrastructure-observations.md` |
 | pre_pr.py sequence and exit codes | `scripts/validation/pre_pr.py:1-30` | `sed -n '1,30p' scripts/validation/pre_pr.py` |
-| testpaths exclude skill tests | `pyproject.toml:41` | `grep -n testpaths pyproject.toml` |
+| testpaths exclude skill tests | `pyproject.toml:61` | `grep -n testpaths pyproject.toml` |
 | FAILURE-MODES.md 11 sections | `.agents/governance/FAILURE-MODES.md:32-404` | `grep -n "^## " .agents/governance/FAILURE-MODES.md` |
 
 Maintenance: when a new recurring failure earns a retro, add a table row here with all five columns filled, and update `ai-agents-failure-archaeology` with the history. When any cited line number drifts, fix it on contact using the re-verify command.
