@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-28T05:18:53.542312+00:00",
+  "updated": "2026-07-31T01:04:08.409486+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -23320,6 +23320,42 @@
         "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
       ],
       "created": "2026-07-28T05:06:51.357047+00:00"
+    },
+    {
+      "id": "c85f4f8b1938",
+      "type": "milestone",
+      "label": "milestone: Wrote failing regression for old Status: grep patterns and confirmed 9 carrier failures.",
+      "episodes": [
+        "episode-2026-07-30-session-3608-pr-comment-status-greps"
+      ],
+      "created": "2026-07-31T01:04:08.388083+00:00"
+    },
+    {
+      "id": "185962d2517b",
+      "type": "milestone",
+      "label": "milestone: Updated anchored bold-field greps across sources, regenerated mirrors, and bumped plugin manifests.",
+      "episodes": [
+        "episode-2026-07-30-session-3608-pr-comment-status-greps"
+      ],
+      "created": "2026-07-31T01:04:08.388440+00:00"
+    },
+    {
+      "id": "7377fb0e61c1",
+      "type": "milestone",
+      "label": "milestone: Validated targeted tests, generator parity, install parity, ruff, PR description, and reproduction grep.",
+      "episodes": [
+        "episode-2026-07-30-session-3608-pr-comment-status-greps"
+      ],
+      "created": "2026-07-31T01:04:08.388819+00:00"
+    },
+    {
+      "id": "b6e380905b44",
+      "type": "outcome",
+      "label": "Outcome: success - Fix issue #4034 by anchoring pr-comment-responder status greps to emitted bold comment-map fields",
+      "episodes": [
+        "episode-2026-07-30-session-3608-pr-comment-status-greps"
+      ],
+      "created": "2026-07-31T01:04:08.389172+00:00"
     }
   ],
   "patterns": [
