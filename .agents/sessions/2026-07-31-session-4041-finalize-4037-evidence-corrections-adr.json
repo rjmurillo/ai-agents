@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Code and skill corrections are committed through c58cb1b7d. ADR amendments, debate evidence, critique, and this session record were committed in 6d4b6ef6e"
+        "Evidence": "Code and skill corrections, ADR amendments, debate evidence, critique, and the final re-verification repair are committed through 4bf68137a"
       },
       "validationPassed": {
         "level": "MUST",
@@ -125,9 +125,13 @@
     {
       "action": "Ran /adr-review with six roles on the ADR-068 and ADR-085 issue #3218 closure amendment",
       "outcome": "Architect, critic, independent-thinker, security, analyst, and high-level-advisor all voted Accept. Debate logs were appended, prior history preserved, and ADR-082 was verified to contain no #3218 reference"
+    },
+    {
+      "action": "Started the final /review and repaired its analyst finding",
+      "outcome": "The investigation allowlist row now re-verifies both the live eight-pattern module output and the matching ADR-034 text; mirrors were regenerated and project-toolkit advanced to 0.6.5472"
     }
   ],
-  "endingCommit": "6d4b6ef6e905ba881b1f7c76c7d4d4562482c654",
+  "endingCommit": "4bf68137a5f4a7c70e999301d7277e25f59670ac",
   "nextSteps": [
     "Create a fresh SHA-bound review marker, push without force, and update PR #4037 and PR #4059 descriptions.",
     "Reply to and resolve all PR #4037 review threads, run completion gates, and merge ready PRs."
