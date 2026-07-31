@@ -101,11 +101,14 @@ def test_realistic_request_resolves_to_installed_agent(
 
 @pytest.mark.parametrize("surface,path", ORCHESTRATOR_SURFACES.items())
 def test_matrix_routes_by_capability_not_by_model(surface: str, path: Path) -> None:
-    """The matrix selects an agent; each agent definition selects its own model.
+    """The matrix selects an agent; each install's definition selects the model.
 
     A hand-maintained Model column duplicated frontmatter that the build already
-    reads, across six byte-parity copies. It drifted to 32 percent wrong before
-    removal, and this test previously pinned three of those wrong values.
+    reads, across six byte-parity copies. One column cannot be right, because an
+    agent that declares no tier takes its platform's default and so resolves
+    differently per install. Measured before removal, the column disagreed with 7
+    of 22 Claude definitions, 13 of 22 GitHub definitions, and 15 of 22 Copilot
+    CLI and VS Code definitions. This test previously pinned three wrong values.
     """
     text = path.read_text(encoding="utf-8")
     matrix = _routing_matrix(path)

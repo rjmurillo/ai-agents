@@ -95,7 +95,7 @@ Use the classification to pick delegation depth. A clear, reversible, P3 task ne
 
 ## Agent Capability Matrix
 
-Each agent's definition file is the source of truth for the model it runs. This matrix routes work to an agent by capability; it does not set models. Where a harness supports per-invocation model selection, apply the Model, Effort, and Cost Routing policy below. Where it does not, the agent's own definition governs. Tier names used in that policy: `opus` for deep strategy and analysis, `sonnet` for routine execution, `haiku` for lightweight operations.
+This matrix routes work to an agent by capability; it does not set models. Each install carries its own copy of an agent definition, and the same agent can resolve to a different model in each one, because an agent that declares no tier takes its platform's default. The definition shipped in the install you are running sets the default model. Where the harness supports per-invocation model selection, the Model, Effort, and Cost Routing policy below overrides that default. Tier names used in that policy: `opus` for deep strategy and analysis, `sonnet` for routine execution, `haiku` for lightweight operations.
 
 | Agent | Use For | Avoid When |
 |-------|---------|-----------|
@@ -329,7 +329,7 @@ Investigation tools (WebSearch, WebFetch) are intentionally not included. If a t
 | Concatenating agent responses | Not synthesis, just noise | Extract, resolve conflicts, produce coherent output |
 | Relaying a worker's "done" without checking the artifact | The report states intent, not the actual change; a false "done" ships as success | Inspect the diff, created file, or command output before synthesizing |
 | Cheaper model on open-ended work to save tokens | Worse output; human fix-up time dwarfs the token savings | Default to the flagship; cost-route only batched bounded sub-tasks |
-| Opus for truly trivial single-step ops | Spends a flagship on a one-liner | Produce it directly per the triage table; cost-route only non-interactive batched fan-out |
+| Opus for truly trivial single-step ops | Spends a flagship on a one-liner | Produce it directly per the triage table; cost-route only large async batches of bounded, structured tasks |
 | Defaulting to xhigh/max effort | Burns latency and tokens for <=0.2 quality gain | Default high; reserve max for hard one-way doors |
 | Cheap model at max effort | Costs more all-in than a flagship, for worse output | Match effort to tier: light at low/med, flagship for hard reasoning |
 | Same-family self-verification | Correlated blind spots make it a weak check | Cross-check with a different model family |
