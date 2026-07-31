@@ -1873,7 +1873,7 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     # comparison one line later as a delta.
     best_mech = max(
         (m for m in rule_enhanced if _fully_graded(summary["per_mechanism"][m])),
-        key=lambda m: summary["per_mechanism"][m]["avg_score"],
+        key=lambda m: _graded_avg(summary["per_mechanism"][m]),
         default=None,
     )
     best_avg = summary["per_mechanism"][best_mech]["avg_score"] if best_mech else None
@@ -1921,6 +1921,16 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     summary["delta_description_vs_baseline"] = _delta(
         pos_cells["description"], pos_cells["baseline"]
     )
+    for mech_name in ("full", "description"):
+        summary[f"delta_{mech_name}_vs_baseline_measured"] = _delta_measured(
+            pos_cells[mech_name], pos_cells["baseline"]
+        )
+    summary["delta_rounding_disagrees"] = any(
+        summary[f"delta_{mech_name}_vs_baseline"]
+        != summary[f"delta_{mech_name}_vs_baseline_measured"]
+        for mech_name in ("full", "description")
+    )
+
     summary["total_judge_failures"] = total_judge_failures
     # Name the cells whose failures no gate reads. Deriving this in the
     # renderer instead would let the disclosure drift from the exclusion, which
@@ -1999,9 +2009,13 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     # rests on. `worst_negative_avg` is a min across mechanisms that need not
     # have graded the same scenarios, so the number alone does not say what it
     # covers, and a reader cannot recover it from the verdict.
+    # Keyed on the measured average because `worst_negative_avg` is the
+    # measured minimum. Ranking on the published 2dp value lets two mechanisms
+    # tie there while differing in measurement, and the label then names a
+    # mechanism the published number did not come from.
     worst_neg_mech = min(
         (m for m in gate_mechs if _fully_graded(gate_cells[m])),
-        key=lambda m: gate_cells[m]["avg_score"],
+        key=lambda m: _graded_avg(gate_cells[m]),
         default=None,
     )
     # The floor is read over the fully graded gate cells only, so the gate
@@ -2082,12 +2096,28 @@ def _round_or_none(value: float | None) -> float | None:
 def _gate_avg(cell: dict[str, Any]) -> float | None:
     """The average a gate compares, at the precision it was measured.
 
-    Falls back to the published 2dp value for an archived summary written
-    before the exact value was recorded, so replaying an old run still decides
-    on the only number that run kept.
+    Falls back to the published 2dp value for any cell that lacks the measured
+    one. Every cell this module builds carries both, and replay rebuilds each
+    summary from the stored cells rather than reading the archived summary, so
+    the fallback covers a cell handed in from elsewhere rather than the
+    archived-replay path.
     """
     exact = cell.get("avg_score_exact")
     return cell.get("avg_score") if exact is None else exact
+
+
+def _graded_avg(cell: dict[str, Any]) -> float:
+    """The measured average of a cell the caller has already found graded.
+
+    `_fully_graded` requires a non-null published average, and `_gate_avg`
+    returns that value when the measured one is absent, so a graded cell
+    always has an average. Raising rather than substituting a default keeps a
+    broken invariant visible instead of ranking a mechanism at zero.
+    """
+    avg = _gate_avg(cell)
+    if avg is None:
+        raise AssertionError("a fully graded cell must carry an average")
+    return avg
 
 
 def _fully_graded(cell: dict[str, Any]) -> bool:
@@ -2112,6 +2142,22 @@ def _delta(treatment: dict[str, Any], control: dict[str, Any]) -> float | None:
     treatment_avg: float = treatment["avg_score"]
     control_avg: float = control["avg_score"]
     return round(treatment_avg - control_avg, 2)
+
+
+def _delta_measured(treatment: dict[str, Any], control: dict[str, Any]) -> float | None:
+    """The same gap taken between the measured averages.
+
+    `_delta` subtracts two values that were each rounded to 2 decimals, so it
+    reports the difference of rounded numbers rather than the rounded
+    difference. The two disagree by up to 0.01, and one shipped artifact
+    already does: its published gap is -0.16 where the measurement gives
+    -0.17. The archived field cannot be corrected without rewriting the
+    record, so the corrected value is published beside it and the table prints
+    this one.
+    """
+    if not _fully_graded(treatment) or not _fully_graded(control):
+        return None
+    return round(_graded_avg(treatment) - _graded_avg(control), 2)
 
 
 def _positive_verdict(desc_avg: float | None, baseline_avg: float | None) -> str:
@@ -2207,6 +2253,13 @@ def _render_caveats(summary: dict[str, Any]) -> list[str]:
     silent one.
     """
     lines: list[str] = []
+    if summary.get("delta_rounding_disagrees"):
+        lines.append(
+            "Delta: the archived gap fields subtract two averages that were "
+            "each rounded first, which differs from the rounded difference by "
+            "up to 0.01. The table prints the measured gap; the archived "
+            "fields keep the derivation their record was written with."
+        )
     if summary.get("rounding_would_change_verdict"):
         lines.append(
             "Precision: the averages printed below are rounded to 2 decimals "
@@ -2337,10 +2390,10 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
         neg = neg_stats["avg_score"] if neg_stats["graded_count"] else "-"
         pos_graded = f"{pos_stats['graded_count']}/{pos_stats['scenario_count']}"
         neg_graded = f"{neg_stats['graded_count']}/{neg_stats['scenario_count']}"
+        # Read the published value rather than deriving a third one here: the
+        # number on the screen and the number in the record must not drift.
         delta_val = (
-            None
-            if mech == "baseline"
-            else _delta(pos_stats, summary["per_mechanism"]["baseline"])
+            None if mech == "baseline" else summary[f"delta_{mech}_vs_baseline_measured"]
         )
         delta = f"{delta_val:+}" if delta_val is not None else ""
         rows.append(

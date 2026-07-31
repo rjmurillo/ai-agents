@@ -4108,6 +4108,9 @@ class TestArchivedSummariesStillAggregate:
             "route_mismatch_count",
             "avg_score_exact",
             "rounding_would_change_verdict",
+    "delta_full_vs_baseline_measured",
+    "delta_description_vs_baseline_measured",
+    "delta_rounding_disagrees",
         }
     )
 
@@ -6939,7 +6942,7 @@ class TestAPublishedIdMustSurviveSerialization:
         assert checked >= 10, f"only {checked} ids checked; the walk found too few files"
 
 
-def _uniform_cells(count: int, score: float, negative: bool) -> list[dict[str, Any]]:
+def _uniform_cells(count: int, score: int, negative: bool) -> list[dict[str, Any]]:
     """`count` scenarios whose every mechanism scores `score`."""
     return [_make_scenario(score, score, score, negative=negative) for _ in range(count)]
 
@@ -7043,13 +7046,14 @@ class TestAGateReadsTheMeasurementNotThePrintedNumber:
         assert published == round(published, 2)
 
 
-class TestAnArchivedCellStillDecidesOnTheNumberItKept:
-    """Replay calls the gates on summaries written before the exact value existed.
+class TestACellWithoutTheMeasuredValueStillDecides:
+    """The helper's contract for a cell that carries only the published average.
 
-    Falling back to the published average is not a second source of truth: it
-    is the only number that run recorded. Returning None instead would make
-    every archived cell read as ungraded and move verdicts that are a closed
-    record.
+    Every cell this module builds carries both values, and replay rebuilds each
+    summary from the stored cells rather than reading the archived summary, so
+    this path covers a cell handed in from elsewhere. Returning None instead
+    would read such a cell as ungraded and drop it out of every gate, which is
+    a worse answer than the one number it does carry.
     """
 
     def test_the_measured_value_is_preferred_when_present(self):
@@ -7127,3 +7131,150 @@ class TestTheScenarioCountIsGuidanceNotAGate:
         )
         assert "with 3-5 positive scenarios" not in readme
         assert "That range is guidance, not a check." in readme
+
+
+class TestTheLabelNamesTheMechanismTheNumberCameFrom:
+    """Two mechanisms can tie at the printed precision and differ in measurement.
+
+    The published floor is the measured minimum, so ranking on the printed
+    value let the label name one mechanism while the number came from another.
+    A reader cannot recover which pool the headline covers from the verdict, so
+    the label is the only thing that says it.
+    """
+
+    @staticmethod
+    def _tied_when_printed():
+        """Restraint averages of 3.494 and 3.491, both printing as 3.49."""
+        negatives = [_make_scenario(5, 4, 4, negative=True) for _ in range(491)]
+        negatives += [_make_scenario(5, 3, 3, negative=True) for _ in range(506)]
+        negatives += [_make_scenario(5, 4, 3, negative=True) for _ in range(3)]
+        return eval_mod.aggregate([_make_scenario(1, 5, 5), *negatives])
+
+    def test_the_two_mechanisms_are_indistinguishable_once_printed(self):
+        """Without this the fixture proves nothing about the printed value."""
+        cells = self._tied_when_printed()["negative_case_per_mechanism"]
+        assert cells["description"]["avg_score"] == cells["full"]["avg_score"] == 3.49
+        assert cells["description"]["avg_score_exact"] == 3.494
+        assert cells["full"]["avg_score_exact"] == 3.491
+
+    def test_the_worst_label_names_the_measured_minimum(self):
+        assert self._tied_when_printed()["worst_negative_mechanism"] == "full"
+
+    @staticmethod
+    def _best_hidden_behind_the_tie():
+        """Activation averages of 3.491 and 3.494, both printing as 3.49.
+
+        `full` holds the larger measurement and is second in `MECHANISMS`, so
+        a ranking that reads the printed value ties and keeps the first
+        candidate instead. Ordering the fixture the other way would let both
+        rankings agree and the test would pass on a broken instrument.
+        """
+        positives = [_make_scenario(1, 4, 4) for _ in range(491)]
+        positives += [_make_scenario(1, 3, 3) for _ in range(506)]
+        positives += [_make_scenario(1, 3, 4) for _ in range(3)]
+        return eval_mod.aggregate(
+            [*positives, _make_scenario(5, 5, 5, negative=True)]
+        )
+
+    def test_the_best_candidates_are_indistinguishable_once_printed(self):
+        """Without this the fixture proves nothing about the printed value."""
+        mechs = self._best_hidden_behind_the_tie()["per_mechanism"]
+        assert mechs["description"]["avg_score"] == mechs["full"]["avg_score"] == 3.49
+        assert mechs["description"]["avg_score_exact"] == 3.491
+        assert mechs["full"]["avg_score_exact"] == 3.494
+
+    def test_the_best_label_names_the_measured_maximum(self):
+        assert self._best_hidden_behind_the_tie()["best_mechanism"] == "full"
+
+    def test_the_headline_number_cannot_reveal_the_wrong_label(self):
+        """The published average is equal either way, so only the name says it."""
+        assert self._best_hidden_behind_the_tie()["best_avg_score"] == 3.49
+
+    def test_an_ungraded_cell_cannot_be_ranked(self):
+        """The accessor raises rather than ranking a mechanism at zero."""
+        with pytest.raises(AssertionError):
+            eval_mod._graded_avg({"avg_score": None})
+
+
+class TestThePublishedGapMatchesTheMeasurement:
+    """The archived gap subtracts two averages that were each rounded first.
+
+    That is the difference of rounded numbers rather than the rounded
+    difference, and the two disagree by up to 0.01. One shipped artifact
+    already does. The archived field cannot be corrected without rewriting the
+    record, so the corrected value is published beside it and disclosed.
+    """
+
+    @staticmethod
+    def _gap_that_disagrees():
+        """Baseline 2.996 and description 4.004, printing as 3.0 and 4.0."""
+        positives = [_make_scenario(3, 4, 5) for _ in range(992)]
+        positives += [_make_scenario(2, 4, 5) for _ in range(4)]
+        positives += [_make_scenario(3, 5, 5) for _ in range(4)]
+        return eval_mod.aggregate(
+            [*positives, _make_scenario(5, 5, 5, negative=True)]
+        )
+
+    def test_the_two_averages_print_as_round_numbers(self):
+        """Without this the fixture does not exercise a double rounding."""
+        mechs = self._gap_that_disagrees()["per_mechanism"]
+        assert mechs["baseline"]["avg_score"] == 3.0
+        assert mechs["baseline"]["avg_score_exact"] == 2.996
+        assert mechs["description"]["avg_score"] == 4.0
+        assert mechs["description"]["avg_score_exact"] == 4.004
+
+    def test_the_archived_field_keeps_the_derivation_it_was_written_with(self):
+        summary = self._gap_that_disagrees()
+        assert summary["delta_description_vs_baseline"] == 1.0
+
+    def test_the_measured_gap_is_published_beside_it(self):
+        summary = self._gap_that_disagrees()
+        assert summary["delta_description_vs_baseline_measured"] == 1.01
+
+    def test_the_disagreement_is_recorded(self):
+        assert self._gap_that_disagrees()["delta_rounding_disagrees"] is True
+
+    def test_the_disagreement_is_disclosed(self):
+        caveats = eval_mod._render_caveats(self._gap_that_disagrees())
+        delta = [c for c in caveats if c.startswith("Delta:")]
+        assert len(delta) == 1
+        assert "rounded first" in delta[0]
+
+    def test_an_ordinary_run_records_no_disagreement(self):
+        """The negative control: the flag must not be always-on."""
+        summary = eval_mod.aggregate(
+            [_make_scenario(2, 5, 4), _make_scenario(5, 5, 5, negative=True)]
+        )
+        assert summary["delta_rounding_disagrees"] is False
+        assert not [
+            c for c in eval_mod._render_caveats(summary) if c.startswith("Delta:")
+        ]
+
+    def test_a_partly_graded_pool_publishes_no_measured_gap(self):
+        """A gap between a full pool and a partial one describes neither."""
+        ungraded = _make_scenario(2, 5, 4)
+        ungraded["mechanisms"]["baseline"] = {"scores": {"judge_failed": True}}
+        summary = eval_mod.aggregate(
+            [_make_scenario(2, 5, 4), ungraded, _make_scenario(5, 5, 5, negative=True)]
+        )
+        assert summary["per_mechanism"]["baseline"]["graded_count"] == 1
+        assert summary["per_mechanism"]["baseline"]["scenario_count"] == 2
+        assert summary["delta_description_vs_baseline"] is None
+        assert summary["delta_description_vs_baseline_measured"] is None
+        assert summary["delta_rounding_disagrees"] is False
+
+    def test_the_table_prints_the_measured_gap(self):
+        """The screen and the record must not carry two different numbers."""
+        summary = self._gap_that_disagrees()
+        table = eval_mod.render_table("some-rule", summary)
+        assert "+1.01" in table
+        assert "+1.0 " not in table
+
+    def test_no_third_derivation_of_the_gap_exists(self):
+        """Pins derive-once: the renderer reads the published value."""
+        source = (
+            REPO_ROOT / "scripts" / "eval" / "eval-rule-activation.py"
+        ).read_text(encoding="utf-8")
+        renderer = source[source.index("def render_table(") :]
+        assert "_delta(" not in renderer
+        assert "_delta_measured(" not in renderer
