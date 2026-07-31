@@ -163,7 +163,7 @@ jobs:
         with:
           name: backlog-triage-summary
           path: ${{ runner.temp }}/backlog-triage-summary.md
-          retention-days: 30
+          retention-days: 7
           if-no-files-found: warn
 
       - name: Fail on incomplete triage summary
@@ -220,7 +220,7 @@ jobs:
           path: |
             ${{ runner.temp }}/backlog-triage-manifest.json
             ${{ runner.temp }}/backlog-triage-recommendations.md
-          retention-days: 30
+          retention-days: 7
           if-no-files-found: warn
 
       - name: Fail on incomplete recommendation manifest
