@@ -7,7 +7,13 @@ Retry policy (REQ-004 AC-3, DESIGN-004 §Failure Modes):
 - Transient categories (retried): 408, 429, 5xx, timeout
 - Non-transient 4xx (any other 4xx): record `outcome=error` immediately, no retry
 - Max 3 attempts, exponential backoff with jitter (base=1s, max=30s)
-- `temperature=0` enforced on every call
+- `temperature=0` is sent on every call, but not every transport honors it.
+  The Anthropic paths and non-reasoning OpenAI models apply it. Reasoning
+  models (o-series and the gpt-5 family) reject a custom temperature, so
+  `_providers` omits it. Copilot CLI exposes no sampling controls, so
+  `_CopilotCLIProvider` discards it. A run on either is not temperature
+  pinned, and the artifact records no provider to tell you which it was
+  (issue #3956).
 
 Logging:
 - Structured JSON to stderr per call: `fixture_id`, `variant`, `model_id`,
@@ -353,7 +359,7 @@ class AnthropicAPIAdapter:
             attempt_start = self._clock()
             try:
                 raw = transport(prompt, model_id, system)
-            except Exception as exc:  # broad on purpose — categorize then decide
+            except Exception as exc:  # broad on purpose: categorize then decide
                 category = _categorize_error(exc)
                 last_category = category
                 latency_ms = (self._clock() - attempt_start) * 1000.0
@@ -453,7 +459,7 @@ class AnthropicAPIAdapter:
             )
 
         # Exhausted retries on transient error without ever getting an
-        # exception inside the loop — defensive fallthrough; should not occur.
+        # exception inside the loop: defensive fallthrough; should not occur.
         total_latency_ms = (self._clock() - start_total) * 1000.0
         return APICallResult(
             outcome="error",
