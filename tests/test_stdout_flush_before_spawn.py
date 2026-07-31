@@ -290,8 +290,8 @@ def test_every_inheriting_spawn_flushes_stdout_first() -> None:
         for _line, msg in unflushed_spawn_diagnostics(source):
             offenders.append(f"{relative}: {msg}")
     assert offenders == [], (
-        "These spawns inherit stdout without flushing the parent buffer first, "
-        "so the child's output will appear ahead of the parent's in any piped "
+        "These spawns do not have sys.stdout.flush() immediately before them, "
+        "so the child's output may appear ahead of the parent's in any piped "
         "or redirected log. Fix each:\n  " + "\n  ".join(offenders)
     )
 

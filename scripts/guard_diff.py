@@ -59,7 +59,7 @@ def scan_corpus(guard: GuardFn, scan_root: Path) -> dict[str, list[int]]:
     """
     results: dict[str, list[int]] = {}
     for py_file in sorted(scan_root.rglob("*.py")):
-        rel = str(py_file.relative_to(scan_root))
+        rel = py_file.relative_to(scan_root).as_posix()
         try:
             source = py_file.read_text(encoding="utf-8")
         except OSError as exc:

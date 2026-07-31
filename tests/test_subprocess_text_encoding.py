@@ -361,7 +361,9 @@ def _has_splat(call: ast.Call) -> bool:
         for key in keyword.value.keys:
             if key is None:
                 return True  # nested ``**inner`` expands unknowns
-            if isinstance(key, ast.Constant) and key.value in _TEXT_MODE_KEYWORDS:
+            if not isinstance(key, ast.Constant):
+                return True  # non-literal key: value unknown at parse time
+            if key.value in _TEXT_MODE_KEYWORDS:
                 return True
     return False
 
@@ -3648,6 +3650,10 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'import subprocess\n[subprocess][0].run(["x"], capture_output=True, text=True)',
             "a module in a subscripted list still reaches its entry point",
         ),
+        (
+            'import subprocess\nk = "text"\nsubprocess.run(["x"], **{k: True})',
+            "a dict splat with a non-constant key is treated as opaque and flagged",
+        ),
     ],
 )
 def test_detector_closes_the_evasions(source: str, why: str) -> None:
@@ -4096,8 +4102,8 @@ def test_detector_over_approximates_deliberately_on_policy_cases(source: str, wh
         (
             "import subprocess\n"
             "import operator\n"
-            'call = operator.methodcaller("run", capture_output=True)\n'
-            'call(subprocess)(["x"], text=True)',
+            'call = operator.methodcaller("run", ["x"], capture_output=True, text=True)\n'
+            "call(subprocess)",
             "stored methodcaller is not followed (gap 4)",
         ),
         # Issue 3969 gap 5: filter under an alias
@@ -4120,7 +4126,7 @@ def test_detector_over_approximates_deliberately_on_policy_cases(source: str, wh
             "from functools import partialmethod\n"
             "class Runner:\n"
             "    go = partialmethod(subprocess.run, capture_output=True)\n"
-            'Runner().go(["x"], text=True)',
+            'Runner.go(["x"], text=True)',
             "partialmethod is not recognised by the target or keyword resolvers (gap 7)",
         ),
     ],
