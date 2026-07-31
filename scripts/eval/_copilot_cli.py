@@ -394,6 +394,7 @@ class _CopilotCLIProvider:
             )
         answer = ""
         model_verified = False
+        model_used: str | None = None
         if transcript is not None:
             answer, model_used = transcript
             # The CLI accepts --model without confirming it. Silent substitution
@@ -431,4 +432,9 @@ class _CopilotCLIProvider:
                 "at the CLI session directory, or set "
                 f"{self._UNVERIFIED_MODEL_ENV}=1 to accept that loss knowingly."
             )
+        # Publish which model the transcript confirmed, reset on every call so
+        # an earlier verified reply cannot vouch for a later unverified one.
+        # None means nobody confirmed, which is how an archived run tells a
+        # confirmed answer apart from a loss the operator opted in to.
+        self.system_fingerprint = model_used
         return answer

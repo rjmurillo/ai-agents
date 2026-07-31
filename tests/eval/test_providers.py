@@ -1389,6 +1389,58 @@ class TestAReplyIsNotGradedForAModelNobodyConfirmed:
 
         assert _providers._CopilotCLIProvider._unverified_model_allowed() is False
 
+    def test_a_confirmed_model_is_published_as_the_fingerprint(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        """The provider reads the transcript to learn who spoke; it must keep it."""
+        monkeypatch.delenv("EVAL_COPILOT_ALLOW_UNVERIFIED_MODEL", raising=False)
+        _run_writing_session(
+            monkeypatch, tmp_path, model="claude-opus-5", contents=["the real answer"]
+        )
+        provider = _providers._CopilotCLIProvider()
+
+        provider.complete(
+            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+        )
+
+        assert provider.system_fingerprint == "claude-opus-5"
+
+    def test_an_opted_in_unverified_reply_publishes_no_fingerprint(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        """An accepted loss must stay distinguishable from a confirmed answer."""
+        monkeypatch.setenv("EVAL_COPILOT_ALLOW_UNVERIFIED_MODEL", "1")
+        provider = self._fallback(monkeypatch, tmp_path)
+
+        out = provider.complete(
+            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+        )
+
+        assert out == "an answer"
+        assert provider.system_fingerprint is None
+
+    def test_a_verified_call_does_not_vouch_for_a_later_unverified_one(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        """The marker is per call. A stale value would forge the confirmation."""
+        monkeypatch.delenv("EVAL_COPILOT_ALLOW_UNVERIFIED_MODEL", raising=False)
+        _run_writing_session(
+            monkeypatch, tmp_path, model="claude-opus-5", contents=["the real answer"]
+        )
+        provider = _providers._CopilotCLIProvider()
+        provider.complete(
+            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+        )
+        assert provider.system_fingerprint == "claude-opus-5"
+
+        monkeypatch.setenv("EVAL_COPILOT_ALLOW_UNVERIFIED_MODEL", "1")
+        self._fallback(monkeypatch, tmp_path / "second")
+        provider.complete(
+            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+        )
+
+        assert provider.system_fingerprint is None
+
 
 # ---------------------------------------------------------------------------
 # The session's opening `selectedModel` is not evidence about which model
