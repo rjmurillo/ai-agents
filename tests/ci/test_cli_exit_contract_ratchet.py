@@ -89,6 +89,23 @@ def test_a_helper_only_assertion_is_a_violation(tmp_path, monkeypatch, capsys):
     assert "scripts/ci/widget.py" in capsys.readouterr().out
 
 
+def test_a_helper_returncode_assertion_is_a_violation(tmp_path, monkeypatch, capsys):
+    """End to end on the shape that shipped: main() swallows the failure, the
+    test asserts the helper's nonzero return, and the gate used to go green."""
+    _arrange(
+        tmp_path,
+        monkeypatch,
+        _SCRIPT_WITH_MAIN,
+        "from scripts.ci import widget\n\n\n"
+        "def test_helper_reports_failure():\n"
+        "    result = widget.run_gh([])\n"
+        "    assert result.returncode == 1\n",
+    )
+
+    assert _run(tmp_path, "0") == ratchet.EXIT_REGRESSION
+    assert "scripts/ci/widget.py" in capsys.readouterr().out
+
+
 def test_a_script_without_main_is_ignored(tmp_path, monkeypatch):
     _arrange(tmp_path, monkeypatch, _SCRIPT_WITHOUT_MAIN, "def test_nothing():\n    assert True\n")
 
@@ -108,32 +125,108 @@ def test_a_main_nested_in_a_class_is_not_an_entry_point(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "assertion",
+    "body",
     [
         "assert widget.main([]) == 1",
         "assert widget.main([]) == widget.EXIT_CONFIG",
-        "assert widget.run().returncode == 2",
-        "assert widget.excinfo.value.code != 0",
+        "rc = widget.main([])\n    assert rc == 1",
+        "code = widget.main([])\n    assert code == widget.EXIT_CONFIG",
+        'result = subprocess.run([sys.executable, "scripts/ci/widget.py"])\n'
+        "    assert result.returncode == 2",
+        "with pytest.raises(SystemExit) as excinfo:\n"
+        "        widget.main([])\n"
+        "    assert excinfo.value.code != 0",
     ],
 )
-def test_each_accepted_assertion_shape_is_recognized(assertion):
-    source = f"from scripts.ci import widget\n\n\ndef test_x():\n    {assertion}\n"
+def test_each_accepted_shape_is_recognized(body):
+    source = f"from scripts.ci import widget\n\n\ndef test_x():\n    {body}\n"
 
     assert ratchet.covered_stems(source, frozenset({"widget"})) == {"widget"}
 
 
 @pytest.mark.parametrize(
-    "assertion",
+    "body",
     [
         "assert widget.main([]) == 0",
         "assert widget.main([]) == widget.EXIT_OK",
-        "assert widget.run().returncode == 0",
+        "rc = widget.main([])\n    assert rc == 0",
+        'result = subprocess.run([sys.executable, "scripts/ci/widget.py"])\n'
+        "    assert result.returncode == 0",
     ],
 )
-def test_a_success_only_assertion_proves_nothing(assertion):
-    source = f"from scripts.ci import widget\n\n\ndef test_x():\n    {assertion}\n"
+def test_a_success_only_assertion_proves_nothing(body):
+    source = f"from scripts.ci import widget\n\n\ndef test_x():\n    {body}\n"
 
     assert ratchet.covered_stems(source, frozenset({"widget"})) == set()
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        # tests/ci/test_ruff_ratchet.py: a helper returns the sentinel and the
+        # test checks the sentinel. main() is never called.
+        "assert widget.run_ruff([]) == widget.EXIT_VIOLATIONS",
+        # tests/ci/test_invoke_copilot_cli.py: a stubbed CompletedProcess.
+        "result = widget.invoke([])\n    assert result.returncode == 127",
+        # tests/ci/test_show_generated_agent_diff.py: the helper raises, and
+        # main() returns 0 on that same failure.
+        "with pytest.raises(subprocess.CalledProcessError) as error:\n"
+        "        widget.changed_files()\n"
+        "    assert error.value.returncode == 128",
+    ],
+)
+def test_a_helper_level_nonzero_assertion_credits_nothing(body):
+    """Issue #4068: the defect shape must never satisfy the gate."""
+    source = f"from scripts.ci import widget\n\n\ndef test_x():\n    {body}\n"
+
+    assert ratchet.covered_stems(source, frozenset({"widget"})) == set()
+
+
+def test_a_sibling_method_calling_main_does_not_lend_coverage():
+    """The class-scoped over-credit: one method asserts a helper failure, another
+    calls main and gets 0 back, and nothing proves the process reports failure."""
+    source = (
+        "from scripts.ci import widget\n"
+        "\n\n"
+        "class TestHelper:\n"
+        "    def test_helper_reports_failure(self):\n"
+        "        assert widget.changed_files() == widget.EXIT_EXTERNAL\n"
+        "\n"
+        "    def test_main_is_fine(self):\n"
+        "        assert widget.main([]) == 0\n"
+    )
+
+    assert ratchet.covered_stems(source, frozenset({"widget"})) == set()
+
+
+def test_a_workflow_wiring_string_is_not_a_cli_invocation():
+    """A multi-subject wiring test is the first test an extraction PR writes."""
+    source = (
+        "from scripts.ci import gadget\n"
+        "\n\n"
+        "def test_the_step_is_wired():\n"
+        "    workflow = _read_workflow()\n"
+        '    assert "python3 scripts/ci/widget.py" in workflow\n'
+        "    assert gadget.main([]) == 1\n"
+    )
+
+    assert ratchet.covered_stems(source, frozenset({"widget", "gadget"})) == {"gadget"}
+
+
+def test_a_subprocess_helper_carries_the_invocation_to_its_callers():
+    """tests/test_run_with_retry.py runs the script inside a module-level helper."""
+    source = (
+        'SCRIPT = ROOT / ".github" / "scripts" / "widget.py"\n'
+        "\n\n"
+        "def _run(code):\n"
+        "    return subprocess.run([sys.executable, str(SCRIPT), str(code)])\n"
+        "\n\n"
+        "def test_it_passes_the_exit_code_through():\n"
+        "    result = _run(1)\n"
+        "    assert result.returncode == 1\n"
+    )
+
+    assert ratchet.covered_stems(source, frozenset({"widget"})) == {"widget"}
 
 
 def test_a_multi_subject_file_does_not_lend_coverage_to_a_sibling():
@@ -152,8 +245,8 @@ def test_a_multi_subject_file_does_not_lend_coverage_to_a_sibling():
     assert ratchet.covered_stems(source, frozenset({"widget", "gadget"})) == {"widget"}
 
 
-def test_a_single_subject_file_is_settled_file_wide():
-    """A hand-rolled spec_from_file_location block binds no name a matcher sees."""
+def test_a_hand_rolled_module_loader_still_counts():
+    """A spec_from_file_location block binds no name an alias matcher sees."""
     source = (
         'spec = importlib.util.spec_from_file_location("widget", path)\n'
         "mod = importlib.util.module_from_spec(spec)\n"
@@ -173,6 +266,17 @@ def test_a_subprocess_driven_cli_counts_by_script_path():
     )
 
     assert ratchet.covered_stems(source, frozenset({"widget"})) == {"widget"}
+
+
+def test_the_github_scripts_tree_is_in_scope(tmp_path, monkeypatch, capsys):
+    """Issue #4068 asks for a sweep of the merged extraction batches, and 22 of
+    those scripts live under .github/scripts."""
+    scripts = (_seed(tmp_path, ".github/scripts/widget.py", _SCRIPT_WITH_MAIN),)
+    tests = (_seed(tmp_path, "tests/test_widget.py", "def test_x():\n    assert True\n"),)
+    monkeypatch.setattr(subprocess, "run", _fake_git(scripts, tests))
+
+    assert _run(tmp_path, "0") == ratchet.EXIT_REGRESSION
+    assert ".github/scripts/widget.py" in capsys.readouterr().out
 
 
 def test_a_missing_baseline_is_a_config_error(tmp_path, monkeypatch):
