@@ -122,7 +122,7 @@ artifact (timeline, Five Whys, learning matrix) in `.agents/retrospective/`.
 Retrospectives are written on demand: `/retro` here, plus the Post-PR
 Retrospective workflow in CI. Until #3349 a Stop hook also wrote a skeleton
 at session end stamped `<!-- RETRO-STATE: skeleton-pending-fill -->` (Issue
-#2079); that hook is deleted, but skeletons it already wrote are still
+`#2079`); that hook is deleted, but skeletons it already wrote are still
 placeholders rather than records, so fill them with `/retro fill YYYY-MM-DD`.
 
 `INDEX.md` was auto-appended by that hook (Issue #1703) and is incomplete: 9
