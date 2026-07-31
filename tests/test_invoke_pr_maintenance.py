@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from scripts.github_core.api import RepoInfo
 
 # ---------------------------------------------------------------------------
@@ -183,6 +185,143 @@ class TestHasFailingChecks:
     def test_context_level_failure(self):
         pr = _make_pr(check_state="SUCCESS", check_conclusion="FAILURE")
         assert has_failing_checks(pr) is True
+
+    def test_incomplete_context_page_is_failing(self):
+        pr = {
+            "number": 77,
+            "commits": {
+                "nodes": [
+                    {
+                        "commit": {
+                            "statusCheckRollup": {
+                                "state": "SUCCESS",
+                                "contexts": {"totalCount": 2, "nodes": []},
+                            }
+                        }
+                    }
+                ]
+            },
+        }
+        assert has_failing_checks(pr) is True
+
+    @pytest.mark.parametrize(
+        ("first_conclusion", "second_conclusion", "expected"),
+        [
+            ("FAILURE", "SUCCESS", False),
+            ("SUCCESS", "FAILURE", True),
+        ],
+    )
+    def test_duplicate_check_name_uses_latest_timestamp(
+        self, first_conclusion, second_conclusion, expected
+    ):
+        pr = {
+            "number": 78,
+            "commits": {
+                "nodes": [
+                    {
+                        "commit": {
+                            "statusCheckRollup": {
+                                "state": "SUCCESS",
+                                "contexts": {
+                                    "totalCount": 2,
+                                    "nodes": [
+                                        {
+                                            "__typename": "CheckRun",
+                                            "name": "ci",
+                                            "conclusion": first_conclusion,
+                                            "completedAt": "2026-07-31T10:00:00Z",
+                                        },
+                                        {
+                                            "__typename": "CheckRun",
+                                            "name": "ci",
+                                            "conclusion": second_conclusion,
+                                            "completedAt": "2026-07-31T10:05:00Z",
+                                        },
+                                    ],
+                                },
+                            }
+                        }
+                    }
+                ]
+            },
+        }
+        assert has_failing_checks(pr) is expected
+
+    def test_empty_rollup_is_not_failing(self):
+        pr = {
+            "commits": {
+                "nodes": [
+                    {
+                        "commit": {
+                            "statusCheckRollup": {
+                                "state": "SUCCESS",
+                                "contexts": {"totalCount": 0, "nodes": []},
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+        assert has_failing_checks(pr) is False
+
+    def test_paginated_tail_failure_is_loaded(self):
+        payload = {
+            "repository": {
+                "pullRequests": {
+                    "nodes": [
+                        {
+                            "number": 79,
+                            "commits": {
+                                "nodes": [
+                                    {
+                                        "commit": {
+                                            "oid": "abc123",
+                                            "statusCheckRollup": {
+                                                "state": "SUCCESS",
+                                                "contexts": {
+                                                    "totalCount": 2,
+                                                    "pageInfo": {
+                                                        "hasNextPage": True,
+                                                        "endCursor": "cursor-1",
+                                                    },
+                                                    "nodes": [
+                                                        {
+                                                            "__typename": "CheckRun",
+                                                            "name": "ci",
+                                                            "conclusion": "SUCCESS",
+                                                            "completedAt": "2026-07-31T10:00:00Z",
+                                                        }
+                                                    ],
+                                                },
+                                            },
+                                        }
+                                    }
+                                ]
+                            },
+                        }
+                    ]
+                }
+            }
+        }
+        page = [
+            {
+                "__typename": "CheckRun",
+                "name": "late-required",
+                "conclusion": "FAILURE",
+                "completedAt": "2026-07-31T10:01:00Z",
+            }
+        ]
+        with patch("invoke_pr_maintenance.gh_graphql", return_value=payload), patch(
+            "invoke_pr_maintenance._fetch_status_context_page",
+            return_value=(page, {"hasNextPage": False, "endCursor": None}),
+        ) as fetch_page:
+            prs = get_open_prs("owner", "repo", 1)
+
+        contexts = prs[0]["commits"]["nodes"][0]["commit"]["statusCheckRollup"]["contexts"]
+        fetch_page.assert_called_once_with("owner", "repo", "abc123", "cursor-1")
+        assert len(contexts["nodes"]) == 2
+        assert contexts["__incomplete"] is False
+        assert has_failing_checks(prs[0]) is True
 
 
 # ---------------------------------------------------------------------------

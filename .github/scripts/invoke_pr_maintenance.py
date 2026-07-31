@@ -20,6 +20,11 @@ from scripts.github_core.api import (  # noqa: E402
     gh_graphql,
     resolve_repo_params,
 )
+from scripts.github_core.checks_rollup import (  # noqa: E402
+    context_is_failing,
+    contexts_are_incomplete,
+    dedupe_contexts_by_latest,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -80,16 +85,26 @@ query($owner: String!, $name: String!, $limit: Int!) {
                 commits(last: 1) {
                     nodes {
                         commit {
+                            oid
                             statusCheckRollup {
                                 state
                                 contexts(first: 100) {
+                                    totalCount
+                                    pageInfo {
+                                        hasNextPage
+                                        endCursor
+                                    }
                                     nodes {
                                         ... on CheckRun {
+                                            __typename
                                             name
                                             conclusion
                                             status
+                                            startedAt
+                                            completedAt
                                         }
                                         ... on StatusContext {
+                                            __typename
                                             context
                                             state
                                         }
@@ -105,9 +120,100 @@ query($owner: String!, $name: String!, $limit: Int!) {
 }"""
 
 
+_STATUS_CONTEXT_PAGE_QUERY = """\
+query($owner: String!, $name: String!, $oid: GitObjectID!, $cursor: String!) {
+    repository(owner: $owner, name: $name) {
+        object(oid: $oid) {
+            ... on Commit {
+                statusCheckRollup {
+                    contexts(first: 100, after: $cursor) {
+                        pageInfo {
+                            hasNextPage
+                            endCursor
+                        }
+                        nodes {
+                            ... on CheckRun {
+                                __typename
+                                name
+                                conclusion
+                                status
+                                startedAt
+                                completedAt
+                            }
+                            ... on StatusContext {
+                                __typename
+                                context
+                                state
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}"""
+
+_CONTEXTS_MAX_PAGES = 50
+
+
 # ---------------------------------------------------------------------------
 # PR Discovery
 # ---------------------------------------------------------------------------
+
+
+def _fetch_status_context_page(
+    owner: str,
+    repo: str,
+    oid: str,
+    cursor: str,
+) -> tuple[list[dict], dict]:
+    data = gh_graphql(
+        _STATUS_CONTEXT_PAGE_QUERY,
+        {"owner": owner, "name": repo, "oid": oid, "cursor": cursor},
+    )
+    commit = (data.get("repository") or {}).get("object") or {}
+    rollup = commit.get("statusCheckRollup") or {}
+    contexts = rollup.get("contexts") or {}
+    return list(contexts.get("nodes") or []), contexts.get("pageInfo") or {}
+
+
+def _complete_status_check_rollups(owner: str, repo: str, prs: list[dict]) -> None:
+    for pr in prs:
+        commits = pr.get("commits") or {}
+        commit_nodes = commits.get("nodes") or []
+        if not commit_nodes:
+            continue
+        commit = commit_nodes[0].get("commit") or {}
+        oid = commit.get("oid")
+        rollup = commit.get("statusCheckRollup") or {}
+        contexts = rollup.get("contexts") or {}
+        page_info = contexts.get("pageInfo") or {}
+        nodes = list(contexts.get("nodes") or [])
+        complete = True
+        cursor = page_info.get("endCursor")
+        for _ in range(_CONTEXTS_MAX_PAGES):
+            if not page_info.get("hasNextPage"):
+                break
+            if not oid or not cursor:
+                complete = False
+                break
+            try:
+                page_nodes, page_info = _fetch_status_context_page(
+                    owner, repo, oid, cursor
+                )
+            except RuntimeError:
+                complete = False
+                break
+            nodes.extend(page_nodes)
+            cursor = page_info.get("endCursor")
+        else:
+            complete = False
+
+        contexts["nodes"] = nodes
+        total = contexts.get("totalCount")
+        if isinstance(total, int) and len(nodes) < total:
+            complete = False
+        contexts["__incomplete"] = not complete
 
 
 def get_open_prs(owner: str, repo: str, limit: int = 20) -> list[dict]:
@@ -134,6 +240,7 @@ def get_open_prs(owner: str, repo: str, limit: int = 20) -> list[dict]:
         return []
 
     nodes: list[dict] = pull_requests.get("nodes", [])
+    _complete_status_check_rollups(owner, repo, nodes)
     return nodes
 
 
@@ -207,13 +314,17 @@ def has_failing_checks(pr: dict) -> bool:
     contexts = rollup.get("contexts")
     if not contexts:
         return False
+    if contexts_are_incomplete(contexts):
+        logger.error(
+            "PR #%s has incomplete statusCheckRollup contexts",
+            pr.get("number", "?"),
+        )
+        return True
 
-    for ctx in contexts.get("nodes", []):
+    for ctx in dedupe_contexts_by_latest(contexts.get("nodes", []) or []):
         if not ctx:
             continue
-        conclusion = ctx.get("conclusion")
-        ctx_state = ctx.get("state")
-        if conclusion == "FAILURE" or ctx_state == "FAILURE":
+        if context_is_failing(ctx):
             return True
 
     return False
