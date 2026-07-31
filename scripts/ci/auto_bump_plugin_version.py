@@ -170,6 +170,51 @@ def _run_ratchet_update(script: Path, repo_root: Path) -> None:
             print(proc.stderr, end="", file=sys.stderr)
 
 
+def _should_bump(before_sha: str, after_sha: str, repo_root: Path) -> tuple[bool, int]:
+    """Return (do_bump, exit_code).  exit_code is non-zero if we must stop early."""
+    if not before_sha or before_sha == "0" * 40:
+        print("PUSH_BEFORE_SHA is empty or zero SHA (first push); bumping unconditionally.")
+        return True, 0
+    changed = _git_diff_files(before_sha, after_sha, repo_root)
+    if changed is None:
+        return False, 2
+    if not _has_non_manifest_plugin_changes(changed):
+        print("No non-manifest parity source changes; nothing to bump.")
+        return False, 0
+    return True, 0
+
+
+def _compute_new_version(repo_root: Path) -> tuple[str | None, int]:
+    """Parse the current version and compute the next patch level.
+
+    Returns (new_version, exit_code).  exit_code is non-zero on failure.
+    """
+    primary = repo_root / _PARITY_MANIFESTS[0]
+    current = _read_version(primary)
+    if current is None:
+        print(f"error: cannot read version from {primary}", file=sys.stderr)
+        return None, 1
+    new_version = _bump_patch(current)
+    if new_version is None:
+        print(f"error: cannot parse version {current!r} from {primary}", file=sys.stderr)
+        return None, 1
+    print(f"Bumping parity plugin version: {current} -> {new_version}")
+    return new_version, 0
+
+
+def _write_manifests(repo_root: Path, new_version: str, dry_run: bool) -> int:
+    """Write new_version into every parity manifest.  Returns exit code."""
+    for manifest_rel in _PARITY_MANIFESTS:
+        if dry_run:
+            print(f"  [dry-run] would write {new_version} to {manifest_rel}")
+            continue
+        manifest_path = repo_root / manifest_rel
+        if not _write_version(manifest_path, new_version):
+            return 1
+        print(f"  wrote {new_version} to {manifest_rel}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Auto-bump parity plugin manifest versions after a merge to main."
@@ -191,56 +236,23 @@ def main(argv: list[str] | None = None) -> int:
     before_sha = os.environ.get("PUSH_BEFORE_SHA", "")
     after_sha = os.environ.get("PUSH_AFTER_SHA", "HEAD")
 
-    if not before_sha or before_sha == "0" * 40:
-        print(
-            "PUSH_BEFORE_SHA is empty or zero SHA (first push); bumping unconditionally.",
-        )
-        do_bump = True
-    else:
-        changed = _git_diff_files(before_sha, after_sha, repo_root)
-        if changed is None:
-            return 2
-        if not _has_non_manifest_plugin_changes(changed):
-            print("No non-manifest parity source changes; nothing to bump.")
-            return 0
-        do_bump = True
+    do_bump, rc = _should_bump(before_sha, after_sha, repo_root)
+    if rc != 0 or not do_bump:
+        return rc
 
-    if not do_bump:
-        return 0
+    new_version, rc = _compute_new_version(repo_root)
+    if rc != 0 or new_version is None:
+        return rc
 
-    # Read the current version from the first parity manifest.
-    primary = repo_root / _PARITY_MANIFESTS[0]
-    current = _read_version(primary)
-    if current is None:
-        print(f"error: cannot read version from {primary}", file=sys.stderr)
-        return 1
+    rc = _write_manifests(repo_root, new_version, args.dry_run)
+    if rc != 0:
+        return rc
 
-    new_version = _bump_patch(current)
-    if new_version is None:
-        print(
-            f"error: cannot parse version {current!r} from {primary}",
-            file=sys.stderr,
-        )
-        return 1
-
-    print(f"Bumping parity plugin version: {current} -> {new_version}")
-
-    if args.dry_run:
-        for manifest in _PARITY_MANIFESTS:
-            print(f"  [dry-run] would write {new_version} to {manifest}")
-        return 0
-
-    for manifest_rel in _PARITY_MANIFESTS:
-        manifest_path = repo_root / manifest_rel
-        if not _write_version(manifest_path, new_version):
-            return 1
-        print(f"  wrote {new_version} to {manifest_rel}")
-
-    # Update count baselines if they have improved.
-    for ratchet_name in ("taste_count_ratchet.py", "ruff_count_ratchet.py"):
-        ratchet = repo_root / "scripts" / "ci" / ratchet_name
-        if ratchet.is_file():
-            _run_ratchet_update(ratchet, repo_root)
+    if not args.dry_run:
+        for ratchet_name in ("taste_count_ratchet.py", "ruff_count_ratchet.py"):
+            ratchet = repo_root / "scripts" / "ci" / ratchet_name
+            if ratchet.is_file():
+                _run_ratchet_update(ratchet, repo_root)
 
     return 0
 
