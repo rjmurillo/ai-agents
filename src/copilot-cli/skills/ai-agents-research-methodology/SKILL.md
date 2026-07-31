@@ -206,7 +206,7 @@ is a future duplicate proposal.
 
 ## Where Good Ideas Historically Came From
 
-- **Retro mining.** `.agents/retrospective/` (121 files as of 2026-07-30) is the
+- **Retro mining.** `.agents/retrospective/` is the
   richest vein; `ai-agents-failure-archaeology` indexes the major ones.
   Current squash-only merge policy leaves most PR-branch SHAs off `main`.
   Verify ancestry first, then use retros and memories as the archaeology

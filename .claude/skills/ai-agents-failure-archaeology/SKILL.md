@@ -10,8 +10,8 @@ license: MIT
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
 This repo's rules are fossils of incidents. Before you challenge a gate, weaken
 a guard, or propose a "simpler" approach, check whether that battle was already
-fought and what it cost. The canon lives in `.agents/retrospective/` (121 files)
-and `.serena/memories/` (879 Markdown files), both as of 2026-07-30. Retro-cited short
+fought and what it cost. The canon lives in `.agents/retrospective/`
+and `.serena/memories/`. Retro-cited short
 SHAs (e.g. `ddb76e0`, `01e76615a`) are not reachable from `main`. GitHub permits
 squash merge only on this repo, so a PR lands as one new commit and its branch
 SHAs stay off `main`. One merge commit predates that setting (`0f13c85ab`,
@@ -167,7 +167,7 @@ working tree on that date. Volatile facts and their re-verification commands:
 | Fact | Source | Re-verify |
 |------|--------|-----------|
 | Retro corpus far exceeds INDEX.md coverage (121 files, 9 indexed rows as of 2026-07-30) | `.agents/retrospective/` | `set -- .agents/retrospective/*.md; echo $#; grep -c "^. 20" .agents/retrospective/INDEX.md` |
-| 879 Markdown memory files as of 2026-07-30 | `.serena/memories/` | `python3 -c "from pathlib import Path; print(sum(1 for p in Path('.serena/memories').rglob('*.md') if p.is_file()))"` |
+| Markdown memory corpus size | `.serena/memories/` | `python3 -c "from pathlib import Path; print(sum(1 for p in Path('.serena/memories').rglob('*.md') if p.is_file()))"` |
 | Retro-cited SHAs unreachable from `main` under the current squash-only policy | repository merge settings | `gh api repos/rjmurillo/ai-agents -q '.allow_squash_merge, .allow_merge_commit, .allow_rebase_merge'` (expect `true`, `false`, `false`); locally, `for sha in ddb76e0 01e76615a; do git merge-base --is-ancestor "$sha" origin/main; printf "%s %s\n" "$sha" "$?"; done` (expect status `1` when an object is present, or a `fatal:` line and status `128` when absent) |
 | 11 failure modes | `.agents/governance/FAILURE-MODES.md:16-28` | `grep -c "^. [0-9]" .agents/governance/FAILURE-MODES.md` |
 | Historical SKIP_PREPUSH removal | Session 1187 retrospective | Confirm current Git hook jobs in `lefthook.yml`; do not reintroduce a global bypass |
