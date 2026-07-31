@@ -18,7 +18,6 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import os
 import sys
@@ -265,7 +264,7 @@ def _collect_all_threads(
         cursor = page_info.get("endCursor")
         if not cursor:
             # hasNextPage was true but endCursor is empty/null. Cannot
-            # advance — surface as truncation rather than a clean exit,
+            # advance, so surface as truncation rather than a clean exit,
             # since callers would otherwise see a "complete"-looking
             # result that silently dropped pages 2+. Returns the same
             # truncated=True signal as the cap-hit path below.
