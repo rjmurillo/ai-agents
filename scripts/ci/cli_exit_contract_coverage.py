@@ -193,7 +193,7 @@ def _callee_name(func: ast.expr) -> str | None:
 
 
 def _stems_in_text(text: str, stems: frozenset[str]) -> set[str]:
-    return {match for match in _SCRIPT_FILE_NAME.findall(text)} & stems
+    return set(_SCRIPT_FILE_NAME.findall(text)) & stems
 
 
 def _expression_stems(
