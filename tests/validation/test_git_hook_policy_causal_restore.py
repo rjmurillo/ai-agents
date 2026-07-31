@@ -3121,21 +3121,10 @@ class TestSuppressionDiff:
         assert policy.check_suppression_diff("c" * 40, tmp_path) == 3
 
     def test_git_error_on_renames_returns_3(self, tmp_path, monkeypatch):
-        comment = "# no" "sec"
-        diff = (
-            "diff --git a/pkg/module.py b/pkg/module.py\n"
-            "--- a/pkg/module.py\n"
-            "+++ b/pkg/module.py\n"
-            "@@ -0,0 +1 @@\n"
-            f"+import subprocess  {comment}\n"
-        )
         base_ref = "c" * 40
-        range_spec = f"{base_ref}..HEAD"
-        call_count: list[int] = [0]
 
         def _run_git(repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
             if args[0] == "diff" and "--name-only" in args:
-                call_count[0] += 1
                 return _completed("pkg/module.py\0")
             if args[0] == "diff" and "--name-status" in args:
                 return subprocess.CompletedProcess(["git"], 128, "", "fatal")
