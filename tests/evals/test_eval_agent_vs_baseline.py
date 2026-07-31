@@ -86,6 +86,7 @@ ERR_SERVER_ERROR = adapter_mod.ERR_SERVER_ERROR
 ERR_TIMEOUT = adapter_mod.ERR_TIMEOUT
 ERR_CLIENT_ERROR = adapter_mod.ERR_CLIENT_ERROR
 ERR_AUTH = adapter_mod.ERR_AUTH
+ERR_UNKNOWN = adapter_mod.ERR_UNKNOWN
 ERR_TOTAL_TIMEOUT = adapter_mod.ERR_TOTAL_TIMEOUT
 
 RunPersistence = persistence_mod.RunPersistence
@@ -789,6 +790,125 @@ class TestAnthropicAPIAdapterLogging:
             assert payload["fixture_id"] == "F007"
             assert "attempt" in payload
             assert "outcome" in payload
+
+    # The module docstring promises three things are never logged: API keys,
+    # request bodies, and full error payloads. The sibling test above covers
+    # only the first, and only when the key arrives via the environment.
+    # These three cover the other two, one per path that emits a category.
+    #
+    # `_anthropic_api` builds its message as
+    # `f"Anthropic API returned HTTP {code}: {sanitized}"`, appending the
+    # response body. So the body reaches the adapter inside an exception
+    # message and `_categorize_error` reads that text. Nothing in `_emit_log`
+    # enforces the promise; it holds because every `_categorize_error` branch
+    # returns a constant from a closed set. These tests pin that.
+    _BODY = "RESPONSEBODYCANARYZZZ"
+    _KEY = "sk-ant-INLINE-CANARY-ZZZZ"
+
+    @staticmethod
+    def _provider_message(status: int) -> str:
+        return (
+            f"Anthropic API returned HTTP {status}: "
+            '{"error": "internal", "echo": "'
+            + TestAnthropicAPIAdapterLogging._BODY
+            + '", "authorization": "'
+            + TestAnthropicAPIAdapterLogging._KEY
+            + '"}'
+        )
+
+    @staticmethod
+    def _assert_records_carry_no_provider_text(captured, expected_lines: int) -> None:
+        body = TestAnthropicAPIAdapterLogging._BODY
+        key = TestAnthropicAPIAdapterLogging._KEY
+        assert body not in captured.err
+        assert body not in captured.out
+        assert key not in captured.err
+        assert key not in captured.out
+        # A closed taxonomy is what makes the promise hold. A call site that
+        # forwarded the message would have to put it in some field, so assert
+        # every emitted value is one the code chose, not one it copied.
+        allowed = {
+            ERR_RATE_LIMIT,
+            ERR_SERVER_ERROR,
+            ERR_TIMEOUT,
+            ERR_CLIENT_ERROR,
+            ERR_AUTH,
+            ERR_UNKNOWN,
+            ERR_TOTAL_TIMEOUT,
+            None,
+        }
+        log_lines = [ln for ln in captured.err.splitlines() if ln.startswith("{")]
+        assert len(log_lines) == expected_lines
+        for line in log_lines:
+            payload = json.loads(line)
+            assert payload["error_category"] in allowed
+            for value in payload.values():
+                assert body not in str(value)
+                assert key not in str(value)
+
+    def test_a_retried_error_logs_no_provider_text(self, capsys):
+        """HTTP 500 is transient, so this drives the retry log path."""
+        message = self._provider_message(500)
+        transport = _FakeTransport(
+            script=[
+                lambda: (_ for _ in ()).throw(RuntimeError(message)),
+                "scored response",
+            ]
+        )
+        adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
+        adapter.call_model(
+            prompt="user prompt",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F008",
+            variant="agent",
+            run_index=0,
+            system="system prompt",
+        )
+        self._assert_records_carry_no_provider_text(capsys.readouterr(), 2)
+
+    def test_an_unclassifiable_status_logs_no_provider_text(self, capsys):
+        """HTTP 302 parses as a status but matches no category branch, so it
+        reaches the `ERR_UNKNOWN` fallthrough. That branch is unreachable for
+        any 4xx or 5xx, so the retry test above cannot cover it."""
+        message = self._provider_message(302)
+        transport = _FakeTransport(
+            script=[lambda: (_ for _ in ()).throw(RuntimeError(message))]
+        )
+        adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
+        result = adapter.call_model(
+            prompt="user prompt",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F009",
+            variant="agent",
+            run_index=0,
+            system="system prompt",
+        )
+        assert result.error_category == ERR_UNKNOWN
+        # Not transient, so one attempt and one record.
+        self._assert_records_carry_no_provider_text(capsys.readouterr(), 1)
+
+    def test_a_transport_resolve_failure_logs_no_provider_text(
+        self, monkeypatch, capsys
+    ):
+        """Transport construction fails before any attempt, which is a
+        separate `_emit_log` call site the two tests above never reach."""
+        message = self._provider_message(500)
+
+        def _boom(**_kwargs):
+            raise RuntimeError(message)
+
+        monkeypatch.setattr(adapter_mod, "_default_transport_factory", _boom)
+        adapter = AnthropicAPIAdapter(transport=None, sleep=lambda _s: None)
+        result = adapter.call_model(
+            prompt="user prompt",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F010",
+            variant="agent",
+            run_index=0,
+            system="system prompt",
+        )
+        assert result.attempts == 0
+        self._assert_records_carry_no_provider_text(capsys.readouterr(), 1)
 
 
 # ===========================================================================
