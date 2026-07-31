@@ -1,0 +1,68 @@
+{
+  "id": "episode-2026-07-31-session-4011",
+  "session": "2026-07-31-session-4011",
+  "timestamp": "2026-07-31T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix memory cluster issues 4010, 4011, 4071: id shape, hook registration and exit contracts, episode edge flattening",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Issue #4010: search emitted a bare stem while verify --memory-id required the path-relative id",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "test",
+      "content": "One derivation helper in serena_integration; search threads memories_dir through rank_results. 81 passed in tests/test_memory_search.py, tests/test_memory_cli.py, tests/test_memory_serena_integration.py",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Issue #4071: _dedupe_events flattened commit timestamps to midnight, dropping every milestone-to-commit causal edge",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "test",
+      "content": "Commit events keep the real committer date; main() warns on an edge-count drop. 340 passed in tests/skills/memory/",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Issue #4011: the three memory hooks were never registered, and two carried the wrong exit contract",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "test",
+      "content": "Payload and exit-code fixes plus three invokers registered in .claude/settings.json. 14 passed in tests/test_memory_hook_registration.py, including a subprocess run that proves confidence scores reach disk",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 6
+  },
+  "lessons": []
+}
