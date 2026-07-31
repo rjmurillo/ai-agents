@@ -2,10 +2,27 @@
 name: pr-autofix
 description: Autonomous PR monitor and fixer. Triages open PRs by tier, addresses thread feedback, fixes CI failures, and enables auto-merge when the 4-condition Ready-to-Merge gate passes.
 allowed-tools: Bash, Read, Edit, Write, Skill
+size-exception: true
 user-invocable: true
 ---
 
 # /pr-autofix
+
+<!--
+size-exception rationale (Issue #4016).
+
+What the check wants: the command_size validator blocks a command over 200 lines
+and tells you to convert it to a skill.
+
+Why the idiomatic fix does not apply: this command carries the entire Ready-to-Merge
+protocol in one file by design ("Nothing outside it is needed to run the command").
+The 301-line body includes the tier ladder, Ready-to-Merge gate definition,
+thread-lifecycle state machine, and CI-failure triage procedure. Splitting these
+into a skill or references/ requires changing how the command is invoked and loaded,
+which is a structural change that must be measured against the eval harness before
+shipping (Issue #3953 doctrine). Until that measurement is done, the exception is
+the safer choice over unmeasured content removal.
+-->
 
 Autonomous PR monitor and fixer. This file carries the whole protocol,
 including the Ready-to-Merge definition below. Nothing outside it is needed

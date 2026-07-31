@@ -4,6 +4,8 @@ allowed-tools: Bash, Read, Edit, Write, Skill
 size-exception: true
 ---
 
+# /pr-autofix
+
 <!--
 size-exception rationale (Issue #4016).
 
@@ -19,7 +21,6 @@ which is a structural change that must be measured against the eval harness befo
 shipping (Issue #3953 doctrine). Until that measurement is done, the exception is
 the safer choice over unmeasured content removal.
 -->
-# /pr-autofix
 
 Autonomous PR monitor and fixer. This file carries the whole protocol,
 including the Ready-to-Merge definition below. Nothing outside it is needed
