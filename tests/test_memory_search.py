@@ -246,3 +246,45 @@ class TestDetermineCitationStatus:
         c = Citation(source_type=SourceType.FILE, target="x.py", context="")
         results = [VerificationResult(citation=c, is_valid=False, reason="gone")]
         assert _determine_citation_status(results) == "broken"
+
+
+class TestMemoryIdShape:
+    """Emitted memory_id must match what verify --memory-id accepts (issue #4010)."""
+
+    @pytest.mark.unit
+    def test_subdirectory_memory_id_is_path_qualified(self, tmp_path):
+        sub = tmp_path / "workflows"
+        sub.mkdir()
+        _write_memory(sub, "batching", "citation batching notes")
+
+        results = search_memories("batching", tmp_path, repo_root=tmp_path)
+
+        assert [r.memory_id for r in results] == ["workflows/batching"]
+
+    @pytest.mark.unit
+    def test_root_memory_id_stays_bare(self, tmp_path):
+        _write_memory(tmp_path, "toplevel", "citation batching notes")
+
+        results = search_memories("batching", tmp_path, repo_root=tmp_path)
+
+        assert [r.memory_id for r in results] == ["toplevel"]
+
+    @pytest.mark.unit
+    def test_rank_results_without_memories_dir_falls_back_to_stem(self, tmp_path):
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        path = _write_memory(outside, "loose")
+
+        results = rank_results([path], tmp_path)
+
+        assert [r.memory_id for r in results] == ["loose"]
+
+    @pytest.mark.unit
+    def test_rank_results_with_unrelated_memories_dir_falls_back_to_stem(self, tmp_path):
+        elsewhere = tmp_path / "elsewhere"
+        elsewhere.mkdir()
+        path = _write_memory(tmp_path, "orphan")
+
+        results = rank_results([path], tmp_path, memories_dir=elsewhere)
+
+        assert [r.memory_id for r in results] == ["orphan"]

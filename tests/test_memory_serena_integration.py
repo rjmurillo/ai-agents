@@ -311,3 +311,43 @@ class TestDateFallback:
         assert result is not None
         assert result.updated_at.month == 3
         assert result.updated_at.day == 10
+
+
+class TestDeriveMemoryId:
+    """load_memory id derivation (issue #4010)."""
+
+    @pytest.mark.unit
+    def test_subdirectory_id_is_relative_to_memories_dir(self, tmp_path):
+        sub = tmp_path / "workflows"
+        sub.mkdir()
+        md = sub / "target.md"
+        md.write_text("# Target (2026-01-01)\n\nBody.\n")
+
+        result = load_memory(md, tmp_path)
+
+        assert result is not None
+        assert result.memory_id == "workflows/target"
+
+    @pytest.mark.unit
+    def test_without_memories_dir_id_stays_bare_stem(self, tmp_path):
+        sub = tmp_path / "workflows"
+        sub.mkdir()
+        md = sub / "target.md"
+        md.write_text("# Target (2026-01-01)\n\nBody.\n")
+
+        result = load_memory(md)
+
+        assert result is not None
+        assert result.memory_id == "target"
+
+    @pytest.mark.unit
+    def test_file_outside_memories_dir_falls_back_to_stem(self, tmp_path):
+        elsewhere = tmp_path / "elsewhere"
+        elsewhere.mkdir()
+        md = tmp_path / "stray.md"
+        md.write_text("# Stray (2026-01-01)\n\nBody.\n")
+
+        result = load_memory(md, elsewhere)
+
+        assert result is not None
+        assert result.memory_id == "stray"

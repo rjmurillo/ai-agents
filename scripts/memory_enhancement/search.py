@@ -71,13 +71,14 @@ def search_memories(
     if paths is None:
         return []
 
-    return rank_results(paths, effective_root, max_results)
+    return rank_results(paths, effective_root, max_results, memories_dir)
 
 
 def rank_results(
     paths: list[Path],
     repo_root: Path,
     max_results: int = _DEFAULT_MAX_RESULTS,
+    memories_dir: Path | None = None,
 ) -> list[SearchResult]:
     """Load each matched file, score with confidence, and sort descending.
 
@@ -85,6 +86,8 @@ def rank_results(
         paths: File paths matching the search query.
         repo_root: Repository root for citation verification.
         max_results: Maximum results to return.
+        memories_dir: Memory root the emitted memory_id is derived against.
+            Passing it keeps the id in the shape `verify --memory-id` accepts.
 
     Returns:
         Sorted list of SearchResult by confidence descending.
@@ -92,7 +95,7 @@ def rank_results(
     results: list[SearchResult] = []
 
     for file_path in paths:
-        result = _score_memory_file(file_path, repo_root)
+        result = _score_memory_file(file_path, repo_root, memories_dir)
         if result is not None:
             results.append(result)
 
@@ -211,9 +214,11 @@ def _parse_file_list(stdout: str, memories_dir: Path) -> list[Path]:
     return paths
 
 
-def _score_memory_file(file_path: Path, repo_root: Path) -> SearchResult | None:
+def _score_memory_file(
+    file_path: Path, repo_root: Path, memories_dir: Path | None = None
+) -> SearchResult | None:
     """Load a memory file, compute confidence, and build a SearchResult."""
-    memory = load_memory(file_path)
+    memory = load_memory(file_path, memories_dir)
     if memory is None:
         return None
 

@@ -110,7 +110,27 @@ def parse_link_block(text: str) -> list[MemoryLink]:
     return links
 
 
-def load_memory(file_path: Path) -> MemoryWithCitations | None:
+def _derive_memory_id(file_path: Path, memories_dir: Path | None) -> str:
+    """Derive a memory id from a file path.
+
+    With memories_dir the id is the path relative to it, without the suffix,
+    so a memory in a subdirectory keeps its qualifier ("workflows/foo").
+    That is the id every command that loads a whole directory already uses,
+    so search and verify agree on it (issue #4010). Without memories_dir the
+    id falls back to the bare stem, preserving the single-file callers.
+    """
+    if memories_dir is None:
+        return file_path.stem
+    try:
+        relative = file_path.resolve().relative_to(memories_dir.resolve())
+    except (ValueError, OSError):
+        return file_path.stem
+    return str(relative.with_suffix(""))
+
+
+def load_memory(
+    file_path: Path, memories_dir: Path | None = None
+) -> MemoryWithCitations | None:
     """Load a single memory file and parse its content.
 
     Supports two formats:
@@ -119,6 +139,8 @@ def load_memory(file_path: Path) -> MemoryWithCitations | None:
 
     Args:
         file_path: Path to a .md memory file.
+        memories_dir: Root the memory id is derived against. None keeps the
+            bare-stem id for callers that load a file in isolation.
 
     Returns:
         Parsed MemoryWithCitations, or None if the file cannot be parsed.
@@ -131,7 +153,7 @@ def load_memory(file_path: Path) -> MemoryWithCitations | None:
     except OSError as exc:
         print(f"Warning: cannot read {file_path}: {exc}", file=sys.stderr)
         return None
-    memory_id = file_path.stem
+    memory_id = _derive_memory_id(file_path, memories_dir)
 
     title, created_at, updated_at, tags, confidence, content = _extract_metadata(
         raw_text
@@ -184,12 +206,10 @@ def load_memories(memories_dir: Path) -> list[MemoryWithCitations]:
     for md_file in sorted(memories_dir.rglob("*.md")):
         if md_file.name in skip_names:
             continue
-        memory = load_memory(md_file)
+        # memories_dir keeps the subdirectory qualifier in memory_id so
+        # save_memory writes back to the correct location (not flattened).
+        memory = load_memory(md_file, memories_dir)
         if memory is not None:
-            # Preserve subdirectory structure in memory_id so save_memory
-            # writes back to the correct location (not flattened to root).
-            relative = md_file.relative_to(memories_dir)
-            memory.memory_id = str(relative.with_suffix(""))
             memories.append(memory)
 
     if not memories:
