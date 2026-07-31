@@ -9,7 +9,7 @@ Verified against the working tree on 2026-07-03. Volatile facts and their re-ver
 | Fact | Source | Re-verify |
 |------|--------|-----------|
 | Verification-based enforcement wording | `.agents/SESSION-PROTOCOL.md:36` | `sed -n 30,40p .agents/SESSION-PROTOCOL.md` |
-| Investigation allowlist (8 patterns as of 2026-07-30; ADR-034 text reconciled to the same 8 in #2958) | `scripts/modules/investigation_allowlist.py`; `.agents/architecture/ADR-034-investigation-session-qa-exemption.md:79-83` | `uv run python -c "from scripts.modules.investigation_allowlist import get_investigation_allowlist_display as g; print(len(g()), g())"` |
+| Investigation allowlist (8 patterns as of 2026-07-30; ADR-034 text reconciled to the same 8 in #2958) | `scripts/modules/investigation_allowlist.py`; `.agents/architecture/ADR-034-investigation-session-qa-exemption.md:78-87` | `uv run python -c "from scripts.modules.investigation_allowlist import get_investigation_allowlist_display as g; print(len(g()), g())"` |
 | build_all no-claude-writes invariant | `build/scripts/build_all.py:962-967` | `grep -n "REQ-003-010" build/scripts/build_all.py` |
 | 20-commit block threshold and bypass label | `scripts/validation/pr_commit_count.py:56-58,64`; `scripts/ci/enforce_pr_validation.py:11,54` | `grep -n "THRESHOLD = " scripts/validation/pr_commit_count.py; grep -n "BYPASS_LABEL" scripts/ci/enforce_pr_validation.py` |
 | Git hook jobs, filters, and validators | `lefthook.yml` | `uv run --frozen lefthook validate` |
