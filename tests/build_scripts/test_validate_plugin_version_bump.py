@@ -21,8 +21,6 @@ import json
 import sys
 from pathlib import Path
 
-import pytest
-
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 
@@ -274,7 +272,12 @@ def test_base_ref_error_is_config_error_not_new_plugin():
     # A git-level base read failure must not collapse into a new-plugin pass.
     err = vpb._BaseRefError("git show main:.claude/...: bad revision")
     v, errs = vpb.evaluate(
-        [".claude/x.md"], {CLAUDE: (err, "0.3.0"), SRC_CLAUDE: ("0.0.0", "0.0.0"), COPILOT: ("0.0.0", "0.0.0")}
+        [".claude/x.md"],
+        {
+            CLAUDE: (err, "0.3.0"),
+            SRC_CLAUDE: ("0.0.0", "0.0.0"),
+            COPILOT: ("0.0.0", "0.0.0"),
+        },
     )
     assert v == []
     assert len(errs) == 1
@@ -356,6 +359,75 @@ def test_cli_bad_repo_root_returns_2(capsys):
     rc = vpb.main(["--files", "x", "--repo-root", "/no/such/dir/xyz"])
     assert rc == 2
     assert "repo root not found" in capsys.readouterr().err
+
+
+# --- advisory warnings ---------------------------------------------------
+
+
+def test_manifest_bump_with_scripts_change_warns():
+    advisories = vpb.find_advisories(
+        ["scripts/tool.py", CLAUDE, COPILOT],
+        _pairs(claude=("0.3.0", "0.3.1"), copilot=("0.3.0", "0.3.1")),
+    )
+    assert [a.manifest for a in advisories] == [CLAUDE, COPILOT]
+
+
+def test_project_toolkit_content_bump_has_no_advisory():
+    advisories = vpb.find_advisories(
+        [".claude/skills/foo/SKILL.md", CLAUDE, COPILOT],
+        _pairs(claude=("0.3.0", "0.3.1"), copilot=("0.3.0", "0.3.1")),
+    )
+    assert advisories == []
+
+
+def test_bump_only_release_has_no_advisory():
+    advisories = vpb.find_advisories(
+        [CLAUDE, SRC_CLAUDE, COPILOT],
+        _pairs(
+            claude=("0.3.0", "0.3.1"),
+            src_claude=("0.3.0", "0.3.1"),
+            copilot=("0.3.0", "0.3.1"),
+        ),
+    )
+    assert advisories == []
+
+
+def test_src_claude_content_warns_for_unrelated_manifest_bumps():
+    advisories = vpb.find_advisories(
+        ["src/claude/agents/foo.md", CLAUDE, SRC_CLAUDE, COPILOT],
+        _pairs(
+            claude=("0.3.0", "0.3.1"),
+            src_claude=("0.3.0", "0.3.1"),
+            copilot=("0.3.0", "0.3.1"),
+        ),
+    )
+    assert [a.manifest for a in advisories] == [CLAUDE, COPILOT]
+
+
+def test_advisory_does_not_change_cli_exit_code(monkeypatch, capsys):
+    monkeypatch.setattr(
+        vpb,
+        "_version_pairs",
+        lambda *a, **k: _pairs(claude=("0.3.0", "0.3.1")),
+    )
+    rc = vpb.main(["--files", "scripts/tool.py", CLAUDE, "--base", "x"])
+    assert rc == 0
+    assert "WARNING:" in capsys.readouterr().out
+
+
+def test_cli_json_includes_warning_advisory(monkeypatch, capsys):
+    monkeypatch.setattr(
+        vpb,
+        "_version_pairs",
+        lambda *a, **k: _pairs(claude=("0.3.0", "0.3.1")),
+    )
+    rc = vpb.main(
+        ["--files", "scripts/tool.py", CLAUDE, "--base", "x", "--format", "json"]
+    )
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["advisories"][0]["level"] == "WARNING"
+    assert payload["advisories"][0]["manifest"] == CLAUDE
 
 
 # --- Regression: divergent base must use merge-base (three-dot) -----------

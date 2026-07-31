@@ -130,6 +130,16 @@ class Violation:
     touched: tuple[str, ...]
 
 
+@dataclass
+class Advisory:
+    """One manifest bump that is allowed but not required by changed paths."""
+
+    plugin: str
+    manifest: str
+    old_version: str
+    new_version: str
+
+
 # --- Path + version helpers ----------------------------------------------
 
 
@@ -354,6 +364,54 @@ def evaluate(
     return violations, config_errors
 
 
+def _advisory_source_dirs(plugin: PluginManifest) -> tuple[str, ...]:
+    """Return source dirs whose content can justify this manifest bump."""
+    if plugin.name.startswith("project-toolkit"):
+        return (".claude", "src/copilot-cli")
+    return (plugin.source_dir,)
+
+
+def find_advisories(
+    changed_files: Iterable[str],
+    version_pairs: dict[str, tuple[str | None | _BaseRefError, str | None | _BaseRefError]],
+    plugins: Sequence[PluginManifest] = PLUGINS,
+) -> list[Advisory]:
+    """Return warning-only manifest bumps that no changed content requires."""
+    touched = [_normalize_path(p) for p in changed_files]
+    manifest_paths = {plugin.manifest for plugin in plugins}
+    if not touched or all(path in manifest_paths for path in touched):
+        return []
+
+    advisories: list[Advisory] = []
+    for plugin in plugins:
+        if plugin.manifest not in touched:
+            continue
+        has_relevant_content = any(
+            _under(source_dir, path) and path not in manifest_paths
+            for source_dir in _advisory_source_dirs(plugin)
+            for path in touched
+        )
+        if has_relevant_content:
+            continue
+
+        old, new = version_pairs.get(plugin.manifest, (None, None))
+        if not isinstance(old, str) or not isinstance(new, str):
+            continue
+        old_tuple = parse_version(old)
+        new_tuple = parse_version(new)
+        if old_tuple is None or new_tuple is None or new_tuple <= old_tuple:
+            continue
+        advisories.append(
+            Advisory(
+                plugin=plugin.name,
+                manifest=plugin.manifest,
+                old_version=old,
+                new_version=new,
+            )
+        )
+    return advisories
+
+
 # --- I/O: git + disk -----------------------------------------------------
 
 
@@ -573,13 +631,21 @@ def _git_diff_files(base: str, head: str, repo_root: Path) -> tuple[list[str], i
 # --- Output --------------------------------------------------------------
 
 
-def _format_text(violations: Sequence[Violation], config_errors: Sequence[str]) -> str:
+def _format_text(
+    violations: Sequence[Violation],
+    config_errors: Sequence[str],
+    advisories: Sequence[Advisory] = (),
+) -> str:
+    advisory_lines = _format_advisory_lines(advisories)
     if config_errors and not violations:
         lines = ["plugin-version-bump: CONFIG ERROR"]
         lines.extend(f"  {e}" for e in config_errors)
+        lines.extend(advisory_lines)
         return "\n".join(lines)
     if not violations:
-        return "plugin-version-bump: OK"
+        lines = ["plugin-version-bump: OK"]
+        lines.extend(advisory_lines)
+        return "\n".join(lines)
     lines = ["plugin-version-bump: NOT BUMPED"]
     for v in violations:
         lines.append("")
@@ -599,10 +665,28 @@ def _format_text(violations: Sequence[Violation], config_errors: Sequence[str]) 
         lines.append("")
         lines.append("Config errors:")
         lines.extend(f"  {e}" for e in config_errors)
+    lines.extend(advisory_lines)
     return "\n".join(lines)
 
 
-def _format_json(violations: Sequence[Violation], config_errors: Sequence[str]) -> str:
+def _format_advisory_lines(advisories: Sequence[Advisory]) -> list[str]:
+    lines: list[str] = []
+    for advisory in advisories:
+        lines.append("")
+        lines.append(
+            f"WARNING: {advisory.manifest} bumped from "
+            f"{advisory.old_version} to {advisory.new_version}, but no "
+            "content file changed under the plugin path rule. This bump is "
+            "not required and adds conflict surface for every other open PR."
+        )
+    return lines
+
+
+def _format_json(
+    violations: Sequence[Violation],
+    config_errors: Sequence[str],
+    advisories: Sequence[Advisory] = (),
+) -> str:
     payload = {
         # bumped is true only on a clean pass: no violations AND no config
         # errors. A config-error-only run exits 2; reporting bumped:true there
@@ -620,6 +704,16 @@ def _format_json(violations: Sequence[Violation], config_errors: Sequence[str]) 
             for v in violations
         ],
         "config_errors": list(config_errors),
+        "advisories": [
+            {
+                "plugin": a.plugin,
+                "manifest": a.manifest,
+                "old_version": a.old_version,
+                "new_version": a.new_version,
+                "level": "WARNING",
+            }
+            for a in advisories
+        ],
     }
     return json.dumps(payload, indent=2, sort_keys=True)
 
@@ -680,15 +774,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(err, file=sys.stderr)
             return 2
 
+    effective_base = base
     violations, config_errors = find_violations(
-        changed, base_ref=base, head_ref=head_ref, repo_root=repo_root,
+        changed, base_ref=effective_base, head_ref=head_ref, repo_root=repo_root,
         base_already_resolved=(args.files is None),
     )
+    version_pairs = _version_pairs(effective_base, head_ref, repo_root)
+    advisories = find_advisories(changed, version_pairs)
 
     if args.format == "json":
-        print(_format_json(violations, config_errors))
+        print(_format_json(violations, config_errors, advisories))
     else:
-        print(_format_text(violations, config_errors))
+        print(_format_text(violations, config_errors, advisories))
 
     if violations:
         return 1
