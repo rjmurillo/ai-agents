@@ -68,11 +68,11 @@ def test_count_above_baseline_is_regression(tmp_path, monkeypatch):
     assert rc == ratchet.EXIT_REGRESSION
 
 
-def test_count_below_baseline_passes_without_updating(tmp_path, monkeypatch):
+def test_count_below_baseline_is_regression_without_updating(tmp_path, monkeypatch):
     baseline = _write_baseline(tmp_path, "408")
     monkeypatch.setattr(subprocess, "run", _fake_scan(1, 400))
     rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path)])
-    assert rc == ratchet.EXIT_OK
+    assert rc == ratchet.EXIT_REGRESSION
     assert baseline.read_text(encoding="utf-8").strip() == "408"
 
 
@@ -84,6 +84,16 @@ def test_count_below_baseline_with_update_lowers_baseline(tmp_path, monkeypatch)
     )
     assert rc == ratchet.EXIT_OK
     assert baseline.read_text(encoding="utf-8").strip() == "400"
+
+
+def test_count_below_baseline_prints_stale_message(tmp_path, monkeypatch, capsys):
+    baseline = _write_baseline(tmp_path, "408")
+    monkeypatch.setattr(subprocess, "run", _fake_scan(1, 400))
+    rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path)])
+    assert rc == ratchet.EXIT_REGRESSION
+    captured = capsys.readouterr()
+    assert "BASELINE STALE" in captured.err
+    assert "--update" in captured.err
 
 
 def test_clean_tree_zero_count_passes(tmp_path, monkeypatch):
