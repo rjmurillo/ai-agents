@@ -12,9 +12,12 @@ This repo's rules are fossils of incidents. Before you challenge a gate, weaken
 a guard, or propose a "simpler" approach, check whether that battle was already
 fought and what it cost. The canon lives in `.agents/retrospective/` (121 files)
 and `.serena/memories/` (158 files), both as of 2026-07-30. Retro-cited short
-SHAs (e.g. `ddb76e0`, `01e76615a`) are not reachable from `main`, because every
-PR squash-merges into a new commit, so archaeology still routes through the
-retros and memories as primary sources, not `git log`.
+SHAs (e.g. `ddb76e0`, `01e76615a`) are not reachable from `main`. GitHub permits
+squash merge only on this repo, so a PR lands as one new commit and its branch
+SHAs stay off `main`. One merge commit predates that setting (`0f13c85ab`,
+PR #1, 2025-12-13) and its branch side is on `main`, so verify rather than
+assume. Archaeology still routes through the retros and memories as primary
+sources, not `git log`.
 
 Depth per incident lives in `references/incidents.md` (read it when a table row
 below is not enough). This file is the index and the verdict list.
@@ -101,8 +104,10 @@ When the tables above do not answer the question:
 
 1. **Search retros by keyword**, not the index:
    `grep -rli "<term>" .agents/retrospective/`. Do NOT trust
-   `.agents/retrospective/INDEX.md`: it lists 5 data rows against 95 files
-   (verified 2026-07-03, `wc -l` = 12).
+   `.agents/retrospective/INDEX.md`: it indexes a small fraction of the corpus.
+   Measure the gap instead of quoting a snapshot:
+   `grep -c "^. 20" .agents/retrospective/INDEX.md; set -- .agents/retrospective/*.md; echo $#`
+   (9 indexed against 121 files on 2026-07-30).
 2. **Search memories**: `grep -rli "<term>" .serena/memories/` or the
    `memory-search` skill. Decision memories (`decision-*.md`) record settled
    contracts; `root-cause-*.md` record why gates exist;
@@ -163,7 +168,7 @@ working tree on that date. Volatile facts and their re-verification commands:
 |------|--------|-----------|
 | Retro corpus far exceeds INDEX.md coverage (121 files, 9 indexed rows as of 2026-07-30) | `.agents/retrospective/` | `set -- .agents/retrospective/*.md; echo $#; grep -c "^. 20" .agents/retrospective/INDEX.md` |
 | 158 memory files as of 2026-07-30 | `.serena/memories/` | `set -- .serena/memories/*; echo $#` |
-| Retro-cited SHAs unreachable from `main` (squash-merge rewrites every PR SHA) | repo merge policy: squash is the only method GitHub permits here | `gh api repos/rjmurillo/ai-agents -q .allow_merge_commit` (expect `false`); locally, `git merge-base --is-ancestor ddb76e0 origin/main; echo $?` (expect `1` when the object is present, or a `fatal:` line and `128` when it is absent; both outcomes confirm it is not on `main`) |
+| Retro-cited SHAs unreachable from `main` (squash-merge rewrites every PR SHA) | repo merge policy: squash is the only method GitHub currently permits here | `gh api repos/rjmurillo/ai-agents -q '.allow_squash_merge, .allow_merge_commit, .allow_rebase_merge'` (expect `true`, `false`, `false`); locally, `git merge-base --is-ancestor ddb76e0 origin/main; echo $?` (expect `1` when the object is present, or a `fatal:` line and `128` when it is absent; both outcomes confirm it is not on `main`) |
 | 11 failure modes | `.agents/governance/FAILURE-MODES.md:16-28` | `grep -c "^. [0-9]" .agents/governance/FAILURE-MODES.md` |
 | Historical SKIP_PREPUSH removal | Session 1187 retrospective | Confirm current Git hook jobs in `lefthook.yml`; do not reintroduce a global bypass |
 | Anchoring gate + runtime-contract test + e2e exist | repo tree | `ls scripts/validation/validate_hook_anchoring.py tests/build_scripts/test_generate_hooks_runtime_contract.py tests/e2e/test_cli_hook_e2e.py` |
