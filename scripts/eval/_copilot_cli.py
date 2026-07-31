@@ -98,9 +98,13 @@ class _CopilotCLIProvider:
     #: characters mid-sentence, while the CLI only ever emits them as a prefix.
     _TRACE_LINE_PREFIXES = ("\u25cf", "\u2502", "\u251c", "\u2514")
 
+    #: Used by both instance messages and the classmethod that reads the
+    #: transcript, so it lives on the class rather than in ``__init__`` alone.
+    _PROVIDER_LABEL = "Copilot CLI"
+
     def __init__(self, *, executable: str = "copilot", timeout: float = 900.0) -> None:
         self.name = "copilot-cli"
-        self._provider_label = "Copilot CLI"
+        self._provider_label = self._PROVIDER_LABEL
         self._executable = executable
         self._timeout = timeout
         self.system_fingerprint: str | None = None
@@ -135,6 +139,13 @@ class _CopilotCLIProvider:
         refuses a reply carrying tool traces, and refuses an unconfirmed model
         unless the operator opts in, because the `model` field read here is the
         only evidence about which model actually answered.
+
+        A matched session whose message content is not text raises instead of
+        returning ``None``. Skipping the message would grade a truncated answer
+        as whole. Returning ``None`` would report a log this reader could not
+        decode as a log that does not exist, and the operator who opted in to a
+        missing transcript did not opt in to a corrupt one. Absence and
+        corruption are different answers, so they take different exits.
         """
         root = cls._session_state_root()
         try:
@@ -176,7 +187,15 @@ class _CopilotCLIProvider:
                     if cls._is_subagent_message(event, data):
                         continue
                     content = data.get("content")
-                    if isinstance(content, str) and content.strip():
+                    if not isinstance(content, str):
+                        raise RuntimeError(
+                            f"{cls._PROVIDER_LABEL} session transcript is "
+                            "malformed: an assistant message carries content of "
+                            f"type {type(content).__name__}, not text. Reading "
+                            "past it would grade a truncated answer as whole, "
+                            "so the run is refused."
+                        )
+                    if content.strip():
                         chunks.append(content.strip())
                         spoke = data.get("model")
                         if isinstance(spoke, str) and spoke:

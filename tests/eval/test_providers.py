@@ -938,7 +938,7 @@ def test_copilot_factory_rejects_a_non_numeric_timeout(
 # ---------------------------------------------------------------------------
 
 
-def _write_session(root, cwd: str, *, model: str, contents: list[str]) -> None:
+def _write_session(root, cwd: str, *, model: str, contents: list[object]) -> None:
     """Write one events.jsonl shaped like the CLI's, under a fresh session id."""
     import uuid
 
@@ -967,7 +967,7 @@ def _run_writing_session(
     root,
     *,
     model: str,
-    contents: list[str],
+    contents: list[object],
     stdout: str = "stdout fallback text\n",
 ):
     """Patch subprocess.run so it records a session for the sandbox it is given."""
@@ -1034,6 +1034,74 @@ def test_copilot_transcript_skips_tool_only_messages(
     )
 
     assert out == "only real content"
+
+
+@pytest.mark.parametrize(
+    ("bad_content", "type_name"),
+    [
+        ([{"type": "text", "text": "SECOND PART"}], "list"),
+        (None, "NoneType"),
+    ],
+    ids=["structured-content-blocks", "explicit-null"],
+)
+def test_copilot_refuses_a_transcript_carrying_content_that_is_not_text(
+    monkeypatch: pytest.MonkeyPatch, tmp_path, bad_content: object, type_name: str
+) -> None:
+    """A shape this reader cannot decode must not be read past.
+
+    Skipping the message drops its words and its `model` field together, so
+    the remaining text would be graded as a whole answer and would arrive
+    fully confirmed. The middle message is the one that is unreadable, so a
+    silent skip would still produce a plausible two-part answer.
+    """
+    _run_writing_session(
+        monkeypatch,
+        tmp_path,
+        model="claude-opus-5",
+        contents=["first part", bad_content, "third part"],
+    )
+    provider = _providers._CopilotCLIProvider()
+
+    with pytest.raises(RuntimeError) as excinfo:
+        provider.complete(
+            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+        )
+
+    message = str(excinfo.value)
+    assert "malformed" in message
+    assert type_name in message
+
+
+def test_the_malformed_transcript_refusal_survives_the_unverified_opt_in(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """Corruption and absence are different answers and take different exits.
+
+    Returning None here would report a log this reader could not decode as a
+    log that does not exist. The operator who set the opt-in accepted a
+    missing transcript, not a corrupt one, so under that flag the fallback
+    would grade raw stdout and discard the model confirmation this very log
+    carries. The refusal has to outrank the flag.
+    """
+    monkeypatch.setenv("EVAL_COPILOT_ALLOW_UNVERIFIED_MODEL", "1")
+    _run_writing_session(
+        monkeypatch,
+        tmp_path,
+        model="claude-opus-5",
+        contents=["first part", None, "third part"],
+        stdout="a clean stdout answer\n",
+    )
+    provider = _providers._CopilotCLIProvider()
+
+    with pytest.raises(RuntimeError) as excinfo:
+        provider.complete(
+            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+        )
+
+    message = str(excinfo.value)
+    assert "malformed" in message
+    assert "a clean stdout answer" not in message
+    assert provider.system_fingerprint is None
 
 
 def test_copilot_transcript_ignores_sessions_from_other_sandboxes(
