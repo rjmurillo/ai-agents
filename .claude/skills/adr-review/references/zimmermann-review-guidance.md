@@ -1,14 +1,14 @@
 # ADR Review Guidance (Zimmermann)
 
-Review practices, anti-patterns, and checklists adapted from Olaf Zimmermann's "How to Review ADRs — and How Not To" (2023, updated 2025).
+Review practices, anti-patterns, and checklists adapted from Olaf Zimmermann's "How to Review ADRs, and How Not To" (2023, updated 2025).
 
 ## Three Review Perspectives
 
 | Perspective | Goal | Rigor | When to Use |
 |-------------|------|-------|-------------|
-| **Peer/Coach** | Early feedback to improve content | Low — friendly, constructive | During drafting, before wider sharing |
-| **Stakeholder** | Confirm AD is adequate, seek agreement | Medium — official | Ready for team consensus |
-| **Design Authority** | Formal approval/sign-off | High — formal | Final acceptance, governance gate |
+| **Peer/Coach** | Early feedback to improve content | Low, friendly and constructive | During drafting, before wider sharing |
+| **Stakeholder** | Confirm AD is adequate, seek agreement | Medium, official | Ready for team consensus |
+| **Design Authority** | Formal approval/sign-off | High, formal | Final acceptance, governance gate |
 
 Choose reviewers based on review goals. Rigor increases with audience breadth. This skill's 6-agent debate maps to the **Stakeholder** perspective by default, with the **high-level-advisor** agent serving as Design Authority when needed.
 
@@ -22,7 +22,7 @@ Choose reviewers based on review goals. Rigor increases with audience breadth. T
 
 ### Content (3 practices)
 
-4. **Justify comments by referencing desired qualities.** Cite readability, consistency, completeness. Finding gaps is harder than commenting on present content — it takes dedication.
+4. **Justify comments by referencing desired qualities.** Cite readability, consistency, completeness. Finding gaps is harder than commenting on present content, and it takes dedication.
 5. **Acknowledge context and requirements at decision time.** Give benefit of doubt. Put yourself in the AD maker's shoes.
 6. **Be concrete and factual in option judgments.** Prefer "I suggest evaluating O1's performance in more depth" over "O1 needs work."
 
@@ -44,7 +44,7 @@ Choose reviewers based on review goals. Rigor increases with audience breadth. T
 
 | # | Anti-Pattern | Problem | Detection Signal |
 |---|-------------|---------|-----------------|
-| 1 | **Pass Through** | Few or no comments; document barely skimmed. Variant: **Over-Friendliness** — all comments positive and shallow | Agent produces no substantive findings |
+| 1 | **Pass Through** | Few or no comments; document barely skimmed. Variant: **Over-Friendliness**, all comments positive and shallow | Agent produces no substantive findings |
 | 2 | **Copy Edit** | Focuses solely on wording/grammar, ignoring content | Findings are all editorial, none architectural |
 | 3 | **Siding/Dead End** | Comments switch topic unexpectedly, deviate from ADR content, stop without advice | Agent response drifts from the decision at hand |
 | 4 | **Self Promotion** | Comments mostly recommend reviewer's own work or preferred solution | Agent pushes specific technology without objective rationale |
@@ -91,6 +91,6 @@ Done well, ADRs also produce: productivity increase (traceable community assets)
 
 ## Sources
 
-- Zimmermann, O. (2023, updated 2025). "How to Review ADRs — and How Not To." <https://www.ozimmer.ch/practices/2023/04/05/ADRReview.html>
-- Zimmermann, O. (2023). "How to Create ADRs — and How Not To." <https://www.ozimmer.ch/practices/2023/04/03/ADRCreation.html>
+- Zimmermann, O. (2023, updated 2025). "How to Review ADRs, and How Not To." <https://www.ozimmer.ch/practices/2023/04/05/ADRReview.html>
+- Zimmermann, O. (2023). "How to Create ADRs, and How Not To." <https://www.ozimmer.ch/practices/2023/04/03/ADRCreation.html>
 - Craske, A. "How To Make Architecture Reviews That Feel Like Peer Reviews." <https://medium.com/qe-unit/how-to-make-architecture-reviews-that-feel-like-peer-reviews-ca1316b4f17d>
