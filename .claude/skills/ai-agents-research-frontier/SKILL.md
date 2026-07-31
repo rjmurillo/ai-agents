@@ -32,7 +32,7 @@ build on it.
 |------|---------|------------------|---------------------------|-------------------------------------|
 | 1 | Verified governance | ADR-069, `scripts/eval/eval-rule-activation.py` | ADR-069 is PROPOSED; eval tool exists, 12 rule scenario fixtures exist | Controlled eval shows gated-corpus sessions beat ungated on N scenarios with defensible stats |
 | 2 | Cross-harness abstraction | ADR-072, ADR-068, `build/generate_agents.py`, `tests/build_scripts/test_generate_hooks_runtime_contract.py` | ADR-072 PROPOSED, ADR-068 ACCEPTED as of 2026-07-30; generators and contract tests exist and run | New harness target added with zero hand-edits to generated trees, contract suite green |
-| 3 | Self-improving loop | issue #1345 hooks, `guard-maturity` tiers, `EVENT=` telemetry | Apply-step hook live; end-to-end consumer pipeline UNVERIFIED | A correction observed once auto-proposes a guard that survives calibration |
+| 3 | Self-improving loop | issue #1345 hooks, `guard-maturity` tiers, `EVENT=` telemetry | Apply-step hooks unregistered; end-to-end consumer pipeline UNVERIFIED | A correction observed once auto-proposes a guard that survives calibration |
 
 ## Process
 
@@ -295,7 +295,7 @@ rarely carry.
 Sources and re-verification:
 
 - ADR-069 thesis and status: `.agents/architecture/ADR-069-context-corpus-is-the-product.md:2` (status: proposed), title at line 9. Re-verify: `head -12 .agents/architecture/ADR-069-context-corpus-is-the-product.md`.
-- ADR-072 status, review verdict, five conditions, harness list: `.agents/architecture/ADR-072-jtbd-plugin-architecture.md:3-20`. Re-verify: `sed -n '1,25p' .agents/architecture/ADR-072-jtbd-plugin-architecture.md`.
+- ADR-072 status, review verdict, five conditions, harness list: `.agents/architecture/ADR-072-jtbd-plugin-architecture.md:3-20,119-131`. Re-verify: `sed -n '1,25p;119,131p' .agents/architecture/ADR-072-jtbd-plugin-architecture.md`.
 - ADR-068 status and #2295 measurements (3/197 kills, ~246 ms cold start, 40 shims): `.agents/architecture/ADR-068-consolidated-hook-dispatcher.md`. Re-verify: `sed -n '1,10p' .agents/architecture/ADR-068-consolidated-hook-dispatcher.md; grep -n -A1 -e "Three of" -e "246" -e "N=40" .agents/architecture/ADR-068-consolidated-hook-dispatcher.md`.
 - Rule-activation eval mechanisms, judge dimensions, exit codes: `scripts/eval/eval-rule-activation.py:1-40` docstring. Re-verify: `sed -n '1,40p' scripts/eval/eval-rule-activation.py`.
 - FM-1 95.8% evidence: `.agents/governance/FAILURE-MODES.md:44`. Re-verify: `grep -n "95.8" .agents/governance/FAILURE-MODES.md`.
