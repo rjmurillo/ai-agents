@@ -4799,7 +4799,7 @@ def run_yamllint(paths: Sequence[str], repo_root: Path) -> int:
 def run_skillforge(paths: Sequence[str], repo_root: Path) -> int:
     failed = False
     for path in paths:
-        if _skip_skillforge_path(path):
+        if _skip_skillforge_path(path, repo_root):
             continue
         if _is_skill_frontmatter_only_change(path, repo_root):
             continue
@@ -4816,27 +4816,22 @@ def run_skillforge(paths: Sequence[str], repo_root: Path) -> int:
     return 1 if failed else 0
 
 
-def _skip_skillforge_path(path: str) -> bool:
+def _skip_skillforge_path(path: str, repo_root: Path) -> bool:
+    """Skip evals and the command mirrors build/scripts/generate_commands.py writes.
+
+    A mirror is not an authored skill, so the SkillForge schema (Triggers, Process,
+    Verification) does not describe it and editing it is not how you fix it. The
+    mirror set is derived from `.claude/commands/<name>.md`, the generator's own
+    input, so the two cannot drift. Do not restate the names here or in lefthook.yml.
+    """
     if path.startswith("evals/"):
         return True
-    command_mirrors = {
-        "spec",
-        "plan",
-        "build",
-        "test",
-        "ship",
-        "checkpoint",
-        "pr-review",
-        "retro",
-        "sync",
-    }
     parts = PurePosixPath(path).parts
-    return (
-        len(parts) == 5
-        and parts[:3] == ("src", "copilot-cli", "skills")
-        and parts[3] in command_mirrors
-        and parts[4] == "SKILL.md"
-    )
+    if len(parts) != 5 or parts[:3] != ("src", "copilot-cli", "skills"):
+        return False
+    if parts[4] != "SKILL.md":
+        return False
+    return (repo_root / ".claude" / "commands" / f"{parts[3]}.md").is_file()
 
 
 def run_planning_advisory(repo_root: Path) -> int:
