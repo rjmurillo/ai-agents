@@ -56,9 +56,10 @@ class TestTypeIgnoreCountRatchetWiring:
     def test_job_name_is_present(self) -> None:
         assert "type-ignore-count-ratchet" in _lefthook_content(), (
             "lefthook.yml is missing the 'type-ignore-count-ratchet' pre-push job. "
-            "Without it, new type: ignore comments are only gated by the changed-line "
-            "security check, and refactors that move suppressions off changed lines "
-            "can still grow the repo-wide total (issue #4039)."
+            "Without it, the repo-wide type: ignore count is enforced only in CI, "
+            "meaning a 2-second regression costs a 400-second push cycle (issue #4039). "
+            "Note: git_hook_policy.py explicitly excludes type: ignore from the security "
+            "suppression gate, so there is no changed-line fallback for this check."
         )
 
     def test_ratchet_script_is_wired(self) -> None:

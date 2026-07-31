@@ -3,12 +3,11 @@
 
 Counts ``# type: ignore`` comments in tracked Python files and enforces a
 non-growing ceiling. The security-suppression gate in
-``scripts/validation/git_hook_policy.py`` already blocks net-new type-ignore
-comments on changed lines, but that gate fires per push and only catches
-suppressions on lines that appear in the diff. This ratchet adds a parallel
-guarantee: the total count across the whole repo can never grow, so a
-contributor cannot accumulate suppressions across many commits that each stay
-under the changed-line radar.
+``scripts/validation/git_hook_policy.py`` explicitly excludes type-ignore
+comments (see the comment above SECURITY_SUPPRESSION_RE in that file).
+This ratchet fills that gap: the total count across the whole repo can
+never grow, so a contributor cannot accumulate suppressions across many
+commits that each stay under the changed-line radar.
 
 Keeping type-ignore suppressions separate from the security-suppression
 machinery reflects the architectural intent in issue #4039: type-quality

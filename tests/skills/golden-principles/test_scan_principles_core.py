@@ -61,7 +61,7 @@ class TestPublicInterface:
         assert result.warning_count == 1
 
 
-class TestIssSafePath:
+class TestIsSafePath:
     def test_relative_safe(self) -> None:
         assert core.is_safe_path("some/path/file.py") is True
 

@@ -393,14 +393,14 @@ pre-push:
             glob:
               - "**/*.py"
               - "scripts/ci/ruff_count_baseline.txt"
-
           - name: taste-count-ratchet
             timeout: 5m
             run: uv run --frozen python scripts/ci/taste_count_ratchet.py --base-ref origin/main
+            glob: "**/*.{py,md,yml,yaml,json,ps1,psm1,sh}"
           - name: type-ignore-count-ratchet
             timeout: 5m
             run: uv run --frozen python scripts/ci/type_ignore_count_ratchet.py --base-ref origin/main
-
+            glob: "**/*.py"
           - name: python-type-check
             timeout: 15m
             run: uv run --frozen --extra dev python scripts/validation/git_hook_policy.py mypy {push_files}
