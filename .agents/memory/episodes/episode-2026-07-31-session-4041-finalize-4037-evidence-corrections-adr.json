@@ -94,6 +94,14 @@
         "e008"
       ],
       "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reconciled ADR-085 with the full issue #3217 closure discourse",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

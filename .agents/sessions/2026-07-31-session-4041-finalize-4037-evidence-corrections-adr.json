@@ -11,13 +11,13 @@
     "sessionStart": {
       "serenaActivated": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": "Serena MCP tools are not exposed by this harness; repository files and session checkpoints were used through the documented fallback"
+        "Complete": true,
+        "Evidence": "Serena MCP was activated for the resumed review and its instructions were loaded"
       },
       "serenaInstructions": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": "Serena instructions unavailable in this harness; AGENTS.md, SESSION-PROTOCOL.md, PROJECT-CONSTRAINTS.md, HANDOFF.md, ADRs, and checkpoints were read directly"
+        "Complete": true,
+        "Evidence": "Serena initial instructions loaded during the resumed review"
       },
       "handoffRead": {
         "level": "MUST",
@@ -84,7 +84,7 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Serena MCP is unavailable in this harness. Durable issue #3218 closure facts are recorded in ADR-068, ADR-085, both debate logs, and the critique artifact"
+        "Evidence": "Durable issue #3217 and #3218 closure facts are recorded in ADR-068, ADR-085, and their debate logs"
       },
       "markdownLintRun": {
         "level": "MUST",
@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Code and skill corrections, ADR amendments, debate evidence, critique, and review repairs are committed through c83a40b25"
+        "Evidence": "ADR-085 closure correction, debate update, and session evidence are included in the current atomic commit"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "63 changed-skill tests passed; build_all.py --check passed; pre_pr.py passed 37 validations with 0 failures and 4 skips; six ADR reviewers voted Accept"
+        "Evidence": "63 changed-skill tests passed; build_all.py --check passed; pre_pr.py passed 37 validations with 0 failures and 4 skips; ADR-085 closure amendment reached five Accept and one Disagree-and-Commit"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -129,6 +129,10 @@
     {
       "action": "Started the final /review and repaired its analyst finding",
       "outcome": "The investigation allowlist row now re-verifies both the live eight-pattern module output and matching ADR-034 text. All changed skill evidence dates now align with the 2026-07-30 verification pass. The change-control incident history now records ADR-066 as Accepted on 2026-07-19. Mirrors were regenerated and project-toolkit advanced to 0.6.5475"
+    },
+    {
+      "action": "Reconciled ADR-085 with the full issue #3217 closure discourse",
+      "outcome": "Removed stale future ownership, linked both closed issues, confirmed implemented remains true, and completed six-role convergence with five Accept and one Disagree-and-Commit"
     }
   ],
   "endingCommit": "c83a40b257bbd101cd1d5203df27c2c7546c0e85",

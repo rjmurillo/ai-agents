@@ -29,9 +29,14 @@ deletion. D-A remains internal-only. The D-B removal is implemented by
 `fix/copilot-hook-contract`. PR #3293 selected D-A's Retirement terminal state
 and removed the guard source, registrations, generated artifacts, and dedicated
 tests. On 2026-07-22 the owner chose to remove `observation_sync` from the
-vendored plugin while retaining the local repository hook. Issue #3218 closed
-on 2026-07-28 after confirming the remaining dispatcher machinery serves live
-generation paths. The decision's terminal states are implemented.
+vendored plugin while retaining the local repository hook. Issue #3217 closed
+on 2026-07-28 after confirming `observation_sync` is absent from plugin
+registrations and vendored trees, while a Git-hook or CI re-home cannot observe
+its MCP event. Issue #3218 closed the same day after confirming the remaining
+dispatcher machinery serves live generation paths. The decision's terminal
+states are implemented. Sources:
+<https://github.com/rjmurillo/ai-agents/issues/3217> and
+<https://github.com/rjmurillo/ai-agents/issues/3218>.
 
 ## Amendment Record
 
@@ -45,10 +50,11 @@ PR #3293 later implemented D-A as explicit Retirement. It removed the
 PreToolUse carrier instead of claiming Lefthook or CI preserved agent-time
 blocking.
 
-The 2026-07-31 factual amendment corrected stale #3218 ownership claims. A
-six-role adr-review accepted the correction. The amendment changed no runtime
-behavior or accepted design outcome. It records that future component
-retirement requires a new architecture decision.
+The 2026-07-31 factual amendment corrected stale #3217 and #3218 ownership
+claims. A six-role adr-review accepted the correction. The amendment changed no
+runtime behavior or accepted design outcome. It records that both issues are
+closed and that future component retirement requires a new architecture
+decision.
 
 ## Date
 
@@ -234,7 +240,7 @@ retire machinery whose last consumer this removal eliminates.
 
 This scope decision does not claim a behavior-preserving relocation. Lefthook and
 CI receive Git or workflow events, not the PreToolUse payload, and cannot block a
-raw `gh` command before it executes. Under #3217, the implementation MUST:
+raw `gh` command before it executes. The #3217 implementation contract required:
 
 1. Remove the guard from the vendored surface and generated registrations.
 2. Name any repository-state invariant that remains enforceable through
@@ -292,9 +298,11 @@ PostToolUse hook it fires after tool execution; permissions gate only before
 execution, so no permission rule can carry its behavior. It syncs this repo's
 internal Serena and Forgetful stores. The installed plugin previously executed a repository-controlled importer
 after checking only the repository basename. A different repository named
-`ai-agents` could satisfy that identity check. The owner chose removal from the
-vendored source. Local `.claude/settings.json` retains the hook for this
-repository. Issue #3217 owns delivery of that terminal state.
+`ai-agents` could satisfy that identity check. The owner chose removal from the vendored source. Local `.claude/settings.json`
+retains the hook for this repository. Issue #3217 closed on 2026-07-28 after
+confirming the customer-facing intent is already met: the hook is absent from
+plugin registrations and vendored trees, and a Git-hook or CI re-home cannot
+observe the MCP event.
 
 ### 5. Component-level machinery disposition
 
@@ -341,7 +349,7 @@ Simplification requires a new architecture decision.
   If customer-facing: keep the hook on both harnesses, remove
   `skip_if_consumer_repo` from this guard, and make skill discovery plugin-root
   aware (`COPILOT_PLUGIN_ROOT`/`CLAUDE_PLUGIN_ROOT`) so it resolves shipped scripts
-  in a consumer repo. Implement under #3217.
+  in a consumer repo. This alternative was not selected.
 - **Alternative: internal-only.** If the owner intends it as dogfood-only DX, then
   per ADR-084 rule 4, stop shipping it on the vendored Copilot surface. Use a
   repository-only PreToolUse carrier if real-time interception remains required.
@@ -459,7 +467,7 @@ repository-only carrier is approved; Lefthook and CI cannot preserve that timing
 
 ### Neutral
 
-- `observation_sync` stays governed by #3217.
+- `observation_sync` remains local-only under the closed #3217 disposition.
 - The eligibility test remains falsifiable for other hook migrations. A committed
   Copilot permission surface can reopen `skill_first_guard` portability.
 - Better shell matching does not reopen test-runner auto-approval. Reintroduction
@@ -473,7 +481,7 @@ repository-only carrier is approved; Lefthook and CI cannot preserve that timing
 
 | Component | Dependency Type | Required Update | Risk |
 |-----------|-----------------|-----------------|------|
-| Issue #3217 | Direct | D-A Retirement, D-B deletion, and vendored `observation_sync` removal are implemented on this branch | Medium |
+| Issue #3217 | Historical | Closed on 2026-07-28 after confirming D-A Retirement, D-B deletion, and the local-only `observation_sync` disposition | Medium |
 | Issue #3218 | Historical | Closed on 2026-07-28 after confirming the named components remain live; future simplification requires a new architecture decision | Low |
 | Historical `.claude/hooks/PreToolUse/invoke_skill_first_guard.py` | Direct | Removed by PR #3293 under the Retirement terminal state | High |
 | `.claude/settings.json`, `.claude/hooks/hooks.json`, `.claude/hooks/dispatch_groups.json` | Direct | `test_auto_approval` and `skill_first_guard` registrations are removed | High |
@@ -488,9 +496,10 @@ applies superseding D-B: delete `test_auto_approval`, remove both registration
 surfaces, regenerate the Copilot tree, retain the generic adapter, and add absence
 regressions. PR #3293 applies D-A Retirement: delete `skill_first_guard`, its
 registrations, generated artifacts, and dedicated tests. Issue #3218 closed on
-2026-07-28 without component retirement. Any future retirement or replacement
-requires a new architecture decision. #3217 remains responsible for shipping
-the vendored `observation_sync` removal.
+2026-07-28 without component retirement. Issue #3217 closed the same day after
+confirming `observation_sync` already meets the customer-facing intent and
+cannot move to Git hooks or CI without losing its MCP event. Any future
+retirement or replacement requires a new architecture decision.
 
 ## Related Decisions
 
