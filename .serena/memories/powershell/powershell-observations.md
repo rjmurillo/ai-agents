@@ -66,7 +66,7 @@ These are observations that may become patterns:
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | Test both positive and negative cases |
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | Pattern matching: most specific first |
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | Use $() subexpression for arrays, never += in loops |
-| 2026-01-16 | Session 07 | HIGH | Filter nulls with `@($raw) \| Where-Object { $_ }` before `-contains` |
+| 2026-01-16 | Session 07 | HIGH | Filter nulls through `Where-Object { $_ }` before `-contains` |
 | 2026-01-16 | Session 07 | HIGH | Wrap single strings with `@()` before `-contains` |
 | 2026-01-16 | Session 07 | HIGH | Use `.ToLowerInvariant()` for case-insensitive `-contains` |
 | 2026-01-16 | Session 01, PR #845 | HIGH | YAML + PowerShell here-strings conflict - use array-join pattern |
