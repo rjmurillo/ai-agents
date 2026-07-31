@@ -67,7 +67,13 @@ class TestFindVenvInterpreter:
 
 
 class TestReexecUnderProjectVenv:
-    """Every branch either execs once or returns, never both and never twice."""
+    """Every branch either execs once or returns, never both and never twice.
+
+    The guard is set to "0" rather than deleted: monkeypatch.delenv records
+    nothing when the variable is already absent, so the value the function
+    writes would leak into every later subprocess in the session and silently
+    disable the re-exec the registration tests assert on.
+    """
 
     @staticmethod
     def _record_execv(monkeypatch) -> list[tuple[str, list[str]]]:
@@ -83,7 +89,7 @@ class TestReexecUnderProjectVenv:
         self, tmp_path, monkeypatch
     ):
         interpreter = _make_venv(tmp_path)
-        monkeypatch.delenv(REENTRY_GUARD, raising=False)
+        monkeypatch.setenv(REENTRY_GUARD, "0")
         monkeypatch.setattr(
             "memory_enhancement.interpreter.dependency_available", lambda: False
         )
@@ -96,7 +102,7 @@ class TestReexecUnderProjectVenv:
     @pytest.mark.unit
     def test_sets_the_guard_so_the_child_cannot_loop(self, tmp_path, monkeypatch):
         _make_venv(tmp_path)
-        monkeypatch.delenv(REENTRY_GUARD, raising=False)
+        monkeypatch.setenv(REENTRY_GUARD, "0")
         monkeypatch.setattr(
             "memory_enhancement.interpreter.dependency_available", lambda: False
         )
@@ -111,7 +117,7 @@ class TestReexecUnderProjectVenv:
     @pytest.mark.unit
     def test_does_nothing_when_the_dependency_imports(self, tmp_path, monkeypatch):
         _make_venv(tmp_path)
-        monkeypatch.delenv(REENTRY_GUARD, raising=False)
+        monkeypatch.setenv(REENTRY_GUARD, "0")
         monkeypatch.setattr(
             "memory_enhancement.interpreter.dependency_available", lambda: True
         )
@@ -136,7 +142,7 @@ class TestReexecUnderProjectVenv:
 
     @pytest.mark.unit
     def test_does_nothing_without_a_venv(self, tmp_path, monkeypatch):
-        monkeypatch.delenv(REENTRY_GUARD, raising=False)
+        monkeypatch.setenv(REENTRY_GUARD, "0")
         monkeypatch.setattr(
             "memory_enhancement.interpreter.dependency_available", lambda: False
         )
@@ -153,7 +159,7 @@ class TestReexecUnderProjectVenv:
         interpreter = tmp_path / ".venv" / "bin" / "python3"
         interpreter.parent.mkdir(parents=True)
         interpreter.symlink_to(sys.executable)
-        monkeypatch.delenv(REENTRY_GUARD, raising=False)
+        monkeypatch.setenv(REENTRY_GUARD, "0")
         monkeypatch.setattr(
             "memory_enhancement.interpreter.dependency_available", lambda: False
         )
