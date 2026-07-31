@@ -119,20 +119,23 @@ say the corpus is small.
 Compare against the goal, not the ceiling. The always-on corpus is roughly 95KB
 on a `.py` edit.
 
-## Suppression comments block the push, including inert ones
+## Security suppression comments block commits, merges, and pushes
 
-`git_hook_policy.py security-suppressions-push` rejects any commit that **adds**
-a line matching a `noqa`, `nosec`, `nosemgrep`, `lgtm[`, or `type: ignore`
-comment. It matches the comment shape, not the rule name, so a `noqa` naming a
-rule the project does not even select is still a block.
+`git_hook_policy.py` runs the same security suppression policy at pre-commit,
+pre-merge-commit, and pre-push. It blocks bare `noqa`, `noqa` lists containing
+an `S` rule, file-level Ruff or Flake8 security directives, `nosec`,
+`nosemgrep`, `lgtm[`, `codeql[`, and `cwe-suppress`.
 
-Ruff selects `E`, `F`, `W`, `I`, `N`, `UP`, `B`, `ANN`. Anything else in a
-`noqa` is inert and should be deleted rather than carried.
+Non-security `noqa` codes pass. `type: ignore` is outside this gate; issue
+#4039 tracks its separate policy.
 
-The check diffs the whole push range, so a suppression added in one commit and
-removed in a later one nets out and passes. Existing lines on `main` are
-grandfathered because only added lines are scanned, which is why inert
-suppressions can sit in the tree looking like sanctioned precedent. Refs #3940.
+A suppression moved within one file consumes an equal removal credit. Pure
+renames and rename-with-edit changes between scanned suffixes preserve that
+credit. A rename from an unscanned suffix into a scanned suffix scans the full
+destination file, because the suppression becomes active at that boundary.
+
+Existing suppressions on `main` remain grandfathered unless the change makes
+them newly active. Refs #3940, #4049, #4051, and #4052.
 
 ## The push blocks at 21 commits, and the check runs at push time
 
