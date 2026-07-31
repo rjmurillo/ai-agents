@@ -1227,3 +1227,30 @@ class TestDefaultScanCorpus:
 
         assert [path.name for path in found] == ["SKILL.md", "SKILL.md"]
         assert {path.parent.name for path in found} == {"alpha", "beta"}
+
+    def test_display_path_is_repo_relative_from_a_subdirectory(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # The corpus is _PROJECT_ROOT-anchored and absolute, so a cwd-only
+        # display fell back to the absolute path from any subdirectory, and
+        # from `/` produced a slash-stripped path that resolves to nothing.
+        root = self._fake_root(tmp_path, monkeypatch)
+        self._write_skill(root, ".claude/skills", "alpha", self._oversized())
+        (root / "src").mkdir(parents=True, exist_ok=True)
+        monkeypatch.chdir(root / "src")
+
+        main([])
+
+        out = capsys.readouterr().out.replace("\\", "/")
+        assert ".claude/skills/alpha/SKILL.md" in out
+        assert str(root) not in out
+
+    def test_display_path_falls_back_to_absolute_outside_both_roots(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Edge case: a file under neither _PROJECT_ROOT nor cwd keeps its
+        # absolute path rather than being mangled into a relative one.
+        monkeypatch.setattr(_skill_size_mod, "_PROJECT_ROOT", tmp_path / "elsewhere")
+        outside = tmp_path / "outside" / "SKILL.md"
+
+        assert _skill_size_mod._relative_display(outside) == str(outside)
