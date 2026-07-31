@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from scripts.github_core.api import RepoInfo
 
@@ -337,6 +338,111 @@ class TestMain:
         ):
             rc = main(["--owner", "o", "--repo", "r", "--output-json"])
         assert rc == 0
+
+    def _paged_bot_pr(self):
+        """A bot PR whose contexts are truncated at the first page.
+
+        rollup.state is FAILURE (it retains a superseded run), page 1 and
+        page 2 are both green. Deciding this correctly requires paging, and
+        paging requires owner and repo to reach has_failing_checks.
+        """
+        pr = _make_pr(
+            number=4040,
+            author="rjmurillo-bot",
+            check_state="FAILURE",
+            contexts=[_run("ci", "SUCCESS", "2026-07-30T10:00:00Z")],
+            has_next_page=True,
+        )
+        rollup = pr["commits"]["nodes"][0]["commit"]["statusCheckRollup"]
+        rollup["contexts"]["totalCount"] = 2
+        return pr
+
+    def _second_page(self):
+        return {
+            "repository": {
+                "object": {
+                    "statusCheckRollup": {
+                        "contexts": {
+                            "nodes": [_run("lint", "SUCCESS", "2026-07-30T10:01:00Z")],
+                            "pageInfo": {"hasNextPage": False, "endCursor": ""},
+                        }
+                    }
+                }
+            }
+        }
+
+    def test_paged_green_pr_is_not_dispatched_and_pages_with_owner_and_repo(
+        self, capsys
+    ):
+        """Regression guard for the owner and repo threading. Refs #3978.
+
+        Drop ``owner=owner, repo=repo`` at the has_failing_checks call site
+        and the context set reads as incomplete, falls back to rollup.state
+        FAILURE, and this PR is dispatched with every latest run green.
+        """
+        page = MagicMock(return_value=self._second_page())
+        with patch(
+            "invoke_pr_maintenance.check_workflow_rate_limit",
+            return_value=self._mock_rate_limit_ok(),
+        ), patch(
+            "invoke_pr_maintenance.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "invoke_pr_maintenance.get_open_prs",
+            return_value=[self._paged_bot_pr()],
+        ), patch(
+            "scripts.github_core.checks_rollup.gh_graphql", page
+        ):
+            rc = main(["--owner", "o", "--repo", "r", "--output-json"])
+
+        captured = capsys.readouterr().out
+
+        assert rc == 0
+        assert json.loads(captured)["prs"] == []
+        assert page.call_count == 1
+        variables = page.call_args[0][1]
+        assert variables["owner"] == "o"
+        assert variables["repo"] == "r"
+        assert variables["oid"] == "deadbeef"
+
+    def test_paged_pr_with_a_real_failure_in_the_tail_is_dispatched(self, capsys):
+        page = MagicMock(
+            return_value={
+                "repository": {
+                    "object": {
+                        "statusCheckRollup": {
+                            "contexts": {
+                                "nodes": [
+                                    _run("lint", "FAILURE", "2026-07-30T10:01:00Z")
+                                ],
+                                "pageInfo": {"hasNextPage": False, "endCursor": ""},
+                            }
+                        }
+                    }
+                }
+            }
+        )
+        pr = self._paged_bot_pr()
+        pr["commits"]["nodes"][0]["commit"]["statusCheckRollup"]["state"] = "SUCCESS"
+        with patch(
+            "invoke_pr_maintenance.check_workflow_rate_limit",
+            return_value=self._mock_rate_limit_ok(),
+        ), patch(
+            "invoke_pr_maintenance.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "invoke_pr_maintenance.get_open_prs",
+            return_value=[pr],
+        ), patch(
+            "scripts.github_core.checks_rollup.gh_graphql", page
+        ):
+            rc = main(["--owner", "o", "--repo", "r", "--output-json"])
+
+        captured = capsys.readouterr().out
+
+        assert rc == 0
+        dispatched = json.loads(captured)["prs"]
+        assert [entry["reason"] for entry in dispatched] == ["HAS_FAILING_CHECKS"]
 
     def test_summary_output_mode(self, tmp_path, monkeypatch):
         summary_file = tmp_path / "summary.md"

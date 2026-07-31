@@ -524,6 +524,88 @@ class TestMain:
         dispatched = json.loads(capsys.readouterr().out)["prs"]
         assert [entry["reason"] for entry in dispatched] == ["HAS_FAILING_CHECKS"]
 
+    def _paged_bot_pr(self, state: str) -> dict[str, Any]:
+        """A bot PR whose contexts are truncated at the first page.
+
+        Page 1 and page 2 are both green, so only ``state`` can make this
+        classify as failing. Deciding it correctly requires paging, and
+        paging requires owner and repo to reach has_failing_checks.
+        """
+        pr = self._bot_pr([_run("ci", "SUCCESS", "2026-07-30T10:00:00Z")], state)
+        contexts = pr["commits"]["nodes"][0]["commit"]["statusCheckRollup"]["contexts"]
+        contexts["totalCount"] = 2
+        contexts["pageInfo"] = {"hasNextPage": True, "endCursor": "CUR"}
+        return pr
+
+    @staticmethod
+    def _page(conclusion: str) -> dict[str, Any]:
+        return {
+            "repository": {
+                "object": {
+                    "statusCheckRollup": {
+                        "contexts": {
+                            "nodes": [
+                                _run("lint", conclusion, "2026-07-30T10:01:00Z")
+                            ],
+                            "pageInfo": {"hasNextPage": False, "endCursor": ""},
+                        }
+                    }
+                }
+            }
+        }
+
+    @patch(
+        "scripts.invoke_pr_maintenance.resolve_repo_params",
+        return_value=RepoInfo(owner="owner", repo="repo"),
+    )
+    @patch("scripts.invoke_pr_maintenance.check_workflow_rate_limit")
+    def test_paged_green_pr_is_not_dispatched_and_pages_with_owner_and_repo(
+        self, mock_rate: MagicMock, _repo: MagicMock, capsys
+    ) -> None:
+        """Regression guard for the owner and repo threading. Refs #3978.
+
+        Drop ``owner=owner, repo=repo`` at the has_failing_checks call site
+        and the context set reads as incomplete, falls back to rollup.state
+        FAILURE, and this PR is dispatched with every latest run green.
+        """
+        mock_rate.return_value = self._rate_limit_ok()
+        page = MagicMock(return_value=self._page("SUCCESS"))
+
+        with patch(
+            "scripts.invoke_pr_maintenance.get_open_prs",
+            return_value=[self._paged_bot_pr("FAILURE")],
+        ), patch("scripts.github_core.checks_rollup.gh_graphql", page):
+            result = main(["--output-json"])
+
+        assert result == 0
+        assert json.loads(capsys.readouterr().out)["prs"] == []
+        assert page.call_count == 1
+        variables = page.call_args[0][1]
+        assert variables["owner"] == "owner"
+        assert variables["repo"] == "repo"
+        assert variables["oid"] == "308e2094"
+
+    @patch(
+        "scripts.invoke_pr_maintenance.resolve_repo_params",
+        return_value=RepoInfo(owner="owner", repo="repo"),
+    )
+    @patch("scripts.invoke_pr_maintenance.check_workflow_rate_limit")
+    def test_paged_pr_with_a_real_failure_in_the_tail_is_dispatched(
+        self, mock_rate: MagicMock, _repo: MagicMock, capsys
+    ) -> None:
+        mock_rate.return_value = self._rate_limit_ok()
+        page = MagicMock(return_value=self._page("FAILURE"))
+
+        with patch(
+            "scripts.invoke_pr_maintenance.get_open_prs",
+            return_value=[self._paged_bot_pr("SUCCESS")],
+        ), patch("scripts.github_core.checks_rollup.gh_graphql", page):
+            result = main(["--output-json"])
+
+        assert result == 0
+        dispatched = json.loads(capsys.readouterr().out)["prs"]
+        assert [entry["reason"] for entry in dispatched] == ["HAS_FAILING_CHECKS"]
+
     @patch(
         "scripts.invoke_pr_maintenance.get_open_prs",
         side_effect=RuntimeError("API error"),

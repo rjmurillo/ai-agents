@@ -11,7 +11,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 from scripts.github_core.checks_rollup import (
-    latest_contexts_by_name,
+    latest_contexts_by_run,
     rollup_has_failing_checks,
 )
 
@@ -20,13 +20,16 @@ from scripts.github_core.checks_rollup import (
 # ---------------------------------------------------------------------------
 
 
-def _check_run(name: str, conclusion: str, completed_at: str) -> dict[str, Any]:
+def _check_run(
+    name: str, conclusion: str, completed_at: str, workflow: str = "CI"
+) -> dict[str, Any]:
     return {
         "name": name,
         "status": "COMPLETED",
         "conclusion": conclusion,
         "startedAt": completed_at,
         "completedAt": completed_at,
+        "checkSuite": {"workflowRun": {"workflow": {"name": workflow}}},
     }
 
 
@@ -80,21 +83,21 @@ def _evaluate(rollup: dict[str, Any] | None, graphql: Any = None, **kwargs: Any)
 
 
 # ---------------------------------------------------------------------------
-# latest_contexts_by_name
+# latest_contexts_by_run
 # ---------------------------------------------------------------------------
 
 
-class TestLatestContextsByName:
+class TestLatestContextsByRun:
     def test_keeps_the_most_recent_run_per_name(self):
         nodes = [
-            _check_run("Validate PR", "FAILURE", "2026-07-30T10:00:00Z"),
-            _check_run("Validate PR", "SUCCESS", "2026-07-30T11:00:00Z"),
+            _check_run("Validate PR", "FAILURE", "2026-07-30T10:00:00Z", "PR Validation"),
+            _check_run("Validate PR", "SUCCESS", "2026-07-30T11:00:00Z", "PR Validation"),
         ]
 
-        winners = latest_contexts_by_name(nodes)
+        winners = latest_contexts_by_run(nodes)
 
-        assert list(winners) == ["Validate PR"]
-        assert winners["Validate PR"]["conclusion"] == "SUCCESS"
+        assert list(winners) == [("Validate PR", "PR Validation")]
+        assert winners[("Validate PR", "PR Validation")]["conclusion"] == "SUCCESS"
 
     def test_breaks_timestamp_ties_on_fetch_order(self):
         nodes = [
@@ -102,15 +105,19 @@ class TestLatestContextsByName:
             _check_run("ci", "SUCCESS", "2026-07-30T10:00:00Z"),
         ]
 
-        assert latest_contexts_by_name(nodes)["ci"]["conclusion"] == "SUCCESS"
+        assert latest_contexts_by_run(nodes)[("ci", "CI")]["conclusion"] == "SUCCESS"
 
     def test_a_node_with_a_timestamp_beats_one_without(self):
         nodes = [
             _check_run("ci", "SUCCESS", "2026-07-30T10:00:00Z"),
-            {"name": "ci", "conclusion": "FAILURE"},
+            {
+                "name": "ci",
+                "conclusion": "FAILURE",
+                "checkSuite": {"workflowRun": {"workflow": {"name": "CI"}}},
+            },
         ]
 
-        assert latest_contexts_by_name(nodes)["ci"]["conclusion"] == "SUCCESS"
+        assert latest_contexts_by_run(nodes)[("ci", "CI")]["conclusion"] == "SUCCESS"
 
     def test_resolves_status_context_names_from_context_field(self):
         nodes = [
@@ -121,10 +128,44 @@ class TestLatestContextsByName:
             }
         ]
 
-        assert list(latest_contexts_by_name(nodes)) == ["legacy/build"]
+        assert list(latest_contexts_by_run(nodes)) == [("legacy/build", "")]
 
     def test_drops_falsy_nodes(self):
-        assert latest_contexts_by_name([None, {}]) == {}
+        assert latest_contexts_by_run([None, {}]) == {}
+
+    def test_same_name_in_two_workflows_stays_in_two_groups(self):
+        """PR 4069 shape: concurrent siblings, not re-runs of each other."""
+        nodes = [
+            _check_run(
+                "Check Changed Paths", "FAILURE", "2026-07-31T01:26:07Z",
+                "Validate Path Normalization",
+            ),
+            _check_run(
+                "Check Changed Paths", "SUCCESS", "2026-07-31T01:26:11Z",
+                "Python Tests",
+            ),
+        ]
+
+        winners = latest_contexts_by_run(nodes)
+
+        assert len(winners) == 2
+        assert winners[
+            ("Check Changed Paths", "Validate Path Normalization")
+        ]["conclusion"] == "FAILURE"
+
+    def test_check_runs_without_a_workflow_group_on_name_alone(self):
+        """An app check run carries no workflowRun; recency still dedupes it."""
+        nodes = [
+            {"name": "codecov", "conclusion": "FAILURE",
+             "completedAt": "2026-07-30T10:00:00Z", "checkSuite": {"workflowRun": None}},
+            {"name": "codecov", "conclusion": "SUCCESS",
+             "completedAt": "2026-07-30T11:00:00Z", "checkSuite": None},
+        ]
+
+        winners = latest_contexts_by_run(nodes)
+
+        assert list(winners) == [("codecov", "")]
+        assert winners[("codecov", "")]["conclusion"] == "SUCCESS"
 
 
 # ---------------------------------------------------------------------------
@@ -160,6 +201,59 @@ class TestSupersededRuns:
 
         assert _evaluate(rollup) is True
 
+    def test_a_later_success_in_another_workflow_cannot_mask_a_failure(self):
+        """PR 4069 shape: same job name, different workflows, one second apart.
+
+        Grouping on the check name alone let the 01:26:11Z SUCCESS from
+        Python Tests discard three real FAILURE runs of the same name.
+        """
+        rollup = _rollup(
+            [
+                _check_run("Check Changed Paths", "FAILURE", "2026-07-31T01:26:07Z",
+                           "Validate Path Normalization"),
+                _check_run("Check Changed Paths", "FAILURE", "2026-07-31T01:26:08Z",
+                           "Validate Plugin Version Bump"),
+                _check_run("Check Changed Paths", "FAILURE", "2026-07-31T01:26:10Z",
+                           "Skillbook Validation"),
+                _check_run("Check Changed Paths", "SUCCESS", "2026-07-31T01:26:11Z",
+                           "Python Tests"),
+            ],
+            state="FAILURE",
+            total_count=4,
+        )
+
+        assert _evaluate(rollup) is True
+
+    def test_a_rerun_in_a_new_check_suite_still_supersedes(self):
+        """PR 4040 shape: the re-run changes check suite, not workflow.
+
+        Keying the group on the check-suite id instead of the workflow name
+        would split these two rows and reinstate the Issue #3978 defect.
+        """
+        stale = _check_run("Validate PR", "FAILURE", "2026-07-31T03:05:09Z",
+                           "PR Validation")
+        stale["checkSuite"]["databaseId"] = 82979074639
+        fresh = _check_run("Validate PR", "SUCCESS", "2026-07-31T03:35:49Z",
+                           "PR Validation")
+        fresh["checkSuite"]["databaseId"] = 82982663213
+        rollup = _rollup([stale, fresh], state="FAILURE", total_count=2)
+
+        assert _evaluate(rollup) is False
+
+    def test_a_status_context_never_groups_with_a_check_run_of_the_same_name(self):
+        """A commit status and an Actions job can share a name; both must count."""
+        rollup = _rollup(
+            [
+                {"context": "build", "state": "FAILURE",
+                 "createdAt": "2026-07-30T10:00:00Z"},
+                _check_run("build", "SUCCESS", "2026-07-30T11:00:00Z", "CI"),
+            ],
+            state="FAILURE",
+            total_count=2,
+        )
+
+        assert _evaluate(rollup) is True
+
     def test_non_failure_conclusions_that_state_used_to_catch_still_fail(self):
         for conclusion in ("TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STALE",
                            "STARTUP_FAILURE"):
@@ -186,7 +280,8 @@ class TestSupersededRuns:
             [
                 _check_run("ci", "FAILURE", "2026-07-30T10:00:00Z"),
                 {"name": "ci", "status": "IN_PROGRESS", "conclusion": None,
-                 "startedAt": "2026-07-30T11:00:00Z", "completedAt": None},
+                 "startedAt": "2026-07-30T11:00:00Z", "completedAt": None,
+                 "checkSuite": {"workflowRun": {"workflow": {"name": "CI"}}}},
             ],
             state="FAILURE",
             total_count=2,
