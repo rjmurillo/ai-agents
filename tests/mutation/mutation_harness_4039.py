@@ -86,7 +86,7 @@ def run_mutants() -> None:
 
         rc = _run_tests()
         if rc == 0:
-            failures.append(f"SURVIVING MUTANT: '{name}' - tests passed when they should have failed")
+            failures.append(f"SURVIVING MUTANT: '{name}' - tests passed, mutation undetected")
             print("  FAIL: tests did not detect the mutation")
         else:
             print(f"  PASS: tests caught the mutation (exit {rc})")

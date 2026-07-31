@@ -30,7 +30,9 @@ def _fake_git(files: tuple[str, ...] = ("pkg/mod.py",), git_rc: int = 0):
 # --- unit tests for current_count -----------------------------------------
 
 class TestCurrentCount:
-    def test_counts_type_ignore_in_single_file(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_counts_type_ignore_in_single_file(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         py = tmp_path / "mod.py"
         py.write_text(
             "x: int = 'hi'  # type: ignore[assignment]\n"
@@ -41,7 +43,9 @@ class TestCurrentCount:
         monkeypatch.setattr(subprocess, "run", _fake_git((str(py),)))
         assert ratchet.current_count(tmp_path) == 2
 
-    def test_counts_across_multiple_files(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_counts_across_multiple_files(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         a = tmp_path / "a.py"
         b = tmp_path / "b.py"
         a.write_text("x = y  # type: ignore[name-defined]\n", encoding="utf-8")
@@ -49,21 +53,29 @@ class TestCurrentCount:
         monkeypatch.setattr(subprocess, "run", _fake_git((str(a), str(b))))
         assert ratchet.current_count(tmp_path) == 3
 
-    def test_returns_zero_when_no_type_ignores(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_returns_zero_when_no_type_ignores(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         py = tmp_path / "clean.py"
         py.write_text("x = 1\n", encoding="utf-8")
         monkeypatch.setattr(subprocess, "run", _fake_git((str(py),)))
         assert ratchet.current_count(tmp_path) == 0
 
-    def test_returns_zero_for_empty_file_list(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_returns_zero_for_empty_file_list(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(subprocess, "run", _fake_git(()))
         assert ratchet.current_count(tmp_path) == 0
 
-    def test_returns_none_when_git_fails(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_returns_none_when_git_fails(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(subprocess, "run", _fake_git(git_rc=128))
         assert ratchet.current_count(tmp_path) is None
 
-    def test_returns_none_when_file_unreadable(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_returns_none_when_file_unreadable(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(subprocess, "run", _fake_git(("/nonexistent/path.py",)))
         assert ratchet.current_count(tmp_path) is None
 
@@ -114,7 +126,7 @@ class TestMain:
     def test_regression_when_count_below_baseline_without_update(
         self, tmp_path: Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Stale baseline is treated as a regression; --update is required to lock in improvements."""
+        """Stale baseline: --update required to lock in improvements."""
         baseline = _write_baseline(tmp_path, "5")
         monkeypatch.setattr(ratchet, "_BASELINE_PATH", baseline)
         monkeypatch.setattr(ratchet, "current_count", lambda _: 4)
@@ -172,7 +184,9 @@ class TestMain:
             if "rev-parse" in cmd:
                 return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
             if "ls-tree" in cmd:
-                return subprocess.CompletedProcess(cmd, 0, stdout="100644 blob abc\tbaseline.txt\n", stderr="")
+                return subprocess.CompletedProcess(
+                    cmd, 0, stdout="100644 blob abc\tbaseline.txt\n", stderr=""
+                )
             if "show" in cmd:
                 return subprocess.CompletedProcess(cmd, 0, stdout="5\n", stderr="")
             stdout = "\0".join(("mod.py",)) + "\0"

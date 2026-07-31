@@ -395,26 +395,10 @@ pre-push:
               - "scripts/ci/ruff_count_baseline.txt"
 
           - name: taste-count-ratchet
-            timeout: 5m
             run: uv run --frozen python scripts/ci/taste_count_ratchet.py --base-ref origin/main
-            glob:
-              - "**/*.py"
-              - "**/*.ps1"
-              - "**/*.psm1"
-              - "**/*.sh"
-              - "**/*.bash"
-              - "**/*.yml"
-              - "**/*.yaml"
-              - "**/*.md"
-              - "**/*.json"
-              - "scripts/ci/taste_count_baseline.txt"
 
           - name: type-ignore-count-ratchet
-            timeout: 5m
             run: uv run --frozen python scripts/ci/type_ignore_count_ratchet.py --base-ref origin/main
-            glob:
-              - "**/*.py"
-              - "scripts/ci/type_ignore_count_baseline.txt"
 
           - name: python-type-check
             timeout: 15m

@@ -49,16 +49,6 @@ class TestTasteCountRatchetWiring:
             "so a PR that widens the baseline is blocked before merging."
         )
 
-    def test_baseline_file_is_in_glob(self) -> None:
-        content = _lefthook_content()
-        idx = content.find("taste-count-ratchet")
-        assert idx != -1
-        job_section = content[idx: idx + 600]
-        assert "taste_count_baseline.txt" in job_section, (
-            "The taste-count-ratchet job glob must include 'taste_count_baseline.txt' "
-            "so the job runs when the baseline is changed directly."
-        )
-
 
 class TestTypeIgnoreCountRatchetWiring:
     """The type-ignore-count-ratchet job must be present in the pre-push section."""
@@ -77,12 +67,12 @@ class TestTypeIgnoreCountRatchetWiring:
             "lefthook.yml does not call 'type_ignore_count_ratchet.py'."
         )
 
-    def test_baseline_file_is_in_glob(self) -> None:
+    def test_base_ref_flag_is_present(self) -> None:
         content = _lefthook_content()
         idx = content.find("type-ignore-count-ratchet")
         assert idx != -1
-        job_section = content[idx: idx + 400]
-        assert "type_ignore_count_baseline.txt" in job_section, (
-            "The type-ignore-count-ratchet job glob must include "
-            "'type_ignore_count_baseline.txt' so the job runs when the baseline changes."
+        job_section = content[idx: idx + 300]
+        assert "--base-ref" in job_section, (
+            "The type-ignore-count-ratchet job must pass '--base-ref origin/main' "
+            "so a PR that raises the baseline is blocked before merging."
         )
