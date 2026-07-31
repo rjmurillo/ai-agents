@@ -131,7 +131,7 @@ So neither "double quotes work" nor "no shell means it breaks" holds on its
 own. Fencing the command removes the ambiguity.
 
 ```bash
-grep -c "Status: \[COMPLETE\]\|\[WONTFIX\]"
+grep -c "Status: \[COMPLETE\]\|\[WONTFIX\]" review-threads.md
 ```
 
 ## Implementation

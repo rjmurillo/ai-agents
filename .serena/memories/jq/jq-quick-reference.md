@@ -4,8 +4,7 @@
 
 Examples are shown in fenced blocks, not table cells, so the `|` characters
 are the real jq pipe operator. A markdown table cell cannot hold a bare `|`,
-and the escaped `\|` a table would need is a jq syntax error: `jq '.count \|
-tonumber'` exits 3 with `syntax error, unexpected INVALID_CHARACTER`.
+and the escaped `\|` a table would need is a jq syntax error. Running `jq '.count \| tonumber'` exits 3 with `syntax error, unexpected INVALID_CHARACTER`.
 
 ```text
 Operator  Purpose           Example
