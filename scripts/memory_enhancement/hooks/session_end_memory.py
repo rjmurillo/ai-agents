@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
 """Hook: session_end - Reflection and confidence decay.
 
-Recalculates confidence scores for accessed memories, persisting them
-to memory frontmatter, and prints a reflection summary to stderr.
+Recalculates confidence scores for every memory and prints a health summary
+to stderr. Read-only: it writes nothing under ``.serena/memories``.
+
+Confidence is a pure function of citation validity, age, update recency, and
+link count, recomputed on every read (``search._score_memory_file``). Nothing
+reads a stored score, so writing one back bought nothing and cost the corpus:
+the round trip through ``save_memory`` stripped every ``## Links`` block and
+stamped ``created_at`` with wall clock on files that predate it, which is an
+input to the freshness factor it claims to persist (issue #4011).
 
 Hook Type: SessionEnd
 Exit Codes:
     0 = always. SessionEnd cannot inject context: exit code 2 there only
-        shows stderr to the user, and the session is already over, so the
-        value is the confidence persistence, not the summary (issue #4011).
+        shows stderr to the user, and the session is already over.
 """
 
 from __future__ import annotations
@@ -16,8 +22,9 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from ..confidence import update_confidence_scores_with_memories
 from ..models import HealthReport
-from ..reflection import apply_confidence_decay, extract_session_facts, reinforce_memories
+from ..reflection import apply_confidence_decay, extract_session_facts
 
 
 def main() -> int:
@@ -45,7 +52,7 @@ def _find_repo_root(start: Path | None = None) -> Path | None:
 
 
 def _generate_reflection(memories_dir: Path, repo_root: Path) -> str:
-    """Run confidence recalculation and produce a health summary.
+    """Score every memory and produce a health summary. Writes nothing.
 
     Args:
         memories_dir: Path to .serena/memories/.
@@ -56,11 +63,9 @@ def _generate_reflection(memories_dir: Path, repo_root: Path) -> str:
     """
     from ..health import generate_health_report
 
-    # Track session activity first (before any writes that update mtime)
     session_facts = extract_session_facts(memories_dir)
 
-    # Recalculate confidence scores (may write to disk)
-    _scores, memories = reinforce_memories(memories_dir, repo_root)
+    _scores, memories = update_confidence_scores_with_memories(memories_dir, repo_root)
 
     # Identify memories needing re-verification due to age
     decayed = apply_confidence_decay(memories_dir, repo_root)

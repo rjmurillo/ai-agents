@@ -113,42 +113,74 @@ class TestFormatReflection:
         assert "0 memories" in result
 
 
-class TestReinforceMemories:
-    """Tests for reinforce_memories persistence logic."""
+class TestCorpusIsNeverRewritten:
+    """SessionEnd must leave .serena/memories byte-identical (issue #4011).
+
+    The hook used to round-trip every memory through save_memory to persist a
+    confidence score. Nothing reads a stored score (search recomputes it), and
+    the round trip stripped every "## Links" block and stamped created_at with
+    wall clock, so the first real session end left 879 tracked files dirty.
+    """
+
+    @staticmethod
+    def _corpus(tmp_path: Path) -> Path:
+        memories_dir = tmp_path / ".serena" / "memories"
+        (memories_dir / "nested").mkdir(parents=True)
+        (memories_dir / "plain.md").write_text(
+            "# Plain (2026-01-01)\n\nBody text.\n\n"
+            "## Links\n\n- [other](other.md): cross reference\n"
+        )
+        (memories_dir / "other.md").write_text("# Other (2026-01-01)\n\nBody.\n")
+        (memories_dir / "nested" / "deep.md").write_text("# Deep (2026-01-01)\n\nBody.\n")
+        return memories_dir
+
+    @staticmethod
+    def _snapshot(memories_dir: Path) -> dict[str, str]:
+        return {
+            str(path.relative_to(memories_dir)): path.read_text()
+            for path in sorted(memories_dir.rglob("*.md"))
+        }
 
     @pytest.mark.unit
-    @patch("memory_enhancement.reflection.save_memory")
-    @patch("memory_enhancement.reflection.update_confidence_scores_with_memories")
-    def test_saves_when_score_exceeds_epsilon(self, mock_update, mock_save, tmp_path: Path):
-        memory = MagicMock()
-        memory.memory_id = "mem-1"
-        memory.confidence = 0.50
+    def test_generate_reflection_writes_nothing(self, tmp_path: Path):
+        memories_dir = self._corpus(tmp_path)
+        before = self._snapshot(memories_dir)
 
-        mock_update.return_value = ({"mem-1": 0.62}, [memory])
+        summary = _generate_reflection(memories_dir, tmp_path)
 
-        from memory_enhancement.reflection import reinforce_memories
-
-        result = reinforce_memories(tmp_path, tmp_path)
-
-        assert result == ({"mem-1": 0.62}, [memory])
-        mock_save.assert_called_once_with(memory, tmp_path)
-        assert memory.confidence == 0.62
+        assert "<session-reflection>" in summary
+        assert self._snapshot(memories_dir) == before
 
     @pytest.mark.unit
-    @patch("memory_enhancement.reflection.save_memory")
-    @patch("memory_enhancement.reflection.update_confidence_scores_with_memories")
-    def test_skips_save_when_within_epsilon(self, mock_update, mock_save, tmp_path: Path):
-        memory = MagicMock()
-        memory.memory_id = "mem-1"
-        memory.confidence = 0.50
+    def test_link_block_survives_a_second_run(self, tmp_path: Path):
+        memories_dir = self._corpus(tmp_path)
 
-        mock_update.return_value = ({"mem-1": 0.505}, [memory])
+        _generate_reflection(memories_dir, tmp_path)
+        _generate_reflection(memories_dir, tmp_path)
 
-        from memory_enhancement.reflection import reinforce_memories
+        assert "## Links" in (memories_dir / "plain.md").read_text()
+        assert "created_at" not in (memories_dir / "other.md").read_text()
 
-        reinforce_memories(tmp_path, tmp_path)
+    @pytest.mark.unit
+    def test_main_writes_nothing_end_to_end(self, tmp_path: Path, monkeypatch):
+        memories_dir = self._corpus(tmp_path)
+        before = self._snapshot(memories_dir)
+        monkeypatch.setattr(
+            "memory_enhancement.hooks.session_end_memory._find_repo_root",
+            lambda start=None: tmp_path,
+        )
 
-        mock_save.assert_not_called()
+        exit_code = main()
+
+        assert exit_code == 0
+        assert self._snapshot(memories_dir) == before
+
+    @pytest.mark.unit
+    def test_reflection_module_has_no_writer(self):
+        import memory_enhancement.reflection as reflection
+
+        assert not hasattr(reflection, "save_memory")
+        assert not hasattr(reflection, "reinforce_memories")
 
 
 class TestGenerateReflection:
@@ -157,16 +189,16 @@ class TestGenerateReflection:
     @pytest.mark.unit
     @patch("memory_enhancement.hooks.session_end_memory.extract_session_facts")
     @patch("memory_enhancement.hooks.session_end_memory.apply_confidence_decay")
-    @patch("memory_enhancement.hooks.session_end_memory.reinforce_memories")
+    @patch("memory_enhancement.hooks.session_end_memory.update_confidence_scores_with_memories")
     @patch("memory_enhancement.health.generate_health_report")
     def test_generates_reflection(
-        self, mock_report, mock_reinforce, mock_decay, mock_facts, tmp_path: Path
+        self, mock_report, mock_scores, mock_decay, mock_facts, tmp_path: Path
     ):
         memories_dir = tmp_path / "memories"
         memories_dir.mkdir()
         (memories_dir / "test.md").write_text("# Test (2026-01-01)\n\nContent\n")
 
-        mock_reinforce.return_value = ({"test": 0.85}, [])
+        mock_scores.return_value = ({"test": 0.85}, [])
         mock_decay.return_value = []
         mock_facts.return_value = ["test"]
         mock_report.return_value = MagicMock(
@@ -179,20 +211,20 @@ class TestGenerateReflection:
         result = _generate_reflection(memories_dir, tmp_path)
         assert "<session-reflection>" in result
         assert "1 memories" in result
-        mock_reinforce.assert_called_once_with(memories_dir, tmp_path)
+        mock_scores.assert_called_once_with(memories_dir, tmp_path)
         mock_decay.assert_called_once_with(memories_dir, tmp_path)
 
     @pytest.mark.unit
     @patch("memory_enhancement.hooks.session_end_memory.extract_session_facts")
     @patch("memory_enhancement.hooks.session_end_memory.apply_confidence_decay")
-    @patch("memory_enhancement.hooks.session_end_memory.reinforce_memories")
+    @patch("memory_enhancement.hooks.session_end_memory.update_confidence_scores_with_memories")
     @patch("memory_enhancement.health.generate_health_report")
     def test_empty_memories_returns_empty(
-        self, mock_report, mock_reinforce, mock_decay, mock_facts, tmp_path: Path
+        self, mock_report, mock_scores, mock_decay, mock_facts, tmp_path: Path
     ):
         memories_dir = tmp_path / "memories"
         memories_dir.mkdir()
-        mock_reinforce.return_value = ({}, [])
+        mock_scores.return_value = ({}, [])
         mock_decay.return_value = []
         mock_facts.return_value = []
         mock_report.return_value = MagicMock(total_memories=0)
@@ -203,15 +235,15 @@ class TestGenerateReflection:
     @pytest.mark.unit
     @patch("memory_enhancement.hooks.session_end_memory.extract_session_facts")
     @patch("memory_enhancement.hooks.session_end_memory.apply_confidence_decay")
-    @patch("memory_enhancement.hooks.session_end_memory.reinforce_memories")
+    @patch("memory_enhancement.hooks.session_end_memory.update_confidence_scores_with_memories")
     @patch("memory_enhancement.health.generate_health_report")
     def test_decayed_memories_shown_in_reflection(
-        self, mock_report, mock_reinforce, mock_decay, mock_facts, tmp_path: Path
+        self, mock_report, mock_scores, mock_decay, mock_facts, tmp_path: Path
     ):
         memories_dir = tmp_path / "memories"
         memories_dir.mkdir()
 
-        mock_reinforce.return_value = ({"old1": 0.3, "old2": 0.2}, [])
+        mock_scores.return_value = ({"old1": 0.3, "old2": 0.2}, [])
         mock_decay.return_value = ["old1", "old2"]
         mock_facts.return_value = []
         mock_report.return_value = MagicMock(
@@ -228,8 +260,8 @@ class TestGenerateReflection:
 class TestExitContract:
     """SessionEnd cannot inject context, so exit 2 buys nothing (issue #4011).
 
-    The value is the confidence persistence inside reinforce_memories, which
-    must still happen on the path that returns 0.
+    The summary is the whole output, and it must reach stderr on the path that
+    returns 0.
     """
 
     @staticmethod
@@ -257,17 +289,19 @@ class TestExitContract:
         assert captured.out == ""
 
     @pytest.mark.unit
-    def test_reinforce_memories_runs_on_the_zero_exit_path(self, tmp_path, monkeypatch):
+    def test_scoring_runs_on_the_zero_exit_path(self, tmp_path, monkeypatch):
         memories_dir = tmp_path / "memories"
         memories_dir.mkdir()
         calls: list[Path] = []
 
-        def fake_reinforce(mem_dir, _repo_root):
+        def fake_scores(mem_dir, _repo_root):
             calls.append(mem_dir)
             return {}, []
 
         monkeypatch.setattr(
-            "memory_enhancement.hooks.session_end_memory.reinforce_memories", fake_reinforce
+            "memory_enhancement.hooks.session_end_memory."
+            "update_confidence_scores_with_memories",
+            fake_scores,
         )
         monkeypatch.setattr(
             "memory_enhancement.hooks.session_end_memory.extract_session_facts",
