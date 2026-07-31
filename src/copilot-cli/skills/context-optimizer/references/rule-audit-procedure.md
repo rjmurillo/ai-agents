@@ -448,11 +448,24 @@ number are not. The shapes recur either way.
   run.
 - **Agentic CLI output is not clean JSON.** The provider reads
   `~/.copilot/session-state/<uuid>/events.jsonl` and correlates by the sandbox
-  working directory, which is race-free. Falling back to stdout parsing mixes
-  tool traces into the answer. That fallback also fires on a filesystem error,
-  silently skipping the only check that confirms which model actually served
-  the request, so a run can be attributed to the wrong model with no warning
-  (issue #3959).
+  working directory, which is race-free. The stdout fallback used to mix tool
+  traces into the answer, and it skipped the check that confirms which model
+  served the request, so a run could be attributed to the wrong model with no
+  warning (issue #3959, closed). Both are refused now rather than graded. A
+  stdout reply whose line opens with a CLI trace marker is refused, and so is a
+  reply whose model the run cannot confirm, unless an operator sets
+  `EVAL_COPILOT_ALLOW_UNVERIFIED_MODEL` and takes that loss knowingly. The
+  archived runs predate both gates, which is why their attribution still rests
+  on the filename.
+- **One session log can hold more than one model.** Sub-agents run their own
+  models and write into the parent's log, and interactive logs here carry up to
+  eleven distinct models in a single file. They are marked: the event carries a
+  top-level `agentId` and the message carries `data.parentToolCallId`. In a
+  sampled session both marked exactly the same 671 events, while the 4465
+  messages carrying neither were all the primary model. The provider skips
+  them, because their text is internal working output and never the answer.
+  Read a log the same way, or you will count a sub-agent's model as the one
+  that replied.
 - **The Copilot CLI stdout token counter is non-monotonic.** Unusable as a
   measurement. Use the event log instead: in
   `~/.copilot/session-state/<uuid>/events.jsonl`, read `data.totalNanoAiu` on
