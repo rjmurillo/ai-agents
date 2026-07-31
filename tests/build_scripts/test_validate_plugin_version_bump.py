@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size
 """Tests for build/scripts/validate_plugin_version_bump.py.
 
 Covers:
