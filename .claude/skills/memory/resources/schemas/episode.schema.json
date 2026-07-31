@@ -107,6 +107,10 @@
             "type": "array",
             "items": { "type": "string" },
             "description": "IDs of decisions/events this leads to"
+          },
+          "_source_session": {
+            "type": "string",
+            "description": "Session ID that produced this event; used by --preserve to evict cross-session contamination (issue #4024)"
           }
         }
       }

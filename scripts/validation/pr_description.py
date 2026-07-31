@@ -115,6 +115,12 @@ _CHANGE_CLAIM_SECTION_NAMES: tuple[str, ...] = (
     r"Per[- \t]?file[ \t]+changes",
     r"Files[ \t]+Changed",
     r"Changed[ \t]+Files",
+    # Natural synonym used in ~10% of merged PR bodies (measured 2026-07-30:
+    # 10/100 recent merged PRs used "What changed" vs 20 using "Changes").
+    # Without this entry, inline code and markdown links under "## What changed"
+    # are silently skipped, giving the gate a false-clean result on bodies it
+    # never checked.
+    r"What[ \t]+changed",
 )
 
 _CHANGE_CLAIM_SCOPED_PATTERN_INDEXES: frozenset[int] = frozenset({0, 3, 4})
