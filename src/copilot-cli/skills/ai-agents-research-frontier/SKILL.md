@@ -286,24 +286,24 @@ Before acting on this skill's claims, or after editing it:
 ## Provenance and Maintenance
 
 Authored 2026-07-03, facts re-verified against the working tree on 2026-07-30.
-Full local history is present (~2014 commits as of 2026-07-30) and retro-cited
-short SHAs do resolve here (ddb76e0 and 01e76615a are both commits), so `git log`
-is usable for archaeology. Prefer `.agents/retrospective/` and
+Retro-cited SHAs `ddb76e0` and `01e76615a` exist in this clone but are not
+reachable from `main`. Clone refs determine whether those objects exist, so
+verify ancestry before using `git log`. Prefer `.agents/retrospective/` and
 `.serena/memories/` for the reasoning behind a change, which commit messages
 rarely carry.
 
 Sources and re-verification:
 
 - ADR-069 thesis and status: `.agents/architecture/ADR-069-context-corpus-is-the-product.md:2` (status: proposed), title at line 9. Re-verify: `head -12 .agents/architecture/ADR-069-context-corpus-is-the-product.md`.
-- ADR-072 status, review verdict, five conditions, harness list: `.agents/architecture/ADR-072-jtbd-plugin-architecture.md:3-19`. Re-verify: `sed -n '1,25p' .agents/architecture/ADR-072-jtbd-plugin-architecture.md`.
+- ADR-072 status, review verdict, five conditions, harness list: `.agents/architecture/ADR-072-jtbd-plugin-architecture.md:3-20`. Re-verify: `sed -n '1,25p' .agents/architecture/ADR-072-jtbd-plugin-architecture.md`.
 - ADR-068 status and #2295 measurements (3/197 kills, ~246 ms cold start, 40 shims): `.agents/architecture/ADR-068-consolidated-hook-dispatcher.md`. Re-verify: `sed -n '1,10p' .agents/architecture/ADR-068-consolidated-hook-dispatcher.md; grep -n -A1 -e "Three of" -e "246" -e "N=40" .agents/architecture/ADR-068-consolidated-hook-dispatcher.md`.
 - Rule-activation eval mechanisms, judge dimensions, exit codes: `scripts/eval/eval-rule-activation.py:1-40` docstring. Re-verify: `sed -n '1,40p' scripts/eval/eval-rule-activation.py`.
 - FM-1 95.8% evidence: `.agents/governance/FAILURE-MODES.md:44`. Re-verify: `grep -n "95.8" .agents/governance/FAILURE-MODES.md`.
 - Detect-Log-Graduate and explicit retrieval: the `reflect` skill, `.claude/skills/memory/SKILL.md`, and `.claude/skills/memory-search/SKILL.md`. Re-verify the deleted advisory hooks' absence with the Phase 1 test command.
 - EVENT telemetry emitter: `.claude/hooks/PreToolUse/push_guard_base.py:19`. Re-verify: `grep -n "EVENT=" .claude/hooks/PreToolUse/push_guard_base.py`.
 - Guard tiers and thresholds: `.claude/skills/guard-maturity/SKILL.md:52-59`. Re-verify: `sed -n '52,59p' .claude/skills/guard-maturity/SKILL.md`.
-- Runtime contract test and anchoring validator: `tests/build_scripts/test_generate_hooks_runtime_contract.py`, `scripts/validation/validate_hook_anchoring.py`. Re-verify: `ls` both paths.
-- Env-anchor decision memory: `.serena/memories/decision-copilot-cli-hook-plugin-root-contract.md`. Re-verify: `ls` the path.
+- Runtime contract test and anchoring validator: `tests/build_scripts/test_generate_hooks_runtime_contract.py`, `scripts/validation/validate_hook_anchoring.py`. Re-verify: `ls tests/build_scripts/test_generate_hooks_runtime_contract.py scripts/validation/validate_hook_anchoring.py`.
+- Env-anchor decision memory: `.serena/memories/decision-copilot-cli-hook-plugin-root-contract.md`. Re-verify: `ls .serena/memories/decision-copilot-cli-hook-plugin-root-contract.md`.
 - Counts (skill dirs, rules, retros, memories, scenario fixtures): Phase 1 command. Volatile; re-run before quoting rather than copying a snapshot from here.
 - Incident claims (#2205, #2290, #1887, #1989, #2230): see `ai-agents-failure-archaeology` for evidence paths; do not re-litigate settled battles.
 
