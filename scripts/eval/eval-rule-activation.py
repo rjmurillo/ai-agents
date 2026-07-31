@@ -2084,9 +2084,9 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
         # the target can reach, so both say so: on a routed target the table
         # can show `full` fully graded while the floor has no candidate.
         restraint = (
-            "no reachable mechanism graded on every negative scenario"
+            "no reachable negative-gate mechanism graded on every negative scenario"
             if summary.get("negative_floor_partial")
-            else "not measured on any reachable mechanism"
+            else "not measured on any reachable negative-gate mechanism"
         )
     else:
         # `worst_neg` is a min over the gate cells that covered their whole
@@ -2130,7 +2130,7 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
             + best_excluded
             if summary.get("best_mechanism")
             else (
-                "Best mechanism: no reachable mechanism graded on every scenario"
+                "Best mechanism: no reachable rule-enhanced mechanism graded on every scenario"
                 if summary.get("best_mechanism_partial")
                 else "Best mechanism: no reachable rule-enhanced mechanism measured"
             )

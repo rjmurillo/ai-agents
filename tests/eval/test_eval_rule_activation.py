@@ -4001,7 +4001,10 @@ class TestRenderTableRestraint:
         summary = eval_mod.aggregate([_make_scenario(baseline=1, description=5, full=5)])
         table = eval_mod.render_table("some-rule", summary)
 
-        assert "Restraint on negative cases: not measured on any reachable mechanism" in table
+        assert (
+            "Restraint on negative cases: not measured on any reachable "
+            "negative-gate mechanism" in table
+        )
         assert "| full         |     5.0 |       - |" in table
 
     def test_a_measured_negative_pool_is_printed_with_its_floor(self):
@@ -4993,7 +4996,10 @@ class TestTheHeadlineNeedsAWholePool:
         assert summary["best_mechanism"] is None
         assert summary["best_mechanism_partial"] is True
         table = eval_mod.render_table("r", summary)
-        assert "Best mechanism: no reachable mechanism graded on every scenario" in table
+        assert (
+            "Best mechanism: no reachable rule-enhanced mechanism graded on "
+            "every scenario" in table
+        )
         assert "rule-enhanced mechanism measured" not in table
 
     def test_nothing_graded_says_no_rule_enhanced_mechanism_measured(self):
@@ -5072,7 +5078,7 @@ class TestTheRestraintHeadlineNamesItsOwnPopulation:
         table = eval_mod.render_table("r", summary)
         # Both mechanisms carry an average in the table, so "not measured"
         # contradicts the rows directly below it.
-        assert "no reachable mechanism graded on every negative scenario" in table
+        assert "no reachable negative-gate mechanism graded on every negative scenario" in table
 
     def test_an_ungraded_negative_pool_is_still_not_measured(self):
         scenarios = [
@@ -5091,7 +5097,10 @@ class TestTheRestraintHeadlineNamesItsOwnPopulation:
 
         assert summary["negative_floor_partial"] is False
         table = eval_mod.render_table("r", summary)
-        assert "Restraint on negative cases: not measured on any reachable mechanism" in table
+        assert (
+            "Restraint on negative cases: not measured on any reachable "
+            "negative-gate mechanism" in table
+        )
 
 
 class TestTheBestHeadlineNamesWhatItDropped:
@@ -5360,7 +5369,10 @@ class TestEmptyHeadlinesNameTheRankedPopulation:
             },
         )
         assert "| full         |     5.0 |" in table
-        assert "Best mechanism: no reachable mechanism graded on every scenario" in table
+        assert (
+            "Best mechanism: no reachable rule-enhanced mechanism graded on "
+            "every scenario" in table
+        )
 
 
 class TestEmptyRestraintHeadlinesNameTheGatedPopulation:
@@ -5390,7 +5402,7 @@ class TestEmptyRestraintHeadlinesNameTheGatedPopulation:
         # nothing was measured would be contradicted by its own table.
         assert "|     5.0 |          +0.0 |        1/1 |        1/1 |" in table
         assert (
-            "Restraint on negative cases: not measured on any reachable mechanism"
+            "Restraint on negative cases: not measured on any reachable negative-gate mechanism"
             in table
         )
 
@@ -5402,5 +5414,68 @@ class TestEmptyRestraintHeadlinesNameTheGatedPopulation:
                 "mechanisms": {"baseline": _make_mech(5), "full": _make_mech(5)},
             },
         )
-        assert "Restraint on negative cases: no reachable mechanism" in table
+        assert "Restraint on negative cases: no reachable negative-gate mechanism" in table
         assert "graded on every negative scenario" in table
+
+
+class TestEmptyHeadlinesNameEligibilityNotJustReachability:
+    """Reachable is not the same as eligible, and both headlines need both.
+
+    `baseline` is always reachable, and it is excluded from the ranking and
+    from the negative gate on purpose. Labels that named only reachability
+    printed `no reachable mechanism graded ...` directly above a `baseline`
+    row graded over its whole pool.
+    """
+
+    def test_the_best_headline_excludes_baseline_by_name(self):
+        summary = eval_mod.aggregate(
+            [
+                _make_scenario(3, 4, 5),
+                {"negative_case": False, "mechanisms": {"baseline": _make_mech(3)}},
+                _make_scenario(5, 5, 5, negative=True),
+            ],
+            routed=False,
+        )
+        # The fixture must reach the state the name claims: `baseline` covers
+        # its whole pool while no rule-enhanced mechanism does.
+        assert summary["per_mechanism"]["baseline"]["graded_count"] == 2
+        assert summary["per_mechanism"]["baseline"]["scenario_count"] == 2
+        assert summary["best_mechanism"] is None
+        table = eval_mod.render_table("R", summary)
+        assert (
+            "Best mechanism: no reachable rule-enhanced mechanism graded on "
+            "every scenario" in table
+        )
+
+    def test_an_absent_floor_excludes_baseline_by_name(self):
+        summary = eval_mod.aggregate(
+            [
+                _make_scenario(3, 4, 5),
+                {"negative_case": True, "mechanisms": {"baseline": _make_mech(5)}},
+            ],
+            routed=False,
+        )
+        assert summary["negative_case_per_mechanism"]["baseline"]["graded_count"] == 1
+        assert summary["worst_negative_avg"] is None
+        table = eval_mod.render_table("R", summary)
+        assert (
+            "Restraint on negative cases: not measured on any reachable "
+            "negative-gate mechanism" in table
+        )
+
+    def test_a_partial_floor_excludes_baseline_by_name(self):
+        summary = eval_mod.aggregate(
+            [
+                _make_scenario(3, 4, 5),
+                _make_scenario(5, 5, 5, negative=True),
+                {"negative_case": True, "mechanisms": {"baseline": _make_mech(5)}},
+            ],
+            routed=False,
+        )
+        assert summary["negative_case_per_mechanism"]["baseline"]["graded_count"] == 2
+        assert summary["negative_floor_partial"] is True
+        table = eval_mod.render_table("R", summary)
+        assert (
+            "Restraint on negative cases: no reachable negative-gate mechanism "
+            "graded on every negative scenario" in table
+        )
