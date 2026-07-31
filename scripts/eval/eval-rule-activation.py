@@ -135,12 +135,7 @@ def parse_skill_reference(skill_path: Path, reference_path: Path) -> dict[str, s
     skill_name_match = re.search(r"^name:\s*(.+?)$", skill["frontmatter"], re.MULTILINE)
     skill_name = skill_name_match.group(1).strip() if skill_name_match else skill_path.parent.name
     reference_rel = str(reference_path.relative_to(skill_path.parent))
-    body = (
-        "Skill router:\n\n"
-        f"{skill['body']}\n\n"
-        "Selected reference:\n\n"
-        f"{reference['body']}"
-    )
+    body = f"Skill router:\n\n{skill['body']}\n\nSelected reference:\n\n{reference['body']}"
     return {
         "description": skill["description"],
         "body": body,
@@ -269,60 +264,6 @@ def _build_routed_reference_prompt(
     )
 
 
-# ---------------------------------------------------------------------------
-# LLM judge
-# ---------------------------------------------------------------------------
-
-
-def _skip_string_literal(text: str, index: int) -> int:
-    """Return the index just past the string starting at ``index``.
-
-    Returns ``len(text)`` for a string that never closes, which is the shape
-    salvage exists for: the caller then sees no further structure, and a
-    payload whose tail is one open string cannot donate a brace to anything.
-    """
-    index += 1
-    while index < len(text):
-        char = text[index]
-        if char == "\\":
-            index += 2
-            continue
-        if char == '"':
-            return index + 1
-        index += 1
-    return len(text)
-
-
-def _scan_balanced_object(text: str, start: int) -> int | None:
-    """Return the index just past the object opening at ``start``, or ``None``.
-
-    String contents are skipped so that braces or escaped quotes inside a value
-    cannot terminate the scan early.
-    """
-    depth = 0
-    in_string = False
-    escaped = False
-    for index in range(start, len(text)):
-        char = text[index]
-        if in_string:
-            if escaped:
-                escaped = False
-            elif char == "\\":
-                escaped = True
-            elif char == '"':
-                in_string = False
-            continue
-        if char == '"':
-            in_string = True
-        elif char == "{":
-            depth += 1
-        elif char == "}":
-            depth -= 1
-            if depth == 0:
-                return index + 1
-    return None
-
-
 def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     """Build the object, refusing a repeated key instead of taking the last.
 
@@ -372,60 +313,6 @@ def _strict_json_loads(text: str) -> object:
         )
     except RecursionError as exc:
         raise ValueError(f"JSON nesting exceeds the decoder's limit: {exc}") from exc
-
-
-def _extract_json_object(text: str) -> str | None:
-    """Return the object the payload begins with, when the payload is not one.
-
-    The judge is told to answer in JSON only. When a whole-payload parse fails,
-    the one recoverable shape is a valid object followed by content that is not
-    part of it. The object is therefore read from offset 0, never searched for.
-
-    Searching here was the twelfth defect of a single class. ``_salvage_anchor``
-    had already stopped the *failure* path from searching, but this is the
-    *success* path: it returns through the normal result branch, so a searched
-    verdict was indistinguishable from a clean parse and no post-hoc audit
-    could surface it. An unauditable search is worse than an auditable one, so
-    both paths now obey one rule: the verdict is the object the payload starts
-    with, or there is no verdict. Callers mark what this recovers.
-
-    The version this replaces justified its search by saying agentic CLI
-    providers interleave tool-call traces into the answer. That is stale.
-    ``_copilot_cli._read_session_transcript`` reads ``assistant.message``
-    events from the session log, where tool calls sit in a sibling
-    ``toolRequests`` field and never reach this function.
-
-    ``_names_a_score_field_twice`` applies here for the same reason it applies
-    to salvage: a second copy of a score field anywhere in the payload makes
-    the leading object one of two candidate answers, and two candidates is an
-    ambiguity rather than a choice. It applies only when text follows the
-    object, because that trailing text is what a second candidate would hide
-    in and it is exactly what cannot be parsed and checked exactly.
-
-    Returns ``None`` when the payload does not begin with a balanced,
-    strictly-parseable object, or when it names two verdicts.
-    """
-    start = _salvage_anchor(text)
-    if start is None:
-        return None
-    end = _scan_balanced_object(text, start)
-    if end is None:
-        return None
-    candidate = text[start:end]
-    try:
-        parsed = _strict_json_loads(candidate)
-    except ValueError:
-        return None
-    if text[end:].strip():
-        # Something follows the object, so a second verdict could be sitting in
-        # a tail this function never parses. Only the raw count can see it.
-        return None if _names_a_score_field_twice(text) else candidate
-    # The object is the whole payload. There is no unparsed tail to protect
-    # against, and the parse has already decoded every escape, so the exact
-    # structural check applies. Using the raw count here instead would refuse
-    # any payload containing ``\u``, which discards a healthy fenced verdict
-    # whose reasoning carries an em-dash or a curly quote.
-    return None if _parsed_names_two_verdicts(parsed) else candidate
 
 
 def score_response(
@@ -500,57 +387,32 @@ Respond in JSON only, no other text:
 
     try:
         parsed = _strict_json_loads(text)
-        recovered_from_prefix = False
     except ValueError:
-        embedded = _recover_verdict(text)
-        if embedded is None:
-            return _judge_parse_failure(text, f"judge parse error: {text[:200]}")
-        # _recover_verdict only returns text it already parsed with
-        # _strict_json_loads, so this cannot raise.
-        parsed = _strict_json_loads(embedded)
-        recovered_from_prefix = True
-    else:
-        # A second copy of a score field makes the payload carry two candidate
-        # verdicts, and picking one of two is a guess. Both recovery paths
-        # already refused on this. The strict parse did not, because a
-        # whole-payload parse succeeding was read as proof the payload named
-        # one answer. It is not: valid JSON nests, so a second verdict can sit
-        # inside the first as a member, a list element, or a quoted string,
-        # and the parse still succeeds.
-        #
-        # That gap was worse than the recovery defects it mirrors. Those at
-        # least set ``judge_salvaged``, so a guess stayed auditable. This one
-        # returned through the clean-parse branch, which sets no marker at
-        # all, so a fabricated triple was indistinguishable from a judge that
-        # simply answered.
-        #
-        # Checked against the parsed object rather than the raw text. The two
-        # answer the same question, but only one of them can answer it here
-        # without also refusing healthy output: see _parsed_names_two_verdicts.
-        # The recovery branch above keeps the raw-text guard, which each of its
-        # entry points already applies, because a payload that did not parse
-        # offers nothing exact to check.
-        if _parsed_names_two_verdicts(parsed):
-            return _failed_judge(
-                f"ambiguous judge output names two verdicts: {text[:200]}"
-            )
+        return _failed_judge(
+            "judge response could not be parsed as JSON",
+            raw_judge_response=text,
+        )
     if not isinstance(parsed, dict):
-        return _failed_judge(f"judge returned non-object JSON: {text[:200]}")
+        return _failed_judge(
+            "judge returned non-object JSON",
+            raw_judge_response=text,
+        )
+    if _parsed_names_two_verdicts(parsed):
+        return _failed_judge(
+            "ambiguous judge output names two verdicts",
+            raw_judge_response=text,
+        )
     score_error = _judge_score_shape_error(parsed)
     if score_error is not None:
-        return _judge_parse_failure(text, score_error)
+        return _failed_judge(score_error, raw_judge_response=text)
     result = {
         "activation_score": _clamp_score(parsed["activation_score"]),
         "citation_score": _clamp_score(parsed["citation_score"]),
         "behavior_score": _clamp_score(parsed["behavior_score"]),
         "reasoning": str(parsed.get("reasoning", ""))[:300],
         "judge_failed": False,
+        "raw_judge_response": text,
     }
-    if recovered_from_prefix:
-        # The whole payload did not parse; the verdict came from its leading
-        # object. Marking it is what makes the recovery auditable after the
-        # run, which the searching version it replaced never was.
-        result["judge_salvaged"] = True
     fingerprint = metadata.get("system_fingerprint")
     if isinstance(fingerprint, str):
         result["judge_system_fingerprint"] = fingerprint
@@ -601,9 +463,7 @@ def _reduce_score_samples(
     # average 3.67, and per-field medians publish 5/5/5. Reduce each sample to
     # its own scalar first so the cell is a real observation, or the midpoint
     # of two. The per-field values stay as the per-axis diagnostic.
-    reduced["cell_score"] = reducer(
-        [_sample_scalar(sample) for sample in graded]
-    )
+    reduced["cell_score"] = reducer([_sample_scalar(sample) for sample in graded])
     reduced["judge_failed"] = failed_count > 0
     reduced["graded"] = True
     reduced["score_reducer"] = reducer_name
@@ -617,32 +477,13 @@ def _sample_scalar(sample: dict[str, Any]) -> float:
     """Collapse one judge sample's three fields to the score it stands for."""
     return sum(float(sample[key]) for key in _SCORE_KEYS) / len(_SCORE_KEYS)
 
+
 _SCORE_FIELDS = ("activation_score", "citation_score", "behavior_score")
 
 # The judge rubric is 1-5. Kept as one authoritative range because three code
 # paths police it: the shape gate, the clamp, and salvage. They disagreed once
 # already, and that disagreement is what let an out-of-range score through.
 _SCORE_RANGE = range(1, 6)
-
-_JSON_INT_RE = re.compile(r"-?(?:0|[1-9][0-9]*)\Z")
-
-# A score field spelled as a JSON key: quoted, quoted with the quotes escaped
-# because the object was itself serialized into a string, or single-quoted
-# because the judge emitted the JSON5/Python dialect that lenient decoders
-# accept. Counting this shape rather than the bare identifier is what lets
-# ordinary prose name a field without being mistaken for a second verdict.
-# Each spelling pairs its own quotes, so a mismatched pair is not a key.
-_KEY_SHAPED_SCORE_FIELDS = tuple(
-    re.compile(
-        "(?:"
-        + '"' + re.escape(field) + '"'
-        + "|" + r"\\\"" + re.escape(field) + r"\\\""
-        + "|" + "'" + re.escape(field) + "'"
-        + r")\s*:"
-    )
-    for field in _SCORE_FIELDS
-)
-
 # The same field names, used only to detect that a decoded layer names a score
 # field at all. Neither the quoting nor the separator is required, and the value
 # is deliberately not captured.
@@ -695,260 +536,6 @@ _HEX4_RE = re.compile(r"[0-9a-fA-F]{4}\Z")
 # about regex escaping does not produce that. A smaller bound refused such a
 # judge over a remainder that held no score field at all.
 _MAX_ESCAPE_LAYERS = 8
-
-# The opening line of a Markdown code fence, capturing its delimiter run so
-# the close can be paired to the same width. Applied only when the payload
-# holds exactly one block, so no candidate is ever selected from several.
-_FENCE_OPEN_RE = re.compile(r"(`{3,})(?:json)?[ \t]*")
-
-_ASCII_SPACE = " \t\r\n"
-
-# Stands in for an object or array value that was skipped rather than read.
-# It only has to be something `_JSON_INT_RE` can never match, so a score field
-# holding a structure is rejected instead of parsed. Recording the key at all
-# is the point: it lets the no-duplicate check see structure-valued members,
-# which otherwise slip past and let a later repeat of the same key win.
-_STRUCTURE_VALUE = "<structure>"
-
-
-def _span_parses_as_json(text: str, start: int, end: int) -> bool:
-    """Return whether ``text[start:end]`` is one complete, strict JSON value.
-
-    Strict matters: ``NaN``, ``Infinity``, and duplicate keys are all things
-    ``json.loads`` accepts by default and the JSON grammar does not. Accepting
-    them here would let this report "verified" on a span it had not really
-    verified, which is the claim the whole boundary decision rests on.
-    """
-    try:
-        _strict_json_loads(text[start:end])
-    except (ValueError, RecursionError):
-        return False
-    return True
-
-
-def _advance_string_state(
-    char: str, in_string: bool, escaped: bool
-) -> tuple[bool, bool]:
-    """Return the ``(in_string, escaped)`` pair after consuming ``char``."""
-    if not in_string:
-        return char == '"', False
-    if escaped:
-        return True, False
-    if char == "\\":
-        return True, True
-    return char != '"', False
-
-
-def _skip_balanced(text: str, index: int) -> int | None:
-    """Return the index just past the structure opening at ``index``.
-
-    Tracks string state so a brace inside a string value does not change
-    depth, then confirms the span it landed on parses as a complete JSON
-    value. That second step is what makes the boundary trustworthy.
-
-    Depth tracking alone is not enough. Salvage runs precisely because
-    ``json.loads`` already failed, and the usual cause is an unescaped quote
-    in judge prose. One stray quote desynchronizes ``in_string``, so a brace
-    sitting inside prose reads as a structural close and this function
-    returns an index *inside* the nested object rather than past it. The
-    caller then harvests the nested object's members as if they were
-    top-level, which is how an exemplar's zeros can outrank the real verdict.
-
-    Re-parsing the span closes that hole using the JSON grammar itself rather
-    than a heuristic. Counting quotes does not work: the payload that
-    motivated this check has an even quote count, which is exactly why the
-    desynchronization happens. A span that parses cleanly is a complete
-    value, so its end is the real end; a span that does not parse means the
-    boundary cannot be trusted and the whole payload is rejected.
-    """
-    opener = text[index]
-    closer = "}" if opener == "{" else "]"
-    depth = 0
-    in_string = False
-    escaped = False
-    for position in range(index, len(text)):
-        char = text[position]
-        was_in_string = in_string
-        in_string, escaped = _advance_string_state(char, in_string, escaped)
-        if was_in_string or in_string:
-            continue
-        if char in "{[":
-            depth += 1
-        elif char in "}]":
-            depth -= 1
-            if depth == 0:
-                end = position + 1
-                if char != closer or not _span_parses_as_json(text, index, end):
-                    return None
-                return end
-    return None
-
-
-def _read_key(text: str, index: int) -> tuple[str, int] | None:
-    """Read a quoted member key starting at ``index``, or return ``None``."""
-    if index >= len(text) or text[index] != '"':
-        return None
-    escaped = False
-    for position in range(index + 1, len(text)):
-        char = text[position]
-        if escaped:
-            escaped = False
-        elif char == "\\":
-            escaped = True
-        elif char == '"':
-            return text[index + 1 : position], position + 1
-    return None
-
-
-def _skip_while(text: str, index: int, chars: str) -> int:
-    """Return the first index at or after ``index`` not in ``chars``."""
-    while index < len(text) and text[index] in chars:
-        index += 1
-    return index
-
-
-def _read_member_key(text: str, index: int) -> tuple[str, int] | None:
-    """Read a ``"key":`` pair, returning the key and the index past the colon."""
-    key_read = _read_key(text, index)
-    if key_read is None:
-        return None
-    key, index = key_read
-    index = _skip_while(text, index, _ASCII_SPACE)
-    if index >= len(text) or text[index] != ":":
-        return None
-    return key, index + 1
-
-
-def _read_scalar_value(text: str, index: int) -> tuple[str, int] | None:
-    """Read an unquoted value up to the next comma or closing brace.
-
-    Returns ``None`` when the text read is not a single JSON primitive.
-    Without that check a malformed member swallows the punctuation that
-    separates it from a nested object, and the nested object's members are
-    then read as members of the root. ``{"noise":true {"x":1,"citation_score":
-    0}, ...}`` promoted a depth-2 score to depth 1 exactly that way.
-    """
-    end = index
-    while end < len(text) and text[end] not in ",}":
-        end += 1
-    token = text[index:end].strip(_ASCII_SPACE)
-    try:
-        _strict_json_loads(token)
-    except (ValueError, RecursionError):
-        return None
-    return token, end
-
-
-def _value_start(text: str, index: int) -> int | None:
-    """Return where a member's value begins, or ``None`` to stop scanning.
-
-    Two stops, both meaning "trust nothing further": the payload ended, or the
-    value is a string. Salvage runs on output that broke inside a string, so
-    the first string value is the last point at which offsets are reliable.
-    """
-    index = _skip_while(text, index, _ASCII_SPACE)
-    if index >= len(text) or text[index] == '"':
-        return None
-    return index
-
-
-def _members_read_so_far(members: dict[str, str]) -> dict[str, str] | None:
-    """Return what was read, or ``None`` when the scan stopped before any key.
-
-    An empty result is not a partial verdict, it is a failure to read the
-    object at all, and callers distinguish the two.
-    """
-    return members or None
-
-
-def _member_key_is_usable(key: str, members: dict[str, str]) -> bool:
-    """Return whether ``key`` may be recorded alongside the keys already read.
-
-    A repeat is a duplicate the strict loader would have refused. A backslash
-    means the raw undecoded text is not a reliable identity: ``\\u0061ctivation_score``
-    and ``activation_score`` compare as different keys, so the duplicate check
-    above would miss the collision. The judge is asked for fixed ASCII field
-    names, so refusing escapes costs nothing.
-    """
-    return "\\" not in key and key not in members
-
-
-def _scan_root_members(text: str, start: int | None = None) -> dict[str, str] | None:
-    """Return the depth-1 scalar members of the object at ``start`` in ``text``.
-
-    Salvage exists because the judge's ``reasoning`` string is malformed, so
-    this cannot use ``json.loads`` and cannot trust anything after the first
-    string value: an unescaped quote there desynchronizes every subsequent
-    read. It scans members in order and stops at the first string value,
-    which is exactly as far as the payload is trustworthy.
-
-    Only depth-1 members of the object starting at ``start`` are returned. A
-    nested rubric's scores sit at depth 2 and are skipped wholesale, and a
-    sibling object is never reached, so neither can contribute a number to a
-    verdict it does not belong to.
-
-    Returns ``None`` on a duplicate key or a malformed structure. See
-    ``_member_key_is_usable`` for why an escaped key rejects too.
-    """
-    start = text.find("{") if start is None else start
-    if start == -1 or start >= len(text) or text[start] != "{":
-        return None
-    members: dict[str, str] = {}
-    index = start + 1
-    while index < len(text):
-        index = _skip_while(text, index, _ASCII_SPACE + ",")
-        if index >= len(text) or text[index] == "}":
-            return members
-        key_read = _read_member_key(text, index)
-        if key_read is None:
-            return _members_read_so_far(members)
-        key, index = key_read
-        if not _member_key_is_usable(key, members):
-            return None
-        value_index = _value_start(text, index)
-        if value_index is None:
-            return members
-        index = value_index
-        char = text[index]
-        if char not in "{[":
-            scalar = _read_scalar_value(text, index)
-            if scalar is None:
-                return None
-            members[key], index = scalar
-            continue
-        skipped = _skip_balanced(text, index)
-        if skipped is None:
-            return _members_read_so_far(members)
-        members[key] = _STRUCTURE_VALUE
-        index = skipped
-    return members
-
-
-def _salvage_anchor(text: str) -> int | None:
-    """Return the offset of the only object salvage may read, or ``None``.
-
-    Salvage exists for one shape: the judge emitted a well-formed verdict
-    prefix and then broke inside ``reasoning``. In that shape the verdict is
-    the very first thing in the payload, so the anchor is fixed at offset 0
-    rather than searched for.
-
-    Searching is what produced eleven fabrication defects across seven review
-    rounds. Every one was a disagreement about which candidate object was the
-    judge's answer: a rubric exemplar, a tool trace, an array element, the
-    second of a duplicate pair. A search cannot be made safe by adding another
-    disqualifier, because each new one only narrows the set of wrong answers it
-    may still return. Refusing to search removes the question.
-
-    The cost is real and bounded: a payload that leads with prose or a tool
-    trace is no longer salvaged. That discards one of three judge samples. The
-    alternative is a fabricated score in a published number, and the archived
-    recoveries all lead with the verdict, so the shape this gives up is not one
-    the judges actually produce.
-    """
-    stripped = text.lstrip()
-    if not stripped.startswith("{"):
-        return None
-    return len(text) - len(stripped)
 
 
 def _count_score_bearing_objects(value: object) -> int:
@@ -1037,31 +624,15 @@ def _string_values(value: object) -> Iterator[str]:
 
 
 def _parsed_names_two_verdicts(parsed: object) -> bool:
-    """Return whether a payload that parsed whole carries two candidate verdicts.
+    """Return whether a successfully-parsed payload carries two candidate verdicts.
 
-    The textual guard below answers the same question for payloads that do not
-    parse, where the verdict has to be searched for. Once a payload parses, the
-    search is over and the question can be answered exactly instead of by
-    spelling, which matters in both directions.
+    A whole-payload strict parse can still fail to name exactly one verdict.
+    Valid JSON nests, so a second verdict can sit inside the first as a member,
+    a list element, or a quoted string, and the parse still succeeds. A guess
+    between two candidates is fabrication, so both are refused.
 
-    It stops a false accept: ``_names_a_score_field_twice`` counts key shapes in
-    raw text, so a second verdict nested as a member, a list element, or a value
-    three levels down is caught only if it happens to be spelled the way the
-    patterns expect. Counting score-bearing objects in the parsed structure
-    catches all three by construction.
-
-    It also stops a false refuse, which is why this is not simply the textual
-    guard run twice. That guard refuses any payload containing ``\\u``, because
-    a name spelled with a unicode escape would slip a raw count. On a malformed
-    payload that costs nothing. On a healthy one it is a live hazard: JSON
-    encoders default to ASCII output, so a judge whose reasoning contains an
-    em-dash, a curly quote, or an accented name emits ``\\uXXXX`` and would be
-    refused for prose. Here the parse has already decoded those escapes, so the
-    blanket is not needed and the string check sees what the judge meant.
-
-    A verdict serialized inside a string value is still a second candidate and
-    is still refused, on the same reasoning that governs the recovery paths: the
-    judge named two answers and choosing one of them is a guess.
+    A verdict serialized inside a string value is still a second candidate:
+    the judge named two answers and choosing one of them is a guess.
 
     Known limit, measured rather than assumed: this cannot detect a second
     verdict whose field name is not spelled as the literal codepoint sequence.
@@ -1070,20 +641,15 @@ def _parsed_names_two_verdicts(parsed: object) -> bool:
     (``activation_scоre`` with a Cyrillic о), or interleaved (a zero-width
     space inside it). Each survives any pattern written over the real name, and
     no textual check closes the class, because the encoding space is open.
-    Zero of the
-    264 recovered judge payloads contain any of those shapes, and the one
-    payload with adjacent quoted tokens is ordinary prose. The exposure is
-    bounded by the top
-    level being the schema-defined answer slot, so an undetected second verdict
-    in prose loses to the verdict the judge actually filed.
+    Zero of the 264 archived judge payloads contain any of those shapes.
+    The exposure is bounded by the top level being the schema-defined answer
+    slot, so an undetected second verdict in prose loses to the verdict the
+    judge actually filed.
     """
     if _count_score_bearing_objects(parsed) > 1:
         return True
     filed = parsed if isinstance(parsed, dict) else {}
-    return any(
-        _string_contradicts_filed_scores(text, filed)
-        for text in _string_values(parsed)
-    )
+    return any(_string_contradicts_filed_scores(text, filed) for text in _string_values(parsed))
 
 
 def _peel_one_escape_layer(text: str) -> tuple[str, bool]:
@@ -1208,252 +774,17 @@ def _string_contradicts_filed_scores(text: str, filed: dict[str, Any]) -> bool:
     return False
 
 
-def _names_a_score_field_twice(text: str) -> bool:
-    """Return whether any score field name appears more than once in ``text``.
-
-    ``_scan_root_members`` stops at ``reasoning`` because nothing after a
-    malformed string can be trusted. That makes it blind to a second copy of a
-    score field placed *after* ``reasoning``, so a judge answer of
-
-        {"activation_score": 1, ..., "reasoning": "...",
-         "activation_score": 5, ...}
-
-    was salvaged as ``1`` while a lenient parse would have said ``5``. The two
-    disagree, which makes the payload ambiguous, and ambiguous payloads are
-    refused rather than guessed at.
-
-    Counting raw names is cheap and needs no parse of the untrusted tail. The
-    count is of the field spelled as a JSON *key*, quoted, escaped-quoted, or
-    single-quoted, not of the bare identifier. A quoted-only count is evaded by
-    an escaped one: a payload carrying a second verdict serialized inside a
-    string spells its keys with escaped quotes, which
-    ``count('"activation_score"')`` does not see. It is evaded again by the
-    JSON5/Python dialect, where a second verdict spells its keys
-    ``'activation_score':``; salvage exists precisely because the payload is
-    malformed, so treating that dialect as absent is unsafe. A bare-identifier
-    count closes both but refuses any payload whose prose names a field, and a
-    judge that emits its verdict and then explains it in prose ("the
-    activation_score reflects...") is plausible output, so the bare count buys
-    the same protection at the price of discarding real samples. Matching the
-    key shape covers all three spellings and leaves prose alone. A name spelled
-    with a unicode escape would still slip the count, so any ``\\u`` in the
-    payload refuses outright.
-
-    That ``\\u`` blanket is why this function is no longer the general answer.
-    ``json.dumps`` defaults to ``ensure_ascii=True``, so an em-dash or a curly
-    quote anywhere in a judge's reasoning is serialized as ``\\uXXXX``. Applying
-    the blanket to every payload therefore refuses healthy, strictly-parseable
-    verdicts for the crime of containing punctuation. Call this only where the
-    exact check cannot run: where a tail follows the object and is never
-    parsed, so escapes stay undecoded and structure is unknown. When the parse
-    succeeded, ask ``_parsed_names_two_verdicts`` instead, which counts
-    score-bearing objects and scans *decoded* strings and needs no blanket.
-
-    A refusal costs a sample while a fabrication costs a published number, so
-    the blanket stays where the payload is already malformed.
-    """
-    if "\\u" in text:
-        return True
-    return any(len(pattern.findall(text)) > 1 for pattern in _KEY_SHAPED_SCORE_FIELDS)
-
-
-def _fenced_blocks(text: str) -> tuple[list[str], bool] | None:
-    """Return *text*'s fenced blocks and whether they were all of it.
-
-    The second element is ``True`` when nothing but whitespace sat outside the
-    fences. The caller needs it because "exactly one fence" is not the same
-    claim as "exactly one candidate": a payload can hold one fenced block and
-    still carry a competing verdict in the prose around it.
-
-    Refuses (``None``) on an unterminated fence rather than treating the rest
-    of the payload as a body: a truncated judge response would otherwise hand
-    back whatever prose followed the opening run.
-
-    A closing run must be at least as wide as the one that opened the block
-    and may hold nothing else, which is the CommonMark rule. That is what lets
-    a four-backtick fence carry a three-backtick run in its body.
-    """
-    lines = text.splitlines()
-    blocks: list[str] = []
-    outside_is_blank = True
-    index = 0
-    while index < len(lines):
-        opening = _FENCE_OPEN_RE.fullmatch(lines[index])
-        if opening is None:
-            if lines[index].strip():
-                outside_is_blank = False
-            index += 1
-            continue
-        closing = re.compile(r"`{" + str(len(opening.group(1))) + r",}[ \t]*")
-        index += 1
-        body: list[str] = []
-        while index < len(lines) and closing.fullmatch(lines[index]) is None:
-            body.append(lines[index])
-            index += 1
-        if index == len(lines):
-            return None
-        blocks.append("\n".join(body))
-        index += 1
-    return blocks, outside_is_blank
-
-
-def _unwrap_lone_fence(text: str) -> str | None:
-    """Return the body of the payload's only Markdown fence, or ``None``.
-
-    A judge told to answer in JSON sometimes wraps the object in a fence. The
-    unwrap is safe only when there is nothing to choose between. The defect
-    class this file keeps hitting is *selection*: a search returning a
-    candidate that was not the judge's answer. ``re.search`` for a fence
-    selected the first one and replaced the whole payload with it, so a
-    verdict followed by a fenced rubric exemplar was answered with the
-    exemplar, and the substitution happened before both the offset-zero anchor
-    and the duplicate-name guard could see the real payload. That was the
-    thirteenth defect of the class.
-
-    Requiring exactly one fence removes the choice *among fences*. It does not
-    remove the choice between the fence and the prose around it, which was the
-    sixteenth defect: a payload whose unfenced text held the real verdict and
-    whose single fenced block held a rubric exemplar the judge had explicitly
-    labelled as one was answered with the exemplar. Unwrapping is only ever
-    justified when the fence is the whole payload, so anything but whitespace
-    outside it refuses too. Found by adversarial review round 13.
-
-    The close is paired to the width of the run that opened it, per CommonMark.
-    Matching a bare three-backtick run instead closed a four-backtick fence at
-    the first inner run, and a judge reaches for four backticks precisely
-    because its own reasoning quotes a three-backtick block, so the body came
-    back truncated and unparseable. That failed in the safe direction, but it
-    is still a lost sample. Pairing by width does not restore any selection:
-    every block in the payload is still collected, and anything other than
-    exactly one still refuses. Found by adversarial review round 12.
-    """
-    scan = _fenced_blocks(text)
-    if scan is None:
-        return None
-    bodies, outside_is_blank = scan
-    if not outside_is_blank or len(bodies) != 1:
-        return None
-    return bodies[0].strip()
-
-
-def _recover_verdict(text: str) -> str | None:
-    """Return JSON text holding the judge's verdict, or ``None`` to refuse.
-
-    Runs only after the whole payload failed to parse.
-
-    Each branch checks for a second verdict with the sharpest instrument it
-    can. ``_unwrap_lone_fence`` already refuses unless nothing but whitespace
-    sits outside the fence, so a successful unwrap means the fence body is the
-    whole payload: it parses, its escapes are decoded, and the exact structural
-    check applies. Running the raw count on the original payload there would
-    add nothing except its ``\\u`` blanket, which refuses a healthy fenced
-    verdict whose reasoning contains an em-dash. ``_extract_json_object``
-    applies its own guard, and keeps the raw count when text follows the
-    object, because that tail is never parsed.
-    """
-    fenced = _unwrap_lone_fence(text)
-    if fenced is not None:
-        try:
-            parsed = _strict_json_loads(fenced)
-        except ValueError:
-            return None
-        return None if _parsed_names_two_verdicts(parsed) else fenced
-    return _extract_json_object(text)
-
-
-def _complete_verdict(members: dict[str, str] | None) -> dict[str, int] | None:
-    """Return the three scores when ``members`` carries a whole valid verdict.
-
-    Returns ``None`` when any field is absent, is not a JSON integer, or falls
-    outside 1-5, so a partial object (a tool trace naming one field) is not a
-    candidate and cannot compete with the real answer.
-    """
-    if members is None:
-        return None
-    verdict: dict[str, int] = {}
-    for field in _SCORE_FIELDS:
-        raw = members.get(field)
-        if raw is None or not _JSON_INT_RE.match(raw):
-            return None
-        value = int(raw)
-        if value not in _SCORE_RANGE:
-            return None
-        verdict[field] = value
-    return verdict
-
-
-def _salvage_scores(text: str) -> dict[str, int] | None:
-    """Recover the three numeric scores from judge output that will not parse.
-
-    The eval scores on three numbers. ``reasoning`` is diagnostic only, yet it
-    is the field that breaks the parse: judges routinely quote the response
-    they are grading, and an unescaped quote inside that prose invalidates the
-    whole object. Discarding the cell then throws away scores the judge stated
-    plainly, and it does so more often for verbose models, which biases the
-    comparison the eval exists to make.
-
-    Five conditions, all required, so a salvage cannot invent a score:
-
-    1. The payload *begins* with the object, ignoring leading whitespace. This
-       is the load-bearing one, and it replaces every prior attempt to search
-       out the right candidate. See ``_salvage_anchor``.
-    2. No score field name appears twice anywhere in the payload, which is the
-       only way to see a duplicate placed after the unreadable tail. See
-       ``_names_a_score_field_twice``.
-    3. All three fields are depth-1 members of that one object, with no
-       repeated key inside the readable prefix.
-    4. Each value matches the JSON integer grammar in full. ``4.5``, ``5e-1``,
-       ``05``, and ``5junk`` all fail rather than being read as ``4`` or
-       ``5``, which would be fabrication.
-    5. Each value is in 1-5. Salvage runs *after* ``_judge_score_shape_error``
-       has already rejected the payload, so deferring range to that checker
-       re-admits exactly what it just refused: a judge answer of ``6`` came
-       back as a clean ``5`` once ``_clamp_score`` was through with it.
-
-    Conditions 1 and 2 replaced a walk over root-level objects that accepted
-    whichever one carried a complete verdict. That walk, and the two rewrites
-    before it, each defined "root" by counting braces, so an object inside a
-    top-level array qualified and ``[{...exemplar...}]`` was returned as the
-    judge's answer. Bracket-blindness was the eighth defect of this class in
-    seven review rounds; the pattern is the search itself, not any one of its
-    disqualifiers.
-
-    **Known limitations, both deliberate.** Scores must precede ``reasoning``,
-    and the verdict must lead the payload. JSON requires neither. Both refuse
-    rather than guess, because a refusal discards one of three judge samples
-    while a wrong guess silently corrupts a published number.
-    """
-    if _names_a_score_field_twice(text):
-        return None
-    start = _salvage_anchor(text)
-    if start is None:
-        return None
-    return _complete_verdict(_scan_root_members(text, start))
-
-
-def _judge_parse_failure(text: str, reason: str) -> dict[str, Any]:
-    """Build a failed-judge record, salvaging scores when they are recoverable."""
-    salvaged = _salvage_scores(text)
-    if salvaged is not None:
-        return {
-            "activation_score": _clamp_score(salvaged["activation_score"]),
-            "citation_score": _clamp_score(salvaged["citation_score"]),
-            "behavior_score": _clamp_score(salvaged["behavior_score"]),
-            "reasoning": f"scores salvaged from unparseable judge output: {reason}",
-            "judge_failed": False,
-            "judge_salvaged": True,
-        }
-    return _failed_judge(reason)
-
-
-def _failed_judge(reason: str) -> dict[str, Any]:
-    return {
+def _failed_judge(reason: str, raw_judge_response: str = "") -> dict[str, Any]:
+    result: dict[str, Any] = {
         "activation_score": 0,
         "citation_score": 0,
         "behavior_score": 0,
         "reasoning": reason,
         "judge_failed": True,
     }
+    if raw_judge_response:
+        result["raw_judge_response"] = raw_judge_response
+    return result
 
 
 def _judge_score_shape_error(parsed: dict[str, Any]) -> str | None:
@@ -1464,14 +795,10 @@ def _judge_score_shape_error(parsed: dict[str, Any]) -> str | None:
     for field in required_fields:
         value = parsed[field]
         if not isinstance(value, int) or isinstance(value, bool):
-            return (
-                f"judge returned non-integral {field}: "
-                f"{type(value).__name__}"
-            )
+            return f"judge returned non-integral {field}: {type(value).__name__}"
         if value not in _SCORE_RANGE:
             return f"judge returned out-of-range {field}: {value!r}"
     return None
-
 
 
 # ---------------------------------------------------------------------------
@@ -1571,9 +898,7 @@ def eval_one_scenario(
         for sample_index in range(judge_repeats):
             judge_seed = None if seed is None else seed + sample_index + 1
             try:
-                sample = score_response(
-                    api_key, scenario, response, model=model, seed=judge_seed
-                )
+                sample = score_response(api_key, scenario, response, model=model, seed=judge_seed)
             except RuntimeError as e:
                 sample = {
                     "judge_failed": True,
@@ -1625,9 +950,7 @@ def _is_valid_score(value: object) -> bool:
     return MIN_RUBRIC_SCORE <= value <= MAX_RUBRIC_SCORE
 
 
-def _scenario_score_triple(
-    scenario: dict[str, Any], mech: str
-) -> tuple[float | None, bool, bool]:
+def _scenario_score_triple(scenario: dict[str, Any], mech: str) -> tuple[float | None, bool, bool]:
     """Return (cell_score, judge_failed, legacy_reduced) for one cell.
 
     Returns `None` for the score when the cell carries no usable measurement:
@@ -1684,9 +1007,7 @@ def _incomplete_mechanisms(
     return sorted(m for m in mechs if per_mech[m]["graded_count"] < pool_size)
 
 
-def _mechanism_summary(
-    pool: list[dict[str, Any]], mech: str
-) -> dict[str, Any]:
+def _mechanism_summary(pool: list[dict[str, Any]], mech: str) -> dict[str, Any]:
     """Compute avg_score over the graded scenarios for one mechanism."""
     scores: list[float] = []
     failures = 0
@@ -1740,9 +1061,7 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
 
     for mech in MECHANISMS:
         summary["per_mechanism"][mech] = _mechanism_summary(pos_scenarios, mech)
-        summary["negative_case_per_mechanism"][mech] = _mechanism_summary(
-            neg_scenarios, mech
-        )
+        summary["negative_case_per_mechanism"][mech] = _mechanism_summary(neg_scenarios, mech)
 
     baseline_avg = summary["per_mechanism"]["baseline"]["avg_score"]
     desc_avg = summary["per_mechanism"]["description"]["avg_score"]
@@ -1770,10 +1089,7 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
 
     total_judge_failures = sum(
         summary["per_mechanism"][m]["judge_failures"] for m in MECHANISMS
-    ) + sum(
-        summary["negative_case_per_mechanism"][m]["judge_failures"]
-        for m in MECHANISMS
-    )
+    ) + sum(summary["negative_case_per_mechanism"][m]["judge_failures"] for m in MECHANISMS)
     # `total_judge_failures` stays the whole-run count, because it is the
     # published record of how the judge behaved. The verdict reads a narrower
     # count: for a routed target `full` is a treatment no deployment performs,
@@ -1791,10 +1107,7 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     neg_gate_mechs = ["description"] if routed else [m for m in MECHANISMS if m != "baseline"]
     gating_judge_failures = sum(
         summary["per_mechanism"][m]["judge_failures"] for m in measured_mechs
-    ) + sum(
-        summary["negative_case_per_mechanism"][m]["judge_failures"]
-        for m in neg_gate_mechs
-    )
+    ) + sum(summary["negative_case_per_mechanism"][m]["judge_failures"] for m in neg_gate_mechs)
 
     summary["best_mechanism"] = best_mech
     summary["best_avg_score"] = best_avg
@@ -1819,9 +1132,7 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
                 excluded_cells.append(f"{pool_label} {mech}")
     summary["excluded_judge_failure_cells"] = excluded_cells
     summary["gating_judge_failures"] = gating_judge_failures
-    summary["unreachable_mechanisms"] = [
-        m for m in MECHANISMS if m not in measured_mechs
-    ]
+    summary["unreachable_mechanisms"] = [m for m in MECHANISMS if m not in measured_mechs]
 
     # Negative scenarios were measured but never gated: a rule that fired on
     # every case it was written to stay out of still returned PASS. Their
@@ -1892,9 +1203,8 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
 
 def _fully_graded(cell: dict[str, Any]) -> bool:
     """Whether a cell's average covers every scenario in its pool."""
-    return (
-        cell.get("avg_score") is not None
-        and cell.get("graded_count") == cell.get("scenario_count")
+    return cell.get("avg_score") is not None and cell.get("graded_count") == cell.get(
+        "scenario_count"
     )
 
 
@@ -1995,9 +1305,7 @@ def _render_caveats(summary: dict[str, Any]) -> list[str]:
             lines.append(f"{label} pool incomplete at: " + ", ".join(incomplete))
     unreachable = summary.get("unreachable_mechanisms") or []
     if unreachable:
-        lines.append(
-            "Excluded as unreachable for a routed target: " + ", ".join(unreachable)
-        )
+        lines.append("Excluded as unreachable for a routed target: " + ", ".join(unreachable))
     total_jf = summary.get("total_judge_failures", 0)
     gating_jf = summary.get("gating_judge_failures", 0)
     if total_jf != gating_jf:
@@ -2034,9 +1342,11 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
         population = ", ".join(gate_mechs) if gate_mechs else "rule mechanisms"
         source = summary.get("worst_negative_mechanism") or "?"
         graded = summary.get("worst_negative_graded", 0)
-        neg_total = summary["negative_case_per_mechanism"][source]["scenario_count"] if (
-            source in summary.get("negative_case_per_mechanism", {})
-        ) else 0
+        neg_total = (
+            summary["negative_case_per_mechanism"][source]["scenario_count"]
+            if (source in summary.get("negative_case_per_mechanism", {}))
+            else 0
+        )
         restraint = (
             f"worst of [{population}] {worst_neg} (floor {MIN_RESTRAINT_SCORE}), "
             f"from {source} over {graded}/{neg_total} negative scenario(s)"
@@ -2045,8 +1355,7 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
         f"\nRule: {rule_id}",
         f"Verdict: {summary['verdict']}",
         (
-            f"Best mechanism: {summary['best_mechanism']} "
-            f"(avg {summary['best_avg_score']})"
+            f"Best mechanism: {summary['best_mechanism']} (avg {summary['best_avg_score']})"
             if summary.get("best_mechanism")
             else (
                 "Best mechanism: none graded on every scenario"
@@ -2077,9 +1386,7 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
         )
         neg_graded = f"{neg_stats['graded_count']}/{neg_stats['scenario_count']}"
         delta_val = (
-            None
-            if mech == "baseline"
-            else _delta(pos_stats, summary["per_mechanism"]["baseline"])
+            None if mech == "baseline" else _delta(pos_stats, summary["per_mechanism"]["baseline"])
         )
         delta = f"{delta_val:+}" if delta_val is not None else ""
         rows.append(
@@ -2090,9 +1397,7 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Eval rule activation across loading mechanisms."
-    )
+    parser = argparse.ArgumentParser(description="Eval rule activation across loading mechanisms.")
     parser.add_argument(
         "--scenarios",
         nargs="+",
@@ -2105,10 +1410,7 @@ def _parse_args() -> argparse.Namespace:
         "--seed",
         type=int,
         default=DEFAULT_SEED,
-        help=(
-            "Optional seed forwarded to OpenAI-compatible providers "
-            f"(default: {DEFAULT_SEED})."
-        ),
+        help=(f"Optional seed forwarded to OpenAI-compatible providers (default: {DEFAULT_SEED})."),
     )
     parser.add_argument(
         "--dry-run",
@@ -2172,8 +1474,7 @@ def _validate_scenarios_shape(data: dict[str, Any], spath: Path) -> int | None:
             value = sc.get(required)
             if not isinstance(value, str) or not value.strip():
                 print(
-                    f"ERROR: scenarios[{idx}].{required} must be a non-empty "
-                    f"string in {spath}",
+                    f"ERROR: scenarios[{idx}].{required} must be a non-empty string in {spath}",
                     file=sys.stderr,
                 )
                 return 2
@@ -2254,8 +1555,7 @@ def _resolve_skill_reference(
         reference_path.relative_to(references_dir.resolve())
     except ValueError:
         print(
-            "ERROR: reference_path must be under the skill's references/: "
-            f"{reference_path_str}",
+            f"ERROR: reference_path must be under the skill's references/: {reference_path_str}",
             file=sys.stderr,
         )
         return 2
@@ -2285,8 +1585,7 @@ def _resolve_target_paths(data: dict[str, Any], spath: Path) -> tuple[Path, Path
     has_skill = bool(skill_ref)
     if has_rule == has_skill:
         print(
-            "ERROR: scenario file must set exactly one of rule_path or "
-            f"skill_path in {spath}",
+            f"ERROR: scenario file must set exactly one of rule_path or skill_path in {spath}",
             file=sys.stderr,
         )
         return 2
@@ -2298,9 +1597,7 @@ def _resolve_target_paths(data: dict[str, Any], spath: Path) -> tuple[Path, Path
         return resolved, None
 
     reference_path_str = data.get("reference_path")
-    reference_ref = (
-        reference_path_str.strip() if isinstance(reference_path_str, str) else ""
-    )
+    reference_ref = reference_path_str.strip() if isinstance(reference_path_str, str) else ""
     if not reference_ref:
         resolved = _resolve_skill_path(skill_ref)
         if isinstance(resolved, int):
@@ -2350,14 +1647,8 @@ def _process_one_rule(
 ) -> tuple[str, dict[str, Any] | None, int]:
     """Run all scenarios for one rule or skill. Return (target_id, result_or_none, n_calls)."""
     primary_path, reference_path = target_paths
-    default_id = (
-        primary_path.parent.name if primary_path.name == "SKILL.md" else primary_path.stem
-    )
-    rule_id = (
-        scenarios_data.get("rule_id")
-        or scenarios_data.get("skill_id")
-        or default_id
-    )
+    default_id = primary_path.parent.name if primary_path.name == "SKILL.md" else primary_path.stem
+    rule_id = scenarios_data.get("rule_id") or scenarios_data.get("skill_id") or default_id
     if reference_path is None:
         rule = parse_rule(primary_path)
     else:
@@ -2399,11 +1690,15 @@ def _process_one_rule(
     result_paths = {"target_path": str(primary_path.relative_to(REPO_ROOT))}
     if reference_path is not None:
         result_paths["reference_path"] = str(reference_path.relative_to(REPO_ROOT))
-    return rule_id, {
-        **result_paths,
-        "summary": summary,
-        "scenarios": scenario_results,
-    }, n_calls
+    return (
+        rule_id,
+        {
+            **result_paths,
+            "summary": summary,
+            "scenarios": scenario_results,
+        },
+        n_calls,
+    )
 
 
 def main() -> int:
@@ -2431,9 +1726,7 @@ def main() -> int:
     state = _RunState()
 
     for scenario_file in args.scenarios:
-        exit_code = _process_scenario_file(
-            scenario_file, api_key, args, all_results, state
-        )
+        exit_code = _process_scenario_file(scenario_file, api_key, args, all_results, state)
         if exit_code is not None:
             return exit_code
 
@@ -2472,9 +1765,7 @@ def _process_scenario_file(
         return loaded
     scenarios_data, target_paths = loaded
 
-    rule_id, result, n_calls = _process_one_rule(
-        api_key, scenarios_data, target_paths, args
-    )
+    rule_id, result, n_calls = _process_one_rule(api_key, scenarios_data, target_paths, args)
     state.total_calls += n_calls
 
     if result is not None:
