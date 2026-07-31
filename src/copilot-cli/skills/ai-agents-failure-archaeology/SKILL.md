@@ -161,8 +161,8 @@ Before you rely on or extend this chronicle:
 
 ## Provenance and Maintenance
 
-Compiled 2026-07-02 from primary sources; every claim was verified against the
-working tree on that date. Volatile facts and their re-verification commands:
+Compiled 2026-07-02 from primary sources. Volatile facts were re-verified
+against the working tree on 2026-07-30. Re-verification commands:
 
 | Fact | Source | Re-verify |
 |------|--------|-----------|

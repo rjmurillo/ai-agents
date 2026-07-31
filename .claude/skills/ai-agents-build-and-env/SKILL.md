@@ -17,9 +17,9 @@ license: MIT
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
 Recreate a working dev environment for this repository from a fresh clone, verify
 it actually works, and avoid the traps that have cost prior contributors real
-time. Audience: a zero-context mid-level engineer or Sonnet-class model. Every
-command below was verified against the repo on 2026-07-03; the Provenance section
-gives a re-verification one-liner for each volatile fact.
+time. Audience: a zero-context mid-level engineer or Sonnet-class model. Authored
+2026-07-03, with commands re-executed read-only against the repo on 2026-07-30.
+The Provenance section gives a re-verification one-liner for each volatile fact.
 
 ## Triggers
 
