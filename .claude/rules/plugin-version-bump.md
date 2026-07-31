@@ -85,9 +85,12 @@ force-push would have destroyed it.
 
    `check_plugin_manifest_parity.py` takes no arguments and does not implement
    `--help`; passing one runs the check anyway.
-5. `git push`, then **read the `To ...` line of its output**. A rejected
-   non-fast-forward push can still leave the shell exit code at 0, so the exit
-   code is not proof. Confirm independently with
+5. `git push`, then **read the `To ...` line of its output**. `git push` itself
+   exits nonzero when the remote rejects the push, but a pipeline hides that:
+   `git push ... | tail` reports `tail`'s status, not git's. Measured:
+   `(exit 7) | tail -1` yields `0`, and the same pipeline under
+   `set -o pipefail` yields `7`. So do not pipe the push, or set `pipefail`
+   first, and confirm independently with
    `git ls-remote origin refs/heads/<branch>`. Then arm auto-merge (GraphQL
    `enablePullRequestAutoMerge`, `mergeMethod: SQUASH`) so the PR lands before the
    next merge bumps the base again. Speed is the mitigation.
