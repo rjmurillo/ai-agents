@@ -11,7 +11,7 @@ license: MIT
 This repo's rules are fossils of incidents. Before you challenge a gate, weaken
 a guard, or propose a "simpler" approach, check whether that battle was already
 fought and what it cost. The canon lives in `.agents/retrospective/` (121 files)
-and `.serena/memories/` (158 files), both as of 2026-07-30. Retro-cited short
+and `.serena/memories/` (879 Markdown files), both as of 2026-07-30. Retro-cited short
 SHAs (e.g. `ddb76e0`, `01e76615a`) are not reachable from `main`. GitHub permits
 squash merge only on this repo, so a PR lands as one new commit and its branch
 SHAs stay off `main`. One merge commit predates that setting (`0f13c85ab`,
@@ -167,7 +167,7 @@ working tree on that date. Volatile facts and their re-verification commands:
 | Fact | Source | Re-verify |
 |------|--------|-----------|
 | Retro corpus far exceeds INDEX.md coverage (121 files, 9 indexed rows as of 2026-07-30) | `.agents/retrospective/` | `set -- .agents/retrospective/*.md; echo $#; grep -c "^. 20" .agents/retrospective/INDEX.md` |
-| 158 memory files as of 2026-07-30 | `.serena/memories/` | `set -- .serena/memories/*; echo $#` |
+| 879 Markdown memory files as of 2026-07-30 | `.serena/memories/` | `python3 -c "from pathlib import Path; print(sum(1 for p in Path('.serena/memories').rglob('*.md') if p.is_file()))"` |
 | Retro-cited SHAs unreachable from `main` under the current squash-only policy | repository merge settings | `gh api repos/rjmurillo/ai-agents -q '.allow_squash_merge, .allow_merge_commit, .allow_rebase_merge'` (expect `true`, `false`, `false`); locally, `git merge-base --is-ancestor ddb76e0 origin/main; echo $?` (expect `1` when the object is present, or a `fatal:` line and `128` when absent) |
 | 11 failure modes | `.agents/governance/FAILURE-MODES.md:16-28` | `grep -c "^. [0-9]" .agents/governance/FAILURE-MODES.md` |
 | Historical SKIP_PREPUSH removal | Session 1187 retrospective | Confirm current Git hook jobs in `lefthook.yml`; do not reintroduce a global bypass |
