@@ -1168,6 +1168,27 @@ def _dedupe_decisions(existing: list, new: list) -> list[dict]:
     return out
 
 
+def _preserved_timestamp(entry: dict, midnight: str | None) -> str | None:
+    """Midnight for every event except a commit, which keeps its real date.
+
+    Normalization exists because milestone timestamps fall back to wall clock
+    and are not reproducible. A commit event's timestamp is a deterministic
+    function of the SHA already in its content, so normalizing it buys no
+    idempotence and costs the only evidence that separates a commit from a
+    same-day milestone. Without it ``_event_order_relation`` sees equal
+    timestamps, returns None per the #3464 incomparability rule, and every
+    milestone-to-commit edge is dropped on regeneration (issue #4071).
+
+    Falls back to the stored timestamp before midnight so a git-less run
+    (shallow clone, rebased SHA) cannot re-flatten an already-correct artifact.
+    """
+    if _norm(entry.get("type")) != "commit":
+        return midnight
+    sha = _commit_sha(entry)
+    real = _git_commit_timestamp(sha) if sha else None
+    return real or entry.get("timestamp") or midnight
+
+
 def _dedupe_events(existing: list, new: list, midnight: str | None) -> list[dict]:
     """Union events by (type, content); normalize timestamps; reassign ids."""
     out: list[dict] = []
@@ -1179,12 +1200,25 @@ def _dedupe_events(existing: list, new: list, midnight: str | None) -> list[dict
             continue
         seen.add(key)
         entry = dict(entry)
-        if midnight:
-            entry["timestamp"] = midnight
+        stamped = _preserved_timestamp(entry, midnight)
+        if stamped:
+            entry["timestamp"] = stamped
         out.append(entry)
     for i, entry in enumerate(out, 1):
         entry["id"] = f"e{i:03d}"
     return out
+
+
+def _total_causal_edges(events: Any) -> int:
+    """Count ``leads_to`` entries across an event list.
+
+    Regeneration rewrites the causal chain from scratch, so a drop here means
+    ordering evidence was lost rather than added. Counting one direction is
+    enough: ``_link_sequential_events`` writes each edge into both endpoints.
+    """
+    if not isinstance(events, list):
+        return 0
+    return sum(len(_as_list(_as_dict(evt).get("leads_to"))) for evt in events)
 
 
 def _count_commit_events(events: list) -> int:
@@ -1219,8 +1253,11 @@ def merge_preserving(new: dict, existing: dict, *, session_id: str = "") -> dict
     but existing richer content survives. Lists union (existing first) by stable
     content keys so curated decisions/events/lessons are never dropped, metrics
     take the per-key max, placeholder task/outcome yield to existing real values,
-    and event timestamps normalize to the deterministic session date so output is
-    idempotent. Applying twice is a no-op.
+    and non-commit event timestamps normalize to the deterministic session date
+    so output is idempotent. Commit events keep the real committer date, which
+    is already deterministic from the SHA and is the only ordering evidence the
+    causal graph has against a same-day milestone (issue #4071). Applying twice
+    is a no-op.
     """
     existing = _as_dict(existing)
     date = _deterministic_date(session_id, new.get("timestamp"), existing.get("timestamp"))
@@ -1771,7 +1808,9 @@ def _link_sequential_events(events: list[dict[str, Any]]) -> None:
     (issue #3245). These links stay inside the episode file; the separate
     aggregated causal graph they once fed was removed by ADR-089.
 
-    The chain follows measured timestamps first. When timestamps tie, commits
+    The chain follows measured timestamps first, which is why ``_dedupe_events``
+    leaves a commit event's real committer date alone (issue #4071). When
+    timestamps tie, commits
     are ordered only by local git ancestry. A same-timestamp commit can precede
     test and error events because those event types report on code execution.
     Same-timestamp commit and milestone events stay incomparable unless a real
@@ -2007,6 +2046,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # Write episode file
     episode_file = output_path / f"episode-{session_id}.json"
+    prior_edges: int | None = None
 
     if episode_file.exists():
         if args.preserve:
@@ -2035,6 +2075,7 @@ def main(argv: list[str] | None = None) -> int:
                     file=sys.stderr,
                 )
                 return 1
+            prior_edges = _total_causal_edges(existing_raw.get("events"))
             episode = merge_preserving(episode, existing_raw, session_id=session_id)
             decisions = episode["decisions"]
             events = episode["events"]
@@ -2061,6 +2102,13 @@ def main(argv: list[str] | None = None) -> int:
     except EpisodeValidationError as exc:
         print(json.dumps({"Error": str(exc)}), file=sys.stderr)
         return exc.exit_code
+
+    new_edges = _total_causal_edges(episode["events"])
+    if prior_edges is not None and new_edges < prior_edges:
+        print(
+            f"WARNING: causal edge count decreased: {prior_edges} -> {new_edges}",
+            file=sys.stderr,
+        )
 
     try:
         episode_file.write_text(
