@@ -1,3 +1,10 @@
+# taste-lint: ignore file-size
+# All tests for a single script belong in one file for discoverability;
+# splitting across files would obscure which cases are covered and add
+# import overhead without reducing complexity. The file grew to 849 lines
+# because the #4046 fix added 9 new test classes for three new exemption
+# mechanisms (regex-metachar, prose string, tests-dir exclusion), each
+# requiring a positive, negative, and edge case per exemption type.
 """Tests for scripts/validation/check_vendor_portability.py.
 
 Issue #2050. The check fails CI when a vendor-shipped skill script
