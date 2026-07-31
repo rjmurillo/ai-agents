@@ -5014,3 +5014,250 @@ class TestTheHeadlineNeedsAWholePool:
         table = eval_mod.render_table("r", summary)
         assert "Best mechanism: no rule-enhanced mechanism measured" in table
         assert "none graded on every scenario" not in table
+
+
+class TestTheRestraintHeadlineNamesItsOwnPopulation:
+    """The floor is read over the fully graded gate cells, so say which.
+
+    Round 7 narrowed `worst_negative_avg` to mechanisms covering their whole
+    negative pool but left the renderer naming every gate mechanism. The
+    headline then described a population wider than the number, the same
+    defect the positive-side headline was fixed for one round earlier.
+    """
+
+    def test_the_headline_names_only_the_mechanisms_that_set_the_floor(self):
+        # `description` is 1/2 and cannot set the floor. `full` covers both.
+        scenarios = [
+            _make_scenario(baseline=1, description=5, full=5),
+            _make_scenario(baseline=5, description=1, full=5, negative=True),
+            _scenario_of_mechs(
+                {
+                    "baseline": _make_mech(5),
+                    "description": _unscored_mech(),
+                    "full": _make_mech(5),
+                },
+                negative=True,
+            ),
+        ]
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["negative_gate_mechanisms"] == ["description", "full"]
+        assert summary["negative_floor_mechanisms"] == ["full"]
+        table = eval_mod.render_table("r", summary)
+        assert "worst of [full] 5.0" in table
+        # Naming `description` here would attribute the 5.0 to a mechanism the
+        # same table shows at 1.0.
+        assert "worst of [description, full]" not in table
+
+    def test_a_wholly_partial_gate_says_so_rather_than_not_measured(self):
+        scenarios = [
+            _make_scenario(baseline=1, description=5, full=5),
+            _make_scenario(baseline=5, description=1, full=1, negative=True),
+            _scenario_of_mechs(
+                {
+                    "baseline": _make_mech(5),
+                    "description": _unscored_mech(),
+                    "full": _unscored_mech(),
+                },
+                negative=True,
+            ),
+        ]
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["worst_negative_avg"] is None
+        assert summary["negative_floor_mechanisms"] == []
+        assert summary["negative_floor_partial"] is True
+        table = eval_mod.render_table("r", summary)
+        # Both mechanisms carry an average in the table, so "not measured"
+        # contradicts the rows directly below it.
+        assert "no mechanism graded on every negative scenario" in table
+
+    def test_an_ungraded_negative_pool_is_still_not_measured(self):
+        scenarios = [
+            _make_scenario(baseline=1, description=5, full=5),
+            _scenario_of_mechs(
+                {
+                    "baseline": _unscored_mech(),
+                    "description": _unscored_mech(),
+                    "full": _unscored_mech(),
+                },
+                negative=True,
+            ),
+        ]
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["negative_floor_partial"] is False
+        table = eval_mod.render_table("r", summary)
+        assert "Restraint on negative cases: not measured" in table
+
+
+class TestTheBestHeadlineNamesWhatItDropped:
+    """A superlative implies a population even when it prints one name.
+
+    `best_mech` ranks over rule-enhanced mechanisms that covered every
+    positive scenario. A mechanism the table shows scoring *above* the
+    winner, dropped for partial coverage, reads as a broken ranking unless
+    the exclusion is stated. This is the positive sibling of the negative
+    floor headline fixed one round earlier.
+    """
+
+    def test_a_higher_scoring_partial_mechanism_is_named_as_excluded(self):
+        # `full` averages 5.0 but covers 1/2, so `description` at 4.0 wins.
+        scenarios = [
+            _make_scenario(baseline=1, description=4, full=5),
+            _scenario_of_mechs(
+                {
+                    "baseline": _make_mech(1),
+                    "description": _make_mech(4),
+                    "full": _unscored_mech(),
+                }
+            ),
+            _make_scenario(baseline=5, description=5, full=5, negative=True),
+        ]
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["best_mechanism"] == "description"
+        assert summary["per_mechanism"]["full"]["avg_score"] == 5.0
+        assert summary["best_mechanism_excluded"] == ["full"]
+        table = eval_mod.render_table("r", summary)
+        assert "Best mechanism: description (avg 4.0), excluding full" in table
+
+    def test_a_fully_graded_field_names_no_exclusion(self):
+        scenarios = [
+            _make_scenario(baseline=1, description=4, full=5),
+            _make_scenario(baseline=1, description=4, full=5),
+            _make_scenario(baseline=5, description=5, full=5, negative=True),
+        ]
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["best_mechanism_excluded"] == []
+        table = eval_mod.render_table("r", summary)
+        assert "Best mechanism: full (avg 5.0)" in table
+        assert "excluding" not in table
+
+    def test_a_never_graded_candidate_is_named_as_unmeasured(self):
+        # An earlier version of this test scored `full` and so never reached
+        # the branch its name claimed to guard, and its comment asserted that
+        # a never-graded mechanism was "already disclosed" elsewhere. It is
+        # not: with `description` graded fully the run returns PASS with no
+        # judge failure, no positive-gate gap, and an empty exclusion list.
+        scenarios = [
+            _make_scenario(baseline=1, description=4, full=5),
+            _scenario_of_mechs(
+                {
+                    "baseline": _make_mech(1),
+                    "description": _make_mech(4),
+                    "full": _unscored_mech(),
+                }
+            ),
+            _make_scenario(baseline=5, description=5, full=5, negative=True),
+        ]
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["per_mechanism"]["full"]["graded_count"] == 1
+        assert summary["best_mechanism_excluded"] == ["full"]
+        assert summary["best_mechanism_unmeasured"] == []
+
+    def test_a_wholly_ungraded_candidate_is_unmeasured_not_partial(self):
+        scenarios = [
+            _scenario_of_mechs(
+                {
+                    "baseline": _make_mech(1),
+                    "description": _make_mech(4),
+                    "full": _unscored_mech(),
+                }
+            ),
+            _scenario_of_mechs(
+                {
+                    "baseline": _make_mech(1),
+                    "description": _make_mech(4),
+                    "full": _unscored_mech(),
+                }
+            ),
+            _make_scenario(baseline=5, description=5, full=5, negative=True),
+        ]
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["per_mechanism"]["full"]["graded_count"] == 0
+        assert summary["best_mechanism_excluded"] == []
+        assert summary["best_mechanism_unmeasured"] == ["full"]
+        table = eval_mod.render_table("r", summary)
+        assert "excluding full as unmeasured" in table
+
+    def test_an_unreachable_mechanism_is_not_reported_as_missing(self):
+        # A routed target never runs `full`. Naming it as a gap would invent a
+        # defect out of a treatment no deployment performs, and it is already
+        # named in `unreachable_mechanisms`.
+        scenarios = [
+            _scenario_of_mechs(
+                {
+                    "baseline": _make_mech(1),
+                    "description": _make_mech(4),
+                    "full": _unscored_mech(),
+                }
+            ),
+            _make_scenario(baseline=5, description=5, full=5, negative=True),
+        ]
+
+        summary = eval_mod.aggregate(scenarios, routed=True)
+
+        assert summary["unreachable_mechanisms"] == ["full"]
+        assert summary["best_mechanism_unmeasured"] == []
+        assert summary["best_mechanism_excluded"] == []
+        assert "excluding" not in eval_mod.render_table("r", summary)
+
+    def test_both_drop_reasons_are_named_together(self):
+        # Reachable with more than two rule-enhanced mechanisms; exercised
+        # directly against the renderer so the branch is not dead.
+        summary = eval_mod.aggregate(
+            [
+                _make_scenario(baseline=1, description=4, full=5),
+                _make_scenario(baseline=5, description=5, full=5, negative=True),
+            ]
+        )
+        summary["best_mechanism"] = "description"
+        summary["best_avg_score"] = 4.0
+        summary["best_mechanism_excluded"] = ["a"]
+        summary["best_mechanism_unmeasured"] = ["b"]
+
+        table = eval_mod.render_table("r", summary)
+
+        assert "excluding a for partial coverage and b as unmeasured" in table
+
+
+class TestALegacySummaryDoesNotGuessItsPopulation:
+    """An archived summary predates the eligible set and cannot name it."""
+
+    def test_a_summary_without_the_eligible_set_says_it_is_unrecorded(self):
+        scenarios = [
+            _make_scenario(baseline=1, description=5, full=5),
+            _make_scenario(baseline=5, description=1, full=5, negative=True),
+            _scenario_of_mechs(
+                {
+                    "baseline": _make_mech(5),
+                    "description": _unscored_mech(),
+                    "full": _make_mech(5),
+                },
+                negative=True,
+            ),
+        ]
+        summary = eval_mod.aggregate(scenarios)
+        legacy = {
+            k: v
+            for k, v in summary.items()
+            if k not in ("negative_floor_mechanisms", "negative_floor_partial")
+        }
+
+        table = eval_mod.render_table("r", legacy)
+
+        # Reprinting the gate list here would restore the exact mislabel the
+        # eligible set was published to remove.
+        assert "worst of [population not recorded]" in table
+        assert "worst of [description, full]" not in table
