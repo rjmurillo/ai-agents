@@ -469,7 +469,6 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     regressions, improvements = diff_against_baseline(current, baseline)
-    _print_report(args.output_format, regressions, improvements, current, baseline)
 
     try:
         dangling = scan_dangling_skill_relative_scripts(root)
