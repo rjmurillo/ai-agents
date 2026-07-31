@@ -47,8 +47,8 @@ issue, or write-up. All commands run from the repo root.
 | ADR-072 status is Proposed with approval conditions | `sed -n '1,15p' .agents/architecture/ADR-072-jtbd-plugin-architecture.md` |
 | ADR-068 status is Proposed | `sed -n '1,10p' .agents/architecture/ADR-068-consolidated-hook-dispatcher.md` |
 | Rule-activation eval exists with a no-spend path | `python3 scripts/eval/eval-rule-activation.py --help` |
-| 7 rule scenario fixtures | `ls tests/evals/rule-scenarios/` |
-| Corpus size (92 skills, 30 rules, 95 retros, 122 memories) | `ls -d .claude/skills/*/ \| wc -l; ls .claude/rules/*.md \| wc -l; ls .agents/retrospective/ \| wc -l; ls .serena/memories/ \| wc -l` |
+| Rule scenario fixtures | `ls tests/evals/rule-scenarios/` |
+| Corpus size across skills, rules, retros, memories | `python3 -c "import pathlib;p=pathlib.Path;print(len(list(p('.claude/skills').glob('*/SKILL.md'))),'skills',len(list(p('.claude/rules').glob('*.md'))),'rules',len(list(p('.agents/retrospective').glob('*.md'))),'retros',len(list(p('.serena/memories').rglob('*.md'))),'memories')"` |
 | Runtime contract tests pass | `uv run pytest tests/build_scripts/test_generate_hooks_runtime_contract.py -q` |
 | Apply-step hooks unregistered | `uv run pytest -q tests/build_scripts/test_copilot_dispatcher_artifact.py::test_only_advisory_pretooluse_registrations_are_absent` |
 
@@ -89,9 +89,10 @@ durable competitive surface and everything else is plumbing.
 
 - Prompt engineering is folklore: rules ship because they sound right, and
   almost nobody measures whether a rule changes model behavior at all.
-- Rules are unmeasured even here: this repo has 30 rule files under
-  `.claude/rules/` but only 7 scenario fixtures under
-  `tests/evals/rule-scenarios/` (as of 2026-07-03). Most rules have never had
+- Rules are unmeasured even here: this repo carries several times more rule
+  files under `.claude/rules/` than scenario fixtures under
+  `tests/evals/rule-scenarios/`. Run the Phase 1 corpus command for both
+  current numbers rather than quoting a stored one. Most rules have never had
   an activation baseline.
 - Weight tuning is unavailable to a repository: you cannot fine-tune the vendor
   model, so context curation is the only lever, and the field has no shared
@@ -99,8 +100,8 @@ durable competitive surface and everything else is plumbing.
 
 ### This repo's asset
 
-- 92 skill directories, 30 rules, 95 retrospectives, 122 Serena memories
-  (counts as of 2026-07-03).
+- A large corpus of skill directories, rules, retrospectives, and Serena
+  memories. Run the Phase 1 corpus command for current counts.
 - Gates that produce inspectable artifacts (verification-based governance,
   SESSION-PROTOCOL.md): every rule violation leaves evidence, so compliance is
   measurable after the fact.
@@ -301,7 +302,7 @@ Sources and re-verification:
 - Guard tiers and thresholds: `.claude/skills/guard-maturity/SKILL.md:46-57`. Re-verify: `grep -n "Harmful\|Proficient\|Inert" .claude/skills/guard-maturity/SKILL.md`.
 - Runtime contract test and anchoring validator: `tests/build_scripts/test_generate_hooks_runtime_contract.py`, `scripts/validation/validate_hook_anchoring.py`. Re-verify: `ls` both paths.
 - Env-anchor decision memory: `.serena/memories/decision-copilot-cli-hook-plugin-root-contract.md`. Re-verify: `ls` the path.
-- Counts (92 skill dirs, 30 rules, 95 retros, 122 memories, 7 scenario fixtures): Phase 1 command. Volatile; re-run before quoting.
+- Counts (skill dirs, rules, retros, memories, scenario fixtures): Phase 1 command. Volatile; run the command, never quote a stored number.
 - Incident claims (#2205, #2290, #1887, #1989, #2230): see `ai-agents-failure-archaeology` for evidence paths; do not re-litigate settled battles.
 
 Unverified in this document (flagged inline): per-rule traffic data, automated
