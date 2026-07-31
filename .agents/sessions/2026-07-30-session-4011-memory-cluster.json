@@ -64,7 +64,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commits include serena_integration.py, search.py, tests, hook-protocol.md, session log"
+        "Evidence": "Commit 0b0250e9: serena_integration.py, search.py, tests, hook-protocol.md, session log"
       },
       "validationPassed": {
         "level": "MUST",
@@ -85,6 +85,6 @@
       "tests": "Documentation fix"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "0b0250e9",
   "nextSteps": []
 }

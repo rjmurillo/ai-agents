@@ -22,6 +22,14 @@
       "content": "Updated .agents/specs/hook-protocol.md: Reference Implementations section now states hooks are not currently registered and documents activation path.",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 0b0250e9",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -29,7 +37,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 8
   },
   "lessons": []
