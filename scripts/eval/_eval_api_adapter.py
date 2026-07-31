@@ -475,8 +475,8 @@ class AnthropicAPIAdapter:
                 system_fingerprint=getattr(transport, "system_fingerprint", None),
             )
 
-        # Exhausted retries on transient error without ever getting an
-        # exception inside the loop: defensive fallthrough; should not occur.
+        # Unreachable for positive `max_retries`; the loop returns on both exit
+        # paths. Only `max_retries <= 0` lands here, having called nothing.
         total_latency_ms = (self._clock() - start_total) * 1000.0
         return APICallResult(
             outcome="error",
