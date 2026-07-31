@@ -185,6 +185,22 @@ jobs:
           git fetch --depth=1 origin "$BASE_REF"
           uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref FETCH_HEAD
 
+      - name: Check security suppressions in diff (pull request, issue 4061)
+        if: steps.should-run.outputs.skip != 'true' && github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --depth=1 origin "$BASE_REF"
+          uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-diff --base-ref FETCH_HEAD
+
+      - name: Check security suppressions in diff (non-PR, issue 4061)
+        if: steps.should-run.outputs.skip != 'true' && github.event_name != 'pull_request'
+        env:
+          BASE_REF: ${{ github.event.repository.default_branch }}
+        run: |
+          git fetch --depth=1 origin "$BASE_REF"
+          uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-diff --base-ref FETCH_HEAD
+
       - name: Run pytest
         if: steps.should-run.outputs.skip != 'true'
         env:

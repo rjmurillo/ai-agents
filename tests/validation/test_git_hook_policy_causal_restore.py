@@ -3023,5 +3023,149 @@ def _repo_where_a_rename_repadded_the_number(
         assert policy._merge_authored_adr_paths([relative], repo) == []
 
 
+def _run_suppression_diff(
+    monkeypatch: pytest.MonkeyPatch,
+    repo_root: Path,
+    diff_text: str,
+    changed_paths: tuple[str, ...] = ("pkg/module.py",),
+    *,
+    base_ref: str = "c" * 40,
+    rename_status_output: str = "",
+) -> int:
+    range_spec = f"{base_ref}..HEAD"
+
+    def _run_git(repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+        if args[0] == "diff" and "--name-only" in args and "--diff-filter=ACMRT" in args:
+            assert range_spec in args
+            return _completed("\0".join(changed_paths) + "\0")
+        if args[0] == "diff" and "--name-status" in args and "--diff-filter=R" in args:
+            assert range_spec in args
+            return _completed(rename_status_output)
+        if "diff" in args and "--unified=0" in args:
+            assert range_spec in args
+            return _completed(diff_text)
+        if args[0] == "show":
+            return _completed("")
+        raise AssertionError(f"unexpected git call: {args!r}")
+
+    monkeypatch.setattr(policy, "_run_git", _run_git)
+    return policy.check_suppression_diff(base_ref, repo_root)
+
+
+class TestSuppressionDiff:
+    """Tests for check_suppression_diff - CI backstop for issue #4061.
+
+    Two-directional: blocks what it must block, permits what it must permit.
+    """
+
+    def test_new_nosec_in_diff_is_blocked(self, tmp_path, monkeypatch, capsys):
+        comment = "# no" "sec"
+        diff = (
+            "diff --git a/pkg/module.py b/pkg/module.py\n"
+            "--- a/pkg/module.py\n"
+            "+++ b/pkg/module.py\n"
+            "@@ -0,0 +1 @@\n"
+            f"+import subprocess  {comment}\n"
+        )
+        assert _run_suppression_diff(monkeypatch, tmp_path, diff) == 1
+        assert "pkg/module.py:1" in capsys.readouterr().err
+
+    def test_new_s_rule_noqa_in_diff_is_blocked(self, tmp_path, monkeypatch, capsys):
+        comment = "# no" "qa: S101"
+        diff = (
+            "diff --git a/pkg/module.py b/pkg/module.py\n"
+            "--- a/pkg/module.py\n"
+            "+++ b/pkg/module.py\n"
+            "@@ -0,0 +1 @@\n"
+            f"+assert True  {comment}\n"
+        )
+        assert _run_suppression_diff(monkeypatch, tmp_path, diff) == 1
+        assert "pkg/module.py:1" in capsys.readouterr().err
+
+    def test_non_security_noqa_in_diff_is_allowed(self, tmp_path, monkeypatch):
+        comment = "# no" "qa: E402"
+        diff = (
+            "diff --git a/pkg/module.py b/pkg/module.py\n"
+            "--- a/pkg/module.py\n"
+            "+++ b/pkg/module.py\n"
+            "@@ -0,0 +1 @@\n"
+            f"+import os  {comment}\n"
+        )
+        assert _run_suppression_diff(monkeypatch, tmp_path, diff) == 0
+
+    def test_clean_diff_is_allowed(self, tmp_path, monkeypatch):
+        diff = (
+            "diff --git a/pkg/module.py b/pkg/module.py\n"
+            "--- a/pkg/module.py\n"
+            "+++ b/pkg/module.py\n"
+            "@@ -1 +1 @@\n"
+            "-old = 1\n"
+            "+new = 1\n"
+        )
+        assert _run_suppression_diff(monkeypatch, tmp_path, diff) == 0
+
+    def test_empty_changed_file_list_is_allowed(self, tmp_path, monkeypatch):
+        def _run_git(repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+            if args[0] == "diff" and "--name-only" in args:
+                return _completed("")
+            raise AssertionError(f"unexpected git call: {args!r}")
+
+        monkeypatch.setattr(policy, "_run_git", _run_git)
+        assert policy.check_suppression_diff("c" * 40, tmp_path) == 0
+
+    def test_git_error_on_initial_diff_returns_3(self, tmp_path, monkeypatch):
+        def _run_git(repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+            return subprocess.CompletedProcess(["git"], 128, "", "fatal: not a git repo")
+
+        monkeypatch.setattr(policy, "_run_git", _run_git)
+        assert policy.check_suppression_diff("c" * 40, tmp_path) == 3
+
+    def test_git_error_on_renames_returns_3(self, tmp_path, monkeypatch):
+        comment = "# no" "sec"
+        diff = (
+            "diff --git a/pkg/module.py b/pkg/module.py\n"
+            "--- a/pkg/module.py\n"
+            "+++ b/pkg/module.py\n"
+            "@@ -0,0 +1 @@\n"
+            f"+import subprocess  {comment}\n"
+        )
+        base_ref = "c" * 40
+        range_spec = f"{base_ref}..HEAD"
+        call_count: list[int] = [0]
+
+        def _run_git(repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+            if args[0] == "diff" and "--name-only" in args:
+                call_count[0] += 1
+                return _completed("pkg/module.py\0")
+            if args[0] == "diff" and "--name-status" in args:
+                return subprocess.CompletedProcess(["git"], 128, "", "fatal")
+            raise AssertionError(f"unexpected git call: {args!r}")
+
+        monkeypatch.setattr(policy, "_run_git", _run_git)
+        assert policy.check_suppression_diff(base_ref, tmp_path) == 3
+
+    def test_pure_rename_suppression_is_allowed(self, tmp_path, monkeypatch):
+        """A suppression that moved via a pure rename is not flagged as new."""
+        rename_output = "R100\0old/module.py\0new/module.py"
+        assert _run_suppression_diff(
+            monkeypatch,
+            tmp_path,
+            "",
+            changed_paths=("new/module.py",),
+            rename_status_output=rename_output,
+        ) == 0
+
+    def test_non_py_extension_is_not_scanned(self, tmp_path, monkeypatch):
+        """Files with extensions outside SECURITY_SUPPRESSION_SUFFIXES are skipped."""
+
+        def _run_git(repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+            if args[0] == "diff" and "--name-only" in args:
+                return _completed("pkg/data.csv\0pkg/README.md\0")
+            raise AssertionError(f"unexpected git call: {args!r}")
+
+        monkeypatch.setattr(policy, "_run_git", _run_git)
+        assert policy.check_suppression_diff("c" * 40, tmp_path) == 0
+
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__]))

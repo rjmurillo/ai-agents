@@ -2576,6 +2576,124 @@ def _staged_full_content_suppression_violations(
     return violations
 
 
+def _diff_notebook_suppression_violations(
+    base_ref: str,
+    paths: Sequence[str],
+    repo_root: Path,
+) -> list[str] | None:
+    violations: list[str] = []
+    for path in paths:
+        head_text = _commit_text_or_none("HEAD", path, repo_root)
+        if head_text is None:
+            return None
+        base_text = _commit_text_or_empty(base_ref, path, repo_root)
+        violations.extend(
+            _notebook_suppression_violations_for_text("HEAD", path, base_text, head_text)
+        )
+    return violations
+
+
+def _diff_full_content_suppression_violations(
+    paths: Sequence[str],
+    repo_root: Path,
+) -> list[str] | None:
+    violations: list[str] = []
+    for path in paths:
+        text = _commit_text_or_none("HEAD", path, repo_root)
+        if text is None:
+            return None
+        violations.extend(_full_content_suppression_violations("HEAD", path, text))
+    return violations
+
+
+def _added_suppression_violations_for_range(
+    range_spec: str,
+    base_ref: str,
+    scan_paths: Sequence[str],
+    repo_root: Path,
+) -> list[str] | None:
+    """Suppression-violation finder for a git range without a PushUpdate."""
+    if not scan_paths:
+        return []
+    renames = _suppression_renames(repo_root, range_spec)
+    if renames is None:
+        return None
+    promoted_paths = [path for path in scan_paths if path in renames.promoted_destinations]
+    scan_paths = [
+        path
+        for path in scan_paths
+        if path not in renames.pure_scanned_destinations
+        and path not in renames.promoted_destinations
+    ]
+    if not scan_paths and not promoted_paths:
+        return []
+    notebook_paths, diff_scan_paths = _partition_suppression_paths(scan_paths)
+    violations = _textual_suppression_violations(
+        repo_root,
+        range_spec=range_spec,
+        paths=diff_scan_paths,
+        head_label="HEAD",
+    )
+    if violations is None:
+        return None
+    notebook_violations = _diff_notebook_suppression_violations(base_ref, notebook_paths, repo_root)
+    if notebook_violations is None:
+        return None
+    violations.extend(notebook_violations)
+    promoted_violations = _diff_full_content_suppression_violations(promoted_paths, repo_root)
+    if promoted_violations is None:
+        return None
+    violations.extend(promoted_violations)
+    return violations
+
+
+def check_suppression_diff(base_ref: str, repo_root: Path) -> int:
+    """CI mirror of security-suppressions-push: compares HEAD against base_ref.
+
+    Returns:
+        0  no new security suppressions detected
+        1  new security suppressions found
+        3  git error (external failure)
+    """
+    range_spec = f"{base_ref}..HEAD"
+    result = _run_git(
+        repo_root,
+        [
+            "diff",
+            *TEXTUAL_DIFF_FLAGS,
+            "--name-only",
+            "--diff-filter=ACMRT",
+            "--no-renames",
+            "-z",
+            range_spec,
+        ],
+    )
+    if result.returncode != 0:
+        _print_process_output(result)
+        return 3
+    scan_paths: list[str] = []
+    for raw_path in result.stdout.split("\0"):
+        if not raw_path:
+            continue
+        path = _safe_relative_path(raw_path)
+        if path is None:
+            print(f"ERROR: unsafe path in diff range: {raw_path}", file=sys.stderr)
+            return 3
+        if Path(path).suffix.lower() in SECURITY_SUPPRESSION_SUFFIXES:
+            scan_paths.append(path)
+    violations = _added_suppression_violations_for_range(
+        range_spec, base_ref, scan_paths, repo_root
+    )
+    if violations is None:
+        return 3
+    if not violations:
+        return 0
+    print("ERROR: security suppression comments detected in diff range:", file=sys.stderr)
+    for violation in violations:
+        print(f"  {violation}", file=sys.stderr)
+    return 1
+
+
 def _notebook_suppression_violations(
     update: PushUpdate,
     paths: Sequence[str],
@@ -5546,6 +5664,10 @@ def _handle_staged_suppressions(args: argparse.Namespace) -> int:
     return check_staged_suppressions(_repo_root(args))
 
 
+def _handle_suppression_diff(args: argparse.Namespace) -> int:
+    return check_suppression_diff(args.base_ref, _repo_root(args))
+
+
 def _handle_stage_generated(args: argparse.Namespace) -> int:
     return stage_generated(args.kind, _repo_root(args))
 
@@ -5618,6 +5740,12 @@ def build_parser() -> argparse.ArgumentParser:
     generated = subparsers.add_parser("stage-generated")
     generated.add_argument("kind", choices=sorted(GENERATED_PATHS | GENERATED_GLOBS))
     generated.set_defaults(handler=_handle_stage_generated)
+    suppression_diff = subparsers.add_parser(
+        "security-suppressions-diff",
+        help="CI backstop: check HEAD..base_ref range for new security suppressions",
+    )
+    suppression_diff.add_argument("--base-ref", required=True, metavar="REF")
+    suppression_diff.set_defaults(handler=_handle_suppression_diff)
     return parser
 
 
