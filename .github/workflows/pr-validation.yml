@@ -281,6 +281,32 @@ jobs:
         run: |
           git fetch --depth=1 origin "$BASE_REF"
           uv run --frozen python3 scripts/ci/taste_count_ratchet.py --base-ref FETCH_HEAD
+
+      # Issue #4068: ADR-006 extraction converts loud shell failures into silent
+      # Python successes. A `run:` block dies under `set -e`; the Python
+      # translation returns a sentinel, and when no caller turns that sentinel
+      # into a nonzero exit the step goes green on a failure that used to be
+      # red. Six instances were found in two extraction PRs, and three of them
+      # shipped tests asserting the swallow. Every one of those tests asserted
+      # on a helper's return value and never on main(argv), which structurally
+      # cannot catch an exit-code defect.
+      #
+      # This gates the observable property instead of tracing sentinels: an
+      # extracted CI script whose CLI is never proven to exit nonzero. Equality
+      # ratchet, same policy and same shared harness as the taste gate above.
+      # Record a lower count after adding coverage with
+      # `python scripts/ci/cli_exit_contract_ratchet.py --update`.
+      #
+      # Hosted here rather than in pytest.yml because the gate reads workflow
+      # wiring and test files together, and a PR that adds a script without its
+      # test must fail even when the paths filter would skip a Python job.
+      - name: Run CLI exit-contract ratchet
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --depth=1 origin "$BASE_REF"
+          uv run --frozen python3 scripts/ci/cli_exit_contract_ratchet.py --base-ref FETCH_HEAD
+
       # Issue #3770: `conflict-marker-policy` runs only at pre-commit over the
       # index. Every route that skips local hooks reached the remote unchecked:
       # a server-side merge from the "Update branch" button, `--no-verify`, a
