@@ -168,7 +168,7 @@ debate log, not as edits to prior vote records.
 
 ## Approval Conditions
 
-1. All five ADR-068 locations and all four ADR-085 locations listed above are
+1. All five ADR-068 locations and all five ADR-085 locations listed above are
    corrected in the same commit.
 2. ADR-082 is searched for #3218 references; any found are corrected in the
    same commit.
