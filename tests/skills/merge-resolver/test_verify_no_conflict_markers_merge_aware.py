@@ -242,6 +242,39 @@ class TestMergeHeadProbeEdges:
         assert exit_code == 0
         assert not any("MERGE_HEAD" in " ".join(args) for args in calls)
 
+    def test_octopus_merge_falls_back_to_the_head_only_path(
+        self,
+        seeded_repo: Path,
+    ) -> None:
+        """Several MERGE_HEAD parents fail ``--verify``, so HEAD alone decides.
+
+        That over-reports rather than under-reports, which is the safe
+        direction for a blocking gate.
+        """
+        for name in ("b1", "b2"):
+            _git(seeded_repo, "checkout", "-q", "-b", name, "main")
+            (seeded_repo / f"{name}.txt").write_text(f"{name}\n")
+            _git(seeded_repo, "add", "-A")
+            _git(seeded_repo, "commit", "-q", "-m", f"{name} file")
+
+        _git(seeded_repo, "checkout", "-q", "main")
+        merge = _git(seeded_repo, "merge", "--no-commit", "b1", "b2", check=False)
+        assert merge.returncode == 0, merge.stderr
+        assert (seeded_repo / ".git" / "MERGE_HEAD").read_text().count("\n") == 2
+
+        (seeded_repo / "shared.txt").write_text(GENUINE_MARKERS)
+
+        exit_code, report = verify(seeded_repo)
+        assert exit_code == 1
+        assert any("shared.txt" in m for m in report["leftover_markers"])
+
+    def test_marker_location_splits_from_the_right(self) -> None:
+        """A path containing ": " must not truncate the intersection key."""
+        assert mod._marker_location("doc.md:4: leftover conflict marker") == "doc.md:4"
+        assert (
+            mod._marker_location("odd: name.md:12: leftover conflict marker") == "odd: name.md:12"
+        )
+
     def test_unexpected_git_failure_on_incoming_diff_maps_to_exit_3(
         self,
         merge_in_progress: Path,

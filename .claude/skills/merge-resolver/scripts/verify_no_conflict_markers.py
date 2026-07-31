@@ -120,8 +120,22 @@ def _markers_against(ref: str, cwd: Path) -> list[str]:
     )
 
 
+def _marker_location(line: str) -> str:
+    """Return the ``file:line`` prefix of a ``--check`` marker line.
+
+    ``--check`` emits ``<path>:<line>: <message>``. Split from the right
+    so a path containing ``": "`` does not truncate the key.
+    """
+    return line.rsplit(": ", 1)[0]
+
+
 def _is_merging(cwd: Path) -> bool:
-    """Return True when a merge is in progress (``MERGE_HEAD`` resolves)."""
+    """Return True when a two-parent merge is in progress.
+
+    ``--verify`` demands a single revision, so an octopus merge (several
+    SHAs in ``MERGE_HEAD``) reports False and falls back to the HEAD-only
+    path. That fails closed: it can over-report, never under-report.
+    """
     return _run_git(["rev-parse", "-q", "--verify", "MERGE_HEAD"], cwd=cwd).returncode == 0
 
 
@@ -142,8 +156,8 @@ def find_leftover_markers(cwd: Path) -> list[str]:
     if not head_markers or not _is_merging(cwd):
         return head_markers
 
-    incoming_keys = {line.split(": ", 1)[0] for line in _markers_against("MERGE_HEAD", cwd)}
-    return [line for line in head_markers if line.split(": ", 1)[0] in incoming_keys]
+    incoming = {_marker_location(line) for line in _markers_against("MERGE_HEAD", cwd)}
+    return [line for line in head_markers if _marker_location(line) in incoming]
 
 
 def verify(cwd: Path) -> tuple[int, dict[str, object]]:
