@@ -671,9 +671,21 @@ def _capture_run(monkeypatch: pytest.MonkeyPatch, result: object) -> dict:
     return seen
 
 
+def _allow_unverified_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Opt in to a reply whose model the transcript never confirmed.
+
+    These tests observe argv construction, footer stripping, or which source an
+    answer came from. None of them is about the model check, and all of them
+    reach the stdout fallback, which refuses by default. Opting in keeps each
+    test on its own subject instead of silently re-testing the model gate.
+    """
+    monkeypatch.setenv("EVAL_COPILOT_ALLOW_UNVERIFIED_MODEL", "1")
+
+
 def test_copilot_complete_returns_stripped_answer(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _allow_unverified_model(monkeypatch)
     seen = _capture_run(
         monkeypatch,
         _FakeCompleted(stdout="the answer\n\nChanges    +0 -0\n"),
@@ -701,6 +713,7 @@ def test_copilot_complete_isolates_cwd_and_disables_builtin_mcps(
 ) -> None:
     """The repo's own instruction files are the variable under test; the CLI
     must not load them from the working directory."""
+    _allow_unverified_model(monkeypatch)
     seen = _capture_run(monkeypatch, _FakeCompleted(stdout="ok\n"))
     provider = _providers._CopilotCLIProvider()
 
@@ -721,6 +734,7 @@ def test_copilot_complete_disables_ambient_custom_instructions(
     input tokens on a live call: several times the size of the rule bodies
     these evals compare, overlapping them semantically. Without this flag every
     cell carries them and deltas compress toward zero."""
+    _allow_unverified_model(monkeypatch)
     seen = _capture_run(monkeypatch, _FakeCompleted(stdout="ok\n"))
     provider = _providers._CopilotCLIProvider()
 
@@ -962,6 +976,7 @@ def test_copilot_transcript_ignores_sessions_from_other_sandboxes(
         )
         return _FakeCompleted(stdout="my stdout answer\n")
 
+    _allow_unverified_model(monkeypatch)
     monkeypatch.setattr(_copilot_cli.subprocess, "run", fake_run)
     monkeypatch.setenv("COPILOT_SESSION_STATE_DIR", str(tmp_path))
     provider = _providers._CopilotCLIProvider()
@@ -976,6 +991,7 @@ def test_copilot_transcript_ignores_sessions_from_other_sandboxes(
 def test_copilot_falls_back_to_stdout_when_session_root_is_missing(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
+    _allow_unverified_model(monkeypatch)
     _capture_run(monkeypatch, _FakeCompleted(stdout="stdout answer\n"))
     monkeypatch.setenv("COPILOT_SESSION_STATE_DIR", str(tmp_path / "absent"))
     provider = _providers._CopilotCLIProvider()
@@ -1074,6 +1090,7 @@ def test_copilot_ignores_session_logs_written_before_this_call(
         # Backdate well past the `since` window this call uses.
         os.utime(path, (1_000_000, 1_000_000))
 
+    _allow_unverified_model(monkeypatch)
     monkeypatch.setattr(_copilot_cli.subprocess, "run", fake_run)
     monkeypatch.setenv("COPILOT_SESSION_STATE_DIR", str(tmp_path))
     provider = _providers._CopilotCLIProvider()
@@ -1083,3 +1100,242 @@ def test_copilot_ignores_session_logs_written_before_this_call(
     )
 
     assert out == "stdout answer"
+
+
+class TestTheStdoutFallbackWillNotGradeHarnessOutput:
+    """The fallback reads raw stdout, where CLI traces precede the answer.
+
+    `_strip_footer` anchors at the end of the output, so it removes the stats
+    block and leaves a leading trace untouched. Grading that would score the
+    harness rather than the model, and there is no reliable boundary between
+    the trace and the reply, so the run is refused instead. Found by adversarial
+    review round 32 against a surface no earlier round had read.
+    """
+
+    @staticmethod
+    def _fallback(monkeypatch: pytest.MonkeyPatch, tmp_path, stdout: str):
+        _allow_unverified_model(monkeypatch)
+        _capture_run(monkeypatch, _FakeCompleted(stdout=stdout))
+        monkeypatch.setenv("COPILOT_SESSION_STATE_DIR", str(tmp_path / "absent"))
+        return _providers._CopilotCLIProvider()
+
+    def test_a_traced_stdout_is_refused_rather_than_graded(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        provider = self._fallback(
+            monkeypatch,
+            tmp_path,
+            "\u25cf tool trace\n  \u2502 ls -la\nMODEL ANSWER\n\nTokens     1.2k\n",
+        )
+
+        with pytest.raises(RuntimeError, match="tool-call traces"):
+            provider.complete(
+                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+            )
+
+    @pytest.mark.parametrize("prefix", ["\u25cf", "\u2502", "\u251c", "\u2514"])
+    def test_every_trace_prefix_the_cli_emits_is_refused(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path, prefix: str
+    ) -> None:
+        provider = self._fallback(
+            monkeypatch, tmp_path, f"{prefix} trace\nMODEL ANSWER\n"
+        )
+
+        with pytest.raises(RuntimeError, match="tool-call traces"):
+            provider.complete(
+                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+            )
+
+    def test_an_indented_trace_is_still_a_trace(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        """The trace body is indented under its header, so matching must lstrip.
+
+        The indented line is deliberately not the first one: `_strip_footer`
+        ends with `.strip()`, which unindents line one and would let this pass
+        without the lstrip actually being exercised.
+        """
+        provider = self._fallback(
+            monkeypatch,
+            tmp_path,
+            "Working on it\n  \u2502 ls -la\nMODEL ANSWER\n",
+        )
+
+        with pytest.raises(RuntimeError, match="tool-call traces"):
+            provider.complete(
+                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+            )
+
+    def test_the_refusal_says_how_to_get_the_structured_transcript(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        provider = self._fallback(
+            monkeypatch, tmp_path, "\u25cf trace\nMODEL ANSWER\n"
+        )
+
+        with pytest.raises(RuntimeError) as excinfo:
+            provider.complete(
+                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+            )
+
+        assert "COPILOT_SESSION_STATE_DIR" in str(excinfo.value)
+
+    def test_a_clean_fallback_still_answers(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        """The refusal is scoped to traced output; graceful degradation stays."""
+        provider = self._fallback(monkeypatch, tmp_path, "a clean answer\n")
+
+        out = provider.complete(
+            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+        )
+
+        assert out == "a clean answer"
+
+    def test_a_trace_character_used_inside_a_sentence_is_not_a_trace(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        """Anchoring at line start keeps a legitimate answer from being refused."""
+        provider = self._fallback(
+            monkeypatch, tmp_path, "Use the box char \u2502 to draw a table.\n"
+        )
+
+        out = provider.complete(
+            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+        )
+
+        assert out == "Use the box char \u2502 to draw a table."
+
+    def test_the_detector_is_not_vacuous(self) -> None:
+        """A detector that cannot fire has not been run."""
+        provider = _providers._CopilotCLIProvider
+        assert provider._carries_tool_trace("\u25cf tool trace\nanswer") is True
+        assert provider._carries_tool_trace("just an answer") is False
+
+
+class TestAReplyIsNotGradedForAModelNobodyConfirmed:
+    """The CLI accepts `--model` without confirming it honored the request.
+
+    On the transcript path a substitution is caught by comparing
+    `session.start.data.selectedModel`. On the stdout fallback there is nothing
+    to compare against, so a reply from another model is indistinguishable from
+    the requested one. Every consumer of this transport publishes per-model
+    results, so an unconfirmed reply is a score for an unknown model, which is
+    the same defect class the rest of this campaign fixed elsewhere: a number
+    attached to a population it was not measured on. Adversarial review round
+    33; all eight archived runs predate the transcript reader and took this
+    path, which is why the archive's provenance rests on filenames.
+    """
+
+    @staticmethod
+    def _fallback(monkeypatch: pytest.MonkeyPatch, tmp_path):
+        _capture_run(monkeypatch, _FakeCompleted(stdout="an answer\n"))
+        monkeypatch.setenv("COPILOT_SESSION_STATE_DIR", str(tmp_path / "absent"))
+        return _providers._CopilotCLIProvider()
+
+    def test_an_unconfirmed_model_is_refused_by_default(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        monkeypatch.delenv("EVAL_COPILOT_ALLOW_UNVERIFIED_MODEL", raising=False)
+        provider = self._fallback(monkeypatch, tmp_path)
+
+        with pytest.raises(RuntimeError, match="could not confirm which model"):
+            provider.complete(
+                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+            )
+
+    def test_the_refusal_names_both_ways_out(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        monkeypatch.delenv("EVAL_COPILOT_ALLOW_UNVERIFIED_MODEL", raising=False)
+        provider = self._fallback(monkeypatch, tmp_path)
+
+        with pytest.raises(RuntimeError) as excinfo:
+            provider.complete(
+                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+            )
+
+        message = str(excinfo.value)
+        assert "COPILOT_SESSION_STATE_DIR" in message
+        assert "EVAL_COPILOT_ALLOW_UNVERIFIED_MODEL" in message
+
+    def test_an_explicit_opt_in_accepts_the_loss(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        monkeypatch.setenv("EVAL_COPILOT_ALLOW_UNVERIFIED_MODEL", "1")
+        provider = self._fallback(monkeypatch, tmp_path)
+
+        out = provider.complete(
+            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+        )
+
+        assert out == "an answer"
+
+    def test_a_confirmed_model_needs_no_opt_in(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        """The gate is scoped to the unverified path, not applied blanket."""
+        monkeypatch.delenv("EVAL_COPILOT_ALLOW_UNVERIFIED_MODEL", raising=False)
+        _run_writing_session(
+            monkeypatch,
+            tmp_path,
+            model="claude-opus-5",
+            contents=["the real answer"],
+        )
+        provider = _providers._CopilotCLIProvider()
+
+        out = provider.complete(
+            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+        )
+
+        assert out == "the real answer"
+
+    def test_a_transcript_that_names_no_model_confirms_nothing(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        """A readable session is not the same fact as a confirmed model."""
+        monkeypatch.delenv("EVAL_COPILOT_ALLOW_UNVERIFIED_MODEL", raising=False)
+
+        def fake_run(argv: list[str], **kwargs: object) -> _FakeCompleted:
+            session_dir = tmp_path / "s1"
+            session_dir.mkdir(parents=True, exist_ok=True)
+            events = [
+                {"type": "session.start", "data": {"context": {"cwd": kwargs["cwd"]}}},
+                {"type": "assistant.message", "data": {"content": "an answer"}},
+            ]
+            (session_dir / "events.jsonl").write_text(
+                "\n".join(json.dumps(e) for e in events) + "\n", encoding="utf-8"
+            )
+            return _FakeCompleted(stdout="an answer\n")
+
+        monkeypatch.setattr(_copilot_cli.subprocess, "run", fake_run)
+        monkeypatch.setenv("COPILOT_SESSION_STATE_DIR", str(tmp_path))
+        provider = _providers._CopilotCLIProvider()
+
+        with pytest.raises(RuntimeError, match="could not confirm which model"):
+            provider.complete(
+                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+            )
+
+    @pytest.mark.parametrize("value", ["1", "true", "TRUE", "yes", "on", " 1 "])
+    def test_an_affirmative_value_opts_in(
+        self, monkeypatch: pytest.MonkeyPatch, value: str
+    ) -> None:
+        monkeypatch.setenv("EVAL_COPILOT_ALLOW_UNVERIFIED_MODEL", value)
+
+        assert _providers._CopilotCLIProvider._unverified_model_allowed() is True
+
+    @pytest.mark.parametrize("value", ["", "0", "false", "no", "off", "maybe"])
+    def test_anything_else_fails_closed(
+        self, monkeypatch: pytest.MonkeyPatch, value: str
+    ) -> None:
+        monkeypatch.setenv("EVAL_COPILOT_ALLOW_UNVERIFIED_MODEL", value)
+
+        assert _providers._CopilotCLIProvider._unverified_model_allowed() is False
+
+    def test_an_absent_variable_fails_closed(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("EVAL_COPILOT_ALLOW_UNVERIFIED_MODEL", raising=False)
+
+        assert _providers._CopilotCLIProvider._unverified_model_allowed() is False

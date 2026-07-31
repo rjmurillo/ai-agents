@@ -7829,3 +7829,63 @@ class TestAMechanismTheTargetCannotReachIsNotMeasured:
         assert cell_key == "declined"
         assert cell_key not in self._declined_run()
         assert "unreachable_mechanisms" in self._declined_run()
+
+
+class TestThePublishedArchiveWasNotGradedOnHarnessOutput:
+    """Every archived run predates the structured session-transcript reader.
+
+    `_read_session_transcript` landed on 2026-07-30; these artifacts are dated
+    2026-07-29, so all eight took the stdout fallback. That path can carry CLI
+    tool traces into the judge (fixed in `_copilot_cli._carries_tool_trace`).
+    Whether it actually did is a question about the closed record, answerable
+    by reading it, so this measures rather than assumes. Adversarial review
+    round 32.
+    """
+
+    #: Mirrors `_CopilotCLIProvider._TRACE_LINE_PREFIXES`, plus the footer
+    #: labels, since a preview is a prefix of the raw reply.
+    _TRACE_MARKERS = ("\u25cf", "\u2502", "\u251c", "\u2514")
+
+    def _previews(self) -> list[tuple[str, str, str, str]]:
+        found = []
+        for path in sorted(_ARCHIVE_DIR.glob("*.json")):
+            if path.name == _RECOVERED_PAYLOADS.name:
+                continue
+            data = json.loads(path.read_text(encoding="utf-8"))
+            for rule_name, rule in (data.get("rules") or {}).items():
+                for scenario in rule.get("scenarios", []):
+                    for mech_name, mech in (scenario.get("mechanisms") or {}).items():
+                        found.append(
+                            (
+                                path.stem,
+                                rule_name,
+                                f"{scenario.get('id')}/{mech_name}",
+                                mech.get("response_preview") or "",
+                            )
+                        )
+        return found
+
+    def test_the_archive_still_holds_every_cell_this_check_covers(self) -> None:
+        """Guard the guard: a shrunken archive must not read as a clean result."""
+        assert len(self._previews()) == 96
+
+    def test_no_archived_reply_begins_a_line_with_a_tool_trace(self) -> None:
+        contaminated = [
+            (artifact, coord)
+            for artifact, _rule, coord, preview in self._previews()
+            if any(
+                line.lstrip().startswith(self._TRACE_MARKERS)
+                for line in preview.splitlines()
+            )
+        ]
+
+        assert contaminated == []
+
+    def test_the_scan_would_notice_a_contaminated_preview(self) -> None:
+        """The same predicate, run against the shape it is meant to catch."""
+        planted = "\u25cf tool trace\n  \u2502 ls -la\nMODEL ANSWER"
+
+        assert any(
+            line.lstrip().startswith(self._TRACE_MARKERS)
+            for line in planted.splitlines()
+        )

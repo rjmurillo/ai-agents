@@ -82,6 +82,22 @@ class _CopilotCLIProvider:
     #: tests can point at a fixture tree instead of the operator's real one.
     _SESSION_STATE_ENV = "COPILOT_SESSION_STATE_DIR"
 
+    #: Opt-in to grade a reply whose model was never confirmed. Off by default:
+    #: every consumer of this transport publishes model-attributed results
+    #: ("4 of 4 on Opus"), and the CLI accepts `--model` without confirming it,
+    #: so an unverified reply is a number attached to an unknown population.
+    #: An operator whose CLI writes no session log can set this and accept that
+    #: loss knowingly, which is the difference between a disclosed limit and a
+    #: silent one.
+    _UNVERIFIED_MODEL_ENV = "EVAL_COPILOT_ALLOW_UNVERIFIED_MODEL"
+
+    #: The CLI opens a tool-call trace with a bullet and indents its body with
+    #: box-drawing bars. `_strip_footer` cannot remove them: it anchors at the
+    #: end of the output, and traces precede the answer. Matching is anchored at
+    #: the start of a line because a model answer may legitimately mention these
+    #: characters mid-sentence, while the CLI only ever emits them as a prefix.
+    _TRACE_LINE_PREFIXES = ("\u25cf", "\u2502", "\u251c", "\u2514")
+
     def __init__(self, *, executable: str = "copilot", timeout: float = 900.0) -> None:
         self.name = "copilot-cli"
         self._provider_label = "Copilot CLI"
@@ -115,7 +131,10 @@ class _CopilotCLIProvider:
         operator's session history.
 
         Returns ``None`` when no matching session is found, which leaves the
-        caller on the stdout path rather than failing the eval.
+        caller on the stdout path. That path no longer grades silently: it
+        refuses a reply carrying tool traces, and refuses an unconfirmed model
+        unless the operator opts in, because `selectedModel` read here is the
+        only evidence about which model actually answered.
         """
         root = cls._session_state_root()
         try:
@@ -208,6 +227,32 @@ class _CopilotCLIProvider:
             break
         return "\n".join(lines[:end]).strip()
 
+    @classmethod
+    def _unverified_model_allowed(cls) -> bool:
+        """Report whether the operator opted in to an unconfirmed model.
+
+        Anything other than an explicit affirmative reads as off, so a stray
+        empty or "0" value fails closed rather than silently loosening the
+        check it exists to guard.
+        """
+        raw = os.environ.get(cls._UNVERIFIED_MODEL_ENV, "")
+        return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+    @classmethod
+    def _carries_tool_trace(cls, text: str) -> bool:
+        """Report whether stdout still holds a CLI tool-call trace.
+
+        Only meaningful on the stdout fallback. When the structured transcript
+        is readable the answer comes from `assistant.message`, which never
+        carries a trace. On the fallback there is no reliable boundary between
+        the trace and the reply, so a run that hits this is refused rather than
+        graded: scoring a trace would score the harness, not the model.
+        """
+        return any(
+            line.lstrip().startswith(cls._TRACE_LINE_PREFIXES)
+            for line in text.splitlines()
+        )
+
     def complete(
         self,
         *,
@@ -293,6 +338,7 @@ class _CopilotCLIProvider:
                 f"{completed.returncode}: {excerpt}"
             )
         answer = ""
+        model_verified = False
         if transcript is not None:
             answer, model_used = transcript
             # The CLI accepts --model without confirming it. Silent substitution
@@ -303,10 +349,30 @@ class _CopilotCLIProvider:
                     f"{self._provider_label} API returned no choices for model "
                     f"{model}: the session ran {model_used} instead."
                 )
+            model_verified = model_used is not None
         if not answer:
             answer = self._strip_footer(completed.stdout or "")
+            if answer and self._carries_tool_trace(answer):
+                raise RuntimeError(
+                    f"{self._provider_label} could not read a reply for model "
+                    f"{model}: the session transcript was unavailable and stdout "
+                    "carries tool-call traces, which have no reliable boundary "
+                    "with the answer. Point "
+                    f"{self._SESSION_STATE_ENV} at the CLI session directory so "
+                    "the structured transcript can be read."
+                )
         if not answer:
             raise RuntimeError(
                 f"{self._provider_label} API returned no choices for model {model}."
+            )
+        if not model_verified and not self._unverified_model_allowed():
+            raise RuntimeError(
+                f"{self._provider_label} could not confirm which model answered "
+                f"for {model}: no session transcript was readable, and the CLI "
+                "accepts --model without confirming it. This transport only "
+                "feeds model-attributed results, so an unconfirmed reply is a "
+                f"score for an unknown model. Point {self._SESSION_STATE_ENV} "
+                "at the CLI session directory, or set "
+                f"{self._UNVERIFIED_MODEL_ENV}=1 to accept that loss knowingly."
             )
         return answer
