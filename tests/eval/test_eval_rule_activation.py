@@ -6836,7 +6836,7 @@ class TestAnUnreachableMechanismNeverDecidesARoutedVerdict:
         assert summary["positive_route_mismatches"] == 1
         assert summary["verdict"] == "FAIL_ROUTE_MISSED_TARGET"
 
-    def test_the_caveat_is_withheld_when_only_the_unreachable_cell_missed(self):
+    def test_the_caveat_is_withheld_when_only_the_unreachable_mechanism_missed(self):
         """The caveat and the gate read one derived number, so they cannot disagree."""
         summary = self._summary({"description": True, "full": False})
         assert not [
@@ -7524,3 +7524,244 @@ class TestEveryReaderOfAStoredRunIsExercisedAgainstOne:
         assert "graded_count" not in summary["per_mechanism"]["description"]
         with pytest.raises(KeyError, match="graded_count"):
             eval_mod.render_table(rule_id, summary)
+
+
+class TestARouteResultMustSayWhetherItMatched:
+    """A recorded unknown is not a clean route.
+
+    The flag was read for truth, so anything that is not the literal `False`
+    counted as a match. `None is False` is False and `"false" is False` is
+    False, so a damaged record and a recorded miss spelled as a string both
+    certified the route they failed to make, and the target's own reference
+    was published as opened when it was not. Absence stays tolerated, because
+    a cell written before the flag existed carries no evidence either way and
+    an archived run has to reproduce.
+    """
+
+    @staticmethod
+    def _cell(routing):
+        mech = {} if routing is None else {"routing": routing}
+        return {"mechanisms": {"full": mech}}
+
+    def test_a_cell_with_no_routing_block_counts_no_miss(self):
+        assert eval_mod._route_missed_target(self._cell(None), "full") is False
+
+    def test_a_legacy_cell_without_the_flag_counts_no_miss(self):
+        cell = self._cell({"selected_reference": "x", "route_failed": False})
+        assert eval_mod._route_missed_target(cell, "full") is False
+
+    def test_a_matched_route_counts_no_miss(self):
+        cell = self._cell({"reference_matched": True})
+        assert eval_mod._route_missed_target(cell, "full") is False
+
+    def test_a_missed_route_counts_a_miss(self):
+        cell = self._cell({"reference_matched": False})
+        assert eval_mod._route_missed_target(cell, "full") is True
+
+    def test_a_recorded_unknown_is_refused(self):
+        with pytest.raises(ValueError, match="must be a boolean"):
+            eval_mod._route_missed_target(self._cell({"reference_matched": None}), "full")
+
+    @pytest.mark.parametrize("value", [None, "false", "true", "", 0, 1, [], {}, 0.0])
+    def test_every_non_boolean_is_refused(self, value):
+        with pytest.raises(ValueError, match="must be a boolean"):
+            eval_mod._route_missed_target(self._cell({"reference_matched": value}), "full")
+
+    def test_the_refusal_names_the_mechanism(self):
+        with pytest.raises(ValueError, match=r"mechanisms\[description\]"):
+            eval_mod._route_missed_target(
+                {"mechanisms": {"description": {"routing": {"reference_matched": "no"}}}},
+                "description",
+            )
+
+    def test_the_refusal_names_what_it_got(self):
+        with pytest.raises(ValueError, match=r"got str 'no'"):
+            eval_mod._route_missed_target(self._cell({"reference_matched": "no"}), "full")
+
+    def test_a_routing_block_that_is_not_a_dict_counts_no_miss(self):
+        assert eval_mod._route_missed_target(self._cell("routing"), "full") is False
+
+    def test_the_shipped_writer_always_records_a_boolean(self):
+        """The refusal is unreachable from the runner, and reachable from a file."""
+        source = (EVAL_DIR / "eval-rule-activation.py").read_text(encoding="utf-8")
+        assert '"reference_matched": False,' in source
+
+
+class TestAMechanismTheTargetCannotReachIsNotMeasured:
+    """A target with no description never receives the description treatment.
+
+    The description prompt for such a target is empty, which is the baseline
+    prompt, so both mechanisms put identical text in front of the model.
+    Scoring that cell publishes an average, a gap against baseline and a
+    candidate for best mechanism that all describe a treatment the target
+    never received, and the gap is whatever two identical runs happened to
+    differ by. A large enough coin flip then certifies a rule the model never
+    saw. The cell is now declined rather than scored, which also stops the
+    spend.
+    """
+
+    @staticmethod
+    def _rule(description: str = "", body: str = "BODY") -> dict[str, str]:
+        return {"description": description, "body": body}
+
+    def test_an_empty_description_collapses_onto_baseline(self):
+        rule = self._rule(description="")
+        system = eval_mod.build_system_prompt("description", rule, "t")
+        assert eval_mod._prompt_collapses_to_baseline("description", system, rule, "t") is True
+
+    def test_a_real_description_does_not_collapse(self):
+        rule = self._rule(description="a real description")
+        system = eval_mod.build_system_prompt("description", rule, "t")
+        assert eval_mod._prompt_collapses_to_baseline("description", system, rule, "t") is False
+
+    def test_baseline_never_collapses_onto_itself(self):
+        """Otherwise the run would decline the mechanism it measures against."""
+        rule = self._rule()
+        system = eval_mod.build_system_prompt("baseline", rule, "t")
+        assert eval_mod._prompt_collapses_to_baseline("baseline", system, rule, "t") is False
+
+    def test_full_does_not_collapse_when_the_body_carries_the_rule(self):
+        rule = self._rule(description="", body="BODY")
+        system = eval_mod.build_system_prompt("full", rule, "t")
+        assert eval_mod._prompt_collapses_to_baseline("full", system, rule, "t") is False
+
+    def test_an_empty_body_does_not_collapse_full(self):
+        """The known limit of this check, measured rather than assumed.
+
+        An empty body still yields a `full` prompt carrying the preamble, so
+        it is a different string from baseline and passes here even though it
+        puts no rule in front of the model. Declining it is not safe from this
+        position: for a routed target the `full` prompt is replaced after
+        routing resolves a reference, so a decline would discard a
+        measurement the run did make. Filed as issue 4103.
+        """
+        rule = self._rule(description="d", body="")
+        system = eval_mod.build_system_prompt("full", rule, "t")
+        assert system != eval_mod.build_system_prompt("baseline", rule, "t")
+        assert eval_mod._prompt_collapses_to_baseline("full", system, rule, "t") is False
+
+    def test_a_declined_cell_carries_no_measurement(self):
+        cell = {"mechanisms": {"description": eval_mod._declined_cell("")}}
+        score, failed, legacy = eval_mod._scenario_score_triple(cell, "description")
+        assert score is None
+        assert legacy is False
+
+    def test_a_declined_cell_is_not_a_judge_error(self):
+        """A judge error reports a broken instrument; this is a property of the target."""
+        cell = {"mechanisms": {"description": eval_mod._declined_cell("")}}
+        _score, failed, _legacy = eval_mod._scenario_score_triple(cell, "description")
+        assert failed is False
+
+    def test_a_declined_cell_says_why(self):
+        assert eval_mod._declined_cell("")["declined"] == "prompt identical to baseline"
+
+    @staticmethod
+    def _declined_run():
+        scenarios = []
+        for i in range(3):
+            scenarios.append(
+                {
+                    "id": f"s{i}",
+                    "negative_case": False,
+                    "mechanisms": {
+                        "baseline": {"scores": {"cell_score": 2.0}},
+                        "description": eval_mod._declined_cell(""),
+                        "full": {"scores": {"cell_score": 5.0}},
+                    },
+                }
+            )
+        return eval_mod.aggregate(scenarios)
+
+    def test_the_declined_mechanism_publishes_no_average(self):
+        assert self._declined_run()["per_mechanism"]["description"]["avg_score"] is None
+
+    def test_the_declined_mechanism_publishes_no_gap(self):
+        assert self._declined_run()["delta_description_vs_baseline"] is None
+
+    def test_the_declined_mechanism_is_named_unmeasured(self):
+        assert "description" in self._declined_run()["best_mechanism_unmeasured"]
+
+    def test_a_declined_front_door_cannot_reach_pass(self):
+        """The whole point: no coin flip between identical prompts can certify."""
+        assert self._declined_run()["verdict"] != "PASS"
+
+    def test_a_declined_front_door_is_not_reported_as_a_judge_error(self):
+        assert self._declined_run()["verdict"] != "FAIL_JUDGE_ERRORS"
+
+    def test_the_same_run_with_a_measured_description_can_pass(self):
+        """Without this the class passes for the wrong reason."""
+        scenarios = []
+        for i in range(3):
+            scenarios.append(
+                {
+                    "id": f"s{i}",
+                    "negative_case": i == 2,
+                    "mechanisms": {
+                        "baseline": {"scores": {"cell_score": 2.0}},
+                        "description": {"scores": {"cell_score": 5.0}},
+                        "full": {"scores": {"cell_score": 5.0}},
+                    },
+                }
+            )
+        assert eval_mod.aggregate(scenarios)["verdict"] == "PASS"
+
+    def test_the_runner_declines_the_cell_without_calling_the_model(self, monkeypatch):
+        called: list[str] = []
+        monkeypatch.setattr(eval_mod, "RATE_LIMIT_SLEEP_SEC", 0)
+        monkeypatch.setattr(
+            eval_mod, "_call_api", lambda *a, **k: called.append("api") or "response"
+        )
+        monkeypatch.setattr(
+            eval_mod,
+            "score_response",
+            lambda *a, **k: {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "judge_failed": False,
+            },
+        )
+        result = eval_mod.eval_one_scenario(
+            "key",
+            self._rule(description=""),
+            "rule",
+            {"id": "S1", "desc": "d", "input": "x", "expected_gate": "apply-rule"},
+            "model",
+            dry_run=False,
+        )
+        assert result["mechanisms"]["description"]["declined"]
+        assert "scores" in result["mechanisms"]["full"]
+        assert len(called) == 2, "one call each for baseline and full, none for description"
+
+    def test_the_motivating_case_is_still_reachable_in_this_repository(self):
+        """If this fails, every rule gained a description and the check idles."""
+        rules_dir = REPO_ROOT / ".claude" / "rules"
+        if not rules_dir.is_dir():
+            pytest.skip("rules directory not present in this checkout")
+        empty = [
+            p.name
+            for p in sorted(rules_dir.glob("*.md"))
+            if not eval_mod.parse_rule(p)["description"]
+        ]
+        assert empty, "no rule target has an empty description, so the collapse cannot occur"
+
+    def test_a_declined_cell_is_not_the_same_exclusion_as_an_unreachable_mechanism(self):
+        """Two exclusions, two causes, two fields. One word would merge them.
+
+        `unreachable_mechanisms` names what the routing gate excluded, which
+        is `full` on a routed target. A cell declined for a collapsed prompt
+        has a different cause and does not join that list, so a reader sent
+        there by a shared word would not find it. It surfaces through the
+        unmeasured machinery instead.
+        """
+        summary = self._declined_run()
+        assert summary["unreachable_mechanisms"] == []
+        assert "description" in summary["best_mechanism_unmeasured"]
+
+    def test_the_two_exclusions_do_not_share_a_key_name(self):
+        """A rename that collapsed them again would pass every other test here."""
+        cell_key = next(k for k in eval_mod._declined_cell("") if k not in
+                        ("response_preview", "scores", "system_prompt_chars"))
+        assert cell_key == "declined"
+        assert cell_key not in self._declined_run()
+        assert "unreachable_mechanisms" in self._declined_run()

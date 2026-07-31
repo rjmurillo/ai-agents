@@ -1528,6 +1528,61 @@ def _judge_score_shape_error(parsed: dict[str, Any]) -> str | None:
 # ---------------------------------------------------------------------------
 
 
+def _prompt_collapses_to_baseline(
+    mechanism: str, system: str, rule: dict[str, str], rule_id: str
+) -> bool:
+    """True when this mechanism hands the model the baseline prompt.
+
+    A target with no description produces an empty description prompt, which
+    is the baseline prompt, so the two mechanisms put identical text in front
+    of the model. Scoring that cell publishes a description average, a gap
+    against baseline and a candidate for best mechanism, all describing a
+    treatment the target never received. The gap is then whatever the two
+    identical runs happened to differ by, and a large enough coin flip
+    certifies a rule the model never saw. Nineteen of this repository's
+    twenty five rule targets carry no description, so this is the common case
+    rather than an edge.
+
+    Written as a comparison against the baseline prompt rather than a test for
+    emptiness so it keeps holding if baseline ever carries text.
+
+    This sees only what `build_system_prompt` produced. A rule with an empty
+    body still yields a `full` prompt carrying the preamble and nothing else,
+    which is a different string from baseline and so passes here, and for a
+    routed target the `full` prompt is replaced after routing resolves a
+    reference. Declining `full` on an empty body would therefore discard a
+    measurement the routed path did make. That case is filed separately
+    rather than guessed at here. See issue 4103.
+    """
+    if mechanism == "baseline":
+        return False
+    return system == build_system_prompt("baseline", rule, rule_id)
+
+
+def _declined_cell(system: str) -> dict[str, Any]:
+    """A cell the run declined to measure, and the reason.
+
+    `graded` False is the existing spelling for a cell carrying no usable
+    measurement, and it deliberately does not set `judge_failed`: the judge
+    did not fail, it was never asked. Marking it as a judge error would report
+    a broken instrument for what is a property of the target.
+
+    Named `declined` rather than `unreachable` because the summary already
+    publishes `unreachable_mechanisms`, and that field means something else:
+    it lists the mechanisms the routing gate excluded, which today is `full`
+    on a routed target. A cell declined here is not in that list, it drops out
+    of its mechanism's average and surfaces through
+    `best_mechanism_unmeasured`. One word covering both exclusions would send
+    a reader to the wrong field to find this one.
+    """
+    return {
+        "response_preview": "(not called: prompt identical to baseline)",
+        "scores": {"graded": False},
+        "declined": "prompt identical to baseline",
+        "system_prompt_chars": len(system),
+    }
+
+
 def eval_one_scenario(
     api_key: str,
     rule: dict[str, str],
@@ -1549,6 +1604,9 @@ def eval_one_scenario(
 
     for mechanism in MECHANISMS:
         system = build_system_prompt(mechanism, rule, rule_id)
+        if _prompt_collapses_to_baseline(mechanism, system, rule, rule_id):
+            result["mechanisms"][mechanism] = _declined_cell(system)
+            continue
         routing: dict[str, Any] | None = None
         if dry_run:
             result["mechanisms"][mechanism] = {
@@ -1744,13 +1802,27 @@ def _scenario_score_triple(
 def _route_missed_target(scenario: dict[str, Any], mech: str) -> bool:
     """True when this cell's router did not open the target reference.
 
-    Absent on every cell written before the flag existed, and `None is False`
-    is False, so an archived run counts zero and reproduces unchanged.
+    Absence and a recorded unknown are different facts. A cell written before
+    the flag existed carries no evidence either way, so it counts zero and an
+    archived run reproduces unchanged. A cell that carries the key with
+    something other than a boolean recorded a route result the run could not
+    read, and reading that for truth turns it into a clean route: `None is
+    False` is False, and so is `"false" is False`, so a damaged record and a
+    recorded miss both certify the route they failed to make. Refuse instead,
+    because a refusal is visible where a fabricated match is not.
     """
     routing = scenario["mechanisms"].get(mech, {}).get("routing")
     if not isinstance(routing, dict):
         return False
-    return routing.get("reference_matched") is False
+    if "reference_matched" not in routing:
+        return False
+    matched = routing["reference_matched"]
+    if not isinstance(matched, bool):
+        raise ValueError(
+            f"mechanisms[{mech}].routing.reference_matched must be a boolean, "
+            f"got {type(matched).__name__} {matched!r}"
+        )
+    return not matched
 
 
 def _incomplete_mechanisms(
