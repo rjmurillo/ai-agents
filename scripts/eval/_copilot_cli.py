@@ -133,7 +133,7 @@ class _CopilotCLIProvider:
         Returns ``None`` when no matching session is found, which leaves the
         caller on the stdout path. That path no longer grades silently: it
         refuses a reply carrying tool traces, and refuses an unconfirmed model
-        unless the operator opts in, because `selectedModel` read here is the
+        unless the operator opts in, because the `model` field read here is the
         only evidence about which model actually answered.
         """
         root = cls._session_state_root()
@@ -149,7 +149,8 @@ class _CopilotCLIProvider:
             except OSError:
                 continue
             matched = False
-            model_used: str | None = None
+            message_models: list[str] = []
+            unattributed = False
             chunks: list[str] = []
             for line in raw.splitlines():
                 line = line.strip()
@@ -171,15 +172,64 @@ class _CopilotCLIProvider:
                     if cwd != sandbox:
                         break
                     matched = True
-                    selected = data.get("selectedModel")
-                    model_used = selected if isinstance(selected, str) else None
                 elif kind == "assistant.message" and matched:
+                    if cls._is_subagent_message(event, data):
+                        continue
                     content = data.get("content")
                     if isinstance(content, str) and content.strip():
                         chunks.append(content.strip())
+                        spoke = data.get("model")
+                        if isinstance(spoke, str) and spoke:
+                            if spoke not in message_models:
+                                message_models.append(spoke)
+                        else:
+                            unattributed = True
             if matched:
-                return "\n\n".join(chunks), model_used
+                return "\n\n".join(chunks), cls._model_that_spoke(
+                    message_models, unattributed=unattributed
+                )
         return None
+
+    @staticmethod
+    def _is_subagent_message(
+        event: dict[str, object], data: dict[str, object]
+    ) -> bool:
+        """Say whether this message came from a sub-agent, not the model asked.
+
+        A sub-agent runs its own model and writes into the parent session's
+        log, so its text is internal working output that no user ever sees.
+        Joining it into the answer grades text the requested model did not
+        write, and its model would either taint the attribution or refuse a run
+        whose real answer was fine.
+
+        Two markers appear together in real logs, and either alone is enough:
+        the CLI stamps `agentId` on the event and `parentToolCallId` on the
+        message. In a sampled session both marked exactly the same 671 events,
+        and every message they marked ran a different model than the primary.
+        """
+        return "agentId" in event or "parentToolCallId" in data
+
+    @staticmethod
+    def _model_that_spoke(
+        message_models: list[str], *, unattributed: bool
+    ) -> str | None:
+        """Return the single model that produced every accepted message.
+
+        `assistant.message` carries the model that generated that specific
+        text. The session's opening `selectedModel` does not: a
+        `session.model_change` event can supersede it mid-session, and it is
+        absent entirely from most observed session logs, so reading it would
+        both miss substitutions and refuse the common case.
+
+        Returns ``None`` unless exactly one model accounts for the whole
+        answer. More than one model means the answer is a blend that no single
+        model produced. ``unattributed`` means some message contributed text
+        while naming no model, so a second message naming one would otherwise
+        vouch for text it did not write.
+        """
+        if unattributed or len(message_models) != 1:
+            return None
+        return message_models[0]
 
     @classmethod
     def _is_footer_line(cls, line: str) -> bool:
@@ -239,14 +289,19 @@ class _CopilotCLIProvider:
         return raw.strip().lower() in {"1", "true", "yes", "on"}
 
     @classmethod
-    def _carries_tool_trace(cls, text: str) -> bool:
-        """Report whether stdout still holds a CLI tool-call trace.
+    def _may_carry_tool_trace(cls, text: str) -> bool:
+        """Report whether a line in stdout opens the way a CLI trace opens.
 
         Only meaningful on the stdout fallback. When the structured transcript
         is readable the answer comes from `assistant.message`, which never
-        carries a trace. On the fallback there is no reliable boundary between
-        the trace and the reply, so a run that hits this is refused rather than
-        graded: scoring a trace would score the harness, not the model.
+        carries a trace.
+
+        This deliberately cannot tell a real trace apart from an answer that
+        happens to begin with the same marker, and it refuses both. On the
+        fallback there is no boundary between a trace and the reply, so the
+        choice is a visible refusal an operator can clear by pointing at the
+        session directory, or silently scoring the harness as the model. Only
+        one of those leaves a mark, so the name says `may`.
         """
         return any(
             line.lstrip().startswith(cls._TRACE_LINE_PREFIXES)
@@ -352,12 +407,13 @@ class _CopilotCLIProvider:
             model_verified = model_used is not None
         if not answer:
             answer = self._strip_footer(completed.stdout or "")
-            if answer and self._carries_tool_trace(answer):
+            if answer and self._may_carry_tool_trace(answer):
                 raise RuntimeError(
                     f"{self._provider_label} could not read a reply for model "
-                    f"{model}: the session transcript was unavailable and stdout "
-                    "carries tool-call traces, which have no reliable boundary "
-                    "with the answer. Point "
+                    f"{model}: the session transcript was unavailable and a line "
+                    "in stdout opens with a CLI trace marker. Nothing on this "
+                    "path can tell a trace apart from an answer that starts the "
+                    "same way, so the run is refused rather than graded. Point "
                     f"{self._SESSION_STATE_ENV} at the CLI session directory so "
                     "the structured transcript can be read."
                 )

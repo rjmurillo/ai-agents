@@ -7836,7 +7836,7 @@ class TestThePublishedArchiveWasNotGradedOnHarnessOutput:
 
     `_read_session_transcript` landed on 2026-07-30; these artifacts are dated
     2026-07-29, so all eight took the stdout fallback. That path can carry CLI
-    tool traces into the judge (fixed in `_copilot_cli._carries_tool_trace`).
+    tool traces into the judge (fixed in `_copilot_cli._may_carry_tool_trace`).
     Whether it actually did is a question about the closed record, answerable
     by reading it, so this measures rather than assumes. Adversarial review
     round 32.

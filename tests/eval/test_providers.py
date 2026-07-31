@@ -1024,7 +1024,10 @@ def test_copilot_transcript_survives_malformed_lines(
             json.dumps({"type": "assistant.message", "data": None}),
             json.dumps({"type": "assistant.message"}),
             json.dumps(
-                {"type": "assistant.message", "data": {"content": "survived"}}
+                {
+                    "type": "assistant.message",
+                    "data": {"content": "survived", "model": "claude-opus-5"},
+                }
             ),
         ]
         (session_dir / "events.jsonl").write_text(
@@ -1128,7 +1131,7 @@ class TestTheStdoutFallbackWillNotGradeHarnessOutput:
             "\u25cf tool trace\n  \u2502 ls -la\nMODEL ANSWER\n\nTokens     1.2k\n",
         )
 
-        with pytest.raises(RuntimeError, match="tool-call traces"):
+        with pytest.raises(RuntimeError, match="trace marker"):
             provider.complete(
                 messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
             )
@@ -1141,7 +1144,7 @@ class TestTheStdoutFallbackWillNotGradeHarnessOutput:
             monkeypatch, tmp_path, f"{prefix} trace\nMODEL ANSWER\n"
         )
 
-        with pytest.raises(RuntimeError, match="tool-call traces"):
+        with pytest.raises(RuntimeError, match="trace marker"):
             provider.complete(
                 messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
             )
@@ -1161,7 +1164,7 @@ class TestTheStdoutFallbackWillNotGradeHarnessOutput:
             "Working on it\n  \u2502 ls -la\nMODEL ANSWER\n",
         )
 
-        with pytest.raises(RuntimeError, match="tool-call traces"):
+        with pytest.raises(RuntimeError, match="trace marker"):
             provider.complete(
                 messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
             )
@@ -1209,8 +1212,8 @@ class TestTheStdoutFallbackWillNotGradeHarnessOutput:
     def test_the_detector_is_not_vacuous(self) -> None:
         """A detector that cannot fire has not been run."""
         provider = _providers._CopilotCLIProvider
-        assert provider._carries_tool_trace("\u25cf tool trace\nanswer") is True
-        assert provider._carries_tool_trace("just an answer") is False
+        assert provider._may_carry_tool_trace("\u25cf tool trace\nanswer") is True
+        assert provider._may_carry_tool_trace("just an answer") is False
 
 
 class TestAReplyIsNotGradedForAModelNobodyConfirmed:
@@ -1339,3 +1342,455 @@ class TestAReplyIsNotGradedForAModelNobodyConfirmed:
         monkeypatch.delenv("EVAL_COPILOT_ALLOW_UNVERIFIED_MODEL", raising=False)
 
         assert _providers._CopilotCLIProvider._unverified_model_allowed() is False
+
+
+# ---------------------------------------------------------------------------
+# The session's opening `selectedModel` is not evidence about which model
+# produced a reply. A `session.model_change` event can supersede it, and it is
+# absent from most real session logs, so reading it both missed substitutions
+# and refused the common case. `assistant.message` carries the model that
+# generated that specific text, and every observed CLI version emits it.
+# ---------------------------------------------------------------------------
+
+
+def _run_writing_raw_session(
+    monkeypatch: pytest.MonkeyPatch, root, build_events, *, stdout: str = "ignored\n"
+):
+    """Patch subprocess.run so it writes caller-shaped events for the sandbox."""
+    import uuid
+
+    def fake_run(argv: list[str], **kwargs: object) -> _FakeCompleted:
+        session_dir = root / str(uuid.uuid4())
+        session_dir.mkdir(parents=True, exist_ok=True)
+        events = build_events(str(kwargs["cwd"]))
+        (session_dir / "events.jsonl").write_text(
+            "\n".join(json.dumps(e) for e in events) + "\n", encoding="utf-8"
+        )
+        return _FakeCompleted(stdout=stdout)
+
+    monkeypatch.setattr(_copilot_cli.subprocess, "run", fake_run)
+    monkeypatch.setenv("COPILOT_SESSION_STATE_DIR", str(root))
+
+
+def _start(cwd: str, **extra: object) -> dict:
+    return {"type": "session.start", "data": {"context": {"cwd": cwd}, **extra}}
+
+
+def _msg(content: str, **extra: object) -> dict:
+    return {"type": "assistant.message", "data": {"content": content, **extra}}
+
+
+class TestTheModelIsReadFromTheMessageThatAnswered:
+    """The reply's own model is the evidence, not the session's first pick."""
+
+    def test_a_session_without_selectedmodel_still_confirms_the_model(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        # Most real session logs carry no `selectedModel` at all. Reading only
+        # that field left the model unconfirmed and refused every such run,
+        # discarding real data even though the message named the model.
+        _run_writing_raw_session(
+            monkeypatch,
+            tmp_path,
+            lambda cwd: [_start(cwd), _msg("the answer", model="claude-opus-5")],
+        )
+        provider = _providers._CopilotCLIProvider()
+
+        out = provider.complete(
+            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+        )
+
+        assert out == "the answer"
+
+    def test_the_message_model_overrides_a_stale_selected_model(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        # The opening pick agrees with the request while the model that
+        # actually answered does not. Trusting the pick would publish Sol's
+        # output under Opus's name.
+        _run_writing_raw_session(
+            monkeypatch,
+            tmp_path,
+            lambda cwd: [
+                _start(cwd, selectedModel="claude-opus-5"),
+                _msg("the answer", model="gpt-5.6-sol"),
+            ],
+        )
+        provider = _providers._CopilotCLIProvider()
+
+        with pytest.raises(RuntimeError, match="ran gpt-5.6-sol instead"):
+            provider.complete(
+                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+            )
+
+    def test_a_midsession_model_change_is_caught_through_the_message(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        # Shaped after a real log: `session.model_change` supersedes the
+        # opening pick, and the message that follows carries the new model.
+        _run_writing_raw_session(
+            monkeypatch,
+            tmp_path,
+            lambda cwd: [
+                _start(cwd, selectedModel="claude-opus-5"),
+                {
+                    "type": "session.model_change",
+                    "data": {"newModel": "gpt-5.6-sol", "reasoningEffort": "high"},
+                },
+                _msg("the answer", model="gpt-5.6-sol"),
+            ],
+        )
+        provider = _providers._CopilotCLIProvider()
+
+        with pytest.raises(RuntimeError, match="ran gpt-5.6-sol instead"):
+            provider.complete(
+                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+            )
+
+    def test_two_models_in_one_answer_confirm_nothing(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        # A blended answer has no single author, so no model earns the score.
+        _run_writing_raw_session(
+            monkeypatch,
+            tmp_path,
+            lambda cwd: [
+                _start(cwd),
+                _msg("first half", model="claude-opus-5"),
+                _msg("second half", model="gpt-5.6-sol"),
+            ],
+        )
+        provider = _providers._CopilotCLIProvider()
+
+        with pytest.raises(RuntimeError, match="could not confirm which model"):
+            provider.complete(
+                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+            )
+
+    def test_a_message_that_names_no_model_confirms_nothing(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        _run_writing_raw_session(
+            monkeypatch, tmp_path, lambda cwd: [_start(cwd), _msg("the answer")]
+        )
+        provider = _providers._CopilotCLIProvider()
+
+        with pytest.raises(RuntimeError, match="could not confirm which model"):
+            provider.complete(
+                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+            )
+
+    def test_a_message_holding_no_text_contributes_no_model(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        # Only messages whose text reaches the judge may vouch for a model.
+        # An empty message is dropped from the answer, so counting its model
+        # would refuse a run on evidence the answer never used.
+        _run_writing_raw_session(
+            monkeypatch,
+            tmp_path,
+            lambda cwd: [
+                _start(cwd),
+                _msg("   ", model="gpt-5.6-sol"),
+                _msg("the answer", model="claude-opus-5"),
+            ],
+        )
+        provider = _providers._CopilotCLIProvider()
+
+        out = provider.complete(
+            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+        )
+
+        assert out == "the answer"
+
+    def test_a_repeated_model_across_messages_still_confirms_one_author(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        _run_writing_raw_session(
+            monkeypatch,
+            tmp_path,
+            lambda cwd: [
+                _start(cwd),
+                _msg("first", model="claude-opus-5"),
+                _msg("second", model="claude-opus-5"),
+            ],
+        )
+        provider = _providers._CopilotCLIProvider()
+
+        out = provider.complete(
+            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+        )
+
+        assert out == "first\n\nsecond"
+
+    def test_text_from_an_unattributed_message_is_not_vouched_for(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        # Both messages reach the judge, but only one says who wrote it.
+        # Letting the attributed message speak for both would publish text
+        # under a model that may not have produced it.
+        _run_writing_raw_session(
+            monkeypatch,
+            tmp_path,
+            lambda cwd: [
+                _start(cwd),
+                _msg("verified part", model="claude-opus-5"),
+                _msg("unverified part"),
+            ],
+        )
+        provider = _providers._CopilotCLIProvider()
+
+        with pytest.raises(RuntimeError, match="could not confirm which model"):
+            provider.complete(
+                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+            )
+
+    def test_an_unattributed_empty_message_does_not_taint_confirmation(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        # An empty message contributes no text, so it cannot carry unattributed
+        # text. Refusing on it would discard a run over evidence the answer
+        # never used.
+        _run_writing_raw_session(
+            monkeypatch,
+            tmp_path,
+            lambda cwd: [
+                _start(cwd),
+                _msg("  "),
+                _msg("the answer", model="claude-opus-5"),
+            ],
+        )
+        provider = _providers._CopilotCLIProvider()
+
+        out = provider.complete(
+            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+        )
+
+        assert out == "the answer"
+
+    @pytest.mark.parametrize("bad", [123, None, "", {"name": "opus"}, ["opus"]])
+    def test_a_lone_message_with_a_blank_model_reads_as_unattributed(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path, bad: object
+    ) -> None:
+        # An empty string is not the name of a model. Treating it as one would
+        # report a substitution by a model called "", which sends the operator
+        # hunting for a swap that never happened instead of fixing the missing
+        # attribution. The single message keeps the blend check out of the way,
+        # so the refusal can only come from the attribution check.
+        _run_writing_raw_session(
+            monkeypatch,
+            tmp_path,
+            lambda cwd: [_start(cwd), _msg("the answer", model=bad)],
+        )
+        provider = _providers._CopilotCLIProvider()
+
+        with pytest.raises(RuntimeError, match="could not confirm which model"):
+            provider.complete(
+                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+            )
+
+    @pytest.mark.parametrize("bad", [123, None, "", {"name": "opus"}, ["opus"]])
+    def test_a_message_whose_model_is_not_a_name_is_unattributed(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path, bad: object
+    ) -> None:
+        _run_writing_raw_session(
+            monkeypatch,
+            tmp_path,
+            lambda cwd: [
+                _start(cwd),
+                _msg("the answer", model=bad),
+                _msg("second part", model="claude-opus-5"),
+            ],
+        )
+        provider = _providers._CopilotCLIProvider()
+
+        with pytest.raises(RuntimeError, match="could not confirm which model"):
+            provider.complete(
+                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+            )
+
+
+# ---------------------------------------------------------------------------
+# A sub-agent runs its own model and writes into the parent session's log. In a
+# sampled real session, 4465 primary messages carried neither marker while 671
+# sub-agent messages carried both `agentId` and `parentToolCallId`, and every
+# one of those ran a different model than the primary.
+# ---------------------------------------------------------------------------
+
+
+class TestSubAgentOutputIsNotTheModelsAnswer:
+    """Only the primary interaction is the reply the judge should score."""
+
+    @staticmethod
+    def _sub(
+        content: str, *, model: str, by_agent_id: bool = False
+    ) -> dict[str, object]:
+        data: dict[str, object] = {"content": content, "model": model}
+        event: dict[str, object] = {"type": "assistant.message", "data": data}
+        if by_agent_id:
+            event["agentId"] = "agent-1"
+        else:
+            data["parentToolCallId"] = "tool-1"
+        return event
+
+    def test_subagent_text_is_kept_out_of_the_graded_answer(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        _run_writing_raw_session(
+            monkeypatch,
+            tmp_path,
+            lambda cwd: [
+                _start(cwd),
+                self._sub("SUBAGENT INTERNAL RESULT", model="claude-opus-5"),
+                _msg("PRIMARY USER-FACING ANSWER", model="claude-opus-5"),
+            ],
+        )
+        provider = _providers._CopilotCLIProvider()
+
+        out = provider.complete(
+            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+        )
+
+        assert out == "PRIMARY USER-FACING ANSWER"
+
+    def test_a_subagent_on_another_model_does_not_refuse_a_good_run(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        # Counting the sub-agent's model would read as a blended answer and
+        # throw away a run whose user-facing reply came from one model.
+        _run_writing_raw_session(
+            monkeypatch,
+            tmp_path,
+            lambda cwd: [
+                _start(cwd),
+                self._sub("side quest", model="gpt-5.6-sol"),
+                _msg("the answer", model="claude-opus-5"),
+            ],
+        )
+        provider = _providers._CopilotCLIProvider()
+
+        out = provider.complete(
+            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+        )
+
+        assert out == "the answer"
+
+    def test_the_event_level_agent_marker_is_honoured_too(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        _run_writing_raw_session(
+            monkeypatch,
+            tmp_path,
+            lambda cwd: [
+                _start(cwd),
+                self._sub("side quest", model="gpt-5.6-sol", by_agent_id=True),
+                _msg("the answer", model="claude-opus-5"),
+            ],
+        )
+        provider = _providers._CopilotCLIProvider()
+
+        out = provider.complete(
+            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+        )
+
+        assert out == "the answer"
+
+    def test_an_unattributed_subagent_message_does_not_veto_the_answer(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        # The unattributed veto exists for text that reaches the judge. A
+        # sub-agent's text never does, so it must not refuse the run.
+        _run_writing_raw_session(
+            monkeypatch,
+            tmp_path,
+            lambda cwd: [
+                _start(cwd),
+                {
+                    "type": "assistant.message",
+                    "data": {"content": "side quest", "parentToolCallId": "tool-1"},
+                },
+                _msg("the answer", model="claude-opus-5"),
+            ],
+        )
+        provider = _providers._CopilotCLIProvider()
+
+        out = provider.complete(
+            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+        )
+
+        assert out == "the answer"
+
+    def test_a_session_of_only_subagent_messages_confirms_nothing(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        # No primary reply means the transcript answers nothing, so the run
+        # falls to stdout and is refused rather than graded on sub-agent text.
+        _run_writing_raw_session(
+            monkeypatch,
+            tmp_path,
+            lambda cwd: [
+                _start(cwd),
+                self._sub("side quest", model="gpt-5.6-sol"),
+            ],
+        )
+        provider = _providers._CopilotCLIProvider()
+
+        with pytest.raises(RuntimeError, match="could not confirm which model"):
+            provider.complete(
+                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+            )
+
+
+class TestTheTraceRefusalIsDeliberatelyConservative:
+    """The trace check refuses a real answer that opens like a trace.
+
+    That is the intended trade, not an oversight. On the stdout fallback there
+    is no boundary between a trace and the reply, so the alternative to a
+    visible refusal is silently scoring harness output as the model's answer.
+    Anyone tempted to loosen the detector has to delete this test first.
+    """
+
+    @staticmethod
+    def _fallback(monkeypatch: pytest.MonkeyPatch, tmp_path, stdout: str):
+        _allow_unverified_model(monkeypatch)
+        _capture_run(monkeypatch, _FakeCompleted(stdout=stdout))
+        monkeypatch.setenv("COPILOT_SESSION_STATE_DIR", str(tmp_path / "absent"))
+        return _providers._CopilotCLIProvider()
+
+    def test_an_answer_that_opens_with_a_marker_is_refused(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        provider = self._fallback(monkeypatch, tmp_path, "\u25cf a real answer\n")
+
+        with pytest.raises(RuntimeError, match="trace marker"):
+            provider.complete(
+                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+            )
+
+    def test_the_same_answer_without_the_marker_is_graded(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        # Control: the refusal above is caused by the marker, not by the
+        # fallback path itself. Without this the test above proves nothing.
+        provider = self._fallback(monkeypatch, tmp_path, "a real answer\n")
+
+        out = provider.complete(
+            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+        )
+
+        assert out == "a real answer"
+
+    def test_the_refusal_does_not_claim_a_trace_was_found(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        # The check cannot tell a trace from an answer that starts alike, so
+        # the message must report the marker it saw, not a trace it cannot see.
+        provider = self._fallback(monkeypatch, tmp_path, "\u25cf a real answer\n")
+
+        with pytest.raises(RuntimeError) as caught:
+            provider.complete(
+                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
+            )
+
+        assert "carries tool-call traces" not in str(caught.value)
+        assert "opens with a CLI trace marker" in str(caught.value)
