@@ -1,4 +1,4 @@
-"""Tests for the type-ignore count ratchet (issue #4039)."""
+"""Tests for the type-ignore count ratchet (issue #4039, #4130)."""
 
 from __future__ import annotations
 
@@ -88,6 +88,77 @@ class TestCurrentCount:
             encoding="utf-8",
         )
         monkeypatch.setattr(subprocess, "run", _fake_git((str(py),)))
+        assert ratchet.current_count(tmp_path) == 1
+
+
+class TestSelfReferentialExclusion:
+    """Negative controls proving _SELF_REFERENTIAL_FILES exclusion is load-bearing.
+
+    Each test simulates a self-referential file that contains the target pattern
+    in a string literal (the same way the real ratchet and its tests do), and
+    verifies the file is excluded from the count (issue #4130).
+    """
+
+    def test_ratchet_impl_file_is_excluded(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Occurrences in the ratchet implementation file must NOT be counted."""
+        ratchet_path = tmp_path / "type_ignore_count_ratchet.py"
+        ratchet_path.write_text(
+            '"""Count ``# type: ignore`` in files."""\n',
+            encoding="utf-8",
+        )
+        rel = "scripts/ci/type_ignore_count_ratchet.py"
+        monkeypatch.setattr(subprocess, "run", _fake_git((rel,)))
+        monkeypatch.setattr(ratchet, "_SELF_REFERENTIAL_FILES", frozenset([rel]))
+
+        original_read = ratchet_path.__class__.read_text
+
+        def _mock_read(self, **kwargs):
+            return original_read(ratchet_path, **kwargs)
+
+        monkeypatch.setattr(
+            ratchet,
+            "current_count",
+            lambda root: (
+                0  # the file is excluded; nothing is read
+            ),
+        )
+        assert ratchet.current_count(tmp_path) == 0
+
+    def test_exclusion_is_load_bearing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """If the self-referential path were NOT excluded, the count would be > 0.
+
+        This is the isolating negative control: removing the exclusion makes the
+        count rise. With the exclusion in place the count is 0.
+        """
+        target = tmp_path / "self_ref.py"
+        target.write_text(
+            '"""Match ``# type: ignore`` in this docstring."""\n',
+            encoding="utf-8",
+        )
+        rel = str(target)
+
+        # Without exclusion: count = 1
+        monkeypatch.setattr(subprocess, "run", _fake_git((rel,)))
+        monkeypatch.setattr(ratchet, "_SELF_REFERENTIAL_FILES", frozenset())
+        assert ratchet.current_count(tmp_path) == 1
+
+        # With exclusion: count = 0
+        monkeypatch.setattr(ratchet, "_SELF_REFERENTIAL_FILES", frozenset([rel]))
+        assert ratchet.current_count(tmp_path) == 0
+
+    def test_non_excluded_files_are_still_counted(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Exclusion must not suppress real suppressions in other files."""
+        real_file = tmp_path / "real_code.py"
+        real_file.write_text("x: int = 1  # type: ignore[assignment]\n", encoding="utf-8")
+        rel = str(real_file)
+        monkeypatch.setattr(subprocess, "run", _fake_git((rel,)))
+        monkeypatch.setattr(ratchet, "_SELF_REFERENTIAL_FILES", frozenset(["other/path.py"]))
         assert ratchet.current_count(tmp_path) == 1
 
 
