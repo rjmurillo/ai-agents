@@ -29,13 +29,17 @@ SPEC_STEP0_GATES = (
     PROJECT_ROOT / ".claude" / "skills" / "spec-generator" / "references" / "spec-step0-gates.md"
 )
 SKILL_STEP0_GATES = (
-    PROJECT_ROOT / "src" / "copilot-cli" / "skills" / "spec-generator" / "references" / "spec-step0-gates.md"
+    PROJECT_ROOT
+    / "src" / "copilot-cli" / "skills" / "spec-generator" / "references" / "spec-step0-gates.md"
 )
 SPEC_PRIOR_ART_SCHEMA = (
-    PROJECT_ROOT / ".claude" / "skills" / "spec-generator" / "references" / "spec-prior-art-schema.md"
+    PROJECT_ROOT
+    / ".claude" / "skills" / "spec-generator" / "references" / "spec-prior-art-schema.md"
 )
 SKILL_PRIOR_ART_SCHEMA = (
-    PROJECT_ROOT / "src" / "copilot-cli" / "skills" / "spec-generator" / "references" / "spec-prior-art-schema.md"
+    PROJECT_ROOT
+    / "src" / "copilot-cli" / "skills" / "spec-generator" / "references"
+    / "spec-prior-art-schema.md"
 )
 
 sys.path.insert(0, str(PROJECT_ROOT / "scripts"))

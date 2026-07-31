@@ -58,10 +58,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SPEC_MD = PROJECT_ROOT / ".claude" / "commands" / "spec.md"
 SKILL_MD = PROJECT_ROOT / "src" / "copilot-cli" / "skills" / "spec" / "SKILL.md"
 SPEC_PRIOR_ART_SCHEMA = (
-    PROJECT_ROOT / ".claude" / "skills" / "spec-generator" / "references" / "spec-prior-art-schema.md"
+    PROJECT_ROOT
+    / ".claude" / "skills" / "spec-generator" / "references" / "spec-prior-art-schema.md"
 )
 SKILL_PRIOR_ART_SCHEMA = (
-    PROJECT_ROOT / "src" / "copilot-cli" / "skills" / "spec-generator" / "references" / "spec-prior-art-schema.md"
+    PROJECT_ROOT
+    / "src" / "copilot-cli" / "skills" / "spec-generator" / "references"
+    / "spec-prior-art-schema.md"
 )
 # The skills output tree (two levels above the mirror) locates the plugin.json
 # that the #2743 translation reads for the agent_type namespace.

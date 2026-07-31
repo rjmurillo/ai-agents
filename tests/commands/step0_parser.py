@@ -64,7 +64,8 @@ def parse_hedge_phrases(spec_text: str) -> list[str]:
     but visible to this parser. Returns the phrases in source order.
     """
     block_match = re.search(
-        r"\*\*Canonical hedge phrase list\*\*.*?\| Phrase.*?\n(.*?)\n<!-- step0:hedge-table-end -->",
+        r"\*\*Canonical hedge phrase list\*\*.*?\| Phrase.*?\n(.*?)\n"
+        r"<!-- step0:hedge-table-end -->",
         spec_text,
         re.DOTALL,
     )
@@ -190,7 +191,8 @@ def q3_specific(answer: str) -> bool:
             # Slash-separated team names (`Bleu/Delos rotation`) are
             # supported via the `(?:/[A-Z][a-zA-Z]*)*` alternation
             # (devin PR #1931 comment 3214020343).
-            r"\b[A-Z][a-zA-Z]* on (?:the )?[A-Z][a-zA-Z]*(?:/[A-Z][a-zA-Z]*)* (?:team|service|squad|rotation)",
+            r"\b[A-Z][a-zA-Z]* on (?:the )?[A-Z][a-zA-Z]*"
+            r"(?:/[A-Z][a-zA-Z]*)* (?:team|service|squad|rotation)",
             answer,
         )
     )
@@ -285,7 +287,10 @@ def evaluate_step0(answers: dict[str, str], phrases: list[str]) -> str | None:
 def baseline_answers() -> dict[str, str]:
     """Canonical "passes" answer set used as a fixture in tests."""
     return {
-        "Q1": "Three teams (Bleu, Delos, Calc) escalated KeyVault deploy failures in #1700, #1820, #1850.",
+        "Q1": (
+            "Three teams (Bleu, Delos, Calc) escalated KeyVault deploy failures"
+            " in #1700, #1820, #1850."
+        ),
         "Q2": "Engineers manually retry deploys 3 times before opening a ticket.",
         "Q3": "Felix on the Bleu rotation, blocked on KeyVault deploys, three times last week.",
         "Q4": "Add retry-with-backoff to the deploy script, ~4 hours.",

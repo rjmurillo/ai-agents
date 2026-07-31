@@ -45,18 +45,23 @@ SKILLS_DIR = SKILL_MD.parent.parent
 # Reference files extracted by issue #3632 (progressive disclosure split).
 # Agents read both spec.md and these files during a /spec invocation.
 SPEC_STEP0_GATES = (
-    PROJECT_ROOT / ".claude" / "skills" / "spec-generator" / "references" / "spec-step0-gates.md"
+    PROJECT_ROOT
+    / ".claude" / "skills" / "spec-generator" / "references" / "spec-step0-gates.md"
 )
 SPEC_PRIOR_ART_SCHEMA = (
-    PROJECT_ROOT / ".claude" / "skills" / "spec-generator" / "references" / "spec-prior-art-schema.md"
+    PROJECT_ROOT
+    / ".claude" / "skills" / "spec-generator" / "references" / "spec-prior-art-schema.md"
 )
 
 # Copilot mirrors of the reference files (verbatim copies, not translated)
 SKILL_STEP0_GATES = (
-    PROJECT_ROOT / "src" / "copilot-cli" / "skills" / "spec-generator" / "references" / "spec-step0-gates.md"
+    PROJECT_ROOT
+    / "src" / "copilot-cli" / "skills" / "spec-generator" / "references" / "spec-step0-gates.md"
 )
 SKILL_PRIOR_ART_SCHEMA = (
-    PROJECT_ROOT / "src" / "copilot-cli" / "skills" / "spec-generator" / "references" / "spec-prior-art-schema.md"
+    PROJECT_ROOT
+    / "src" / "copilot-cli" / "skills" / "spec-generator" / "references"
+    / "spec-prior-art-schema.md"
 )
 
 _build_scripts_dir = str(PROJECT_ROOT / "build" / "scripts")
