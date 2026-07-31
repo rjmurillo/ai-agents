@@ -313,7 +313,6 @@ def calculate_match_score(query: str, skill: dict) -> tuple[float, list[str]]:
     query_domains = detect_query_domains(query)
 
     # Step 2: Check if skill's domains match detected query domains (STRONG signal)
-    domain_matched = False
     for domain, matched_terms in query_domains:
         # Direct domain match (skill has this domain in its domains list)
         if domain in skill_domains:
@@ -321,7 +320,6 @@ def calculate_match_score(query: str, skill: dict) -> tuple[float, list[str]]:
             domain_score = min(50, 35 + len(matched_terms) * 5)
             score += domain_score
             reasons.append(f"domain: {domain} ({', '.join(matched_terms[:2])})")
-            domain_matched = True
             break  # Only count best domain match
 
     # Step 3: Check if query domain terms appear in skill keywords/description

@@ -226,7 +226,10 @@ class TestInvokeCopilotAssignment:
         }
         with (
             patch("invoke_copilot_assignment.assert_gh_authenticated"),
-            patch("invoke_copilot_assignment.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
+            patch(
+                "invoke_copilot_assignment.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
             patch("invoke_copilot_assignment._load_synthesis_config", return_value=config),
             patch(
                 "subprocess.run",

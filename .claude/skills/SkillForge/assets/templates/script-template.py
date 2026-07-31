@@ -154,7 +154,6 @@ def process(input_path: Path, options: dict) -> Result:
     Returns:
         Result object with success status and data
     """
-    errors: list[str] = []
     warnings: list[str] = []
 
     # ----- Input Validation -----

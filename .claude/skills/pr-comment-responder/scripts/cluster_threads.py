@@ -47,6 +47,7 @@ import argparse
 import json
 import re
 import sys
+from pathlib import Path
 from typing import NoReturn
 
 # A review thread in the canonical flat shape produced by
@@ -543,7 +544,6 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _project_root() -> Path:
     import os
-    from pathlib import Path
 
     workspace = os.environ.get("GITHUB_WORKSPACE")
     if workspace:
@@ -568,8 +568,6 @@ def _load_threads_from_file(path: str) -> list[Thread]:
     crashing the clusterer. Relative paths are anchored to the project root so
     the caller's current working directory cannot change what file is read.
     """
-    from pathlib import Path
-
     requested_path = Path(path)
     project_root = _project_root()
     if requested_path.is_absolute():
