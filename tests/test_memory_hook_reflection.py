@@ -11,6 +11,7 @@ from memory_enhancement.hooks.session_end_memory import (
     _find_repo_root,
     _format_reflection,
     _generate_reflection,
+    main,
 )
 
 
@@ -222,3 +223,85 @@ class TestGenerateReflection:
 
         result = _generate_reflection(memories_dir, tmp_path)
         assert "Decayed: 2 exceed the age threshold" in result
+
+
+class TestExitContract:
+    """SessionEnd cannot inject context, so exit 2 buys nothing (issue #4011).
+
+    The value is the confidence persistence inside reinforce_memories, which
+    must still happen on the path that returns 0.
+    """
+
+    @staticmethod
+    def _repo(tmp_path: Path):
+        (tmp_path / ".serena" / "memories").mkdir(parents=True)
+        return tmp_path
+
+    @pytest.mark.unit
+    def test_summary_goes_to_stderr_and_returns_zero(self, tmp_path, monkeypatch, capsys):
+        repo = self._repo(tmp_path)
+        monkeypatch.setattr(
+            "memory_enhancement.hooks.session_end_memory._find_repo_root",
+            lambda start=None: repo,
+        )
+        monkeypatch.setattr(
+            "memory_enhancement.hooks.session_end_memory._generate_reflection",
+            lambda *_args: "<session-reflection>ok</session-reflection>",
+        )
+
+        exit_code = main()
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "<session-reflection>" in captured.err
+        assert captured.out == ""
+
+    @pytest.mark.unit
+    def test_reinforce_memories_runs_on_the_zero_exit_path(self, tmp_path, monkeypatch):
+        memories_dir = tmp_path / "memories"
+        memories_dir.mkdir()
+        calls: list[Path] = []
+
+        def fake_reinforce(mem_dir, _repo_root):
+            calls.append(mem_dir)
+            return {}, []
+
+        monkeypatch.setattr(
+            "memory_enhancement.hooks.session_end_memory.reinforce_memories", fake_reinforce
+        )
+        monkeypatch.setattr(
+            "memory_enhancement.hooks.session_end_memory.extract_session_facts",
+            lambda _mem_dir: [],
+        )
+        monkeypatch.setattr(
+            "memory_enhancement.hooks.session_end_memory.apply_confidence_decay",
+            lambda _mem_dir, _repo_root: [],
+        )
+        monkeypatch.setattr(
+            "memory_enhancement.health.generate_health_report",
+            lambda *_args, **_kwargs: MagicMock(
+                total_memories=1, health_score=1.0, stale_memories=[], recommendations=[]
+            ),
+        )
+
+        _generate_reflection(memories_dir, tmp_path)
+
+        assert calls == [memories_dir]
+
+    @pytest.mark.unit
+    def test_missing_memories_dir_returns_zero(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            "memory_enhancement.hooks.session_end_memory._find_repo_root",
+            lambda start=None: tmp_path,
+        )
+
+        assert main() == 0
+
+    @pytest.mark.unit
+    def test_no_repo_root_returns_zero(self, monkeypatch):
+        monkeypatch.setattr(
+            "memory_enhancement.hooks.session_end_memory._find_repo_root",
+            lambda start=None: None,
+        )
+
+        assert main() == 0

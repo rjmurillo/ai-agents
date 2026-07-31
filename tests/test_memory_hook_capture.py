@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import json
 
 import pytest
 
@@ -15,6 +16,7 @@ from memory_enhancement.extraction import (
 from memory_enhancement.hooks.post_tool_call_memory import (
     _analyze_tool_result,
     _read_tool_result,
+    main,
 )
 
 
@@ -165,3 +167,92 @@ class TestFormatSuggestion:
         assert "</memory-suggestion>" in result
         assert "type: observation" in result
         assert "citation: tool_result:Read" in result
+
+
+class TestToolResponsePayload:
+    """Claude Code sends tool_response, not result (issue #4011)."""
+
+    @staticmethod
+    def _stdin(monkeypatch, payload):
+        monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(payload)))
+
+    @pytest.mark.unit
+    def test_dict_tool_response_yields_error_text(self, monkeypatch):
+        self._stdin(monkeypatch, {
+            "tool_name": "Bash",
+            "tool_response": {
+                "stdout": "ERROR: ModuleNotFoundError: No module named foo",
+                "stderr": "Traceback (most recent call last):",
+            },
+        })
+
+        name, result = _read_tool_result()
+
+        assert name == "Bash"
+        assert "ModuleNotFoundError" in result
+        assert "Traceback" in result
+
+    @pytest.mark.unit
+    def test_real_payload_reaches_exit_code_two(self, monkeypatch):
+        self._stdin(monkeypatch, {
+            "tool_name": "Bash",
+            "tool_response": {"stdout": "ERROR: ModuleNotFoundError: No module named foo"},
+        })
+
+        assert main() == 2
+
+    @pytest.mark.unit
+    def test_result_key_still_wins_for_back_compat(self, monkeypatch):
+        self._stdin(monkeypatch, {
+            "tool_name": "Bash",
+            "result": "legacy text",
+            "tool_response": {"stdout": "ignored"},
+        })
+
+        _name, result = _read_tool_result()
+
+        assert result == "legacy text"
+
+    @pytest.mark.unit
+    def test_empty_tool_response_dict_yields_empty_text(self, monkeypatch):
+        self._stdin(monkeypatch, {"tool_name": "Bash", "tool_response": {}})
+
+        _name, result = _read_tool_result()
+
+        assert result == ""
+
+    @pytest.mark.unit
+    def test_bare_string_tool_response(self, monkeypatch):
+        self._stdin(monkeypatch, {"tool_name": "Read", "tool_response": "plain text"})
+
+        _name, result = _read_tool_result()
+
+        assert result == "plain text"
+
+    @pytest.mark.unit
+    def test_list_tool_response_is_joined(self, monkeypatch):
+        self._stdin(monkeypatch, {
+            "tool_name": "Read",
+            "tool_response": [{"content": "first"}, {"content": "second"}],
+        })
+
+        _name, result = _read_tool_result()
+
+        assert result == "first\nsecond"
+
+    @pytest.mark.unit
+    def test_null_tool_response_yields_empty_text(self, monkeypatch):
+        self._stdin(monkeypatch, {"tool_name": "Bash", "tool_response": None})
+
+        _name, result = _read_tool_result()
+
+        assert result == ""
+
+    @pytest.mark.unit
+    def test_benign_output_returns_zero(self, monkeypatch):
+        self._stdin(monkeypatch, {
+            "tool_name": "Bash",
+            "tool_response": {"stdout": "ok"},
+        })
+
+        assert main() == 0
