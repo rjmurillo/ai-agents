@@ -99,14 +99,22 @@ def _categorize_error(exc: Exception) -> str:
     Subprocess-backed providers have no HTTP status at all, so their failures
     are read from text instead. Anything unrecognized falls back to the
     transient default, which retries rather than discarding a sample.
+
+    A status, when the message carries one, outranks any text hint. The HTTP
+    error shape appends the sanitized response body, so a 4xx whose body
+    happens to say "timed out" would otherwise be read as a timeout and
+    retried, contradicting the no-retry rule this module documents for
+    non-transient 4xx. Text hints are the fallback for the providers that
+    report no status at all, which is the only population they were chosen to
+    describe.
     """
     message = str(exc)
-    if _TIMEOUT_HINT in message:
-        return ERR_TIMEOUT
     match = _HTTP_STATUS_RE.search(message)
     if match is None:
         # No HTTP status. Check the text signals a subprocess provider can
         # give, then treat the rest as a transient network issue.
+        if _TIMEOUT_HINT in message:
+            return ERR_TIMEOUT
         if _RATE_LIMIT_HINT in message.lower():
             return ERR_RATE_LIMIT
         return ERR_SERVER_ERROR

@@ -306,7 +306,53 @@ def test_normalize_timeout_is_categorized_timeout() -> None:
     assert _eval_api_adapter._categorize_error(exc_info.value) == "timeout"
 
 
-# --- call_api dispatch --------------------------------------------------
+class TestAStatusOutranksATextHint:
+    """A message carrying an HTTP status is classified by that status.
+
+    The HTTP error shape appends the sanitized response body to the message,
+    so an upstream body that happens to contain "timed out" used to be read as
+    a timeout and retried three times, even on a 4xx the module documents as
+    no-retry. Text hints describe the providers that report no status at all.
+    """
+
+    def test_a_4xx_whose_body_mentions_a_timeout_is_not_retried(self) -> None:
+        exc = RuntimeError("Anthropic API returned HTTP 404: upstream timed out")
+
+        category = _eval_api_adapter._categorize_error(exc)
+
+        assert category == "client_error"
+        assert not _eval_api_adapter._is_transient(category)
+
+    def test_an_auth_status_outranks_a_timeout_hint_in_the_body(self) -> None:
+        exc = RuntimeError("Anthropic API returned HTTP 401: session timed out")
+
+        category = _eval_api_adapter._categorize_error(exc)
+
+        assert category == "auth"
+        assert not _eval_api_adapter._is_transient(category)
+
+    def test_a_429_whose_body_mentions_a_timeout_reads_as_a_rate_limit(self) -> None:
+        exc = RuntimeError("Anthropic API returned HTTP 429: retry, request timed out")
+
+        category = _eval_api_adapter._categorize_error(exc)
+
+        assert category == "rate_limit"
+        assert _eval_api_adapter._is_transient(category)
+
+    def test_a_408_still_reads_as_a_timeout_without_any_text_hint(self) -> None:
+        exc = RuntimeError("Anthropic API returned HTTP 408: request took too long")
+
+        assert _eval_api_adapter._categorize_error(exc) == "timeout"
+
+    def test_a_message_with_no_status_still_reads_its_text_hint(self) -> None:
+        exc = RuntimeError("Anthropic API request timed out after 120s.")
+
+        assert _eval_api_adapter._categorize_error(exc) == "timeout"
+
+    def test_a_rate_limit_hint_needs_no_status_to_be_recognized(self) -> None:
+        exc = RuntimeError("copilot exited 1: Rate limit exceeded, try later")
+
+        assert _eval_api_adapter._categorize_error(exc) == "rate_limit"
 
 
 def test_call_api_routes_to_resolve_provider_for_openai(
