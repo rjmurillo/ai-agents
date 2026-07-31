@@ -69,7 +69,7 @@ def _cache_bot_config(
     bots: dict[str, list[str]],
 ) -> dict[str, list[str]]:
     """Store *bots* in module-level cache keyed by *config_path*."""
-    global _bot_authors_cache, _bot_authors_cache_path  # noqa: PLW0603
+    global _bot_authors_cache, _bot_authors_cache_path
     _bot_authors_cache = bots
     _bot_authors_cache_path = config_path
     return bots

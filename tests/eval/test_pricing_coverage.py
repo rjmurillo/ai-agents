@@ -19,8 +19,8 @@ _path_added = str(EVAL_DIR) not in sys.path
 if _path_added:
     sys.path.insert(0, str(EVAL_DIR))
 try:
-    from _anthropic_api import DEFAULT_MODEL  # noqa: E402
-    from _eval_common import (  # noqa: E402
+    from _anthropic_api import DEFAULT_MODEL
+    from _eval_common import (
         MODEL_PRICING_RATES_USD_PER_1K_TOKENS,
     )
 finally:

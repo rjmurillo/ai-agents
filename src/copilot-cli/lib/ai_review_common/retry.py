@@ -28,7 +28,7 @@ def _get_config_int(env_var: str, default: int) -> int:
     return default
 
 
-def invoke_with_retry(  # noqa: UP047
+def invoke_with_retry(
     func: Callable[[], T],
     max_retries: int | None = None,
     initial_delay: int | None = None,

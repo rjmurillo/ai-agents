@@ -420,7 +420,7 @@ class TestMain:
     @patch("subprocess.run")
     @patch("shutil.which")
     def test_quick_mode_skips_slow_checks(
-        self, mock_which: Any, mock_run: Any  # noqa: ANN401
+        self, mock_which: Any, mock_run: Any
     ) -> None:
         mock_run.return_value.returncode = 0
         mock_run.return_value.stdout = ""
@@ -434,7 +434,7 @@ class TestMain:
     @patch("subprocess.run")
     @patch("shutil.which")
     def test_all_pass_returns_zero(
-        self, mock_which: Any, mock_run: Any  # noqa: ANN401
+        self, mock_which: Any, mock_run: Any
     ) -> None:
         mock_run.return_value.returncode = 0
         mock_run.return_value.stdout = ""
@@ -511,7 +511,7 @@ class TestValidateMarkdownLint:
     def test_skip_autofix_runs_check_only(
         self,
         tmp_path: Path,
-        monkeypatch: Any,  # noqa: ANN401
+        monkeypatch: Any,
     ) -> None:
         from scripts.validation.pre_pr import validate_markdown_lint
 
@@ -1234,35 +1234,35 @@ class TestValidateReviewMarker:
         )
 
     def test_missing_script_advisory_returns_true(
-        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+        self, tmp_path: Path, monkeypatch: Any
     ) -> None:
         repo = self._make_repo(tmp_path, with_script=False)
         monkeypatch.delenv("REVIEW_MARKER_ENFORCED", raising=False)
         assert validate_review_marker(repo) is True
 
     def test_missing_script_enforced_returns_false(
-        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+        self, tmp_path: Path, monkeypatch: Any
     ) -> None:
         repo = self._make_repo(tmp_path, with_script=False)
         monkeypatch.setenv("REVIEW_MARKER_ENFORCED", "1")
         assert validate_review_marker(repo) is False
 
     def test_no_marker_advisory_returns_true(
-        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+        self, tmp_path: Path, monkeypatch: Any
     ) -> None:
         repo = self._make_repo(tmp_path, with_script=True)
         monkeypatch.delenv("REVIEW_MARKER_ENFORCED", raising=False)
         assert validate_review_marker(repo) is True
 
     def test_no_marker_enforced_returns_false(
-        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+        self, tmp_path: Path, monkeypatch: Any
     ) -> None:
         repo = self._make_repo(tmp_path, with_script=True)
         monkeypatch.setenv("REVIEW_MARKER_ENFORCED", "1")
         assert validate_review_marker(repo) is False
 
     def test_valid_marker_passes_advisory(
-        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+        self, tmp_path: Path, monkeypatch: Any
     ) -> None:
         repo = self._make_repo(tmp_path, with_script=True)
         self._add_marker(repo)
@@ -1270,7 +1270,7 @@ class TestValidateReviewMarker:
         assert validate_review_marker(repo) is True
 
     def test_valid_marker_passes_enforced(
-        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+        self, tmp_path: Path, monkeypatch: Any
     ) -> None:
         repo = self._make_repo(tmp_path, with_script=True)
         self._add_marker(repo)
@@ -1288,7 +1288,7 @@ class TestValidateCiDependencyPinsSkipsBeforeImporting:
     """
 
     @staticmethod
-    def _block_import(monkeypatch: Any) -> None:  # noqa: ANN401
+    def _block_import(monkeypatch: Any) -> None:
         import sys
 
         # A None entry makes ``import check_ci_dependency_pins`` raise
@@ -1299,7 +1299,7 @@ class TestValidateCiDependencyPinsSkipsBeforeImporting:
     def test_an_absent_github_tree_skips_without_importing(
         self,
         tmp_path: Path,
-        monkeypatch: Any,  # noqa: ANN401
+        monkeypatch: Any,
     ) -> None:
         from checks_tooling import validate_ci_dependency_pins
 
@@ -1313,7 +1313,7 @@ class TestValidateCiDependencyPinsSkipsBeforeImporting:
     def test_an_absent_pyproject_skips_without_importing(
         self,
         tmp_path: Path,
-        monkeypatch: Any,  # noqa: ANN401
+        monkeypatch: Any,
     ) -> None:
         from checks_tooling import validate_ci_dependency_pins
 

@@ -38,13 +38,13 @@ if not os.path.isdir(_lib_dir):
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
-from github_core.api import (  # noqa: E402
+from github_core.api import (
     assert_gh_authenticated,
     gh_api_paginated,
     gh_graphql,
     resolve_repo_params,
 )
-from github_core.bot_config import is_bot  # noqa: E402
+from github_core.bot_config import is_bot
 
 # ---------------------------------------------------------------------------
 # GraphQL: fetch all review threads with path and line info

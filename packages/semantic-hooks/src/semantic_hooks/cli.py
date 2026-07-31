@@ -7,7 +7,6 @@ import shutil
 import sys
 from pathlib import Path
 
-
 CONFIG_DIR = Path.home() / ".semantic-hooks"
 CLAUDE_HOOKS_DIR = Path.home() / ".claude" / "hooks"
 CLAUDE_SETTINGS = Path.home() / ".claude" / "settings.json"

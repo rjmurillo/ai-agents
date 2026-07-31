@@ -2,6 +2,7 @@
 
 from abc import ABC, abstractmethod
 from collections import OrderedDict
+
 import numpy as np
 from numpy.typing import NDArray
 

@@ -19,8 +19,8 @@ _PROJECT_ROOT = _TEST_DIR.parents[3]
 sys.path.insert(0, str(_SCRIPT_DIR))
 sys.path.insert(0, str(_PROJECT_ROOT))
 
-import skill_modularity_audit as audit_module  # noqa: E402
-from skill_modularity_audit import (  # noqa: E402
+import skill_modularity_audit as audit_module
+from skill_modularity_audit import (
     IDEAL_MAX_LINES,
     MAX_H2_SECTIONS,
     SkillAuditResult,

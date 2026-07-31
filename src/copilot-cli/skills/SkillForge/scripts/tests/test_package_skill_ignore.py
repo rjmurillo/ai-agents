@@ -16,7 +16,7 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from package_skill import package_skill  # noqa: E402
+from package_skill import package_skill
 
 
 class PackageSkillIgnoreTest(unittest.TestCase):

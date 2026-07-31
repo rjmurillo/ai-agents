@@ -58,8 +58,8 @@ _LIB_DIR = _resolve_paths_lib_dir()
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-from paths import resolve_artifact_root  # noqa: E402
-from session_init.session_structure import build_session_log  # noqa: E402
+from paths import resolve_artifact_root
+from session_init.session_structure import build_session_log
 
 
 def build_parser() -> argparse.ArgumentParser:

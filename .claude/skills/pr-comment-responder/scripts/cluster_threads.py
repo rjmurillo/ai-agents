@@ -468,12 +468,12 @@ def _fetch_unresolved_threads(owner: str, repo: str, pull_request: int) -> list[
     if lib_dir not in sys.path:
         sys.path.insert(0, lib_dir)
 
-    from github_core.api import (  # noqa: E402
+    from github_core.api import (
         assert_gh_authenticated,
         gh_graphql,
         resolve_repo_params,
     )
-    from github_core.review_threads import (  # noqa: E402
+    from github_core.review_threads import (
         filter_unresolved_threads,
         transform_review_thread,
     )
@@ -541,9 +541,9 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _project_root() -> "Path":
-    from pathlib import Path
+def _project_root() -> Path:
     import os
+    from pathlib import Path
 
     workspace = os.environ.get("GITHUB_WORKSPACE")
     if workspace:

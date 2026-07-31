@@ -404,7 +404,7 @@ def test_forgetful_available(
 
 
 # Prevent pytest from collecting this production function as a test
-setattr(test_forgetful_available, "__test__", False)  # noqa: B010
+setattr(test_forgetful_available, "__test__", False)
 
 
 def get_memory_router_status() -> dict[str, Any]:

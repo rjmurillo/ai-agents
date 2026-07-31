@@ -35,7 +35,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-UTC = timezone.utc  # noqa: UP017 - Python 3.10 compatibility
+UTC = timezone.utc
 
 
 def _resolve_paths_lib_dir() -> Path:
@@ -65,7 +65,7 @@ _LIB_DIR = _resolve_paths_lib_dir()
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-from paths import artifact_dir as _resolve_artifact_dir  # noqa: E402
+from paths import artifact_dir as _resolve_artifact_dir
 
 
 def _artifact_root_is_set() -> bool:
@@ -402,7 +402,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         evidence = gather_evidence(project_dir, args.scope, args.since)
-    except Exception as exc:  # noqa: BLE001 - boundary: report and exit cleanly
+    except Exception as exc:
         print(f"ERROR: evidence gather failed: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 3
 

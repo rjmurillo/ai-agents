@@ -21,7 +21,7 @@ HOOKS_DIR = str(
 )
 sys.path.insert(0, HOOKS_DIR)
 
-import invoke_context_loader  # noqa: E402
+import invoke_context_loader
 
 MARKER = invoke_context_loader.RETRO_STATE_MARKER
 

@@ -40,13 +40,13 @@ if not os.path.isdir(_lib_dir):
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
-from github_core.api import (  # noqa: E402
+from github_core.api import (
     assert_gh_authenticated,
     error_and_exit,
     gh_graphql,
     resolve_repo_params,
 )
-from github_core.placeholder_identity import filter_coauthor_trailers  # noqa: E402
+from github_core.placeholder_identity import filter_coauthor_trailers
 
 # ---------------------------------------------------------------------------
 # GraphQL queries and mutations

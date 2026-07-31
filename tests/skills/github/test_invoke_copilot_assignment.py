@@ -1,7 +1,6 @@
 """Tests for invoke_copilot_assignment.py."""
 
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -17,9 +16,8 @@ for _p in (str(_lib_dir), str(_scripts_dir / "issue")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from github_core.api import RepoInfo  # noqa: E402
-
-from test_helpers import make_completed_process  # noqa: E402
+from github_core.api import RepoInfo
+from test_helpers import make_completed_process
 
 
 @pytest.fixture

@@ -31,8 +31,8 @@ from check_unreachable_code import validate_unreachable_code
 from checks_coverage import (  # noqa: E402
     validate_review_marker,
 )
-from checks_dash import validate_dash_prohibition  # noqa: E402
-from checks_plugin import (  # noqa: E402
+from checks_dash import validate_dash_prohibition
+from checks_plugin import (
     validate_copilot_agent_frontmatter,
     validate_hook_anchoring,
     validate_install_parity,
@@ -41,7 +41,7 @@ from checks_plugin import (  # noqa: E402
     validate_shipped_skill_routes,
     validate_workflow_local_run,
 )
-from checks_spec import (  # noqa: E402
+from checks_spec import (
     validate_agent_catalog,
     validate_build_gates,
     validate_canonical_citations,
@@ -57,7 +57,7 @@ from checks_spec import (  # noqa: E402
     validate_traceability,
     validate_vendor_portability,
 )
-from checks_tooling import (  # noqa: E402
+from checks_tooling import (
     validate_agent_drift,
     validate_ci_dependency_pins,
     validate_copilot_version_pin,
@@ -70,13 +70,13 @@ from checks_tooling import (  # noqa: E402
     validate_workflow_yaml,
     validate_yaml_style,
 )
-from stale_script_refs import validate_stale_script_refs  # noqa: E402
-from validate_argument_hint import validate_argument_hint  # noqa: E402
-from validate_design_review import validate_design_review_frontmatter  # noqa: E402
-from validate_no_orphaned_build_deferrals import (  # noqa: E402
+from stale_script_refs import validate_stale_script_refs
+from validate_argument_hint import validate_argument_hint
+from validate_design_review import validate_design_review_frontmatter
+from validate_no_orphaned_build_deferrals import (
     validate_no_orphaned_build_deferrals,
 )
-from validate_python_syntax import validate_python_syntax  # noqa: E402
+from validate_python_syntax import validate_python_syntax
 
 if TYPE_CHECKING:
     import argparse

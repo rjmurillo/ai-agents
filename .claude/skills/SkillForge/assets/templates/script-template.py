@@ -31,8 +31,6 @@ import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import List, Tuple, Optional, Any
-
 
 # ===========================================================================
 # RESULT TYPES
@@ -53,8 +51,8 @@ class Result:
     success: bool
     message: str
     data: dict = field(default_factory=dict)
-    errors: List[str] = field(default_factory=list)
-    warnings: List[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
     def __bool__(self) -> bool:
         """Allow Result to be used in boolean context."""
@@ -87,7 +85,7 @@ def get_state_path(project_name: str = "default") -> Path:
     return get_state_dir() / f"{safe_name}.json"
 
 
-def load_state(path: Optional[Path] = None) -> dict:
+def load_state(path: Path | None = None) -> dict:
     """
     Load persisted state with graceful fallback.
 
@@ -121,7 +119,7 @@ def load_state(path: Optional[Path] = None) -> dict:
         }
 
 
-def save_state(state: dict, path: Optional[Path] = None) -> None:
+def save_state(state: dict, path: Path | None = None) -> None:
     """
     Save state to disk atomically.
 
@@ -156,8 +154,8 @@ def process(input_path: Path, options: dict) -> Result:
     Returns:
         Result object with success status and data
     """
-    errors: List[str] = []
-    warnings: List[str] = []
+    errors: list[str] = []
+    warnings: list[str] = []
 
     # ----- Input Validation -----
     if not input_path.exists():
@@ -194,7 +192,7 @@ def process(input_path: Path, options: dict) -> Result:
     )
 
 
-def verify_result(result: Result) -> Tuple[bool, str]:
+def verify_result(result: Result) -> tuple[bool, str]:
     """
     Self-verification of the result.
 

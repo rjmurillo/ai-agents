@@ -173,18 +173,18 @@ class SkillValidator:
                 VALID_AGENT_TYPES,
             )
         except ImportError:
-            ALLOWED_PROPERTIES = {  # noqa: N806
+            ALLOWED_PROPERTIES = {
                 'name', 'description', 'license', 'allowed-tools', 'metadata',
                 'model', 'context', 'agent', 'hooks', 'user-invocable', 'version',
                 'argument-hint', 'size-exception'
             }
-            REQUIRED_PROPERTIES = {'name', 'description'}  # noqa: N806
-            RECOMMENDED_PROPERTIES = {'license'}  # noqa: N806
-            VALID_AGENT_TYPES = {'Explore', 'Plan', 'general-purpose'}  # noqa: N806
-            NAME_MAX_LENGTH = 64  # noqa: N806
-            DESCRIPTION_MAX_LENGTH = 1024  # noqa: N806
-            SEMVER_REGEX = r'^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$'  # noqa: N806
-            NAME_REGEX = r'^[a-z][a-z0-9-]*[a-z0-9]$|^[a-z]$'  # noqa: N806
+            REQUIRED_PROPERTIES = {'name', 'description'}
+            RECOMMENDED_PROPERTIES = {'license'}
+            VALID_AGENT_TYPES = {'Explore', 'Plan', 'general-purpose'}
+            NAME_MAX_LENGTH = 64
+            DESCRIPTION_MAX_LENGTH = 1024
+            SEMVER_REGEX = r'^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$'
+            NAME_REGEX = r'^[a-z][a-z0-9-]*[a-z0-9]$|^[a-z]$'
 
         # Check required fields
         for field in REQUIRED_PROPERTIES:
@@ -335,7 +335,7 @@ class SkillValidator:
         try:
             from _constants import KNOWN_TOOLS
         except ImportError:
-            KNOWN_TOOLS = {  # noqa: N806
+            KNOWN_TOOLS = {
                 'Read', 'Glob', 'Grep', 'Write', 'Edit',
                 'Bash', 'Task', 'WebFetch', 'WebSearch',
                 'TodoWrite', 'NotebookEdit', 'AskUserQuestion'
@@ -372,8 +372,8 @@ class SkillValidator:
         try:
             from _constants import VALID_HOOK_EVENTS, VALID_HOOK_TYPES
         except ImportError:
-            VALID_HOOK_EVENTS = {'PreToolUse', 'PostToolUse', 'Stop'}  # noqa: N806
-            VALID_HOOK_TYPES = {'command', 'prompt'}  # noqa: N806
+            VALID_HOOK_EVENTS = {'PreToolUse', 'PostToolUse', 'Stop'}
+            VALID_HOOK_TYPES = {'command', 'prompt'}
 
         # Validate each hook event
         for hook_name, hook_config in hooks.items():

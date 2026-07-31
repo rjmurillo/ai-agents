@@ -61,17 +61,17 @@ from checks_common import (  # noqa: E402, F401
 
 # Area check modules. Each ``validate_*`` is re-exported below so existing
 # imports of ``scripts.validation.pre_pr`` continue to resolve (issue #2223).
-from checks_coverage import (  # noqa: E402, F401
+from checks_coverage import (
     validate_review_marker,
 )
-from checks_dash import (  # noqa: E402, F401
+from checks_dash import (
     _branch_markdown_files,
     _find_dash_violations,
     _is_vendored,
     _print_dash_violations,
     validate_dash_prohibition,
 )
-from checks_plugin import (  # noqa: E402, F401
+from checks_plugin import (
     _is_linked_worktree,
     validate_copilot_agent_frontmatter,
     validate_hook_anchoring,
@@ -81,7 +81,7 @@ from checks_plugin import (  # noqa: E402, F401
     validate_shipped_skill_routes,
     validate_workflow_local_run,
 )
-from checks_spec import (  # noqa: E402, F401
+from checks_spec import (
     validate_agent_catalog,
     validate_build_gates,
     validate_canonical_citations,
@@ -94,7 +94,7 @@ from checks_spec import (  # noqa: E402, F401
     validate_sync_registry,
     validate_vendor_portability,
 )
-from checks_tooling import (  # noqa: E402, F401
+from checks_tooling import (
     _find_latest_session_log,
     _markdown_lint_targets,
     validate_agent_drift,
@@ -108,25 +108,25 @@ from checks_tooling import (  # noqa: E402, F401
     validate_workflow_yaml,
     validate_yaml_style,
 )
-from pre_pr_sequence import run_all_validations  # noqa: E402
-from stale_script_refs import validate_stale_script_refs  # noqa: E402, F401
-from validate_argument_hint import validate_argument_hint  # noqa: E402, F401
+from pre_pr_sequence import run_all_validations
+from stale_script_refs import validate_stale_script_refs
+from validate_argument_hint import validate_argument_hint
 
 # Frontmatter parsing and DESIGN-REVIEW validation live in sibling modules
 # (issue #2223). Re-exported here so ``_parse_yaml_frontmatter`` and
 # ``validate_design_review_frontmatter`` stay importable from ``pre_pr``.
-from validate_design_review import (  # noqa: E402, F401
+from validate_design_review import (
     _BLOCKING_STATUSES,
     _REQUIRED_FRONTMATTER_FIELDS,
     _VALID_PRIORITIES,
     _VALID_STATUSES,
     validate_design_review_frontmatter,
 )
-from validate_no_orphaned_build_deferrals import (  # noqa: E402, F401
+from validate_no_orphaned_build_deferrals import (
     validate_no_orphaned_build_deferrals,
 )
-from validate_python_syntax import validate_python_syntax  # noqa: E402, F401
-from yaml_utils import _parse_yaml_frontmatter  # noqa: E402, F401
+from validate_python_syntax import validate_python_syntax
+from yaml_utils import _parse_yaml_frontmatter
 
 
 @dataclass

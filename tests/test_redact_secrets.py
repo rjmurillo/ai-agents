@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from redact_secrets import main, redact  # noqa: E402
+from redact_secrets import main, redact
 
 
 class TestTokenShapesRedacted:

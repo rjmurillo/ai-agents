@@ -15,7 +15,7 @@ _TEST_DIR = Path(__file__).resolve().parent
 _SCRIPT_DIR = _TEST_DIR.parent / "scripts"
 sys.path.insert(0, str(_SCRIPT_DIR))
 
-from _constants import ALLOWED_PROPERTIES, OPTIONAL_PROPERTIES  # noqa: E402
+from _constants import ALLOWED_PROPERTIES, OPTIONAL_PROPERTIES
 
 
 class TestAllowedProperties:

@@ -59,7 +59,7 @@ from typing import Any, NamedTuple, cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from _optimizer_adapters import (  # noqa: E402
+from _optimizer_adapters import (
     _DEFAULT_REDUCER,
     _DEFAULT_SAMPLE_REDUCER,
     _DEFAULT_SKIP_POLICY,
@@ -74,7 +74,7 @@ from _optimizer_adapters import (  # noqa: E402
     pytest_results,
     rule_results_multi,
 )
-from _optimizer_core import (  # noqa: E402
+from _optimizer_core import (
     Patch,
     ScoreEvidence,
     _ratio_display,

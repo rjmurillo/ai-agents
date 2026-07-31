@@ -42,11 +42,11 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 try:
-    import paths  # noqa: E402
+    import paths
 except ImportError as exc:  # pragma: no cover - guarded by explicit path check
     raise RuntimeError(f"Failed to import portability helper paths.py from {_LIB_DIR}") from exc
 
-from hook_utilities.path_safety import validate_path_no_traversal  # noqa: E402
+from hook_utilities.path_safety import validate_path_no_traversal
 
 # Default artifact subdirectory written under the artifact root (Issue #2050).
 _CHAOS_SUBDIR = "chaos"

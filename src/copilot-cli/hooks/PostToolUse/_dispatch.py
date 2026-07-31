@@ -14,7 +14,7 @@ from typing import cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from _bootstrap import ensure_plugin_paths  # noqa: E402
+from _bootstrap import ensure_plugin_paths
 
 # Defensive hook-payload ceiling (#3074, ADR-066, CWE-400). Long-session
 # apply_patch calls can cross a few MiB, and no measured host maximum exists.
@@ -175,14 +175,14 @@ def _main() -> int:
     mode = None
     try:
         ensure_plugin_paths()
-        from hook_dispatch import observe_output_policy, run_dispatch  # noqa: E402
+        from hook_dispatch import observe_output_policy, run_dispatch
 
         event, shims, shim_timeouts, mode = _load_manifest(event_dir)
         raw, oversize_exit = _read_payload(event, shims, mode)
         if oversize_exit is not None:
             return oversize_exit
         if mode == "advise":
-            from hook_dispatch import run_permission_dispatch  # noqa: E402
+            from hook_dispatch import run_permission_dispatch
 
             return cast(
                 int,
@@ -201,7 +201,7 @@ def _main() -> int:
                 ),
             ),
         )
-    except Exception as exc:  # noqa: BLE001 - generated entrypoint must stay loud
+    except Exception as exc:
         fail_closed = mode in ("gate", "advise") or event_dir.name.lower() in (
             "pretooluse",
             "permissionrequest",

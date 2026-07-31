@@ -23,7 +23,7 @@ _path_added = str(EVAL_DIR) not in sys.path
 if _path_added:
     sys.path.insert(0, str(EVAL_DIR))
 try:
-    import _model_sweep_core as core  # noqa: E402
+    import _model_sweep_core as core
 finally:
     if _path_added and str(EVAL_DIR) in sys.path:
         sys.path.remove(str(EVAL_DIR))
