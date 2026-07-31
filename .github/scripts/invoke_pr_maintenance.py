@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import sys
+from typing import Any
 
 workspace = os.environ.get(
     "GITHUB_WORKSPACE",
@@ -185,7 +186,7 @@ def has_conflicts(pr: dict) -> bool:
     return pr.get("mergeable") == "CONFLICTING"
 
 
-def has_failing_checks(pr: dict, *, owner: str = "", repo: str = "") -> bool:
+def has_failing_checks(pr: dict[str, Any], *, owner: str = "", repo: str = "") -> bool:
     """Return True when the latest run of any check on the head commit failed.
 
     Superseded runs are discarded, so a re-run that goes green clears the flag.
