@@ -127,9 +127,10 @@ placeholders rather than records, so fill them with `/retro fill YYYY-MM-DD`.
 
 `INDEX.md` was auto-appended by that hook (Issue #1703) and is incomplete: 9
 rows against 121 retro files as of 2026-07-30. Nothing appends to it now.
-Never treat INDEX.md as the catalog; list the directory. Also note retro-cited short SHAs are not
-reachable from `main`, because every PR squash-merges into a new commit, so
-retros and memories, not git archaeology, are the durable history (depth in
+Never treat INDEX.md as the catalog; list the directory. Under the current
+squash-only policy, PR-branch SHAs do not land on `main`. One merge commit
+predates that policy (`0f13c85ab`, PR #1, 2025-12-13), so verify ancestry.
+Retros and memories, not git archaeology, are the durable history (depth in
 `ai-agents-failure-archaeology`).
 
 Retro learnings MUST be persisted to Serena in the same session, not left as
