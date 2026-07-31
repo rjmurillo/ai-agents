@@ -1,0 +1,52 @@
+{
+  "id": "episode-2026-07-30-session-3991-workspace-budget",
+  "session": "2026-07-30-session-3991-workspace-budget",
+  "timestamp": "2026-07-30T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Extend the workspace byte-gate to cover .github/copilot-instructions.md (issue #3991). Gate 1: scripts/validate_workspace_budget.py (PER_FILE_BUDGET_BYTES=3000, TOTAL_BUDGET_BYTES=6600). Gate 2: scripts/validation/instruction_budget.py (per-extension ceilings for .github/instructions/*.instructions.md). Neither measured .github/copilot-instructions.md. Added FILE_CEILING_BYTES non-regression ratchet at 6351 bytes, excluded ratcheted files from shared total pool, added 7 new tests with 5/5 mutants killed, created .agents/governance/GOTCHAS.md.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "measure",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "implement",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "mutation",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 10e862e73",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 5
+  },
+  "lessons": []
+}

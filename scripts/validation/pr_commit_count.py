@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- grew from 471 to 513 lines for issues #3895/#3920
+# (authored commit count, needs-split bypass). Refactor to helper module deferred.
 """Classify a pull request's commit count for the PR validation gate.
 
 Extracted from the inline PowerShell of the ``Check PR commit count`` step in

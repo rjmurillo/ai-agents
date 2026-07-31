@@ -1,0 +1,99 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3991,
+    "date": "2026-07-30",
+    "branch": "fix/validation-gates",
+    "startingCommit": "8c9ba4584",
+    "objective": "Extend the workspace byte-gate to cover .github/copilot-instructions.md (issue #3991). Gate 1: scripts/validate_workspace_budget.py (PER_FILE_BUDGET_BYTES=3000, TOTAL_BUDGET_BYTES=6600). Gate 2: scripts/validation/instruction_budget.py (per-extension ceilings for .github/instructions/*.instructions.md). Neither measured .github/copilot-instructions.md. Added FILE_CEILING_BYTES non-regression ratchet at 6351 bytes, excluded ratcheted files from shared total pool, added 7 new tests with 5/5 mutants killed, created .agents/governance/GOTCHAS.md."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "No serena tools are exposed in this Copilot CLI session."
+      },
+      "serenaInstructions": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Not reachable for the same reason as serenaActivated."
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file, created alongside the budget-gate commit."
+      },
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current reports fix/validation-gates."
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branch is fix/validation-gates, not main."
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Read .agents/HANDOFF.md at session start. Not modified (read-only per ADR-014)."
+      }
+    },
+    "sessionEnd": {
+      "logCompleted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "markdown-autofix hook ran on staged markdown files."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "3 files changed in atomic commit with conventional commit message and Co-Authored-By trailer."
+      },
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "All items have complete flag, level, and evidence."
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md not edited."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "10 tests pass in test_workspace_limits.py. 5/5 mutants killed. ruff and mypy clean. taste count 615."
+      },
+      "serenaMemoryUpdated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "No serena tools in this session."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "measure",
+      "detail": "Confirmed .github/copilot-instructions.md is 6351 bytes on origin/main. Gate 1 (scripts/validate_workspace_budget.py:28-37): PER_FILE_BUDGET_BYTES=3000, TOTAL_BUDGET_BYTES=6600, WORKSPACE_FILES=[CLAUDE.md, AGENTS.md, .claude/CLAUDE.md]. Gate 2 (scripts/validation/instruction_budget.py): covers .github/instructions/*.instructions.md per-extension. Neither gate covered .github/copilot-instructions.md."
+    },
+    {
+      "action": "implement",
+      "detail": "Added FILE_CEILING_BYTES={'github/copilot-instructions.md': 6351} (non-regression ratchet). Updated validate_budget() to use per-file ceilings; files in FILE_CEILING_BYTES excluded from TOTAL_BUDGET_BYTES pool. Added 7 new tests. Created .agents/governance/GOTCHAS.md documenting all ceilings."
+    },
+    {
+      "action": "mutation",
+      "detail": "5/5 mutants killed: remove copilot-instructions from WORKSPACE_FILES, empty FILE_CEILING_BYTES, ceiling too tight, > changed to >=, copilot file included in standard total."
+    }
+  ],
+  "nextSteps": [
+    "Reduce .github/copilot-instructions.md from 6351 to 3000 bytes by moving Gotchas section to .agents/governance/ (issue #3952). Update FILE_CEILING_BYTES ratchet when trimming completes."
+  ],
+  "endingCommit": "10e862e73"
+}

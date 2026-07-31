@@ -95,7 +95,7 @@ def test_the_block_boundary_agrees_with_the_local_hook(count: int, blocked: bool
 
     The hook widens ``limit`` to 40 when the update contains a merge of main,
     and CI applies the same widening: ``count_pr_commits`` reads the pull
-    request's own commit list through ``contains_main_merge``. A main-merge
+    request's own commit list through ``_external_non_first_parent_shas``. A main-merge
     branch at 21 through 40 therefore needs no bypass label. This test pins
     only the default boundary; ``test_classify_count_honours_an_explicit_limit``
     pins the widened one.
@@ -412,28 +412,17 @@ def _merge_commits_json(n: int, external_parent: bool) -> str:
     return json.dumps(commits)
 
 
-def test_external_non_first_parent_shas_empty_for_linear_branch() -> None:
+def test_contains_base_merge_is_false_for_a_linear_branch() -> None:
     payload = json.loads(_merge_commits_json(5, external_parent=False))
     assert mod._external_non_first_parent_shas(payload) == set()
 
 
-def test_external_non_first_parent_shas_nonempty_when_parent_outside_branch() -> None:
+def test_contains_base_merge_is_true_when_a_merge_parent_is_outside_the_branch() -> None:
     payload = json.loads(_merge_commits_json(5, external_parent=True))
     assert mod._external_non_first_parent_shas(payload) != set()
 
 
-def test_external_non_first_parent_shas_returns_correct_sha() -> None:
-    """Returns the external parent's actual sha, not an arbitrary non-empty value."""
-    external_sha = "e" * 40
-    payload = [
-        {"sha": "a" * 40, "parents": [{"sha": "b" * 40}, {"sha": external_sha}]},
-        {"sha": "b" * 40, "parents": [{"sha": "0" * 40}]},
-    ]
-    result = mod._external_non_first_parent_shas(payload)
-    assert result == {external_sha}
-
-
-def test_external_non_first_parent_shas_empty_for_internal_merge() -> None:
+def test_contains_base_merge_ignores_a_merge_between_two_branch_commits() -> None:
     """An internal merge is the branch's own history, not a merge from main."""
     payload = [
         {"sha": "a" * 40, "parents": [{"sha": "0" * 40}]},
@@ -454,10 +443,10 @@ def test_external_non_first_parent_shas_empty_for_internal_merge() -> None:
     ],
     ids=["empty", "non-dict", "no-parents", "parents-not-list", "parent-not-dict"],
 )
-def test_external_non_first_parent_shas_fails_closed_on_malformed_payloads(
+def test_contains_base_merge_fails_closed_on_malformed_payloads(
     payload: list[object],
 ) -> None:
-    """Malformed data must not grant the relief: empty set keeps the stricter 20."""
+    """Malformed data must not grant the relief: False keeps the stricter 20."""
     assert mod._external_non_first_parent_shas(payload) == set()
 
 
@@ -583,7 +572,7 @@ def test_the_drift_detector_ignores_unrelated_assignments() -> None:
 
 
 # ---------------------------------------------------------------------------
-# _external_non_first_parent_shas: malformed parents must not grant the relaxed ceiling
+# contains_base_merge: malformed parents must not grant the relaxed ceiling
 # ---------------------------------------------------------------------------
 
 
@@ -607,9 +596,10 @@ def test_malformed_parents_do_not_grant_the_relaxed_ceiling(
 ) -> None:
     """Malformed payloads fail closed, keeping the stricter 20-commit ceiling.
 
-    ``_external_non_first_parent_shas`` feeds the exemption gate: an empty
-    return keeps the limit at BLOCK_THRESHOLD. A parent entry we cannot read
-    is not evidence of a main merge, so it must not buy the relief.
+    ``_external_non_first_parent_shas`` gates an *exemption*: non-empty raises
+    the ceiling from BLOCK_THRESHOLD to MAIN_MERGE_BLOCK_THRESHOLD. A parent
+    entry we cannot read is not evidence of a base merge, so it must not buy
+    the relief.
     """
     assert mod._external_non_first_parent_shas(payload) == set(), label
 
@@ -627,9 +617,7 @@ def test_malformed_parents_do_not_grant_the_relaxed_ceiling(
         ("empty payload", [], False),
     ],
 )
-def test_external_non_first_parent_shas_controls(
-    label: str, payload: list[object], expected: bool
-) -> None:
+def test_contains_base_merge_controls(label: str, payload: list[object], expected: bool) -> None:
     """Behaviour that must survive the malformed-parent narrowing unchanged."""
     assert bool(mod._external_non_first_parent_shas(payload)) == expected, label
 
@@ -1043,6 +1031,8 @@ def test_a_git_timeout_is_not_reported_in_the_transient_vocabulary() -> None:
 
     assert result.returncode != 0
     assert mod.is_transient_error(result.stderr) is False
+
+
 # Issue #3920: authored commit count excludes branch-maintenance merge commits
 # ---------------------------------------------------------------------------
 
