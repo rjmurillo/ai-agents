@@ -1824,6 +1824,26 @@ def _dropped_candidates(
     return partial, unmeasured
 
 
+def _require_boolean_pool_markers(scenarios: list[dict[str, Any]]) -> None:
+    """Refuse a scenario whose pool marker is not a boolean.
+
+    The marker is read for truth, so a non-boolean silently decides a
+    scenario's population: the string "false" is truthy and files a restraint
+    case among the positives. Every number the run then publishes is attached
+    to a pool the scenario does not belong to, and nothing in the output says
+    so. The grader in this module always writes a boolean, but `aggregate` is
+    also handed scenario records parsed from a stored file, and a refusal here
+    is visible where a mis-split is not.
+    """
+    for idx, scenario in enumerate(scenarios):
+        marker = scenario["negative_case"]
+        if not isinstance(marker, bool):
+            raise ValueError(
+                f"scenarios[{idx}].negative_case must be a boolean, got "
+                f"{type(marker).__name__} {marker!r}"
+            )
+
+
 def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str, Any]:
     """Aggregate per-mechanism averages across scenarios.
 
@@ -1845,6 +1865,7 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     exposes how many scenarios each average actually rests on.
     """
     summary: dict[str, Any] = {"per_mechanism": {}, "negative_case_per_mechanism": {}}
+    _require_boolean_pool_markers(scenarios)
     pos_scenarios = [s for s in scenarios if not s["negative_case"]]
     neg_scenarios = [s for s in scenarios if s["negative_case"]]
 
@@ -2391,9 +2412,15 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
         pos_graded = f"{pos_stats['graded_count']}/{pos_stats['scenario_count']}"
         neg_graded = f"{neg_stats['graded_count']}/{neg_stats['scenario_count']}"
         # Read the published value rather than deriving a third one here: the
-        # number on the screen and the number in the record must not drift.
+        # number on the screen and the number in the record must not drift. A
+        # record written before the measured gap existed carries only the
+        # derivation it was written with, and that derivation is its record, so
+        # render it rather than refusing to display an archived run.
+        measured_key = f"delta_{mech}_vs_baseline_measured"
         delta_val = (
-            None if mech == "baseline" else summary[f"delta_{mech}_vs_baseline_measured"]
+            None
+            if mech == "baseline"
+            else summary.get(measured_key, summary[f"delta_{mech}_vs_baseline"])
         )
         delta = f"{delta_val:+}" if delta_val is not None else ""
         rows.append(

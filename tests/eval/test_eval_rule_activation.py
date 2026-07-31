@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import difflib
 import importlib.util
+import inspect
 import json
 import math
 import sys
@@ -7278,3 +7279,248 @@ class TestThePublishedGapMatchesTheMeasurement:
         renderer = source[source.index("def render_table(") :]
         assert "_delta(" not in renderer
         assert "_delta_measured(" not in renderer
+
+
+class TestAStoredRunStillRenders:
+    """The renderer reads a field that records written earlier do not carry.
+
+    Reading the published gap rather than deriving it keeps the screen and the
+    record on one number, but a record written before that field existed has
+    only the derivation it was written with. Indexing the new field turned
+    every one of those into a crash, so a stored run could no longer be
+    displayed at all. The recorded derivation is that run's record, so it is
+    what the table must show.
+    """
+
+    @staticmethod
+    def _summary_without_the_measured_gap():
+        """A published summary with the measured gap keys stripped out."""
+        summary = eval_mod.aggregate(
+            [_make_scenario(2, 5, 4), _make_scenario(5, 5, 5, negative=True)]
+        )
+        for mech in ("full", "description"):
+            del summary[f"delta_{mech}_vs_baseline_measured"]
+        return summary
+
+    def test_the_stripped_summary_really_lacks_the_field(self):
+        """Without this the fixture does not exercise the absent key."""
+        summary = self._summary_without_the_measured_gap()
+        assert "delta_full_vs_baseline_measured" not in summary
+        assert summary["delta_full_vs_baseline"] is not None
+
+    def test_a_record_without_the_field_still_renders(self):
+        table = eval_mod.render_table("some-rule", self._summary_without_the_measured_gap())
+        assert "baseline" in table
+
+    def test_it_prints_the_derivation_the_record_was_written_with(self):
+        summary = self._summary_without_the_measured_gap()
+        table = eval_mod.render_table("some-rule", summary)
+        assert f"{summary['delta_full_vs_baseline']:+}" in table
+
+    def test_a_current_run_still_prints_the_measured_gap(self):
+        """The fallback must not take over when the measured value is there."""
+        positives = [_make_scenario(3, 4, 5) for _ in range(992)]
+        positives += [_make_scenario(2, 4, 5) for _ in range(4)]
+        positives += [_make_scenario(3, 5, 5) for _ in range(4)]
+        summary = eval_mod.aggregate(
+            [*positives, _make_scenario(5, 5, 5, negative=True)]
+        )
+        assert summary["delta_description_vs_baseline"] == 1.0
+        assert summary["delta_description_vs_baseline_measured"] == 1.01
+        assert "+1.01" in eval_mod.render_table("some-rule", summary)
+
+    def test_every_stored_run_that_records_its_coverage_renders(self):
+        """The real records, not a fixture shaped like one."""
+        rendered = 0
+        for path in sorted(_ARCHIVE_DIR.glob("*.json")):
+            if path.name == _RECOVERED_PAYLOADS.name:
+                continue
+            data = json.loads(path.read_text(encoding="utf-8"))
+            for rule_id, rule in (data.get("rules") or {}).items():
+                summary = rule["summary"]
+                if "graded_count" not in summary["per_mechanism"]["description"]:
+                    continue
+                assert "delta_full_vs_baseline_measured" not in summary
+                table = eval_mod.render_table(rule_id, summary)
+                for mech in ("description", "full"):
+                    recorded = summary[f"delta_{mech}_vs_baseline"]
+                    if recorded is not None:
+                        assert f"{recorded:+}" in table
+                rendered += 1
+        assert rendered == 7
+
+
+class TestAPoolMarkerMustSayWhichPoolItMeans:
+    """The marker that splits the pools is read for truth, not for type.
+
+    A non-boolean decides a scenario's population silently: the string
+    "false" is truthy and files a restraint case among the positives. Every
+    average, count and gap the run publishes is then attached to a pool the
+    scenario does not belong to, and nothing in the output says so. A refusal
+    is visible where a mis-split is not.
+    """
+
+    @staticmethod
+    def _with_marker(marker):
+        return [
+            _make_scenario(1, 5, 5),
+            {**_make_scenario(5, 5, 5, negative=True), "negative_case": marker},
+        ]
+
+    def test_a_string_marker_is_refused(self):
+        with pytest.raises(ValueError, match="negative_case must be a boolean"):
+            eval_mod.aggregate(self._with_marker("false"))
+
+    def test_the_refusal_names_the_offending_scenario(self):
+        with pytest.raises(ValueError, match=r"scenarios\[1\]"):
+            eval_mod.aggregate(self._with_marker("false"))
+
+    def test_the_refusal_names_what_it_got(self):
+        with pytest.raises(ValueError, match="got str 'false'"):
+            eval_mod.aggregate(self._with_marker("false"))
+
+    @pytest.mark.parametrize("marker", [1, 0, None, "true", "", [], {}])
+    def test_no_other_truthy_or_falsy_value_passes_for_a_boolean(self, marker):
+        with pytest.raises(ValueError, match="negative_case must be a boolean"):
+            eval_mod.aggregate(self._with_marker(marker))
+
+    def test_the_string_would_otherwise_land_in_the_wrong_pool(self):
+        """Names the defect: the refused value is truthy, so it read as negative."""
+        assert bool("false") is True
+
+    @pytest.mark.parametrize("marker", [True, False])
+    def test_a_real_boolean_is_accepted(self, marker):
+        """The negative control: the check must not refuse every run."""
+        summary = eval_mod.aggregate(
+            [
+                _make_scenario(1, 5, 5),
+                _make_scenario(5, 5, 5, negative=True),
+                {**_make_scenario(4, 4, 4), "negative_case": marker},
+            ]
+        )
+        assert summary["verdict"] == "PASS"
+
+    def test_the_marker_decides_which_pool_the_scenario_joins(self):
+        """Pins that the check guards a split that really moves scenarios."""
+        as_positive = eval_mod.aggregate(self._with_marker(False))
+        as_negative = eval_mod.aggregate(self._with_marker(True))
+        assert as_positive["per_mechanism"]["description"]["scenario_count"] == 2
+        assert as_negative["per_mechanism"]["description"]["scenario_count"] == 1
+
+
+class TestEveryReaderOfAStoredRunIsExercisedAgainstOne:
+    """Adding a published field breaks every reader that indexes it.
+
+    A stored artifact carries no version, so a reader cannot tell which
+    instrument wrote it and each reader ends up encoding its own assumption
+    about the schema. Replay does not catch this: it rebuilds each summary
+    from the stored cells and compares published fields, and never calls a
+    reader, so a reader can break on every stored record while replay stays
+    green. That is exactly what happened when the measured gap was added.
+
+    This pins the outcome of every reader against every stored record. A new
+    reader, or a new field indexed by an existing one, changes the map and
+    fails here rather than at display time. See issue 4100 for the class.
+    """
+
+    #: Readers that can be handed a stored summary and nothing else.
+    READERS = ("_render_caveats", "render_table")
+
+    #: The one stored record no reader can fully read, and why. It was written
+    #: before per mechanism coverage counts existed, so the table cannot say
+    #: how many scenarios each average rests on. Printing an average without
+    #: that count would assert a coverage the record does not record.
+    PREDATES_COVERAGE_COUNTS = "t-sol56.json"
+
+    @staticmethod
+    def _stored_summaries():
+        for path in sorted(_ARCHIVE_DIR.glob("*.json")):
+            if path.name == _RECOVERED_PAYLOADS.name:
+                continue
+            data = json.loads(path.read_text(encoding="utf-8"))
+            for rule_id, rule in (data.get("rules") or {}).items():
+                yield path.name, rule_id, rule["summary"]
+
+    @staticmethod
+    def _stored_rules():
+        for path in sorted(_ARCHIVE_DIR.glob("*.json")):
+            if path.name == _RECOVERED_PAYLOADS.name:
+                continue
+            data = json.loads(path.read_text(encoding="utf-8"))
+            for rule_id, rule in (data.get("rules") or {}).items():
+                yield path.name, rule_id, rule
+
+    def test_a_summary_reader_is_either_replayed_or_exercised_here(self, monkeypatch):
+        """The round-27 defect was a reader replay never calls.
+
+        Replay exercises whatever `aggregate` reaches and nothing else, so a
+        summary reader outside that set is covered only by this class. This
+        measures which readers a stored record actually reaches, rather than
+        reading the call graph and concluding. A refactor that moves a reader
+        out of `aggregate`'s path fails here, at the point the coverage moved,
+        instead of at display time on every stored record.
+        """
+        reached: set[str] = set()
+
+        def watch(name, fn):
+            def inner(*args, **kwargs):
+                reached.add(name)
+                return fn(*args, **kwargs)
+
+            return inner
+
+        readers = {
+            name
+            for name, fn in vars(eval_mod).items()
+            if inspect.isfunction(fn)
+            and "summary" in inspect.signature(fn).parameters
+        }
+        for name in readers:
+            monkeypatch.setattr(eval_mod, name, watch(name, getattr(eval_mod, name)))
+
+        for _path, _rule_id, rule in self._stored_rules():
+            eval_mod.aggregate(rule["scenarios"], routed=bool(rule.get("routed")))
+
+        assert reached, "no reader ran, so the measurement proves nothing"
+        assert readers - reached == set(self.READERS)
+
+    def test_the_reader_list_cannot_go_stale(self):
+        """A new summary reader must be added here or this fails."""
+        found = {
+            name
+            for name, fn in vars(eval_mod).items()
+            if inspect.isfunction(fn)
+            and "summary" in inspect.signature(fn).parameters
+        }
+        # `_decide_verdict` also takes a summary, but only one `aggregate`
+        # built, never a stored dict: it needs six further values that
+        # `aggregate` computes. Replay covers it, because replay calls
+        # `aggregate` on every stored record and `aggregate` calls it.
+        assert found == {*self.READERS, "_decide_verdict"}
+
+    def test_there_is_something_to_read(self):
+        """Without this the whole class passes vacuously on an empty corpus."""
+        assert len(list(self._stored_summaries())) == 8
+
+    def test_the_caveat_reader_reads_every_stored_record(self):
+        for _name, _rule_id, summary in self._stored_summaries():
+            eval_mod._render_caveats(summary)
+
+    def test_the_table_reads_every_record_that_states_its_coverage(self):
+        read = []
+        for name, rule_id, summary in self._stored_summaries():
+            if name == self.PREDATES_COVERAGE_COUNTS:
+                continue
+            eval_mod.render_table(rule_id, summary)
+            read.append(name)
+        assert len(read) == 7
+
+    def test_the_one_unreadable_record_fails_for_the_pinned_reason(self):
+        """If this stops raising, the exclusion above is stale and must go."""
+        name, rule_id, summary = next(
+            r for r in self._stored_summaries()
+            if r[0] == self.PREDATES_COVERAGE_COUNTS
+        )
+        assert "graded_count" not in summary["per_mechanism"]["description"]
+        with pytest.raises(KeyError, match="graded_count"):
+            eval_mod.render_table(rule_id, summary)
