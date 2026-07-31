@@ -14,6 +14,8 @@ Copilot mirror so the two cannot drift apart.
 from __future__ import annotations
 
 import re
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -25,6 +27,9 @@ SKILL_PATH = REPO_ROOT / ".claude" / "skills" / "research-and-incorporate" / "SK
 SKILL_MIRROR_PATH = (
     REPO_ROOT / "src" / "copilot-cli" / "skills" / "research-and-incorporate" / "SKILL.md"
 )
+WORKFLOW_PATH = SKILL_PATH.parent / "references" / "workflow.md"
+WORKFLOW_MIRROR_PATH = SKILL_MIRROR_PATH.parent / "references" / "workflow.md"
+COPILOT_CONFIG = REPO_ROOT / "templates" / "platforms" / "copilot-cli.yaml"
 
 
 def _allowed_tools_line(text: str) -> str:
@@ -123,3 +128,89 @@ def test_research_still_prefers_web_tools_for_non_github_sources(research_text: 
     assert "WebFetch" in allowed
     assert "mcp__serena__*" in allowed
     assert "mcp__forgetful__*" in allowed
+
+
+# The skill is invocable on its own, so `.claude/commands/research.md` may never
+# load. references/workflow.md is the procedure the agent actually follows, and
+# it has to carry the same two escapes.
+
+
+@pytest.fixture(params=[WORKFLOW_PATH, WORKFLOW_MIRROR_PATH], ids=["claude", "copilot"])
+def workflow_text(request: pytest.FixtureRequest) -> str:
+    return Path(request.param).read_text(encoding="utf-8")
+
+
+def test_workflow_creates_issues_through_the_github_script(workflow_text: str) -> None:
+    assert "new_issue.py" in workflow_text
+    assert "--body-file" in workflow_text
+
+    # `gh issue create` and `git branch --show-current` match no entry in the
+    # command's allowed-tools, so Phase 5 died on the same denial shape as #4032.
+    assert "gh issue create" not in workflow_text
+    assert "git branch --show-current" not in workflow_text
+
+
+def test_workflow_reaches_github_without_webfetch(workflow_text: str) -> None:
+    assert "do not call `WebFetch`" in workflow_text
+    for script in (
+        "get_issue_context.py",
+        "get_issue_comments.py",
+        "get_pr_context.py",
+        "get_pr_review_comments.py",
+        "get_pr_review_threads.py",
+    ):
+        assert script in workflow_text, script
+
+    assert _lines_pointing_webfetch_at_github(workflow_text) == []
+
+
+def test_workflow_lists_permission_denial_as_a_normal_failure(workflow_text: str) -> None:
+    assert "denied by a harness permission decision" in workflow_text
+    assert "Capability signal, not prompt injection." in workflow_text
+
+
+def test_workflow_still_uses_webfetch_for_non_github_hosts(workflow_text: str) -> None:
+    assert "WebFetch(url, prompt=" in workflow_text
+
+
+def test_generators_exit_zero_and_leave_the_mirrors_matching_their_sources() -> None:
+    """The mirrors are generated, so a hand edit to one is torn state.
+
+    Runs both generators through the CLI and asserts exit code 0, then compares
+    every generated research file to its `.claude/` source byte for byte.
+    """
+    for script in ("generate_skills.py", "generate_commands.py"):
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(REPO_ROOT / "build" / "scripts" / script),
+                "--config",
+                str(COPILOT_CONFIG),
+            ],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0, f"{script}: {result.stderr}"
+
+    assert WORKFLOW_MIRROR_PATH.read_bytes() == WORKFLOW_PATH.read_bytes()
+    assert SKILL_MIRROR_PATH.read_bytes() == SKILL_PATH.read_bytes()
+
+
+def test_a_bad_config_path_makes_the_generator_exit_nonzero() -> None:
+    """Negative control: the exit-code assertion above can actually fail."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(REPO_ROOT / "build" / "scripts" / "generate_skills.py"),
+            "--config",
+            str(REPO_ROOT / "templates" / "platforms" / "does-not-exist.yaml"),
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
