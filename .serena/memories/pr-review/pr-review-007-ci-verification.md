@@ -89,12 +89,21 @@ Before claiming PR review complete, ALL must be true:
 
 The resolved-marker count uses a basic regular expression, where `\|` is
 alternation. It is shown outside the table because a table cell would need
-`\\|`, and what grep then receives depends on the caller's quoting. Inside
-double quotes the shell collapses the pair back to `\|` and the match works.
-Inside single quotes, or when the pattern is passed as an argument with no
-shell between the author and grep, grep receives `\\|` and reads an escaped
-backslash followed by a literal pipe, which matches nothing and reports 0.
-Fencing the command removes that ambiguity.
+`\\|`, and whether that still matches depends on how many literal-processing
+layers sit between the author and grep's argv. Only the bytes grep receives
+decide it: one backslash is alternation and matches, two is an escaped
+backslash followed by a literal pipe and matches nothing. Each layer either
+collapses the pair or preserves it. Measured against a two-line fixture
+holding both markers, using the table form of the pattern:
+
+- bash inline double quotes: collapses, reports 2
+- bash single quotes: preserves, reports 0
+- bash double-quoted variable expansion: preserves, reports 0
+- Python non-raw string literal: collapses, reports 2
+- Python raw string literal: preserves, reports 0
+
+So neither "double quotes work" nor "no shell means it breaks" holds on its
+own. Fencing the command removes the ambiguity.
 
 ```bash
 grep -c "Status: \[COMPLETE\]\|\[WONTFIX\]"
@@ -133,7 +142,7 @@ if [ "$failed_count" -gt 0 ]; then
   # Parse actionable items from failures
   echo ""
   echo "Actionable items:"
-  echo "$failed_checks" | jq -r '.[] | "  - \(.name): Review logs at \(.link // "N/A")"'
+  echo "$failed_checks" | jq -r '.[] | "  - \(.name): Review logs at \(.link | select(length > 0) // "N/A")"'
 
   # Return to Phase 6 for fixes
   exit 1
