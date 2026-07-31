@@ -757,6 +757,89 @@ class TestPluginRootScan:
         assert cmp.main(["--repo-root", str(tmp_path)]) == 2
 
 
+class TestExtraScanDirs:
+    """Extra scan dirs (commands/, templates/agents/) extend the ratchet scope.
+
+    These are source-only trees whose generated mirrors are covered by the
+    plugin-root scan. Issue #3646.
+    """
+
+    def _write_md(self, root: Path, rel: str, body: str) -> None:
+        path = root / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(body, encoding="utf-8")
+        # Create required skills dirs so main() doesn't exit 2
+        for required in cmp.REQUIRED_SKILLS_ROOTS:
+            placeholder = root / required / "skills" / "_placeholder" / "SKILL.md"
+            placeholder.parent.mkdir(parents=True, exist_ok=True)
+            placeholder.write_text("placeholder\n", encoding="utf-8")
+
+    def test_extra_scan_dirs_returns_existing_dirs(self, tmp_path: Path) -> None:
+        """Directories in EXTRA_SCAN_ROOTS that exist are returned."""
+        (tmp_path / ".claude" / "commands").mkdir(parents=True)
+        dirs = cmp.extra_scan_dirs(tmp_path)
+        assert tmp_path / ".claude" / "commands" in dirs
+
+    def test_extra_scan_dirs_skips_missing(self, tmp_path: Path) -> None:
+        """Missing directories are silently skipped."""
+        dirs = cmp.extra_scan_dirs(tmp_path)
+        assert dirs == []
+
+    def test_commands_dir_refs_are_included_in_scan(self, tmp_path: Path) -> None:
+        """A ref inside .claude/commands/ is counted by scan_plugin_roots."""
+        self._write_md(
+            tmp_path,
+            ".claude/commands/spec.md",
+            "Read the spec at .agents/planning/spec.md\n",
+        )
+        counts = cmp.scan_plugin_roots(tmp_path)
+        assert ".claude/commands/spec.md" in counts
+        assert counts[".claude/commands/spec.md"] == 1
+
+    def test_templates_agents_refs_are_included_in_scan(self, tmp_path: Path) -> None:
+        """A ref inside templates/agents/ is counted by scan_plugin_roots."""
+        self._write_md(
+            tmp_path,
+            "templates/agents/orchestrator.shared.md",
+            "Session logs go under .agents/sessions/\n",
+        )
+        counts = cmp.scan_plugin_roots(tmp_path)
+        assert "templates/agents/orchestrator.shared.md" in counts
+
+    def test_clean_commands_file_not_in_counts(self, tmp_path: Path) -> None:
+        """A commands file with no upstream refs does not appear in counts."""
+        self._write_md(
+            tmp_path,
+            ".claude/commands/clean.md",
+            "This file has no upstream refs.\n",
+        )
+        counts = cmp.scan_plugin_roots(tmp_path)
+        assert ".claude/commands/clean.md" not in counts
+
+    def test_extra_dir_drift_causes_exit_1(self, tmp_path: Path) -> None:
+        """An unbaselined ref in a commands/ file exits 1."""
+        self._write_md(
+            tmp_path,
+            ".claude/commands/drift.md",
+            "Write to .agents/sessions/output.md\n",
+        )
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text('{"files": {}}', encoding="utf-8")
+        code = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+        assert code == 1
+
+    def test_vendor_marker_suppresses_extra_dir_refs(self, tmp_path: Path) -> None:
+        """A vendor-portability marker in a commands/ file silences its refs."""
+        self._write_md(
+            tmp_path,
+            ".claude/commands/annotated.md",
+            "<!-- vendor-portability: upstream refs only -->\n"
+            "Read .agents/sessions/ for context.\n",
+        )
+        counts = cmp.scan_plugin_roots(tmp_path)
+        assert ".claude/commands/annotated.md" not in counts
+
+
 class TestReport:
     """The output branches. None had coverage before ``_report`` was extracted."""
 
@@ -992,14 +1075,31 @@ class TestCommittedRepoHasNoDrift:
         baseline stays green while ignoring whole roots. Asserting that the
         baseline's roots are a subset of the scanned roots catches a future
         narrowing that the drift assertion alone would let through.
+
+        Both skills dirs and extra dirs (commands/, templates/agents/) are
+        included in the scan, so the assertion covers both (issue #3646).
         """
         root = Path(__file__).resolve().parents[2]
         if not cmp.skills_dirs(root):
             pytest.skip("no plugin root has a skills dir in this checkout")
         baseline_path = root / "scripts" / "validation" / cmp._DEFAULT_BASELINE_NAME
-        scanned = {d.parent.relative_to(root).as_posix() for d in cmp.skills_dirs(root)}
-        recorded = {key.split("/skills/", 1)[0] for key in cmp._load_baseline(baseline_path)}
-        assert recorded <= scanned, f"baseline names unscanned roots: {recorded - scanned}"
+        # Skills dirs contribute the plugin root name as the recorded prefix
+        skills_parent_set = {d.parent.relative_to(root).as_posix() for d in cmp.skills_dirs(root)}
+        # Extra dirs are scanned directly, so any baseline key that starts with
+        # one of their repo-relative paths is already covered.
+        extra_dir_prefixes = {d.relative_to(root).as_posix() for d in cmp.extra_scan_dirs(root)}
+        # A baseline key belongs to a scanned root if either:
+        #   - its skills-subpath prefix is a known skills parent (e.g. ".claude"), OR
+        #   - the key starts with an extra-scan prefix (e.g. ".claude/commands/")
+        unscanned = set()
+        for key in cmp._load_baseline(baseline_path):
+            skills_root = key.split("/skills/", 1)[0]
+            if skills_root in skills_parent_set:
+                continue
+            if any(key.startswith(prefix) for prefix in extra_dir_prefixes):
+                continue
+            unscanned.add(key)
+        assert not unscanned, f"baseline names unscanned paths: {unscanned}"
 
 
 class TestBlockquoteFenceDepth:

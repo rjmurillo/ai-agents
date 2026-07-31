@@ -42,9 +42,12 @@ Baseline ratchet:
   so the baseline can be tightened with ``--update-baseline``.
 
 Scope: ``*.md`` under the ``skills/`` tree of every plugin root listed in
-``PLUGIN_ROOTS``. Scanning only ``.claude/skills`` left thirty nine references
-unratcheted in ``src/copilot-cli/skills``, which is generated from
-``.claude/commands`` and so was covered by neither path. See issue #3578.
+``PLUGIN_ROOTS``, plus the flat source trees in ``EXTRA_SCAN_ROOTS``
+(``.claude/commands`` and ``templates/agents``). These extra directories ship
+to consumers but sit outside the skills tree; their generated mirrors in
+``src/copilot-cli/skills/`` are already covered by the plugin-root scan, so
+only the sources are listed. See issues #3578 (plugin-root widening) and
+#3646 (commands and templates/agents widening).
 
 Exit codes:
   0 - no drift (counts at or below baseline), or --update-baseline wrote the file
@@ -243,6 +246,14 @@ PLUGIN_ROOTS: tuple[str, ...] = (".claude", "src/claude", "src/copilot-cli")
 # from this set because it ships agents and rules and has no skills tree today.
 REQUIRED_SKILLS_ROOTS: frozenset[str] = frozenset({".claude", "src/copilot-cli"})
 
+# Non-skills directories that also ship to consumers and carry upstream-path
+# prose. These are source-only: their generated mirrors (e.g.
+# src/copilot-cli/skills/<name>/SKILL.md produced by generate_commands.py and
+# src/copilot-cli/agents/ produced by generate_agents.py) are already covered
+# by the skills-tree scan once a fix propagates through the generator.
+# Scanning only the sources avoids double-counting. Issue #3646.
+EXTRA_SCAN_ROOTS: tuple[str, ...] = (".claude/commands", "templates/agents")
+
 
 def has_portability_marker(text: str) -> bool:
     """Return True if the file self-declares its upstream path dependencies.
@@ -376,6 +387,20 @@ def skills_dirs(root: Path) -> list[Path]:
     return [root / name / "skills" for name in PLUGIN_ROOTS if (root / name / "skills").is_dir()]
 
 
+def extra_scan_dirs(root: Path) -> list[Path]:
+    """Return existing directories from ``EXTRA_SCAN_ROOTS``.
+
+    These are flat source trees that ship to consumers but are not under a
+    plugin root's ``skills/`` subtree. Their generated mirrors are already
+    covered by the skills-tree scan, so only the source directory is listed
+    here (issue #3646).
+
+    Absent directories are skipped: a checkout that does not have
+    ``.claude/commands`` is not broken, it may just be a minimal clone.
+    """
+    return [root / name for name in EXTRA_SCAN_ROOTS if (root / name).is_dir()]
+
+
 def missing_required_roots(root: Path) -> list[str]:
     """Return the required roots whose skills tree is absent, in declared order.
 
@@ -392,17 +417,24 @@ def missing_required_roots(root: Path) -> list[str]:
 
 
 def scan_plugin_roots(root: Path) -> dict[str, int]:
-    """Return {repo_relative_posix_path: count} across every plugin root.
+    """Return {repo_relative_posix_path: count} across every plugin root and extra dirs.
 
     Keys are relative to the repository root rather than to the skills dir's
     parent. Both roots hold a ``skills/spec/SKILL.md``, so the parent-relative
     key that a single-root scan could use collides the moment a second root is
     read, and one root's count would silently overwrite the other's.
+
+    Extra dirs (``EXTRA_SCAN_ROOTS``) are scanned after the plugin roots. They
+    are flat source trees whose generated mirrors are already covered by the
+    plugin-root scan (issue #3646).
     """
     counts: dict[str, int] = {}
     for skills_dir in skills_dirs(root):
         for rel, n in scan_skill_markdown(skills_dir).counts.items():
             counts[(skills_dir.parent.relative_to(root) / rel).as_posix()] = n
+    for extra_dir in extra_scan_dirs(root):
+        for rel, n in scan_skill_markdown(extra_dir).counts.items():
+            counts[(extra_dir.parent.relative_to(root) / rel).as_posix()] = n
     return counts
 
 
@@ -509,7 +541,7 @@ def _report(
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     root = _resolve_root(args.repo_root)
-    scanned = skills_dirs(root)
+    scanned = skills_dirs(root) + extra_scan_dirs(root)
     missing = missing_required_roots(root)
     if missing:
         absent = ", ".join(f"{name}/skills" for name in missing)
