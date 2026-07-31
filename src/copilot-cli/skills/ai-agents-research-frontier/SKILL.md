@@ -15,7 +15,7 @@ what "done" would look like. It does not teach experiment discipline (that is
 (that is `ai-agents-portability-campaign`).
 
 Honesty contract for this document: every asset claim below was re-verified
-against the working tree on 2026-07-03. Anything labeled PROPOSED is not policy.
+against the working tree on 2026-07-30. Anything labeled PROPOSED is not policy.
 Anything labeled UNVERIFIED could not be confirmed and must be checked before you
 build on it.
 
@@ -28,9 +28,9 @@ build on it.
 
 ## The Three Programs at a Glance
 
-| Rank | Program | Anchor artifacts | Status (as of 2026-07-03) | Falsifiable milestone (short form) |
+| Rank | Program | Anchor artifacts | Status (as of 2026-07-30) | Falsifiable milestone (short form) |
 |------|---------|------------------|---------------------------|-------------------------------------|
-| 1 | Verified governance | ADR-069, `scripts/eval/eval-rule-activation.py` | ADR-069 is PROPOSED; eval tool exists, 7 rule scenario fixtures exist | Controlled eval shows gated-corpus sessions beat ungated on N scenarios with defensible stats |
+| 1 | Verified governance | ADR-069, `scripts/eval/eval-rule-activation.py` | ADR-069 is PROPOSED; eval tool exists, 12 rule scenario fixtures exist | Controlled eval shows gated-corpus sessions beat ungated on N scenarios with defensible stats |
 | 2 | Cross-harness abstraction | ADR-072, ADR-068, `build/generate_agents.py`, `tests/build_scripts/test_generate_hooks_runtime_contract.py` | ADR-072 PROPOSED, ADR-068 ACCEPTED as of 2026-07-30; generators and contract tests exist and run | New harness target added with zero hand-edits to generated trees, contract suite green |
 | 3 | Self-improving loop | issue #1345 hooks, `guard-maturity` tiers, `EVENT=` telemetry | Apply-step hook live; end-to-end consumer pipeline UNVERIFIED | A correction observed once auto-proposes a guard that survives calibration |
 
@@ -47,7 +47,7 @@ issue, or write-up. All commands run from the repo root.
 | ADR-072 status is Proposed with approval conditions | `sed -n '1,15p' .agents/architecture/ADR-072-jtbd-plugin-architecture.md` |
 | ADR-068 status is Accepted as of 2026-07-30 | `sed -n '1,10p' .agents/architecture/ADR-068-consolidated-hook-dispatcher.md` |
 | Rule-activation eval exists with a no-spend path | `python3 scripts/eval/eval-rule-activation.py --help` |
-| 12 rule scenario fixtures as of 2026-07-30 | `ls tests/evals/rule-scenarios/` |
+| 12 rule scenario fixtures as of 2026-07-30 | `set -- tests/evals/rule-scenarios/*; echo $#` |
 | Corpus size (98 skills, 25 rules, 121 retros, 158 memories as of 2026-07-30) | `set -- .claude/skills/*/; echo $#; set -- .claude/rules/*.md; echo $#; set -- .agents/retrospective/*; echo $#; set -- .serena/memories/*; echo $#` |
 | Runtime contract tests pass | `uv run pytest tests/build_scripts/test_generate_hooks_runtime_contract.py -q` |
 | Apply-step hooks unregistered | `uv run pytest -q "tests/build_scripts/test_copilot_dispatcher_artifact.py::TestDispatcherArtifacts::test_retired_hooks_are_absent_and_keepers_are_plugin_only"` |
@@ -89,9 +89,9 @@ durable competitive surface and everything else is plumbing.
 
 - Prompt engineering is folklore: rules ship because they sound right, and
   almost nobody measures whether a rule changes model behavior at all.
-- Rules are unmeasured even here: this repo has 30 rule files under
-  `.claude/rules/` but only 7 scenario fixtures under
-  `tests/evals/rule-scenarios/` (as of 2026-07-03). Most rules have never had
+- Rules are unmeasured even here: this repo has 25 rule files under
+  `.claude/rules/` but only 12 scenario fixtures under
+  `tests/evals/rule-scenarios/` (as of 2026-07-30). Most rules have never had
   an activation baseline.
 - Weight tuning is unavailable to a repository: you cannot fine-tune the vendor
   model, so context curation is the only lever, and the field has no shared
@@ -99,8 +99,8 @@ durable competitive surface and everything else is plumbing.
 
 ### This repo's asset
 
-- 92 skill directories, 30 rules, 95 retrospectives, 122 Serena memories
-  (counts as of 2026-07-03).
+- 98 skill directories, 25 rules, 121 retrospectives, 158 Serena memories
+  (counts as of 2026-07-30; re-verify with the Phase 1 corpus-size command).
 - Gates that produce inspectable artifacts (verification-based governance,
   SESSION-PROTOCOL.md): every rule violation leaves evidence, so compliance is
   measurable after the fact.
@@ -295,15 +295,15 @@ Sources and re-verification:
 
 - ADR-069 thesis and status: `.agents/architecture/ADR-069-context-corpus-is-the-product.md:2` (status: proposed), title at line 9. Re-verify: `head -12 .agents/architecture/ADR-069-context-corpus-is-the-product.md`.
 - ADR-072 status, review verdict, five conditions, harness list: `.agents/architecture/ADR-072-jtbd-plugin-architecture.md:3-19`. Re-verify: `sed -n '1,25p' .agents/architecture/ADR-072-jtbd-plugin-architecture.md`.
-- ADR-068 status and #2295 measurements (3/197 kills, ~246 ms cold start, 40 shims): `.agents/architecture/ADR-068-consolidated-hook-dispatcher.md`. Re-verify: `grep -n "197\|246" .agents/architecture/ADR-068-consolidated-hook-dispatcher.md`.
+- ADR-068 status and #2295 measurements (3/197 kills, ~246 ms cold start, 40 shims): `.agents/architecture/ADR-068-consolidated-hook-dispatcher.md`. Re-verify: `grep -n -e "197" -e "246" .agents/architecture/ADR-068-consolidated-hook-dispatcher.md`.
 - Rule-activation eval mechanisms, judge dimensions, exit codes: `scripts/eval/eval-rule-activation.py:1-40` docstring. Re-verify: `sed -n '1,40p' scripts/eval/eval-rule-activation.py`.
 - FM-1 95.8% evidence: `.agents/governance/FAILURE-MODES.md:44`. Re-verify: `grep -n "95.8" .agents/governance/FAILURE-MODES.md`.
 - Detect-Log-Graduate and explicit retrieval: the `reflect` skill, `.claude/skills/memory/SKILL.md`, and `.claude/skills/memory-search/SKILL.md`. Re-verify the deleted advisory hooks' absence with the Phase 1 test command.
 - EVENT telemetry emitter: `.claude/hooks/PreToolUse/push_guard_base.py:19`. Re-verify: `grep -n "EVENT=" .claude/hooks/PreToolUse/push_guard_base.py`.
-- Guard tiers and thresholds: `.claude/skills/guard-maturity/SKILL.md:46-57`. Re-verify: `grep -n "Harmful\|Proficient\|Inert" .claude/skills/guard-maturity/SKILL.md`.
+- Guard tiers and thresholds: `.claude/skills/guard-maturity/SKILL.md:46-57`. Re-verify: `grep -n -e "Harmful" -e "Proficient" -e "Inert" .claude/skills/guard-maturity/SKILL.md`.
 - Runtime contract test and anchoring validator: `tests/build_scripts/test_generate_hooks_runtime_contract.py`, `scripts/validation/validate_hook_anchoring.py`. Re-verify: `ls` both paths.
 - Env-anchor decision memory: `.serena/memories/decision-copilot-cli-hook-plugin-root-contract.md`. Re-verify: `ls` the path.
-- Counts (92 skill dirs, 30 rules, 95 retros, 122 memories, 7 scenario fixtures): Phase 1 command. Volatile; re-run before quoting.
+- Counts (skill dirs, rules, retros, memories, scenario fixtures): Phase 1 command. Volatile; re-run before quoting rather than copying a snapshot from here.
 - Incident claims (#2205, #2290, #1887, #1989, #2230): see `ai-agents-failure-archaeology` for evidence paths; do not re-litigate settled battles.
 
 Unverified in this document (flagged inline): per-rule traffic data, automated
