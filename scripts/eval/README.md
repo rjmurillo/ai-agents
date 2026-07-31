@@ -202,10 +202,12 @@ Per-rule or per-reference scenario files live in `tests/evals/rule-scenarios/{ru
 Adding a new activation eval:
 
 1. Write `tests/evals/rule-scenarios/{rule-id}.json` with 3-5 positive scenarios and at least one negative case.
-2. Use `rule_path` for always-on rules, or `skill_path` plus `reference_path` for progressive-disclosure references.
-3. Run `uv run python scripts/eval/eval-rule-activation.py --scenarios tests/evals/rule-scenarios/{rule-id}.json --dry-run` to confirm the script can parse the target.
-4. Run live (without `--dry-run`) to score. Skill-reference targets add one route call per scenario before response scoring.
-5. Iterate on the rule or skill `description` field until the `description` mechanism passes on its own. Treat `full` as ceiling diagnostics, not as a passing route.
+2. Give every scenario an `expected_gate`. The harness refuses a file where one is missing, because that string picks the judge rubric and the pool: an unreadable gate would grade a negative case against the positive rubric and then average it into the positive pool. `skip-rule-not-applicable` is the one value that marks a negative case, and any near miss of it in the `skip-rule` namespace is refused rather than scored as a positive.
+3. Use `rule_path` for always-on rules, or `skill_path` plus `reference_path` for progressive-disclosure references.
+4. Run `uv run python scripts/eval/eval-rule-activation.py --scenarios tests/evals/rule-scenarios/{rule-id}.json --dry-run` to confirm the script can parse the target.
+5. Run live (without `--dry-run`) to score. Skill-reference targets add one route call per scenario before response scoring.
+6. Iterate on the rule or skill `description` field until the `description` mechanism passes on its own. Treat `full` as ceiling diagnostics, not as a passing route.
+7. Read the `Routing:` caveat before accepting a `description` pass. One skill router fronts every sibling reference, and a sibling resolves for your target as readily as the target does. That caveat counts the positive cells whose router never opened the reference under test, so a pass reported beside a nonzero count is partly a measurement of some other reference.
 
 ### Software Engineering Library Rollback Gate
 

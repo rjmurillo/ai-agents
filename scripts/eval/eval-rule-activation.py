@@ -183,6 +183,32 @@ def build_system_prompt(mechanism: str, rule: dict[str, str], rule_id: str) -> s
     raise ValueError(f"Unknown mechanism: {mechanism}")
 
 
+NEGATIVE_GATE = "skip-rule-not-applicable"
+
+
+def _normalize_gate(value: object) -> str:
+    """Normalize an ``expected_gate`` label for comparison.
+
+    Case and separator style are authoring noise, not meaning. Folding them
+    here means a scenario written `SKIP_RULE_NOT_APPLICABLE` lands in the pool
+    its author intended instead of silently becoming a positive case.
+    """
+    if not isinstance(value, str):
+        return ""
+    return value.strip().lower().replace("_", "-")
+
+
+def _is_negative_gate(value: object) -> bool:
+    """True when this scenario's gate marks it as a negative case.
+
+    Every consumer that splits the pools calls this. The gate string also
+    selects the judge rubric, so a scenario misclassified here is graded
+    against the wrong rubric and then filed in the wrong pool: the score is
+    wrong and the population it joins is wrong.
+    """
+    return _normalize_gate(value) == NEGATIVE_GATE
+
+
 def build_skill_route_prompt(rule: dict[str, str], scenario: dict[str, Any]) -> str:
     """Build the progressive-disclosure routing prompt for a skill reference."""
     return f"""Route the user request through the available skill catalog.
@@ -440,7 +466,7 @@ def score_response(
     expected_gate = scenario.get("expected_gate", "")
     rationale = scenario.get("rationale", "")
 
-    is_negative = expected_gate == "skip-rule-not-applicable"
+    is_negative = _is_negative_gate(expected_gate)
     signals_str = ", ".join(expected_signals) if expected_signals else "none"
     negative_flag = "YES" if is_negative else "no"
 
@@ -1494,7 +1520,7 @@ def eval_one_scenario(
     result: dict[str, Any] = {
         "id": scenario["id"],
         "desc": scenario.get("desc", ""),
-        "negative_case": scenario.get("expected_gate") == "skip-rule-not-applicable",
+        "negative_case": _is_negative_gate(scenario.get("expected_gate")),
         "mechanisms": {},
     }
 
@@ -1535,6 +1561,7 @@ def eval_one_scenario(
                             "selected_skill": None,
                             "selected_reference": None,
                             "route_failed": True,
+                            "reference_matched": False,
                         },
                     }
                     continue
@@ -1546,6 +1573,15 @@ def eval_one_scenario(
                     "selected_skill": selected_skill if isinstance(selected_skill, str) else None,
                     "selected_reference": selected_reference,
                     "route_failed": False,
+                    # One skill router fronts many sibling references, and a
+                    # sibling resolves for this target as readily as the target
+                    # does. Without this the score a sibling earned is published
+                    # under a reference the run never opened.
+                    "reference_matched": (
+                        selected_reference is not None
+                        and selected_reference
+                        == _normalize_selected_reference(rule.get("reference_path"))
+                    ),
                     "reasoning": str(parsed_route.get("reasoning", ""))[:300],
                 }
                 system = _build_routed_reference_prompt(rule, selected_reference)
@@ -1671,6 +1707,18 @@ def _scenario_score_triple(
     return sum(triple) / len(_SCORE_KEYS), failed, True
 
 
+def _route_missed_target(scenario: dict[str, Any], mech: str) -> bool:
+    """True when this cell's router did not open the target reference.
+
+    Absent on every cell written before the flag existed, and `None is False`
+    is False, so an archived run counts zero and reproduces unchanged.
+    """
+    routing = scenario["mechanisms"].get(mech, {}).get("routing")
+    if not isinstance(routing, dict):
+        return False
+    return routing.get("reference_matched") is False
+
+
 def _incomplete_mechanisms(
     per_mech: dict[str, dict[str, Any]], mechs: list[str], pool_size: int
 ) -> list[str]:
@@ -1691,8 +1739,11 @@ def _mechanism_summary(
     scores: list[float] = []
     failures = 0
     legacy = 0
+    route_missed = 0
     for s in pool:
         score, failed, legacy_reduced = _scenario_score_triple(s, mech)
+        if _route_missed_target(s, mech):
+            route_missed += 1
         if score is not None:
             scores.append(score)
         if failed:
@@ -1711,6 +1762,7 @@ def _mechanism_summary(
         "graded_count": len(scores),
         "judge_failures": failures,
         "legacy_reduced_count": legacy,
+        "route_mismatch_count": route_missed,
     }
 
 
@@ -2062,6 +2114,16 @@ def _render_caveats(summary: dict[str, Any]) -> list[str]:
             f"Judge failures: {total_jf} in the record, {gating_jf} on gating "
             + (f"surfaces. Not gated: {', '.join(where)}." if where else "surfaces.")
         )
+    # Positive pool only. On a negative case the router is supposed to decline,
+    # so counting a miss there would report correct restraint as a defect.
+    route_missed = sum(
+        summary["per_mechanism"][m].get("route_mismatch_count", 0) for m in MECHANISMS
+    )
+    if route_missed:
+        lines.append(
+            f"Routing: {route_missed} positive cell(s) never opened the target "
+            "reference, so those scores measure a sibling reference or none"
+        )
     legacy = sum(
         summary["per_mechanism"][m].get("legacy_reduced_count", 0)
         + summary["negative_case_per_mechanism"][m].get("legacy_reduced_count", 0)
@@ -2233,6 +2295,37 @@ def _read_scenarios_json(spath: Path) -> dict[str, Any] | int:
     return data
 
 
+def _validate_scenario_gate(
+    sc: dict[str, Any], idx: int, spath: Path
+) -> int | None:
+    """Validate one scenario's ``expected_gate``. Exit code 2 on error.
+
+    An absent gate and a misspelled one both used to read as a positive case,
+    so a scenario authored as a negative was graded against the positive rubric
+    and then averaged into the positive pool. Refusing the file is the visible
+    failure; silently moving a case between pools is an invisible one.
+    """
+    gate = sc.get("expected_gate")
+    if not isinstance(gate, str) or not gate.strip():
+        print(
+            f"ERROR: scenarios[{idx}].expected_gate must be a non-empty "
+            f"string in {spath}. Use {NEGATIVE_GATE!r} for a negative case "
+            "or name the gate the scenario expects.",
+            file=sys.stderr,
+        )
+        return 2
+    normalized = _normalize_gate(gate)
+    if normalized != NEGATIVE_GATE and normalized.startswith("skip-rule"):
+        print(
+            f"ERROR: scenarios[{idx}].expected_gate {gate!r} is in the "
+            f"skip-rule namespace but is not {NEGATIVE_GATE!r} in {spath}. "
+            "A near miss would be scored as a positive case.",
+            file=sys.stderr,
+        )
+        return 2
+    return None
+
+
 def _validate_scenarios_shape(data: dict[str, Any], spath: Path) -> int | None:
     """Validate scenarios array shape. Return exit code 2 on error, None on ok."""
     scenarios = data.get("scenarios")
@@ -2246,6 +2339,9 @@ def _validate_scenarios_shape(data: dict[str, Any], spath: Path) -> int | None:
                 file=sys.stderr,
             )
             return 2
+        gate_error = _validate_scenario_gate(sc, idx, spath)
+        if gate_error is not None:
+            return gate_error
         for required in ("id", "input"):
             value = sc.get(required)
             if not isinstance(value, str) or not value.strip():

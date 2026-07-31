@@ -682,7 +682,13 @@ class TestSkillPathResolution:
                 {
                     "skill_path": ".claude/skills/security-scan/SKILL.md",
                     "skill_id": "security-scan",
-                    "scenarios": [{"id": "S1", "input": "scan for injection"}],
+                    "scenarios": [
+                        {
+                            "id": "S1",
+                            "input": "scan for injection",
+                            "expected_gate": "flag-injection-sink",
+                        }
+                    ],
                 }
             ),
             encoding="utf-8",
@@ -4053,6 +4059,7 @@ class TestArchivedSummariesStillAggregate:
             "negative_gate_incomplete",
             "worst_negative_avg",
             "legacy_reduced_count",
+            "route_mismatch_count",
         }
     )
 
@@ -5551,3 +5558,275 @@ class TestTheJuneArchiveReplaysAsAClosedRecord:
         # A rule whose verdict did not move must not be listed as one that did.
         assert "release-it: PASS to" not in text
         assert "working-with-legacy-code: PASS to" not in text
+
+
+# ---------------------------------------------------------------------------
+# Round 17. Two published-number defects, both from a classification that
+# failed quietly instead of loudly.
+#
+# The gate string does two jobs: it selects the judge rubric and it files the
+# scenario in a pool. A missing or misspelled gate used to do both wrong at
+# once, so a scenario authored as a negative was graded against the positive
+# rubric and then averaged into the positive pool.
+#
+# The routed `description` mechanism fronts one skill router over eight sibling
+# references. A sibling resolves for this target as readily as the target does,
+# so a router that opened the wrong one published its score under a reference
+# the run never read.
+# ---------------------------------------------------------------------------
+
+
+_SKILL_REL = ".claude/skills/software-engineering-library/SKILL.md"
+
+
+def _routed_scenario(negative: bool, matched: bool | None) -> dict[str, Any]:
+    """Build a scenario whose description cell carries a routing record.
+
+    `matched=None` is the archived shape: written before the flag existed.
+    """
+    description: dict[str, Any] = _make_mech(5)
+    if matched is not None:
+        description["routing"] = {
+            "selected_skill": "software-engineering-library",
+            "selected_reference": "references/x.md",
+            "route_failed": False,
+            "reference_matched": matched,
+        }
+    mechanisms: dict[str, Any] = {
+        "baseline": _make_mech(3),
+        "description": description,
+        "full": _make_mech(4),
+    }
+    return {"negative_case": negative, "mechanisms": mechanisms}
+
+
+class TestTheNegativeGateIsOneVocabulary:
+    """One gate string decides the rubric and the pool, so it is derived once.
+
+    Two sites used to compare the sentinel independently. A scenario they
+    disagreed about would be graded as a negative and counted as a positive,
+    which corrupts the rubric the score came from and the population it joins.
+    """
+
+    def test_the_sentinel_literal_is_defined_once_in_the_module(self):
+        source = (
+            Path(eval_mod.__file__ or "").read_text(encoding="utf-8")
+            if eval_mod.__file__
+            else (REPO_ROOT / "scripts" / "eval" / "eval-rule-activation.py").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert source.count('"skip-rule-not-applicable"') == 1
+        assert 'NEGATIVE_GATE = "skip-rule-not-applicable"' in source
+
+    @pytest.mark.parametrize(
+        "gate",
+        [
+            "skip-rule-not-applicable",
+            "skip_rule_not_applicable",
+            "SKIP-RULE-NOT-APPLICABLE",
+            "  skip-rule-not-applicable  ",
+            "Skip-Rule-Not-Applicable",
+        ],
+    )
+    def test_every_spelling_of_the_sentinel_reaches_the_negative_pool(self, gate):
+        assert eval_mod._is_negative_gate(gate) is True
+
+    @pytest.mark.parametrize(
+        "gate",
+        ["invert-dependency", "seam-before-edit", "skip-the-cache", "bound-the-queue"],
+    )
+    def test_a_positive_gate_stays_positive(self, gate):
+        assert eval_mod._is_negative_gate(gate) is False
+
+    def test_a_non_string_gate_is_not_a_negative_case(self):
+        assert eval_mod._is_negative_gate(None) is False
+        assert eval_mod._is_negative_gate(123) is False
+
+
+class TestAnUnreadableGateIsRefusedRatherThanReclassified:
+    """A gate the harness cannot read is a refusal, not a positive case.
+
+    Silently defaulting to positive moved the scenario into the pool its
+    author did not choose and graded it under the rubric its author did not
+    choose. Refusing the file is the visible failure.
+    """
+
+    @staticmethod
+    def _check(gate: object) -> int | None:
+        scenario: dict[str, Any] = {"id": "S1", "input": "do a thing"}
+        if gate is not None:
+            scenario["expected_gate"] = gate
+        return eval_mod._validate_scenarios_shape(
+            {"scenarios": [scenario]}, Path("scenarios.json")
+        )
+
+    def test_a_missing_gate_is_refused(self):
+        assert self._check(None) == 2
+
+    def test_an_empty_gate_is_refused(self):
+        assert self._check("   ") == 2
+
+    def test_a_non_string_gate_is_refused(self):
+        assert self._check(7) == 2
+
+    @pytest.mark.parametrize(
+        "gate",
+        [
+            "skip-rule-not-appliable",
+            "skip-rule-na",
+            "skip_rule_notapplicable",
+            "skip-rule",
+        ],
+    )
+    def test_a_near_miss_in_the_skip_rule_namespace_is_refused(self, gate):
+        assert self._check(gate) == 2
+
+    def test_a_gate_outside_the_skip_rule_namespace_is_accepted(self):
+        assert self._check("skip-the-cache") is None
+        assert self._check("invert-dependency") is None
+
+    def test_the_refusal_names_the_index_and_the_sentinel(self, capsys):
+        self._check(None)
+        err = capsys.readouterr().err
+        assert "scenarios[0].expected_gate" in err
+        assert "skip-rule-not-applicable" in err
+
+    def test_the_shipped_example_survives_its_own_validator(self):
+        example = REPO_ROOT / "scripts" / "eval" / "examples" / "example-scenarios.json"
+        data = json.loads(example.read_text(encoding="utf-8"))
+        assert eval_mod._validate_scenarios_shape(data, example) is None
+        gates = [s["expected_gate"] for s in data["scenarios"]]
+        # The template teaches both pools. One that showed only positives is
+        # how every scenario copied from it landed in the positive pool.
+        assert eval_mod.NEGATIVE_GATE in gates
+        assert any(not eval_mod._is_negative_gate(g) for g in gates)
+
+
+class TestARoutedCellThatMissedTheTargetIsDisclosed:
+    """A sibling reference resolves for this target as readily as the target.
+
+    The score stays in the average: it is a real measurement of the routed
+    mechanism, and dropping its failures would inflate that mechanism. What
+    changes is that the reader is told the target was never opened.
+    """
+
+    def test_a_sibling_route_on_a_positive_case_is_counted(self):
+        summary = eval_mod.aggregate(
+            [_routed_scenario(False, False), _routed_scenario(False, True)]
+        )
+        assert summary["per_mechanism"]["description"]["route_mismatch_count"] == 1
+
+    def test_a_sibling_route_on_a_positive_case_is_disclosed(self):
+        summary = eval_mod.aggregate([_routed_scenario(False, False)])
+        caveats = eval_mod._render_caveats(summary)
+        routing = [c for c in caveats if c.startswith("Routing:")]
+        assert len(routing) == 1
+        assert "1 positive cell(s) never opened the target reference" in routing[0]
+
+    def test_the_missed_cell_still_counts_toward_the_published_average(self):
+        summary = eval_mod.aggregate([_routed_scenario(False, False)])
+        per_mech = summary["per_mechanism"]["description"]
+        assert per_mech["graded_count"] == 1
+        assert per_mech["avg_score"] == 5.0
+
+    def test_a_declined_route_on_a_negative_case_is_not_called_a_defect(self):
+        summary = eval_mod.aggregate(
+            [_routed_scenario(False, True), _routed_scenario(True, False)]
+        )
+        neg = summary["negative_case_per_mechanism"]["description"]
+        assert neg["route_mismatch_count"] == 1
+        assert summary["per_mechanism"]["description"]["route_mismatch_count"] == 0
+        assert not [c for c in eval_mod._render_caveats(summary) if c.startswith("Routing:")]
+
+    def test_a_cell_with_no_routing_record_counts_zero(self):
+        summary = eval_mod.aggregate([_routed_scenario(False, None)])
+        assert summary["per_mechanism"]["description"]["route_mismatch_count"] == 0
+        assert not [c for c in eval_mod._render_caveats(summary) if c.startswith("Routing:")]
+
+    def test_an_archived_routing_record_without_the_flag_counts_zero(self):
+        """The shape a run written before the flag existed actually has.
+
+        Those cells carry a routing dict with no `reference_matched` key. Read
+        as falsy rather than `is False`, every one of them would count as a
+        miss and publish a caveat about a failure the run never recorded.
+        """
+        scenario = _routed_scenario(False, True)
+        mechanisms: dict[str, Any] = scenario["mechanisms"]
+        routing: dict[str, Any] = mechanisms["description"]["routing"]
+        del routing["reference_matched"]
+        summary = eval_mod.aggregate([scenario])
+        assert summary["per_mechanism"]["description"]["route_mismatch_count"] == 0
+        assert not [c for c in eval_mod._render_caveats(summary) if c.startswith("Routing:")]
+
+    def test_a_routing_record_that_is_not_a_dict_counts_zero(self):
+        scenario = _routed_scenario(False, None)
+        mechanisms: dict[str, Any] = scenario["mechanisms"]
+        mechanisms["description"]["routing"] = "unparsed"
+        summary = eval_mod.aggregate([scenario])
+        assert summary["per_mechanism"]["description"]["route_mismatch_count"] == 0
+
+
+class TestTheRouteRecordsWhichReferenceItActuallyOpened:
+    """Pin `reference_matched` where it is computed, not where it is counted."""
+
+    TARGET = "references/clean-architecture.md"
+    SIBLING = "references/domain-driven-design.md"
+
+    @staticmethod
+    def _rule():
+        skill = REPO_ROOT / _SKILL_REL
+        reference = skill.parent / TestTheRouteRecordsWhichReferenceItActuallyOpened.TARGET
+        if not skill.is_file() or not reference.is_file():
+            pytest.skip("software-engineering-library not present in this checkout")
+        return eval_mod.parse_skill_reference(skill, reference)
+
+    @staticmethod
+    def _api(selected: str):
+        route = json.dumps(
+            {
+                "selected_skill": "software-engineering-library",
+                "selected_reference": selected,
+                "reasoning": "picked one",
+            }
+        )
+        judge = json.dumps(
+            {"activation_score": 5, "citation_score": 5, "behavior_score": 5}
+        )
+
+        def _call(_key, _messages, **kwargs):
+            if kwargs.get("max_tokens") == 300:
+                return route
+            if kwargs.get("max_tokens") == 600:
+                return "a response"
+            return judge
+
+        return _call
+
+    def _run(self, monkeypatch, selected: str) -> dict[str, Any]:
+        rule = self._rule()
+        monkeypatch.setattr(eval_mod, "_call_api", self._api(selected))
+        result = eval_mod.eval_one_scenario(
+            "sk-test",
+            rule,
+            "clean-architecture",
+            {"id": "S1", "input": "x", "expected_gate": "invert-dependency"},
+            "model",
+            False,
+        )
+        routing = result["mechanisms"]["description"]["routing"]
+        assert isinstance(routing, dict)
+        return routing
+
+    def test_opening_the_target_reference_records_a_match(self, monkeypatch):
+        assert self._run(monkeypatch, self.TARGET)["reference_matched"] is True
+
+    def test_opening_a_sibling_reference_records_a_miss(self, monkeypatch):
+        routing = self._run(monkeypatch, self.SIBLING)
+        assert routing["reference_matched"] is False
+        assert routing["selected_reference"] == self.SIBLING
+
+    def test_declining_to_route_records_a_miss(self, monkeypatch):
+        routing = self._run(monkeypatch, "")
+        assert routing["reference_matched"] is False
+        assert routing["selected_reference"] is None
