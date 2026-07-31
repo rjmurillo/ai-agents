@@ -12,6 +12,7 @@ Covers:
 
 from __future__ import annotations
 
+import argparse
 import difflib
 import importlib.util
 import json
@@ -6044,3 +6045,133 @@ class TestTheRouteMissCountIsDerivedOnce:
         }
         text = " ".join(eval_mod._render_caveats(summary))
         assert "never opened the target" not in text
+
+
+class TestOneTargetPublishesUnderOneId:
+    """Two measured targets must never collapse into one published entry."""
+
+    SKILL = ".claude/skills/software-engineering-library/SKILL.md"
+    REFS = ".claude/skills/software-engineering-library/references"
+
+    @staticmethod
+    def _args():
+        return argparse.Namespace(
+            dry_run=True,
+            judge_repeats=0,
+            judge_reducer="median",
+            seed=None,
+            model="m",
+            verbose=False,
+        )
+
+    def _file(self, tmp_path, name, reference, rule_id=None):
+        skill = REPO_ROOT / self.SKILL
+        if not skill.is_file():
+            pytest.skip("software-engineering-library not present in this checkout")
+        body: dict[str, Any] = {
+            "skill_path": self.SKILL,
+            "reference_path": f"{self.REFS}/{reference}",
+            "scenarios": [
+                {"id": "S1", "input": "x", "expected_gate": "invert-dependency"}
+            ],
+        }
+        if rule_id is not None:
+            body["rule_id"] = rule_id
+        path = tmp_path / name
+        path.write_text(json.dumps(body))
+        return str(path)
+
+    def _run(self, files):
+        state = eval_mod._RunState()
+        results: dict[str, Any] = {"rules": {}}
+        codes = [
+            eval_mod._process_scenario_file(f, "sk-test", self._args(), results, state)
+            for f in files
+        ]
+        return codes, state
+
+    def test_a_reference_target_is_named_for_its_reference(self, tmp_path, capsys):
+        """The umbrella skill name would label the wrong population."""
+        first = self._file(tmp_path, "a.json", "clean-architecture.md")
+        codes, state = self._run([first])
+        assert codes == [None]
+        assert sorted(state.claimed_ids) == ["clean-architecture"]
+        assert "software-engineering-library:" not in capsys.readouterr().out
+
+    def test_two_references_under_one_router_stay_distinct(self, tmp_path):
+        files = [
+            self._file(tmp_path, "a.json", "clean-architecture.md"),
+            self._file(tmp_path, "b.json", "domain-driven-design.md"),
+        ]
+        codes, state = self._run(files)
+        assert codes == [None, None]
+        assert sorted(state.claimed_ids) == [
+            "clean-architecture",
+            "domain-driven-design",
+        ]
+
+    def test_a_second_claim_on_one_id_is_refused(self, tmp_path, capsys):
+        """Refusing is visible. Overwriting leaves no trace in the output."""
+        files = [
+            self._file(tmp_path, "a.json", "clean-architecture.md"),
+            self._file(tmp_path, "c.json", "clean-architecture.md"),
+        ]
+        codes, _ = self._run(files)
+        assert codes == [None, 2]
+        assert "already claimed" in capsys.readouterr().err
+
+    def test_the_collision_is_caught_before_any_spend(self, tmp_path):
+        """Dry run is the cheapest place to catch it, and the PR gate runs one."""
+        files = [
+            self._file(tmp_path, "a.json", "clean-architecture.md"),
+            self._file(tmp_path, "c.json", "clean-architecture.md"),
+        ]
+        state = eval_mod._RunState()
+        results: dict[str, Any] = {"rules": {}}
+        args = self._args()
+        assert args.dry_run is True
+        codes = [
+            eval_mod._process_scenario_file(f, "sk-test", args, results, state)
+            for f in files
+        ]
+        assert codes[1] == 2
+        assert results["rules"] == {}
+
+    def test_explicit_distinct_ids_still_coexist(self, tmp_path):
+        """The guard must refuse collisions, not every repeated reference."""
+        files = [
+            self._file(tmp_path, "e.json", "clean-architecture.md", rule_id="alpha"),
+            self._file(tmp_path, "f.json", "clean-architecture.md", rule_id="beta"),
+        ]
+        codes, state = self._run(files)
+        assert codes == [None, None]
+        assert sorted(state.claimed_ids) == ["alpha", "beta"]
+
+    def test_a_fresh_run_state_claims_nothing(self):
+        assert eval_mod._RunState().claimed_ids == {}
+
+
+class TestTheShippedTemplateTeachesTheDocumentedSchema:
+    """The artifact new scenario files are copied from must not contradict the docs."""
+
+    @staticmethod
+    def _template():
+        path = REPO_ROOT / "scripts" / "eval" / "examples" / "example-scenarios.json"
+        if not path.is_file():
+            pytest.skip("example template not present in this checkout")
+        return json.loads(path.read_text())
+
+    def test_the_template_declares_an_id(self):
+        """Without one, two copies pointed at one skill collide by default."""
+        data = self._template()
+        assert isinstance(data.get("rule_id") or data.get("skill_id"), str)
+
+    def test_every_template_scenario_declares_a_gate(self):
+        for scenario in self._template()["scenarios"]:
+            assert eval_mod._validate_scenario_gate(
+                scenario, 0, Path("example-scenarios.json")
+            ) is None
+
+    def test_the_template_demonstrates_a_negative_case(self):
+        gates = [s.get("expected_gate") for s in self._template()["scenarios"]]
+        assert any(eval_mod._is_negative_gate(g) for g in gates)

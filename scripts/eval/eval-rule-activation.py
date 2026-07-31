@@ -2574,9 +2574,17 @@ def _process_one_rule(
 ) -> tuple[str, dict[str, Any] | None, int]:
     """Run all scenarios for one rule or skill. Return (target_id, result_or_none, n_calls)."""
     primary_path, reference_path = target_paths
-    default_id = (
-        primary_path.parent.name if primary_path.name == "SKILL.md" else primary_path.stem
-    )
+    if reference_path is not None:
+        # A reference target measures one reference, not the skill that fronts
+        # it. Defaulting to the skill directory gave every reference under one
+        # router the same id, so the label named the umbrella population while
+        # the numbers measured a single reference. `.stem` matches the ids the
+        # shipped scenario files already declare.
+        default_id = reference_path.stem
+    elif primary_path.name == "SKILL.md":
+        default_id = primary_path.parent.name
+    else:
+        default_id = primary_path.stem
     rule_id = (
         scenarios_data.get("rule_id")
         or scenarios_data.get("skill_id")
@@ -2681,6 +2689,10 @@ class _RunState:
         self.overall_pass = True
         self.external_failure = False
         self.total_calls = 0
+        # Which scenario file claimed each id. Results are stored by id into a
+        # plain dict, so without this a second file claiming a taken id would
+        # overwrite the first and publish one entry for two measured targets.
+        self.claimed_ids: dict[str, str] = {}
 
 
 def _process_scenario_file(
@@ -2699,6 +2711,20 @@ def _process_scenario_file(
     rule_id, result, n_calls = _process_one_rule(
         api_key, scenarios_data, target_paths, args
     )
+    # Checked before the results are stored and before any spend, so a dry run
+    # catches the collision too. Refusing is the visible failure; overwriting
+    # is an invisible one that leaves no trace in the published output.
+    claimed_by = state.claimed_ids.get(rule_id)
+    if claimed_by is not None:
+        print(
+            f"ERROR: {scenario_file} declares id {rule_id!r}, already claimed "
+            f"by {claimed_by}. Two targets cannot publish under one id: the "
+            "second would overwrite the first. Set a distinct rule_id or "
+            "skill_id in one of them.",
+            file=sys.stderr,
+        )
+        return 2
+    state.claimed_ids[rule_id] = scenario_file
     state.total_calls += n_calls
 
     if result is not None:

@@ -173,6 +173,8 @@ cases alone.
 
 Per-rule or per-reference scenario files live in `tests/evals/rule-scenarios/{rule}.json`:
 
+`rule_id` names the population every number in that file is published under, and one run refuses two files that claim the same id rather than letting the second overwrite the first. Omitting it is safe but not free: a reference target then defaults to the reference filename, so two references under one skill router stay distinct only as long as their filenames do.
+
 ```json
 {
   "skill_path": ".claude/skills/software-engineering-library/SKILL.md",
