@@ -1135,13 +1135,11 @@ class TestGetSkillFilesDefaultScansAllTrees:
             # No --path arg; if the default reverts to single-tree, only 1 file is found.
             # We capture this by patching print and checking Found N SKILL.md.
             captured: list[str] = []
-            original_print = __builtins__["print"] if isinstance(__builtins__, dict) else print
-
             import builtins
             original_print = builtins.print
-            def capturing_print(*args: object, **kwargs: object) -> None:
+            def capturing_print(*args: object, **kwargs: object) -> None:  # type: ignore[misc]
                 captured.append(" ".join(str(a) for a in args))
-                original_print(*args, **kwargs)
+                original_print(*args, **kwargs)  # type: ignore[call-overload]
 
             builtins.print = capturing_print
             try:
