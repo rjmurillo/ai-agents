@@ -73,4 +73,4 @@ jobs:
           path: |
             quality-grades.json
             quality-grades.md
-          retention-days: 90
+          retention-days: 7
