@@ -221,4 +221,4 @@ Backticked paths below are in the `rjmurillo/ai-agents` repository. They do not 
 - `.agents/metrics/baseline-report.md`. Baseline report.
 - `.github/workflows/agent-metrics.yml`. CI workflow.
 
-<!-- vendor-portability: declared. This skill reads the consumer's .agents/* artifacts as metric inputs and can archive formatted output to .agents/metrics/. Inputs are whatever the consumer repo contains; the archive path is an optional write target created on demand. It also cites docs/agent-metrics.md and .github/workflows/agent-metrics.yml as background reading. Issue #2050. -->
+<!-- vendor-portability: declared. This skill reads the consumer's .agents/* artifacts as metric inputs and can archive formatted output to .agents/metrics/. Inputs are whatever the consumer repo contains; the archive path is an optional write target created on demand. It also cites docs/agent-metrics.md, .agents/metrics/dashboard-template.md, .agents/metrics/baseline-report.md, and .github/workflows/agent-metrics.yml as background reading. Issue #2050. -->
