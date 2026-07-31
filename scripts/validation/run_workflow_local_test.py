@@ -128,9 +128,7 @@ def _shellcheck_env() -> dict[str, str]:
     env = dict(os.environ)
     existing = env.get("SHELLCHECK_OPTS", "").strip()
     env["SHELLCHECK_OPTS"] = (
-        f"{existing} {_SHELLCHECK_SEVERITY}".strip()
-        if existing
-        else _SHELLCHECK_SEVERITY
+        f"{existing} {_SHELLCHECK_SEVERITY}".strip() if existing else _SHELLCHECK_SEVERITY
     )
     return env
 
@@ -395,16 +393,13 @@ def _referenced_secrets(path: Path) -> set[str]:
 
 def _missing_secrets(path: Path, available: set[str]) -> list[str]:
     """Secrets ``path`` references that are absent from ``available`` (sorted)."""
-    return sorted(
-        name for name in _referenced_secrets(path) if name not in available
-    )
+    return sorted(name for name in _referenced_secrets(path) if name not in available)
 
 
 def _secret_gap_detail(secret_blocked: Sequence[tuple[str, Sequence[str]]]) -> str:
     """Return an operator-safe summary without logging secret names."""
     return "; ".join(
-        f"{rel} needs {len(missing)} locally absent secret(s)"
-        for rel, missing in secret_blocked
+        f"{rel} needs {len(missing)} locally absent secret(s)" for rel, missing in secret_blocked
     )
 
 
@@ -536,13 +531,9 @@ _ACT_PR_CONTEXT_EMPTY_ENV_PATTERN = re.compile(
 # describes the same limitation one layer up. Attributing it unconditionally
 # would excuse every genuine configuration error, so it is only excused for a
 # run that already carries an attributed limitation.
-_ACT_WRAPPER_ANNOTATION_PATTERN = re.compile(
-    r"::error::Configuration error \(ADR-035 exit 2\)"
-)
+_ACT_WRAPPER_ANNOTATION_PATTERN = re.compile(r"::error::Configuration error \(ADR-035 exit 2\)")
 
-_ACT_SERVER_PORT_BIND_PATTERN = re.compile(
-    r"listen tcp [0-9.]+:\d+: bind: address already in use"
-)
+_ACT_SERVER_PORT_BIND_PATTERN = re.compile(r"listen tcp [0-9.]+:\d+: bind: address already in use")
 
 # act embeds its own artifact server, which lags the protobuf schema the current
 # actions/upload-artifact client sends. act rejects the body ("unknown field
@@ -558,6 +549,17 @@ _ACT_SERVER_PORT_BIND_PATTERN = re.compile(
 # issue #3690.
 _ACT_ARTIFACT_SERVICE_PATTERN = re.compile(
     r"Failed to \w+: Failed to make request after \d+ attempts:"
+)
+
+# Workflows that call ``gh api`` or Python scripts that auto-detect the
+# repository via ``gh repo view`` (e.g. scripts/github_core/api.py
+# resolve_repo_params) fail in act because no GH_TOKEN with real repo context
+# is available in the container. In real CI ``github.token`` is always
+# populated and the repository is resolvable. The exact message comes from
+# scripts/github_core/api.py:resolve_repo_params when every auto-detection
+# path is exhausted. See issue #3981.
+_ACT_NO_REPO_CONTEXT_PATTERN = (
+    "Could not infer repository info. Please provide -Owner and -Repo parameters."
 )
 
 # Known act-only limitation signatures. A nonzero act exit whose combined output
@@ -611,6 +613,14 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
         "act leaves env vars mapped from github.event.pull_request (PR_NUMBER, "
         "PR_TITLE) empty on a local run, so validation scripts fail only in local "
         "act, not in CI.",
+    ),
+    (
+        None,
+        lambda text: _ACT_NO_REPO_CONTEXT_PATTERN in text,
+        "act container cannot authenticate or resolve the repository context "
+        "that gh needs for API calls; workflows that call gh api or Python "
+        "scripts that auto-detect the repository via gh repo view fail only "
+        "in local act, not in CI where GH_TOKEN and repo info are available.",
     ),
 )
 
@@ -772,24 +782,18 @@ def _run_act_stage(
             combined = (out + err).strip()
             hint = _act_limitation_hint(combined, event)
             if hint is not None:
-                warnings.append(
-                    f"[WARN] {wf}: {hint} Set {_BYPASS_ENV}=true to silence."
-                )
+                warnings.append(f"[WARN] {wf}: {hint} Set {_BYPASS_ENV}=true to silence.")
                 continue
             return StageResult(stage, False, f"{wf}:\n{combined[:4000]}")
     return StageResult(stage, True, "\n".join(warnings))
 
 
 def _act_dryrun_stage(files: Sequence[str], repo_root: Path) -> StageResult:
-    return _run_act_stage(
-        "gh act -n", ["gh", "act", "-n"], _ACT_DRYRUN_TIMEOUT, files, repo_root
-    )
+    return _run_act_stage("gh act -n", ["gh", "act", "-n"], _ACT_DRYRUN_TIMEOUT, files, repo_root)
 
 
 def _act_full_stage(files: Sequence[str], repo_root: Path) -> StageResult:
-    return _run_act_stage(
-        "gh act (full)", ["gh", "act"], _ACT_FULL_TIMEOUT, files, repo_root
-    )
+    return _run_act_stage("gh act (full)", ["gh", "act"], _ACT_FULL_TIMEOUT, files, repo_root)
 
 
 # --- Orchestration -------------------------------------------------------
@@ -974,8 +978,7 @@ def run_local_test(
         report.secret_skipped = True
         report.missing_secret_names = missing_secret_names
         skip_note = (
-            f"skipped (secrets absent locally): {detail}. CI runs these with "
-            "the real secrets."
+            f"skipped (secrets absent locally): {detail}. CI runs these with the real secrets."
         )
         report.note = f"{report.note} {skip_note}".strip() if report.note else skip_note
 
@@ -1028,9 +1031,7 @@ def _format_json(report: Report) -> str:
             "secret_skipped": report.secret_skipped,
             "missing_secret_names": report.missing_secret_names,
             "note": report.note,
-            "stages": [
-                {"stage": s.stage, "ok": s.ok, "detail": s.detail} for s in report.stages
-            ],
+            "stages": [{"stage": s.stage, "ok": s.ok, "detail": s.detail} for s in report.stages],
         },
         indent=2,
         sort_keys=True,
