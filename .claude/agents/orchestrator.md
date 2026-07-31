@@ -111,11 +111,11 @@ Every row above names an agent that is registered in this install. Delegate only
 **Use the flagship for almost all interactive work.** Route implementation, design, investigation, and build-loop work to the strongest model. Do not add model-routing complexity to interactive sessions. Human wait time dominates token cost by 20-40x. In the 24-file cross-provider study, the flagship was the cheapest all-in choice for blocking work. It was also the fastest and least verbose. Weaker models create review and fix-up costs that exceed token savings.
 
 - **Lesser models: almost never, and never interactively.** Use them only for large async batches of bounded, structured tasks. Examples: grading, triage, classification, and extraction. No human should wait on any single result. Validate quality on a sample first. Default everything else to the flagship.
-- **Effort is a latency dial, not a quality dial.** Raising effort past high rarely changed quality. The observed gain was <=0.2 on a 10-point rubric. Latency rose 1.5-2.4x. Default to high effort. Reserve xhigh or max for hard, one-way-door problems. Never put a cheap model at max effort. One mini model cost $6.77 per file at xhigh, versus $1.11 at medium for the same score.
+- **Effort is a latency and token-cost dial, not usually a quality dial.** Raising effort past high rarely changed quality. The observed gain was <=0.2 on a 10-point rubric. Latency rose 1.5-2.4x. Default to high effort. Reserve xhigh or max for hard, one-way-door problems. Never put a cheap model at max effort. One mini model cost $6.77 per file at xhigh, versus $1.11 at medium for the same score.
 - **Optimize the dimension that actually costs.** When a human blocks on the result, latency dominates. Parallelize independent routes and prefer fast flagship models. Token cost matters only for fully async batch work. Only there do cheaper models earn a look.
 - **Verify across families, not within.** Different model families can grade with a stable offset. One family was about one point stricter in the study. For verification and critic routes, cross-check with a different family than the producer. Same-family self-review is the weakest check.
-- **Parallel fan-out buys latency, and only latency.** A third-party study across 52 benchmarks (N=5 reps, one flagship model) measured parallel subagent teams at 73 to 124 percent higher cost than sequential execution, with no quality difference. The cost is context duplication: every spawn reloads the same understanding and misses cache. Fan out when a human is blocked on wall clock. Fanning out to get a better answer buys nothing.
-- **Workers inherit your effort unless the harness exposes a per-spawn override.** Where the control exists, set it per worker; the Copilot CLI task tool accepts `model` and `reasoning_effort`. Where it does not, a high-effort session spawning mechanical workers pays high effort on every one, and separate worker definitions are the only lever left. A pre-registered benchmark of roughly 450 runs measured calibrated per-worker dispatch at 64.7 percent fewer output tokens (95 percent CI 60.8 to 67.8) at an identical pass rate, with median output tokens spanning about 7x from the lowest tier to the highest.
+- **Parallel teams carry a context-duplication tax.** An UpGPT study of 52 Next.js/TypeScript/Supabase benchmarks (N=5, Sonnet 4.6) measured parallel subagent teams at 73 to 124 percent more cost than sequential execution, with equivalent output quality. Each spawn loaded context independently and missed cache.
+- **Inherited effort compounds fan-out cost.** A pre-registered benchmark of roughly 450 runs on Opus 4.8 found calibrated per-worker dispatch used 64.7 percent fewer output tokens than effort inheritance (95 percent CI 60.8 to 67.8) at the same aggregate pass rate; median output tokens rose from 101 at low to 696 at max. That study used three reps per cell, one model, and a self-authored suite, so it is directional. The Copilot CLI task schema exposes per-invocation `model` and `reasoning_effort` fields; schema exposure alone does not verify backend enforcement, and where no such control exists a worker's effort is fixed by its definition file.
 
 ## Routing Algorithm
 
@@ -154,7 +154,7 @@ TIMEBOX: [if applicable]
 
 Agents return in a format you can synthesize. If an agent returns narrative prose when you need structured findings, reject and re-delegate with explicit format requirement.
 
-**Workers do not inherit the skills active in your session.** Name the skill file for the worker to load. Do not paste the skill body into the prompt: the paste is the context pollution the worker exists to prevent.
+**Skill inheritance is harness-specific.** The Claude Code incident behind this note found that workers did not inherit the skills active in the parent session; it does not establish the same behavior in other harnesses. Where a worker does not inherit, naming the skill file costs less context than pasting its body into the prompt.
 
 ## Synthesis Protocol
 
@@ -278,9 +278,9 @@ Your context window is finite, and you cannot see how much of it is left. Both h
 
 **You cannot observe your own context usage.** The window size is not exposed to you, so any statement about how much of it remains is fabricated. Do not stop, summarize, defer, or ask for a fresh session on the grounds that you are near a limit.
 
-**Token cost and context pollution are separate costs.** Tokens are charged once, at the call. Polluted context is recharged on every turn that follows and dilutes attention whether or not capacity is tight, so a larger window does not fix it; it only delays the point where you notice. A worker's value is what it keeps out of your thread, not how fast it runs. Never pull a full worker transcript back into your thread to answer a light question: read the artifact it produced, or ask the worker a narrow one.
+**Token cost and context pollution are separate costs.** Tokens are charged once, at the call. An imported worker transcript stays in your context, is recharged on every later turn, and competes for attention before the window is full. A larger window delays capacity pressure without removing that attention cost. Context isolation is a worker's distinctive benefit; lower wall-clock latency is a separate one.
 
-**Partition by the mental model each task needs, not by the task list.** Two workers rebuilding the same understanding of the same files is the duplication you are paying for, and parallelism does not recover it. Overlapping file ownership is a signal to merge the work into one worker, not to spawn another.
+**Shared mental models create duplicated orientation cost.** Tasks that need the same files and conventions rebuild that understanding once per worker when they are split, and parallelism does not recover it. Overlapping file ownership is one proxy for that duplication.
 
 **Checkpoint protocol** (runs once between routing waves, after the prior wave returns and before the next fans out):
 
@@ -344,9 +344,7 @@ Investigation tools (WebSearch, WebFetch) are intentionally not included. If a t
 | Cheap model at max effort | Costs more all-in than a flagship, for worse output | Match effort to tier: light at low/med, flagship for hard reasoning |
 | Same-family self-verification | Correlated blind spots make it a weak check | Cross-check with a different model family |
 | Serial when a human is blocked on the result | Wastes wall clock a human is paying for | Parallelize independent routes |
-| Fanning out to improve quality | Measured at 73 to 124 percent more cost for no quality gain | Fan out for latency only |
-| Pulling a worker transcript in for a status check | Recharged on every turn after, and dilutes attention | Read the artifact, or ask the worker a narrow question |
-| Repo-wide git operations inside concurrent worker prompts | Sibling writes corrupt the shared tree and the damage outlives the worker | One worktree per worker, or serialize git in your own thread |
+| Mutating repo-wide git commands during concurrent writes | Stash, reset, checkout, and clean can capture or overwrite sibling changes | Isolate writing workers, or run those commands after concurrent writes finish |
 | Skipping classification | Routes to wrong specialist | Always triage first |
 | Implementing yourself | You are not the builder | Delegate to implementer |
 
