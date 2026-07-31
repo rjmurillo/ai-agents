@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Code and skill corrections are committed through c58cb1b7d. The five ADR artifacts are staged for the next commit; this session log will record that SHA in a follow-up commit"
+        "Evidence": "Code and skill corrections are committed through c58cb1b7d. ADR amendments, debate evidence, critique, and this session record were committed in 6d4b6ef6e"
       },
       "validationPassed": {
         "level": "MUST",
@@ -127,9 +127,8 @@
       "outcome": "Architect, critic, independent-thinker, security, analyst, and high-level-advisor all voted Accept. Debate logs were appended, prior history preserved, and ADR-082 was verified to contain no #3218 reference"
     }
   ],
-  "endingCommit": "c58cb1b7dc5defe81a781f8423e3de35295891c7",
+  "endingCommit": "6d4b6ef6e905ba881b1f7c76c7d4d4562482c654",
   "nextSteps": [
-    "Commit the five ADR review artifacts, then update this log with that implementation SHA.",
     "Create a fresh SHA-bound review marker, push without force, and update PR #4037 and PR #4059 descriptions.",
     "Reply to and resolve all PR #4037 review threads, run completion gates, and merge ready PRs."
   ]
