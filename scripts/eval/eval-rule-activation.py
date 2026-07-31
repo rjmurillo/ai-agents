@@ -1714,6 +1714,23 @@ def _mechanism_summary(
     }
 
 
+def _dropped_candidates(
+    per_mech: dict[str, Any], candidates: list[str]
+) -> tuple[list[str], list[str]]:
+    """Split the candidates a ranking passed over by why each fell out.
+
+    Partial coverage and no coverage are different things to go fix, so they
+    are returned separately rather than as one "not eligible" bucket.
+    """
+    partial = [
+        m
+        for m in candidates
+        if per_mech[m]["avg_score"] is not None and not _fully_graded(per_mech[m])
+    ]
+    unmeasured = [m for m in candidates if per_mech[m]["avg_score"] is None]
+    return partial, unmeasured
+
+
 def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str, Any]:
     """Aggregate per-mechanism averages across scenarios.
 
@@ -1824,6 +1841,20 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     summary["unreachable_mechanisms"] = [
         m for m in MECHANISMS if m not in measured_mechs
     ]
+    # "Best" is a superlative over a population even though it prints one
+    # name. Any candidate the ranking dropped has to be named, or a table row
+    # scoring above the winner reads as a broken ordering. Partial coverage
+    # and no coverage are different things to go fix, so they are published
+    # separately. Both skip mechanisms the target cannot reach: those are
+    # already named in `unreachable_mechanisms`, and reporting a treatment no
+    # deployment performs as missing would invent a defect.
+    (
+        summary["best_mechanism_excluded"],
+        summary["best_mechanism_unmeasured"],
+    ) = _dropped_candidates(
+        summary["per_mechanism"],
+        [m for m in rule_enhanced if m not in summary["unreachable_mechanisms"]],
+    )
 
     # Negative scenarios were measured but never gated: a rule that fired on
     # every case it was written to stay out of still returned PASS. Their
@@ -1871,6 +1902,18 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
         key=lambda m: gate_cells[m]["avg_score"],
         default=None,
     )
+    # The floor is read over the fully graded gate cells only, so the gate
+    # mechanism list no longer names the population behind the number. Publish
+    # the eligible set beside it, and whether any gate cell was graded but not
+    # completely, so an absent floor distinguishes "nothing graded" from
+    # "nothing graded on every negative scenario". This mirrors
+    # `best_mechanism_partial` on the positive side.
+    summary["negative_floor_mechanisms"] = [
+        m for m in gate_mechs if _fully_graded(gate_cells[m])
+    ]
+    summary["negative_floor_partial"] = not summary[
+        "negative_floor_mechanisms"
+    ] and any(gate_cells[m]["graded_count"] > 0 for m in gate_mechs)
     summary["worst_negative_mechanism"] = worst_neg_mech
     summary["worst_negative_graded"] = (
         gate_cells[worst_neg_mech]["graded_count"] if worst_neg_mech else 0
@@ -2033,14 +2076,29 @@ def _render_caveats(summary: dict[str, Any]) -> list[str]:
 
 def render_table(rule_id: str, summary: dict[str, Any]) -> str:
     worst_neg = summary.get("worst_negative_avg")
-    gate_mechs = summary.get("negative_gate_mechanisms") or []
     if worst_neg is None:
-        restraint = "not measured"
+        # An absent floor has two causes and they are not the same thing to go
+        # fix. Saying "not measured" beside a table row carrying an average
+        # contradicts the row.
+        restraint = (
+            "no mechanism graded on every negative scenario"
+            if summary.get("negative_floor_partial")
+            else "not measured"
+        )
     else:
-        # `worst_neg` is a min across mechanisms that need not have graded the
-        # same scenarios, so printing the mechanism list alone leaves the reader
-        # unable to say which one the number came from or how much it covers.
-        population = ", ".join(gate_mechs) if gate_mechs else "rule mechanisms"
+        # `worst_neg` is a min over the gate cells that covered their whole
+        # pool. Printing every gate mechanism would name a population wider
+        # than the one the number was read off, which is the defect this
+        # instrument exists to remove.
+        floor_mechs = summary.get("negative_floor_mechanisms")
+        if floor_mechs is None:
+            # A summary archived before the eligible set was published cannot
+            # say which mechanisms set its floor. Falling back to the gate list
+            # would reprint the exact mislabel this field exists to remove, so
+            # say the population is unrecorded instead of guessing it.
+            population = "population not recorded"
+        else:
+            population = ", ".join(floor_mechs) if floor_mechs else "rule mechanisms"
         source = summary.get("worst_negative_mechanism") or "?"
         graded = summary.get("worst_negative_graded", 0)
         neg_total = summary["negative_case_per_mechanism"][source]["scenario_count"] if (
@@ -2050,12 +2108,23 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
             f"worst of [{population}] {worst_neg} (floor {MIN_RESTRAINT_SCORE}), "
             f"from {source} over {graded}/{neg_total} negative scenario(s)"
         )
+    dropped = []
+    if summary.get("best_mechanism_excluded"):
+        dropped.append(
+            f"{', '.join(summary['best_mechanism_excluded'])} for partial coverage"
+        )
+    if summary.get("best_mechanism_unmeasured"):
+        dropped.append(
+            f"{', '.join(summary['best_mechanism_unmeasured'])} as unmeasured"
+        )
+    best_excluded = f", excluding {' and '.join(dropped)}" if dropped else ""
     rows = [
         f"\nRule: {rule_id}",
         f"Verdict: {summary['verdict']}",
         (
             f"Best mechanism: {summary['best_mechanism']} "
             f"(avg {summary['best_avg_score']})"
+            + best_excluded
             if summary.get("best_mechanism")
             else (
                 "Best mechanism: none graded on every scenario"
