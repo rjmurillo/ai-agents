@@ -1151,7 +1151,7 @@ class TestGetSkillFilesDefaultScansAllTrees:
         finally:
             os.chdir(original_cwd)
 
-        found_lines = [l for l in captured if "Found" in l and "SKILL.md" in l]
+        found_lines = [line for line in captured if "Found" in line and "SKILL.md" in line]
         assert found_lines, "main() must print a 'Found N SKILL.md' summary"
         count_str = found_lines[0].split()[1]
         assert int(count_str) == 2, (
