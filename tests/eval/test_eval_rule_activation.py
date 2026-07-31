@@ -4739,3 +4739,106 @@ class TestExcludedJudgeFailuresAreDisclosed:
 
         assert summary["excluded_judge_failure_cells"] == []
         assert "Judge failures:" not in eval_mod.render_table("probe", summary)
+
+
+class TestBothExclusionsCanFireAtOnce:
+    """A routed target can exclude a positive and a negative cell together.
+
+    Each exclusion was tested alone. Together they exercise the branch that
+    builds the excluded-cell list across both pools, which is where an
+    off-by-one pool key or a shadowed loop variable would show up.
+    """
+
+    @staticmethod
+    def _both() -> list[dict]:
+        broken = {"scores": {"judge_failed": True}}
+        neg = _scenario_of_mechs(
+            {"baseline": broken, "description": _make_mech(5), "full": _make_mech(5)}
+        )
+        neg["negative_case"] = True
+        return [
+            _scenario_of_mechs(
+                {
+                    "baseline": _make_mech(1),
+                    "description": _make_mech(5),
+                    "full": broken,
+                }
+            ),
+            neg,
+        ]
+
+    def test_both_excluded_cells_are_named(self):
+        summary = eval_mod.aggregate(self._both(), routed=True)
+
+        assert summary["total_judge_failures"] == 2
+        assert summary["gating_judge_failures"] == 0
+        assert summary["excluded_judge_failure_cells"] == [
+            "positive full",
+            "negative baseline",
+        ]
+        assert summary["verdict"] == "PASS"
+
+    def test_the_table_names_both_exclusions(self):
+        summary = eval_mod.aggregate(self._both(), routed=True)
+
+        table = eval_mod.render_table("r", summary)
+
+        assert "Excluded as unreachable for a routed target: full" in table
+        assert "Judge failures: 2 in the record, 0 on gating surfaces" in table
+        assert "positive full, negative baseline" in table
+
+
+class TestPartialPoolsStillReportObservedHarm:
+    """The restraint floor and the deltas treat partial coverage differently.
+
+    A delta needs both sides to cover the same pool, because a difference
+    between two populations describes neither. The restraint floor needs only
+    one graded cell, because a cell that scored 1.0 is real observed harm
+    whatever else went unmeasured. Requiring full coverage there would
+    suppress a true harm signal to avoid an incomplete one, which is the
+    trade in the wrong direction.
+
+    These are pinned together so that a later pass unifying the two rules has
+    to argue with this test rather than quietly lose the harm signal.
+    """
+
+    def test_a_partly_graded_negative_pool_still_fails_on_harm(self):
+        scenarios = [
+            _make_scenario(baseline=1, description=5, full=5),
+            _make_scenario(baseline=5, description=1, full=1, negative=True),
+            _scenario_of_mechs(
+                {
+                    "baseline": _make_mech(5),
+                    "description": {"scores": {"cell_score": None}},
+                    "full": _make_mech(5),
+                }
+            )
+            | {"negative_case": True},
+        ]
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["negative_gate_incomplete"] == ["description"]
+        assert summary["worst_negative_avg"] == 1.0
+        assert summary["worst_negative_graded"] == 1
+        # Harm outranks incompleteness. The pool is admittedly partial and the
+        # verdict still names the harm it did observe.
+        assert summary["verdict"] == "FAIL_OVER_ACTIVATION"
+
+    def test_the_same_partial_coverage_suppresses_a_delta(self):
+        """The other half of the contrast, on the positive pool."""
+        scenarios = [
+            _make_scenario(baseline=1, description=5, full=5),
+            _scenario_of_mechs(
+                {
+                    "baseline": {"scores": {"cell_score": None}},
+                    "description": _make_mech(5),
+                    "full": _make_mech(5),
+                }
+            ),
+        ]
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["per_mechanism"]["description"]["avg_score"] == 5.0
+        assert summary["delta_description_vs_baseline"] is None
