@@ -332,6 +332,47 @@ class TestCommittedRepoHasNoDrift:
         regressions, _ = cep.diff_against_baseline(current, baseline)
         assert regressions == [], "\n".join(regressions)
 
+    def test_repo_has_no_dangling_skill_relative_scripts(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+        if not any(root.joinpath(*parts).is_dir() for parts in cep.SCAN_ROOTS):
+            pytest.skip("no skill scan roots in this checkout")
+        assert not (d := cep.scan_dangling_skill_relative_scripts(root)), str(d)
+
+
+class TestDanglingSkillScripts:
+    def _sr(self, tmp_path: Path) -> Path:
+        p = tmp_path / ".claude" / "skills" / "myfoo"
+        p.mkdir(parents=True)
+        return p
+
+    def test_find_skill_relative_scripts(self) -> None:
+        cases = [
+            ("python3 scripts/validation/pre_pr.py\n", ["scripts/validation/pre_pr.py"]),
+            ("python3 .claude/skills/foo/scripts/bar.py\n", []),
+            ('python3 "${ENV:-x}/skills/foo/bar.py"\n', []),
+            ("python3 scripts/dangling.py\n<!-- vendor-portability-exec: examples -->\n", []),
+            ("python3 -u scripts/foo.py\n", ["scripts/foo.py"]),
+        ]
+        for text, expected in cases:
+            assert cep.find_skill_relative_scripts(text) == expected
+
+    def test_detects_script_not_in_skill_dir_or_repo_root(self, tmp_path: Path) -> None:
+        (self._sr(tmp_path) / "SKILL.md").write_text("python3 scripts/nx.py\n", encoding="utf-8")
+        dangling = cep.scan_dangling_skill_relative_scripts(tmp_path)
+        assert len(dangling) == 1 and dangling[0][1] == "scripts/nx.py"
+
+    def test_accepts_script_present_in_skill_dir(self, tmp_path: Path) -> None:
+        sr = self._sr(tmp_path)
+        (sr / "scripts").mkdir()
+        (sr / "scripts" / "s.py").write_text("", encoding="utf-8")
+        (sr / "SKILL.md").write_text("python3 scripts/s.py\n", encoding="utf-8")
+        assert cep.scan_dangling_skill_relative_scripts(tmp_path) == []
+
+    def test_marker_suppresses_dangling_detection(self, tmp_path: Path) -> None:
+        md = "python3 scripts/missing.py\n<!-- vendor-portability-exec: framework -->\n"
+        (self._sr(tmp_path) / "SKILL.md").write_text(md, encoding="utf-8")
+        assert cep.scan_dangling_skill_relative_scripts(tmp_path) == []
+
 
 class TestWorkflowPathFilter:
     def test_workflow_triggers_on_reference_docs_and_script_readmes(self) -> None:

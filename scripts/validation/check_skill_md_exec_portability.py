@@ -84,6 +84,7 @@ Exit codes (ADR-035):
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
 import re
 import sys
@@ -97,57 +98,30 @@ SCAN_ROOTS: tuple[tuple[str, ...], ...] = (
     ("src", "copilot-cli", "skills"),
 )
 
-# An executable invocation of a bare .claude/skills or scripts/ path. The
-# negative lookbehind (?<![\w.]) keeps the lead-in a standalone token so that
-# the "sh" inside "bash"/"flash" does not match, while still allowing a
-# backtick, whitespace, line start, or shell operator immediately before it.
-#
-# Two execution lead-ins are recognized, both anchored to an execution context
-# so bare *prose* path mentions stay exempt (the sibling prose guard owns those):
-#   1. An interpreter token (python/python3/bash/sh) with optional short options
-#      (`python3 -u .claude/...`, `bash -x .claude/...`).
-#   2. A direct `./`-prefixed executable (`./.claude/skills/x/y.sh`).
-# Shell line continuations (`python3 \<newline>.claude/...`) are normalized to a
-# single line before matching so a split invocation is not missed (issue #2838).
-#
-# `scripts/` is added alongside `.claude/skills/` (issue #4013): the scripts/
-# tree exists only in the upstream checkout and does not ship in either plugin
-# root. A skill instruction like `python3 scripts/validation/pre_pr.py` will
-# fail silently in every consumer install just as a bare .claude/skills/ path
-# would. The path-prefix group is anchored to require `scripts/` at the start
-# of the path argument (not inside a longer resolved prefix).
-#
-# `./`-prefixed forms (`python3 ./scripts/x.py`, `uv run python ./scripts/x.py`)
-# ARE covered, but by the second lead-in alternative rather than the first: the
-# `\./` branch consumes the `./` and the path-prefix group then matches
-# `scripts/`. Do not "simplify" by deleting that branch as redundant with the
-# interpreter branch, and do not drop `scripts/` from the path-prefix group:
-# either edit alone silently un-covers every `./scripts/...` invocation. Both
-# mutations are pinned by TestDotSlashScriptsExecDetection (PR #4029 review).
-#
-# Alternative considered and rejected: fold `./` into the path-prefix group
-# (`(?:\.claude/skills/|\.?/?scripts/)`) so the interpreter branch matches
-# `./scripts/` directly and the coverage stops being split across two branches.
-# Rejected because it changes no observable output, and a redundant prefix
-# alternative invites the opposite mistake later (deleting the `\./` branch as
-# dead). If that branch is ever removed for another reason, make the prefix
-# group explicit at the same time and delete this note.
+# Executable invocation of a bare .claude/skills or scripts/ path.
+# Two lead-ins: (1) interpreter token (python/python3/bash/sh) with optional
+# short options, (2) direct ./ executable. Negative lookbehind keeps the
+# lead-in standalone so "sh" inside "bash" does not match. Line continuations
+# are normalized before matching (#2838). scripts/ added in #4013.
+# CAUTION: the ./ branch covers `./scripts/` forms independently of the
+# interpreter branch; do not merge them or drop `scripts/` from either.
+# Both mutations are pinned by TestDotSlashScriptsExecDetection (#4029).
 EXEC_PATTERN = re.compile(
     r"(?<![\w.])(?:(?:python3?|bash|sh)\s+(?:-\S+\s+)*|\./)"
     r"[\"']?(?:\.claude/skills/|scripts/)\S+\.(?:py|sh)(?!\.\w)[\"']?"
 )
 
-# Shell line-continuation: a backslash immediately before a newline splices the
-# next line onto the current command. Collapse to a single space (what the shell
-# does) so `python3 \<newline>  .claude/...` is seen as one invocation.
-# The \r? handles CRLF line endings (backslash-CR-LF) as well as LF-only.
+# Skill-relative script invocations: ``python3 scripts/foo.py`` (issue #3916).
+_SKILL_REL_SCRIPT_PAT = re.compile(
+    r"(?<![\w.])(?:python3?|bash|sh)\s+(?:-\S+\s+)*"
+    r"[\"']?([a-zA-Z0-9_][a-zA-Z0-9_./-]*/[a-zA-Z0-9_./-]*\.(?:py|sh))[\"']?(?!\.\w)"
+)
+
+# Shell line-continuation: collapse backslash-newline to a space (#2838).
 _CONTINUATION_PATTERN = re.compile(r"\\\r?\n[ \t]*")
 
-# A skill self-declares an intentional bare invocation with this HTML comment.
-# When present, the file's invocations are suppressed (the escape hatch). This
-# marker is intentionally distinct from the prose guard's `vendor-portability`
-# marker: declaring a prose path dependency does not exempt executable
-# invocations, which migrate independently (issue #2838).
+# Escape hatch: ``<!-- vendor-portability-exec: <reason> -->`` suppresses a
+# file. Distinct from the prose guard's marker (issue #2838).
 _MARKER_PATTERN = re.compile(
     r"<!--\s*vendor-portability-exec\s*:.*?-->",
     re.IGNORECASE | re.DOTALL,
@@ -175,6 +149,60 @@ def _repo_root(start: Path) -> Path:
 def has_portability_marker(text: str) -> bool:
     """Return True if the file self-declares an intentional bare invocation."""
     return _MARKER_PATTERN.search(text) is not None
+
+
+def find_skill_relative_scripts(text: str) -> list[str]:
+    """Return skill-relative script paths; empty when portability-exec marker present (#3916)."""
+    if has_portability_marker(text):
+        return []
+    joined = _CONTINUATION_PATTERN.sub(" ", text)
+    return _SKILL_REL_SCRIPT_PAT.findall(joined)
+
+
+def _scan_skill_for_dangling(
+    paths: list[Path],
+    skill_root: Path,
+    repo_root: Path,
+    seen: set[tuple[str, str]],
+) -> list[tuple[str, str]]:
+    result: list[tuple[str, str]] = []
+    for path in paths:
+        if not path.is_file() or "__pycache__" in path.parts:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            raise OSError(f"Failed to read {path}: {exc}") from exc
+        rel = path.relative_to(repo_root).as_posix()
+        for script_path in find_skill_relative_scripts(text):
+            if (skill_root / script_path).is_file() or (repo_root / script_path).is_file():
+                continue
+            key = (rel, script_path)
+            if key not in seen:
+                seen.add(key)
+                result.append(key)
+    return result
+
+
+def scan_dangling_skill_relative_scripts(repo_root: Path) -> list[tuple[str, str]]:
+    """Return ``[(file_rel_path, script_path)]`` for unresolvable script refs (#3916)."""
+    seen: set[tuple[str, str]] = set()
+    dangling: list[tuple[str, str]] = []
+    for parts in SCAN_ROOTS:
+        root = repo_root.joinpath(*parts)
+        if not root.is_dir():
+            continue
+        valid = (
+            p
+            for p in root.iterdir()
+            if p.is_dir() and "__pycache__" not in p.parts and (p / SKILL_FILE_NAME).is_file()
+        )
+        for skill_root in sorted(valid):
+            paths = sorted(
+                set(itertools.chain.from_iterable(skill_root.glob(p) for p in SCAN_FILE_PATTERNS))
+            )
+            dangling.extend(_scan_skill_for_dangling(paths, skill_root, repo_root, seen))
+    return dangling
 
 
 def count_exec_invocations(text: str) -> int:
@@ -364,6 +392,7 @@ def _print_report(
     output_format: str,
     regressions: list[str],
     improvements: list[str],
+    dangling: list[tuple[str, str]],
     current: dict[str, int],
     baseline: dict[str, int],
 ) -> None:
@@ -389,6 +418,13 @@ def _print_report(
         print("Skill exec-path vendor-portability drift detected (issue #2838, #4013):")
         for line in regressions:
             print(f"  [DRIFT] {line}")
+    if dangling:
+        print(
+            "Skill-relative scripts resolving nowhere (#3916).\n"
+            "Suppress with '<!-- vendor-portability-exec: ... -->' if intentional:"
+        )
+        for rel_file, script in dangling:
+            print(f"  [DANGLING] {rel_file}: {script!r}")
         return
     print(
         f"No skill exec-path vendor-portability drift. "
@@ -435,7 +471,15 @@ def main(argv: list[str] | None = None) -> int:
     regressions, improvements = diff_against_baseline(current, baseline)
     _print_report(args.output_format, regressions, improvements, current, baseline)
 
-    return 1 if regressions else 0
+    try:
+        dangling = scan_dangling_skill_relative_scripts(root)
+    except OSError as exc:
+        print(f"Could not scan skill files under {root}: {exc}", file=sys.stderr)
+        dangling = []
+
+    _print_report(args.output_format, regressions, improvements, dangling, current, baseline)
+
+    return 1 if (regressions or dangling) else 0
 
 
 if __name__ == "__main__":
