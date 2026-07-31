@@ -6752,3 +6752,186 @@ class TestRestraintIsNeverCertifiedOnAnEmptyPool:
         for path in shipped:
             data = json.loads(path.read_text(encoding="utf-8"))
             assert eval_mod._validate_scenarios_shape(data, path) is None, path.name
+
+
+def _routed_multi(
+    negative: bool,
+    matched_by_mech: dict[str, bool],
+    scores: tuple[int, int, int] = (2, 5, 4),
+) -> dict[str, Any]:
+    """Build a scenario carrying a routing record on each named mechanism.
+
+    `_routed_scenario` records a route only on `description`, which cannot
+    express a miss on the mechanism a routed target never reaches.
+    """
+    baseline, description, full = scores
+    mechanisms: dict[str, Any] = {
+        "baseline": _make_mech(baseline),
+        "description": _make_mech(description),
+        "full": _make_mech(full),
+    }
+    for mech, matched in matched_by_mech.items():
+        mechanisms[mech]["routing"] = {
+            "selected_skill": "software-engineering-library",
+            "selected_reference": "references/x.md",
+            "route_failed": False,
+            "reference_matched": matched,
+        }
+    return {"negative_case": negative, "mechanisms": mechanisms}
+
+
+def _restrained_negative() -> dict[str, Any]:
+    """A negative case that clears the restraint floor, so a gate under test decides."""
+    return _make_scenario(5, 5, 5, negative=True)
+
+
+class TestAnUnreachableMechanismNeverDecidesARoutedVerdict:
+    """A routed target performs no `full` treatment, so `full` cannot vote.
+
+    Its scores are already dropped from every average, every ranking, and every
+    restraint gate. The route-mismatch count was the last number still summed
+    over all three mechanisms. A miss recorded on the mechanism the target
+    cannot reach could therefore fail a run whose reachable surface was clean,
+    and the caveat that explains the scores was counted over a wider population
+    than the scores it explains.
+    """
+
+    @staticmethod
+    def _summary(matched_by_mech: dict[str, bool], routed: bool = True):
+        return eval_mod.aggregate(
+            [_routed_multi(False, matched_by_mech), _restrained_negative()],
+            routed=routed,
+        )
+
+    def test_a_miss_on_the_unreachable_mechanism_is_not_counted(self):
+        summary = self._summary({"description": True, "full": False})
+        assert summary["per_mechanism"]["full"]["route_mismatch_count"] == 1
+        assert summary["positive_route_mismatches"] == 0
+
+    def test_a_miss_on_the_unreachable_mechanism_does_not_fail_the_run(self):
+        assert self._summary({"description": True, "full": False})["verdict"] == "PASS"
+
+    def test_a_miss_on_the_reachable_mechanism_still_fails_the_run(self):
+        """The negative control: move the same miss onto the surface that ships."""
+        summary = self._summary({"description": False, "full": True})
+        assert summary["positive_route_mismatches"] == 1
+        assert summary["verdict"] == "FAIL_ROUTE_MISSED_TARGET"
+
+    def test_a_miss_on_both_counts_once_not_twice(self):
+        """The count answers "how many measured cells missed", not "how many cells"."""
+        summary = self._summary({"description": False, "full": False})
+        assert summary["per_mechanism"]["description"]["route_mismatch_count"] == 1
+        assert summary["per_mechanism"]["full"]["route_mismatch_count"] == 1
+        assert summary["positive_route_mismatches"] == 1
+
+    def test_an_unrouted_target_still_counts_a_miss_on_full(self):
+        """Without routing, `full` is a measured mechanism, so its miss still votes."""
+        summary = self._summary({"description": True, "full": False}, routed=False)
+        assert summary["positive_route_mismatches"] == 1
+        assert summary["verdict"] == "FAIL_ROUTE_MISSED_TARGET"
+
+    def test_the_caveat_is_withheld_when_only_the_unreachable_cell_missed(self):
+        """The caveat and the gate read one derived number, so they cannot disagree."""
+        summary = self._summary({"description": True, "full": False})
+        assert not [
+            c for c in eval_mod._render_caveats(summary) if c.startswith("Routing:")
+        ]
+
+    def test_the_caveat_still_fires_for_a_miss_on_the_reachable_cell(self):
+        summary = self._summary({"description": False, "full": True})
+        routing = [
+            c for c in eval_mod._render_caveats(summary) if c.startswith("Routing:")
+        ]
+        assert len(routing) == 1
+        assert "1 positive cell(s) never opened the target reference" in routing[0]
+
+    def test_the_count_is_summed_over_the_measured_population(self):
+        """Pin the population at the source: the derivation must not widen again."""
+        source = (REPO_ROOT / "scripts" / "eval" / "eval-rule-activation.py").read_text(
+            encoding="utf-8"
+        )
+        marker = 'summary["positive_route_mismatches"] = sum('
+        start = source.index(marker)
+        derivation = "\n".join(source[start:].splitlines()[:4])
+        assert "for m in measured_mechs" in derivation
+        assert "for m in MECHANISMS" not in derivation
+
+
+class TestAPublishedIdMustSurviveSerialization:
+    """The record is keyed by the declared id, and JSON object keys are strings.
+
+    A declared `1` and a declared `"1"` are distinct keys in memory, so the
+    duplicate check clears both. They collapse to one key on serialization and
+    the first target's result leaves the record without a word. The type is
+    refused at load, before any spend, rather than at publication, after all of
+    it.
+    """
+
+    @staticmethod
+    def _write(tmp_path, **extra):
+        payload = {
+            "rule_path": ".claude/rules/universal.md",
+            "scenarios": _valid_scenarios(),
+        }
+        payload.update(extra)
+        path = tmp_path / "scenarios.json"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        return path
+
+    def test_a_string_id_is_accepted(self, tmp_path):
+        result = eval_mod._load_scenarios_file(str(self._write(tmp_path, rule_id="ok")))
+        assert not isinstance(result, int)
+
+    def test_an_absent_id_is_accepted(self, tmp_path):
+        """No declared id means "derive one from the path", which is still a string."""
+        result = eval_mod._load_scenarios_file(str(self._write(tmp_path)))
+        assert not isinstance(result, int)
+
+    def test_a_null_id_is_accepted(self, tmp_path):
+        """Explicit null is the same statement as omitting the key."""
+        result = eval_mod._load_scenarios_file(
+            str(self._write(tmp_path, rule_id=None))
+        )
+        assert not isinstance(result, int)
+
+    @pytest.mark.parametrize("bad", [1, 0, 1.5, True, ["x"], {"a": 1}])
+    def test_a_non_string_id_is_refused(self, tmp_path, bad, capsys):
+        assert eval_mod._load_scenarios_file(str(self._write(tmp_path, rule_id=bad))) == 2
+        assert "rule_id must be a non-empty string" in capsys.readouterr().err
+
+    @pytest.mark.parametrize("blank", ["", "   ", "\t"])
+    def test_a_blank_id_is_refused(self, tmp_path, blank, capsys):
+        """A blank id silently became the filename, so the key was never declared."""
+        assert (
+            eval_mod._load_scenarios_file(str(self._write(tmp_path, rule_id=blank))) == 2
+        )
+        assert "rule_id must be a non-empty string" in capsys.readouterr().err
+
+    def test_the_skill_id_is_held_to_the_same_rule(self, tmp_path):
+        """Both keys reach the same record, so one check cannot cover only one."""
+        assert eval_mod._load_scenarios_file(str(self._write(tmp_path, skill_id=2))) == 2
+
+    def test_the_refusal_names_the_value_it_rejected(self, tmp_path, capsys):
+        eval_mod._load_scenarios_file(str(self._write(tmp_path, rule_id=1)))
+        err = capsys.readouterr().err
+        assert "got 1" in err
+        assert str(self._write(tmp_path, rule_id=1)) in err
+
+    def test_every_shipped_scenario_file_declares_a_serializable_id(self):
+        """The refusal is worthless if a file already in the tree cannot load."""
+        roots = [REPO_ROOT / "tests" / "evals", REPO_ROOT / "scripts" / "eval"]
+        checked = 0
+        for root in roots:
+            for path in sorted(root.rglob("*.json")):
+                data = json.loads(path.read_text(encoding="utf-8"))
+                if not isinstance(data, dict):
+                    continue
+                for key in ("rule_id", "skill_id"):
+                    value = data.get(key)
+                    if value is None:
+                        continue
+                    checked += 1
+                    assert isinstance(value, str) and value.strip(), (
+                        f"{path} declares {key}={value!r}, which the loader now refuses"
+                    )
+        assert checked >= 10, f"only {checked} ids checked; the walk found too few files"

@@ -2020,9 +2020,15 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     # Derived once here and read by both the verdict and the caveat, so the
     # number a reader sees and the number that decides the run cannot drift.
     # Positive pool only: on a negative case the router is supposed to decline,
-    # so a miss there is correct restraint rather than a defect.
+    # so a miss there is correct restraint rather than a defect. Measured
+    # mechanisms only: a routed target cannot reach `full`, and its scores are
+    # already excluded from every average and every gate, so counting a miss
+    # there would let a mechanism the target cannot reach decide the run and
+    # would put the caveat on a different population than the scores it
+    # explains.
     summary["positive_route_mismatches"] = sum(
-        summary["per_mechanism"][m].get("route_mismatch_count", 0) for m in MECHANISMS
+        summary["per_mechanism"][m].get("route_mismatch_count", 0)
+        for m in measured_mechs
     )
 
     summary["verdict"] = _decide_verdict(
@@ -2592,6 +2598,32 @@ def _resolve_target_paths(data: dict[str, Any], spath: Path) -> tuple[Path, Path
     return _resolve_skill_reference(skill_ref, reference_ref)
 
 
+def _validate_target_id(data: dict[str, Any], spath: Path) -> int | None:
+    """Require any declared id to be a non-empty string. Exit code 2 on error.
+
+    The id is the key the published record is written under, and JSON object
+    keys are strings. A declared `1` and a declared `"1"` are distinct keys in
+    memory, so the duplicate check clears both, and then they collapse to one
+    key on serialization and the first target's result is gone from the record
+    without a word. Refuse the type here, where it costs nothing, rather than
+    losing a measured target at publication.
+    """
+    for key in ("rule_id", "skill_id"):
+        value = data.get(key)
+        if value is None:
+            continue
+        if not isinstance(value, str) or not value.strip():
+            print(
+                f"ERROR: {key} must be a non-empty string in {spath}, got "
+                f"{value!r}. The published record is keyed by this value and "
+                "JSON keys are strings, so a non-string id would collide with "
+                "its own string form and drop a measured target.",
+                file=sys.stderr,
+            )
+            return 2
+    return None
+
+
 def _load_scenarios_file(
     scenario_file: str,
 ) -> tuple[dict[str, Any], tuple[Path, Path | None]] | int:
@@ -2618,6 +2650,10 @@ def _load_scenarios_file(
     shape_err = _validate_scenarios_shape(scenarios_data, spath)
     if shape_err is not None:
         return shape_err
+
+    id_err = _validate_target_id(scenarios_data, spath)
+    if id_err is not None:
+        return id_err
 
     resolved = _resolve_target_paths(scenarios_data, spath)
     if isinstance(resolved, int):

@@ -193,7 +193,7 @@ decides the exit and adding a target can never improve it.
 
 Per-rule or per-reference scenario files live in `tests/evals/rule-scenarios/{rule}.json`:
 
-`rule_id` names the population every number in that file is published under, and one run refuses two files that claim the same id rather than letting the second overwrite the first. Omitting it is safe but not free: a reference target then defaults to the reference filename, so two references under one skill router stay distinct only as long as their filenames do.
+`rule_id` names the population every number in that file is published under, and one run refuses two files that claim the same id rather than letting the second overwrite the first. Omitting it is safe but not free: a reference target then defaults to the reference filename, so two references under one skill router stay distinct only as long as their filenames do. When present, `rule_id` and `skill_id` MUST be non-empty strings. The published record is a JSON object keyed by this value, and JSON keys are strings, so a declared `1` and a declared `"1"` are two distinct keys in memory that clear the duplicate check and then collapse to one key on serialization, dropping a measured target from the record without a word. The loader refuses the type before any API call rather than losing the result after all of them.
 
 ```json
 {
@@ -258,7 +258,12 @@ from that list on purpose. `FAIL_ROUTE_MISSED_TARGET` means at least one positiv
 cell scored on a reference the run never opened: one skill router fronts many
 sibling references, and a sibling resolves for any target, so the score measures
 content the target did not supply. Counting it would retire a rule for the
-harness's routing imprecision. `FAIL_POSITIVE_INCOMPLETE`,
+harness's routing imprecision. The miss is counted only on the mechanisms the
+target can actually reach, which for a routed target excludes `full`: that
+treatment is force-injected, no deployment performs it, and its scores are
+already dropped from every average, ranking, and gate, so letting a miss there
+decide the run would hand the verdict to a mechanism the target cannot reach.
+`FAIL_POSITIVE_INCOMPLETE`,
 `FAIL_NEGATIVE_INCOMPLETE`, and `FAIL_OVER_ACTIVATION` are excluded for the same
 reason. Fix the routing or the reference, then re-run.
 
