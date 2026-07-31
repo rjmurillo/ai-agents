@@ -540,7 +540,7 @@ Examples:
         if is_complete:
             print("FINAL CHECKLIST:")
         else:
-            print(f"REQUIRED ACTIONS:")
+            print("REQUIRED ACTIONS:")
         for action in guidance["actions"]:
             if action:  # Skip empty strings used for spacing
                 print(f"  {action}")
