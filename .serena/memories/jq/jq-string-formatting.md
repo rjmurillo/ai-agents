@@ -15,8 +15,8 @@ gh issue list --json number,title,state \
   --jq '.[] | "[\(.state)] #\(.number) - \(.title)"'
 
 # With conditionals
-gh pr list --json number,draft \
-  --jq '.[] | "#\(.number) \(if .draft then "(DRAFT)" else "" end)"'
+gh pr list --json number,isDraft \
+  --jq '.[] | "#\(.number) \(if .isDraft then "(DRAFT)" else "" end)"'
 
 # Building URLs
 gh pr list --json number \

@@ -246,9 +246,12 @@ git checkout -b feat/{number}-description
 gh pr list --search "{number} in:title" --state all --json number,title,state
 
 # Create PR referencing issue
-# DANGER: If the PR title is constructed from untrusted input (like a GitHub issue title),
-# it can lead to command injection if it contains shell metacharacters like `$(...)`.
-# Use `read -r` to safely read the title into a variable.
+# The issue title is untrusted input. The control is passing it as one quoted
+# argument and never routing it through eval or sh -c: expanding a variable
+# does not re-run command substitution, so $(...) and backticks in a title
+# reach gh as literal text. Dropping the quotes word-splits the title rather
+# than executing it. read -r only stops backslash mangling; it is not the
+# injection control.
 read -r pr_title < <(gh issue view {number} --json title --jq .title)
 gh pr create --title "feat: ${pr_title}" --body "Fixes #{number}"
 
