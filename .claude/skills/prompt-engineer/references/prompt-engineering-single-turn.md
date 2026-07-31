@@ -365,7 +365,7 @@ Now answer the original question using these principles.
 
 Chain of Thought often produces unnecessarily verbose outputs. **Chain of Draft (CoD)** addresses this by encouraging minimal intermediate steps. Per Xu et al. (2025): "CoD matches or surpasses CoT in accuracy while using as little as only 7.6% of the tokens, significantly reducing cost and latency across various reasoning tasks."
 
-**Key insight**: "Rather than elaborating on every detail, humans typically jot down only the essential intermediate results, minimal drafts, to facilitate their thought processes."
+**Key insight**: "Rather than elaborating on every detail, humans typically jot down only the essential intermediate results [...] to facilitate their thought processes." The paper calls those results "minimal drafts".
 
 **Example comparison from the paper:**
 
@@ -468,7 +468,7 @@ Per Ye & Durrett (2022): "The tasks that receive significant benefits from using
 
 ### CoT Faithfulness Limitation
 
-Chain-of-thought explanations can be plausible yet systematically unfaithful. Per Turpin et al. (2023): "CoT explanations can be heavily influenced by adding biasing features to model inputs (e.g., by reordering the multiple-choice options in a few-shot prompt to make the answer always '(A)'), which models systematically fail to mention in their explanations."
+Chain-of-thought explanations can be plausible yet systematically unfaithful. Per Turpin et al. (2023): "CoT explanations can be heavily influenced by adding biasing features to model inputs [...] which models systematically fail to mention in their explanations." The elided example is reordering the multiple-choice options in a few-shot prompt so the answer is always "(A)".
 
 **Key findings:**
 

@@ -47,7 +47,7 @@ Techniques where the model critiques and improves its own output across multiple
 
 ### Self-Refine
 
-A general-purpose iterative improvement framework. Per Madaan et al. (2023): "SELF-REFINE: an iterative self-refinement algorithm that alternates between two generative steps: FEEDBACK and REFINE. These steps work in tandem to generate high-quality outputs."
+A general-purpose iterative improvement framework. Per Madaan et al. (2023), SELF-REFINE is "an iterative self-refinement algorithm that alternates between two generative steps", named FEEDBACK and REFINE. The paper adds: "These steps work in tandem to generate high-quality outputs."
 
 **The core loop:**
 
