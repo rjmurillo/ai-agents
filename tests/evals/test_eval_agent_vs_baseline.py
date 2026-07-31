@@ -2567,6 +2567,60 @@ class TestTokensEstimatedFlag:
         ).aggregate()
         assert result.tokens_estimated is False
 
+    def test_an_error_result_reports_uncounted_zeros_as_estimated(self):
+        """An error path counts nothing, so its zeros are neither a heuristic
+        estimate nor a measured `usage` value. It still reports the flag as
+        True, because the flag drives a cost caveat downstream and an absent
+        measurement must not read as an authoritative zero.
+
+        Setting this to False would be locally more literal and globally
+        wrong: `ReportAggregator` takes `any()` over the records, so a run
+        where every call failed would clear the flag and publish a zero cost
+        with no caveat.
+        """
+        message = "Anthropic API returned HTTP 404: missing"
+        transport = _FakeTransport(
+            script=[lambda: (_ for _ in ()).throw(RuntimeError(message))]
+        )
+        adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
+        result = adapter.call_model(
+            prompt="user prompt",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F011",
+            variant="agent",
+            run_index=0,
+        )
+        assert result.outcome == "error"
+        assert result.tokens_in == 0
+        assert result.tokens_out == 0
+        assert result.tokens_estimated is True
+
+    def test_a_run_of_only_estimated_records_keeps_the_cost_caveat(self):
+        """Pins the consequence the test above protects: the caveat is what
+        stops a zero cost from reading as a measured one."""
+        records = _build_records(
+            ["F001"], agent_passed=False, baseline_passed=False
+        )
+        for record in records:
+            record.tokens_estimated = True
+        aggregate = ReportAggregator(
+            records, model_id="claude-sonnet-4-6"
+        ).aggregate()
+        assert aggregate.tokens_estimated is True
+        rendered = writer_mod._render_cost_section(aggregate, 1.0)
+        assert "estimated from a text-length heuristic" in rendered
+
+        # Not vacuous: the caveat is absent when nothing was estimated.
+        for record in records:
+            record.tokens_estimated = False
+        measured = ReportAggregator(
+            records, model_id="claude-sonnet-4-6"
+        ).aggregate()
+        assert measured.tokens_estimated is False
+        assert "estimated from a text-length heuristic" not in (
+            writer_mod._render_cost_section(measured, 1.0)
+        )
+
     def test_report_json_includes_tokens_estimated(self, tmp_path):
         writer = ReportWriter(tmp_path / "reports")
         aggregate = AggregateResult(

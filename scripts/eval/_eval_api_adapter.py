@@ -68,10 +68,10 @@ ERR_TOTAL_TIMEOUT = "timeout_total"
 class APICallResult:
     """Outcome of one (possibly-retried) API call. DESIGN-004 §5.4.
 
-    `tokens_estimated` is True when token counts are derived from a
-    text-length heuristic instead of a `usage` envelope returned by the
-    API. The eval pipeline propagates this flag into `runs.jsonl` and the
-    aggregated report so cost numbers are not presented as authoritative.
+    `tokens_estimated` is True whenever counts did not come from a `usage`
+    envelope: the success path's text-length heuristic, and the zeros an
+    error path reports without counting. It drives a downstream cost caveat,
+    so an absent measurement stays flagged instead of passing as a real zero.
     """
 
     outcome: OutcomeLiteral
