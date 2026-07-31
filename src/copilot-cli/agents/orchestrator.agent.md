@@ -90,32 +90,32 @@ Use the classification to pick delegation depth. A clear, reversible, P3 task ne
 
 ## Agent Capability Matrix
 
-Model tiers: `opus` for deep strategy/analysis, `sonnet` for routine execution, `haiku` for lightweight operations. The Model column below is authoritative. Pair the tier with a reasoning effort and a cost posture per the Model, Effort, and Cost Routing section below.
+Each agent's definition file is the source of truth for the model it runs. This matrix routes work to an agent by capability; it does not set models. Where a harness supports per-invocation model selection, apply the Model, Effort, and Cost Routing policy below. Where it does not, the agent's own definition governs. Tier names used in that policy: `opus` for deep strategy and analysis, `sonnet` for routine execution, `haiku` for lightweight operations.
 
-| Agent | Use For | Model | Avoid When |
-|-------|---------|-------|-----------|
-| **analyst** | Research, root cause, feasibility | sonnet | Already have enough context |
-| **architect** | ADRs, design review, patterns | sonnet | Implementation details |
-| **backlog-generator** | Proactive backlog discovery | sonnet | Existing PRD to decompose |
-| **critic** | Plan validation, pre-merge review | sonnet | No plan to review |
-| **debug** | Runtime failures, bug triage | sonnet | Requirements are unclear |
-| **dependency-auditor** | Dependency CVEs, package health | sonnet | First-party code risk |
-| **devops** | CI/CD, deployment, infra | sonnet | Business logic changes |
-| **explainer** | PRDs, documentation, onboarding | sonnet | Technical decisions |
-| **high-level-advisor** | Strategy, priorities, ruthless clarity | opus | Tactical work |
-| **implementer** | Code changes, tests | sonnet | Design decisions still open |
-| **independent-thinker** | Challenge consensus, devil's advocate | opus | Need validation, not challenge |
-| **issue-feature-review** | Triage feature requests | sonnet | Already prioritized |
-| **milestone-planner** | Epic → milestones with exit criteria | sonnet | Task-level decomposition |
-| **qa** | Test strategy, user-outcome validation | sonnet | Unit test details only |
-| **pr-test-analyzer** | PR test coverage gaps | sonnet | No PR or diff |
-| **quality-auditor** | Domain grading, gap analysis | sonnet | Single-file review |
-| **retrospective** | Post-mortem, learning extraction | sonnet | Real-time debugging |
-| **roadmap** | Strategic prioritization, outcome sequencing | opus | Tactical execution |
-| **security** | Threat modeling, vulnerability review | opus | Pure performance work |
-| **silent-failure-hunter** | Error suppression, unsafe fallbacks | sonnet | Loud failures already surface |
-| **skillbook** | Capture learnings as reusable skills | sonnet | One-off insights |
-| **task-decomposer** | Plan → atomic tasks | sonnet | Plan still vague |
+| Agent | Use For | Avoid When |
+|-------|---------|-----------|
+| **analyst** | Research, root cause, feasibility | Already have enough context |
+| **architect** | ADRs, design review, patterns | Implementation details |
+| **backlog-generator** | Proactive backlog discovery | Existing PRD to decompose |
+| **critic** | Plan validation, pre-merge review | No plan to review |
+| **debug** | Runtime failures, bug triage | Requirements are unclear |
+| **dependency-auditor** | Dependency CVEs, package health | First-party code risk |
+| **devops** | CI/CD, deployment, infra | Business logic changes |
+| **explainer** | PRDs, documentation, onboarding | Technical decisions |
+| **high-level-advisor** | Strategy, priorities, ruthless clarity | Tactical work |
+| **implementer** | Code changes, tests | Design decisions still open |
+| **independent-thinker** | Challenge consensus, devil's advocate | Need validation, not challenge |
+| **issue-feature-review** | Triage feature requests | Already prioritized |
+| **milestone-planner** | Epic → milestones with exit criteria | Task-level decomposition |
+| **qa** | Test strategy, user-outcome validation | Unit test details only |
+| **pr-test-analyzer** | PR test coverage gaps | No PR or diff |
+| **quality-auditor** | Domain grading, gap analysis | Single-file review |
+| **retrospective** | Post-mortem, learning extraction | Real-time debugging |
+| **roadmap** | Strategic prioritization, outcome sequencing | Tactical execution |
+| **security** | Threat modeling, vulnerability review | Pure performance work |
+| **silent-failure-hunter** | Error suppression, unsafe fallbacks | Loud failures already surface |
+| **skillbook** | Capture learnings as reusable skills | One-off insights |
+| **task-decomposer** | Plan → atomic tasks | Plan still vague |
 
 Every row above names an agent that is registered in this install. Delegate only to a name on this list, and confirm the agent is registered before routing: a delegation naming an agent that was renamed or retired fails silently, and the work is simply skipped rather than reported as an error. Cross-session retrieval and storage is not on this list because it is not an agent. Use the `memory` skill, or `mcp__serena__read_memory` and `mcp__serena__write_memory` directly.
 
@@ -324,7 +324,7 @@ Investigation tools (WebSearch, WebFetch) are intentionally not included. If a t
 | Concatenating agent responses | Not synthesis, just noise | Extract, resolve conflicts, produce coherent output |
 | Relaying a worker's "done" without checking the artifact | The report states intent, not the actual change; a false "done" ships as success | Inspect the diff, created file, or command output before synthesizing |
 | Cheaper model on open-ended work to save tokens | Worse output; human fix-up time dwarfs the token savings | Default to the flagship; cost-route only batched bounded sub-tasks |
-| Opus for truly trivial single-step ops | Spends a flagship on a one-liner | Use a lighter tier for trivial ops and batched fan-out |
+| Opus for truly trivial single-step ops | Spends a flagship on a one-liner | Produce it directly per the triage table; cost-route only non-interactive batched fan-out |
 | Defaulting to xhigh/max effort | Burns latency and tokens for <=0.2 quality gain | Default high; reserve max for hard one-way doors |
 | Cheap model at max effort | Costs more all-in than a flagship, for worse output | Match effort to tier: light at low/med, flagship for hard reasoning |
 | Same-family self-verification | Correlated blind spots make it a weak check | Cross-check with a different model family |
