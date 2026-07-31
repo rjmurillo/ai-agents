@@ -4001,7 +4001,7 @@ class TestRenderTableRestraint:
         summary = eval_mod.aggregate([_make_scenario(baseline=1, description=5, full=5)])
         table = eval_mod.render_table("some-rule", summary)
 
-        assert "Restraint on negative cases: not measured" in table
+        assert "Restraint on negative cases: not measured on any reachable mechanism" in table
         assert "| full         |     5.0 |       - |" in table
 
     def test_a_measured_negative_pool_is_printed_with_its_floor(self):
@@ -5072,7 +5072,7 @@ class TestTheRestraintHeadlineNamesItsOwnPopulation:
         table = eval_mod.render_table("r", summary)
         # Both mechanisms carry an average in the table, so "not measured"
         # contradicts the rows directly below it.
-        assert "no mechanism graded on every negative scenario" in table
+        assert "no reachable mechanism graded on every negative scenario" in table
 
     def test_an_ungraded_negative_pool_is_still_not_measured(self):
         scenarios = [
@@ -5091,7 +5091,7 @@ class TestTheRestraintHeadlineNamesItsOwnPopulation:
 
         assert summary["negative_floor_partial"] is False
         table = eval_mod.render_table("r", summary)
-        assert "Restraint on negative cases: not measured" in table
+        assert "Restraint on negative cases: not measured on any reachable mechanism" in table
 
 
 class TestTheBestHeadlineNamesWhatItDropped:
@@ -5361,3 +5361,46 @@ class TestEmptyHeadlinesNameTheRankedPopulation:
         )
         assert "| full         |     5.0 |" in table
         assert "Best mechanism: no reachable mechanism graded on every scenario" in table
+
+
+class TestEmptyRestraintHeadlinesNameTheGatedPopulation:
+    """The negative sibling of the empty best-mechanism headlines.
+
+    The floor is read over the gate mechanisms the target can reach, but
+    its two empty states claimed the whole table. On a routed target that
+    printed `not measured` directly above a `full` row carrying a negative
+    average over its whole pool.
+    """
+
+    @staticmethod
+    def _routed(*negatives: dict[str, object]) -> str:
+        summary = eval_mod.aggregate(
+            [_make_scenario(4, 4, 4), *negatives], routed=True
+        )
+        return eval_mod.render_table("R", summary)
+
+    def test_no_floor_at_all_does_not_deny_the_full_row(self):
+        table = self._routed(
+            {
+                "negative_case": True,
+                "mechanisms": {"baseline": _make_mech(5), "full": _make_mech(5)},
+            }
+        )
+        # `full` is graded over its whole negative pool, so a headline saying
+        # nothing was measured would be contradicted by its own table.
+        assert "|     5.0 |          +0.0 |        1/1 |        1/1 |" in table
+        assert (
+            "Restraint on negative cases: not measured on any reachable mechanism"
+            in table
+        )
+
+    def test_a_wholly_partial_floor_does_not_deny_the_full_row(self):
+        table = self._routed(
+            _make_scenario(5, 5, 5, negative=True),
+            {
+                "negative_case": True,
+                "mechanisms": {"baseline": _make_mech(5), "full": _make_mech(5)},
+            },
+        )
+        assert "Restraint on negative cases: no reachable mechanism" in table
+        assert "graded on every negative scenario" in table

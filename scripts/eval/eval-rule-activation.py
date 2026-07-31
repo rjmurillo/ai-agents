@@ -2080,11 +2080,13 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
     if worst_neg is None:
         # An absent floor has two causes and they are not the same thing to go
         # fix. Saying "not measured" beside a table row carrying an average
-        # contradicts the row.
+        # contradicts the row. Both states are read over the gate mechanisms
+        # the target can reach, so both say so: on a routed target the table
+        # can show `full` fully graded while the floor has no candidate.
         restraint = (
-            "no mechanism graded on every negative scenario"
+            "no reachable mechanism graded on every negative scenario"
             if summary.get("negative_floor_partial")
-            else "not measured"
+            else "not measured on any reachable mechanism"
         )
     else:
         # `worst_neg` is a min over the gate cells that covered their whole
