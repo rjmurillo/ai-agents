@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from scripts.github_core.api import RepoInfo
+from scripts.github_core.checks_rollup import CONTEXT_NODE_FIELDS
 
 # ---------------------------------------------------------------------------
 # Import the consumer script via importlib (not a package)
@@ -175,6 +176,22 @@ class TestHasConflicts:
 
     def test_unknown(self):
         assert has_conflicts({"mergeable": "UNKNOWN"}) is False
+
+
+class TestOpenPrsQuery:
+    """The query must request what the evaluator reads. Refs #3978.
+
+    A caller that hand-rolls a narrower node selection loses the workflow
+    name, every check run collapses into the "" workflow bucket, and the
+    cross-workflow masking this branch fixed comes straight back with no
+    fixture-driven test noticing.
+    """
+
+    def test_context_nodes_use_the_shared_field_selection(self):
+        assert CONTEXT_NODE_FIELDS in _mod._OPEN_PRS_QUERY
+
+    def test_the_shared_selection_carries_the_workflow_name(self):
+        assert "workflowRun { workflow { name } }" in CONTEXT_NODE_FIELDS
 
 
 class TestHasFailingChecks:

@@ -10,7 +10,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from scripts.github_core.api import RepoInfo
+from scripts.github_core.checks_rollup import CONTEXT_NODE_FIELDS
 from scripts.invoke_pr_maintenance import (
+    GRAPHQL_QUERY,
     classify_prs,
     get_bot_author_info,
     get_open_prs,
@@ -127,6 +129,22 @@ def _pr_with_contexts(
             ]
         },
     }
+
+
+class TestOpenPrsQuery:
+    """The query must request what the evaluator reads. Refs #3978.
+
+    A caller that hand-rolls a narrower node selection loses the workflow
+    name, every check run collapses into the "" workflow bucket, and the
+    cross-workflow masking this branch fixed comes straight back with no
+    fixture-driven test noticing.
+    """
+
+    def test_context_nodes_use_the_shared_field_selection(self):
+        assert CONTEXT_NODE_FIELDS in GRAPHQL_QUERY
+
+    def test_the_shared_selection_carries_the_workflow_name(self):
+        assert "workflowRun { workflow { name } }" in CONTEXT_NODE_FIELDS
 
 
 class TestHasFailingChecks:
