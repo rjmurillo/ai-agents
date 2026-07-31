@@ -99,7 +99,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run pytest tests/ -q reports 110 failures, every one of them reproduced on the unmodified branch base (tests/ci/test_validation_scripts_are_reachable.py and the orphan-ref-validator bundle suite); all memory, hook, and episode suites pass"
+        "Evidence": "uv run pytest tests/ -q passes from a non-nested checkout of this exact commit. The 110 failures seen from .claude/worktrees/ are an environment artifact, not a base-branch condition: tests/ci/test_validation_scripts_are_reachable.py:110 filters on any path component named 'worktrees' and reads the absolute path, so the source walk returns nothing. Control: the same commit in /tmp/wt-push-4011 reports 144 passed for those two suites while the nested worktree reports 110 failed and 34 passed. Filed as issue 4159"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -109,7 +109,7 @@
       "retrospectiveInvoked": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "Findings recorded in the Serena decision memory named above rather than a retro file"
+        "Evidence": ".agents/retrospective/2026-08-01-nested-worktree-hid-a-green-suite.md, plus the Serena decision memory named above"
       }
     }
   },
@@ -151,7 +151,7 @@
       "outcome": "Counts corrected on both trees and the counts test now reads provenance.md. 25 passed in tests/build_scripts/test_hook_contract_knowledge.py"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "6f3581992",
   "nextSteps": [
     "Two episodes were already invalid before this branch: episode-2026-06-09-session-2377 has an unsupported 'artifact' event type and episode-2026-07-25-session-3324 has a causal cycle. Both need a schema decision, not a repair.",
     "44 episodes carry commit SHAs that no longer resolve in the local object database, so their causal order is unrecoverable from this clone."

@@ -20,9 +20,9 @@ that misbehave (issue #4011):
 | UserPromptSubmit | stdout on exit 0 | Blocks the prompt and erases it |
 | SessionEnd | none | Shows stderr to the user only |
 
-So the recall hook writes to stdout and exits 0, and the reflection hook
-exits 0 because its value is the confidence scores it persists, not the
-summary it prints.
+So the recall hook writes to stdout and exits 0. The reflection hook exits 0
+because the user-visible summary is all it produces: it scores every memory and
+writes nothing, since a session that ends must not leave the working tree dirty.
 
 ## stderr Protocol
 
