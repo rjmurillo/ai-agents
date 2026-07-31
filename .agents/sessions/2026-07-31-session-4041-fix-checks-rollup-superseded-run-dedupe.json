@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4041,
+    "date": "2026-07-31",
+    "branch": "fix/pr-checks-rollup-pagination",
+    "startingCommit": "8af9ee681",
+    "objective": "Fix PR checks rollup superseded-run dedupe and context pagination for issue 3978"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions returned the Serena Instructions Manual for this worktree"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read the Serena Instructions Manual; symbolic tools preferred over grep for code navigation"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read; it is READ-ONLY as of 2025-12-22, session context goes to .agents/sessions/"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ls .claude/skills/github/scripts/pr/ listed 30 entries including new_pr.py and get_pr_checks.py"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md Skill-First and Gates sections plus .claude/rules/ci-scripts.md and .claude/rules/plugin-version-bump.md"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read; retrieval-led reasoning section confirmed"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__list_memories returned the full memory index; reviewed testing/testing-get-pr-checks-skill and tools/github-skill-scripts-reference for prior rollup work"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/pr-checks-rollup-pagination"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/pr-checks-rollup-pagination"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short clean at session start on fix/pr-checks-rollup-pagination"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "8af9ee681"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items verified"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected); git diff origin/main...HEAD lists no .agents/HANDOFF.md entry"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/session/session-end-linked-worktree-targets-main-checkout.md added, recording that complete_session_log.py resolves the root from git rev-parse --git-common-dir and so targets the main checkout"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files changed on this branch; git diff origin/main...HEAD --name-only matched zero .md paths, so markdownlint had no input"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All source, test, manifest, memory, and session-log changes are committed on fix/pr-checks-rollup-pagination; endingCommit is written by the follow-up commit so the SHA names a reachable object (issue #3618)"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run python scripts/validation/pre_pr.py -> 'RESULT: All validations passed'; uv run pytest tests/test_checks_rollup.py tests/test_invoke_pr_maintenance.py tests/test_invoke_pr_maintenance_py.py -q -> '118 passed in 1.00s'"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Work log records the four tasks executed this session"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "No retrospective for a single-issue ship; the session-end worktree defect was captured as a Serena memory instead"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Verify issue #3978 defects reproduce and the branch fix covers both",
+      "outcome": "Confirmed. scripts/github_core/checks_rollup.py:332 rollup_has_failing_checks decides from the latest run per (check name, workflow) instead of rollup.state, and pages contexts past the 100-node first page."
+    },
+    {
+      "task": "Set both plugin manifests to the reserved version slot 0.6.5485",
+      "outcome": ".claude/.claude-plugin/plugin.json and src/copilot-cli/.claude-plugin/plugin.json both set to 0.6.5485; parity holds."
+    },
+    {
+      "task": "Confirm the github_core lib mirrors are in sync",
+      "outcome": "uv run python scripts/sync_plugin_lib.py -> 'All plugin lib copies are in sync.'"
+    },
+    {
+      "task": "Run local gates",
+      "outcome": "ruff check on 8 changed files -> 'All checks passed!'; pytest on the 3 changed test files -> '118 passed in 1.00s'."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Open the PR for issue #3978 and let CI run the full suite."
+  ]
+}
