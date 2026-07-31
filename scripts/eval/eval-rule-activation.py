@@ -1688,7 +1688,12 @@ def _mechanism_summary(
             failures += 1
         if legacy_reduced:
             legacy += 1
-    avg = round(sum(scores) / len(scores), 2) if scores else 0.0
+    # None rather than 0.0 when nothing graded. A 0.0 reads as a real score
+    # in every consumer: it becomes a published average, a delta against
+    # baseline, and a candidate for best_mechanism, none of which any
+    # observation supports. An absent number has to be handled; a zero does
+    # not, so it travels silently into the table.
+    avg = round(sum(scores) / len(scores), 2) if scores else None
     return {
         "avg_score": avg,
         "scenario_count": len(pool),
@@ -1735,8 +1740,12 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     # `description` is the progressive-disclosure gate. The `full` mechanism is
     # retained only as a diagnostic ceiling and cannot rescue a failed front door.
     rule_enhanced = [m for m in MECHANISMS if m != "baseline"]
-    best_mech = max(rule_enhanced, key=lambda m: summary["per_mechanism"][m]["avg_score"])
-    best_avg = summary["per_mechanism"][best_mech]["avg_score"]
+    best_mech = max(
+        (m for m in rule_enhanced if summary["per_mechanism"][m]["avg_score"] is not None),
+        key=lambda m: summary["per_mechanism"][m]["avg_score"],
+        default=None,
+    )
+    best_avg = summary["per_mechanism"][best_mech]["avg_score"] if best_mech else None
 
     total_judge_failures = sum(
         summary["per_mechanism"][m]["judge_failures"] for m in MECHANISMS
@@ -1752,18 +1761,25 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     # that is not shipped. The two counts are equal whenever nothing is
     # excluded, which is every always-on rule.
     measured_mechs = [m for m in MECHANISMS if not (routed and m == "full")]
+    # The negative pool is counted over the mechanisms that actually gate it,
+    # not over every measured one. `baseline` carries no rule, so a broken
+    # judgement of what the baseline did on a negative case says nothing about
+    # the rule and must not fail it. That exclusion is already stated for the
+    # restraint floor below; counting failures over a wider set than the floor
+    # reads them off contradicted it.
+    neg_gate_mechs = ["description"] if routed else [m for m in MECHANISMS if m != "baseline"]
     gating_judge_failures = sum(
         summary["per_mechanism"][m]["judge_failures"] for m in measured_mechs
     ) + sum(
         summary["negative_case_per_mechanism"][m]["judge_failures"]
-        for m in measured_mechs
+        for m in neg_gate_mechs
     )
 
     summary["best_mechanism"] = best_mech
     summary["best_avg_score"] = best_avg
     summary["baseline_avg"] = baseline_avg
-    summary["delta_full_vs_baseline"] = round(full_avg - baseline_avg, 2)
-    summary["delta_description_vs_baseline"] = round(desc_avg - baseline_avg, 2)
+    summary["delta_full_vs_baseline"] = _delta(full_avg, baseline_avg)
+    summary["delta_description_vs_baseline"] = _delta(desc_avg, baseline_avg)
     summary["total_judge_failures"] = total_judge_failures
     summary["gating_judge_failures"] = gating_judge_failures
     summary["unreachable_mechanisms"] = [
@@ -1787,7 +1803,7 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     # returns avg_score 0.0 for an empty pool, and 0.0 is below every floor, so
     # gating on that number unguarded would fail every rule in a suite that has
     # no negative scenarios at all.
-    gate_mechs = ["description"] if routed else rule_enhanced
+    gate_mechs = neg_gate_mechs
     gate_cells = {m: summary["negative_case_per_mechanism"][m] for m in gate_mechs}
     graded_neg = [c["avg_score"] for c in gate_cells.values() if c["graded_count"] > 0]
     worst_neg_avg = min(graded_neg) if graded_neg else None
@@ -1836,13 +1852,24 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     return summary
 
 
-def _positive_verdict(desc_avg: float, baseline_avg: float) -> str:
+def _delta(treatment: float | None, control: float | None) -> float | None:
+    """A difference is only measured when both of its sides are."""
+    if treatment is None or control is None:
+        return None
+    return round(treatment - control, 2)
+
+
+def _positive_verdict(desc_avg: float | None, baseline_avg: float | None) -> str:
     """Name which of the two positive requirements a reachable run missed.
 
     Written as negated `>=` rather than `<` so that a non-comparable average
     fails closed. Both comparisons are False against NaN, so negating them
     reports FAIL_THRESHOLD instead of falling through to PASS.
     """
+    if desc_avg is None or baseline_avg is None:
+        # Reachable only if the coverage gate above let an unmeasured mechanism
+        # through. Report the miss rather than comparing against nothing.
+        return "FAIL_THRESHOLD"
     passes_threshold = desc_avg >= MIN_ACTIVATION_SCORE
     beats_baseline = (desc_avg - baseline_avg) >= MIN_DELTA_VS_BASELINE
     if not passes_threshold:
@@ -1858,8 +1885,8 @@ def _decide_verdict(
     gating_judge_failures: int,
     worst_neg_avg: float | None,
     has_positive_cases: bool,
-    desc_avg: float,
-    baseline_avg: float,
+    desc_avg: float | None,
+    baseline_avg: float | None,
 ) -> str:
     """Rank the gates and return the one that decides the run.
 
@@ -1917,7 +1944,12 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
     rows = [
         f"\nRule: {rule_id}",
         f"Verdict: {summary['verdict']}",
-        f"Best mechanism: {summary['best_mechanism']} (avg {summary['best_avg_score']})",
+        (
+            f"Best mechanism: {summary['best_mechanism']} "
+            f"(avg {summary['best_avg_score']})"
+            if summary.get("best_mechanism")
+            else "Best mechanism: none measured"
+        ),
         f"Restraint on negative cases: {restraint}",
     ]
     for label, key in (
@@ -1955,20 +1987,23 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
     for mech in MECHANISMS:
         pos_stats = summary["per_mechanism"][mech]
         neg_stats = summary["negative_case_per_mechanism"][mech]
-        pos = pos_stats["avg_score"]
-        # An empty or wholly ungraded pool averages to 0.0, and printing that
-        # as a score reads as total over-activation. Report the absence.
+        # A wholly ungraded pool has no average. Printing one reads as a real
+        # score: low on the positive side it looks like the mechanism failed,
+        # and low on the negative side it looks like total over-activation.
+        # Both columns report the absence instead.
+        pos = pos_stats["avg_score"] if pos_stats["graded_count"] else "-"
         neg = neg_stats["avg_score"] if neg_stats["graded_count"] else "-"
         pos_graded = (
             f"{pos_stats.get('graded_count', pos_stats['scenario_count'])}"
             f"/{pos_stats['scenario_count']}"
         )
         neg_graded = f"{neg_stats['graded_count']}/{neg_stats['scenario_count']}"
-        if mech == "baseline":
-            delta = ""
-        else:
-            delta_val = round(pos - summary["baseline_avg"], 2)
-            delta = f"{delta_val:+}"
+        delta_val = (
+            None
+            if mech == "baseline"
+            else _delta(pos_stats["avg_score"], summary["baseline_avg"])
+        )
+        delta = f"{delta_val:+}" if delta_val is not None else ""
         rows.append(
             f"| {mech:<12} | {pos:>7} | {neg:>7} | {delta:>13} "
             f"| {pos_graded:>10} | {neg_graded:>10} |"

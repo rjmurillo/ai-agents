@@ -3155,14 +3155,16 @@ class TestUngradedCellsExcludedFromAverage:
         assert summary["total_judge_failures"] >= 1
         assert summary["verdict"] == "FAIL_JUDGE_ERRORS"
 
-    def test_every_cell_ungraded_yields_zero_average_not_a_pass(self):
+    def test_every_cell_ungraded_reports_no_average_and_does_not_pass(self):
         scenarios = [_make_scenario(baseline=5, description=5, full=5)]
         for mech in ("baseline", "description", "full"):
             scenarios[0]["mechanisms"][mech] = _ungraded_mech()
 
         summary = eval_mod.aggregate(scenarios)
 
-        assert summary["per_mechanism"]["description"]["avg_score"] == 0.0
+        # Was `== 0.0`. That average was over an empty set, so it named a
+        # score no judge returned. The verdict below is what this pins.
+        assert summary["per_mechanism"]["description"]["avg_score"] is None
         assert summary["per_mechanism"]["description"]["graded_count"] == 0
         assert summary["verdict"] == "FAIL_JUDGE_ERRORS"
 
@@ -3822,11 +3824,12 @@ class TestNegativeCaseGate:
         assert summary["verdict"] == "FAIL_OVER_ACTIVATION"
 
     def test_a_suite_with_no_negative_scenarios_is_not_failed(self):
-        # `_mechanism_summary` reports avg_score 0.0 for an empty pool, and 0.0
-        # sits below every floor. Gating on it unguarded fails every rule.
+        # An empty pool has no average. It used to report 0.0, which sits below
+        # every floor, so gating on it unguarded failed every rule. The guard
+        # stays either way: `None` is not comparable against a floor at all.
         summary = eval_mod.aggregate([_make_scenario(baseline=1, description=5, full=5)])
 
-        assert summary["negative_case_per_mechanism"]["full"]["avg_score"] == 0.0
+        assert summary["negative_case_per_mechanism"]["full"]["avg_score"] is None
         assert summary["worst_negative_avg"] is None
         assert summary["verdict"] == "PASS"
 
@@ -4222,6 +4225,38 @@ class TestPositivePoolCoverageGates:
         assert summary["per_mechanism"]["description"]["graded_count"] == 1
         assert summary["per_mechanism"]["description"]["scenario_count"] == 2
 
+    def test_a_partly_graded_baseline_fails_the_same_way(self):
+        """`baseline` is a gate mechanism, and the gate has to prove it on it.
+
+        Every other damaged fixture in this class targets `description` or
+        `full`, so a detector that skipped `baseline` entirely passed all of
+        them. The control it establishes is the one the deltas are measured
+        against, so a partial baseline invalidates every delta published
+        beside it.
+        """
+        graded = _make_scenario(baseline=1, description=5, full=5)
+        ungraded = _scenario_of_mechs(
+            {
+                "baseline": {
+                    "scores": {
+                        "activation_score": float("nan"),
+                        "citation_score": float("nan"),
+                        "behavior_score": float("nan"),
+                        "graded": True,
+                    }
+                },
+                "description": _make_mech(5),
+                "full": _make_mech(5),
+            }
+        )
+
+        summary = eval_mod.aggregate([graded, ungraded])
+
+        assert summary["verdict"] == "FAIL_POSITIVE_INCOMPLETE"
+        assert summary["positive_gate_incomplete"] == ["baseline"]
+        assert summary["per_mechanism"]["baseline"]["graded_count"] == 1
+        assert summary["per_mechanism"]["baseline"]["scenario_count"] == 2
+
     def test_a_fully_graded_positive_pool_passes(self):
         """Negative control. Without it the gate could be failing everything."""
         scenarios = [
@@ -4446,3 +4481,126 @@ class TestVerdictRankingLivesInOnePlace:
             baseline_avg=1.0,
         )
         assert verdict == "PASS"
+
+
+class TestUnmeasuredPoolsPublishNoNumber:
+    """A mechanism nothing graded has no average, and no delta against one.
+
+    An average over an empty set was reported as `0.0`, which is not on the
+    1..5 rubric and is not a value any judge returned. It then flowed into
+    `delta_*_vs_baseline` and into the rendered table, so a run could publish
+    `PASS` beside a fabricated score and a fabricated delta, with nothing on
+    the row to say the pool was empty except a `0/n` count.
+    """
+
+    @staticmethod
+    def _full_ungraded() -> list[dict]:
+        return [
+            _scenario_of_mechs(
+                {
+                    "baseline": _make_mech(1),
+                    "description": _make_mech(5),
+                    "full": {"scores": {"cell_score": None}},
+                }
+            )
+        ]
+
+    def test_an_ungraded_mechanism_reports_no_average(self):
+        summary = eval_mod.aggregate(self._full_ungraded())
+
+        assert summary["per_mechanism"]["full"]["graded_count"] == 0
+        assert summary["per_mechanism"]["full"]["avg_score"] is None
+
+    def test_no_delta_is_published_against_an_ungraded_mechanism(self):
+        summary = eval_mod.aggregate(self._full_ungraded())
+
+        assert summary["delta_full_vs_baseline"] is None
+        # The sibling delta is still measured, so the run is not blanked out.
+        assert summary["delta_description_vs_baseline"] == 4.0
+
+    def test_the_table_prints_no_score_for_an_ungraded_pool(self):
+        summary = eval_mod.aggregate(self._full_ungraded())
+
+        table = eval_mod.render_table("probe", summary)
+
+        full_row = [r for r in table.splitlines() if r.startswith("| full")]
+        assert len(full_row) == 1
+        assert "0.0" not in full_row[0]
+        assert "-1.0" not in full_row[0]
+        assert [c.strip() for c in full_row[0].split("|")][1:7] == [
+            "full",
+            "-",
+            "-",
+            "",
+            "0/1",
+            "0/0",
+        ]
+
+    def test_an_ungraded_mechanism_is_never_the_best_one(self):
+        """`max` over a `0.0` still ranks it above nothing; over `None` it errors."""
+        scenarios = [
+            _scenario_of_mechs(
+                {
+                    "baseline": _make_mech(1),
+                    "description": {"scores": {"cell_score": None}},
+                    "full": {"scores": {"cell_score": None}},
+                }
+            )
+        ]
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["best_mechanism"] is None
+        assert summary["best_avg_score"] is None
+        assert "none measured" in eval_mod.render_table("probe", summary)
+
+
+class TestNegativeJudgeFailuresGateOnTheirOwnPool:
+    """A broken judgement of the baseline on a negative case cannot fail a rule.
+
+    `negative_gate_mechanisms` excludes `baseline` because a mechanism that
+    carries no rule cannot over-activate on one. The judge-failure count that
+    gates the same pool was summed over every mechanism, so the excluded cell
+    could still decide the verdict through the other door.
+    """
+
+    @staticmethod
+    def _neg_baseline_broken() -> list[dict]:
+        neg = _scenario_of_mechs(
+            {
+                "baseline": {"scores": {"judge_failed": True}},
+                "description": _make_mech(5),
+                "full": _make_mech(5),
+            }
+        )
+        neg["negative_case"] = True
+        return [_make_scenario(baseline=1, description=5, full=5), neg]
+
+    def test_a_broken_negative_baseline_does_not_fail_the_rule(self):
+        summary = eval_mod.aggregate(self._neg_baseline_broken())
+
+        assert summary["verdict"] != "FAIL_JUDGE_ERRORS"
+        assert summary["gating_judge_failures"] == 0
+
+    def test_the_failure_is_still_published_in_the_whole_run_count(self):
+        """It is excluded from the gate, not hidden. C3 keeps the wide count."""
+        summary = eval_mod.aggregate(self._neg_baseline_broken())
+
+        assert summary["total_judge_failures"] == 1
+
+    def test_a_broken_negative_description_still_fails_the_rule(self):
+        """Negative control. The gate did not simply stop counting."""
+        neg = _scenario_of_mechs(
+            {
+                "baseline": _make_mech(5),
+                "description": {"scores": {"judge_failed": True}},
+                "full": _make_mech(5),
+            }
+        )
+        neg["negative_case"] = True
+        scenarios = [_make_scenario(baseline=1, description=5, full=5), neg]
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["verdict"] == "FAIL_JUDGE_ERRORS"
+        assert summary["gating_judge_failures"] == 1
