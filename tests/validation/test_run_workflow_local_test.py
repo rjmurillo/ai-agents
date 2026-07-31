@@ -92,9 +92,7 @@ def test_missing_repo_root_is_exit_2(all_tools, tmp_path):
 def test_non_workflow_paths_are_filtered_out(all_tools, monkeypatch, tmp_path):
     # Custom actions and unrelated YAML never run under gh act; they drop out
     # and, with nothing left to test, the run is a clean no-op.
-    r = w.run_local_test(
-        [".github/actions/foo/action.yml", "README.md"], tmp_path
-    )
+    r = w.run_local_test([".github/actions/foo/action.yml", "README.md"], tmp_path)
     assert r.exit_code == 0
     assert r.note == "no workflow files to test"
 
@@ -132,9 +130,7 @@ def test_actionlint_missing_is_exit_3(monkeypatch, tmp_path):
     assert "actionlint" in r.note
 
 
-def test_actionlint_missing_in_remote_container_downgrades_to_warning(
-    monkeypatch, tmp_path
-):
+def test_actionlint_missing_in_remote_container_downgrades_to_warning(monkeypatch, tmp_path):
     # actionlint unavailable inside a remote container (CLAUDECODE set, no CI)
     # must not block the push: it degrades to a logged warning (exit 0), the same
     # way the gh/gh act gap already does. Issue #3064 extends PR #2548's degrade
@@ -149,9 +145,7 @@ def test_actionlint_missing_in_remote_container_downgrades_to_warning(
     assert "actionlint" in r.note
 
 
-def test_actionlint_missing_in_ci_still_blocks_even_with_container_signal(
-    monkeypatch, tmp_path
-):
+def test_actionlint_missing_in_ci_still_blocks_even_with_container_signal(monkeypatch, tmp_path):
     # CI provisions actionlint, so a missing binary is a real failure. The CI
     # marker overrides the container signal via the real _is_remote_container():
     # hard exit 3, never degraded (Issue #3064).
@@ -191,9 +185,7 @@ def test_gh_act_extension_missing_is_exit_3(monkeypatch, tmp_path):
     assert "gh act extension" in r.note
 
 
-def test_gh_act_missing_in_remote_container_downgrades_to_warning(
-    monkeypatch, tmp_path
-):
+def test_gh_act_missing_in_remote_container_downgrades_to_warning(monkeypatch, tmp_path):
     # gh act unavailable inside a remote container (CLAUDECODE set, no CI) must
     # not block the push: it degrades to a logged warning (exit 0). Item 3 of
     # issue #2548.
@@ -209,9 +201,7 @@ def test_gh_act_missing_in_remote_container_downgrades_to_warning(
     assert "gh act" in r.note
 
 
-def test_gh_act_missing_in_ci_still_blocks_even_with_container_signal(
-    monkeypatch, tmp_path
-):
+def test_gh_act_missing_in_ci_still_blocks_even_with_container_signal(monkeypatch, tmp_path):
     # In CI, gh act is provisioned, so a missing extension is a real failure.
     # The CI marker overrides the container signal: hard exit 3, never degraded.
     monkeypatch.setattr(w, "_have", lambda tool: True)
@@ -298,9 +288,7 @@ def test_docker_not_installed_is_exit_3_with_distinct_note(monkeypatch, tmp_path
     assert "Docker is not installed" in r.note
 
 
-def test_docker_missing_in_remote_container_downgrades_to_warning(
-    all_tools, monkeypatch, tmp_path
-):
+def test_docker_missing_in_remote_container_downgrades_to_warning(all_tools, monkeypatch, tmp_path):
     # Docker unavailable inside a remote container (CLAUDECODE set, no CI) must
     # not block the push: actionlint and the dry-run pass, and the full stage's
     # Docker gap degrades to a logged warning (exit 0). Issue #3064.
@@ -584,7 +572,7 @@ def test_secret_in_comment_is_not_blocking(all_tools, monkeypatch, tmp_path):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         "name: x\n# mentions secrets.ABSENT_SECRET in a comment\n"
-        'on: push\njobs:\n  j:\n    runs-on: ubuntu-latest\n    steps:\n'
+        "on: push\njobs:\n  j:\n    runs-on: ubuntu-latest\n    steps:\n"
         '      - run: echo "the literal text secrets.ABSENT_SECRET is fine"\n',
         encoding="utf-8",
     )
@@ -657,9 +645,7 @@ def test_format_json_exposes_secret_skipped(all_tools, monkeypatch, tmp_path):
     assert payload["exit_code"] == 0
 
 
-def test_format_json_exposes_missing_secret_names_for_exit_4(
-    all_tools, monkeypatch, tmp_path
-):
+def test_format_json_exposes_missing_secret_names_for_exit_4(all_tools, monkeypatch, tmp_path):
     monkeypatch.delenv("BOT_PAT_2841", raising=False)
     _write_wf_secrets(tmp_path, WF, "BOT_PAT_2841")
     monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
@@ -766,9 +752,7 @@ def test_read_worktree_gitdir_relative_pointer(tmp_path):
     gitdir.mkdir(parents=True)
     worktree = tmp_path / "wt"
     worktree.mkdir()
-    (worktree / ".git").write_text(
-        "gitdir: ../.git/worktrees/feat\n", encoding="utf-8"
-    )
+    (worktree / ".git").write_text("gitdir: ../.git/worktrees/feat\n", encoding="utf-8")
     assert w._read_worktree_gitdir(worktree) == str(gitdir.resolve())
 
 
@@ -1109,9 +1093,7 @@ def test_act_full_downgrades_other_pr_context_properties(monkeypatch, tmp_path):
     assert "[WARN]" in res.detail
 
 
-def test_act_full_workflow_dispatch_pr_context_error_still_blocks(
-    monkeypatch, tmp_path
-):
+def test_act_full_workflow_dispatch_pr_context_error_still_blocks(monkeypatch, tmp_path):
     wf = _write_wf(tmp_path, "name: x\non: workflow_dispatch\njobs: {}\n")
     monkeypatch.setattr(
         w,
@@ -1347,9 +1329,7 @@ def test_format_text_surfaces_warning_detail_on_ok() -> None:
         exit_code=0,
         stages=[
             w.StageResult("actionlint", True),
-            w.StageResult(
-                "gh act (full)", True, "[WARN] x.yml: act container lacks .git"
-            ),
+            w.StageResult("gh act (full)", True, "[WARN] x.yml: act container lacks .git"),
         ],
     )
     out = w._format_text(report)
@@ -1415,10 +1395,7 @@ def test_act_limitation_hint_downgrades_when_every_annotation_is_explained() -> 
 
 
 def test_act_limitation_hint_explains_paths_filter_git_rev_parse_annotation() -> None:
-    combined = (
-        "::error::The process 'git rev-parse --abbrev-ref HEAD' "
-        "failed with exit code 128"
-    )
+    combined = "::error::The process 'git rev-parse --abbrev-ref HEAD' failed with exit code 128"
     assert w._act_limitation_hint(combined, "push") is not None
 
 
@@ -1496,8 +1473,13 @@ def test_artifact_transport_failure_downgrades_regardless_of_event() -> None:
 def test_artifact_transport_failure_matches_any_artifact_verb() -> None:
     # Anchored on the retry-exhaustion suffix, so download- and finalize-side
     # transport failures downgrade too without enumerating every verb.
-    for verb in ("CreateArtifact", "FinalizeArtifact", "ListArtifacts",
-                 "GetSignedArtifactURL", "DeleteArtifact"):
+    for verb in (
+        "CreateArtifact",
+        "FinalizeArtifact",
+        "ListArtifacts",
+        "GetSignedArtifactURL",
+        "DeleteArtifact",
+    ):
         text = (
             f"::error::Failed to {verb}: Failed to make request after "
             "5 attempts: Unexpected end of JSON input"
@@ -1509,8 +1491,7 @@ def test_artifact_no_files_found_still_blocks() -> None:
     # Negative control. A real artifact defect carries no retry-exhaustion
     # suffix, so the rule must not swallow it.
     text = (
-        "::error::No files were found with the provided path: dist/. "
-        "No artifacts will be uploaded."
+        "::error::No files were found with the provided path: dist/. No artifacts will be uploaded."
     )
     assert w._act_limitation_hint(text) is None
 
@@ -1574,3 +1555,53 @@ def test_act_full_artifact_defect_still_fails(monkeypatch, tmp_path):
     )
     res = w._act_full_stage([wf.name], tmp_path)
     assert res.ok is False
+
+
+# ---------------------------------------------------------------------------
+# No-repo-context limitation (gh API calls in act containers - issue #3981)
+# ---------------------------------------------------------------------------
+
+_NO_REPO_CONTEXT_LOG = (
+    "[Workflow Coalescing Metrics/Collect Coalescing Metrics]   "
+    "| Could not infer repository info. "
+    "Please provide -Owner and -Repo parameters."
+)
+
+
+def test_no_repo_context_is_act_limitation() -> None:
+    # Positive: the "could not infer" message downgrades the failure.
+    hint = w._act_limitation_hint(_NO_REPO_CONTEXT_LOG)
+    assert hint is not None
+    assert "repository context" in hint
+
+
+def test_no_repo_context_limitation_applies_across_events() -> None:
+    # The repo-context gap is not event-scoped: act lacks it under every event.
+    for event in (None, "push", "workflow_dispatch", "pull_request", "schedule"):
+        hint = w._act_limitation_hint(_NO_REPO_CONTEXT_LOG, event)
+        assert hint is not None, f"expected hint for event={event!r}"
+
+
+def test_no_repo_context_limitation_does_not_excuse_genuine_error() -> None:
+    # A genuine workflow error alongside the limitation keeps the stage red.
+    combined = _NO_REPO_CONTEXT_LOG + "\n[Coalescing/Commit]   ::error::collect_metrics.py exited 2"
+    assert w._act_limitation_hint(combined) is None
+
+
+def test_act_full_no_repo_context_warns(monkeypatch, tmp_path) -> None:
+    # Integration: the full act stage downgrades to a passing WARN instead of
+    # blocking the push when the act container lacks repo context.
+    wf = _write_wf(tmp_path, "name: x\non: workflow_dispatch\njobs: {}\n")
+    monkeypatch.setattr(
+        w,
+        "_run",
+        lambda cmd, *, timeout, cwd=None, env=None: (
+            1,
+            _NO_REPO_CONTEXT_LOG,
+            "",
+        ),
+    )
+    res = w._act_full_stage([wf.name], tmp_path)
+    assert res.ok is True
+    assert "[WARN]" in res.detail
+    assert "repository context" in res.detail
