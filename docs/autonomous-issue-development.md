@@ -249,7 +249,7 @@ gh pr list --search "{number} in:title" --state all --json number,title,state
 # DANGER: If the PR title is constructed from untrusted input (like a GitHub issue title),
 # it can lead to command injection if it contains shell metacharacters like `$(...)`.
 # Use `read -r` to safely read the title into a variable.
-read -r pr_title < <(gh issue view {number} --json title --jq -r .title)
+read -r pr_title < <(gh issue view {number} --json title --jq .title)
 gh pr create --title "feat: ${pr_title}" --body "Fixes #{number}"
 
 # Run PR review after creation
