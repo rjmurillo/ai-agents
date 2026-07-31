@@ -909,3 +909,57 @@ class TestTheSuppressionBackstopIsWired:
                 f"step {step.get('name')!r} exempts bot actors, which is one of "
                 f"the routes #4061 was filed for"
             )
+
+
+class TestTheQaCheckFailsLoudlyWhenTheApiFails:
+    """Issue #4068: a gh failure graded a code PR as "no code changes".
+
+    `_changed_files` ran with check=False and never read the return code, so an
+    API error produced empty stdout, `_has_code_changes([])` was False, and the
+    step wrote has_code_changes=False plus qa_report_exists=N/A and exited 0.
+    The shell original swallowed it too, so extraction preserved the fail-open
+    rather than creating it. Either way the gate was decorative on the one path
+    it exists to cover.
+    """
+
+    @staticmethod
+    def _arrange(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, returncode: int, stdout: str):
+        output = tmp_path / "github-output.txt"
+        _set_output(monkeypatch, output)
+        monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
+        monkeypatch.setenv("PR_NUMBER", "42")
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(
+            qa_mod.subprocess,
+            "run",
+            lambda *args, **kwargs: subprocess.CompletedProcess(args, returncode, stdout),
+        )
+        return output
+
+    def test_a_gh_failure_exits_external_and_writes_nothing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+    ) -> None:
+        output = self._arrange(monkeypatch, tmp_path, returncode=1, stdout="")
+
+        assert qa_mod.main() == 3
+        assert not output.exists()
+        assert "::error::gh api failed for repos/o/r/pulls/42/files" in capsys.readouterr().err
+
+    def test_a_successful_call_still_reports_code_changes(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        output = self._arrange(monkeypatch, tmp_path, returncode=0, stdout="a.py\nb.py\n")
+
+        assert qa_mod.main() == 0
+        assert "has_code_changes=True" in output.read_text(encoding="utf-8")
+
+    def test_a_genuinely_empty_pr_is_not_conflated_with_a_broken_api(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Edge: rc 0 with no files is a real answer, not a failure."""
+        output = self._arrange(monkeypatch, tmp_path, returncode=0, stdout="")
+
+        assert qa_mod.main() == 0
+        assert output.read_text(encoding="utf-8") == (
+            "has_code_changes=False\nqa_report_exists=N/A\n"
+        )
