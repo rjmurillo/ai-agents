@@ -276,6 +276,24 @@ shims, and dedicated tests.
 Final tally: **6 Accept, 0 Disagree-and-Commit, 0 Block**. No P0 or P1
 finding remained.
 
+## 2026-07-31 File-Size Suppression Review
+
+The six roles reviewed the narrow file-size suppression for this accepted,
+append-only ADR. Splitting the record would break review continuity. The critic
+requested an in-file rationale. The final comment now states that reason.
+
+| Agent | Vote | Remaining position |
+|-------|------|--------------------|
+| architect | Accept | The exception preserves the accepted record. |
+| critic | Disagree-and-Commit | The requested rationale was added. |
+| independent-thinker | Accept | The exception is narrow and file-local. |
+| security | Accept | No security gate or content check is bypassed. |
+| analyst | Accept | The audit-continuity rationale is verifiable. |
+| high-level-advisor | Accept | The critic finding is closed. |
+
+Final tally: **5 Accept, 1 Disagree-and-Commit, 0 Block**. No P0 or P1
+finding remained.
+
 ## 2026-07-22 PR #3292 Release Convergence
 
 The six roles reviewed the final post-purge hook inventory, dormant adapter

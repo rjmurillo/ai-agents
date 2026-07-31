@@ -1,4 +1,5 @@
 ---
+# taste-lint: ignore file-size, accepted append-only record; splitting breaks audit continuity.
 id: ADR-085
 status: accepted
 date: 2026-07-31

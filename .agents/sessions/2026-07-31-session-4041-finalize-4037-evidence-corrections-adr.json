@@ -99,7 +99,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "63 changed-skill tests passed; build_all.py and pre_pr.py passed before the main refresh; ADR-085 reached five Accept and one Disagree-and-Commit; golden-principles passed on the resolved 45-file PR diff"
+        "Evidence": "63 changed-skill tests passed; build_all.py and pre_pr.py passed before the main refresh; ADR reviews converged; golden-principles passed on the resolved 45-file PR diff; file-size suppressions are narrow and documented"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -141,6 +141,10 @@
     {
       "action": "Repaired Markdown auto-fix corruption found by the final pre-PR gate",
       "outcome": "Wrapped line-start issue references in inline code, regenerated both Copilot skill mirrors, advanced both project-toolkit manifests to 0.6.5478, and filed issue #4118 for the validator defect"
+    },
+    {
+      "action": "Ran /adr-review with six roles on narrow file-size suppressions for append-only ADR records",
+      "outcome": "Five roles voted Accept. The critic voted Disagree-and-Commit after requesting explicit in-file rationale. The rationale was added, no P0 or P1 finding remained, and both debate logs record convergence"
     }
   ],
   "endingCommit": "f10f48e2d85edea11a81b6e76d86e4a73d866ed5",

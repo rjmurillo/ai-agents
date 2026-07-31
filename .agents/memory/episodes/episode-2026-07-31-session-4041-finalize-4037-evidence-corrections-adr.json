@@ -133,6 +133,15 @@
       ],
       "leads_to": [],
       "_source_session": "2026-07-31-session-4041-finalize-4037-evidence-corrections-adr"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran /adr-review with six roles on narrow file-size suppressions for append-only ADR records",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4041-finalize-4037-evidence-corrections-adr"
     }
   ],
   "metrics": {
