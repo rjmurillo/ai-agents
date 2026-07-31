@@ -18,16 +18,20 @@ workspace budget covers only `CLAUDE.md`, `AGENTS.md`, and `.claude/CLAUDE.md`,
 and `instruction_budget.py` covers only `.github/instructions/*.instructions.md`.
 New always-on guidance therefore belongs here, not there (Refs #3991).
 
-## Three portability checkers exist and their names do not tell you the scope
+## Four portability checkers exist and their names do not tell you the scope
 
-Running two of them is not running the third, and only the third reads
-Markdown.
+Running three of them is not running the fourth. Two read scripts and two read
+Markdown, and the two Markdown checkers are inverses of each other: one counts
+prose references and deliberately ignores `.claude/skills/`, the other looks
+for executable invocations of exactly that tree. All four live in
+`scripts/validation/`, not `build/scripts/`.
 
 | Script | Scans | Catches |
 |---|---|---|
-| `build/scripts/check_vendor_portability.py` | skill scripts | code that reads an upstream-only path |
-| `build/scripts/check_skill_portability.py` | skill scripts | drift against the script baseline |
+| `scripts/validation/check_vendor_portability.py` | skill scripts | code that reads an upstream-only path |
+| `scripts/validation/check_skill_portability.py` | skill scripts | drift against the script baseline |
 | `scripts/validation/check_skill_md_portability.py` | skill `.md` | an upstream path cited in **prose** |
+| `scripts/validation/check_skill_md_exec_portability.py` | skill `.md` | a bare `.claude/skills/...` script **invocation** |
 
 Symptom: the first two pass, you commit, and the push is rejected by
 `pre_pr.py` with `[FAIL] Skill Markdown Portability` naming a reference file
