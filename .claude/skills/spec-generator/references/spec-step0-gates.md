@@ -96,6 +96,7 @@ The five fields are:
 ```bash
 python3 scripts/redact_secrets.py <file>      # or pipe the answer text on stdin
 ```
+<!-- vendor-portability-exec: scripts/redact_secrets.py -->
 
 In Python: `from redact_secrets import redact; redact(answer).text`. Matched token shapes (private keys, GitHub/Stripe/AWS/Slack tokens, JWTs, `Bearer` headers, emails, hex secrets of 32 or more chars) become `` `[redacted: <reason>]` ``. Redaction is a backstop, not a license to collect secrets: do not paste live credentials into Step 0 answers. The full policy is `.claude/rules/secret-redaction.md`; the redactor is `scripts/redact_secrets.py`.
 
