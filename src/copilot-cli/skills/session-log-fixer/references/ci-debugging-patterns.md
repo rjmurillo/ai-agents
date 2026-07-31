@@ -94,11 +94,11 @@ gh run view $RunId
 # All jobs status
 gh api /repos/$Repo/actions/runs/$RunId/jobs --jq '.jobs[] | {name: .name, status: .status, conclusion: .conclusion}'
 
-# Failed jobs only
-gh api /repos/$Repo/actions/runs/$RunId/jobs --jq '.jobs[] | select(.conclusion == "failure") | .name'
+# Failed jobs only, with the id needed for $JobId below
+gh api /repos/$Repo/actions/runs/$RunId/jobs --jq '.jobs[] | select(.conclusion == "failure") | {id: .id, name: .name}'
 
 # Incomplete jobs
-gh api /repos/$Repo/actions/runs/$RunId/jobs --jq '.jobs[] | select(.status != "completed") | .name'
+gh api /repos/$Repo/actions/runs/$RunId/jobs --jq '.jobs[] | select(.status != "completed") | {id: .id, name: .name}'
 
 # Workflow logs, first 100 lines
 gh run view $RunId --log 2>&1 | Select-Object -First 100
