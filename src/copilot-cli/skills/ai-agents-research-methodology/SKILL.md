@@ -206,7 +206,7 @@ is a future duplicate proposal.
 
 ## Where Good Ideas Historically Came From
 
-- **Retro mining.** `.agents/retrospective/` (95 files as of 2026-07-03) is the
+- **Retro mining.** `.agents/retrospective/` is the
   richest vein; `ai-agents-failure-archaeology` indexes the major ones.
   Retro-cited short SHAs do not resolve locally even with full history present
   (~1471 commits as of 2026-07-03), so retros and memories, not `git log`,
@@ -274,7 +274,7 @@ volatile facts:
 | eval scripts and `--dry-run` | `scripts/eval/eval-prompt-change.py:567`; `scripts/eval/` listing | `ls scripts/eval/ && grep -n "dry-run" scripts/eval/eval-prompt-change.py` |
 | Contradiction log format | `.claude/rules/search-before-building.md` | `grep -n "decision-" .claude/rules/search-before-building.md` |
 | ADR-069 still proposed | `.agents/architecture/ADR-069-context-corpus-is-the-product.md:2` | `head -5 .agents/architecture/ADR-069-context-corpus-is-the-product.md` |
-| Retro corpus size (95 files) | `.agents/retrospective/` | `ls .agents/retrospective/ \| wc -l` |
+| Retro corpus size | `.agents/retrospective/` | `python3 -c "import pathlib;print(len(list(pathlib.Path('.agents/retrospective').glob('*.md'))))"` |
 | guard-maturity tiers | `.claude/skills/guard-maturity/SKILL.md` | `grep -n "Budding" .claude/skills/guard-maturity/SKILL.md` |
 
 Uncertainty flag: the `EVENT=` telemetry consumer pipeline beyond the
