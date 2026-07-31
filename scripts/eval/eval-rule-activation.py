@@ -1735,7 +1735,6 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
 
     baseline_avg = summary["per_mechanism"]["baseline"]["avg_score"]
     desc_avg = summary["per_mechanism"]["description"]["avg_score"]
-    full_avg = summary["per_mechanism"]["full"]["avg_score"]
 
     # `description` is the progressive-disclosure gate. The `full` mechanism is
     # retained only as a diagnostic ceiling and cannot rescue a failed front door.
@@ -1778,9 +1777,25 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     summary["best_mechanism"] = best_mech
     summary["best_avg_score"] = best_avg
     summary["baseline_avg"] = baseline_avg
-    summary["delta_full_vs_baseline"] = _delta(full_avg, baseline_avg)
-    summary["delta_description_vs_baseline"] = _delta(desc_avg, baseline_avg)
+    pos_cells = summary["per_mechanism"]
+    summary["delta_full_vs_baseline"] = _delta(pos_cells["full"], pos_cells["baseline"])
+    summary["delta_description_vs_baseline"] = _delta(
+        pos_cells["description"], pos_cells["baseline"]
+    )
     summary["total_judge_failures"] = total_judge_failures
+    # Name the cells whose failures no gate reads. Deriving this in the
+    # renderer instead would let the disclosure drift from the exclusion, which
+    # is how the negative-baseline exclusion shipped silent in the first place.
+    excluded_cells: list[str] = []
+    for pool_label, pool_key, gating in (
+        ("positive", "per_mechanism", measured_mechs),
+        ("negative", "negative_case_per_mechanism", neg_gate_mechs),
+    ):
+        for mech in MECHANISMS:
+            ungated = mech not in gating
+            if ungated and summary[pool_key][mech]["judge_failures"]:
+                excluded_cells.append(f"{pool_label} {mech}")
+    summary["excluded_judge_failure_cells"] = excluded_cells
     summary["gating_judge_failures"] = gating_judge_failures
     summary["unreachable_mechanisms"] = [
         m for m in MECHANISMS if m not in measured_mechs
@@ -1799,10 +1814,11 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     # doing. For a routed target `full` is excluded too, because force-injecting
     # a reference is a measurement treatment no deployment performs.
     #
-    # Only mechanisms with a graded negative cell contribute. `_mechanism_summary`
-    # returns avg_score 0.0 for an empty pool, and 0.0 is below every floor, so
-    # gating on that number unguarded would fail every rule in a suite that has
-    # no negative scenarios at all.
+    # Only mechanisms with a graded negative cell contribute. An ungraded pool
+    # has no average to gate on: `_mechanism_summary` reports `None`, which is
+    # not comparable against a floor, and `min` over an empty list raises. A
+    # suite with no negative scenarios reports that it measured none rather
+    # than failing every rule in it.
     gate_mechs = neg_gate_mechs
     gate_cells = {m: summary["negative_case_per_mechanism"][m] for m in gate_mechs}
     graded_neg = [c["avg_score"] for c in gate_cells.values() if c["graded_count"] > 0]
@@ -1852,11 +1868,26 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     return summary
 
 
-def _delta(treatment: float | None, control: float | None) -> float | None:
-    """A difference is only measured when both of its sides are."""
-    if treatment is None or control is None:
+def _fully_graded(cell: dict[str, Any]) -> bool:
+    """Whether a cell's average covers every scenario in its pool."""
+    return (
+        cell.get("avg_score") is not None
+        and cell.get("graded_count") == cell.get("scenario_count")
+    )
+
+
+def _delta(treatment: dict[str, Any], control: dict[str, Any]) -> float | None:
+    """A difference is only measured where both sides cover the same pool.
+
+    Subtracting a mean over 2 scenarios from a mean over 1 produces a number
+    that describes neither. With `baseline` graded 1/2 at 1.0 and
+    `description` graded 2/2 at 3.0, the published delta was 2.0 while the
+    only scenario both actually measured differed by 4.0. Both sides must
+    cover their whole pool, not merely be non-null.
+    """
+    if not _fully_graded(treatment) or not _fully_graded(control):
         return None
-    return round(treatment - control, 2)
+    return round(treatment["avg_score"] - control["avg_score"], 2)
 
 
 def _positive_verdict(desc_avg: float | None, baseline_avg: float | None) -> str:
@@ -1922,6 +1953,51 @@ def _decide_verdict(
 # ---------------------------------------------------------------------------
 
 
+def _render_caveats(summary: dict[str, Any]) -> list[str]:
+    """Every line that qualifies the verdict above it.
+
+    These are the disclosures a reader needs to know the headline number does
+    not cover what it appears to. They live together so that adding an
+    exclusion without its disclosure is a visible omission rather than a
+    silent one.
+    """
+    lines: list[str] = []
+    for label, key in (
+        ("Negative", "negative_gate_incomplete"),
+        ("Positive", "positive_gate_incomplete"),
+    ):
+        incomplete = summary.get(key) or []
+        if incomplete:
+            lines.append(f"{label} pool incomplete at: " + ", ".join(incomplete))
+    unreachable = summary.get("unreachable_mechanisms") or []
+    if unreachable:
+        lines.append(
+            "Excluded as unreachable for a routed target: " + ", ".join(unreachable)
+        )
+    total_jf = summary.get("total_judge_failures", 0)
+    gating_jf = summary.get("gating_judge_failures", 0)
+    if total_jf != gating_jf:
+        # Fire on any divergence. Tying this to `unreachable` alone meant the
+        # negative-baseline exclusion printed nothing at all, so a reader saw a
+        # clean PASS over a record that holds a judge failure.
+        where = summary.get("excluded_judge_failure_cells") or []
+        lines.append(
+            f"Judge failures: {total_jf} in the record, {gating_jf} on gating "
+            + (f"surfaces. Not gated: {', '.join(where)}." if where else "surfaces.")
+        )
+    legacy = sum(
+        summary["per_mechanism"][m].get("legacy_reduced_count", 0)
+        + summary["negative_case_per_mechanism"][m].get("legacy_reduced_count", 0)
+        for m in MECHANISMS
+    )
+    if legacy:
+        lines.append(
+            f"Reduction: {legacy} cell(s) carried no cell_score and were averaged "
+            "from the score triple (pre-cell_score artifact)"
+        )
+    return lines
+
+
 def render_table(rule_id: str, summary: dict[str, Any]) -> str:
     worst_neg = summary.get("worst_negative_avg")
     gate_mechs = summary.get("negative_gate_mechanisms") or []
@@ -1952,33 +2028,7 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
         ),
         f"Restraint on negative cases: {restraint}",
     ]
-    for label, key in (
-        ("Negative", "negative_gate_incomplete"),
-        ("Positive", "positive_gate_incomplete"),
-    ):
-        incomplete = summary.get(key) or []
-        if incomplete:
-            rows.append(f"{label} pool incomplete at: " + ", ".join(incomplete))
-    unreachable = summary.get("unreachable_mechanisms") or []
-    if unreachable:
-        # Say it out loud. Otherwise a reader sees judge failures in the record
-        # and a verdict that ignored them, with nothing explaining the gap.
-        rows.append(
-            "Excluded as unreachable for a routed target: "
-            + ", ".join(unreachable)
-            + f" ({summary.get('total_judge_failures', 0)} judge failure(s) in the "
-            f"record, {summary.get('gating_judge_failures', 0)} on gating surfaces)"
-        )
-    legacy = sum(
-        summary["per_mechanism"][m].get("legacy_reduced_count", 0)
-        + summary["negative_case_per_mechanism"][m].get("legacy_reduced_count", 0)
-        for m in MECHANISMS
-    )
-    if legacy:
-        rows.append(
-            f"Reduction: {legacy} cell(s) carried no cell_score and were averaged "
-            "from the score triple (pre-cell_score artifact)"
-        )
+    rows += _render_caveats(summary)
     rows += [
         "",
         "| Mechanism    | Pos avg | Neg avg | Δ vs baseline | Pos graded | Neg graded |",
@@ -2001,7 +2051,7 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
         delta_val = (
             None
             if mech == "baseline"
-            else _delta(pos_stats["avg_score"], summary["baseline_avg"])
+            else _delta(pos_stats, summary["per_mechanism"]["baseline"])
         )
         delta = f"{delta_val:+}" if delta_val is not None else ""
         rows.append(

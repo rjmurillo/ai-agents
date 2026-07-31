@@ -4389,7 +4389,11 @@ class TestTableDisclosesItsPopulations:
         table = eval_mod.render_table("r", eval_mod.aggregate(scenarios, routed=True))
 
         assert "Excluded as unreachable for a routed target: full" in table
-        assert "1 judge failure(s) in the record, 0 on gating surfaces" in table
+        # The counts moved onto their own line, which now fires on any
+        # divergence rather than only on a routed exclusion. Same guarantee:
+        # a reader is told the record holds a failure the verdict ignored.
+        assert "Judge failures: 1 in the record, 0 on gating surfaces" in table
+        assert "positive full" in table
 
     def test_an_always_on_rule_prints_no_exclusion_line(self):
         """Negative control. The line must not appear when nothing is excluded."""
@@ -4604,3 +4608,134 @@ class TestNegativeJudgeFailuresGateOnTheirOwnPool:
 
         assert summary["verdict"] == "FAIL_JUDGE_ERRORS"
         assert summary["gating_judge_failures"] == 1
+
+
+class TestDeltasRequireACommonPopulation:
+    """A delta between two partly graded pools describes neither of them.
+
+    Guarding only against a `None` average was not enough. Two averages can
+    both exist and still cover different scenario sets, and their difference
+    is then a number no scenario produced. With `baseline` graded 1/2 at 1.0
+    and `description` graded 2/2 at 3.0, the instrument published 2.0 while
+    the only scenario both measured differed by 4.0.
+    """
+
+    @staticmethod
+    def _partial_baseline() -> list[dict]:
+        return [
+            _make_scenario(baseline=1, description=5, full=5),
+            _scenario_of_mechs(
+                {
+                    "baseline": {"scores": {"cell_score": None}},
+                    "description": _make_mech(1),
+                    "full": _make_mech(1),
+                }
+            ),
+        ]
+
+    def test_no_delta_is_published_across_different_populations(self):
+        summary = eval_mod.aggregate(self._partial_baseline())
+
+        assert summary["per_mechanism"]["baseline"]["graded_count"] == 1
+        assert summary["per_mechanism"]["description"]["graded_count"] == 2
+        assert summary["delta_description_vs_baseline"] is None
+        assert summary["delta_full_vs_baseline"] is None
+
+    def test_an_unmeasured_control_does_not_crash_the_treatment_delta(self):
+        """The sibling of the treatment guard. Only the treatment side was tested.
+
+        Mutating `_delta` to check the treatment alone left every earlier test
+        passing, and a measured description over an unmeasured baseline then
+        raised `TypeError` on the subtraction.
+        """
+        scenarios = [
+            _scenario_of_mechs(
+                {
+                    "baseline": {"scores": {"cell_score": None}},
+                    "description": _make_mech(5),
+                    "full": _make_mech(5),
+                }
+            )
+        ]
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["per_mechanism"]["baseline"]["avg_score"] is None
+        assert summary["delta_description_vs_baseline"] is None
+        assert summary["delta_full_vs_baseline"] is None
+        assert summary["verdict"] == "FAIL_POSITIVE_INCOMPLETE"
+        assert "baseline" in summary["positive_gate_incomplete"]
+        # Rendering is where the raw subtraction used to happen.
+        assert eval_mod.render_table("probe", summary)
+
+    def test_the_table_prints_no_delta_across_different_populations(self):
+        summary = eval_mod.aggregate(self._partial_baseline())
+
+        table = eval_mod.render_table("probe", summary)
+
+        for mech in ("description", "full"):
+            row = [r for r in table.splitlines() if r.startswith(f"| {mech}")]
+            assert len(row) == 1
+            assert [c.strip() for c in row[0].split("|")][4] == ""
+
+    def test_a_fully_graded_pair_still_publishes_its_delta(self):
+        """Negative control. The guard did not simply suppress every delta."""
+        summary = eval_mod.aggregate(
+            [
+                _make_scenario(baseline=1, description=5, full=5),
+                _make_scenario(baseline=1, description=5, full=5),
+            ]
+        )
+
+        assert summary["delta_description_vs_baseline"] == 4.0
+        assert summary["delta_full_vs_baseline"] == 4.0
+
+
+class TestExcludedJudgeFailuresAreDisclosed:
+    """A verdict that ignored a recorded failure has to say which one.
+
+    The disclosure fired only when `unreachable_mechanisms` was non-empty,
+    which covered the routed exclusion and nothing else. The negative-baseline
+    exclusion added alongside it printed nothing, so a reader saw a clean
+    `PASS` table over a record holding a judge failure.
+    """
+
+    @staticmethod
+    def _neg_baseline_broken() -> list[dict]:
+        neg = _scenario_of_mechs(
+            {
+                "baseline": {"scores": {"judge_failed": True}},
+                "description": _make_mech(5),
+                "full": _make_mech(5),
+            }
+        )
+        neg["negative_case"] = True
+        return [_make_scenario(baseline=1, description=5, full=5), neg]
+
+    def test_the_excluded_cell_is_named_in_the_summary(self):
+        summary = eval_mod.aggregate(self._neg_baseline_broken())
+
+        assert summary["excluded_judge_failure_cells"] == ["negative baseline"]
+
+    def test_the_table_discloses_the_divergence_without_an_unreachable_mechanism(self):
+        summary = eval_mod.aggregate(self._neg_baseline_broken())
+
+        assert summary["unreachable_mechanisms"] == []
+        assert summary["verdict"] == "PASS"
+
+        table = eval_mod.render_table("probe", summary)
+
+        disclosure = [r for r in table.splitlines() if r.startswith("Judge failures:")]
+        assert len(disclosure) == 1
+        assert "1 in the record" in disclosure[0]
+        assert "0 on gating surfaces" in disclosure[0]
+        assert "negative baseline" in disclosure[0]
+
+    def test_a_run_with_no_divergence_prints_no_disclosure(self):
+        """Negative control. The line is a signal, not decoration."""
+        summary = eval_mod.aggregate(
+            [_make_scenario(baseline=1, description=5, full=5)]
+        )
+
+        assert summary["excluded_judge_failure_cells"] == []
+        assert "Judge failures:" not in eval_mod.render_table("probe", summary)
