@@ -304,6 +304,33 @@ jobs:
       - name: Check for conflict markers
         run: uv run --frozen python3 scripts/validation/git_hook_policy.py tracked-conflict-markers
 
+      # Issue #4061: the no-net-new security suppression contract (#3899, wired
+      # by PR #4023) ran only through lefthook. Every route that skips local
+      # hooks landed a fresh nosec, nosemgrep, lgtm, or security noqa with no
+      # failing check: a clone without `lefthook install`, `--no-verify`, the
+      # server-side "Update branch" merge, a bot push. audit-hook-bypass.yml
+      # records bypass evidence and is non-blocking by contract, so it does not
+      # close this.
+      #
+      # Same shape of fix as the conflict-marker step above (#3770): one
+      # range-based subcommand over the identical scan functions the pre-push
+      # hook uses, so CI and the hook cannot drift apart. File-scoped removal
+      # credit, pure-rename exemption, and notebook cell diffing all come along
+      # unchanged.
+      #
+      # Unconditional, like the two gates above, so bot-authored PRs are covered.
+      # The fetch is a no-op under the fetch-depth: 0 checkout and supplies the
+      # base object under the shallow bot-skip checkout. It is tolerant on
+      # purpose: when the object cannot be fetched the Python exit-2 path prints
+      # a diagnostic naming the unresolvable revision.
+      - name: Check for net-new security suppressions
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$BASE_SHA" || true
+          uv run --frozen python3 scripts/validation/git_hook_policy.py \
+            security-suppressions-range --base "$BASE_SHA" --head HEAD
+
       # Issue #2840: ADR-080 requires an unjustified `model:` pin to fail CI.
       # `check_model_pins.py --mode enforce` exits 1 on a new or changed pin
       # that lacks a model-rationale field, and `checks_spec.validate_model_pins`

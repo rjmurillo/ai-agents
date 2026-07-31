@@ -2265,6 +2265,14 @@ def check_pushed_suppressions(stream: TextIO, repo_root: Path) -> int:
     updates = _push_updates(stream, repo_root)
     if updates is None:
         return 2
+    return _report_suppression_violations(updates, repo_root)
+
+
+def _report_suppression_violations(
+    updates: Sequence[PushUpdate],
+    repo_root: Path,
+) -> int:
+    """Scan each update's range and report every net-new suppression."""
     violations: list[str] = []
     for update in updates:
         paths = _changed_commit_paths(update, repo_root)
@@ -2280,6 +2288,48 @@ def check_pushed_suppressions(stream: TextIO, repo_root: Path) -> int:
     for violation in violations:
         print(f"  {violation}", file=sys.stderr)
     return 1
+
+
+def check_range_suppressions(base: str, head: str, repo_root: Path) -> int:
+    """CI backstop for the no-net-new suppression policy (issue #4061).
+
+    The pre-push hook is the only caller of ``check_pushed_suppressions``, and
+    it reads its range from stdin in git's pre-push format. Every route that
+    skips local hooks therefore reached the remote unchecked: a clone without
+    ``lefthook install``, ``--no-verify``, the server-side "Update branch"
+    button, a bot push. This is the same missing-backstop shape #3770 fixed for
+    conflict markers, so it takes the same shape of fix: one range-based
+    subcommand over the identical scan functions, called from the required PR
+    check. Nothing about the policy is reimplemented here, which is what keeps
+    CI and the hook from drifting.
+
+    ``head`` is resolved to a real commit before the scan because
+    ``_commit_full_content_suppression_violations`` labels findings with
+    ``update.head[:12]``; passing the literal ``HEAD`` through would print
+    ``HEAD:path:line`` instead of a commit a reader can check out.
+
+    The base is the merge base when history is present, matching
+    ``resolve_push_update``. The ``rev-parse`` fallback covers a shallow CI
+    checkout where the merge base cannot be computed, and it is safe because
+    every downstream read is a two-dot tree diff or a ``git show <sha>:<path>``
+    blob read, neither of which needs the common ancestor to be reachable.
+    """
+    head_sha = _resolve_commit(repo_root, head)
+    if head_sha is None:
+        print(f"ERROR: could not resolve head revision: {head}", file=sys.stderr)
+        return 2
+    base_sha = _merge_base(repo_root, base, head_sha) or _resolve_commit(repo_root, base)
+    if base_sha is None:
+        print(f"ERROR: could not resolve base revision: {base}", file=sys.stderr)
+        return 2
+    update = PushUpdate(
+        source=PushRef("HEAD", head_sha, "HEAD", base_sha),
+        base=base_sha,
+        head=head_sha,
+        range_spec=f"{base_sha}..{head_sha}",
+        destination_branch=None,
+    )
+    return _report_suppression_violations([update], repo_root)
 
 
 def _added_suppression_violations(
@@ -4466,8 +4516,14 @@ def _merge_base(repo_root: Path, base: str, head: str) -> str | None:
 
 
 def _commit_ref_exists(repo_root: Path, ref: str) -> bool:
+    return _resolve_commit(repo_root, ref) is not None
+
+
+def _resolve_commit(repo_root: Path, ref: str) -> str | None:
+    """Full object id of ``ref`` as a commit, or None when it does not resolve."""
     result = _run_git(repo_root, ["rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"])
-    return result.returncode == 0
+    identifier = result.stdout.strip()
+    return identifier if result.returncode == 0 and identifier else None
 
 
 def _is_shallow_repository(repo_root: Path) -> bool | None:
@@ -5542,6 +5598,10 @@ def _handle_suppressions_push(args: argparse.Namespace) -> int:
     return check_pushed_suppressions(sys.stdin, _repo_root(args))
 
 
+def _handle_suppressions_range(args: argparse.Namespace) -> int:
+    return check_range_suppressions(args.base, args.head, _repo_root(args))
+
+
 def _handle_staged_suppressions(args: argparse.Namespace) -> int:
     return check_staged_suppressions(_repo_root(args))
 
@@ -5618,6 +5678,10 @@ def build_parser() -> argparse.ArgumentParser:
     generated = subparsers.add_parser("stage-generated")
     generated.add_argument("kind", choices=sorted(GENERATED_PATHS | GENERATED_GLOBS))
     generated.set_defaults(handler=_handle_stage_generated)
+    suppression_range = subparsers.add_parser("security-suppressions-range")
+    suppression_range.add_argument("--base", required=True)
+    suppression_range.add_argument("--head", default="HEAD")
+    suppression_range.set_defaults(handler=_handle_suppressions_range)
     return parser
 
 

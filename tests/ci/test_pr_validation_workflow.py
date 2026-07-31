@@ -870,3 +870,42 @@ class TestTheAdr006PinMatchesReality:
         assert "adr006_run_block_scanner.py --max" not in WORKFLOW.read_text(
             encoding="utf-8"
         )
+
+
+class TestTheSuppressionBackstopIsWired:
+    """Issue #4061: the suppression policy ran through lefthook only.
+
+    A required CI step is the only thing that covers a clone without
+    `lefthook install`, a `--no-verify` push, a server-side "Update branch"
+    merge, or a bot push. Assert the step exists, calls the shared policy
+    implementation, and is not gated on the bot exclusion, since bot pushes
+    are one of the routes the gap was reported for.
+    """
+
+    @staticmethod
+    def _steps() -> list[dict]:
+        document = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+        return [
+            step
+            for job in document["jobs"].values()
+            for step in job.get("steps", [])
+            if isinstance(step.get("run"), str)
+            and "security-suppressions-range" in step["run"]
+        ]
+
+    def test_a_step_invokes_the_range_subcommand(self) -> None:
+        steps = self._steps()
+        assert steps, (
+            "pr-validation.yml runs no security-suppressions-range step, so the "
+            "no-net-new suppression contract is local-hook only again (#4061)"
+        )
+        assert "scripts/validation/git_hook_policy.py" in steps[0]["run"], (
+            "the CI step must call the same policy module the pre-push hook does"
+        )
+
+    def test_the_step_is_not_gated_on_the_bot_exclusion(self) -> None:
+        for step in self._steps():
+            assert "should-run" not in str(step.get("if", "")), (
+                f"step {step.get('name')!r} exempts bot actors, which is one of "
+                f"the routes #4061 was filed for"
+            )
