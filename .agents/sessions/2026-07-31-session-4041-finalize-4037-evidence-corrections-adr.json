@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "ADR-085 closure correction, debate update, and session evidence are included in the current atomic commit"
+        "Evidence": "ADR-085 closure correction is committed at bdd31f2d1; current main is merged with conflicts resolved for the next merge commit"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "63 changed-skill tests passed; build_all.py --check passed; pre_pr.py passed 37 validations with 0 failures and 4 skips; ADR-085 closure amendment reached five Accept and one Disagree-and-Commit"
+        "Evidence": "63 changed-skill tests passed; build_all.py and pre_pr.py passed before the main refresh; ADR-085 reached five Accept and one Disagree-and-Commit; golden-principles passed on the resolved 45-file PR diff"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -133,9 +133,13 @@
     {
       "action": "Reconciled ADR-085 with the full issue #3217 closure discourse",
       "outcome": "Removed stale future ownership, linked both closed issues, confirmed implemented remains true, and completed six-role convergence with five Accept and one Disagree-and-Commit"
+    },
+    {
+      "action": "Merged current origin/main after PR #4037 became conflict-marked",
+      "outcome": "Preserved the PR provenance corrections, took main's scanner and review-gate fixes, advanced both project-toolkit manifests to 0.6.5476, regenerated artifacts, and cleared all conflict markers"
     }
   ],
-  "endingCommit": "c83a40b257bbd101cd1d5203df27c2c7546c0e85",
+  "endingCommit": "bdd31f2d19697e157cfb33512128444cb5d2bd38",
   "nextSteps": [
     "Create a fresh SHA-bound review marker, push without force, and update PR #4037 and PR #4059 descriptions.",
     "Reply to and resolve all PR #4037 review threads, run completion gates, and merge ready PRs."

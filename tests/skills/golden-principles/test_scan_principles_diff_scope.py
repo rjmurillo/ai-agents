@@ -17,6 +17,10 @@ if TESTS_SKILLS_DIR not in sys.path:
 
 from claude_skills_import import import_skill_script
 
+core = import_skill_script(
+    ".claude/skills/golden-principles/scripts/scan_principles_core.py",
+    module_name="scan_principles_core",
+)
 mod = import_skill_script(".claude/skills/golden-principles/scripts/scan_principles.py")
 get_diff_files = mod.get_diff_files
 main = mod.main
@@ -75,7 +79,7 @@ class TestGetDiffFiles:
         assert result == []
 
     def test_raises_when_git_missing(self) -> None:
-        with patch.object(mod.subprocess, "run", side_effect=FileNotFoundError):
+        with patch.object(core.subprocess, "run", side_effect=FileNotFoundError):
             with pytest.raises(RuntimeError):
                 get_diff_files("main")
 
@@ -101,8 +105,8 @@ class TestGetDiffFiles:
         completed = subprocess.CompletedProcess(
             args=[], returncode=0, stdout="changed.py\n../escape.py\nfoo/../bar.py\n",
         )
-        with patch.object(mod, "_git_root", return_value="/repo"), \
-                patch.object(mod.subprocess, "run", return_value=completed):
+        with patch.object(core, "_git_root", return_value="/repo"), \
+                patch.object(core.subprocess, "run", return_value=completed):
             result = get_diff_files("main")
         assert result == ["/repo/changed.py"]
 
