@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Code and skill corrections, ADR amendments, debate evidence, critique, and the final re-verification repair are committed through 4bf68137a"
+        "Evidence": "Code and skill corrections, ADR amendments, debate evidence, critique, and review repairs are committed through e7cf3f177"
       },
       "validationPassed": {
         "level": "MUST",
@@ -128,10 +128,10 @@
     },
     {
       "action": "Started the final /review and repaired its analyst finding",
-      "outcome": "The investigation allowlist row now re-verifies both the live eight-pattern module output and the matching ADR-034 text; mirrors were regenerated and project-toolkit advanced to 0.6.5472"
+      "outcome": "The investigation allowlist row now re-verifies both the live eight-pattern module output and matching ADR-034 text. Architecture-contract and change-control now distinguish their 2026-07-03 authored date from 2026-07-30 fact verification. Mirrors were regenerated and project-toolkit advanced to 0.6.5473"
     }
   ],
-  "endingCommit": "4bf68137a5f4a7c70e999301d7277e25f59670ac",
+  "endingCommit": "e7cf3f1770a5c392a533dbc2b21703047e1a398c",
   "nextSteps": [
     "Create a fresh SHA-bound review marker, push without force, and update PR #4037 and PR #4059 descriptions.",
     "Reply to and resolve all PR #4037 review threads, run completion gates, and merge ready PRs."
