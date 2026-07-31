@@ -1,0 +1,36 @@
+{
+  "id": "episode-2026-07-30-session-4011-memory-cluster",
+  "session": "2026-07-30-session-4011-memory-cluster",
+  "timestamp": "2026-07-30T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix #4010 (search/verify ID mismatch) and #4011 (memory hooks unregistered)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added memory_id_from_path() canonical function to serena_integration.py; updated load_memory() and search._score_memory_file() to use it. Both search emitter and verify consumer now use same ID format.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated .agents/specs/hook-protocol.md: Reference Implementations section now states hooks are not currently registered and documents activation path.",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 8
+  },
+  "lessons": []
+}
