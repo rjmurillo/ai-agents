@@ -1,5 +1,7 @@
 # Script Integration Framework
 
+<!-- vendor-portability-exec: example invocations only; scripts referenced here are illustrative and do not exist in this repository -->
+
 Scripts transform skills from documentation-only guides into executable, verifiable systems. This framework provides decision criteria for when to create scripts, how to integrate them effectively, and patterns for making skills autonomous and self-verifying.
 
 ---
@@ -24,7 +26,7 @@ Scripts transform skills from documentation-only guides into executable, verifia
 
 ### Primary Decision
 
-```
+```text
 Does this operation require...?
 │
 ├─► Deterministic reliability (same input → same output)?
@@ -82,7 +84,7 @@ Does this operation require...?
 
 ### Category Selection Flow
 
-```
+```text
 What does the script primarily do?
 │
 ├─► Check if something is correct/valid?
@@ -324,7 +326,7 @@ For each identified script, document in the specification:
 
 ### How Scripts Are Called from Skills
 
-**Pattern 1: Direct Invocation**
+#### Pattern 1: Direct Invocation
 
 ```markdown
 ## Phase 2: Validation
@@ -340,7 +342,7 @@ Expected output:
 - Exit code 1: Validation failed (see stderr for details)
 ```
 
-**Pattern 2: Conditional Invocation**
+#### Pattern 2: Conditional Invocation
 
 ```markdown
 If generating multiple files:
@@ -356,7 +358,7 @@ python scripts/validate_single.py output/result.json
 \`\`\`
 ```
 
-**Pattern 3: Piped Processing**
+#### Pattern 3: Piped Processing
 
 ```markdown
 \`\`\`bash
@@ -364,7 +366,7 @@ cat result.json | python scripts/transform.py --format yaml > result.yaml
 \`\`\`
 ```
 
-**Pattern 4: Subcommand Invocation**
+#### Pattern 4: Subcommand Invocation
 
 ```markdown
 \`\`\`bash
@@ -522,7 +524,7 @@ if __name__ == "__main__":
 
 Hooks enable fully autonomous skill execution:
 
-```
+```text
 WITHOUT HOOKS:
   Claude runs script → Script fails → Claude notices → Claude retries
   (Multiple tool calls, potential for missed errors)
