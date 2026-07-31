@@ -69,6 +69,18 @@
       "caused_by": [
         "e006"
       ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: b4c3097d7f4b82c21683f20f99a8767b0885fdcd",
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": []
     }
   ],
@@ -77,7 +89,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
+    "commits": 4,
     "files_changed": 7
   },
   "lessons": []
