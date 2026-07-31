@@ -69,6 +69,7 @@ def _git_diff_files(before: str, after: str, repo_root: Path) -> list[str] | Non
             ["git", "-C", str(repo_root), "diff", "--name-only", f"{before}..{after}"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=False,
             timeout=30,
         )
@@ -156,6 +157,7 @@ def _run_ratchet_update(script: Path, repo_root: Path) -> None:
             cwd=str(repo_root),
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=False,
             timeout=120,
         )
