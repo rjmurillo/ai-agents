@@ -33,10 +33,10 @@ from scripts.github_core import (
     check_workflow_rate_limit,
     resolve_repo_params,
 )
-from scripts.github_core.checks_rollup import (
-    context_is_failing,
-    contexts_are_incomplete,
-    dedupe_contexts_by_latest,
+from scripts.pr_maintenance_rollup import (
+    complete_status_check_rollups,
+    fetch_status_context_page_with_gh,
+    rollup_has_failing_checks,
 )
 
 logger = logging.getLogger(__name__)
@@ -116,23 +116,7 @@ def has_failing_checks(pr: dict[str, Any]) -> bool:
     if not rollup:
         return False
 
-    state = rollup.get("state", "")
-    if state in ("FAILURE", "ERROR"):
-        return True
-
-    contexts = rollup.get("contexts", {})
-    if contexts_are_incomplete(contexts):
-        logging.error(
-            "PR #%s has incomplete statusCheckRollup contexts",
-            pr.get("number", "?"),
-        )
-        return True
-
-    for ctx in dedupe_contexts_by_latest(contexts.get("nodes", []) or []):
-        if context_is_failing(ctx):
-            return True
-
-    return False
+    return rollup_has_failing_checks(rollup, pr.get("number", "?"))
 
 
 def has_unresolved_threads(pr: dict[str, Any]) -> bool:
@@ -197,24 +181,10 @@ query($owner: String!, $name: String!, $limit: Int!) {
                                 state
                                 contexts(first: 100) {
                                     totalCount
-                                    pageInfo {
-                                        hasNextPage
-                                        endCursor
-                                    }
+                                    pageInfo { hasNextPage endCursor }
                                     nodes {
-                                        ... on CheckRun {
-                                            __typename
-                                            name
-                                            conclusion
-                                            status
-                                            startedAt
-                                            completedAt
-                                        }
-                                        ... on StatusContext {
-                                            __typename
-                                            context
-                                            state
-                                        }
+                                        ... on CheckRun { name conclusion startedAt completedAt }
+                                        ... on StatusContext { context state }
                                     }
                                 }
                             }
@@ -228,42 +198,6 @@ query($owner: String!, $name: String!, $limit: Int!) {
 """
 
 
-_STATUS_CONTEXT_PAGE_QUERY = """
-query($owner: String!, $name: String!, $oid: GitObjectID!, $cursor: String!) {
-    repository(owner: $owner, name: $name) {
-        object(oid: $oid) {
-            ... on Commit {
-                statusCheckRollup {
-                    contexts(first: 100, after: $cursor) {
-                        pageInfo {
-                            hasNextPage
-                            endCursor
-                        }
-                        nodes {
-                            ... on CheckRun {
-                                __typename
-                                name
-                                conclusion
-                                status
-                                startedAt
-                                completedAt
-                            }
-                            ... on StatusContext {
-                                __typename
-                                context
-                                state
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-"""
-
-_CONTEXTS_MAX_PAGES = 50
-
 
 def _fetch_status_context_page(
     owner: str,
@@ -271,70 +205,7 @@ def _fetch_status_context_page(
     oid: str,
     cursor: str,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    result = run_gh(
-        "api",
-        "graphql",
-        "-f",
-        f"query={_STATUS_CONTEXT_PAGE_QUERY}",
-        "-f",
-        f"owner={owner}",
-        "-f",
-        f"name={repo}",
-        "-f",
-        f"oid={oid}",
-        "-f",
-        f"cursor={cursor}",
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"Failed to paginate PR status checks: {result.stderr}")
-    data = json.loads(result.stdout)
-    commit = ((data.get("data") or {}).get("repository") or {}).get("object") or {}
-    rollup = commit.get("statusCheckRollup") or {}
-    contexts = rollup.get("contexts") or {}
-    return list(contexts.get("nodes") or []), contexts.get("pageInfo") or {}
-
-
-def _complete_status_check_rollups(
-    owner: str,
-    repo: str,
-    prs: list[dict[str, Any]],
-) -> None:
-    for pr in prs:
-        commits = pr.get("commits") or {}
-        commit_nodes = commits.get("nodes") or []
-        if not commit_nodes:
-            continue
-        commit = commit_nodes[0].get("commit") or {}
-        oid = commit.get("oid")
-        rollup = commit.get("statusCheckRollup") or {}
-        contexts = rollup.get("contexts") or {}
-        page_info = contexts.get("pageInfo") or {}
-        nodes = list(contexts.get("nodes") or [])
-        complete = True
-        cursor = page_info.get("endCursor")
-        for _ in range(_CONTEXTS_MAX_PAGES):
-            if not page_info.get("hasNextPage"):
-                break
-            if not oid or not cursor:
-                complete = False
-                break
-            try:
-                page_nodes, page_info = _fetch_status_context_page(
-                    owner, repo, oid, cursor
-                )
-            except (RuntimeError, json.JSONDecodeError, KeyError):
-                complete = False
-                break
-            nodes.extend(page_nodes)
-            cursor = page_info.get("endCursor")
-        else:
-            complete = False
-
-        contexts["nodes"] = nodes
-        total = contexts.get("totalCount")
-        if isinstance(total, int) and len(nodes) < total:
-            complete = False
-        contexts["__incomplete"] = not complete
+    return fetch_status_context_page_with_gh(owner, repo, oid, cursor, run_gh)
 
 
 def get_open_prs(owner: str, repo: str, limit: int) -> list[dict[str, Any]]:
@@ -355,7 +226,7 @@ def get_open_prs(owner: str, repo: str, limit: int) -> list[dict[str, Any]]:
     try:
         data = json.loads(result.stdout)
         nodes: list[dict[str, Any]] = data["data"]["repository"]["pullRequests"]["nodes"]
-        _complete_status_check_rollups(owner, repo, nodes)
+        complete_status_check_rollups(owner, repo, nodes, _fetch_status_context_page)
         return nodes
     except (json.JSONDecodeError, KeyError) as exc:
         raise RuntimeError(
