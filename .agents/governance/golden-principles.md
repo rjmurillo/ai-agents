@@ -35,9 +35,9 @@ Each commit addresses a single logical change with 5 or fewer files.
 
 ### GP-003: Skill Frontmatter Required
 
-Every SKILL.md MUST have valid YAML frontmatter with `name`, `version`, `model`, `description`, and `license`.
+Every SKILL.md MUST have valid YAML frontmatter with `name`, `version`, `description`, and `license`. The `model` field is optional per ADR-080: omitting it inherits the harness default, which is the correct default. When `model` is present it MUST be a bare rolling alias (`sonnet`, `opus`, or `haiku`) accompanied by a `model-rationale:` field. Versioned model ids (e.g. `claude-opus-4-6`) are forbidden for skills. The `model-rationale:` field is a cost exception: per ADR-080 rule 3, only an alias that resolves to a version priced below the harness default qualifies; in practice that means `haiku`. Pins to `sonnet` or `opus` are not cost exceptions and should omit the `model:` field to inherit the harness default instead.
 
-- **Rationale**: Consistent metadata enables tooling, discovery, and validation.
+- **Rationale**: Consistent metadata enables tooling, discovery, and validation. ADR-080 removes versioned model pins from skills to eliminate format drift, version drift, and CI-break risk from model retirement.
 - **Enforcement**: `scan_principles.py` rule `skill-frontmatter`
 - **Exception**: None. All skills must comply.
 
