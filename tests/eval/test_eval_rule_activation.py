@@ -4624,7 +4624,7 @@ class TestUnmeasuredPoolsPublishNoNumber:
         assert summary["per_mechanism"]["baseline"]["avg_score"] == 1.0
         assert summary["per_mechanism"]["baseline"]["graded_count"] == 1
         rendered = eval_mod.render_table("probe", summary)
-        assert "Best mechanism: no rule-enhanced mechanism measured" in rendered
+        assert "Best mechanism: no reachable rule-enhanced mechanism measured" in rendered
 
 
 class TestNegativeJudgeFailuresGateOnTheirOwnPool:
@@ -4993,8 +4993,8 @@ class TestTheHeadlineNeedsAWholePool:
         assert summary["best_mechanism"] is None
         assert summary["best_mechanism_partial"] is True
         table = eval_mod.render_table("r", summary)
-        assert "Best mechanism: none graded on every scenario" in table
-        assert "no rule-enhanced mechanism measured" not in table
+        assert "Best mechanism: no reachable mechanism graded on every scenario" in table
+        assert "rule-enhanced mechanism measured" not in table
 
     def test_nothing_graded_says_no_rule_enhanced_mechanism_measured(self):
         summary = eval_mod.aggregate(
@@ -5012,8 +5012,8 @@ class TestTheHeadlineNeedsAWholePool:
         assert summary["best_mechanism"] is None
         assert summary["best_mechanism_partial"] is False
         table = eval_mod.render_table("r", summary)
-        assert "Best mechanism: no rule-enhanced mechanism measured" in table
-        assert "none graded on every scenario" not in table
+        assert "Best mechanism: no reachable rule-enhanced mechanism measured" in table
+        assert "graded on every scenario" not in table
 
 
 class TestTheRestraintHeadlineNamesItsOwnPopulation:
@@ -5261,3 +5261,103 @@ class TestALegacySummaryDoesNotGuessItsPopulation:
         # eligible set was published to remove.
         assert "worst of [population not recorded]" in table
         assert "worst of [description, full]" not in table
+
+
+class TestRankingAndItsExclusionsShareOnePopulation:
+    """A routed target performs no `full`, so it can win nothing.
+
+    The ranking and the record of what the ranking dropped are two views of
+    one population. Narrowing only the second let a routed run publish
+    `Best mechanism: full` on the same screen as a caveat naming `full`
+    unreachable, recommending a treatment no deployment performs.
+    """
+
+    @staticmethod
+    def _routed_summary(full_score: int | None) -> dict[str, object]:
+        positive: dict[str, object] = {
+            "negative_case": False,
+            "mechanisms": {
+                "baseline": _make_mech(1),
+                "description": _make_mech(4),
+            },
+        }
+        if full_score is not None:
+            positive["mechanisms"]["full"] = _make_mech(full_score)
+        return eval_mod.aggregate(
+            [positive, _make_scenario(5, 5, 5, negative=True)], routed=True
+        )
+
+    def test_an_unreachable_mechanism_never_takes_the_headline(self):
+        summary = self._routed_summary(full_score=5)
+        # The fixture has to actually reach the state the name claims: `full`
+        # outscores the winner and is fully graded, so only reachability can
+        # be keeping it out of the headline.
+        assert summary["per_mechanism"]["full"]["avg_score"] == 5.0
+        assert summary["per_mechanism"]["full"]["graded_count"] == 1
+        assert summary["unreachable_mechanisms"] == ["full"]
+        assert summary["best_mechanism"] == "description"
+        assert summary["best_avg_score"] == 4.0
+
+    def test_the_table_never_names_one_mechanism_best_and_unreachable(self):
+        table = eval_mod.render_table("R", self._routed_summary(full_score=5))
+        assert "Best mechanism: description (avg 4.0)" in table
+        assert "Excluded as unreachable for a routed target: full" in table
+        assert "Best mechanism: full" not in table
+
+    def test_an_unreachable_mechanism_is_not_reported_as_missing(self):
+        # Absent scores for a treatment no deployment performs are not a gap.
+        summary = self._routed_summary(full_score=None)
+        assert summary["best_mechanism_unmeasured"] == []
+        assert summary["best_mechanism_excluded"] == []
+        assert summary["best_mechanism_partial"] is False
+
+    def test_a_reachable_mechanism_is_still_ranked(self):
+        # The negative control: same shape, unrouted, so `full` must win.
+        summary = eval_mod.aggregate(
+            [_make_scenario(1, 4, 5), _make_scenario(5, 5, 5, negative=True)],
+            routed=False,
+        )
+        assert summary["unreachable_mechanisms"] == []
+        assert summary["best_mechanism"] == "full"
+
+
+
+class TestEmptyHeadlinesNameTheRankedPopulation:
+    """An empty headline describes the ranking, not the whole table.
+
+    Narrowing the ranking to reachable mechanisms left its empty states
+    still claiming every rule-enhanced one. On a routed target that put
+    `no rule-enhanced mechanism measured` directly above a `full` row
+    carrying a score and full coverage.
+    """
+
+    @staticmethod
+    def _routed(*positives: dict[str, object]) -> str:
+        summary = eval_mod.aggregate(
+            [*positives, _make_scenario(5, 5, 5, negative=True)], routed=True
+        )
+        return eval_mod.render_table("R", summary)
+
+    def test_nothing_reachable_measured_does_not_deny_the_full_row(self):
+        table = self._routed(
+            {
+                "negative_case": False,
+                "mechanisms": {"baseline": _make_mech(1), "full": _make_mech(5)},
+            }
+        )
+        # The fixture must actually reach the state the name claims: `full`
+        # is scored and fully graded, so a headline denying any measurement
+        # would be contradicted by its own table.
+        assert "| full         |     5.0 |" in table
+        assert "Best mechanism: no reachable rule-enhanced mechanism measured" in table
+
+    def test_nothing_reachable_fully_graded_does_not_deny_the_full_row(self):
+        table = self._routed(
+            _make_scenario(1, 4, 5),
+            {
+                "negative_case": False,
+                "mechanisms": {"baseline": _make_mech(1), "full": _make_mech(5)},
+            },
+        )
+        assert "| full         |     5.0 |" in table
+        assert "Best mechanism: no reachable mechanism graded on every scenario" in table

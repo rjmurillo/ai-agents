@@ -1764,9 +1764,15 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     baseline_avg = summary["per_mechanism"]["baseline"]["avg_score"]
     desc_avg = summary["per_mechanism"]["description"]["avg_score"]
 
+    # A routed target performs no `full` treatment, so it is a candidate for
+    # nothing: not the ranking, not the record of what the ranking dropped.
+    # Reachability is derived once here so both read the same population. Rank
+    # it and the table names a best the operator cannot adopt, on the same
+    # screen as the caveat calling it unreachable.
+    measured_mechs = [m for m in MECHANISMS if not (routed and m == "full")]
     # `description` is the progressive-disclosure gate. The `full` mechanism is
     # retained only as a diagnostic ceiling and cannot rescue a failed front door.
-    rule_enhanced = [m for m in MECHANISMS if m != "baseline"]
+    rule_enhanced = [m for m in measured_mechs if m != "baseline"]
     # Ranking two mechanisms is the same comparison a delta makes, so it needs
     # the same footing: both averages must cover the whole pool. A mechanism
     # graded on one lucky scenario would otherwise take the headline from a
@@ -1800,7 +1806,6 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     # Failing on it would fail a rule for a broken measurement of something
     # that is not shipped. The two counts are equal whenever nothing is
     # excluded, which is every always-on rule.
-    measured_mechs = [m for m in MECHANISMS if not (routed and m == "full")]
     # The negative pool is counted over the mechanisms that actually gate it,
     # not over every measured one. `baseline` carries no rule, so a broken
     # judgement of what the baseline did on a negative case says nothing about
@@ -1845,16 +1850,12 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     # name. Any candidate the ranking dropped has to be named, or a table row
     # scoring above the winner reads as a broken ordering. Partial coverage
     # and no coverage are different things to go fix, so they are published
-    # separately. Both skip mechanisms the target cannot reach: those are
-    # already named in `unreachable_mechanisms`, and reporting a treatment no
-    # deployment performs as missing would invent a defect.
+    # separately. `rule_enhanced` is already narrowed to what the target can
+    # reach, which is what keeps this list and the ranking on one population.
     (
         summary["best_mechanism_excluded"],
         summary["best_mechanism_unmeasured"],
-    ) = _dropped_candidates(
-        summary["per_mechanism"],
-        [m for m in rule_enhanced if m not in summary["unreachable_mechanisms"]],
-    )
+    ) = _dropped_candidates(summary["per_mechanism"], rule_enhanced)
 
     # Negative scenarios were measured but never gated: a rule that fired on
     # every case it was written to stay out of still returned PASS. Their
@@ -2127,9 +2128,9 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
             + best_excluded
             if summary.get("best_mechanism")
             else (
-                "Best mechanism: none graded on every scenario"
+                "Best mechanism: no reachable mechanism graded on every scenario"
                 if summary.get("best_mechanism_partial")
-                else "Best mechanism: no rule-enhanced mechanism measured"
+                else "Best mechanism: no reachable rule-enhanced mechanism measured"
             )
         ),
         f"Restraint on negative cases: {restraint}",
@@ -2149,10 +2150,7 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
         # Both columns report the absence instead.
         pos = pos_stats["avg_score"] if pos_stats["graded_count"] else "-"
         neg = neg_stats["avg_score"] if neg_stats["graded_count"] else "-"
-        pos_graded = (
-            f"{pos_stats.get('graded_count', pos_stats['scenario_count'])}"
-            f"/{pos_stats['scenario_count']}"
-        )
+        pos_graded = f"{pos_stats['graded_count']}/{pos_stats['scenario_count']}"
         neg_graded = f"{neg_stats['graded_count']}/{neg_stats['scenario_count']}"
         delta_val = (
             None
