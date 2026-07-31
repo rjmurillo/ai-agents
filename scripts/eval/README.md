@@ -183,13 +183,22 @@ scenario loader, and a gate that only one path enforces is a gate with a hole
 in it.
 
 The process exit code names which kind of thing went wrong: 0 clean, 1 a rule
-that underperformed, 2 a configuration problem, 3 an external or API failure.
+that underperformed, 2 a configuration problem, 3 an external or API failure,
+4 a credential that could not be loaded.
 `NO_POSITIVE_CASES` is a 2, not a 1. It reports that the scenario file cannot
 validate activation and says nothing at all about the rule, so reporting it as
 a rule failure would attach a verdict to a population the run never measured.
 `NO_NEGATIVE_CASES` is a 2 for the same reason, one pool over.
-A run reduces these codes with `max()`, so the worst outcome across all targets
-decides the exit and adding a target can never improve it.
+A run reduces the verdict codes with `max()`, so the worst outcome across all
+targets decides the exit and adding a target can never improve it.
+
+Exit 4 sits outside that reduction. It is returned before the first target is
+read, when `_load_api_key` cannot produce a credential, so no scenario has been
+measured and there is nothing to reduce against. Reading 4 as the top of the
+`max()` ordering would invert what it reports: 3 says the run reached the API
+and the API failed, while 4 says the run never got that far. A caller that
+branches on these should treat 4 as "nothing ran" rather than as a worse 3.
+A dry run skips credential loading entirely and so cannot return 4.
 
 Per-rule or per-reference scenario files live in `tests/evals/rule-scenarios/{rule}.json`:
 
