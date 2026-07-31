@@ -254,11 +254,9 @@ jobs:
       # learned to ignore, which is the same training signal that teaches people
       # to ignore the naming and complexity rules in the same output.
       #
-      # Enforcing outright is not viable: 615 error-severity violations exist
-      # today (458 file-size, 133 complexity, 24 naming). So the total is frozen
-      # in scripts/ci/taste_count_baseline.txt and may only fall. Every
-      # currently-failing file keeps passing; only growth blocks. Lower the
-      # baseline after a cleanup with
+      # Enforcing outright is not viable: 613 error-severity violations exist.
+      # The total in scripts/ci/taste_count_baseline.txt must match exactly.
+      # Record a lower count after cleanup with
       # `python scripts/ci/taste_count_ratchet.py --update`.
       #
       # This job hosts it for the same reason it hosts the workflow-YAML and

@@ -333,5 +333,3 @@ class TestFindStaleCitations:
         ]
         stale = find_stale_citations(memories, tmp_path)
         assert len(stale) == 0
-
-
