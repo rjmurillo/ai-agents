@@ -1739,12 +1739,23 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     # `description` is the progressive-disclosure gate. The `full` mechanism is
     # retained only as a diagnostic ceiling and cannot rescue a failed front door.
     rule_enhanced = [m for m in MECHANISMS if m != "baseline"]
+    # Ranking two mechanisms is the same comparison a delta makes, so it needs
+    # the same footing: both averages must cover the whole pool. A mechanism
+    # graded on one lucky scenario would otherwise take the headline from a
+    # mechanism graded on all of them, and the table would refuse that same
+    # comparison one line later as a delta.
     best_mech = max(
-        (m for m in rule_enhanced if summary["per_mechanism"][m]["avg_score"] is not None),
+        (m for m in rule_enhanced if _fully_graded(summary["per_mechanism"][m])),
         key=lambda m: summary["per_mechanism"][m]["avg_score"],
         default=None,
     )
     best_avg = summary["per_mechanism"][best_mech]["avg_score"] if best_mech else None
+    # Distinguish "no cell was graded" from "no mechanism was graded
+    # completely". Both leave the headline empty and they are not the same
+    # problem to go fix.
+    summary["best_mechanism_partial"] = best_mech is None and any(
+        summary["per_mechanism"][m]["avg_score"] is not None for m in rule_enhanced
+    )
 
     total_judge_failures = sum(
         summary["per_mechanism"][m]["judge_failures"] for m in MECHANISMS
@@ -1887,7 +1898,9 @@ def _delta(treatment: dict[str, Any], control: dict[str, Any]) -> float | None:
     """
     if not _fully_graded(treatment) or not _fully_graded(control):
         return None
-    return round(treatment["avg_score"] - control["avg_score"], 2)
+    treatment_avg: float = treatment["avg_score"]
+    control_avg: float = control["avg_score"]
+    return round(treatment_avg - control_avg, 2)
 
 
 def _positive_verdict(desc_avg: float | None, baseline_avg: float | None) -> str:
@@ -2024,7 +2037,11 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
             f"Best mechanism: {summary['best_mechanism']} "
             f"(avg {summary['best_avg_score']})"
             if summary.get("best_mechanism")
-            else "Best mechanism: none measured"
+            else (
+                "Best mechanism: none graded on every scenario"
+                if summary.get("best_mechanism_partial")
+                else "Best mechanism: none measured"
+            )
         ),
         f"Restraint on negative cases: {restraint}",
     ]

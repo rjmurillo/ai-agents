@@ -115,11 +115,11 @@ Settling the direction needs a two-by-two: ambient on and off crossed with
 
 Check in this order:
 
-1. **`total_judge_failures` must be 0.** Any non-zero count means some cells
-   were not graded, and the verdict says `FAIL_JUDGE_ERRORS`. The gating count
-   excludes two: `full` on a routed target, which cannot be reached, and
-   `baseline` on the negative pool, which carries no rule and so cannot
-   over-activate. The table prints both counts when they diverge.
+1. **`gating_judge_failures` must be 0.** A non-zero gating count means a cell
+   the verdict rests on went ungraded, and the verdict says
+   `FAIL_JUDGE_ERRORS`. `total_judge_failures` may exceed it, counting `full`
+   on a routed target and `baseline` on the negative pool, neither of which
+   gates anything. The table names the excluded cells when the counts differ.
 2. **The negative case should be high on every mechanism the target can reach.**
    Checked before coverage: an observed harm outranks an unproven benefit. A
    drop means the rule fires on work it should ignore, whatever the positive

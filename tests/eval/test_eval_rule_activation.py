@@ -3069,6 +3069,17 @@ def _ungraded_mech() -> dict[str, object]:
     return {"scores": eval_mod._reduce_score_samples([_sample(0, judge_failed=True)], "median")}
 
 
+def _unscored_mech() -> dict[str, object]:
+    """A cell the judge returned without a usable score, and did not fail on.
+
+    Not the same as `_ungraded_mech`, whose samples all failed. Both read as
+    unmeasured when averaging, and only this one leaves `judge_failures` at
+    zero, so only this one can reach a verdict past `FAIL_JUDGE_ERRORS`.
+    Swapping the two silently changes which gate a test exercises.
+    """
+    return {"scores": {"cell_score": None}}
+
+
 class TestReduceScoreSamples:
     def test_all_samples_graded_reduces_normally(self):
         reduced = eval_mod._reduce_score_samples([_sample(5), _sample(3), _sample(4)], "median")
@@ -3130,9 +3141,9 @@ class TestUngradedCellsExcludedFromAverage:
         assert summary["per_mechanism"]["full"]["graded_count"] == 1
         assert summary["per_mechanism"]["full"]["scenario_count"] == 2
 
-    def test_uneven_failure_rates_do_not_invert_ranking(self):
+    def test_uneven_failure_rates_do_not_zero_the_average(self):
         # full genuinely outscores description, but fails the judge more often.
-        # Scoring failures as zero ranked description above full.
+        # Scoring failures as zero dragged its average down toward description.
         scenarios = [
             _make_scenario(baseline=1, description=2, full=5),
             _make_scenario(baseline=1, description=2, full=5),
@@ -3143,7 +3154,11 @@ class TestUngradedCellsExcludedFromAverage:
 
         assert summary["per_mechanism"]["full"]["avg_score"] == 5.0
         assert summary["per_mechanism"]["description"]["avg_score"] == 2.0
-        assert summary["best_mechanism"] == "full"
+        # Was `best_mechanism == "full"`. That ranked an average over one
+        # scenario above an average over two, which is the comparison the
+        # delta beside it refuses. The average above is what this pins; the
+        # headline is pinned in TestTheHeadlineNeedsAWholePool.
+        assert summary["best_mechanism"] == "description"
 
     def test_ungraded_cell_still_counts_as_a_judge_failure(self):
         scenarios = [_make_scenario(baseline=5, description=5, full=5)]
@@ -4750,12 +4765,13 @@ class TestBothExclusionsCanFireAtOnce:
     """
 
     @staticmethod
-    def _both() -> list[dict]:
-        broken = {"scores": {"judge_failed": True}}
-        neg = _scenario_of_mechs(
-            {"baseline": broken, "description": _make_mech(5), "full": _make_mech(5)}
-        )
-        neg["negative_case"] = True
+    def _both() -> list[dict[str, object]]:
+        """A routed run failing in all three cells that gate nothing.
+
+        `full` is unreachable on both sides of a routed target, and the
+        negative pool never gates on `baseline`, so all three are excluded.
+        """
+        broken = _make_mech(0, judge_failed=True)
         return [
             _scenario_of_mechs(
                 {
@@ -4764,28 +4780,36 @@ class TestBothExclusionsCanFireAtOnce:
                     "full": broken,
                 }
             ),
-            neg,
+            _scenario_of_mechs(
+                {
+                    "baseline": broken,
+                    "description": _make_mech(5),
+                    "full": broken,
+                },
+                negative=True,
+            ),
         ]
 
-    def test_both_excluded_cells_are_named(self):
+    def test_every_excluded_cell_is_named(self):
         summary = eval_mod.aggregate(self._both(), routed=True)
 
-        assert summary["total_judge_failures"] == 2
+        assert summary["total_judge_failures"] == 3
         assert summary["gating_judge_failures"] == 0
         assert summary["excluded_judge_failure_cells"] == [
             "positive full",
             "negative baseline",
+            "negative full",
         ]
         assert summary["verdict"] == "PASS"
 
-    def test_the_table_names_both_exclusions(self):
+    def test_the_table_names_every_exclusion(self):
         summary = eval_mod.aggregate(self._both(), routed=True)
 
         table = eval_mod.render_table("r", summary)
 
         assert "Excluded as unreachable for a routed target: full" in table
-        assert "Judge failures: 2 in the record, 0 on gating surfaces" in table
-        assert "positive full, negative baseline" in table
+        assert "Judge failures: 3 in the record, 0 on gating surfaces" in table
+        assert "positive full, negative baseline, negative full" in table
 
 
 class TestPartialPoolsStillReportObservedHarm:
@@ -4809,11 +4833,11 @@ class TestPartialPoolsStillReportObservedHarm:
             _scenario_of_mechs(
                 {
                     "baseline": _make_mech(5),
-                    "description": {"scores": {"cell_score": None}},
+                    "description": _unscored_mech(),
                     "full": _make_mech(5),
-                }
-            )
-            | {"negative_case": True},
+                },
+                negative=True,
+            ),
         ]
 
         summary = eval_mod.aggregate(scenarios)
@@ -4831,7 +4855,7 @@ class TestPartialPoolsStillReportObservedHarm:
             _make_scenario(baseline=1, description=5, full=5),
             _scenario_of_mechs(
                 {
-                    "baseline": {"scores": {"cell_score": None}},
+                    "baseline": _unscored_mech(),
                     "description": _make_mech(5),
                     "full": _make_mech(5),
                 }
@@ -4842,3 +4866,84 @@ class TestPartialPoolsStillReportObservedHarm:
 
         assert summary["per_mechanism"]["description"]["avg_score"] == 5.0
         assert summary["delta_description_vs_baseline"] is None
+
+
+
+class TestTheHeadlineNeedsAWholePool:
+    """`best_mechanism` is a ranking, so it needs what a delta needs.
+
+    Reported by an adversarial review that noticed the same summary could
+    refuse `delta_full_vs_baseline` for thin coverage and still print
+    `Best mechanism: full` off that same thin cell, two lines apart.
+    """
+
+    @staticmethod
+    def _thin_full() -> list[dict[str, object]]:
+        return [
+            _make_scenario(baseline=3, description=4, full=5),
+            _scenario_of_mechs(
+                {
+                    "baseline": _make_mech(3),
+                    "description": _make_mech(4),
+                    "full": _unscored_mech(),
+                }
+            ),
+            _make_scenario(baseline=1, description=5, full=5, negative=True),
+        ]
+
+    def test_a_thinner_pool_does_not_take_the_headline(self):
+        summary = eval_mod.aggregate(self._thin_full())
+
+        # `full` scores higher, on half the scenarios.
+        assert summary["per_mechanism"]["full"]["avg_score"] == 5.0
+        assert summary["per_mechanism"]["full"]["graded_count"] == 1
+        assert summary["per_mechanism"]["description"]["avg_score"] == 4.0
+        assert summary["per_mechanism"]["description"]["graded_count"] == 2
+
+        assert summary["best_mechanism"] == "description"
+        assert summary["best_avg_score"] == 4.0
+
+    def test_the_headline_agrees_with_the_delta_beside_it(self):
+        summary = eval_mod.aggregate(self._thin_full())
+
+        # The pair that made this a defect: one line refused the comparison,
+        # the next line published it.
+        assert summary["delta_full_vs_baseline"] is None
+        assert summary["best_mechanism"] != "full"
+
+    def test_no_mechanism_fully_graded_says_so_without_claiming_none_ran(self):
+        summary = eval_mod.aggregate(
+            [
+                _make_scenario(baseline=3, description=4, full=5),
+                _scenario_of_mechs(
+                    {
+                        "baseline": _make_mech(3),
+                        "description": _unscored_mech(),
+                        "full": _unscored_mech(),
+                    }
+                ),
+            ]
+        )
+
+        assert summary["best_mechanism"] is None
+        assert summary["best_mechanism_partial"] is True
+        table = eval_mod.render_table("r", summary)
+        assert "Best mechanism: none graded on every scenario" in table
+        assert "none measured" not in table
+
+    def test_nothing_graded_at_all_still_says_none_measured(self):
+        summary = eval_mod.aggregate(
+            [
+                _scenario_of_mechs(
+                    {
+                        "baseline": _unscored_mech(),
+                        "description": _unscored_mech(),
+                        "full": _unscored_mech(),
+                    }
+                )
+            ]
+        )
+
+        assert summary["best_mechanism"] is None
+        assert summary["best_mechanism_partial"] is False
+        assert "Best mechanism: none measured" in eval_mod.render_table("r", summary)
