@@ -289,3 +289,5 @@ number are not. The shapes recur either way.
   in the artifact at all. Both are recovered in full in
   `recovered-judge-payloads.json` beside it, keyed by the same coordinates and
   attributed by the input-based oracle rather than by the score.
+
+<!-- vendor-portability: declared. Three citations in narrative, none of them a path the skill reads or writes. .agents/analysis/eval-artifacts/2026-07-29-unified-software-engineering/ is the archive holding the eight runs behind the published numbers, so a reader can re-derive every cell instead of taking them on faith. scripts/eval/README.md is the record of the same-text variance measurement that sets the noise floor. scripts/eval/_copilot_cli.py is the transport that produced every archived run, named so a reader can see which knobs it drops. A vendored install loses the ability to check any of the three locally; the procedure still runs, it just produces new data rather than reproducing ours. Issue #2050. -->
