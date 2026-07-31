@@ -116,20 +116,20 @@ Settling the direction needs a two-by-two: ambient on and off crossed with
 Check in this order:
 
 1. **`total_judge_failures` must be 0.** Any non-zero count means some cells
-   were not graded, and the verdict says `FAIL_JUDGE_ERRORS`. One exception:
-   for a routed target the unreachable `full` mechanism is excluded, so
-   `gating_judge_failures` can be 0 while the total is not. The table names the
-   exclusion and prints both counts when that happens.
-2. **Both graded columns must read `n/n`.** A mean over one scenario and a mean
-   over three look identical in the average column. An incomplete pool returns
-   `FAIL_NEGATIVE_INCOMPLETE` or `FAIL_POSITIVE_INCOMPLETE`: a clean average
-   over the measured half is not evidence about the half nobody measured. An
-   off-rubric cell is unmeasured, so it drops out of the average without
-   raising `judge_failed`, which is why the coverage check is separate.
-3. **The negative case should be high on every mechanism the target can reach.**
-   A drop means the rule fires on work it should ignore, whatever the positive
+   were not graded, and the verdict says `FAIL_JUDGE_ERRORS`. The gating count
+   excludes two: `full` on a routed target, which cannot be reached, and
+   `baseline` on the negative pool, which carries no rule and so cannot
+   over-activate. The table prints both counts when they diverge.
+2. **The negative case should be high on every mechanism the target can reach.**
+   Checked before coverage: an observed harm outranks an unproven benefit. A
+   drop means the rule fires on work it should ignore, whatever the positive
    scores say. For a skill reference the gate reads `description` only: `full`
    force-injects the reference routing exists to keep out.
+3. **The graded columns must read `n/n`.** An off-rubric cell is unmeasured, so
+   it leaves the average without raising `judge_failed`, and a mean over one
+   scenario looks identical to a mean over three. Each pool is gated on the
+   mechanisms its verdict names: the negative pool on what the target can
+   reach, the positive pool on `baseline` and `description` only, never `full`.
 4. **Only then read the deltas**, against the noise floor below.
 
 ## What the instrument can and cannot resolve
