@@ -420,7 +420,14 @@ class _CopilotCLIProvider:
             transcript = self._read_session_transcript(sandbox, since=started - 5.0)
 
         if completed.returncode != 0:
-            # CWE-200: short ascii excerpt only, never the full stderr body.
+            # CWE-200: strip control bytes, bound the volume. Neither step
+            # redacts. A credential short enough to fit is copied verbatim,
+            # confirmed here for a 40-character token, so this line is not what
+            # keeps a secret out of an eval artifact. The caller is. The adapter
+            # catches this error, keeps only `error_category`, and reports
+            # `raw_response=None`, so the text reaches no log line, no result
+            # field, and no report. Surfacing it anywhere needs a redactor
+            # first, and this comment is the only warning that says so.
             stderr = completed.stderr or completed.stdout or ""
             excerpt = "".join(ch for ch in stderr if 32 <= ord(ch) < 127)[:200]
             raise RuntimeError(

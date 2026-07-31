@@ -875,6 +875,57 @@ def test_copilot_complete_nonzero_exit_reports_the_exit_code_not_an_http_status(
     assert _eval_api_adapter._categorize_error(exc_info.value) == "rate_limit"
 
 
+def test_copilot_exit_excerpt_strips_control_bytes_and_bounds_length(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Both halves of the excerpt are load-bearing and neither was covered.
+
+    The control-byte filter keeps an escape sequence out of a terminal that
+    renders this message. The 200-character bound keeps a stderr dump out of
+    the exception. The comment above the excerpt claimed both before any test
+    held them.
+    """
+    _capture_run(
+        monkeypatch,
+        _FakeCompleted(stderr="\x1b[31mred\x07 " + "z" * 400, returncode=1),
+    )
+    provider = _providers._CopilotCLIProvider()
+
+    with pytest.raises(RuntimeError) as exc_info:
+        provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
+
+    message = str(exc_info.value)
+    assert "\x1b" not in message
+    assert "\x07" not in message
+    assert "red" in message
+    assert message.count("z") == 200 - len("[31mred ")
+
+
+def test_copilot_exit_excerpt_does_not_redact_a_short_credential(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Characterization, not endorsement. See the comment above the excerpt.
+
+    A token short enough to fit the bound is printable ascii, so it survives
+    both filters intact. Nothing here makes that safe. The exposure is
+    contained by the caller: the adapter keeps only `error_category` and
+    reports `raw_response=None`, so this text reaches no artifact. This pins
+    the limitation so that adding a redactor, or surfacing the message
+    somewhere it would persist, is a visible change rather than a silent one.
+    """
+    secret = "ghp_" + "A" * 36
+    _capture_run(
+        monkeypatch,
+        _FakeCompleted(stderr=f"authentication failed: token {secret}", returncode=1),
+    )
+    provider = _providers._CopilotCLIProvider()
+
+    with pytest.raises(RuntimeError) as exc_info:
+        provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
+
+    assert secret in str(exc_info.value)
+
+
 def test_copilot_complete_generic_exit_code_stays_transient(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
