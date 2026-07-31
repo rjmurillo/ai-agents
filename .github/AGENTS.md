@@ -615,6 +615,72 @@ The repository implements several strategies to reduce the impact of race condit
 - [Issue #803](https://github.com/rjmurillo/ai-agents/issues/803) - Real-world example of race condition impact
 - [PR #806](https://github.com/rjmurillo/ai-agents/pull/806) - Fix for PR context confusion
 
+### Ratchet Baselines and the Concurrent Merge Race
+
+Concurrency groups coalesce runs on one branch. They do nothing about two
+branches whose results are each correct alone and wrong together. The count
+ratchets (`scripts/ci/ruff_count_ratchet.py`, `scripts/ci/taste_count_ratchet.py`)
+hit that case, and issue #4057 is where it was reported.
+
+**The race.** Each ratchet freezes a repo-wide violation total in a one-line
+file. Two PRs can each remove one violation and lower the same file from 331 to
+330. Both pass their own leg: the branch measures 330 against a baseline of 330.
+Both write byte-identical content, so git merges them without a conflict. The
+merged tree has improved twice while the file fell once, so `main` measures 329
+against a baseline of 330 and the push leg at `pytest.yml` exits 1. A red default
+branch then blocks every contributor's pre-push through `lefthook.yml`, on a
+change none of them made.
+
+**Enforcement point: strict required status checks on the default branch.**
+Ruleset `11104075` carries the required-checks rule. Setting
+`strict_required_status_checks_policy` to `true` means a PR cannot merge until
+its branch is current with `main`, and bringing it current re-runs the required
+checks against the tree that will actually land. The second PR then measures 329
+against 330 before it merges, its check goes red, and the stale state never
+reaches `main`. `Run Python Tests` and `Validate PR` are both already required
+contexts, so both count ratchets are covered without adding a check.
+
+```bash
+# Read the current value.
+gh api repos/rjmurillo/ai-agents/rulesets/11104075 \
+  --jq '.rules[] | select(.type=="required_status_checks")
+        | .parameters.strict_required_status_checks_policy'
+```
+
+The field reads `false` as this section lands, so the decision is recorded and
+the gate is not yet armed. Flipping it is a repository-settings change that
+takes effect for all open PRs the moment it applies, so it belongs to a
+repository owner rather than to the PR that documents it. Until it is armed the
+race stays reachable and the failure text in `scripts/ci/count_ratchet.py` is
+what a contributor sees.
+
+The remedy the failure text asks for, a baseline-only commit recording the true
+count, clears the check. `tests/ci/test_count_ratchet_concurrent_merge.py` pins
+both halves: the second branch goes red once it is current, and green once it
+records the true count. A gate no commit can clear would trade a red `main` for
+a stuck queue, so that second test is not decoration.
+
+**Cost.** Every merge to `main` marks every other open PR out of date, so each
+one needs an update and a re-run of the 17 required contexts before it can land.
+That cost is already paid on any PR touching a plugin source, where the
+strictly-greater version bump forces the same rebase (see
+`.claude/rules/plugin-version-bump.md`). Arm auto-merge so the update and the
+merge happen without a human waiting on them.
+
+**Rejected alternatives.**
+
+| Option | Why not |
+|--------|---------|
+| Merge queue (`merge_group` trigger) | Blocks the race correctly and costs less per PR, but every required workflow has to answer the `merge_group` event or the queue stalls with no way to merge. That is a change to 17 contexts, against one API field. Revisit if the rebase cost bites. |
+| Self-healing baseline commit on push to `main` | A workflow that commits a corrected baseline to the default branch needs write access, bot-actor exclusion, and loop prevention. It repairs the symptom after `main` is already red. |
+| Push-leg-only exact match | What ships today. It detects the stale state, it does not prevent it, and detection is the thing that turns `main` red. |
+| Make the baseline conflict on concurrent edits | Two branches would have to write different bytes for git to refuse the merge, which means the file stops being a count. That redesigns what both ratchets measure and every consumer that reads them. |
+
+**Scope.** This covers the two single-integer baselines only. The JSON allowlist
+(`rule_activation_coverage_baseline.json`) and the inline `--max` in
+`pr-validation.yml` do not share the race: removing an entry from either
+produces a real merge conflict rather than an identical edit.
+
 ### Monitoring Coalescing Effectiveness
 
 The repository includes automated monitoring of workflow run coalescing effectiveness:
