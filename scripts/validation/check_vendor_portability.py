@@ -16,22 +16,26 @@ What it flags:
   `.claude/lib`, or `.claude\\lib` AND does not import and use the
   portability helper (`paths`, exposing `artifact_dir` /
   `resolve_artifact_root` / `resolve_skill_resource`). A file that imports the
-  helper is assumed to
-  resolve paths through it; the literal is then the documented lazy default
-  or prose, not a hard-coded dependency. Comments and docstrings are ignored.
+  helper is assumed to resolve paths through it; the literal is then the
+  documented lazy default or prose, not a hard-coded dependency. Comments and
+  docstrings are ignored.
 
-What it does NOT flag (Issue #2510, false-positive guards):
-  * Raw-string regex patterns. A literal like ``r"\\.agents/"`` carries the
-    raw-string prefix (``r``/``R``/``rb``/``Rb``...) and a backslash-escaped
-    dot (``\\.``); together those signals are overwhelmingly a regex pattern
-    that *matches* paths, not a path the script reads or writes. The literal
-    has no I/O semantics and cannot be migrated through ``paths.py``.
+What it does NOT flag (Issue #2510 and #4046, false-positive guards):
+  * Raw-string regex patterns. A literal like ``r"\\.agents/"`` or
+    ``r"^scripts/"`` carries the raw-string prefix (``r``/``R``/``rb``/``Rb``...)
+    plus a regex metacharacter (``\\.`` or one of ``^ $ * + ? [ ] ( ) |``);
+    together those signals are overwhelmingly a regex pattern that *matches*
+    paths, not a path the script reads or writes. The literal has no I/O
+    semantics and cannot be migrated through ``paths.py``. A bare backslash is
+    deliberately NOT a signal, so a Windows-style raw path such as
+    ``r".\\scripts\\pre_pr.py"`` stays flagged.
   * CLI prose. A literal that lives inside a keyword argument named
     ``help``, ``description``, ``epilog``, ``metavar``, or ``usage`` (the
     argparse / Click / Typer conventions) is rendered to stderr by the CLI
     parser and never opened as a file. The skip is scoped to the line range
     of the keyword's value expression, so a real path elsewhere in the same
     file is still flagged.
+  * Files under a ``tests/`` directory in a scan root; see ``_is_skipped_file``.
 
 Baseline ratchet:
   131 files across 30+ skills already hard-code these paths (Issue #2050).
@@ -82,10 +86,16 @@ from pathlib import Path
 # invocation is usually written. `../scripts/` stays unflagged (the `.` in the
 # lookbehind class rejects it) because a parent-relative path can legitimately
 # name a skill-internal sibling directory rather than the upstream tree.
+#
+# The trailing `[\w.\-]` requires a path component after the separator, so a
+# bare directory name in prose (`"Extract logic to scripts/ subdirectory."`) and
+# a placeholder template (`"python scripts/<name>.py"`) stop registering as
+# paths (#4046): neither resolves to a file, so there is no dependency to
+# migrate. Narrow cost: a bare `Path("scripts/")` literal goes unflagged.
 _BANNED_PATH = re.compile(
     r"\.agents(?:[\\/]+|['\"]|$)"
     r"|\.claude[\\/]+lib(?:[\\/]+|['\"]|$)"
-    r"|(?<![/\\\w.])(?:\.[\\/])?scripts[\\/]"
+    r"|(?<![/\\\w.])(?:\.[\\/])?scripts[\\/][\w.\-]"
 )
 _STRING_TOKEN_TYPES = {tokenize.STRING}
 if hasattr(tokenize, "FSTRING_MIDDLE"):
@@ -251,13 +261,25 @@ def _prose_lines(content: str) -> set[int]:
 # STRING token on Python < 3.12.
 _RAW_STRING_PREFIX = re.compile(r"^[bBuUfF]*[rR][bBuUfF]*")
 
+# The second half of the raw-string signal: a regex metacharacter in the body.
+# The original check keyed on `\.` alone, which worked only because every prefix
+# it was written for (`.agents`, `.claude/lib`) starts with a dot, so a pattern
+# matching one had to escape it. `scripts/` carries no dot, so no regex matching
+# it can ever contain `\.` and the exemption could never fire for the whole
+# prefix class (#4046). Anchors, quantifiers, groups, classes, and alternation
+# carry the same "this is a pattern" meaning and cover `r"^scripts/"` and
+# `r'python\s+scripts/'`. A bare backslash is deliberately excluded: it is the
+# Windows path separator, so admitting it would exempt the real invocation path
+# `r".\scripts\pre_pr.py"`.
+_REGEX_METACHAR = re.compile(r"\\\.|[\^$*+?\[\]()|]")
+
 
 def _is_raw_string_regex(
     token_text: str,
     is_fstring_middle: bool = False,
     is_raw_fstring: bool = False,
 ) -> bool:
-    """True when ``token_text`` is raw-string text containing ``\\.``.
+    """True when ``token_text`` is raw-string text carrying a regex metacharacter.
 
     For a ``tokenize.STRING`` token, ``token_text`` is the raw source slice
     (prefix + quotes + body) and the raw-ness is read from the prefix. For a
@@ -265,17 +287,17 @@ def _is_raw_string_regex(
     FSTRING_START/MIDDLE/END), the text carries no prefix, so the caller
     passes ``is_raw_fstring`` derived from the enclosing FSTRING_START token.
 
-    We require both the raw-string signal and a literal backslash-escaped
-    dot in the body. Real path strings never escape the dot; matching
-    ``r".agents/x"`` (no backslash) is rare and intentionally still flagged
-    so a missing-escape regex does not become a silent bypass.
+    We require both the raw-string signal and a regex metacharacter in the
+    body (see ``_REGEX_METACHAR``). Real path strings carry neither; matching
+    ``r".agents/x"`` (plain, no metacharacter) is rare and intentionally still
+    flagged so a metacharacter-free pattern does not become a silent bypass.
     """
     if is_fstring_middle:
         if not is_raw_fstring:
             return False
     elif not _RAW_STRING_PREFIX.match(token_text):
         return False
-    return "\\." in token_text
+    return _REGEX_METACHAR.search(token_text) is not None
 
 
 def _first_banned_line(content: str) -> tuple[int, str] | None:
@@ -311,6 +333,19 @@ def _first_banned_line(content: str) -> tuple[int, str] | None:
     return None
 
 
+def _is_skipped_file(py_file: Path, root: Path) -> bool:
+    """True when a scanned path is bytecode cache or a skill's test suite.
+
+    A skill's ``tests/`` directory ships inside the `.claude/` plugin root, but
+    nothing in a consumer install ever runs it, so a path literal in a fixture
+    cannot break a consumer. Fixtures also name paths as data far more often
+    than they open them, which made seven of the nine #4046 false positives.
+    The rationale is "never executed there", not "never shipped there".
+    """
+    parts = py_file.relative_to(root).parts
+    return "__pycache__" in parts or "tests" in parts
+
+
 def collect_offenders(repo_root: Path) -> list[Offender]:
     """Find files that hard-code a banned path without the helper.
 
@@ -322,7 +357,7 @@ def collect_offenders(repo_root: Path) -> list[Offender]:
     offenders: list[Offender] = []
     for root in scan_roots(repo_root):
         for py_file in sorted(root.rglob("*.py")):
-            if "__pycache__" in py_file.parts:
+            if _is_skipped_file(py_file, root):
                 continue
             try:
                 content = py_file.read_text(encoding="utf-8")
@@ -400,12 +435,6 @@ def write_baseline(path: Path, offenders: list[Offender]) -> None:
         "# Pre-existing scripts that hard-code .agents/, .claude/lib/, or scripts/ paths.",
         "# check_vendor_portability.py allows these but fails on NEW offenders.",
         "# Regenerate: python3 scripts/validation/check_vendor_portability.py --update-baseline",
-        "#",
-        "# Not every entry is real debt. The scripts/ entries added for #4013 are",
-        "# known false positives: regex literals, README template text, and test",
-        "# fixture strings that name scripts/ as a concept, not as a path the file",
-        "# opens. The regex exemption cannot fire for them because it keys on a",
-        "# literal '\\.', which a scripts/ pattern never contains. Tracked in #4046.",
         "",
     ]
     body = sorted({off.relpath for off in offenders})

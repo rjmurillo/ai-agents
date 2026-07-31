@@ -706,3 +706,221 @@ def test_nested_dot_slash_scripts_path_is_not_offender(fake_repo: Path) -> None:
     )
 
     assert cvp.collect_offenders(fake_repo) == []
+
+
+# --- scripts/ false-positive guards (issue #4046) --------------------------
+#
+# PR #4029 added `scripts/` to _BANNED_PATH and grandfathered nine offenders,
+# all false positives. The regex exemption keyed on a literal `\.`, a signal a
+# `scripts/` pattern can never carry because the prefix has no dot, so the whole
+# new prefix class was unexemptable. These tests pin the three signals that
+# replace it: a regex metacharacter, a required path component after the
+# separator, and the test-suite skip.
+
+
+def test_anchored_scripts_regex_is_not_an_offender(fake_repo: Path) -> None:
+    """r"^scripts/" is a path-matcher, not a path dependency.
+
+    Evidence: .claude/skills/metrics/collect_metrics.py:37 carries this exact
+    literal inside a list of regex patterns. Isolating negative control: drop
+    `^` from _REGEX_METACHAR and this file is flagged again.
+    """
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/patterns.py",
+        'PATHS = [\n    r"^scripts/",\n    r"^docs/",\n]\n',
+    )
+
+    assert cvp.collect_offenders(fake_repo) == []
+
+
+def test_quantified_scripts_regex_is_not_an_offender(fake_repo: Path) -> None:
+    """r'python\\s+scripts/' is a pattern; the `+` quantifier is the signal.
+
+    Evidence: .claude/skills/SkillForge/scripts/validate-skill.py:609 counts
+    documented invocations with this literal.
+    """
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/count.py",
+        "import re\n\ncount = len(re.findall(r'python\\s+scripts/', body))\n",
+    )
+
+    assert cvp.collect_offenders(fake_repo) == []
+
+
+def test_character_class_scripts_regex_is_not_an_offender(fake_repo: Path) -> None:
+    """A character class is a regex metacharacter signal like an anchor is.
+
+    The literal carries no `\\.`, so the old exemption could not fire for it
+    even though it is plainly a pattern.
+    """
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/klass.py",
+        'PATTERN = r"scripts/v[a-z]+"\n',
+    )
+
+    assert cvp.collect_offenders(fake_repo) == []
+
+
+def test_raw_scripts_path_without_metachar_is_still_an_offender(fake_repo: Path) -> None:
+    """A raw string with no metacharacter is a real path and stays flagged.
+
+    Bounds the widened exemption: raw-ness alone does not buy an exemption, so
+    a raw literal naming a real upstream file is still caught.
+    """
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/bad.py",
+        'target = r"scripts/validation/pre_pr.py"\n',
+    )
+
+    offenders = cvp.collect_offenders(fake_repo)
+
+    assert len(offenders) == 1
+    assert offenders[0].relpath == ".claude/skills/foo/scripts/bad.py"
+
+
+def test_backslash_alone_is_not_a_regex_metachar_signal() -> None:
+    """The bare backslash is excluded so Windows raw paths stay flagged.
+
+    A backslash is the Windows path separator, so admitting it as a "this is a
+    regex" signal would exempt every raw Windows path literal.
+    """
+    assert cvp._is_raw_string_regex(r'r".\scripts\pre_pr.py"') is False
+    assert cvp._is_raw_string_regex(r'r"^scripts/"') is True
+
+
+def test_bare_scripts_directory_in_prose_is_not_an_offender(fake_repo: Path) -> None:
+    """ "scripts/ subdirectory" names no file, so there is nothing to migrate.
+
+    Evidence: .claude/skills/SkillForge/scripts/skill_modularity_audit.py:145
+    builds this recommendation string. Isolating negative control: drop the
+    trailing `[\\w.\\-]` from _BANNED_PATH and this file is flagged again.
+    """
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/advise.py",
+        'recs.append("Extract procedural logic to scripts/ subdirectory.")\n',
+    )
+
+    assert cvp.collect_offenders(fake_repo) == []
+
+
+def test_scripts_template_placeholder_is_not_an_offender(fake_repo: Path) -> None:
+    """A `<name>` placeholder resolves to no file, so it is not a dependency.
+
+    Evidence: .claude/skills/SkillForge/scripts/init_skill.py:109 embeds this in
+    a README template constant, which is neither a docstring nor a CLI kwarg and
+    so is missed by both existing prose exemptions.
+    """
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/template.py",
+        'README = "Run `python scripts/<name>.py` to start.\\n"\n',
+    )
+
+    assert cvp.collect_offenders(fake_repo) == []
+
+
+def test_scripts_path_with_component_is_still_an_offender(fake_repo: Path) -> None:
+    """The required path component still admits a real reference (AC2)."""
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/bad.py",
+        "path = 'scripts/validation/pre_pr.py'\n",
+    )
+
+    assert len(cvp.collect_offenders(fake_repo)) == 1
+
+
+def test_hyphen_and_dot_start_a_path_component(fake_repo: Path) -> None:
+    """A leading hyphen or dot in the filename still counts as a component.
+
+    Edge case for the `[\\w.\\-]` class: a dotfile or a hyphen-led name must not
+    slip the gate just because it does not start with a word character.
+    """
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/dotted.py",
+        "path = 'scripts/.hidden_helper.py'\n",
+    )
+    _write(
+        fake_repo,
+        ".claude/skills/bar/scripts/hyphen.py",
+        "path = 'scripts/-odd-name.py'\n",
+    )
+
+    assert len(cvp.collect_offenders(fake_repo)) == 2
+
+
+def test_skill_test_suite_is_not_scanned(fake_repo: Path) -> None:
+    """A fixture string under a skill's tests/ directory is not an offender.
+
+    Evidence: four of the nine #4046 false positives are bare fixture paths such
+    as `"scripts/session_log.py"` with no syntactic signal separating them from
+    a real dependency. A skill's tests never execute in a consumer install, so
+    the literal cannot break one. Isolating negative control: drop "tests" from
+    _is_skipped_file and this file is flagged again.
+    """
+    _write(
+        fake_repo,
+        ".claude/skills/foo/tests/test_threads.py",
+        'thread = _thread("sess-1", "scripts/session_log.py", body)\n',
+    )
+
+    assert cvp.collect_offenders(fake_repo) == []
+
+
+def test_agents_path_in_skill_test_suite_is_not_scanned(fake_repo: Path) -> None:
+    """The tests/ skip covers every banned prefix, not just scripts/.
+
+    Deliberate coverage change, recorded so it is not reversed by accident: four
+    pre-existing `.agents/` baseline entries lived in skill test suites and drop
+    out with this skip. The consumer-facing risk is zero for the same reason.
+    """
+    _write(
+        fake_repo,
+        ".claude/skills/foo/tests/test_health.py",
+        "out = '.agents/analysis/x.md'\n",
+    )
+
+    assert cvp.collect_offenders(fake_repo) == []
+
+
+def test_test_named_file_outside_tests_dir_is_still_scanned(fake_repo: Path) -> None:
+    """The skip keys on the directory, not the filename.
+
+    `.claude/skills/memory/scripts/test_memory_health.py` sits under scripts/
+    and stays in the baseline, so the boundary is pinned here.
+    """
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/test_helper.py",
+        "out = '.agents/analysis/x.md'\n",
+    )
+
+    assert len(cvp.collect_offenders(fake_repo)) == 1
+
+
+def test_main_passes_on_new_offender_inside_tests_dir(fake_repo: Path) -> None:
+    """CLI exit code: a fixture path under tests/ does not fail the gate."""
+    _write(
+        fake_repo,
+        ".claude/skills/foo/tests/test_fixture.py",
+        "path = 'scripts/validation/pre_pr.py'\n",
+    )
+
+    assert cvp.main(["--repo-root", str(fake_repo)]) == 0
+
+
+def test_main_fails_on_new_scripts_offender_in_shipped_script(fake_repo: Path) -> None:
+    """CLI exit code: a real scripts/ dependency in a shipped script still fails."""
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/run.py",
+        'subprocess.run(["python3", "scripts/validation/pre_pr.py"])\n',
+    )
+
+    assert cvp.main(["--repo-root", str(fake_repo)]) == 1
