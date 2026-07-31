@@ -1,10 +1,10 @@
 # Prompt Engineering: Research-Backed Techniques for Multi-Turn Prompts
 
-This document synthesizes practical prompt engineering patterns with academic research on iterative LLM reasoning. All techniques target **multi-turn prompts**—structured sequences of messages where output from one turn becomes input to subsequent turns. These techniques leverage the observation that models can improve their own outputs through deliberate self-examination across multiple passes.
+This document synthesizes practical prompt engineering patterns with academic research on iterative LLM reasoning. All techniques target **multi-turn prompts**, structured sequences of messages where output from one turn becomes input to subsequent turns. These techniques leverage the observation that models can improve their own outputs through deliberate self-examination across multiple passes.
 
 **Prerequisite**: This guide assumes familiarity with single-turn techniques (CoT, Plan-and-Solve, RE2, etc.). Multi-turn techniques often enhance or extend single-turn methods across message boundaries.
 
-**Meta-principle**: The value of multi-turn prompting comes from separation of concerns—each turn has a distinct cognitive goal (generate, critique, verify, synthesize). Mixing these goals within a single turn reduces effectiveness.
+**Meta-principle**: The value of multi-turn prompting comes from separation of concerns: each turn has a distinct cognitive goal (generate, critique, verify, synthesize). Mixing these goals within a single turn reduces effectiveness.
 
 ---
 
@@ -13,31 +13,31 @@ This document synthesizes practical prompt engineering patterns with academic re
 | Domain              | Technique                  | Trigger Condition                                      | Stacks With                          | Conflicts With             | Cost/Tradeoff                                  | Effect                                                             |
 | ------------------- | -------------------------- | ------------------------------------------------------ | ------------------------------------ | -------------------------- | ---------------------------------------------- | ------------------------------------------------------------------ |
 | **Refinement**      | Self-Refine                | Output quality improvable through iteration            | Any single-turn reasoning technique  | Time-critical tasks        | 2-4x tokens per iteration                      | 5-40% absolute improvement across 7 task types                     |
-| **Refinement**      | Iterative Critique         | Specific quality dimensions need improvement           | Self-Refine, Format Strictness       | —                          | Moderate; targeted feedback reduces iterations | Monotonic improvement on scored dimensions                         |
+| **Refinement**      | Iterative Critique         | Specific quality dimensions need improvement           | Self-Refine, Format Strictness       | n/a                        | Moderate; targeted feedback reduces iterations | Monotonic improvement on scored dimensions                         |
 | **Verification**    | Chain-of-Verification      | Factual accuracy critical; hallucination risk          | Quote Extraction (single-turn)       | Joint verification         | 3-4x tokens (baseline + verify + revise)       | List-based QA: 17%→70% accuracy; FACTSCORE: 55.9→71.4              |
 | **Verification**    | Factored Verification      | High hallucination persistence in joint verification   | CoVe                                 | Joint CoVe                 | Additional token cost for separation           | Outperforms joint CoVe by 3-8 points across tasks                  |
 | **Aggregation**     | Universal Self-Consistency | Free-form output; standard SC inapplicable             | Any sampling technique               | Greedy decoding            | N samples + 1 selection call                   | Matches SC on math; enables SC for open-ended tasks                |
 | **Aggregation**     | Multi-Chain Reasoning      | Evidence scattered across reasoning attempts           | Self-Consistency, CoT                | Single-chain reliance      | N chains + 1 meta-reasoning call               | +5.7% over SC on multi-hop QA; high-quality explanations           |
 | **Aggregation**     | Complexity-Weighted Voting | Varying reasoning depth across samples                 | Self-Consistency, USC                | Simple majority voting     | Minimal; selection strategy only               | Further gains over standard SC (+2-3 points)                       |
-| **Meta-Reasoning**  | Chain Synthesis            | Multiple valid reasoning paths exist                   | MCR, USC                             | —                          | Moderate; synthesis pass                       | Combines complementary facts from different chains                 |
-| **Meta-Reasoning**  | Explanation Generation     | Interpretability required alongside answer             | MCR                                  | —                          | Included in meta-reasoning pass                | 82% of explanations rated high-quality                             |
+| **Meta-Reasoning**  | Chain Synthesis            | Multiple valid reasoning paths exist                   | MCR, USC                             | n/a                        | Moderate; synthesis pass                       | Combines complementary facts from different chains                 |
+| **Meta-Reasoning**  | Explanation Generation     | Interpretability required alongside answer             | MCR                                  | n/a                        | Included in meta-reasoning pass                | 82% of explanations rated high-quality                             |
 
 ---
 
 ## Quick Reference: Key Principles
 
-1. **Self-Refine for Iterative Improvement** — Feedback must be actionable ("use the formula n(n+1)/2") and specific ("the for loop is brute force"); vague feedback fails
-2. **Separate Feedback from Refinement** — Generate feedback in one turn, apply it in another; mixing degrades both
-3. **Factored Verification Beats Joint** — Answer verification questions without attending to the original response; prevents hallucination copying
-4. **Shortform Questions Beat Longform** — 70% accuracy on individual verification questions vs. 17% for the same facts in longform generation
-5. **Universal Self-Consistency for Free-Form** — When answers can't be exactly matched, ask the LLM to select the most consistent response
-6. **Multi-Chain Reasoning for Evidence Collection** — Use reasoning chains as evidence sources, not just answer votes
-7. **Meta-Reasoning Over Chains** — A second model pass that reads all chains produces better answers than majority voting
-8. **Complexity-Weighted Voting** — Vote over complex chains only; simple chains may reflect shortcuts
-9. **History Accumulation Helps** — Retain previous feedback and outputs in refinement prompts; models learn from past mistakes
-10. **Open Questions Beat Yes/No** — Verification questions expecting factual answers outperform yes/no format
-11. **Stopping Conditions Matter** — Use explicit quality thresholds or iteration limits; models rarely self-terminate optimally
-12. **Non-Monotonic Improvement Possible** — Multi-aspect tasks may improve on one dimension while regressing on another; track best-so-far
+1. **Self-Refine for Iterative Improvement**. Feedback must be actionable ("use the formula n(n+1)/2") and specific ("the for loop is brute force"); vague feedback fails
+2. **Separate Feedback from Refinement**. Generate feedback in one turn, apply it in another; mixing degrades both
+3. **Factored Verification Beats Joint**. Answer verification questions without attending to the original response; prevents hallucination copying
+4. **Shortform Questions Beat Longform**. 70% accuracy on individual verification questions vs. 17% for the same facts in longform generation
+5. **Universal Self-Consistency for Free-Form**. When answers can't be exactly matched, ask the LLM to select the most consistent response
+6. **Multi-Chain Reasoning for Evidence Collection**. Use reasoning chains as evidence sources, not just answer votes
+7. **Meta-Reasoning Over Chains**. A second model pass that reads all chains produces better answers than majority voting
+8. **Complexity-Weighted Voting**. Vote over complex chains only; simple chains may reflect shortcuts
+9. **History Accumulation Helps**. Retain previous feedback and outputs in refinement prompts; models learn from past mistakes
+10. **Open Questions Beat Yes/No**. Verification questions expecting factual answers outperform yes/no format
+11. **Stopping Conditions Matter**. Use explicit quality thresholds or iteration limits; models rarely self-terminate optimally
+12. **Non-Monotonic Improvement Possible**. Multi-aspect tasks may improve on one dimension while regressing on another; track best-so-far
 
 ---
 
@@ -47,7 +47,7 @@ Techniques where the model critiques and improves its own output across multiple
 
 ### Self-Refine
 
-A general-purpose iterative improvement framework. Per Madaan et al. (2023): "SELF-REFINE: an iterative self-refinement algorithm that alternates between two generative steps—FEEDBACK and REFINE. These steps work in tandem to generate high-quality outputs."
+A general-purpose iterative improvement framework. Per Madaan et al. (2023): "SELF-REFINE: an iterative self-refinement algorithm that alternates between two generative steps: FEEDBACK and REFINE. These steps work in tandem to generate high-quality outputs."
 
 **The core loop:**
 
@@ -105,7 +105,7 @@ Turn N (Refine with history):
 | Constrained generation      | +20%        | Verifiable constraint satisfaction           |
 | Math reasoning (with oracle) | +4.8%      | Requires correctness signal                  |
 
-**Limitation — Non-monotonic improvement:**
+**Limitation, non-monotonic improvement:**
 
 Per the paper: "For tasks with multi-aspect feedback like Acronym Generation, the output quality can fluctuate during the iterative process, improving on one aspect while losing out on another."
 
@@ -225,7 +225,7 @@ Turn 4 (Final Verified Response):
   Output: Revised response incorporating verifications
 ```
 
-**The critical insight — shortform beats longform:**
+**The critical insight, shortform beats longform:**
 
 Per the paper: "Shortform verification questions are more accurately answered than longform queries. In a longform response, LLMs are prone to generate a number of hallucinations. However, it can often be the case that the LLM itself would know these hallucinations are wrong if queried specifically for that individual fact, independent of the rest of the longform generation."
 
@@ -420,7 +420,7 @@ The most consistent response is Response:
 
 Per the paper: "Although prior works show that LLMs sometimes have trouble evaluating the prediction correctness, empirically we observe that LLMs are generally able to examine the response consistency across multiple tasks."
 
-Assessing consistency is easier than assessing correctness. The model doesn't need to know the right answer—just which answers agree with each other most.
+Assessing consistency is easier than assessing correctness. The model doesn't need to know the right answer, only which answers agree with each other most.
 
 **Performance:**
 
@@ -537,7 +537,7 @@ Simple chains may reflect shortcuts or lucky guesses. Complex chains demonstrate
 | Standard SC (all chains)    | 78.0     |
 | Complexity-weighted (top K) | 80.5     |
 
-**Implementation note:** This requires no additional LLM calls beyond standard SC—just post-processing to count steps and filter before voting.
+**Implementation note:** This requires no additional LLM calls beyond standard SC, only post-processing to count steps and filter before voting.
 
 ---
 
