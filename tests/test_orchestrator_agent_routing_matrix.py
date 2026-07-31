@@ -104,7 +104,7 @@ def test_matrix_routes_by_capability_not_by_model(surface: str, path: Path) -> N
     """The matrix selects an agent; the model comes from the install, not this table.
 
     A hand-maintained Model column restated frontmatter the build already reads,
-    across six byte-parity copies. No column can be right: an installed definition
+    across six byte-parity copies. No single column can be right across installs: an installed definition
     may declare a model, and when it declares none the harness supplies its own
     platform default, so one agent resolves differently per install. Measured
     before removal, the column disagreed with 7 of 22 Claude definitions, 13 of 22
