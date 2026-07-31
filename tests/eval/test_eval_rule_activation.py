@@ -12,6 +12,7 @@ Covers:
 
 from __future__ import annotations
 
+import difflib
 import importlib.util
 import json
 import math
@@ -5830,3 +5831,216 @@ class TestTheRouteRecordsWhichReferenceItActuallyOpened:
         routing = self._run(monkeypatch, "")
         assert routing["reference_matched"] is False
         assert routing["selected_reference"] is None
+
+
+class TestAGateThatResemblesTheSentinelIsRefused:
+    """A typo in the negative sentinel must fail visibly, not change pools.
+
+    The gate string has three consumers: it picks the judge rubric, it splits
+    the pools, and it is validated here. A near miss corrupts the first two at
+    once, so the scenario is graded against the positive rubric and then
+    averaged into the positive pool.
+    """
+
+    @staticmethod
+    def _check(gate: str):
+        return eval_mod._validate_scenario_gate(
+            {"expected_gate": gate}, 0, Path("scenarios.json")
+        )
+
+    @pytest.mark.parametrize(
+        "gate",
+        [
+            "skip-rul-not-applicable",
+            "skipp-rule-not-applicable",
+            "skiprule-not-applicable",
+            "skip-rule-notapplicable",
+            "skip-rule-not-aplicable",
+            "sikp-rule-not-applicable",
+            "skip-rulenot-applicable",
+        ],
+    )
+    def test_a_near_miss_of_the_sentinel_is_refused(self, gate):
+        assert self._check(gate) == 2
+
+    @pytest.mark.parametrize(
+        "gate",
+        [
+            "skip-rule-not-applicable",
+            "SKIP-RULE-NOT-APPLICABLE",
+            "skip_rule_not_applicable",
+            "  skip-rule-not-applicable  ",
+        ],
+    )
+    def test_the_sentinel_and_its_authoring_variants_are_accepted(self, gate):
+        assert self._check(gate) is None
+        assert eval_mod._is_negative_gate(gate) is True
+
+    @pytest.mark.parametrize(
+        "gate",
+        ["invert-dependency", "seam-before-edit", "skip-the-cache", "bound-the-queue"],
+    )
+    def test_an_unrelated_gate_is_still_accepted(self, gate):
+        assert self._check(gate) is None
+        assert eval_mod._is_negative_gate(gate) is False
+
+    def test_every_gate_in_the_shipped_corpus_still_validates(self):
+        """The refusal must not fire on the corpus it has to keep accepting."""
+        corpus = REPO_ROOT / "tests" / "evals"
+        if not corpus.is_dir():
+            pytest.skip("scenario corpus not present in this checkout")
+        refused = []
+        checked = 0
+        for path in sorted(corpus.rglob("*.json")):
+            for idx, sc in enumerate(json.loads(path.read_text()).get("scenarios", [])):
+                if not isinstance(sc, dict) or "expected_gate" not in sc:
+                    continue
+                checked += 1
+                if eval_mod._validate_scenario_gate(sc, idx, path) is not None:
+                    refused.append((path.name, sc.get("expected_gate")))
+        assert checked > 0
+        assert refused == []
+
+    def test_the_threshold_sits_in_the_gap_the_corpus_measured(self):
+        """Pin the calibration, so a later edit cannot close the gap silently."""
+        corpus = REPO_ROOT / "tests" / "evals"
+        if not corpus.is_dir():
+            pytest.skip("scenario corpus not present in this checkout")
+        real = set()
+        for path in sorted(corpus.rglob("*.json")):
+            for sc in json.loads(path.read_text()).get("scenarios", []):
+                if not isinstance(sc, dict):
+                    continue
+                gate = eval_mod._normalize_gate(sc.get("expected_gate"))
+                if gate and gate != eval_mod.NEGATIVE_GATE:
+                    real.add(gate)
+        assert real
+        worst = max(
+            difflib.SequenceMatcher(None, g, eval_mod.NEGATIVE_GATE).ratio()
+            for g in real
+        )
+        assert worst < eval_mod._GATE_NEAR_MISS_RATIO
+        closest = difflib.SequenceMatcher(
+            None, "sikp-rule-not-applicable", eval_mod.NEGATIVE_GATE
+        ).ratio()
+        assert closest >= eval_mod._GATE_NEAR_MISS_RATIO
+
+
+class TestARouteThatDeclinedTheSkillIsNotAMatch:
+    """Resolution never reads `selected_skill`, so a decline must be caught here."""
+
+    TARGET = "references/clean-architecture.md"
+
+    @staticmethod
+    def _rule():
+        skill = REPO_ROOT / _SKILL_REL
+        reference = skill.parent / TestARouteThatDeclinedTheSkillIsNotAMatch.TARGET
+        if not skill.is_file() or not reference.is_file():
+            pytest.skip("software-engineering-library not present in this checkout")
+        return eval_mod.parse_skill_reference(skill, reference)
+
+    def _run(self, monkeypatch, skill_value):
+        route = json.dumps(
+            {
+                "selected_skill": skill_value,
+                "selected_reference": self.TARGET,
+                "reasoning": "picked one",
+            }
+        )
+        judge = json.dumps(
+            {"activation_score": 5, "citation_score": 5, "behavior_score": 5}
+        )
+
+        def _call(_key, _messages, **kwargs):
+            if kwargs.get("max_tokens") == 300:
+                return route
+            if kwargs.get("max_tokens") == 600:
+                return "a response"
+            return judge
+
+        monkeypatch.setattr(eval_mod, "_call_api", _call)
+        result = eval_mod.eval_one_scenario(
+            "sk-test",
+            self._rule(),
+            "clean-architecture",
+            {"id": "S1", "input": "x", "expected_gate": "invert-dependency"},
+            "model",
+            False,
+        )
+        return result["mechanisms"]["description"]["routing"]
+
+    def test_selecting_the_skill_records_a_match(self, monkeypatch):
+        routing = self._run(monkeypatch, "software-engineering-library")
+        assert routing["reference_matched"] is True
+
+    @pytest.mark.parametrize("skill_value", [None, "", "   ", 7])
+    def test_a_declined_or_unreadable_skill_records_a_miss(
+        self, monkeypatch, skill_value
+    ):
+        routing = self._run(monkeypatch, skill_value)
+        assert routing["reference_matched"] is False
+        assert routing["selected_reference"] == self.TARGET
+
+
+class TestARoutedMissWithholdsTheCertification:
+    """A PASS must not be earned on content the target never supplied."""
+
+    @staticmethod
+    def _summary(mismatches, *, positive_incomplete=False, archived=False):
+        summary = {
+            "per_mechanism": {m: {"route_mismatch_count": 0} for m in eval_mod.MECHANISMS},
+            "negative_gate_incomplete": [],
+            "positive_gate_incomplete": positive_incomplete,
+        }
+        if not archived:
+            summary["positive_route_mismatches"] = mismatches
+        return summary
+
+    @staticmethod
+    def _decide(summary):
+        return eval_mod._decide_verdict(
+            summary,
+            gating_judge_failures=0,
+            worst_neg_avg=None,
+            has_positive_cases=True,
+            desc_avg=5.0,
+            baseline_avg=1.0,
+        )
+
+    def test_a_clean_route_still_passes(self):
+        assert self._decide(self._summary(0)) == "PASS"
+
+    @pytest.mark.parametrize("mismatches", [1, 2, 9])
+    def test_any_positive_route_miss_withholds_the_pass(self, mismatches):
+        assert self._decide(self._summary(mismatches)) == "FAIL_ROUTE_MISSED_TARGET"
+
+    def test_an_incomplete_pool_still_outranks_a_route_miss(self):
+        """A pool that was never measured is a bigger gap than one mismeasured cell."""
+        summary = self._summary(1, positive_incomplete=["description"])
+        assert self._decide(summary) == "FAIL_POSITIVE_INCOMPLETE"
+
+    def test_an_archived_summary_without_the_key_keeps_its_verdict(self):
+        """Archived runs recorded no route flag, so they must not move."""
+        assert self._decide(self._summary(0, archived=True)) == "PASS"
+
+
+class TestTheRouteMissCountIsDerivedOnce:
+    """The number a reader sees and the number that decides must be one value."""
+
+    def test_the_caveat_reads_the_derived_field(self):
+        summary = {
+            "per_mechanism": {m: {} for m in eval_mod.MECHANISMS},
+            "negative_case_per_mechanism": {m: {} for m in eval_mod.MECHANISMS},
+            "positive_route_mismatches": 3,
+        }
+        text = " ".join(eval_mod._render_caveats(summary))
+        assert "3 positive cell(s) never opened the target" in text
+
+    def test_no_caveat_when_the_derived_field_is_zero(self):
+        summary = {
+            "per_mechanism": {m: {"route_mismatch_count": 5} for m in eval_mod.MECHANISMS},
+            "negative_case_per_mechanism": {m: {} for m in eval_mod.MECHANISMS},
+            "positive_route_mismatches": 0,
+        }
+        text = " ".join(eval_mod._render_caveats(summary))
+        assert "never opened the target" not in text

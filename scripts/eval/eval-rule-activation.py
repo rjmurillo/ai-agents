@@ -44,6 +44,7 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import difflib
 import json
 import math
 import re
@@ -207,6 +208,28 @@ def _is_negative_gate(value: object) -> bool:
     wrong and the population it joins is wrong.
     """
     return _normalize_gate(value) == NEGATIVE_GATE
+
+
+# Calibrated against the shipped corpus: the 32 distinct real positive gate
+# names score at most 0.400 similarity to the sentinel, while single-character
+# corruptions of the sentinel score at least 0.958. Any threshold inside that
+# gap separates them; 0.80 sits clear of both edges. A prefix test cannot do
+# this job, because `skiprule-not-applicable` and `skip-rul-not-applicable`
+# never carry the literal prefix yet both mean the negative case.
+_GATE_NEAR_MISS_RATIO = 0.80
+
+
+def _is_gate_near_miss(normalized: str) -> bool:
+    """True when a gate is close enough to the sentinel to be a typo of it.
+
+    Refusing a near miss is the visible failure. Accepting one is invisible:
+    the scenario is graded against the positive rubric and then averaged into
+    the positive pool, so both the score and the population are wrong.
+    """
+    if normalized.startswith("skip-rule"):
+        return True
+    ratio = difflib.SequenceMatcher(None, normalized, NEGATIVE_GATE).ratio()
+    return ratio >= _GATE_NEAR_MISS_RATIO
 
 
 def build_skill_route_prompt(rule: dict[str, str], scenario: dict[str, Any]) -> str:
@@ -1579,6 +1602,17 @@ def eval_one_scenario(
                     # under a reference the run never opened.
                     "reference_matched": (
                         selected_reference is not None
+                        # A route that declined the skill still resolves a
+                        # reference, because resolution reads `skill_path` off
+                        # the target and never consults `selected_skill`.
+                        # Counting a decline as a match credits the description
+                        # mechanism with a route it refused to make. The name
+                        # itself is not compared: no archived run records
+                        # `selected_skill`, so there is no evidence about how
+                        # models spell it, and a miscalibrated name check would
+                        # flag every routed cell.
+                        and isinstance(selected_skill, str)
+                        and bool(selected_skill.strip())
                         and selected_reference
                         == _normalize_selected_reference(rule.get("reference_path"))
                     ),
@@ -1983,6 +2017,14 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
         summary["per_mechanism"], pos_gate_mechs, len(pos_scenarios)
     )
 
+    # Derived once here and read by both the verdict and the caveat, so the
+    # number a reader sees and the number that decides the run cannot drift.
+    # Positive pool only: on a negative case the router is supposed to decline,
+    # so a miss there is correct restraint rather than a defect.
+    summary["positive_route_mismatches"] = sum(
+        summary["per_mechanism"][m].get("route_mismatch_count", 0) for m in MECHANISMS
+    )
+
     summary["verdict"] = _decide_verdict(
         summary,
         gating_judge_failures=gating_judge_failures,
@@ -2074,6 +2116,14 @@ def _decide_verdict(
         # Under the negative gates on purpose: shipping a rule that might fire
         # where it must not costs more than withholding one that might help.
         return "FAIL_POSITIVE_INCOMPLETE"
+    if summary.get("positive_route_mismatches", 0) > 0:
+        # One router fronts many sibling references and any sibling resolves
+        # for any target, so a routed cell can score well on content the target
+        # never supplied. A PASS here would certify the rule on a population
+        # that partly did not involve the rule. The score stays in the average
+        # (dropping a mechanism's failures would inflate that mechanism); what
+        # is withheld is the certification.
+        return "FAIL_ROUTE_MISSED_TARGET"
     return _positive_verdict(desc_avg, baseline_avg)
 
 
@@ -2116,9 +2166,7 @@ def _render_caveats(summary: dict[str, Any]) -> list[str]:
         )
     # Positive pool only. On a negative case the router is supposed to decline,
     # so counting a miss there would report correct restraint as a defect.
-    route_missed = sum(
-        summary["per_mechanism"][m].get("route_mismatch_count", 0) for m in MECHANISMS
-    )
+    route_missed = summary.get("positive_route_mismatches", 0)
     if route_missed:
         lines.append(
             f"Routing: {route_missed} positive cell(s) never opened the target "
@@ -2315,11 +2363,13 @@ def _validate_scenario_gate(
         )
         return 2
     normalized = _normalize_gate(gate)
-    if normalized != NEGATIVE_GATE and normalized.startswith("skip-rule"):
+    if normalized != NEGATIVE_GATE and _is_gate_near_miss(normalized):
         print(
-            f"ERROR: scenarios[{idx}].expected_gate {gate!r} is in the "
-            f"skip-rule namespace but is not {NEGATIVE_GATE!r} in {spath}. "
-            "A near miss would be scored as a positive case.",
+            f"ERROR: scenarios[{idx}].expected_gate {gate!r} reads as a "
+            f"near miss of {NEGATIVE_GATE!r} in {spath}. A near miss would be "
+            "graded against the positive rubric and averaged into the "
+            "positive pool. Use the sentinel exactly, or rename the gate so "
+            "it does not resemble it.",
             file=sys.stderr,
         )
         return 2

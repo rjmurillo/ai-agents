@@ -231,6 +231,15 @@ one entry per moved reference with `consecutive_activation_failures`,
 `FAIL_JUDGE_ERRORS` is treated as an external eval failure and does not increment
 the activation rollback streak.
 
+The measurement verdicts carry no evidence about the rule, so they are absent
+from that list on purpose. `FAIL_ROUTE_MISSED_TARGET` means at least one positive
+cell scored on a reference the run never opened: one skill router fronts many
+sibling references, and a sibling resolves for any target, so the score measures
+content the target did not supply. Counting it would retire a rule for the
+harness's routing imprecision. `FAIL_POSITIVE_INCOMPLETE`,
+`FAIL_NEGATIVE_INCOMPLETE`, and `FAIL_OVER_ACTIVATION` are excluded for the same
+reason. Fix the routing or the reference, then re-run.
+
 The workflow runs all eight scenario files live on the weekly schedule and feeds
 `activation-results.json` into
 `scripts/eval/software_engineering_library_activation_gate.py`. A reference that
