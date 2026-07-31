@@ -35,7 +35,9 @@
       "timestamp": "2026-06-26T00:00:00+00:00",
       "type": "test",
       "content": "pytest tests/test_command_bundles.py: 2 passed, 2 skipped, 45 xfailed (pytest 9.0.3, Python 3.14.4) - behavior preserved/green. bundle_registry sanity check passed (invocation, marker, present-check correct). checks_coverage advisory mode returns True; BUNDLE_CHECK_ENFORCED=1 returns False as designed.",
-      "caused_by": [],
+      "caused_by": [
+        "e005"
+      ],
       "leads_to": []
     },
     {
@@ -44,7 +46,9 @@
       "type": "commit",
       "content": "Commit: 3587a0c1",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e004"
+      ]
     }
   ],
   "metrics": {

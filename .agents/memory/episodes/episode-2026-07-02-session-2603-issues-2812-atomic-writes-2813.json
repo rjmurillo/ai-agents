@@ -11,7 +11,9 @@
       "timestamp": "2026-07-02T00:00:00+00:00",
       "type": "milestone",
       "content": "Re-reverted deferred debt-laden #2812 sites (skillbook.py, invoke_memory_first_enforcer.py + copilot mirror); confirmed they left git status.",
-      "caused_by": [],
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": []
     },
     {
@@ -19,7 +21,9 @@
       "timestamp": "2026-07-02T00:00:00+00:00",
       "type": "milestone",
       "content": "Kept 5 clean #2812 atomic-write sites: lsp_gate_state.py, cache_guard.py, pr_branch_mapping.py, update_reviewer_signal_stats.py, error_classification.py.",
-      "caused_by": [],
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": []
     },
     {
@@ -27,7 +31,9 @@
       "timestamp": "2026-07-02T00:00:00+00:00",
       "type": "milestone",
       "content": "Added scoped pyproject.toml mypy override for memory_enhancement.serena_integration (pre-existing arg-type/return-value debt surfaced transitively by memory_sync imports).",
-      "caused_by": [],
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": []
     },
     {
@@ -35,7 +41,9 @@
       "timestamp": "2026-07-02T00:00:00+00:00",
       "type": "milestone",
       "content": "Verified mypy clean (15 files), 191 affected tests pass, 15 atomic-write tests pass, no security suppressions.",
-      "caused_by": [],
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": []
     },
     {
@@ -43,7 +51,9 @@
       "timestamp": "2026-07-02T00:00:00+00:00",
       "type": "milestone",
       "content": "Synced plugin lib mirrors (in sync), bumped .claude and copilot-cli plugin.json to 0.5.255.",
-      "caused_by": [],
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": []
     },
     {
@@ -51,7 +61,9 @@
       "timestamp": "2026-07-02T00:00:00+00:00",
       "type": "milestone",
       "content": "Created and populated this session log; documented override decision to Serena memory (file fallback).",
-      "caused_by": [],
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": []
     },
     {
@@ -59,7 +71,9 @@
       "timestamp": "2026-07-02T00:00:00+00:00",
       "type": "milestone",
       "content": "Verification: `uv run pytest tests/test_atomic_writes_2812.py` => 15 passed; `uv run pytest tests/test_memory_sync ...` => 191 passed; mypy => no issues in 15 source files.",
-      "caused_by": [],
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": []
     },
     {
@@ -67,16 +81,27 @@
       "timestamp": "2026-07-02T00:00:00+00:00",
       "type": "test",
       "content": "Verification: `uv run pytest tests/test_atomic_writes_2812.py` => 15 passed; `uv run pytest tests/test_memory_sync ...` => 191 passed; mypy => no issues in 15 source files.",
-      "caused_by": [],
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": []
     },
     {
       "id": "e009",
-      "timestamp": "2026-07-02T00:00:00+00:00",
+      "timestamp": "2026-06-30T17:06:43+00:00",
       "type": "commit",
       "content": "Commit: f13f73f",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008"
+      ]
     }
   ],
   "metrics": {

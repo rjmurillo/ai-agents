@@ -125,10 +125,35 @@
     {
       "task": "Issue #4011: the three memory hooks were never registered, and two carried the wrong exit contract",
       "outcome": "Payload and exit-code fixes plus three invokers registered in .claude/settings.json. 14 passed in tests/test_memory_hook_registration.py, including a subprocess run that proves confidence scores reach disk"
+    },
+    {
+      "task": "Review finding: settings.json registers all three hooks as python3, which cannot import python-frontmatter, so recall and reflection were silent no-ops",
+      "outcome": "memory_enhancement.interpreter re-execs under .venv when the dependency is missing. The registered command now emits <memory-context> under python3. 12 passed in tests/test_memory_hook_interpreter.py"
+    },
+    {
+      "task": "Review finding: the registration test launched the invokers with sys.executable, the uv venv interpreter, so it stayed green against two inert hooks",
+      "outcome": "The test parses the command out of settings.json and drops VIRTUAL_ENV from the subprocess PATH. Removing the re-exec now fails two tests. 16 passed in tests/test_memory_hook_registration.py"
+    },
+    {
+      "task": "Review finding: registering the SessionEnd hook turned reinforce_memories into a live writer over 879 tracked memory files, stripping ## Links blocks",
+      "outcome": "The write is gone: confidence is recomputed on every read and nothing consumed the stored value. git status stays clean after a real session end. 19 passed in tests/test_memory_hook_reflection.py"
+    },
+    {
+      "task": "Review finding: the capture hook fired on any output containing .py or .md, so 8 of 20 ordinary commands injected an empty memory suggestion",
+      "outcome": "The success path is gone and error matching rejects an indicator glued to _ or -. 0 of 15 ordinary commands fire; ValueError and Permission denied still do. 40 passed in tests/test_memory_extraction.py and tests/test_memory_hook_capture.py"
+    },
+    {
+      "task": "Issue #4071 sub-claim 7: repair the episodes the flattening already damaged",
+      "outcome": "repair_episode_causal_links.py restamps commit events from git and rebuilds the chain from the episode file alone. 121 of 363 episodes repaired, 44 unrepairable because their commit SHA no longer resolves, 2 invalid before this change. Second run reports 0 repaired. 10 passed in tests/skills/memory/test_repair_episode_causal_links.py"
+    },
+    {
+      "task": "Review finding: provenance.md carried a third copy of the hook registration counts, falsified by the command in its own row",
+      "outcome": "Counts corrected on both trees and the counts test now reads provenance.md. 25 passed in tests/build_scripts/test_hook_contract_knowledge.py"
     }
   ],
   "endingCommit": "",
   "nextSteps": [
-    "Repair the 125 already-flattened episodes with a --preserve pass. 125 files exceed the 50-file ceiling in scripts/detect_scope_explosion.py, so the repair needs its own PR."
+    "Two episodes were already invalid before this branch: episode-2026-06-09-session-2377 has an unsupported 'artifact' event type and episode-2026-07-25-session-3324 has a causal cycle. Both need a schema decision, not a repair.",
+    "44 episodes carry commit SHAs that no longer resolve in the local object database, so their causal order is unrecoverable from this clone."
   ]
 }

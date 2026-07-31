@@ -12,7 +12,9 @@
       "type": "milestone",
       "content": "Ran live-state gate for PR #2560",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e002",
@@ -20,7 +22,9 @@
       "type": "milestone",
       "content": "Created isolated worktree",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e003",
@@ -28,7 +32,9 @@
       "type": "milestone",
       "content": "Validated retrospective hook behavior",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e004",
@@ -36,7 +42,9 @@
       "type": "milestone",
       "content": "Fixed plugin version gate",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e005",
@@ -44,15 +52,30 @@
       "type": "milestone",
       "content": "Ran pre_pr validation",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e006",
-      "timestamp": "2026-06-11T00:00:00+00:00",
+      "timestamp": "2026-06-11T13:35:42+00:00",
       "type": "commit",
       "content": "Commit: e1569befc1",
-      "caused_by": [],
-      "leads_to": []
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e007",
+        "e009",
+        "e011",
+        "e012",
+        "e013"
+      ],
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e007",
@@ -60,15 +83,21 @@
       "type": "milestone",
       "content": "Merged origin/main and revalidated",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e008",
-      "timestamp": "2026-06-11T00:00:00+00:00",
+      "timestamp": "2026-06-11T13:44:22+00:00",
       "type": "commit",
       "content": "Commit: 2f31f05adc",
-      "caused_by": [],
-      "leads_to": []
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e010"
+      ]
     },
     {
       "id": "e009",
@@ -76,14 +105,18 @@
       "type": "milestone",
       "content": "Merged latest origin/main and revalidated",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e010",
-      "timestamp": "2026-06-11T00:00:00+00:00",
+      "timestamp": "2026-06-11T13:48:10+00:00",
       "type": "commit",
       "content": "Commit: 8cd15f2c1e",
-      "caused_by": [],
+      "caused_by": [
+        "e008"
+      ],
       "leads_to": []
     },
     {
@@ -92,7 +125,9 @@
       "type": "milestone",
       "content": "Renumbered session evidence file",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e012",
@@ -100,7 +135,9 @@
       "type": "milestone",
       "content": "Resolved latest origin/main merge conflict",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e013",
@@ -108,7 +145,9 @@
       "type": "milestone",
       "content": "Re-bumped plugin manifests after base moved",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     }
   ],
   "metrics": {

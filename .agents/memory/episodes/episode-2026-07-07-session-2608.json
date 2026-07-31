@@ -30,7 +30,9 @@
       "timestamp": "2026-07-07T00:00:00+00:00",
       "type": "error",
       "content": "Diagnose why all 6 adr-review agents failed to load     Root cause: a git pull with rebase.autostash stashed a broken/huge working tree (5379 staged files), fast-forwarded, then the autostash pop left unresolved conflict markers across 67 files including every .github/agents/*.agent.md. Agents load these from disk, so all 6 failed with 'malformed frontmatter'.",
-      "caused_by": [],
+      "caused_by": [
+        "e006"
+      ],
       "leads_to": []
     },
     {
@@ -63,7 +65,9 @@
       "type": "commit",
       "content": "Commit: 6720c1da61",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e002"
+      ]
     }
   ],
   "metrics": {

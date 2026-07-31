@@ -12,14 +12,18 @@
       "type": "test",
       "content": "update_causal_graph.py: per-episode contributions map (mean-derived weight/success_rate), replace-semantics on edit, remove_episode_contributions, --prune-episode-ids; pre-commit prunes staged episode deletions (diff-filter=D). Legacy anonymous evidence preserved via sentinel keys. uv run pytest tests/skills/memory/ -> 247 passed (28 in update_causal_graph incl 8 new #3039); ruff+mypy clean; mirror regenerated; bash -n pre-commit OK. Plugin bumped 0.6.34->0.6.35.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e002"
+      ]
     },
     {
       "id": "e002",
-      "timestamp": "2026-07-15T00:00:00+00:00",
+      "timestamp": "2026-07-15T08:00:07+00:00",
       "type": "commit",
       "content": "Commit: 5db854d7ea",
-      "caused_by": [],
+      "caused_by": [
+        "e001"
+      ],
       "leads_to": []
     }
   ],

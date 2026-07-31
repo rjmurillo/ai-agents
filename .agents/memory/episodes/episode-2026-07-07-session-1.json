@@ -11,7 +11,9 @@
       "timestamp": "2026-07-07T00:00:00+00:00",
       "type": "milestone",
       "content": "Swept PR 2895 unresolved review threads: three Copilot threads on debate-log and ADR-079.",
-      "caused_by": [],
+      "caused_by": [
+        "e006"
+      ],
       "leads_to": []
     },
     {
@@ -19,7 +21,9 @@
       "timestamp": "2026-07-07T00:00:00+00:00",
       "type": "milestone",
       "content": "Byte-verified four em dashes in ADR-079-debate-log.md at lines 1, 12, 38, 56.",
-      "caused_by": [],
+      "caused_by": [
+        "e006"
+      ],
       "leads_to": []
     },
     {
@@ -27,7 +31,9 @@
       "timestamp": "2026-07-07T00:00:00+00:00",
       "type": "milestone",
       "content": "Replaced em dashes with colons and a hyphen; normalized advisor to high-level-advisor in the Raised-by column.",
-      "caused_by": [],
+      "caused_by": [
+        "e006"
+      ],
       "leads_to": []
     },
     {
@@ -35,7 +41,9 @@
       "timestamp": "2026-07-07T00:00:00+00:00",
       "type": "milestone",
       "content": "Defined acceptance criterion 2 bound T as 15 minutes tied to one scheduled reconciliation-detector run.",
-      "caused_by": [],
+      "caused_by": [
+        "e006"
+      ],
       "leads_to": []
     },
     {
@@ -43,16 +51,24 @@
       "timestamp": "2026-07-07T00:00:00+00:00",
       "type": "milestone",
       "content": "Created this session log to satisfy the session-protocol pre-commit gate for .agents changes.",
-      "caused_by": [],
+      "caused_by": [
+        "e006"
+      ],
       "leads_to": []
     },
     {
       "id": "e006",
-      "timestamp": "2026-07-07T00:00:00+00:00",
+      "timestamp": "2026-07-05T14:00:47+00:00",
       "type": "commit",
       "content": "Commit: 8c3f5af9f0",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
+      ]
     }
   ],
   "metrics": {

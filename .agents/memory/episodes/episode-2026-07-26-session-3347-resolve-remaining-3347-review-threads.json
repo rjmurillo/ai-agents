@@ -11,96 +11,64 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Ran check_pr_live_state.py gate for PR #3347; Data.action=ACT (not SKIP), proceeded.",
-      "caused_by": [
-        "e043"
-      ],
-      "leads_to": [
-        "e002"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e002",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Verified head SHA d5937f2a6c matched the live snapshot; the shared primary checkout was mutated by concurrent work mid-session, so created an isolated git worktree at /home/richard/src/GitHub/rjmurillo/ai-agents-pr3347 for this task.",
-      "caused_by": [
-        "e001"
-      ],
-      "leads_to": [
-        "e003"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e003",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Fetched PR metadata and all 13 review threads via get_pr_review_threads.py: 10 resolved, 3 unresolved (all authored by copilot-pull-request-reviewer, all on scripts/validate_session_json.py).",
-      "caused_by": [
-        "e002"
-      ],
-      "leads_to": [
-        "e004"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e004",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Triaged the 3 unresolved threads: (1) REQUIRED_SESSION_FIELDS duplicate/over-rejection finding was already fixed by the branch's last commit (d5937f2a6c) before this session started, verified by diffing validate_session_section across commits; (2) 'nothing was checked' schema-load-failure message is misleading because validate_session_log still runs protocol checks afterward, a real wording bug; (3) validate_against_schema does not catch jsonschema.exceptions.SchemaError and sorts by raw list(e.absolute_path), which raises TypeError when errors' paths share a prefix but diverge between str and int elements, a real crash-class bug reproduced locally before fixing.",
-      "caused_by": [
-        "e003"
-      ],
-      "leads_to": [
-        "e005"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e005",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Implemented fixes in scripts/validate_session_json.py: reworded the schema-load-failure message to 'schema layer skipped' (scoped, not absolute); wrapped validator construction and iter_errors in try/except SchemaError with a readable message; changed the sort key to tuple(str(part) for part in e.absolute_path).",
-      "caused_by": [
-        "e004"
-      ],
-      "leads_to": [
-        "e006"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e006",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Added 3 regression tests in tests/test_validate_session_json.py: message no longer claims total silence while protocol checks still surface errors; SchemaError from a monkeypatched validator_for is caught and reported, not raised; a fake validator returning ValidationErrors with mixed int/str path elements at the same depth sorts without raising TypeError.",
-      "caused_by": [
-        "e005"
-      ],
-      "leads_to": [
-        "e007"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e007",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Ran ruff check --fix (import sort only), manually wrapped two long lines to satisfy E501, re-ran ruff (clean) and mypy (clean).",
-      "caused_by": [
-        "e006"
-      ],
-      "leads_to": [
-        "e008"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e008",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Ran full tests/test_validate_session_json.py (132 passed) and the broader session-related suite (tests/ -k session: 678 passed, 1 skipped, 6 xfailed).",
-      "caused_by": [
-        "e007"
-      ],
-      "leads_to": [
-        "e010"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e009",
@@ -108,83 +76,68 @@
       "type": "test",
       "content": "Ran full tests/test_validate_session_json.py (132 passed) and the broader session-related suite (tests/ -k session: 678 passed, 1 skipped, 6 xfailed).",
       "caused_by": [
+        "e020",
+        "e021",
+        "e044",
+        "e045",
+        "e046",
+        "e047",
+        "e048",
+        "e049",
+        "e050",
+        "e051",
+        "e052",
         "e053"
       ],
-      "leads_to": [
-        "e016"
-      ]
+      "leads_to": []
     },
     {
       "id": "e010",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Re-verified local HEAD matched origin/fix/3346-session-schema-enforcement (no concurrent push) before committing and again before pushing.",
-      "caused_by": [
-        "e008"
-      ],
-      "leads_to": [
-        "e011"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e011",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Committed 'fix(validation): stop overclaiming schema silence and crashing on bad schemas' as ebb6cf9365, with Refs #3346 and the branch's established Co-Authored-By: Copilot / Copilot-Session trailers (session ID from COPILOT_AGENT_SESSION_ID).",
-      "caused_by": [
-        "e010"
-      ],
-      "leads_to": [
-        "e012"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e012",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Pushed as a fast-forward (no force).",
-      "caused_by": [
-        "e011"
-      ],
-      "leads_to": [
-        "e013"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e013",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Replied to and resolved all 3 unresolved threads via add_pr_review_thread_reply.py --resolve, each citing commit ebb6cf9365 and the specific fix (or, for the already-fixed finding, the prior commit).",
-      "caused_by": [
-        "e012"
-      ],
-      "leads_to": [
-        "e014"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e014",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Confirmed 0 unresolved threads via get_pr_review_threads.py.",
-      "caused_by": [
-        "e013"
-      ],
-      "leads_to": [
-        "e015"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e015",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Waited for and confirmed all CI checks green via get_pr_checks.py --wait (83 passed, 0 failed, including all required checks: Validate PR, Run Python Tests, CodeQL, Security/Analyst/Architect/QA Review, etc.).",
-      "caused_by": [
-        "e014"
-      ],
-      "leads_to": [
-        "e017"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e016",
@@ -192,47 +145,44 @@
       "type": "test",
       "content": "Waited for and confirmed all CI checks green via get_pr_checks.py --wait (83 passed, 0 failed, including all required checks: Validate PR, Run Python Tests, CodeQL, Security/Analyst/Architect/QA Review, etc.).",
       "caused_by": [
-        "e009"
+        "e020",
+        "e021",
+        "e044",
+        "e045",
+        "e046",
+        "e047",
+        "e048",
+        "e049",
+        "e050",
+        "e051",
+        "e052",
+        "e053"
       ],
-      "leads_to": [
-        "e025"
-      ]
+      "leads_to": []
     },
     {
       "id": "e017",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Checked live merge state: mergeStateStatus=BLOCKED, mergeable=MERGEABLE, reviewDecision=null, blocked by required review approval (branch protection), not by threads or CI; did not request or perform approval, and did not merge or enable auto-merge, per instructions.",
-      "caused_by": [
-        "e015"
-      ],
-      "leads_to": [
-        "e018"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e018",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Ran scripts/validation/pre_pr.py --quick: all validations passed (advisory-only warnings for unrelated bundle coverage and review-marker notes).",
-      "caused_by": [
-        "e017"
-      ],
-      "leads_to": [
-        "e019"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e019",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Updated .serena/memories/pr-review/pr-comment-responder-skills with cumulative reviewer stats and a new PR #3347 breakdown.",
-      "caused_by": [
-        "e018"
-      ],
-      "leads_to": [
-        "e022"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e020",
@@ -241,7 +191,13 @@
       "content": "Commit: ebb6cf9365decd450d7b26c6aedd49ef3264b326",
       "caused_by": [],
       "leads_to": [
-        "e021"
+        "e009",
+        "e016",
+        "e025",
+        "e031",
+        "e037",
+        "e041",
+        "e043"
       ]
     },
     {
@@ -249,11 +205,15 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: ebb6cf9365",
-      "caused_by": [
-        "e020"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e044"
+        "e009",
+        "e016",
+        "e025",
+        "e031",
+        "e037",
+        "e041",
+        "e043"
       ]
     },
     {
@@ -261,36 +221,24 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "After pushing ebb6cf9365 and a28649c5e1, re-queried review threads and found a 4th unresolved thread (PRRT_kwDOQoWRls6TzlCz, copilot-pull-request-reviewer): validate_against_schema() built its validator without a format_checker, so the schema's format: \"date-time\" on developmentPhase.history[].timestamp was never enforced (jsonschema treats format as annotation-only by default). Confirmed real: the base jsonschema.FormatChecker lacks a date-time checker without the rfc3339-validator package, which is not a project dependency.",
-      "caused_by": [
-        "e019"
-      ],
-      "leads_to": [
-        "e023"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e023",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Registered a stdlib-only date-time format checker using datetime.fromisoformat (Python >=3.14 required by this project) instead of adding a new dependency, and passed it to the validator via validator_for(schema)(schema, format_checker=_FORMAT_CHECKER). Verified via a scripted scan of .agents/sessions/*.json that no committed session log uses developmentPhase.history, so enforcing the format introduces zero regressions on historical logs. Added test_malformed_history_timestamp_is_rejected and test_valid_history_timestamp_passes to tests/test_validate_session_json.py.",
-      "caused_by": [
-        "e022"
-      ],
-      "leads_to": [
-        "e024"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e024",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "uv run pytest tests/test_validate_session_json.py: 134 passed. ruff check and mypy clean. Broader uv run pytest tests/ -k session: 680 passed, 1 skipped, 6 xfailed. Ran scripts/validation/pre_pr.py --quick: all passed.",
-      "caused_by": [
-        "e023"
-      ],
-      "leads_to": [
-        "e026"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e025",
@@ -298,71 +246,60 @@
       "type": "test",
       "content": "uv run pytest tests/test_validate_session_json.py: 134 passed. ruff check and mypy clean. Broader uv run pytest tests/ -k session: 680 passed, 1 skipped, 6 xfailed. Ran scripts/validation/pre_pr.py --quick: all passed.",
       "caused_by": [
-        "e016"
+        "e020",
+        "e021",
+        "e044",
+        "e045",
+        "e046",
+        "e047",
+        "e048",
+        "e049",
+        "e050",
+        "e051",
+        "e052",
+        "e053"
       ],
-      "leads_to": [
-        "e031"
-      ]
+      "leads_to": []
     },
     {
       "id": "e026",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Re-verified local HEAD matched origin (a28649c5e1) before committing; staged scripts/validate_session_json.py and tests/test_validate_session_json.py; committed as fix(validation): enforce date-time format on schema-declared timestamps with Refs #3346 and Copilot trailers -> 15d6ae2bc44968de01efaa0a0493ad8a89e3d222. Re-verified no concurrent push, then pushed (pre-push hook: 13798 tests passed).",
-      "caused_by": [
-        "e024"
-      ],
-      "leads_to": [
-        "e027"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e027",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Replied to and resolved PRRT_kwDOQoWRls6TzlCz citing the fixing commit. Made a transcription error in the first reply (fabricated a full SHA instead of using the real one from git rev-parse); caught it immediately and posted a correction comment with the verified SHA before proceeding. Thread remained resolved throughout.",
-      "caused_by": [
-        "e026"
-      ],
-      "leads_to": [
-        "e028"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e028",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Re-checked threads after the push and found a 5th unresolved thread (PRRT_kwDOQoWRls6TzpOY, copilot-pull-request-reviewer) on tests/test_validate_session_json.py: the TestMainNarrowsOnThePayload class docstring claimed main() branches on data is None, not on error, which is backwards from the actual implementation (main() branches on error is not None, letting a JSON null root reach schema validation). Confirmed by reading main().",
-      "caused_by": [
-        "e027"
-      ],
-      "leads_to": [
-        "e029"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e029",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Fixed the docstring to state the correct condition (error is not None, not data is None). Single-line, single-file documentation fix; no behavior change.",
-      "caused_by": [
-        "e028"
-      ],
-      "leads_to": [
-        "e030"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e030",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "uv run pytest tests/test_validate_session_json.py: 134 passed. ruff check clean.",
-      "caused_by": [
-        "e029"
-      ],
-      "leads_to": [
-        "e032"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e031",
@@ -370,71 +307,60 @@
       "type": "test",
       "content": "uv run pytest tests/test_validate_session_json.py: 134 passed. ruff check clean.",
       "caused_by": [
-        "e025"
+        "e020",
+        "e021",
+        "e044",
+        "e045",
+        "e046",
+        "e047",
+        "e048",
+        "e049",
+        "e050",
+        "e051",
+        "e052",
+        "e053"
       ],
-      "leads_to": [
-        "e037"
-      ]
+      "leads_to": []
     },
     {
       "id": "e032",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Re-verified HEAD matched origin (15d6ae2bc4) before committing; committed as docs(tests): fix stale branching claim in TestMainNarrowsOnThePayload with Refs #3346 and Copilot trailers -> 31e3058e907671d75306e9d2efbd891fb450328c. Re-verified no concurrent push, then pushed.",
-      "caused_by": [
-        "e030"
-      ],
-      "leads_to": [
-        "e033"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e033",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Replied to and resolved PRRT_kwDOQoWRls6TzpOY citing the verified commit SHA (read from a file written by git rev-parse, not retyped by hand, after the earlier transcription error).",
-      "caused_by": [
-        "e032"
-      ],
-      "leads_to": [
-        "e034"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e034",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Re-checked threads after the push and found a 6th unresolved thread (PRRT_kwDOQoWRls6Tzr_g, copilot-pull-request-reviewer) on the new _check_date_time function: datetime.fromisoformat accepts a timestamp with no UTC offset, but RFC 3339 section 5.6 (what format: \"date-time\" means) requires one. Confirmed the project's requires-python (>=3.14) already made the Z-suffix concern moot, but the offset-optional acceptance was a real gap.",
-      "caused_by": [
-        "e033"
-      ],
-      "leads_to": [
-        "e035"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e035",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Tightened _check_date_time to reject a parse that comes back timezone-naive (parsed.tzinfo is not None). Added test_offset_naive_history_timestamp_is_rejected; the existing valid-timestamp test already used a Z-suffixed value so it needed no change.",
-      "caused_by": [
-        "e034"
-      ],
-      "leads_to": [
-        "e036"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e036",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "uv run pytest tests/test_validate_session_json.py: 135 passed. ruff check and mypy clean. Broader uv run pytest tests/ -k session: 681 passed, 1 skipped, 6 xfailed. Ran scripts/validation/pre_pr.py --quick: all passed.",
-      "caused_by": [
-        "e035"
-      ],
-      "leads_to": [
-        "e038"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e037",
@@ -442,47 +368,44 @@
       "type": "test",
       "content": "uv run pytest tests/test_validate_session_json.py: 135 passed. ruff check and mypy clean. Broader uv run pytest tests/ -k session: 681 passed, 1 skipped, 6 xfailed. Ran scripts/validation/pre_pr.py --quick: all passed.",
       "caused_by": [
-        "e031"
+        "e020",
+        "e021",
+        "e044",
+        "e045",
+        "e046",
+        "e047",
+        "e048",
+        "e049",
+        "e050",
+        "e051",
+        "e052",
+        "e053"
       ],
-      "leads_to": [
-        "e041"
-      ]
+      "leads_to": []
     },
     {
       "id": "e038",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Re-verified HEAD matched origin (31e3058e90) before committing; committed as fix(validation): reject offset-naive timestamps in date-time format check with Refs #3346 and Copilot trailers -> ecebb1d5acb2d25a0b44fa1e2048837d0e1092c8. Re-verified no concurrent push, then pushed (pre-push hook: full suite green).",
-      "caused_by": [
-        "e036"
-      ],
-      "leads_to": [
-        "e039"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e039",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Replied to and resolved PRRT_kwDOQoWRls6Tzr_g citing the verified commit SHA.",
-      "caused_by": [
-        "e038"
-      ],
-      "leads_to": [
-        "e040"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e040",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Waited and re-queried unresolved threads twice more after the final push: 0 unresolved both times. Ran get_pr_checks.py --wait: OverallState SUCCESS, 85 passed, 0 failed, 0 pending, AllPassing true. Ran check_pr_live_state.py: action=ACT, state=OPEN, not merged/closed/superseded. Final gh pr view: headRefOid=ecebb1d5ac (matches final push), mergeStateStatus=BLOCKED, mergeable=MERGEABLE, reviewDecision empty -- same pre-existing branch-protection gap (missing approving review), unchanged from before this session's work and explicitly out of scope.",
-      "caused_by": [
-        "e039"
-      ],
-      "leads_to": [
-        "e042"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e041",
@@ -490,20 +413,27 @@
       "type": "test",
       "content": "Waited and re-queried unresolved threads twice more after the final push: 0 unresolved both times. Ran get_pr_checks.py --wait: OverallState SUCCESS, 85 passed, 0 failed, 0 pending, AllPassing true. Ran check_pr_live_state.py: action=ACT, state=OPEN, not merged/closed/superseded. Final gh pr view: headRefOid=ecebb1d5ac (matches final push), mergeStateStatus=BLOCKED, mergeable=MERGEABLE, reviewDecision empty -- same pre-existing branch-protection gap (missing approving review), unchanged from before this session's work and explicitly out of scope.",
       "caused_by": [
-        "e037"
+        "e020",
+        "e021",
+        "e044",
+        "e045",
+        "e046",
+        "e047",
+        "e048",
+        "e049",
+        "e050",
+        "e051",
+        "e052",
+        "e053"
       ],
-      "leads_to": [
-        "e043"
-      ]
+      "leads_to": []
     },
     {
       "id": "e042",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Before committing this update, git fetch on fix/3346-session-schema-enforcement found the remote had moved to 109453ecab (2 commits ahead of my last push ecebb1d5ac), pushed by a second, concurrent agent session (Copilot-Session 0cd84ba3, the branch's original session ID) working the same PR in parallel. That session's commit 22917af15a substantively revised the same function I had touched: (1) replaced the SchemaError-around-iter_errors handler with validator_cls.check_schema(schema) up front, because most malformed schemas raise UnknownType or AttributeError rather than SchemaError, so my handler alone still let the gate crash on two of three malformed-schema shapes; (2) reverted the error sort key from a stringified path back to the raw list(e.absolute_path), arguing the mixed str/int comparison my fix guarded against is unreachable (paths only compare past a shared prefix, whose child keys are then uniformly str or uniformly int), and that stringifying broke numeric ordering for indices >= 10; (3) deleted REQUIRED_SESSION_FIELDS as dead code; (4) replaced two monkeypatched-validator tests with tests driven by real malformed schemas. My format_checker/date-time work (4th and 6th threads) was left as written and cited as already covering 925 committed logs with zero rejections. Verified compatibility: git merge --ff-only origin/fix/3346-session-schema-enforcement fast-forwarded cleanly (no conflicts, since it only builds on top of my last commit); re-ran the full test file (138 passed, up from 135: the other session's tests plus mine both present), ruff, mypy, and the broader session-tagged suite (684 passed) -- all green with both sessions' changes combined. Did not re-litigate the sort-key disagreement: the other session's reasoning is sound (a shared path prefix cannot mix child key types) and its replacement tests exercise real schemas instead of a synthetic monkeypatch, which is the stronger test design; deferred to it rather than reverting or force-pushing over it.",
-      "caused_by": [
-        "e040"
-      ],
+      "caused_by": [],
       "leads_to": []
     },
     {
@@ -512,22 +442,35 @@
       "type": "test",
       "content": "Before committing this update, git fetch on fix/3346-session-schema-enforcement found the remote had moved to 109453ecab (2 commits ahead of my last push ecebb1d5ac), pushed by a second, concurrent agent session (Copilot-Session 0cd84ba3, the branch's original session ID) working the same PR in parallel. That session's commit 22917af15a substantively revised the same function I had touched: (1) replaced the SchemaError-around-iter_errors handler with validator_cls.check_schema(schema) up front, because most malformed schemas raise UnknownType or AttributeError rather than SchemaError, so my handler alone still let the gate crash on two of three malformed-schema shapes; (2) reverted the error sort key from a stringified path back to the raw list(e.absolute_path), arguing the mixed str/int comparison my fix guarded against is unreachable (paths only compare past a shared prefix, whose child keys are then uniformly str or uniformly int), and that stringifying broke numeric ordering for indices >= 10; (3) deleted REQUIRED_SESSION_FIELDS as dead code; (4) replaced two monkeypatched-validator tests with tests driven by real malformed schemas. My format_checker/date-time work (4th and 6th threads) was left as written and cited as already covering 925 committed logs with zero rejections. Verified compatibility: git merge --ff-only origin/fix/3346-session-schema-enforcement fast-forwarded cleanly (no conflicts, since it only builds on top of my last commit); re-ran the full test file (138 passed, up from 135: the other session's tests plus mine both present), ruff, mypy, and the broader session-tagged suite (684 passed) -- all green with both sessions' changes combined. Did not re-litigate the sort-key disagreement: the other session's reasoning is sound (a shared path prefix cannot mix child key types) and its replacement tests exercise real schemas instead of a synthetic monkeypatch, which is the stronger test design; deferred to it rather than reverting or force-pushing over it.",
       "caused_by": [
-        "e041"
+        "e020",
+        "e021",
+        "e044",
+        "e045",
+        "e046",
+        "e047",
+        "e048",
+        "e049",
+        "e050",
+        "e051",
+        "e052",
+        "e053"
       ],
-      "leads_to": [
-        "e001"
-      ]
+      "leads_to": []
     },
     {
       "id": "e044",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: ecebb1d5acb2d25a0b44fa1e2048837d0e1092c8",
-      "caused_by": [
-        "e021"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e045"
+        "e009",
+        "e016",
+        "e025",
+        "e031",
+        "e037",
+        "e041",
+        "e043"
       ]
     },
     {
@@ -535,11 +478,15 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: a28649c5e1",
-      "caused_by": [
-        "e044"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e046"
+        "e009",
+        "e016",
+        "e025",
+        "e031",
+        "e037",
+        "e041",
+        "e043"
       ]
     },
     {
@@ -547,11 +494,15 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 15d6ae2bc44968de01efaa0a0493ad8a89e3d222",
-      "caused_by": [
-        "e045"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e047"
+        "e009",
+        "e016",
+        "e025",
+        "e031",
+        "e037",
+        "e041",
+        "e043"
       ]
     },
     {
@@ -559,11 +510,15 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 15d6ae2bc4",
-      "caused_by": [
-        "e046"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e048"
+        "e009",
+        "e016",
+        "e025",
+        "e031",
+        "e037",
+        "e041",
+        "e043"
       ]
     },
     {
@@ -571,11 +526,15 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 31e3058e907671d75306e9d2efbd891fb450328c",
-      "caused_by": [
-        "e047"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e049"
+        "e009",
+        "e016",
+        "e025",
+        "e031",
+        "e037",
+        "e041",
+        "e043"
       ]
     },
     {
@@ -583,11 +542,15 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 31e3058e90",
-      "caused_by": [
-        "e048"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e050"
+        "e009",
+        "e016",
+        "e025",
+        "e031",
+        "e037",
+        "e041",
+        "e043"
       ]
     },
     {
@@ -595,11 +558,15 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: ecebb1d5ac",
-      "caused_by": [
-        "e049"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e051"
+        "e009",
+        "e016",
+        "e025",
+        "e031",
+        "e037",
+        "e041",
+        "e043"
       ]
     },
     {
@@ -607,11 +574,15 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 109453ecab",
-      "caused_by": [
-        "e050"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e052"
+        "e009",
+        "e016",
+        "e025",
+        "e031",
+        "e037",
+        "e041",
+        "e043"
       ]
     },
     {
@@ -619,11 +590,15 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 0cd84ba3",
-      "caused_by": [
-        "e051"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e053"
+        "e009",
+        "e016",
+        "e025",
+        "e031",
+        "e037",
+        "e041",
+        "e043"
       ]
     },
     {
@@ -631,11 +606,15 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 22917af15a",
-      "caused_by": [
-        "e052"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e009"
+        "e009",
+        "e016",
+        "e025",
+        "e031",
+        "e037",
+        "e041",
+        "e043"
       ]
     }
   ],

@@ -12,7 +12,9 @@
       "type": "milestone",
       "content": "Fetched origin/main after PR #3067 merged and verified five later unresolved review threads as untrusted data.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e002",
@@ -20,7 +22,9 @@
       "type": "milestone",
       "content": "Cluster analysis found no 4-thread shared-gist cluster; independent triage found two valid corrections, two historical-context clarifications, and one evidence-backed reply-only finding.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e003",
@@ -28,7 +32,9 @@
       "type": "milestone",
       "content": "Created and claimed issue #3079, then created docs/3079-reconcile-memory-evidence from origin/main for one atomic follow-up PR.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e004",
@@ -36,7 +42,9 @@
       "type": "milestone",
       "content": "Applied the missed session evidence correction, labeled PR #2168 evidence as historical, and force-regenerated episode 3042 to remove the stale duplicate milestone.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e005",
@@ -44,7 +52,9 @@
       "type": "milestone",
       "content": "QA verified exact git provenance, source-session alignment, and minimal scope; commit 7f2bd0f992e535e028f61ef4693462beabcb28e2 passed all pre-commit gates.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e006",
@@ -52,7 +62,9 @@
       "type": "milestone",
       "content": "Validated both source-derived episodes, both session records, memory indexing, 117 generator tests, and all 27 active quick pre-PR checks with no failures.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e007",
@@ -60,7 +72,9 @@
       "type": "milestone",
       "content": "Critic review tightened the per-thread handoff map and aligned the generated commit metric with the single deliverable commit; causal-graph dry runs reported zero changes for both corrected episodes.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e008",
@@ -68,14 +82,25 @@
       "type": "milestone",
       "content": "PR #3081 review removed stale graph nodes and a dangling edge, clarified the handoff commit scope, and corrected the historical validation prose.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e009",
-      "timestamp": "2026-07-15T00:00:00+00:00",
+      "timestamp": "2026-07-15T19:13:38+00:00",
       "type": "commit",
       "content": "Commit: 7f2bd0f992e535e028f61ef4693462beabcb28e2",
-      "caused_by": [],
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008"
+      ],
       "leads_to": []
     }
   ],

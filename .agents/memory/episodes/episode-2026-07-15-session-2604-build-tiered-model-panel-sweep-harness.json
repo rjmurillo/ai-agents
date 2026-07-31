@@ -12,14 +12,18 @@
       "type": "test",
       "content": "scripts/eval/_model_panel_core.py + eval-model-panel.py + 24 tests. Reuses eval-agent-vs-baseline via #2710 --provider/--model; effect-size=recall_delta, degradation classification vs frontier band; --dry-run zero-spend; panel --panel-config-overridable. uv run pytest tests/eval/ -> 293 passed; ruff+mypy clean; no suppressions. Paid sweep owner-gated; unblocks #3045 #2840.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e002"
+      ]
     },
     {
       "id": "e002",
-      "timestamp": "2026-07-15T00:00:00+00:00",
+      "timestamp": "2026-07-15T08:56:58+00:00",
       "type": "commit",
       "content": "Commit: 79515f40df",
-      "caused_by": [],
+      "caused_by": [
+        "e001"
+      ],
       "leads_to": []
     }
   ],

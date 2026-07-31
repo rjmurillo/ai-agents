@@ -43,7 +43,10 @@
       "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "test",
       "content": "Verification: uv run pytest tests/ -x -q completed with 14363 passed. Focused tests, Ruff, mypy, Python 3.10 syntax, actionlint, security scan, and independent review passed.",
-      "caused_by": [],
+      "caused_by": [
+        "e006",
+        "e011"
+      ],
       "leads_to": []
     },
     {
@@ -52,7 +55,10 @@
       "type": "commit",
       "content": "Commit: 4fb98a81d",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e005",
+        "e010"
+      ]
     },
     {
       "id": "e007",
@@ -83,7 +89,10 @@
       "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "test",
       "content": "Post-integration verification: uv run pytest tests/ -x -q completed with 14363 passed. Focused tests, Ruff, mypy, Python 3.10 syntax, actionlint, security scan, and independent review passed.",
-      "caused_by": [],
+      "caused_by": [
+        "e006",
+        "e011"
+      ],
       "leads_to": []
     },
     {
@@ -92,7 +101,10 @@
       "type": "commit",
       "content": "Commit: f4513508e",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e005",
+        "e010"
+      ]
     }
   ],
   "metrics": {

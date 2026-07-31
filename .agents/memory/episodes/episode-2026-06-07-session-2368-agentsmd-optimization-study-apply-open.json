@@ -12,7 +12,9 @@
       "type": "milestone",
       "content": "context",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e005"
+      ]
     },
     {
       "id": "e002",
@@ -20,7 +22,9 @@
       "type": "milestone",
       "content": "verify",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e005"
+      ]
     },
     {
       "id": "e003",
@@ -28,7 +32,9 @@
       "type": "test",
       "content": "uv run pytest tests/eval/test_pr_churn.py = 19 passed. python3 scripts/validation/pre_pr.py = All validations passed (exit 0). AGENTS.md token budget = 1223/2000.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e005"
+      ]
     },
     {
       "id": "e004",
@@ -36,14 +42,21 @@
       "type": "milestone",
       "content": "implement",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e005"
+      ]
     },
     {
       "id": "e005",
-      "timestamp": "2026-06-07T00:00:00+00:00",
+      "timestamp": "2026-06-07T02:31:19+00:00",
       "type": "commit",
       "content": "Commit: d2800b214",
-      "caused_by": [],
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004"
+      ],
       "leads_to": []
     }
   ],

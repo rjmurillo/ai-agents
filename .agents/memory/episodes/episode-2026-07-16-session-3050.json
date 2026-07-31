@@ -12,7 +12,9 @@
       "type": "milestone",
       "content": "Read PR 3125 review findings. Confirmed the guard must distinguish test-launched project HEAD mutations from concurrent external commits and must decode Git output as UTF-8 with replacement.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e002",
@@ -20,7 +22,9 @@
       "type": "milestone",
       "content": "Implemented per-test GIT_REFLOG_ACTION attribution for successful porcelain commands and project-scoped GIT_TRACE2_EVENT attribution for successful update-ref and symbolic-ref writes.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e003",
@@ -28,7 +32,9 @@
       "type": "milestone",
       "content": "Added Linux and Windows coverage for commits, branch switches, explicit git directories, failed plumbing commands, Windows executable names, malformed evidence, environment restoration, and real invalid UTF-8 Git output.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e004",
@@ -36,7 +42,9 @@
       "type": "milestone",
       "content": "Verification: uv run pytest tests/ -x -q completed with 14336 passed, 21 skipped, and 45 xfailed. Focused Ruff, mypy, Python 3.10 syntax validation, actionlint, gh act validation, security scan, and git diff --check passed. Independent final review found no defects.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e005",
@@ -44,14 +52,22 @@
       "type": "test",
       "content": "Verification: uv run pytest tests/ -x -q completed with 14336 passed, 21 skipped, and 45 xfailed. Focused Ruff, mypy, Python 3.10 syntax validation, actionlint, gh act validation, security scan, and git diff --check passed. Independent final review found no defects.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e006",
-      "timestamp": "2026-07-16T00:00:00+00:00",
+      "timestamp": "2026-07-16T15:02:07+00:00",
       "type": "commit",
       "content": "Commit: 304cb593f",
-      "caused_by": [],
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
+      ],
       "leads_to": []
     }
   ],

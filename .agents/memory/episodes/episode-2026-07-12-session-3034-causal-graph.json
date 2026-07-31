@@ -59,7 +59,9 @@
       "timestamp": "2026-07-12T00:00:00+00:00",
       "type": "test",
       "content": "Verified the batch: `uv run pytest` reported 30 passed (canonical tests/skills/memory and tests/hooks) plus 26 passed in each of the .claude and copilot-cli skill-local trees, 82 total, run separately to avoid a conftest-name collision; `uv run ruff check` and `uv run mypy` clean on the changed set; build_all.py mirror parity confirmed. Filing a follow-up issue for the residual edit/deletion orphaning, which needs replace-episode-contributions semantics beyond #3034's scope.",
-      "caused_by": [],
+      "caused_by": [
+        "e008"
+      ],
       "leads_to": []
     },
     {
@@ -68,7 +70,9 @@
       "type": "commit",
       "content": "Commit: 7defa3338",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     }
   ],
   "metrics": {

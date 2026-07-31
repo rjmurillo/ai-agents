@@ -19,7 +19,9 @@
       "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "error",
       "content": "Investigated exact failed CI logs      Windows Git 2.55 failed symbolic-ref transaction parsing and two update-ref stdin tests; Validate PR also failed",
-      "caused_by": [],
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": []
     },
     {
@@ -43,7 +45,9 @@
       "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "test",
       "content": "Implemented and verified Git 2.55 and Windows fixes      PATH=/tmp/pr3125-git-2.55.0-install/bin uv run pytest tests/ -q: 14376 passed, 21 skipped, 45 xfailed; Ruff, mypy, and CWE-78 scan passed",
-      "caused_by": [],
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": []
     },
     {
@@ -60,7 +64,10 @@
       "type": "commit",
       "content": "Commit: d2a2cd6ba",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e002",
+        "e005"
+      ]
     }
   ],
   "metrics": {

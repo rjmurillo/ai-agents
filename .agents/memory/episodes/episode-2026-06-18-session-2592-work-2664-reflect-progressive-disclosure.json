@@ -12,7 +12,9 @@
       "type": "milestone",
       "content": "Split reflect/SKILL.md via progressive disclosure",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e005"
+      ]
     },
     {
       "id": "e002",
@@ -20,7 +22,9 @@
       "type": "milestone",
       "content": "Regenerated copilot-cli mirror",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e005"
+      ]
     },
     {
       "id": "e003",
@@ -28,22 +32,33 @@
       "type": "milestone",
       "content": "Validated",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e005"
+      ]
     },
     {
       "id": "e004",
       "timestamp": "2026-06-18T00:00:00+00:00",
       "type": "error",
       "content": "Validated     pre_pr Passed 25 Failed 0",
-      "caused_by": [],
-      "leads_to": []
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e005"
+      ]
     },
     {
       "id": "e005",
-      "timestamp": "2026-06-18T00:00:00+00:00",
+      "timestamp": "2026-06-18T13:49:06+00:00",
       "type": "commit",
       "content": "Commit: 1ad8252a4",
-      "caused_by": [],
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004"
+      ],
       "leads_to": []
     },
     {
@@ -52,7 +67,9 @@
       "type": "commit",
       "content": "Commit: 2bd82dee",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e004"
+      ]
     }
   ],
   "metrics": {

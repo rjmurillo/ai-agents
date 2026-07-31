@@ -12,7 +12,9 @@
       "type": "milestone",
       "content": "Triage 24+ open issues; fix 11 across PRs #2683/#2685; close 11 with justification; file 4 new issues.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e004"
+      ]
     },
     {
       "id": "e002",
@@ -20,7 +22,9 @@
       "type": "milestone",
       "content": "Accept ADR-073 (owner-authorized) and ship #2583 lifecycle-frontmatter tooling.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e004"
+      ]
     },
     {
       "id": "e003",
@@ -28,14 +32,25 @@
       "type": "milestone",
       "content": "Resolve ADR-074 collision (#2686): renumber lease draft to ADR-076; run 6-agent debate (6 APPROVE-WITH-CHANGES, 0 BLOCK); apply must_fix; accept ADR-076; implement #2615 lease Phase-1 (80 tests, 97% cov).",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e004"
+      ]
     },
     {
       "id": "e004",
-      "timestamp": "2026-06-20T00:00:00+00:00",
+      "timestamp": "2026-06-20T17:47:49+00:00",
       "type": "commit",
       "content": "Commit: 042a217de",
-      "caused_by": [],
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e005",
+        "e006",
+        "e007",
+        "e009",
+        "e011"
+      ],
       "leads_to": []
     },
     {
@@ -44,15 +59,23 @@
       "type": "milestone",
       "content": "uv run pytest on portability/lease/catalog suites",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e004"
+      ]
     },
     {
       "id": "e006",
       "timestamp": "2026-06-20T00:00:00+00:00",
       "type": "test",
       "content": "165 passed",
-      "caused_by": [],
-      "leads_to": []
+      "caused_by": [
+        "e008",
+        "e010",
+        "e012"
+      ],
+      "leads_to": [
+        "e004"
+      ]
     },
     {
       "id": "e007",
@@ -60,7 +83,9 @@
       "type": "milestone",
       "content": "Autofix PR #2692 review feedback on pr_autofix_lease pagination handling and ADR-076 debate log rendering.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e004"
+      ]
     },
     {
       "id": "e008",
@@ -68,7 +93,9 @@
       "type": "commit",
       "content": "Commit: 545069640",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e009",
@@ -76,7 +103,9 @@
       "type": "milestone",
       "content": "Autofix PR #2692 post-merge review feedback.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e004"
+      ]
     },
     {
       "id": "e010",
@@ -84,7 +113,9 @@
       "type": "commit",
       "content": "Commit: 680cd81d4",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e011",
@@ -92,7 +123,9 @@
       "type": "milestone",
       "content": "Correct PR #2692 episode commit metric after session-evidence extraction added the third commit event.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e004"
+      ]
     },
     {
       "id": "e012",
@@ -100,7 +133,9 @@
       "type": "commit",
       "content": "Commit: 48a1a8ed2",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     }
   ],
   "metrics": {

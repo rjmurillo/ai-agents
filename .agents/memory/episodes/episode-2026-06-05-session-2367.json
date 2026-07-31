@@ -12,7 +12,9 @@
       "type": "milestone",
       "content": "context",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e002",
@@ -20,7 +22,9 @@
       "type": "milestone",
       "content": "worktree",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e003",
@@ -28,7 +32,9 @@
       "type": "milestone",
       "content": "conflicts",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e004",
@@ -36,7 +42,9 @@
       "type": "milestone",
       "content": "fixes",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e005",
@@ -44,7 +52,9 @@
       "type": "milestone",
       "content": "validation",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e006",
@@ -52,7 +62,9 @@
       "type": "test",
       "content": "uv run pytest tests/commands/test_sync.py -q -> 28 passed; pre_pr --quick -> all validations passed",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e007",
@@ -60,7 +72,9 @@
       "type": "milestone",
       "content": "ci-fix",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e008",
@@ -68,14 +82,25 @@
       "type": "milestone",
       "content": "session-renumber",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e009",
-      "timestamp": "2026-06-05T00:00:00+00:00",
+      "timestamp": "2026-06-05T15:55:01+00:00",
       "type": "commit",
       "content": "Commit: 0f94f8e1a5",
-      "caused_by": [],
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008"
+      ],
       "leads_to": []
     }
   ],

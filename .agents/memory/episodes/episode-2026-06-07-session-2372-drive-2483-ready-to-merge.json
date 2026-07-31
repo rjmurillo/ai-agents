@@ -12,7 +12,9 @@
       "type": "milestone",
       "content": "Created PR worktree",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e002",
@@ -20,7 +22,9 @@
       "type": "milestone",
       "content": "Read review threads",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e003",
@@ -28,7 +32,9 @@
       "type": "milestone",
       "content": "Fixed readiness provenance",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e004",
@@ -36,7 +42,9 @@
       "type": "milestone",
       "content": "Regenerated mirror",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e005",
@@ -44,7 +52,9 @@
       "type": "milestone",
       "content": "Validated locally",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e006",
@@ -52,14 +62,23 @@
       "type": "milestone",
       "content": "Resolved review threads",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e007",
-      "timestamp": "2026-06-07T00:00:00+00:00",
+      "timestamp": "2026-06-07T02:21:25+00:00",
       "type": "commit",
       "content": "Commit: a295cee3a2",
-      "caused_by": [],
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006"
+      ],
       "leads_to": []
     }
   ],

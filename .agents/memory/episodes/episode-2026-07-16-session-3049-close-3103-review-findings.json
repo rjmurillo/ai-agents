@@ -12,7 +12,9 @@
       "type": "milestone",
       "content": "Refreshed PR 3103, merged origin/main, confirmed the live-state gate returned ACT, and acquired the pr-autofix lease.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e002",
@@ -20,7 +22,9 @@
       "type": "milestone",
       "content": "Triaged two unresolved review threads: Windows Python and Git Bash used different /tmp files, and the extracted gate omitted infrastructure_failure=true.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e003",
@@ -28,7 +32,9 @@
       "type": "milestone",
       "content": "Made the gate own one output path using AI_REVIEW_OUTPUT_FILE, RUNNER_TEMP, or tempfile.gettempdir. The action invoke and parse steps now consume the published output_file value.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e004",
@@ -36,7 +42,9 @@
       "type": "milestone",
       "content": "Restored infrastructure_failure=true on the skip path and routed the composite action output through the gate result.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e005",
@@ -44,7 +52,9 @@
       "type": "milestone",
       "content": "Added positive, negative, edge, sink, CLI, action-wiring, Linux Bash, and Windows job coverage. Code review found and fixed masked PowerShell failures plus an action-only path-filter gap.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e006",
@@ -52,7 +62,9 @@
       "type": "milestone",
       "content": "Committed the primary review fixes as e07f40f69. Verification: uv run pytest reported 41 passed; the focused suite reached 98% module coverage; Ruff, mypy, Python 3.10 syntax, actionlint, gh act dry-run, YAML parsing, CWE-78 scan, pre_pr.py, security review, QA review, and final code review passed.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e007",
@@ -60,15 +72,31 @@
       "type": "test",
       "content": "Committed the primary review fixes as e07f40f69. Verification: uv run pytest reported 41 passed; the focused suite reached 98% module coverage; Ruff, mypy, Python 3.10 syntax, actionlint, gh act dry-run, YAML parsing, CWE-78 scan, pre_pr.py, security review, QA review, and final code review passed.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e008",
-      "timestamp": "2026-07-16T00:00:00+00:00",
+      "timestamp": "2026-07-16T12:35:31+00:00",
       "type": "commit",
       "content": "Commit: e07f40f69",
-      "caused_by": [],
-      "leads_to": []
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e009",
+        "e010",
+        "e012",
+        "e013"
+      ],
+      "leads_to": [
+        "e011"
+      ]
     },
     {
       "id": "e009",
@@ -76,7 +104,9 @@
       "type": "milestone",
       "content": "CodeRabbit opened a late timeout finding after CI completed. Added a 15-minute Windows contract job timeout in 45576b6f9, extended the wiring regression test, and verified 24 passed plus Ruff, mypy, actionlint, and YAML parsing.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e010",
@@ -84,15 +114,21 @@
       "type": "test",
       "content": "CodeRabbit opened a late timeout finding after CI completed. Added a 15-minute Windows contract job timeout in 45576b6f9, extended the wiring regression test, and verified 24 passed plus Ruff, mypy, actionlint, and YAML parsing.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e011",
-      "timestamp": "2026-07-16T00:00:00+00:00",
+      "timestamp": "2026-07-16T12:53:00+00:00",
       "type": "commit",
       "content": "Commit: 45576b6f9",
-      "caused_by": [],
-      "leads_to": []
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e014"
+      ]
     },
     {
       "id": "e012",
@@ -100,7 +136,9 @@
       "type": "milestone",
       "content": "Copilot found the module docstring still duplicated the retired /tmp path. Made the module the sole path contract, removed the stale shell excerpt, added a hard-coded-path regression test, and verified 25 passed plus Ruff, mypy, and the Python 3.10 syntax gate.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e013",
@@ -108,14 +146,18 @@
       "type": "test",
       "content": "Copilot found the module docstring still duplicated the retired /tmp path. Made the module the sole path contract, removed the stale shell excerpt, added a hard-coded-path regression test, and verified 25 passed plus Ruff, mypy, and the Python 3.10 syntax gate.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e014",
-      "timestamp": "2026-07-16T00:00:00+00:00",
+      "timestamp": "2026-07-16T13:06:40+00:00",
       "type": "commit",
       "content": "Commit: 24da6b203",
-      "caused_by": [],
+      "caused_by": [
+        "e011"
+      ],
       "leads_to": []
     }
   ],

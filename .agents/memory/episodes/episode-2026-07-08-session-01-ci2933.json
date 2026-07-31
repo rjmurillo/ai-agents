@@ -12,7 +12,9 @@
       "type": "milestone",
       "content": "Verified worktree branch",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e002",
@@ -20,7 +22,9 @@
       "type": "milestone",
       "content": "Read issue #2933 and eval CLI",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e003",
@@ -28,7 +32,9 @@
       "type": "milestone",
       "content": "Read workflow patterns",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e004",
@@ -36,7 +42,9 @@
       "type": "milestone",
       "content": "Added scheduled workflow",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e005",
@@ -44,7 +52,9 @@
       "type": "milestone",
       "content": "Validated workflow wiring",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e006",
@@ -52,14 +62,23 @@
       "type": "milestone",
       "content": "Completed security review",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e007",
-      "timestamp": "2026-07-08T00:00:00+00:00",
+      "timestamp": "2026-07-08T10:03:25+00:00",
       "type": "commit",
       "content": "Commit: 5cc3bb75db7a37114275676b01af8fbd001f09ab",
-      "caused_by": [],
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006"
+      ],
       "leads_to": []
     }
   ],

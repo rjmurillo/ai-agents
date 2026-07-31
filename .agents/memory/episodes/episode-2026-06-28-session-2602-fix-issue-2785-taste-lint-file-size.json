@@ -12,7 +12,9 @@
       "type": "milestone",
       "content": "Exempt append-only memory data from file-size lint (#2785)",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e003"
+      ]
     },
     {
       "id": "e002",
@@ -20,14 +22,19 @@
       "type": "test",
       "content": "Verification: `uv run pytest tests/skills/taste-lints/` -> 58 passed; full taste-lints suite 68 passed. New _is_file_size_exempt() exempts .agents/memory/** from the file-size taste rule. Ran taste_lints.py against the real .agents/memory/causality/causal-graph.json (8420+ lines): 1 file scanned, no violations (was [ERROR] file-size before). Copilot mirror regenerated via build_all.py. Fixes #2785.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e003"
+      ]
     },
     {
       "id": "e003",
-      "timestamp": "2026-06-28T00:00:00+00:00",
+      "timestamp": "2026-06-29T13:43:20+00:00",
       "type": "commit",
       "content": "Commit: 512a329fc5099f12d2d9ac0d997463c4a8d35df3",
-      "caused_by": [],
+      "caused_by": [
+        "e001",
+        "e002"
+      ],
       "leads_to": []
     }
   ],

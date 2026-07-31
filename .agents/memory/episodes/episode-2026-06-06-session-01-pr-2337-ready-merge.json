@@ -12,7 +12,9 @@
       "type": "milestone",
       "content": "context",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e002",
@@ -20,7 +22,9 @@
       "type": "milestone",
       "content": "worktree",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e003",
@@ -28,7 +32,9 @@
       "type": "milestone",
       "content": "conflicts",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e004",
@@ -36,7 +42,9 @@
       "type": "milestone",
       "content": "threads",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e005",
@@ -44,7 +52,9 @@
       "type": "milestone",
       "content": "validation",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e006",
@@ -52,46 +62,71 @@
       "type": "test",
       "content": "Retrospective tests passed: 63 passed in local Python 3.14 venv",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e007",
-      "timestamp": "2026-06-06T00:00:00+00:00",
+      "timestamp": "2026-06-06T19:22:18+00:00",
       "type": "commit",
       "content": "Commit: 9b53fd6f0f7e35ccd0bcbfd6ced3d589d3469dc6",
-      "caused_by": [],
-      "leads_to": []
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e008",
-      "timestamp": "2026-06-06T00:00:00+00:00",
+      "timestamp": "2026-06-06T19:34:41+00:00",
       "type": "commit",
       "content": "Commit: 6a3fdc5ee636c6b6eedcf984301960f0eb0e0ad1",
-      "caused_by": [],
-      "leads_to": []
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e009",
-      "timestamp": "2026-06-06T00:00:00+00:00",
+      "timestamp": "2026-06-06T19:41:04+00:00",
       "type": "commit",
       "content": "Commit: c5ae51df9cde23ec5cf18fea45cc9b94e84c0715",
-      "caused_by": [],
-      "leads_to": []
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ]
     },
     {
       "id": "e010",
-      "timestamp": "2026-06-06T00:00:00+00:00",
+      "timestamp": "2026-06-06T19:47:51+00:00",
       "type": "commit",
       "content": "Commit: 8f615117d14a3381aee72fe60b71359291932ca9",
-      "caused_by": [],
-      "leads_to": []
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ]
     },
     {
       "id": "e011",
-      "timestamp": "2026-06-06T00:00:00+00:00",
+      "timestamp": "2026-06-06T19:57:03+00:00",
       "type": "commit",
       "content": "Commit: ed410f687928eee1b2c64c2bc409be009d802c74",
-      "caused_by": [],
+      "caused_by": [
+        "e010"
+      ],
       "leads_to": []
     }
   ],

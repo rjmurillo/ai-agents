@@ -12,7 +12,9 @@
       "type": "milestone",
       "content": "ADR-074 acceptance provenance",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e004"
+      ]
     },
     {
       "id": "e002",
@@ -20,7 +22,9 @@
       "type": "milestone",
       "content": "Edit ADR-074",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e004"
+      ]
     },
     {
       "id": "e003",
@@ -28,14 +32,20 @@
       "type": "milestone",
       "content": "Lint and validate",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e004"
+      ]
     },
     {
       "id": "e004",
-      "timestamp": "2026-06-17T00:00:00+00:00",
+      "timestamp": "2026-06-17T19:59:15+00:00",
       "type": "commit",
       "content": "Commit: ad4db8865",
-      "caused_by": [],
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003"
+      ],
       "leads_to": []
     }
   ],

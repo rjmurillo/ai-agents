@@ -12,7 +12,9 @@
       "type": "milestone",
       "content": "PR 3077 merged before upstream commit cb38f6f82aac111971e0bc96c542dbcd30eef946 was captured. Created and claimed issue 3078, fetched origin/main, and created fresh branch chore/3078-serena-schema-cb38f6f from bd9355362.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e002",
@@ -20,7 +22,9 @@
       "type": "milestone",
       "content": "Serena commit cb38f6f82aac111971e0bc96c542dbcd30eef946 reported version 1.5.4.dev0. Regenerated .serena/project.yml through its project create command with the existing eight languages specified explicitly.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e003",
@@ -28,7 +32,9 @@
       "type": "milestone",
       "content": "A second pinned Serena invocation activated the generated config without changing SHA-256 e45c1cf5e216bb1ff23eb50afe0af7383971d3ec1e676514133f1ef0dfc71abf. Semantic checks passed for 22 keys, and security detection reported zero findings across the three-file scope.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e004",
@@ -36,7 +42,9 @@
       "type": "milestone",
       "content": "Validated the session log and source-only episode. PYTHONPATH=. uv run --frozen python -m scripts.validation.pre_pr completed with 29 passed, 0 failed, and 4 expected skips; the pre-commit review-marker advisory remains expected until the content commit is reviewed.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e005",
@@ -44,7 +52,9 @@
       "type": "test",
       "content": "Validated the session log and source-only episode. PYTHONPATH=. uv run --frozen python -m scripts.validation.pre_pr completed with 29 passed, 0 failed, and 4 expected skips; the pre-commit review-marker advisory remains expected until the content commit is reviewed.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e006",
@@ -52,7 +62,9 @@
       "type": "milestone",
       "content": "The pre-commit episode hook also generated a causal-graph update outside the approved three-file scope. Restored that graph to origin/main, recorded content commit c2a732cee, and kept the source-derived episode authoritative.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e007",
@@ -60,7 +72,9 @@
       "type": "milestone",
       "content": "Cursor review found the generated episode undercounted the final branch scope. Final branch scope: 3 files changed. Regenerated the episode from this source entry without preserve mode.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e008",
@@ -68,14 +82,25 @@
       "type": "milestone",
       "content": "A concurrent Cursor agent pushed commit 28a962645 with the same episode metric correction. Merged the remote branch without force and regenerated the episode from this session source so the session log remains the system of record.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e009",
-      "timestamp": "2026-07-15T00:00:00+00:00",
+      "timestamp": "2026-07-15T19:25:15+00:00",
       "type": "commit",
       "content": "Commit: 43d384af9",
-      "caused_by": [],
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008"
+      ],
       "leads_to": []
     }
   ],
