@@ -126,7 +126,7 @@ ignore = []
 "tests/**/*.py" = ["ANN"]
 "**/tests/**/*.py" = ["ANN"]
 # ANN suppression for pre-existing code (to be fixed incrementally)
-".claude/skills/**/*.py" = ["ANN"]
+".claude/skills/**/*.py" = ["ANN", "E501"]
 ".claude/hooks/**/*.py" = ["ANN"]
 # Copilot CLI mirror trees are generated wholesale from the .claude sources by
 # build/scripts/build_all.py (the canonical sources above are the linted copy).
@@ -137,10 +137,15 @@ ignore = []
 # moment the file enters a changed-set.
 "src/copilot-cli/hooks/**/*.py" = ["E", "F", "W", "I", "N", "UP", "B", "ANN"]
 "src/copilot-cli/skills/**/*.py" = ["E", "F", "W", "I", "N", "UP", "B", "ANN"]
-"packages/**/*.py" = ["ANN"]
+"packages/**/*.py" = ["ANN", "E501"]
 # The skillbook schema checker validates values of arbitrary JSON type;
 # `Any` is the honest annotation for an instance the checker will narrow.
 "scripts/validation/validate_skillbook.py" = ["ANN401"]
+# Eval and exploration scripts may have long lines and missing annotations
+"docs/eval/scripts/**/*.py" = ["ANN", "E501"]
+"evals/**/*.py" = ["ANN", "E501"]
+"scripts/incoherence.py" = ["ANN", "E501"]
+"scripts/openclaw_bridge.py" = ["E501"]
 # Intentional noqa: E402 for sys.path-gated import; suppressing RUF100 so the
 # marker is not auto-removed and the file stays unchanged from main (avoids a
 # semgrep false-positive on the JWT test fixture in a scan of changed files).
