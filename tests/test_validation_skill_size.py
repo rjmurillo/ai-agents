@@ -1081,12 +1081,24 @@ class TestExceptionRequiresRationale:
         assert any("no rationale" in e for e in result.errors)
 
     def test_shipped_spec_forms_carry_a_rationale(self) -> None:
-        """The two files that hold the only live exceptions must stay documented."""
+        """After the spec split (issue #3632), spec.md is under the 200-line ceiling.
+
+        The old size-exception on spec.md is no longer needed. This test pins
+        that regression: the split must not be undone without a new exception.
+        """
         root = Path(__file__).resolve().parents[1]
         for relative in (
             ".claude/commands/spec.md",
             "src/copilot-cli/skills/spec/SKILL.md",
         ):
             content = (root / relative).read_text(encoding="utf-8")
-            assert has_size_exception(content), relative
-            assert has_exception_rationale(content), relative
+            line_count = len(content.splitlines())
+            assert line_count <= 200, (
+                f"{relative} has {line_count} lines; the spec split (issue #3632) "
+                "must keep it at or under 200 lines. Add a size-exception with rationale "
+                "if you must exceed this, or split further."
+            )
+            assert not has_size_exception(content), (
+                f"{relative} unexpectedly declares size-exception; "
+                "the spec split removed the need for it."
+            )
