@@ -34,9 +34,19 @@ def _package_root() -> Path:
 
 def main() -> int:
     """Delegate to the memory recall hook, failing open when unavailable."""
-    package_root = str(_package_root())
-    if package_root not in sys.path:
-        sys.path.insert(0, package_root)
+    package_root = _package_root()
+    if str(package_root) not in sys.path:
+        sys.path.insert(0, str(package_root))
+
+    try:
+        from memory_enhancement.interpreter import reexec_under_project_venv
+    except ImportError:
+        return 0
+
+    # settings.json registers this hook as `python3`, which on a developer
+    # machine cannot import python-frontmatter. Without the re-exec the hook
+    # exits 0 having done nothing, which is the defect issue #4011 reports.
+    reexec_under_project_venv(package_root.parent)
 
     try:
         from memory_enhancement.hooks.user_prompt_submit_memory import (
