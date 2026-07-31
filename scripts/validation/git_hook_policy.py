@@ -100,9 +100,17 @@ RUFF_COUNT_RATCHET = REPO_ROOT / "scripts" / "ci" / "ruff_count_ratchet.py"
 BANDIT_SUFFIXES = frozenset({".py", ".pyw"})
 TEXTUAL_DIFF_FLAGS = ("--no-ext-diff", "--no-textconv", "--text")
 EMPTY_TREE_SHA1 = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
-ACTIVE_GIT_OPERATION_FILES = (
+# Git deletes MERGE_HEAD and CHERRY_PICK_HEAD when those operations finish, so
+# their presence means the operation is still open. REBASE_HEAD is different:
+# git leaves it behind after a conflicted rebase completes so that the replayed
+# commit stays inspectable, which made it a false "in progress" signal that
+# blocked every push after a conflict resolution. Rebase state lives in the
+# rebase-merge and rebase-apply directories, which git does remove on
+# completion, so those are what this table tracks.
+ACTIVE_GIT_OPERATION_PATHS = (
     ("MERGE_HEAD", "merge", "git commit to finish the merge or git merge --abort"),
-    ("REBASE_HEAD", "rebase", "git rebase --continue or git rebase --abort"),
+    ("rebase-merge", "rebase", "git rebase --continue or git rebase --abort"),
+    ("rebase-apply", "rebase", "git rebase --continue or git rebase --abort"),
     (
         "CHERRY_PICK_HEAD",
         "cherry-pick",
@@ -1476,9 +1484,9 @@ def _git_path(repo_root: Path, path_name: str) -> Path | None:
 
 
 def _active_git_operation(repo_root: Path) -> tuple[str, str] | None:
-    for path_name, operation, remedy in ACTIVE_GIT_OPERATION_FILES:
+    for path_name, operation, remedy in ACTIVE_GIT_OPERATION_PATHS:
         git_path = _git_path(repo_root, path_name)
-        if git_path is not None and git_path.is_file():
+        if git_path is not None and git_path.exists():
             return operation, remedy
     return None
 

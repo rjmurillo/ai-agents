@@ -4475,7 +4475,6 @@ def test_push_policy_blocks_resolved_uncommitted_merge(
 @pytest.mark.parametrize(
     ("head_file", "operation", "remedy"),
     [
-        ("REBASE_HEAD", "rebase", "git rebase --continue"),
         ("CHERRY_PICK_HEAD", "cherry-pick", "git cherry-pick --continue"),
     ],
 )
@@ -4500,6 +4499,61 @@ def test_push_policy_names_active_git_operation(
     error = capsys.readouterr().err
     assert f"{operation} in progress" in error
     assert remedy in error
+
+
+def _start_conflicted_rebase(repo: Path) -> None:
+    """Leave *repo* stopped mid-rebase on a conflict.
+
+    Both branches rewrite the same line, so replaying `topic` onto `other`
+    always conflicts and git halts with its rebase state directory in place.
+    """
+    _init_repo(repo)
+    _commit_file(repo, "tracked.txt", "base\n")
+    _git(repo, "checkout", "-q", "-b", "other")
+    _commit_file(repo, "tracked.txt", "other\n")
+    _git(repo, "checkout", "-q", "feature/test")
+    _commit_file(repo, "tracked.txt", "topic\n")
+    _git(repo, "rebase", "other", check=False)
+
+
+def test_push_policy_blocks_while_rebase_is_actually_in_progress(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = tmp_path / "repo"
+    _start_conflicted_rebase(repo)
+
+    result = policy.check_push_refs(io.StringIO(), repo)
+
+    assert result == 1
+    error = capsys.readouterr().err
+    assert "rebase in progress" in error
+    assert "git rebase --continue" in error
+
+
+def test_push_policy_allows_push_after_a_conflicted_rebase_completes(
+    tmp_path: Path,
+) -> None:
+    """A finished rebase must not block the push that follows it.
+
+    Git keeps REBASE_HEAD after a conflicted rebase completes so the replayed
+    commit stays inspectable. Treating that leftover pointer as live state
+    blocked every push after a conflict resolution, and the advice it printed
+    ("git rebase --continue") failed with "No rebase in progress?", so there
+    was no way out except deleting a file inside .git by hand.
+    """
+    repo = tmp_path / "repo"
+    _start_conflicted_rebase(repo)
+    _write_file(repo, "tracked.txt", "resolved\n")
+    _git(repo, "add", "tracked.txt")
+    _git(repo, "-c", "core.editor=true", "rebase", "--continue")
+
+    rebase_head = Path(_git(repo, "rev-parse", "--git-path", "REBASE_HEAD").stdout.strip())
+    if not rebase_head.is_absolute():
+        rebase_head = repo / rebase_head
+    assert rebase_head.is_file(), "expected git to leave REBASE_HEAD behind"
+
+    assert policy.check_push_refs(io.StringIO(), repo) == 0
 
 
 def test_push_policy_allows_clean_tree_without_active_git_operation(tmp_path: Path) -> None:
