@@ -97,8 +97,16 @@ skips = []
 target-version = "py310"
 line-length = 100
 
+[tool.ruff.format]
+# test_git_hook_policy_causal_restore.py uses intentionally-split string
+# literals (e.g. "# no" "qa") as test fixtures to avoid triggering the
+# security-suppressions-staged hook during development. Ruff's formatter
+# merges implicit string concatenations, which would neutralise those
+# fixtures. Exclude the file so the anti-detection pattern is preserved.
+exclude = ["tests/validation/test_git_hook_policy_causal_restore.py"]
+
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "N", "UP", "B", "ANN"]
+select = ["E", "F", "W", "I", "N", "UP", "B", "ANN", "RUF100"]
 ignore = []
 
 [tool.ruff.lint.per-file-ignores]
