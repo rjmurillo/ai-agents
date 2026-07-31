@@ -904,11 +904,13 @@ class TestJudgeSampleReduction:
         assert full["scores"]["judge_failed"] is True
 
     def test_dry_run_counts_repeated_judge_calls(self, tmp_path, capsys):
-        rule_path = REPO_ROOT / ".claude" / "rules" / "working-with-legacy-code.md"
-        if not rule_path.is_file():
-            pytest.skip("working-with-legacy-code.md not present in this checkout")
+        # Was pinned to working-with-legacy-code.md, which left the repository
+        # and took this test with it: the skip fired on every run, and the call
+        # below still passed a bare Path where _process_one_rule now unpacks a
+        # (primary, reference) tuple. A live test caught neither.
+        rule_path = REPO_ROOT / ".claude" / "rules" / "testing.md"
         scenarios_data = {
-            "rule_id": "working-with-legacy-code",
+            "rule_id": "testing",
             "scenarios": [self._scenario()],
         }
         args = type(
@@ -923,7 +925,9 @@ class TestJudgeSampleReduction:
             },
         )()
 
-        _rule_id, result, calls = eval_mod._process_one_rule("key", scenarios_data, rule_path, args)
+        _rule_id, result, calls = eval_mod._process_one_rule(
+            "key", scenarios_data, (rule_path, None), args
+        )
 
         assert result is None
         assert calls == len(eval_mod.MECHANISMS) * 4
@@ -971,6 +975,9 @@ class TestJudgeSampleReduction:
 
 
 _JUDGE = '{"activation_score": 5, "citation_score": 4, "behavior_score": 5}'
+# Stamped on every judge sample so a per-model claim is checkable from the
+# record instead of from the artifact filename (#3975).
+_JUDGE_MODEL = "test-judge-model"
 
 
 def test_extract_json_object_returns_plain_object_unchanged():
@@ -1114,7 +1121,7 @@ def test_a_balanced_object_scan_does_not_reenter_nested_ones():
 
 
 # ---------------------------------------------------------------------------
-# _salvage_scores / _judge_parse_failure: an unparseable `reasoning` field must
+# _salvage_scores / _salvaged_or_failed_judge: an unparseable `reasoning` field must
 # not discard the three numbers the eval actually scores on.
 #
 # Observed in production: 24 of 144 Opus judge samples were thrown away, every
@@ -1264,7 +1271,7 @@ def test_the_ambiguity_refusal_names_itself_rather_than_a_parse_error(monkeypatc
 
     The guard sits before the parse so every path inherits it, including one
     nobody has written yet. Routing an ambiguous payload through
-    ``_judge_parse_failure`` would also refuse it today, but only because
+    ``_salvaged_or_failed_judge`` would also refuse it today, but only because
     ``_salvage_scores`` happens to carry its own copy of the guard. Depending
     on a downstream helper to do the refusing is the coupling that produced
     this defect; asserting on the reason string is what stops a later edit
@@ -2045,10 +2052,11 @@ def test_adjacent_string_literals_are_a_known_undetected_shape(monkeypatch):
     assert result["activation_score"] == 1
 
 
-def test_judge_parse_failure_does_not_combine_partial_objects():
-    result = eval_mod._judge_parse_failure(
+def test_salvaged_or_failed_judge_does_not_combine_partial_objects():
+    result = eval_mod._salvaged_or_failed_judge(
         '{"activation_score": 5}\n{"citation_score": 4, "behavior_score": 3}',
         "parse error",
+        _JUDGE_MODEL,
     )
 
     assert result["judge_failed"] is True
@@ -2104,47 +2112,59 @@ def test_salvage_refuses_a_score_field_spelled_with_a_unicode_escape():
 
 
 def test_salvage_scores_reject_duplicate_fields_before_reasoning():
-    result = eval_mod._judge_parse_failure(
+    result = eval_mod._salvaged_or_failed_judge(
         '{"activation_score": 4, "activation_score": 5, '
         '"citation_score": 3, "behavior_score": 5, "reasoning": "broken"}',
         "parse error",
+        _JUDGE_MODEL,
     )
 
     assert result["judge_failed"] is True
 
 
-def test_judge_parse_failure_salvages_scores_from_unescaped_quote_prose():
-    result = eval_mod._judge_parse_failure(_UNESCAPED_QUOTE_JUDGE, "judge parse error")
+def test_salvaged_or_failed_judge_salvages_scores_from_unescaped_quote_prose():
+    result = eval_mod._salvaged_or_failed_judge(
+        _UNESCAPED_QUOTE_JUDGE, "judge parse error", _JUDGE_MODEL
+    )
 
     assert result["judge_failed"] is False
     assert result["judge_salvaged"] is True
     assert result["activation_score"] == 5
     assert result["citation_score"] == 4
     assert result["behavior_score"] == 5
+    assert result["judge_raw"] == _UNESCAPED_QUOTE_JUDGE
+    assert result["judge_model"] == _JUDGE_MODEL
 
 
-def test_judge_parse_failure_still_fails_when_no_scores_are_present():
-    result = eval_mod._judge_parse_failure("I refuse to grade this.", "parse error")
+def test_salvaged_or_failed_judge_still_fails_when_no_scores_are_present():
+    result = eval_mod._salvaged_or_failed_judge(
+        "I refuse to grade this.", "parse error", _JUDGE_MODEL
+    )
 
     assert result["judge_failed"] is True
     assert result["activation_score"] == 0
     assert "judge_salvaged" not in result
+    assert result["judge_raw"] == "I refuse to grade this."
+    assert result["judge_model"] == _JUDGE_MODEL
 
 
-def test_judge_parse_failure_does_not_invent_a_missing_field():
+def test_salvaged_or_failed_judge_does_not_invent_a_missing_field():
     """Two of three is not a score. Salvage must be all-or-nothing."""
-    result = eval_mod._judge_parse_failure(
-        '{"activation_score": 5, "citation_score": 4}', "missing behavior_score"
+    result = eval_mod._salvaged_or_failed_judge(
+        '{"activation_score": 5, "citation_score": 4}',
+        "missing behavior_score",
+        _JUDGE_MODEL,
     )
 
     assert result["judge_failed"] is True
     assert result["behavior_score"] == 0
 
 
-def test_judge_parse_failure_rejects_a_non_numeric_score():
-    result = eval_mod._judge_parse_failure(
+def test_salvaged_or_failed_judge_rejects_a_non_numeric_score():
+    result = eval_mod._salvaged_or_failed_judge(
         '{"activation_score": "high", "citation_score": 4, "behavior_score": 5}',
         "non-numeric activation_score",
+        _JUDGE_MODEL,
     )
 
     assert result["judge_failed"] is True
@@ -2152,9 +2172,10 @@ def test_judge_parse_failure_rejects_a_non_numeric_score():
 
 @pytest.mark.parametrize("activation_score", ["0", "6", "-1", "05", "5.0", "5e0", "5junk"])
 def test_salvage_scores_rejects_an_invalid_value(activation_score):
-    salvaged = eval_mod._judge_parse_failure(
+    salvaged = eval_mod._salvaged_or_failed_judge(
         f'{{"activation_score": {activation_score}, "citation_score": 4, "behavior_score": 3}} "',
         "parse error",
+        _JUDGE_MODEL,
     )
 
     assert salvaged["judge_failed"] is True
@@ -2850,8 +2871,8 @@ def test_a_fenced_exemplar_after_the_verdict_does_not_win(
     assert result["judge_failed"] is True
     assert result["activation_score"] == 0
     # The recorded payload is the original, not the fence body, so the
-    # archived error prefix shows what the judge actually emitted.
-    assert "actual verdict" in result["reasoning"]
+    # archive shows what the judge actually emitted.
+    assert result["judge_raw"] == payload
 
 
 def test_a_lone_fenced_verdict_is_recovered_and_marked(
@@ -4977,3 +4998,501 @@ class TestTheHeadlineNeedsAWholePool:
         assert summary["best_mechanism"] is None
         assert summary["best_mechanism_partial"] is False
         assert "Best mechanism: none measured" in eval_mod.render_table("r", summary)
+
+
+# ---------------------------------------------------------------------------
+# Judge failures keep their evidence and name their model (issue #3975),
+# and the helper that grades them is named for what it returns (issue #4031)
+# ---------------------------------------------------------------------------
+
+
+def _parse_error_offset(payload: str) -> int:
+    try:
+        json.loads(payload)
+    except json.JSONDecodeError as exc:
+        return exc.pos
+    raise AssertionError("payload parses; it cannot exercise the failure path")
+
+
+def _parse_error_text(payload: str) -> str:
+    try:
+        json.loads(payload)
+    except json.JSONDecodeError as exc:
+        return str(exc)
+    raise AssertionError("payload parses; it cannot exercise the failure path")
+
+
+def _payload_failing_past(offset: int) -> str:
+    """An unparseable verdict whose JSON error sits past ``offset`` characters.
+
+    Shaped like the 24 archived failures: a well-formed score triple, then a
+    ``reasoning`` string long enough to push the damage out of any short
+    window, then an unescaped quote that breaks the object.
+    """
+    prose = "the response cited the rule and gated the behavior. " * 20
+    payload = (
+        '{"activation_score": 5, "citation_score": 4, "behavior_score": 3, '
+        f'"reasoning": "{prose}he said "no" loudly"}}'
+    )
+    assert _parse_error_offset(payload) > offset
+    return payload
+
+
+class TestJudgeFailureEvidence:
+    """A stored failure must reproduce the error the eval saw live.
+
+    The 200-character prefix that used to stand in for the payload did not:
+    19 of the 24 archived failures re-parse as "Unterminated string starting
+    at" while every real payload failed on a missing comma, at offsets 162 to
+    421.
+    """
+
+    def test_a_parse_failure_stores_the_whole_payload(self, monkeypatch):
+        payload = "I cannot grade this. " + _payload_failing_past(200)
+
+        result = _score_with_judge_text(monkeypatch, payload)
+
+        assert result["judge_failed"] is True
+        assert result["judge_raw"] == payload
+
+    def test_a_stored_failure_reparses_to_the_error_seen_live(self, monkeypatch):
+        payload = "I cannot grade this. " + _payload_failing_past(200)
+
+        result = _score_with_judge_text(monkeypatch, payload)
+
+        assert _parse_error_text(result["judge_raw"]) == _parse_error_text(payload)
+
+    def test_the_stored_payload_no_longer_fabricates_a_parse_error(self, monkeypatch):
+        # The archived shape: the verdict leads the payload, so the record is
+        # salvaged rather than failed, and the evidence still has to survive.
+        payload = _payload_failing_past(200)
+
+        result = _score_with_judge_text(monkeypatch, payload)
+
+        assert result["judge_salvaged"] is True
+        assert result["judge_raw"] == payload
+        # The prefix the old cap kept re-parses as an unterminated string,
+        # which is the truncation's error, not the judge's.
+        assert "Unterminated string" in _parse_error_text(payload[:200])
+        assert "Unterminated string" not in _parse_error_text(result["judge_raw"])
+        assert "Expecting ',' delimiter" in _parse_error_text(result["judge_raw"])
+
+    def test_judge_raw_is_not_truncated_on_a_long_payload(self, monkeypatch):
+        payload = "x" * 5000
+
+        result = _score_with_judge_text(monkeypatch, payload)
+
+        assert result["judge_failed"] is True
+        assert len(result["judge_raw"]) == 5000
+
+    def test_a_clean_verdict_stores_no_raw_payload(self, monkeypatch):
+        result = _score_with_judge_text(monkeypatch, _JUDGE)
+
+        assert result["judge_failed"] is False
+        assert "judge_raw" not in result
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            # Two verdicts named in one parseable payload: the refusal at the
+            # ambiguity guard.
+            '{"activation_score": 5, "citation_score": 4, "behavior_score": 3, '
+            '"reasoning": "see {\\"activation_score\\": 1}"}',
+            # Parseable JSON that is not an object.
+            "[1, 2, 3]",
+        ],
+    )
+    def test_the_sibling_refusals_also_store_the_payload(self, monkeypatch, payload):
+        result = _score_with_judge_text(monkeypatch, payload)
+
+        assert result["judge_failed"] is True
+        assert result["judge_raw"] == payload
+
+
+class TestJudgeSampleRecordsItsModel:
+    """Acceptance 3 of #3975: model identity readable from the sample record.
+
+    Before this, model was recoverable only from the artifact filename, so a
+    per-model claim could not be checked without parsing paths.
+    """
+
+    @staticmethod
+    def _score(monkeypatch, judge_text):
+        monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_k: judge_text)
+        return eval_mod.score_response(
+            "sk-test",
+            {"input": "x", "expected_gate": "apply-rule"},
+            "response",
+            model=_JUDGE_MODEL,
+        )
+
+    def test_a_clean_verdict_records_the_model(self, monkeypatch):
+        assert self._score(monkeypatch, _JUDGE)["judge_model"] == _JUDGE_MODEL
+
+    def test_a_salvaged_verdict_records_the_model(self, monkeypatch):
+        result = self._score(monkeypatch, _UNESCAPED_QUOTE_JUDGE)
+
+        assert result["judge_salvaged"] is True
+        assert result["judge_model"] == _JUDGE_MODEL
+
+    def test_a_hard_failure_records_the_model(self, monkeypatch):
+        result = self._score(monkeypatch, "I refuse to grade this.")
+
+        assert result["judge_failed"] is True
+        assert result["judge_model"] == _JUDGE_MODEL
+
+    def test_a_judge_api_failure_records_the_model(self, monkeypatch):
+        def _boom(*_args, **_kwargs):
+            raise RuntimeError("judge is down")
+
+        monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_k: "response text")
+        monkeypatch.setattr(eval_mod, "score_response", _boom)
+        monkeypatch.setattr(eval_mod.time, "sleep", lambda _s: None)
+
+        result = eval_mod.eval_one_scenario(
+            "sk-test",
+            {"description": "d", "body": "b", "name": "n"},
+            "rule-id",
+            {"id": "S1", "input": "x", "expected_gate": "apply-rule"},
+            _JUDGE_MODEL,
+            dry_run=False,
+            judge_repeats=1,
+        )
+
+        sample = result["mechanisms"]["baseline"]["score_samples"][0]
+        assert sample["judge_failed"] is True
+        assert sample["judge_model"] == _JUDGE_MODEL
+
+
+def test_the_inverted_helper_name_is_gone():
+    """#4031: the old name asserted an outcome its primary path never produces."""
+    assert not hasattr(eval_mod, "_judge_parse_failure")
+    assert hasattr(eval_mod, "_salvaged_or_failed_judge")
+
+
+# ---------------------------------------------------------------------------
+# Gates read the unrounded average (issue #4070)
+# ---------------------------------------------------------------------------
+
+
+def _straddling_scenario(
+    sample: dict[str, object],
+    negative: bool = False,
+    baseline_sample: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """One scenario whose non-baseline cells carry ``sample``."""
+    mech = _mech_from([sample])
+    mechanisms = {name: mech for name in eval_mod.MECHANISMS}
+    if baseline_sample is not None:
+        mechanisms["baseline"] = _mech_from([baseline_sample])
+    return {"negative_case": negative, "mechanisms": mechanisms}
+
+
+def _straddling_pool(
+    low_count: int,
+    high_count: int,
+    negative: bool = False,
+    baseline_sample: dict[str, object] | None = None,
+) -> list[dict[str, object]]:
+    """A pool whose exact mean lands inside the 0.005 rounding window at 3.5.
+
+    ``_mixed(4, 3, 3)`` reduces to 10/3 and ``_mixed(4, 4, 3)`` to 11/3. 18 of
+    the first and 17 of the second average 367/105 = 3.49524, which the table
+    rounds to 3.5. Swap the counts for 368/105 = 3.50476, which also rounds to
+    3.5 but sits above the floor.
+    """
+    low = [
+        _straddling_scenario(_mixed(4, 3, 3), negative, baseline_sample)
+        for _ in range(low_count)
+    ]
+    high = [
+        _straddling_scenario(_mixed(4, 4, 3), negative, baseline_sample)
+        for _ in range(high_count)
+    ]
+    return low + high
+
+
+class TestGatesReadTheUnroundedAverage:
+    def test_a_restraint_average_inside_the_rounding_window_fails(self):
+        scenarios = [_make_scenario(baseline=1, description=5, full=5)]
+        scenarios += _straddling_pool(18, 17, negative=True)
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["verdict"] == "FAIL_OVER_ACTIVATION"
+        # The table still prints the rounded number; only the gate changed.
+        assert summary["worst_negative_avg"] == 3.5
+        assert summary["worst_negative_avg_exact"] < eval_mod.MIN_RESTRAINT_SCORE
+
+    def test_a_restraint_average_that_rounds_down_to_the_floor_still_passes(self):
+        scenarios = [_make_scenario(baseline=1, description=5, full=5)]
+        scenarios += _straddling_pool(17, 18, negative=True)
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["worst_negative_avg"] == 3.5
+        assert summary["worst_negative_avg_exact"] > eval_mod.MIN_RESTRAINT_SCORE
+        assert summary["verdict"] == "PASS"
+
+    def test_a_description_average_inside_the_rounding_window_fails(self):
+        scenarios = _straddling_pool(18, 17, baseline_sample=_mixed(1, 1, 1))
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["per_mechanism"]["description"]["avg_score"] == 3.5
+        assert summary["verdict"] == "FAIL_THRESHOLD"
+
+    def test_a_delta_inside_the_rounding_window_fails(self):
+        # Baseline exact 3.50476 rounds to 3.5, description is exactly 4.0.
+        # The rounded delta is 0.5 and clears the gate; the true delta is
+        # 0.49524 and does not.
+        baseline_samples = [_mixed(4, 3, 3)] * 17 + [_mixed(4, 4, 3)] * 18
+        scenarios = [
+            _straddling_scenario(_mixed(4, 4, 4), baseline_sample=sample)
+            for sample in baseline_samples
+        ]
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["baseline_avg"] == 3.5
+        assert summary["delta_description_vs_baseline"] == 0.5
+        assert summary["delta_description_vs_baseline_exact"] < 0.5
+        assert summary["verdict"] == "FAIL_NO_DELTA"
+
+    def test_a_clean_pool_is_unaffected(self):
+        scenarios = [
+            _make_scenario(baseline=1, description=5, full=5),
+            _make_scenario(baseline=1, description=5, full=5, negative=True),
+        ]
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["verdict"] == "PASS"
+        assert summary["worst_negative_avg"] == 5.0
+        assert summary["worst_negative_avg_exact"] == 5.0
+
+    def test_an_ungraded_negative_pool_reports_no_exact_average(self):
+        summary = eval_mod.aggregate([_make_scenario(baseline=1, description=5, full=5)])
+
+        assert summary["worst_negative_avg"] is None
+        assert summary["worst_negative_avg_exact"] is None
+        assert summary["verdict"] == "PASS"
+
+    def test_the_worst_mechanism_is_named_off_the_unrounded_average(self):
+        scenarios = [
+            _make_scenario(baseline=1, description=5, full=5),
+            {
+                "negative_case": True,
+                "mechanisms": {
+                    "baseline": _mech_from([_mixed(5, 5, 5)]),
+                    "description": _mech_from([_mixed(4, 3, 3)]),
+                    "full": _mech_from([_mixed(4, 4, 3)]),
+                },
+            },
+        ]
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["worst_negative_mechanism"] == "description"
+
+
+class TestRoundingDisclosure:
+    def test_the_table_discloses_a_restraint_number_that_rounds_over_the_floor(self):
+        scenarios = [_make_scenario(baseline=1, description=5, full=5)]
+        scenarios += _straddling_pool(18, 17, negative=True)
+
+        table = eval_mod.render_table("some-rule", eval_mod.aggregate(scenarios))
+
+        assert "Restraint 3.4952 gated below the 3.5 floor" in table
+
+    def test_no_disclosure_when_display_and_gate_agree(self):
+        scenarios = [
+            _make_scenario(baseline=1, description=5, full=5),
+            _make_scenario(baseline=1, description=5, full=5, negative=True),
+        ]
+
+        table = eval_mod.render_table("some-rule", eval_mod.aggregate(scenarios))
+
+        assert "gated below" not in table
+
+    def test_an_unusable_pair_produces_no_disclosure(self):
+        assert eval_mod._floor_display_gap("Restraint", float("nan"), 3.5, 3.5) is None
+        assert eval_mod._floor_display_gap("Restraint", None, 3.5, 3.5) is None
+        assert eval_mod._floor_display_gap("Restraint", 3.4, None, 3.5) is None
+
+
+# ---------------------------------------------------------------------------
+# The salvage marker survives reduction and bounds the run (issue #3988)
+# ---------------------------------------------------------------------------
+
+
+def _salvaged_sample(score: int = 5) -> dict[str, object]:
+    sample = _mixed(score, score, score)
+    sample["judge_salvaged"] = True
+    return sample
+
+
+class TestSalvagedSampleCount:
+    def test_a_salvaged_sample_is_counted_on_the_reduced_cell(self):
+        reduced = eval_mod._reduce_score_samples(
+            [_mixed(5, 5, 5), _salvaged_sample(), _mixed(4, 4, 4)], "median"
+        )
+
+        assert reduced["graded"] is True
+        assert reduced["salvaged_sample_count"] == 1
+
+    def test_clean_samples_count_zero(self):
+        reduced = eval_mod._reduce_score_samples([_mixed(5, 5, 5)] * 3, "median")
+
+        assert reduced["salvaged_sample_count"] == 0
+
+    def test_an_all_failed_cell_reports_zero_and_ungraded(self):
+        failed = [{"judge_failed": True, "reasoning": "boom"}] * 3
+
+        reduced = eval_mod._reduce_score_samples(failed, "median")
+
+        assert reduced["graded"] is False
+        assert reduced["salvaged_sample_count"] == 0
+
+    def test_the_counts_add_up_across_mechanisms_and_scenarios(self):
+        scenarios = [
+            _scenario_from(_mech_from([_salvaged_sample(), _mixed(5, 5, 5)])),
+            _scenario_from(_mech_from([_mixed(5, 5, 5), _mixed(4, 4, 4)])),
+        ]
+
+        salvaged, graded = eval_mod._salvage_counts(scenarios)
+
+        # Three mechanisms per scenario, two samples each.
+        assert (salvaged, graded) == (3, 12)
+
+    def test_an_archived_cell_without_the_key_contributes_nothing(self):
+        salvaged, graded = eval_mod._salvage_counts(
+            [_make_scenario(baseline=5, description=5, full=5)]
+        )
+
+        assert (salvaged, graded) == (0, 0)
+
+    def test_the_run_summary_publishes_the_fraction(self):
+        scenarios = [_scenario_from(_mech_from([_salvaged_sample(), _mixed(5, 5, 5)]))]
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["salvaged_sample_count"] == 3
+        assert summary["graded_sample_count"] == 6
+        assert summary["salvaged_sample_fraction"] == pytest.approx(0.5)
+
+    def test_a_run_with_no_graded_samples_reports_no_fraction(self):
+        summary = eval_mod.aggregate([_make_scenario(baseline=5, description=5, full=5)])
+
+        assert summary["salvaged_sample_fraction"] is None
+
+
+class TestSalvageGate:
+    def test_a_run_at_the_bound_passes(self, capsys):
+        summary = {
+            "salvaged_sample_fraction": 0.15,
+            "salvaged_sample_count": 3,
+            "graded_sample_count": 20,
+        }
+
+        assert eval_mod._salvage_gate_failed("r", summary, 0.15) is False
+        assert capsys.readouterr().err == ""
+
+    def test_a_run_one_notch_over_the_bound_fails(self, capsys):
+        summary = {
+            "salvaged_sample_fraction": 0.16,
+            "salvaged_sample_count": 4,
+            "graded_sample_count": 25,
+        }
+
+        assert eval_mod._salvage_gate_failed("r", summary, 0.15) is True
+        assert "16.0%" in capsys.readouterr().err
+
+    def test_a_run_that_measured_nothing_does_not_fire(self):
+        assert (
+            eval_mod._salvage_gate_failed("r", {"salvaged_sample_fraction": None}, 0.0)
+            is False
+        )
+
+    def test_the_archive_baseline_fraction_is_under_the_default(self):
+        # 24 of 288 samples, the measured rate the default was chosen above.
+        assert 24 / 288 < eval_mod.DEFAULT_MAX_SALVAGED_FRACTION
+
+
+class TestSalvageGateExitCodes:
+    """The bound has to reach the process boundary, not just a helper."""
+
+    @staticmethod
+    def _scenario_file(tmp_path):
+        path = tmp_path / "scenarios.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "rule_id": "testing",
+                    "rule_path": ".claude/rules/testing.md",
+                    "scenarios": [
+                        {
+                            "id": "S1",
+                            "input": "do the thing",
+                            "expected_gate": "apply-rule",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        return path
+
+    def _run(self, monkeypatch, tmp_path, extra_argv):
+        monkeypatch.setattr(eval_mod, "_load_api_key", lambda: "sk-test")
+        monkeypatch.setattr(eval_mod, "verify_model_available", lambda *_a: None)
+        # One salvaged sample of three per rule-enhanced cell, so the run
+        # exceeds the default bound while its verdict is a clean PASS. The
+        # gate has to be what fails it, not the scores.
+        rule_cell = _mech_from([_salvaged_sample(), _mixed(5, 5, 5)])
+        scenario_result = {
+            "id": "S1",
+            "desc": "",
+            "negative_case": False,
+            "mechanisms": {
+                "baseline": _mech_from([_mixed(1, 1, 1), _mixed(1, 1, 1)]),
+                "description": rule_cell,
+                "full": rule_cell,
+            },
+        }
+        monkeypatch.setattr(
+            eval_mod, "eval_one_scenario", lambda *_a, **_k: scenario_result
+        )
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "eval-rule-activation.py",
+                "--scenarios",
+                str(self._scenario_file(tmp_path)),
+                *extra_argv,
+            ],
+        )
+        return eval_mod.main()
+
+    def test_a_run_over_the_bound_exits_one(self, monkeypatch, tmp_path, capsys):
+        code = self._run(monkeypatch, tmp_path, [])
+
+        assert code == 1
+        assert "--max-salvaged-fraction" in capsys.readouterr().err
+
+    def test_raising_the_bound_lets_the_same_run_pass(
+        self, monkeypatch, tmp_path, capsys
+    ):
+        code = self._run(monkeypatch, tmp_path, ["--max-salvaged-fraction", "1.0"])
+
+        assert code == 0
+        assert "--max-salvaged-fraction" not in capsys.readouterr().err
+
+    def test_a_bound_outside_zero_to_one_is_a_config_error(
+        self, monkeypatch, tmp_path, capsys
+    ):
+        code = self._run(monkeypatch, tmp_path, ["--max-salvaged-fraction", "1.5"])
+
+        assert code == 2
+        assert "must be between 0 and 1" in capsys.readouterr().err

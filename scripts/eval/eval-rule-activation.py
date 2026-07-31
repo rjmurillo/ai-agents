@@ -89,6 +89,10 @@ MAX_RUBRIC_SCORE = 5.0
 DEFAULT_SEED = 0
 DEFAULT_JUDGE_REPEATS = 3
 DEFAULT_JUDGE_REDUCER = "median"
+# Above the 8.3% (24 of 288) the 2026-07-29 reference run would salvage today,
+# so that run still reproduces, and low enough that a provider which starts
+# wrapping its verdict in prose fails the run instead of being absorbed.
+DEFAULT_MAX_SALVAGED_FRACTION = 0.15
 _SCORE_KEYS = ("activation_score", "citation_score", "behavior_score")
 _SCORE_REDUCERS: dict[str, Callable[[list[float]], float]] = {
     "mean": statistics.fmean,
@@ -504,7 +508,7 @@ Respond in JSON only, no other text:
     except ValueError:
         embedded = _recover_verdict(text)
         if embedded is None:
-            return _judge_parse_failure(text, f"judge parse error: {text[:200]}")
+            return _salvaged_or_failed_judge(text, "judge parse error", model)
         # _recover_verdict only returns text it already parsed with
         # _strict_json_loads, so this cannot raise.
         parsed = _strict_json_loads(embedded)
@@ -532,19 +536,20 @@ Respond in JSON only, no other text:
         # offers nothing exact to check.
         if _parsed_names_two_verdicts(parsed):
             return _failed_judge(
-                f"ambiguous judge output names two verdicts: {text[:200]}"
+                "ambiguous judge output names two verdicts", text, model
             )
     if not isinstance(parsed, dict):
-        return _failed_judge(f"judge returned non-object JSON: {text[:200]}")
+        return _failed_judge("judge returned non-object JSON", text, model)
     score_error = _judge_score_shape_error(parsed)
     if score_error is not None:
-        return _judge_parse_failure(text, score_error)
+        return _salvaged_or_failed_judge(text, score_error, model)
     result = {
         "activation_score": _clamp_score(parsed["activation_score"]),
         "citation_score": _clamp_score(parsed["citation_score"]),
         "behavior_score": _clamp_score(parsed["behavior_score"]),
         "reasoning": str(parsed.get("reasoning", ""))[:300],
         "judge_failed": False,
+        "judge_model": model,
     }
     if recovered_from_prefix:
         # The whole payload did not parse; the verdict came from its leading
@@ -580,6 +585,10 @@ def _reduce_score_samples(
     reducer = _SCORE_REDUCERS[reducer_name]
     graded = [s for s in samples if not s.get("judge_failed")]
     failed_count = len(samples) - len(graded)
+    # `judge_salvaged` used to die here: this function rebuilds the cell field
+    # by field, so the marker never reached a cell, a summary, or a gate, and
+    # the option to bound recovery on it did not exist (#3988).
+    salvaged_count = sum(1 for s in graded if s.get("judge_salvaged"))
     if not graded:
         return {
             "activation_score": None,
@@ -591,6 +600,7 @@ def _reduce_score_samples(
             "sample_count": len(samples),
             "graded_sample_count": 0,
             "failed_sample_count": failed_count,
+            "salvaged_sample_count": 0,
         }
     reduced: dict[str, Any] = {
         key: reducer([float(sample[key]) for sample in graded]) for key in _SCORE_KEYS
@@ -610,6 +620,7 @@ def _reduce_score_samples(
     reduced["sample_count"] = len(samples)
     reduced["graded_sample_count"] = len(graded)
     reduced["failed_sample_count"] = failed_count
+    reduced["salvaged_sample_count"] = salvaged_count
     return reduced
 
 
@@ -1431,8 +1442,22 @@ def _salvage_scores(text: str) -> dict[str, int] | None:
     return _complete_verdict(_scan_root_members(text, start))
 
 
-def _judge_parse_failure(text: str, reason: str) -> dict[str, Any]:
-    """Build a failed-judge record, salvaging scores when they are recoverable."""
+def _salvaged_or_failed_judge(text: str, reason: str, model: str) -> dict[str, Any]:
+    """Grade from an unparseable payload, or fail when nothing is recoverable.
+
+    Returns ``judge_failed: False`` plus ``judge_salvaged: True`` when
+    ``_salvage_scores`` recovers all three integers, so the sample counts as
+    graded. Returns ``_failed_judge(...)`` otherwise, and that is the only
+    branch reporting the sample as failed. The former name, ``
+    _judge_parse_failure``, asserted an outcome its primary path does not
+    produce (#4031).
+
+    Both branches keep the whole payload under ``judge_raw``. A 200-character
+    prefix used to stand in for it, and the parse error those prefixes
+    reproduce is the truncation's, not the judge's: 19 of the 24 archived
+    failures re-parse as "Unterminated string" while every full payload failed
+    on a missing comma, at offsets 162 to 421 (#3975).
+    """
     salvaged = _salvage_scores(text)
     if salvaged is not None:
         return {
@@ -1442,17 +1467,28 @@ def _judge_parse_failure(text: str, reason: str) -> dict[str, Any]:
             "reasoning": f"scores salvaged from unparseable judge output: {reason}",
             "judge_failed": False,
             "judge_salvaged": True,
+            "judge_raw": text,
+            "judge_model": model,
         }
-    return _failed_judge(reason)
+    return _failed_judge(reason, text, model)
 
 
-def _failed_judge(reason: str) -> dict[str, Any]:
+def _failed_judge(reason: str, raw: str, model: str) -> dict[str, Any]:
+    """Build a failed-judge record that keeps the evidence it failed on.
+
+    ``raw`` is stored whole. The judge runs at ``_anthropic_api.call_api``'s
+    default ``max_tokens``, so a payload is bounded at a few KB, and a cap
+    below that bound is what turned a diagnosable failure into a fabricated
+    one (#3975).
+    """
     return {
         "activation_score": 0,
         "citation_score": 0,
         "behavior_score": 0,
         "reasoning": reason,
         "judge_failed": True,
+        "judge_raw": raw,
+        "judge_model": model,
     }
 
 
@@ -1579,6 +1615,7 @@ def eval_one_scenario(
                     "judge_failed": True,
                     "reasoning": f"judge API failure: {e}",
                     "sample_index": sample_index,
+                    "judge_model": model,
                 }
             else:
                 sample["sample_index"] = sample_index
@@ -1671,6 +1708,35 @@ def _scenario_score_triple(
     return sum(triple) / len(_SCORE_KEYS), failed, True
 
 
+def _salvage_rate(scenarios: list[dict[str, Any]]) -> dict[str, Any]:
+    """The run-level salvage figures the `--max-salvaged-fraction` gate reads."""
+    salvaged, graded = _salvage_counts(scenarios)
+    return {
+        "salvaged_sample_count": salvaged,
+        "graded_sample_count": graded,
+        "salvaged_sample_fraction": salvaged / graded if graded else None,
+    }
+
+
+def _salvage_counts(scenarios: list[dict[str, Any]]) -> tuple[int, int]:
+    """Count (salvaged, graded) judge samples across every cell in a run.
+
+    A salvaged sample is one whose payload did not parse and whose three
+    scores were recovered from its readable prefix. Recovery is bounded and
+    marked, but it is still an inference about a malformed payload, so a run
+    that leans on it more than its reference does is a run whose provider
+    changed shape (#3988, ADR-091). Reads the reduced cell rather than the raw
+    samples so one definition of "graded" serves the gate and the table.
+    """
+    salvaged = graded = 0
+    for scenario in scenarios:
+        for cell in scenario.get("mechanisms", {}).values():
+            scores = cell.get("scores") or {}
+            salvaged += scores.get("salvaged_sample_count") or 0
+            graded += scores.get("graded_sample_count") or 0
+    return salvaged, graded
+
+
 def _incomplete_mechanisms(
     per_mech: dict[str, dict[str, Any]], mechs: list[str], pool_size: int
 ) -> list[str]:
@@ -1704,9 +1770,18 @@ def _mechanism_summary(
     # baseline, and a candidate for best_mechanism, none of which any
     # observation supports. An absent number has to be handled; a zero does
     # not, so it travels silently into the table.
-    avg = round(sum(scores) / len(scores), 2) if scores else None
+    # Two numbers, on purpose. `avg_score` is what the table prints, and
+    # rounding it keeps the published column readable. Every gate reads
+    # `avg_score_exact` instead, because a display rounding that crosses a
+    # floor turns a measured 3.4952 into a published 3.5 and lets a run that
+    # breached the restraint floor return PASS (#4070). `fmean` rather than a
+    # naive sum so a pool of k/3 terms does not accumulate drift near the
+    # floor.
+    exact = statistics.fmean(scores) if scores else None
+    avg = round(exact, 2) if exact is not None else None
     return {
         "avg_score": avg,
+        "avg_score_exact": exact,
         "scenario_count": len(pool),
         "graded_count": len(scores),
         "judge_failures": failures,
@@ -1745,7 +1820,9 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
         )
 
     baseline_avg = summary["per_mechanism"]["baseline"]["avg_score"]
-    desc_avg = summary["per_mechanism"]["description"]["avg_score"]
+    # The gates read the unrounded pair. See `_mechanism_summary`.
+    gate_baseline_avg = summary["per_mechanism"]["baseline"]["avg_score_exact"]
+    gate_desc_avg = summary["per_mechanism"]["description"]["avg_score_exact"]
 
     # `description` is the progressive-disclosure gate. The `full` mechanism is
     # retained only as a diagnostic ceiling and cannot rescue a failed front door.
@@ -1804,7 +1881,13 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     summary["delta_description_vs_baseline"] = _delta(
         pos_cells["description"], pos_cells["baseline"]
     )
+    # The published deltas stay rounded, so the archived runs replay
+    # field-for-field. The delta gate reads this one.
+    summary["delta_description_vs_baseline_exact"] = _delta_exact(
+        pos_cells["description"], pos_cells["baseline"]
+    )
     summary["total_judge_failures"] = total_judge_failures
+    summary.update(_salvage_rate(scenarios))
     # Name the cells whose failures no gate reads. Deriving this in the
     # renderer instead would let the disclosure drift from the exclusion, which
     # is how the negative-baseline exclusion shipped silent in the first place.
@@ -1843,9 +1926,14 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     # than failing every rule in it.
     gate_mechs = neg_gate_mechs
     gate_cells = {m: summary["negative_case_per_mechanism"][m] for m in gate_mechs}
-    graded_neg = [c["avg_score"] for c in gate_cells.values() if c["graded_count"] > 0]
+    graded_neg = [
+        c["avg_score_exact"] for c in gate_cells.values() if c["graded_count"] > 0
+    ]
     worst_neg_avg = min(graded_neg) if graded_neg else None
-    summary["worst_negative_avg"] = worst_neg_avg
+    summary["worst_negative_avg"] = (
+        round(worst_neg_avg, 2) if worst_neg_avg is not None else None
+    )
+    summary["worst_negative_avg_exact"] = worst_neg_avg
     # Name the population the number was read off. An average over a subset of
     # the negative scenarios, reported as if it covered them all, is the defect
     # this whole change exists to remove.
@@ -1859,7 +1947,7 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     # covers, and a reader cannot recover it from the verdict.
     worst_neg_mech = min(
         (m for m in gate_mechs if gate_cells[m]["graded_count"] > 0),
-        key=lambda m: gate_cells[m]["avg_score"],
+        key=lambda m: gate_cells[m]["avg_score_exact"],
         default=None,
     )
     summary["worst_negative_mechanism"] = worst_neg_mech
@@ -1883,8 +1971,8 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
         gating_judge_failures=gating_judge_failures,
         worst_neg_avg=worst_neg_avg,
         has_positive_cases=bool(pos_scenarios),
-        desc_avg=desc_avg,
-        baseline_avg=baseline_avg,
+        desc_avg=gate_desc_avg,
+        baseline_avg=gate_baseline_avg,
     )
 
     return summary
@@ -1912,6 +2000,15 @@ def _delta(treatment: dict[str, Any], control: dict[str, Any]) -> float | None:
     treatment_avg: float = treatment["avg_score"]
     control_avg: float = control["avg_score"]
     return round(treatment_avg - control_avg, 2)
+
+
+def _delta_exact(
+    treatment: dict[str, Any], control: dict[str, Any]
+) -> float | None:
+    """The same difference, off the unrounded averages, for the delta gate."""
+    if not _fully_graded(treatment) or not _fully_graded(control):
+        return None
+    return treatment["avg_score_exact"] - control["avg_score_exact"]
 
 
 def _positive_verdict(desc_avg: float | None, baseline_avg: float | None) -> str:
@@ -1977,6 +2074,52 @@ def _decide_verdict(
 # ---------------------------------------------------------------------------
 
 
+def _floor_display_gap(
+    label: str, exact: float | None, published: float | None, floor: float
+) -> str | None:
+    """Disclose a published number that rounds across the floor its gate read.
+
+    Without this the table can print a clean 3.5 beside FAIL_OVER_ACTIVATION,
+    which is the same publish-a-number-that-contradicts-the-verdict defect
+    #4070 fixes, pointed the other way.
+    """
+    if exact is None or published is None or not math.isfinite(exact):
+        return None
+    if exact >= floor or published < floor:
+        return None
+    return (
+        f"{label} {exact:.4f} gated below the {floor} floor; "
+        f"the table rounds it to {published}."
+    )
+
+
+def _rounding_caveats(summary: dict[str, Any]) -> list[str]:
+    """Every gate whose published number and gated number straddle its floor."""
+    per_mech = summary.get("per_mechanism") or {}
+    description = per_mech.get("description") or {}
+    candidates = (
+        _floor_display_gap(
+            "Restraint",
+            summary.get("worst_negative_avg_exact"),
+            summary.get("worst_negative_avg"),
+            MIN_RESTRAINT_SCORE,
+        ),
+        _floor_display_gap(
+            "Description average",
+            description.get("avg_score_exact"),
+            description.get("avg_score"),
+            MIN_ACTIVATION_SCORE,
+        ),
+        _floor_display_gap(
+            "Description delta over baseline",
+            summary.get("delta_description_vs_baseline_exact"),
+            summary.get("delta_description_vs_baseline"),
+            MIN_DELTA_VS_BASELINE,
+        ),
+    )
+    return [line for line in candidates if line is not None]
+
+
 def _render_caveats(summary: dict[str, Any]) -> list[str]:
     """Every line that qualifies the verdict above it.
 
@@ -1985,7 +2128,7 @@ def _render_caveats(summary: dict[str, Any]) -> list[str]:
     exclusion without its disclosure is a visible omission rather than a
     silent one.
     """
-    lines: list[str] = []
+    lines: list[str] = _rounding_caveats(summary)
     for label, key in (
         ("Negative", "negative_gate_incomplete"),
         ("Positive", "positive_gate_incomplete"),
@@ -2126,6 +2269,19 @@ def _parse_args() -> argparse.Namespace:
         default=DEFAULT_JUDGE_REDUCER,
         choices=tuple(_SCORE_REDUCERS),
         help="Reducer used for repeated judge samples.",
+    )
+    parser.add_argument(
+        "--max-salvaged-fraction",
+        type=float,
+        default=DEFAULT_MAX_SALVAGED_FRACTION,
+        help=(
+            "Fail the run when more than this fraction of graded judge "
+            "samples had their scores recovered from an unparseable payload. "
+            "The 2026-07-29 reference run would salvage 24 of 288 samples "
+            f"(8.3%%), so the default of {DEFAULT_MAX_SALVAGED_FRACTION} sits "
+            "above it and a provider that starts emitting preambles is caught "
+            "rather than silently accommodated (#3988). Set to 1.0 to disable."
+        ),
     )
     return parser.parse_args()
 
@@ -2406,10 +2562,20 @@ def _process_one_rule(
     }, n_calls
 
 
+def _args_config_error(args: argparse.Namespace) -> str | None:
+    """Name the first out-of-range argument, or None when the run can start."""
+    if args.judge_repeats < 1:
+        return "--judge-repeats must be positive"
+    if not 0.0 <= args.max_salvaged_fraction <= 1.0:
+        return "--max-salvaged-fraction must be between 0 and 1"
+    return None
+
+
 def main() -> int:
     args = _parse_args()
-    if args.judge_repeats < 1:
-        print("ERROR: --judge-repeats must be positive", file=sys.stderr)
+    config_error = _args_config_error(args)
+    if config_error is not None:
+        print(f"ERROR: {config_error}", file=sys.stderr)
         return 2
 
     if args.dry_run:
@@ -2479,12 +2645,38 @@ def _process_scenario_file(
 
     if result is not None:
         all_results["rules"][rule_id] = result
-        ok, judge_failed = _classify_verdict(result["summary"]["verdict"])
+        summary = result["summary"]
+        if _salvage_gate_failed(rule_id, summary, args.max_salvaged_fraction):
+            state.overall_pass = False
+        ok, judge_failed = _classify_verdict(summary["verdict"])
         if not ok:
             state.overall_pass = False
         if judge_failed:
             state.external_failure = True
     return None
+
+
+def _salvage_gate_failed(
+    rule_id: str, summary: dict[str, Any], max_fraction: float
+) -> bool:
+    """Whether recovery carried more of this run than the bound allows.
+
+    Reported next to the verdict rather than folded into it: the scores are
+    real observations of the response, so the run measured what it says it
+    measured. What is in question is how much of that measurement rests on a
+    payload the judge did not serialize cleanly (#3988, ADR-091).
+    """
+    fraction = summary.get("salvaged_sample_fraction")
+    if fraction is None or fraction <= max_fraction:
+        return False
+    print(
+        f"ERROR: {rule_id}: {summary['salvaged_sample_count']} of "
+        f"{summary['graded_sample_count']} graded judge samples were salvaged "
+        f"from unparseable output ({fraction:.1%}), over the "
+        f"--max-salvaged-fraction bound of {max_fraction:.1%}",
+        file=sys.stderr,
+    )
+    return True
 
 
 def _classify_verdict(verdict: str) -> tuple[bool, bool]:
