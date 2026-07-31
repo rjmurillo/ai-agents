@@ -378,6 +378,75 @@ class TestRunProvenance:
 
 
 # ---------------------------------------------------------------------------
+# Judge parse failure evidence preservation (#3975)
+# ---------------------------------------------------------------------------
+
+
+class TestParseJudgeResponseEvidence:
+    """Parse failures must preserve the full raw response, not a 200-char prefix."""
+
+    def _score(self, monkeypatch, raw_text: str) -> dict:
+        monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_kw: raw_text)
+        return eval_mod.score_response(
+            "sk-test",
+            {"input": "x", "expected_gate": "apply-rule"},
+            "response",
+        )
+
+    def test_invalid_json_sets_judge_failed(self, monkeypatch):
+        result = self._score(monkeypatch, "not json at all")
+        assert result["judge_failed"] is True
+
+    def test_invalid_json_stores_full_raw_response(self, monkeypatch):
+        payload = "x" * 500
+        result = self._score(monkeypatch, payload)
+        assert result["raw_judge_response"] == payload
+
+    def test_invalid_json_reasoning_is_neutral(self, monkeypatch):
+        # reasoning must not contain a fabricated cause derived from truncated text
+        result = self._score(monkeypatch, "not json at all")
+        assert "not json at all" not in result["reasoning"]
+        assert "200" not in result["reasoning"]
+
+    def test_non_object_json_sets_judge_failed(self, monkeypatch):
+        result = self._score(monkeypatch, "[1, 2, 3]")
+        assert result["judge_failed"] is True
+
+    def test_non_object_json_stores_full_raw_response(self, monkeypatch):
+        payload = "[" + ", ".join(str(i) for i in range(200)) + "]"
+        result = self._score(monkeypatch, payload)
+        assert result["raw_judge_response"] == payload
+
+    def test_non_object_json_reasoning_is_neutral(self, monkeypatch):
+        result = self._score(monkeypatch, "[1, 2, 3]")
+        assert "[1, 2, 3]" not in result["reasoning"]
+
+    def test_large_payload_preserved_without_truncation(self, monkeypatch):
+        # 201 chars triggers the old truncation; the full payload must survive
+        payload = "A" * 201
+        result = self._score(monkeypatch, payload)
+        assert result.get("raw_judge_response") == payload
+
+    def test_successful_parse_has_no_raw_judge_response(self, monkeypatch):
+        # Storage cost: successful parse must NOT write raw_judge_response
+        good = (
+            '{"activation_score": 3, "citation_score": 3, "behavior_score": 3, "reasoning": "ok"}'
+        )
+        result = self._score(monkeypatch, good)
+        assert result["judge_failed"] is False
+        assert "raw_judge_response" not in result
+
+    def test_successful_parse_scores_are_intact(self, monkeypatch):
+        good = (
+            '{"activation_score": 4, "citation_score": 2, "behavior_score": 5, "reasoning": "fine"}'
+        )
+        result = self._score(monkeypatch, good)
+        assert result["activation_score"] == 4
+        assert result["citation_score"] == 2
+        assert result["behavior_score"] == 5
+
+
+# ---------------------------------------------------------------------------
 # _load_scenarios_file() path validation
 # ---------------------------------------------------------------------------
 

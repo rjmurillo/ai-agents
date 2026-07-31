@@ -594,7 +594,11 @@ Respond in JSON only, no other text:
     except ValueError:
         embedded = _recover_verdict(text)
         if embedded is None:
-            return _judge_parse_failure(text, f"judge parse error: {text[:200]}")
+            return _judge_parse_failure(
+                text,
+                "judge response could not be parsed as JSON",
+                raw_judge_response=text,
+            )
         # _recover_verdict only returns text it already parsed with
         # _strict_json_loads, so this cannot raise.
         parsed = _strict_json_loads(embedded)
@@ -622,13 +626,17 @@ Respond in JSON only, no other text:
         # offers nothing exact to check.
         if _parsed_names_two_verdicts(parsed):
             return _failed_judge(
-                f"ambiguous judge output names two verdicts: {text[:200]}"
+                "ambiguous judge output names two verdicts",
+                raw_judge_response=text,
             )
     if not isinstance(parsed, dict):
-        return _failed_judge(f"judge returned non-object JSON: {text[:200]}")
+        return _failed_judge(
+            "judge returned non-object JSON",
+            raw_judge_response=text,
+        )
     score_error = _judge_score_shape_error(parsed)
     if score_error is not None:
-        return _judge_parse_failure(text, score_error)
+        return _judge_parse_failure(text, score_error, raw_judge_response=text)
     result = {
         "activation_score": _clamp_score(parsed["activation_score"]),
         "citation_score": _clamp_score(parsed["citation_score"]),
@@ -1521,11 +1529,15 @@ def _salvage_scores(text: str) -> dict[str, int] | None:
     return _complete_verdict(_scan_root_members(text, start))
 
 
-def _judge_parse_failure(text: str, reason: str) -> dict[str, Any]:
+def _judge_parse_failure(
+    text: str,
+    reason: str,
+    raw_judge_response: str | None = None,
+) -> dict[str, Any]:
     """Build a failed-judge record, salvaging scores when they are recoverable."""
     salvaged = _salvage_scores(text)
     if salvaged is not None:
-        return {
+        result: dict[str, Any] = {
             "activation_score": _clamp_score(salvaged["activation_score"]),
             "citation_score": _clamp_score(salvaged["citation_score"]),
             "behavior_score": _clamp_score(salvaged["behavior_score"]),
@@ -1533,17 +1545,23 @@ def _judge_parse_failure(text: str, reason: str) -> dict[str, Any]:
             "judge_failed": False,
             "judge_salvaged": True,
         }
-    return _failed_judge(reason)
+        if raw_judge_response is not None:
+            result["raw_judge_response"] = raw_judge_response
+        return result
+    return _failed_judge(reason, raw_judge_response=raw_judge_response)
 
 
-def _failed_judge(reason: str) -> dict[str, Any]:
-    return {
+def _failed_judge(reason: str, raw_judge_response: str | None = None) -> dict[str, Any]:
+    result: dict[str, Any] = {
         "activation_score": 0,
         "citation_score": 0,
         "behavior_score": 0,
         "reasoning": reason,
         "judge_failed": True,
     }
+    if raw_judge_response is not None:
+        result["raw_judge_response"] = raw_judge_response
+    return result
 
 
 def _judge_score_shape_error(parsed: dict[str, Any]) -> str | None:
