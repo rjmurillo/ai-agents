@@ -60,10 +60,12 @@ gh pr view 199 --json state,mergeable,reviewDecision
 checks_file=$(mktemp)
 trap 'rm -f "$checks_file"' EXIT
 
-gh pr checks 199 --json name,state,conclusion,detailsUrl > "$checks_file"
+gh pr checks 199 --json name,bucket,link > "$checks_file"
 
-# Parse results
-failed_checks=$(jq '[.[] | select(.conclusion != "success" and .conclusion != "skipped")]' "$checks_file")
+# Parse results. `bucket` is gh's normalized category: pass, fail, pending,
+# skipping, cancel. Prefer it over `state`, which reports NEUTRAL separately
+# even though gh already buckets NEUTRAL as skipping.
+failed_checks=$(jq '[.[] | select(.bucket != "pass" and .bucket != "skipping")]' "$checks_file")
 
 if [ "$(echo "$failed_checks" | jq 'length')" -gt 0 ]; then
   echo "[BLOCKED] CI checks not passing:"
@@ -87,9 +89,12 @@ Before claiming PR review complete, ALL must be true:
 
 The resolved-marker count uses a basic regular expression, where `\|` is
 alternation. It is shown outside the table because a table cell would need
-`\\|`, which BRE reads as an escaped backslash followed by a literal pipe. That
-form matches nothing and reports 0, so the criterion fails even when every
-comment is resolved.
+`\\|`, and what grep then receives depends on the caller's quoting. Inside
+double quotes the shell collapses the pair back to `\|` and the match works.
+Inside single quotes, or when the pattern is passed as an argument with no
+shell between the author and grep, grep receives `\\|` and reads an escaped
+backslash followed by a literal pipe, which matches nothing and reports 0.
+Fencing the command removes that ambiguity.
 
 ```bash
 grep -c "Status: \[COMPLETE\]\|\[WONTFIX\]"
@@ -115,20 +120,20 @@ checks_file=$(mktemp)
 trap 'rm -f "$checks_file"' EXIT
 
 # Fetch all fields in one call, reuse for both waiting and verification
-gh pr checks [number] --json name,state,conclusion,detailsUrl > "$checks_file"
+gh pr checks [number] --json name,bucket,link > "$checks_file"
 
-# Parse for failures
-failed_checks=$(jq '[.[] | select(.conclusion != "success" and .conclusion != "skipped")]' "$checks_file")
+# Parse for failures. `bucket` is gh's normalized category.
+failed_checks=$(jq '[.[] | select(.bucket != "pass" and .bucket != "skipping")]' "$checks_file")
 failed_count=$(echo "$failed_checks" | jq 'length')
 
 if [ "$failed_count" -gt 0 ]; then
   echo "[BLOCKED] $failed_count CI checks not passing:"
-  echo "$failed_checks" | jq -r '.[] | "  - \(.name): \(.conclusion)"'
+  echo "$failed_checks" | jq -r '.[] | "  - \(.name): \(.bucket)"'
 
   # Parse actionable items from failures
   echo ""
   echo "Actionable items:"
-  echo "$failed_checks" | jq -r '.[] | "  - \(.name): Review logs at \(.detailsUrl // "N/A")"'
+  echo "$failed_checks" | jq -r '.[] | "  - \(.name): Review logs at \(.link // "N/A")"'
 
   # Return to Phase 6 for fixes
   exit 1
