@@ -312,10 +312,10 @@ Other limits, all real:
 - **Negative scenarios could not fail a rule until #3933.** `aggregate` now
   returns `FAIL_OVER_ACTIVATION` below `MIN_RESTRAINT_SCORE`, and
   `FAIL_NEGATIVE_INCOMPLETE` or `FAIL_POSITIVE_INCOMPLETE` when a gating pool
-  was not fully graded. Harm outranks coverage, and an unproven harm outranks
-  an unproven benefit. **The gate is
-  vacuous here**: this suite's one negative scenario scored 5.0 at every
-  mechanism in all eight runs. Unit tests exercise it; this suite cannot.
+  was not fully graded. Only a mechanism covering the whole negative pool sets
+  the floor, so measured harm outranks coverage while a partly graded pool
+  reads as incompleteness. An unproven harm outranks an unproven benefit.
+  **Vacuous here**: the lone negative scenario scored 5.0. Unit tests cover it.
 
 ## Step 3. Decide
 
