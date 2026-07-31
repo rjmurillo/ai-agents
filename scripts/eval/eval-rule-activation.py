@@ -1761,9 +1761,11 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
         default=None,
     )
     best_avg = summary["per_mechanism"][best_mech]["avg_score"] if best_mech else None
-    # Distinguish "no cell was graded" from "no mechanism was graded
+    # Distinguish "no rule-enhanced mechanism was graded" from "none was graded
     # completely". Both leave the headline empty and they are not the same
-    # problem to go fix.
+    # problem to go fix. Both states are read off `rule_enhanced` alone, so
+    # neither says anything about `baseline`: a run can grade `baseline` fully
+    # and still reach either one.
     summary["best_mechanism_partial"] = best_mech is None and any(
         summary["per_mechanism"][m]["avg_score"] is not None for m in rule_enhanced
     )
@@ -1836,14 +1838,21 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     # doing. For a routed target `full` is excluded too, because force-injecting
     # a reference is a measurement treatment no deployment performs.
     #
-    # Only mechanisms with a graded negative cell contribute. An ungraded pool
-    # has no average to gate on: `_mechanism_summary` reports `None`, which is
-    # not comparable against a floor, and `min` over an empty list raises. A
-    # suite with no negative scenarios reports that it measured none rather
-    # than failing every rule in it.
+    # Only mechanisms whose negative cell covers the whole pool contribute. The
+    # floor is a threshold on the average restraint across the negative
+    # scenarios, so an average over a subset is not the quantity the floor
+    # names. Gating on a subset made the verdict turn on which scenarios
+    # happened to grade: one cell scoring 1.0 with the rest ungraded averaged
+    # 1.0 and failed, while that same 1.0 beside two 5.0s averaged 3.67 and
+    # passed. Requiring the whole pool does not hide that harm, it renames it:
+    # `negative_gate_incomplete` is non-empty in exactly that case, so the run
+    # reports FAIL_NEGATIVE_INCOMPLETE instead of claiming a measurement it
+    # does not have. `_fully_graded` implies a non-empty pool, so a suite with
+    # no negative scenarios still reports that it measured none rather than
+    # failing every rule in it.
     gate_mechs = neg_gate_mechs
     gate_cells = {m: summary["negative_case_per_mechanism"][m] for m in gate_mechs}
-    graded_neg = [c["avg_score"] for c in gate_cells.values() if c["graded_count"] > 0]
+    graded_neg = [c["avg_score"] for c in gate_cells.values() if _fully_graded(c)]
     worst_neg_avg = min(graded_neg) if graded_neg else None
     summary["worst_negative_avg"] = worst_neg_avg
     # Name the population the number was read off. An average over a subset of
@@ -1858,7 +1867,7 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     # have graded the same scenarios, so the number alone does not say what it
     # covers, and a reader cannot recover it from the verdict.
     worst_neg_mech = min(
-        (m for m in gate_mechs if gate_cells[m]["graded_count"] > 0),
+        (m for m in gate_mechs if _fully_graded(gate_cells[m])),
         key=lambda m: gate_cells[m]["avg_score"],
         default=None,
     )
@@ -2051,7 +2060,7 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
             else (
                 "Best mechanism: none graded on every scenario"
                 if summary.get("best_mechanism_partial")
-                else "Best mechanism: none measured"
+                else "Best mechanism: no rule-enhanced mechanism measured"
             )
         ),
         f"Restraint on negative cases: {restraint}",

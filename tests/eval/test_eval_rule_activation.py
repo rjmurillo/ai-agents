@@ -3907,20 +3907,37 @@ class TestNegativeCaseGate:
 
         neg = summary["negative_case_per_mechanism"]["full"]
         assert (neg["graded_count"], neg["scenario_count"]) == (1, 2)
-        assert summary["worst_negative_avg"] == 5.0, "the graded subset looks clean"
+        # No mechanism covers the pool, so no restraint number is published at
+        # all. Publishing the clean-looking 5.0 over the graded half is the
+        # defect this docstring names.
+        assert summary["worst_negative_avg"] is None
         assert summary["verdict"] == "FAIL_NEGATIVE_INCOMPLETE"
 
     def test_an_observed_violation_outranks_incomplete_coverage(self):
-        # A floor violation seen on part of the pool is still a violation.
-        # Naming the harm beats naming the gap that would have found more of it.
+        # A floor violation measured across a whole pool outranks a sibling
+        # mechanism that was measured only in part. Naming the harm beats
+        # naming the gap that would have found more of it.
+        #
+        # `description` covers both negative scenarios and averages 1.0, so the
+        # harm is not an artifact of which cells graded. `full` is 1/2 and only
+        # supplies the incompleteness the harm has to outrank.
         scenarios = [
             _make_scenario(baseline=1, description=5, full=5),
             _make_scenario(baseline=5, description=1, full=1, negative=True),
-            _ungraded_negative(),
+            _scenario_of_mechs(
+                {
+                    "baseline": _make_mech(5),
+                    "description": _make_mech(1),
+                    "full": _unscored_mech(),
+                },
+                negative=True,
+            ),
         ]
         summary = eval_mod.aggregate(scenarios)
 
-        assert summary["negative_gate_incomplete"] == ["description", "full"]
+        assert summary["negative_gate_incomplete"] == ["full"]
+        assert summary["worst_negative_mechanism"] == "description"
+        assert summary["worst_negative_graded"] == 2
         assert summary["verdict"] == "FAIL_OVER_ACTIVATION"
 
     def test_a_fully_graded_negative_pool_passes(self):
@@ -4601,7 +4618,13 @@ class TestUnmeasuredPoolsPublishNoNumber:
 
         assert summary["best_mechanism"] is None
         assert summary["best_avg_score"] is None
-        assert "none measured" in eval_mod.render_table("probe", summary)
+        # `baseline` was graded on its whole pool. A headline reading "none
+        # measured" beside a table row showing that cell contradicts it, so the
+        # headline names the population it actually ranks over.
+        assert summary["per_mechanism"]["baseline"]["avg_score"] == 1.0
+        assert summary["per_mechanism"]["baseline"]["graded_count"] == 1
+        rendered = eval_mod.render_table("probe", summary)
+        assert "Best mechanism: no rule-enhanced mechanism measured" in rendered
 
 
 class TestNegativeJudgeFailuresGateOnTheirOwnPool:
@@ -4842,24 +4865,33 @@ class TestBothExclusionsCanFireAtOnce:
         assert "positive full, negative baseline, negative full" in table
 
 
-class TestPartialPoolsStillReportObservedHarm:
-    """The restraint floor and the deltas treat partial coverage differently.
+class TestPartialCoverageReadsTheSameOnBothPools:
+    """The restraint floor and the deltas treat partial coverage alike.
 
-    A delta needs both sides to cover the same pool, because a difference
-    between two populations describes neither. The restraint floor needs only
-    one graded cell, because a cell that scored 1.0 is real observed harm
-    whatever else went unmeasured. Requiring full coverage there would
-    suppress a true harm signal to avoid an incomplete one, which is the
-    trade in the wrong direction.
+    An earlier version of this class argued the opposite: that the floor
+    should gate on any graded cell, because a cell scoring 1.0 is real harm
+    whatever else went unmeasured, and that requiring full coverage would
+    suppress a true harm signal. It asked a later pass to argue with it.
 
-    These are pinned together so that a later pass unifying the two rules has
-    to argue with this test rather than quietly lose the harm signal.
+    Here is the argument. The premise was that unification loses the signal,
+    and it does not. The floor is a threshold on the average restraint across
+    the negative scenarios, so an average over a subset is not the quantity
+    the floor names, and gating on it made the verdict turn on missingness:
+    one cell at 1.0 with the rest ungraded averaged 1.0 and failed, while that
+    same 1.0 beside two 5.0s averaged 3.67 and passed. Excluding the partial
+    cell does not turn either into a PASS. The gap is already published in
+    `negative_gate_incomplete`, so the run fails as FAIL_NEGATIVE_INCOMPLETE
+    instead of claiming a restraint number it never measured. The harm is not
+    lost, it is named by its real cause.
+
+    Harm measured across a whole pool still outranks an incomplete sibling.
+    That ordering is pinned in `test_an_observed_violation_outranks_incomplete_coverage`.
     """
 
-    def test_a_partly_graded_negative_pool_still_fails_on_harm(self):
+    def test_a_partly_graded_negative_pool_names_the_gap_not_a_number(self):
         scenarios = [
             _make_scenario(baseline=1, description=5, full=5),
-            _make_scenario(baseline=5, description=1, full=1, negative=True),
+            _make_scenario(baseline=5, description=1, full=5, negative=True),
             _scenario_of_mechs(
                 {
                     "baseline": _make_mech(5),
@@ -4873,11 +4905,14 @@ class TestPartialPoolsStillReportObservedHarm:
         summary = eval_mod.aggregate(scenarios)
 
         assert summary["negative_gate_incomplete"] == ["description"]
-        assert summary["worst_negative_avg"] == 1.0
-        assert summary["worst_negative_graded"] == 1
-        # Harm outranks incompleteness. The pool is admittedly partial and the
-        # verdict still names the harm it did observe.
-        assert summary["verdict"] == "FAIL_OVER_ACTIVATION"
+        # `description` is 1/2 and is excluded, so its lone 1.0 no longer sets
+        # the floor. `full` covers both scenarios and clears it at 5.0.
+        assert summary["worst_negative_avg"] == 5.0
+        assert summary["worst_negative_mechanism"] == "full"
+        assert summary["worst_negative_graded"] == 2
+        # The run still fails. Only the reason changed, from a restraint
+        # number read off half a pool to the missing half itself.
+        assert summary["verdict"] == "FAIL_NEGATIVE_INCOMPLETE"
 
     def test_the_same_partial_coverage_suppresses_a_delta(self):
         """The other half of the contrast, on the positive pool."""
@@ -4959,9 +4994,9 @@ class TestTheHeadlineNeedsAWholePool:
         assert summary["best_mechanism_partial"] is True
         table = eval_mod.render_table("r", summary)
         assert "Best mechanism: none graded on every scenario" in table
-        assert "none measured" not in table
+        assert "no rule-enhanced mechanism measured" not in table
 
-    def test_nothing_graded_at_all_still_says_none_measured(self):
+    def test_nothing_graded_says_no_rule_enhanced_mechanism_measured(self):
         summary = eval_mod.aggregate(
             [
                 _scenario_of_mechs(
@@ -4976,4 +5011,6 @@ class TestTheHeadlineNeedsAWholePool:
 
         assert summary["best_mechanism"] is None
         assert summary["best_mechanism_partial"] is False
-        assert "Best mechanism: none measured" in eval_mod.render_table("r", summary)
+        table = eval_mod.render_table("r", summary)
+        assert "Best mechanism: no rule-enhanced mechanism measured" in table
+        assert "none graded on every scenario" not in table
