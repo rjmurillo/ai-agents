@@ -23,12 +23,12 @@ resolution, using git plumbing instead of full-tree text search:
    changes, so content already committed on ``<ref>`` is ignored.
 
    Outside a merge, ``<ref>`` is ``HEAD``. During a merge, ``HEAD`` is
-   the topic tip, so everything arriving from the incoming branch reads
+   the topic tip, so everything arriving from an incoming branch reads
    as newly added and inherited content false-fails (issue #4058). The
    merge-time result is therefore the ``file:line`` intersection of the
-   ``HEAD`` diff and the ``MERGE_HEAD`` diff: content committed on
-   either parent is excluded, and only markers introduced by the
-   resolution itself are reported.
+   ``HEAD`` diff with the diff of every ``MERGE_HEAD`` parent, octopus
+   merges included: content committed on any parent is excluded, and
+   only markers introduced by the resolution itself are reported.
 
 Together these catch every real leftover-marker scenario:
 
@@ -129,14 +129,31 @@ def _marker_location(line: str) -> str:
     return line.rsplit(": ", 1)[0]
 
 
-def _is_merging(cwd: Path) -> bool:
-    """Return True when a two-parent merge is in progress.
+def _merge_parents(cwd: Path) -> list[str]:
+    """Return every incoming merge parent SHA, empty when not merging.
 
-    ``--verify`` demands a single revision, so an octopus merge (several
-    SHAs in ``MERGE_HEAD``) reports False and falls back to the HEAD-only
-    path. That fails closed: it can over-report, never under-report.
+    ``MERGE_HEAD`` is a multi-line pseudo-ref: an octopus merge writes
+    one SHA per line. Git's own ref resolution reads only the first
+    line, so ``git rev-parse -q --verify MERGE_HEAD`` exits 0 and prints
+    parent one while silently dropping the rest. Verified on git 2.43.0
+    against a three-parent merge. Read the file git wrote instead,
+    located through ``git rev-parse --git-path`` so linked worktrees and
+    a relocated git dir both resolve.
     """
-    return _run_git(["rev-parse", "-q", "--verify", "MERGE_HEAD"], cwd=cwd).returncode == 0
+    located = _run_git(["rev-parse", "--git-path", "MERGE_HEAD"], cwd=cwd)
+    if located.returncode != 0:
+        return []
+
+    merge_head = Path(located.stdout.strip())
+    if not merge_head.is_absolute():
+        merge_head = cwd / merge_head
+    try:
+        content = merge_head.read_text(encoding="utf-8")
+    except OSError:
+        # No MERGE_HEAD (or unreadable) means no merge in progress.
+        return []
+
+    return [line.strip() for line in content.splitlines() if line.strip()]
 
 
 def find_leftover_markers(cwd: Path) -> list[str]:
@@ -146,18 +163,22 @@ def find_leftover_markers(cwd: Path) -> list[str]:
     in any in-flight change (working tree or index) relative to HEAD.
 
     During a merge, HEAD is the topic tip, so every line arriving from
-    the incoming branch reads as newly added and inherited content
+    an incoming branch reads as newly added and inherited content
     false-fails the check (issue #4058). The result is therefore the
-    ``file:line`` intersection of the HEAD diff and the ``MERGE_HEAD``
-    diff. Content already committed on either parent is excluded; only
-    markers the resolution itself introduced remain.
+    ``file:line`` intersection of the HEAD diff with the diff of every
+    ``MERGE_HEAD`` parent. Content already committed on any parent is
+    excluded; only markers the resolution itself introduced remain.
     """
-    head_markers = _markers_against("HEAD", cwd)
-    if not head_markers or not _is_merging(cwd):
-        return head_markers
+    surviving = _markers_against("HEAD", cwd)
+    if not surviving:
+        return surviving
 
-    incoming = {_marker_location(line) for line in _markers_against("MERGE_HEAD", cwd)}
-    return [line for line in head_markers if _marker_location(line) in incoming]
+    for parent in _merge_parents(cwd):
+        inherited = {_marker_location(line) for line in _markers_against(parent, cwd)}
+        surviving = [line for line in surviving if _marker_location(line) in inherited]
+        if not surviving:
+            break
+    return surviving
 
 
 def verify(cwd: Path) -> tuple[int, dict[str, object]]:

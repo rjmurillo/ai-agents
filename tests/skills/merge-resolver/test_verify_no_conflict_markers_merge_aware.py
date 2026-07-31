@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -91,6 +92,31 @@ def merge_in_progress(seeded_repo: Path) -> Path:
 
     (seeded_repo / "shared.txt").write_text("resolved\n")
     _git(seeded_repo, "add", "shared.txt")
+    return seeded_repo
+
+
+@pytest.fixture()
+def octopus_merge_in_progress(seeded_repo: Path) -> Path:
+    """``main`` mid-octopus-merge with two parents, doc.md on the second.
+
+    Only ``adds_doc`` (parent two) carries the fenced ``<<<<<<<``
+    example. Parent one never had it, so an intersection that resolves
+    ``MERGE_HEAD`` through ``--verify`` sees the file as newly added and
+    reports it.
+    """
+    for name, path, body in (
+        ("adds_file", "extra.txt", "extra\n"),
+        ("adds_doc", "doc.md", FENCED_EXAMPLE),
+    ):
+        _git(seeded_repo, "checkout", "-q", "-b", name, "main")
+        (seeded_repo / path).write_text(body)
+        _git(seeded_repo, "add", "-A")
+        _git(seeded_repo, "commit", "-q", "-m", f"{name} commit")
+
+    _git(seeded_repo, "checkout", "-q", "main")
+    merge = _git(seeded_repo, "merge", "--no-commit", "adds_file", "adds_doc", check=False)
+    assert merge.returncode == 0, merge.stderr
+    assert len((seeded_repo / ".git" / "MERGE_HEAD").read_text().split()) == 2
     return seeded_repo
 
 
@@ -226,7 +252,7 @@ class TestMergeHeadProbeEdges:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """A clean HEAD diff short-circuits; no second git call is spent."""
-        real_run_git = mod._run_git
+        real_run_git: Callable[..., subprocess.CompletedProcess[str]] = mod._run_git
         calls: list[list[str]] = []
 
         def recording_run_git(
@@ -242,31 +268,54 @@ class TestMergeHeadProbeEdges:
         assert exit_code == 0
         assert not any("MERGE_HEAD" in " ".join(args) for args in calls)
 
-    def test_octopus_merge_falls_back_to_the_head_only_path(
+    def test_merge_parents_reports_every_octopus_parent(
         self,
-        seeded_repo: Path,
+        octopus_merge_in_progress: Path,
     ) -> None:
-        """Several MERGE_HEAD parents fail ``--verify``, so HEAD alone decides.
+        """``git rev-parse --verify MERGE_HEAD`` yields only parent one.
 
-        That over-reports rather than under-reports, which is the safe
-        direction for a blocking gate.
+        It exits 0 on an octopus merge and prints the first SHA, so a
+        ``--verify`` probe silently drops the later parents. Reading the
+        pseudo-ref keeps all of them.
         """
-        for name in ("b1", "b2"):
-            _git(seeded_repo, "checkout", "-q", "-b", name, "main")
-            (seeded_repo / f"{name}.txt").write_text(f"{name}\n")
-            _git(seeded_repo, "add", "-A")
-            _git(seeded_repo, "commit", "-q", "-m", f"{name} file")
+        repo = octopus_merge_in_progress
+        expected = [
+            _git(repo, "rev-parse", name).stdout.strip() for name in ("adds_file", "adds_doc")
+        ]
 
-        _git(seeded_repo, "checkout", "-q", "main")
-        merge = _git(seeded_repo, "merge", "--no-commit", "b1", "b2", check=False)
-        assert merge.returncode == 0, merge.stderr
-        assert (seeded_repo / ".git" / "MERGE_HEAD").read_text().count("\n") == 2
+        assert mod._merge_parents(repo) == expected
 
-        (seeded_repo / "shared.txt").write_text(GENUINE_MARKERS)
+        verified = _git(repo, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
+        assert verified.returncode == 0
+        assert verified.stdout.strip() == expected[0]
 
-        exit_code, report = verify(seeded_repo)
+    def test_merge_parents_is_empty_outside_a_merge(self, repo_not_merging: Path) -> None:
+        assert mod._merge_parents(repo_not_merging) == []
+
+    def test_octopus_second_parent_content_does_not_fail_the_merge(
+        self,
+        octopus_merge_in_progress: Path,
+    ) -> None:
+        """The fenced example arrives on parent two, not parent one.
+
+        A ``--verify`` probe would intersect against parent one only and
+        report doc.md, which is the issue #4058 shape all over again.
+        """
+        exit_code, report = verify(octopus_merge_in_progress)
+        assert exit_code == 0, f"octopus parent two flagged; report={report!r}"
+        assert report["leftover_markers"] == []
+
+    def test_octopus_genuine_marker_is_still_flagged(
+        self,
+        octopus_merge_in_progress: Path,
+    ) -> None:
+        """Excluding every parent must not exclude the resolution's own marker."""
+        (octopus_merge_in_progress / "shared.txt").write_text(GENUINE_MARKERS)
+
+        exit_code, report = verify(octopus_merge_in_progress)
         assert exit_code == 1
         assert any("shared.txt" in m for m in report["leftover_markers"])
+        assert not any("doc.md" in m for m in report["leftover_markers"])
 
     def test_marker_location_splits_from_the_right(self) -> None:
         """A path containing ": " must not truncate the intersection key."""
@@ -280,14 +329,15 @@ class TestMergeHeadProbeEdges:
         merge_in_progress: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """A broken ``git diff MERGE_HEAD --check`` surfaces as external error."""
-        real_run_git = mod._run_git
+        """A broken parent-ref ``git diff --check`` surfaces as external error."""
+        real_run_git: Callable[..., subprocess.CompletedProcess[str]] = mod._run_git
+        parent = _git(merge_in_progress, "rev-parse", "MERGE_HEAD").stdout.strip()
 
         def failing_run_git(
             args: list[str],
             cwd: Path | None = None,
         ) -> subprocess.CompletedProcess[str]:
-            if args[:3] == ["diff", "MERGE_HEAD", "--check"]:
+            if args[:3] == ["diff", parent, "--check"]:
                 return subprocess.CompletedProcess(
                     ["git", *args], 128, stdout="", stderr="fatal: bad revision"
                 )
@@ -298,7 +348,7 @@ class TestMergeHeadProbeEdges:
         exit_code, report = verify(merge_in_progress)
         assert exit_code == 3
         assert report["error"] == "git_failed"
-        assert "MERGE_HEAD" in str(report["detail"])
+        assert parent in str(report["detail"])
 
 
 # ---------------------------------------------------------------------------

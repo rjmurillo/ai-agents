@@ -193,7 +193,9 @@ python3 .claude/skills/merge-resolver/scripts/verify_no_conflict_markers.py [--c
 
 Uses `git diff <ref> --check` (catches leftover markers in working tree + index) plus `git diff --name-only --diff-filter=U` (catches files still unmerged). Both inspect in-flight changes only, so content already committed on `<ref>` is ignored.
 
-During a merge, `HEAD` is the topic tip, so a single-ref check reports everything the incoming branch brought along as newly added (issue #4058). The script instead intersects the `HEAD` diff with the `MERGE_HEAD` diff on `file:line`, which excludes content committed on either parent and leaves only markers the resolution itself introduced. Do not substitute a bare `git diff --check` or `git diff HEAD --check`; neither is merge-aware.
+During a merge, `HEAD` is the topic tip, so a single-ref check reports everything an incoming branch brought along as newly added (issue #4058). The script instead intersects the `HEAD` diff with the diff of every `MERGE_HEAD` parent on `file:line`, which excludes content committed on any parent and leaves only markers the resolution itself introduced. It reads the `MERGE_HEAD` pseudo-ref line by line rather than through `git rev-parse --verify`, which resolves only the first parent and would leave an octopus merge's later parents unfiltered. Do not substitute a bare `git diff --check` or `git diff HEAD --check`; neither is merge-aware.
+
+Scope limit of that intersection: a genuine leftover marker already committed on a merge parent is excluded too. `--check` cannot tell it apart from a fenced documentation example, and the resolution did not introduce it. Fix that on the branch that committed it, not in the merge.
 
 **Exit codes:**
 
@@ -224,7 +226,7 @@ During a merge, `HEAD` is the topic tip, so a single-ref check reports everythin
 | Criterion | Evidence |
 |-----------|----------|
 | All conflicts resolved | `python3 .claude/skills/merge-resolver/scripts/verify_no_conflict_markers.py` exits 0 |
-| No merge markers remain | Same script (merge-aware `--check` intersection + `git diff --diff-filter=U`; ignores fenced examples committed on either merge parent -- issues #2424, #4058) |
+| No merge markers remain | Same script (merge-aware `--check` intersection + `git diff --diff-filter=U`; ignores fenced examples committed on any merge parent -- issues #2424, #4058) |
 | Session protocol valid | `validate_session_json.py` exits 0 |
 | Markdown lint passes | `npx markdownlint-cli2` exits 0 |
 | Push successful | Remote ref updated |
