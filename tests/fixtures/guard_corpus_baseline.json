@@ -156,6 +156,9 @@
     "retrospective/tests/test_score_atomicity.py": [
       213
     ],
+    "review/scripts/validate_findings_scope.py": [
+      90
+    ],
     "security-detection/detect_infrastructure.py": [
       83
     ],
@@ -166,21 +169,21 @@
       56
     ],
     "session-end/scripts/complete_session_log.py": [
-      77,
-      121,
-      132,
-      146,
-      158,
-      162,
-      179,
-      193
+      79,
+      122,
+      136,
+      154,
+      170,
+      177,
+      197,
+      214
     ],
     "session-end/scripts/rework_warning.py": [
       82
     ],
     "session-init/scripts/new_session_log.py": [
-      117,
-      180
+      121,
+      184
     ],
     "session-init/scripts/new_session_log_json.py": [
       94,
