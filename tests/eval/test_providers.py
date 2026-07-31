@@ -1801,10 +1801,12 @@ class TestTheModelIsReadFromTheMessageThatAnswered:
 
 
 # ---------------------------------------------------------------------------
-# A sub-agent runs its own model and writes into the parent session's log. In a
-# sampled real session, 4465 primary messages carried neither marker while 671
-# sub-agent messages carried both `agentId` and `parentToolCallId`, and every
-# one of those ran a different model than the primary.
+# A sub-agent runs its own model and writes into the parent session's log. One
+# scan of 3777 session logs found 80498 messages carrying neither marker,
+# 117008 carrying both, 2576 carrying `agentId` alone, and none carrying
+# `parentToolCallId` alone. Both single-marker shapes are exercised below; the
+# `parentToolCallId`-only shape has not been observed in the wild, so its test
+# is the only thing holding that half of the disjunction.
 # ---------------------------------------------------------------------------
 
 

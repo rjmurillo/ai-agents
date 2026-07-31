@@ -221,10 +221,19 @@ class _CopilotCLIProvider:
         write, and its model would either taint the attribution or refuse a run
         whose real answer was fine.
 
-        Two markers appear together in real logs, and either alone is enough:
-        the CLI stamps `agentId` on the event and `parentToolCallId` on the
-        message. In a sampled session both marked exactly the same 671 events,
-        and every message they marked ran a different model than the primary.
+        Two markers are available and either alone is enough: the CLI stamps
+        `agentId` on the event and `parentToolCallId` on the message. They
+        usually travel together but not always. One scan of 3777 session logs
+        found 2576 messages, across three sessions, carrying `agentId` alone,
+        and none carrying `parentToolCallId` alone. Requiring both, or reading
+        only the second, would have joined those 2576 into a graded answer. No
+        marker in that scan was null, so testing for the key and testing its
+        value agreed on every message.
+
+        The markers are not a proxy for the model field. In the same scan 36%
+        of marked messages named a model that an unmarked message in the same
+        log also used, so classifying by "ran a different model than the
+        primary" would have accepted tens of thousands of sub-agent messages.
         """
         return "agentId" in event or "parentToolCallId" in data
 
