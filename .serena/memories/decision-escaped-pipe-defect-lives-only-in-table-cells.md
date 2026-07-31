@@ -36,7 +36,8 @@ the string**, and the engines disagree.
 | POSIX BRE: `grep`, `sed`, `git grep` with no `-E`/`-P` | alternation | the author wants alternation |
 | POSIX ERE: `grep -E`, `egrep` | **literal pipe** | the author wants a literal pipe |
 | PCRE: `grep -P`, Python `re`, .NET `-replace` | **literal pipe** | the author wants a literal pipe |
-| A shell, jq, or PowerShell pipeline | **syntax error** | never |
+| A shell pipeline (`bash`) | **a literal `\|` argument**; the pipe never happens and the shell reports no error | never |
+| A `jq` or PowerShell pipeline | **syntax error** | never |
 | A Jinja filter | **syntax error** | never |
 | Nothing; it is prose (`str \| None`) | renders as `|` | always |
 
@@ -60,9 +61,13 @@ aaa|bbb
 $ printf 'aaa\nbbb\naaa|bbb\n' | grep 'aaa\|bbb'
 aaa
 bbb
+aaa|bbb
 ~~~
 
-Same escaped pattern, opposite meanings, decided only by `-E`.
+Same escaped pattern, opposite meanings, decided only by `-E`. Under ERE the
+pattern is the literal string `aaa|bbb`, so only the third line matches. Under
+BRE it is the alternation `aaa` OR `bbb`, so every line matches, including the
+third, because it contains both substrings.
 
 **The unit of classification is the occurrence, not the cell or the file.** One
 cell can hold occurrences with different verdicts.
@@ -145,7 +150,10 @@ you triage from:
 
 The "elsewhere" bucket is 24 `.py` lines and 2 `.md` lines. The Python ones are
 raw-string regexes matching a literal `|` in Markdown, which is what `\|` means
-in Python `re`, so they are correct.
+in Python `re`, so they are correct. The 2 Markdown ones are inline `grep -n`
+commands outside any table, with no `-E` or `-P`, so they run under BRE where
+`\|` is the alternation their authors intended. Both buckets are correct, which
+is why the defect count for this row is 0.
 
 Reproduce:
 
@@ -235,8 +243,10 @@ Shell pipelines inside table cells:
 
 jq programs inside table cells:
 
-- `.serena/memories/jq/jq-010-handling-pagination-results.md:110,128,129,132,133,140,141`
-- `.serena/memories/jq/jq-quick-reference.md:10,28,29,32,33,40,41`
+- `.serena/memories/jq/jq-010-handling-pagination-results.md:110` (**second
+  occurrence only**; the first is the documented token), then `:128,129,132,133,140,141`
+- `.serena/memories/jq/jq-quick-reference.md:10` (**second occurrence only**;
+  same reason), then `:28,29,32,33,40,41`
 
 The first line in each jq list is the row that documents the pipe operator
 itself, and it demonstrates the occurrence rule: the row holds **two**
@@ -249,6 +259,28 @@ occurrences with **opposite verdicts**.
 
 Verified: `jq '.[] \| .name'` exits 3 with `syntax error, unexpected
 INVALID_CHARACTER`; `jq '.[] | .name'` returns `"alpha"`.
+
+Regex alternations inside table cells:
+
+- `.serena/memories/security/security-secret-detection.md:18,19,20` document
+  `` (password\|pwd)=[^;]+ ``, `` (api_key\|apikey)=[A-Za-z0-9]+ ``, and
+  `` -----BEGIN (RSA\|OPENSSH\|EC) PRIVATE KEY----- ``. These are broken in
+  **every** engine, so no reading of them is correct. Under PCRE, Python `re`,
+  and ERE, `\|` is a literal pipe, so the group matches the literal string
+  `password|pwd` and never the intended alternation. Under BRE, `\|` would be
+  alternation but `(`, `)`, and `+` are literals, so the pattern means
+  `(password` OR `pwd)=[^;]+`. Verified in Python `re`:
+
+      >>> re.search(r'(password\|pwd)=[^;]+', 'password=REDACTED')  -> None
+      >>> re.search(r'(password\|pwd)=[^;]+', 'pwd=REDACTED')       -> None
+      >>> re.search(r'(password|pwd)=[^;]+',  'password=REDACTED')  -> match
+
+  This is the highest-severity entry in the inventory. The other rows mislead an
+  agent into running a command that visibly fails. This one silently fails to
+  detect the secrets it exists to catch, and a scanner built from it reports
+  clean. Both GPT-5.6-sol and Gemini 3.1 Pro flagged these independently; the
+  first pass of this memory recorded the GPT citation as unverifiable, which was
+  a verification error on my part, not a bad citation.
 
 PowerShell pipelines inside table cells:
 
