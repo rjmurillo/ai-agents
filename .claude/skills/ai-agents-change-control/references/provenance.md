@@ -18,7 +18,7 @@ Verified against the working tree on 2026-07-03. Volatile facts and their re-ver
 | SHA-pin tension (Exceptions: None vs GP-006) | `.agents/governance/PROJECT-CONSTRAINTS.md:180`; `.agents/governance/golden-principles.md:63-69` | `grep -n "Exceptions" .agents/governance/PROJECT-CONSTRAINTS.md; sed -n 63,70p .agents/governance/golden-principles.md` |
 | ADR-066 proposed, ADR-071 accepted, #2230 rejected | Status sections of both ADR files | `sed -n 1,20p .agents/architecture/ADR-066-hook-fail-open-reconciliation.md; sed -n 1,10p .agents/architecture/ADR-071-plugin-hook-runtime-contract-verification.md` |
 | FM-9 and FM-10 sections; "neutral default" quote | `.agents/governance/FAILURE-MODES.md:284,315` | `grep -n "neutral default" .agents/governance/FAILURE-MODES.md` |
-| Incident retro paths (908, 1187, 1887, 1965, 2205) | `.agents/retrospective/` | `ls .agents/retrospective/*{908,1187,1887,1965,2205}*` |
+| Incident retro paths (908, 1187, 1887, 1965, 2205) | `.agents/retrospective/` | `ls .agents/retrospective/ \| grep -E "908\|1187\|1887\|1965\|2205"` |
 | `[skip-drift-check]` bypass contract | `.github/workflows/agent-drift-detection.yml:17,65-69` | `grep -n "skip-drift-check" .github/workflows/agent-drift-detection.yml` |
 | ai-pr-quality-gate authoritative blocker | `.github/workflows/ai-pr-quality-gate.yml:735` | `grep -n "check_critical_failures" .github/workflows/ai-pr-quality-gate.yml` |
 | ADR-006 amendment scope and conditions | `.agents/architecture/ADR-006-thin-workflows-testable-modules.md:255-309` | `grep -n "Amendment 2026-04-28" .agents/architecture/ADR-006-thin-workflows-testable-modules.md` |
