@@ -87,6 +87,7 @@ _TEST_GLOBS = ("tests/**/*.py", "tests/*.py")
 #
 #   assert main(["--bad"]) == 1
 #   assert main([]) == EXIT_CONFIG          (any EXIT_ name that is not success)
+#   assert main([]) == EXTERNAL_ERROR       (the other constant style in this tree)
 #   assert result.returncode == 2           (subprocess-driven CLI)
 #   assert excinfo.value.code != 0          (pytest.raises(SystemExit))
 #
@@ -96,6 +97,7 @@ _NONZERO_EXIT_ASSERTION = re.compile(
     r"""
       main\(.*\)\s*(?:==\s*[1-9]|!=\s*0)
     | ==\s*(?:[A-Za-z_][\w.]*\.)?EXIT_(?!OK\b|SUCCESS\b)[A-Z][A-Z_]*
+    | ==\s*(?:[A-Za-z_][\w.]*\.)?[A-Z][A-Z_]*_ERROR\b
     | returncode\s*(?:==\s*[1-9]|!=\s*0)
     | \.code\s*(?:==\s*[1-9]|!=\s*0)
     """,

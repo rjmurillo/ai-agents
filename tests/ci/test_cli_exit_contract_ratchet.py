@@ -129,6 +129,7 @@ def test_a_main_nested_in_a_class_is_not_an_entry_point(tmp_path, monkeypatch):
     [
         "assert widget.main([]) == 1",
         "assert widget.main([]) == widget.EXIT_CONFIG",
+        "assert widget.main([]) == widget.EXTERNAL_ERROR",
         "rc = widget.main([])\n    assert rc == 1",
         "code = widget.main([])\n    assert code == widget.EXIT_CONFIG",
         'result = subprocess.run([sys.executable, "scripts/ci/widget.py"])\n'
