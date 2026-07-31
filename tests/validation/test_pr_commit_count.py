@@ -397,6 +397,63 @@ def test_external_non_first_parent_shas_empty_for_internal_merge() -> None:
     assert mod._external_non_first_parent_shas(payload) == set()
 
 
+def test_external_non_first_parent_shas_inserts_the_validated_sha() -> None:
+    """A mapping whose ``get`` is not a pure lookup cannot smuggle in a second value.
+
+    The sha is validated and inserted from a single read. Reading the key twice
+    would let the second read return a value that was never checked against
+    ``own_shas`` or the non-empty-string rule.
+    """
+
+    class ChangingParent(dict[str, object]):
+        """Returns a valid external sha on the first read, then a different one."""
+
+        def __init__(self, first: str, second: str) -> None:
+            super().__init__(sha=first)
+            self._values = [first, second]
+            self._reads = 0
+
+        def get(self, key: str, default: object = None) -> object:
+            if key != "sha":
+                return super().get(key, default)
+            value = self._values[min(self._reads, len(self._values) - 1)]
+            self._reads += 1
+            return value
+
+    validated = "e" * 40
+    smuggled = "f" * 40
+    payload = [
+        {
+            "sha": "a" * 40,
+            "parents": [{"sha": "b" * 40}, ChangingParent(validated, smuggled)],
+        },
+    ]
+    assert mod._external_non_first_parent_shas(payload) == {validated}
+
+
+def test_external_parent_sha_returns_none_for_a_sha_the_branch_owns() -> None:
+    """A parent the branch already owns yields no sha, so it buys no relief."""
+    own = "a" * 40
+    assert mod._external_parent_sha({"sha": own}, {own}) is None
+    assert mod._external_parent_sha({"sha": own}, set()) == own
+
+
+@pytest.mark.parametrize(
+    "parent",
+    [
+        "not-a-dict",
+        None,
+        {},
+        {"sha": None},
+        {"sha": 42},
+        {"sha": ""},
+    ],
+)
+def test_external_parent_sha_fails_closed_on_unreadable_parent(parent: object) -> None:
+    """An unreadable parent is not a merge from main and must not buy relief."""
+    assert mod._external_parent_sha(parent, set()) is None
+
+
 @pytest.mark.parametrize(
     "payload",
     [

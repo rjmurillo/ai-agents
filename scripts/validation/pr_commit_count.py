@@ -198,19 +198,24 @@ def main_first_parent_shas(repo_root: Path, run_git: GitRunner | None = None) ->
     return frozenset(result.stdout.split())
 
 
-def _is_external_parent(parent: object, own_shas: set[str]) -> bool:
-    """Return True only when this parent is a readable sha the branch does not own.
+def _external_parent_sha(parent: object, own_shas: set[str]) -> str | None:
+    """Return this parent's sha only when it is readable and the branch does not own it.
 
     An unreadable parent must not buy relief: a parent that is not a mapping,
     carries no ``sha``, or carries a non-string ``sha`` is unreadable and fails
-    closed to False.
+    closed to None.
+
+    The sha is read once and returned, so the caller inserts the same value that
+    was validated here. Reading the key a second time at the call site would let
+    a mapping whose ``get`` is not a pure lookup return a different, unvalidated
+    value on the second read.
     """
     if not isinstance(parent, dict):
-        return False
+        return None
     sha = parent.get("sha")
     if not isinstance(sha, str) or not sha:
-        return False
-    return sha not in own_shas
+        return None
+    return None if sha in own_shas else sha
 
 
 def _external_non_first_parent_shas(commits: list[Any]) -> set[str]:
@@ -233,9 +238,9 @@ def _external_non_first_parent_shas(commits: list[Any]) -> set[str]:
         if not isinstance(parents, list) or len(parents) < 2:
             continue
         for parent in parents[1:]:
-            if _is_external_parent(parent, own_shas):
-                # _is_external_parent guarantees parent["sha"] is a non-empty str.
-                shas.add(parent.get("sha"))
+            sha = _external_parent_sha(parent, own_shas)
+            if sha is not None:
+                shas.add(sha)
     return shas
 
 
