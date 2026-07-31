@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Hook: post_tool_call - Capture facts from tool results.
+"""Hook: post_tool_call - Capture learnable failures from tool results.
 
-Analyzes tool output for novel information worth remembering.
-Captures patterns from failures for future avoidance.
-Governed mode: suggests via stderr, never auto-creates memories.
+Analyzes tool output for an error worth remembering and suggests a memory
+for it. Governed mode: suggests via stderr, never auto-creates memories.
 """
 
 from __future__ import annotations
@@ -13,10 +12,8 @@ import sys
 
 from ..extraction import (
     extract_error_pattern,
-    extract_facts,
     format_suggestion,
     has_error_indicators,
-    has_notable_content,
 )
 
 
@@ -79,7 +76,14 @@ def _flatten_tool_response(response: object) -> str:
 
 
 def _analyze_tool_result(tool_name: str, result_text: str) -> str:
-    """Analyze tool result and generate memory suggestion if warranted.
+    """Suggest a memory when the tool failed in a learnable way.
+
+    Failure is the only signal worth an interrupt. The hook is registered
+    without a matcher, so it observes every tool call; a success path that
+    fired on any output mentioning a file extension turned roughly 40% of
+    ordinary calls into a content-free suggestion in the model context
+    ("Notable output from Bash: search.py" for a bare `ls`). Errors are
+    tool-agnostic, which is why the registration stays matcher-free.
 
     Args:
         tool_name: Name of the tool that was called.
@@ -91,11 +95,6 @@ def _analyze_tool_result(tool_name: str, result_text: str) -> str:
     if has_error_indicators(result_text):
         pattern = extract_error_pattern(tool_name, result_text)
         return format_suggestion(pattern)
-
-    if has_notable_content(result_text):
-        facts = extract_facts(tool_name, result_text)
-        if facts:
-            return format_suggestion(facts[0])
 
     return ""
 
