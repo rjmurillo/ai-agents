@@ -16,14 +16,19 @@ resolution, using git plumbing instead of full-tree text search:
 1. ``git diff --name-only --diff-filter=U`` -- still-unmerged (UU)
    files. If any are listed, the merge isn't fully staged yet.
 
-2. ``git diff HEAD --check`` -- ``git diff --check`` extended to
-   compare HEAD against working tree + index. ``--check`` is the
+2. ``git diff <ref> --check`` -- ``git diff --check`` extended to
+   compare a commit against working tree + index. ``--check`` is the
    built-in primitive for "look for leftover conflict markers" and
    reports them with file:line precision. It only inspects in-flight
-   changes, so committed historical content (the intentional fenced
-   examples in ``.claude/skills/merge-resolver/references/strategies.md``
-   and ``.serena/memories/patterns/pattern-handoff-merge-session-histories.md``)
-   is intentionally ignored.
+   changes, so content already committed on ``<ref>`` is ignored.
+
+   Outside a merge, ``<ref>`` is ``HEAD``. During a merge, ``HEAD`` is
+   the topic tip, so everything arriving from the incoming branch reads
+   as newly added and inherited content false-fails (issue #4058). The
+   merge-time result is therefore the ``file:line`` intersection of the
+   ``HEAD`` diff and the ``MERGE_HEAD`` diff: content committed on
+   either parent is excluded, and only markers introduced by the
+   resolution itself are reported.
 
 Together these catch every real leftover-marker scenario:
 
@@ -32,8 +37,10 @@ Together these catch every real leftover-marker scenario:
   partial resolution),
 - files still in unmerged (UU) state,
 
-while never tripping on intentional, already-committed fenced examples
-in documentation.
+while never tripping on already-committed fenced examples that either
+side of the merge brought along, such as the ones in
+``references/strategies.md`` under this skill and in the Serena memory
+``patterns/pattern-handoff-merge-session-histories.md``.
 
 Exit codes follow ADR-035:
 
@@ -91,15 +98,9 @@ def list_unmerged_files(cwd: Path) -> list[str]:
     return [line for line in result.stdout.splitlines() if line.strip()]
 
 
-def find_leftover_markers(cwd: Path) -> list[str]:
-    """Return ``file:line: message`` strings for leftover conflict markers.
-
-    Uses ``git diff HEAD --check`` which reports leftover conflict
-    markers in any in-flight change (working tree or index) relative to
-    HEAD. Exit code 2 from ``--check`` means markers were found; exit 0
-    means none.
-    """
-    result = _run_git(["diff", "HEAD", "--check"], cwd=cwd)
+def _markers_against(ref: str, cwd: Path) -> list[str]:
+    """Return ``file:line: message`` marker lines from ``git diff <ref> --check``."""
+    result = _run_git(["diff", ref, "--check"], cwd=cwd)
 
     # --check returncodes:
     #   0 -- clean
@@ -115,8 +116,34 @@ def find_leftover_markers(cwd: Path) -> list[str]:
         ]
 
     raise RuntimeError(
-        f"git diff HEAD --check failed (exit {result.returncode}): {result.stderr.strip()}"
+        f"git diff {ref} --check failed (exit {result.returncode}): {result.stderr.strip()}"
     )
+
+
+def _is_merging(cwd: Path) -> bool:
+    """Return True when a merge is in progress (``MERGE_HEAD`` resolves)."""
+    return _run_git(["rev-parse", "-q", "--verify", "MERGE_HEAD"], cwd=cwd).returncode == 0
+
+
+def find_leftover_markers(cwd: Path) -> list[str]:
+    """Return ``file:line: message`` strings for leftover conflict markers.
+
+    Outside a merge, this is ``git diff HEAD --check``: leftover markers
+    in any in-flight change (working tree or index) relative to HEAD.
+
+    During a merge, HEAD is the topic tip, so every line arriving from
+    the incoming branch reads as newly added and inherited content
+    false-fails the check (issue #4058). The result is therefore the
+    ``file:line`` intersection of the HEAD diff and the ``MERGE_HEAD``
+    diff. Content already committed on either parent is excluded; only
+    markers the resolution itself introduced remain.
+    """
+    head_markers = _markers_against("HEAD", cwd)
+    if not head_markers or not _is_merging(cwd):
+        return head_markers
+
+    incoming_keys = {line.split(": ", 1)[0] for line in _markers_against("MERGE_HEAD", cwd)}
+    return [line for line in head_markers if line.split(": ", 1)[0] in incoming_keys]
 
 
 def verify(cwd: Path) -> tuple[int, dict[str, object]]:

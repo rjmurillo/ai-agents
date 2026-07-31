@@ -11,8 +11,11 @@ Covers:
 
 These tests use real ``git`` invocations against ephemeral repos in
 ``tmp_path`` because the script's value is in the exact ``git diff
-HEAD --check`` + ``git diff --diff-filter=U`` semantics. Mocking git
+<ref> --check`` + ``git diff --diff-filter=U`` semantics. Mocking git
 would hide whether we got the primitives right.
+
+Merge-aware base-ref behavior (issue #4058) lives in the sibling module
+``test_verify_no_conflict_markers_merge_aware.py``.
 
 Exit codes follow ADR-035:
 
