@@ -2566,6 +2566,94 @@ class TestAdapterTotalWallBudget:
         # 2 calls land; the budget guard prevents a 3rd attempt.
         assert slow.calls == 2
 
+    def test_wall_budget_can_deny_a_transient_error_its_first_retry(self):
+        # The retry-policy docstring calls 5xx transient. Transient names the
+        # error, not a promise that a second call happens: when the very first
+        # attempt burns more than the budget, no retry occurs and the recorded
+        # category is the budget's, not the transport's. Without this case the
+        # class only proves the guard stops a 3rd attempt, which leaves
+        # "transient is retried" looking unconditional.
+        #
+        # Two independent guards can produce this outcome, the projection check
+        # after the error and the elapsed check at the top of the next
+        # iteration, and they return the same category and the same attempt
+        # count here. This test pins the documented behaviour, not which guard
+        # delivered it; neutering the budget itself is what makes it fail.
+        clock_state = [0.0]
+
+        def clock() -> float:
+            return clock_state[0]
+
+        slow = _SlowTransport(clock_state, seconds_per_call=200.0)
+        adapter = AnthropicAPIAdapter(
+            transport=slow,
+            sleep=lambda _s: None,
+            clock=clock,
+            total_timeout_seconds=180.0,
+        )
+        result = adapter.call_model(
+            prompt="x",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F-WB0",
+            variant="agent",
+            run_index=0,
+        )
+        assert result.outcome == "error"
+        assert result.error_category == ERR_TOTAL_TIMEOUT
+        assert result.attempts == 1
+        # The transport was called once and never retried.
+        assert slow.calls == 1
+
+    def test_a_guard_that_fires_before_a_call_does_not_count_it(self, capsys):
+        # The pre-attempt guard is reachable only when the sleep overshoots the
+        # backoff the projection guard budgeted for, which a loaded or
+        # suspended host does. Here attempt 1 burns 100s of a 180s budget, the
+        # projection allows a retry, then the sleep overshoots to 200s and the
+        # top-of-loop guard stops the run before the second call.
+        #
+        # It fires before the call, so the attempt it is standing at never
+        # happened. The stderr log and the returned result describe the same
+        # event and must report the same count.
+        clock_state = [0.0]
+
+        def clock() -> float:
+            return clock_state[0]
+
+        def oversleeping_sleep(_seconds: float) -> None:
+            clock_state[0] += 100.0
+
+        slow = _SlowTransport(clock_state, seconds_per_call=100.0)
+        adapter = AnthropicAPIAdapter(
+            transport=slow,
+            sleep=oversleeping_sleep,
+            clock=clock,
+            total_timeout_seconds=180.0,
+        )
+        result = adapter.call_model(
+            prompt="x",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F-WB1",
+            variant="agent",
+            run_index=0,
+        )
+
+        assert result.error_category == ERR_TOTAL_TIMEOUT
+        assert slow.calls == 1
+        assert result.attempts == 1
+
+        budget_lines = [
+            json.loads(line)
+            for line in capsys.readouterr().err.splitlines()
+            if line.strip().startswith("{")
+        ]
+        aborted = [
+            record
+            for record in budget_lines
+            if record.get("error_category") == ERR_TOTAL_TIMEOUT
+        ]
+        assert len(aborted) == 1
+        assert aborted[0]["attempt"] == result.attempts
+
     def test_wall_budget_does_not_fire_on_fast_calls(self):
         # Each call is fast; budget never trips, normal retry exhaustion
         # path runs to completion and returns server_error.

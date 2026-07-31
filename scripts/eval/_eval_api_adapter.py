@@ -4,16 +4,21 @@ DESIGN-004 §5.4 (AnthropicAPIAdapter). Thin wrapper over `_anthropic_api`
 that adds retry policy, error categorization, and structured stderr logs.
 
 Retry policy (REQ-004 AC-3, DESIGN-004 §Failure Modes):
-- Transient categories (retried): 408, 429, 5xx, timeout
+- Transient (408, 429, 5xx, timeout) is retried only while the wall budget
+  allows. When the next attempt plus its backoff would reach
+  `total_timeout_seconds`, the call records `error_category=timeout_total`
+  instead. Transient describes the error, not a promise of a second call.
 - Non-transient 4xx (any other 4xx): record `outcome=error` immediately, no retry
-- Max 3 attempts, exponential backoff with jitter (base=1s, max=30s)
+- Max 3 attempts, exponential backoff with jitter (base=1s, max=30s). The wall
+  budget can end a sequence after one attempt, so 3 is a ceiling, not a count.
+- A status outranks a text hint when both are present, so a 4xx whose response
+  body mentions a timeout stays non-transient.
 - `temperature=0` is sent on every call, but not every transport honors it.
-  The Anthropic paths and non-reasoning OpenAI models apply it. Reasoning
-  models (o-series and the gpt-5 family) reject a custom temperature, so
-  `_providers` omits it. Copilot CLI exposes no sampling controls, so
-  `_CopilotCLIProvider` discards it. A run on either is not temperature
-  pinned, and the artifact records no provider to tell you which it was
-  (issue #3956).
+  Anthropic paths and non-reasoning OpenAI models apply it. Reasoning models
+  (o-series and the gpt-5 family) reject a custom temperature, so `_providers`
+  omits it, and Copilot CLI exposes no sampling controls, so it is discarded.
+  A run on either is not temperature pinned, and the artifact records no
+  provider to tell you which it was (issue #3956).
 
 Logging:
 - Structured JSON to stderr per call: `fixture_id`, `variant`, `model_id`,
@@ -339,13 +344,17 @@ class AnthropicAPIAdapter:
             # per-attempt timeouts.
             elapsed = self._clock() - start_total
             if attempt > 1 and elapsed >= self._total_timeout_seconds:
+                # This guard fires before the call, so `attempt` counts one
+                # that never happened. Log the completed count so the stderr
+                # stream and the returned `attempts` describe the same event.
+                completed = attempt - 1
                 _emit_log(
                     {
                         "fixture_id": fixture_id,
                         "variant": variant,
                         "run_index": run_index,
                         "model_id": model_id,
-                        "attempt": attempt,
+                        "attempt": completed,
                         "outcome": "error",
                         "latency_ms": round(elapsed * 1000.0, 2),
                         "tokens_in": 0,
@@ -360,7 +369,7 @@ class AnthropicAPIAdapter:
                     tokens_out=0,
                     latency_ms=round(elapsed * 1000.0, 2),
                     error_category=ERR_TOTAL_TIMEOUT,
-                    attempts=attempt - 1,
+                    attempts=completed,
                     tokens_estimated=True,
                     system_fingerprint=None,
                 )
