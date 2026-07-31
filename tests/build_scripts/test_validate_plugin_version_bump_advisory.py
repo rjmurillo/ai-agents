@@ -17,7 +17,7 @@ COPILOT = "src/copilot-cli/.claude-plugin/plugin.json"
 
 
 def _pairs(**kw: tuple[str | None, str | None]) -> dict[str, tuple[str | None, str | None]]:
-    base = {
+    base: dict[str, tuple[str | None, str | None]] = {
         CLAUDE: ("0.0.0", "0.0.0"),
         SRC_CLAUDE: ("0.0.0", "0.0.0"),
         COPILOT: ("0.0.0", "0.0.0"),

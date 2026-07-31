@@ -38,7 +38,7 @@ def _pairs(**kw: tuple[str | None, str | None]) -> dict[str, tuple[str | None, s
     Unspecified manifests default to ('0.0.0', '0.0.0') so an irrelevant
     plugin never trips the check unless the test names it.
     """
-    base = {
+    base: dict[str, tuple[str | None, str | None]] = {
         CLAUDE: ("0.0.0", "0.0.0"),
         SRC_CLAUDE: ("0.0.0", "0.0.0"),
         COPILOT: ("0.0.0", "0.0.0"),

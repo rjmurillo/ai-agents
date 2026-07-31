@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import sys
+from typing import Any
 
 workspace = os.environ.get(
     "GITHUB_WORKSPACE",
@@ -112,11 +113,11 @@ def _fetch_status_context_page(
     repo: str,
     oid: str,
     cursor: str,
-) -> tuple[list[dict], dict]:
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     return fetch_status_context_page_with_graphql(owner, repo, oid, cursor, gh_graphql)
 
 
-def get_open_prs(owner: str, repo: str, limit: int = 20) -> list[dict]:
+def get_open_prs(owner: str, repo: str, limit: int = 20) -> list[dict[str, Any]]:
     """Fetch open PRs via GraphQL.
 
     Returns a list of PR node dicts. Returns an empty list on failure.
@@ -139,7 +140,7 @@ def get_open_prs(owner: str, repo: str, limit: int = 20) -> list[dict]:
     if pull_requests is None:
         return []
 
-    nodes: list[dict] = pull_requests.get("nodes", [])
+    nodes: list[dict[str, Any]] = pull_requests.get("nodes", [])
     complete_status_check_rollups(owner, repo, nodes, _fetch_status_context_page)
     return nodes
 
@@ -149,7 +150,7 @@ def get_open_prs(owner: str, repo: str, limit: int = 20) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
-def classify_bot(author_login: str) -> dict:
+def classify_bot(author_login: str) -> dict[str, Any]:
     """Classify an author as bot or human.
 
     Returns {"is_bot": bool, "category": str, "name": str}.
@@ -164,7 +165,7 @@ def classify_bot(author_login: str) -> dict:
     return {"is_bot": False, "category": "human", "name": author_login}
 
 
-def has_bot_reviewer(review_requests: dict | None) -> bool:
+def has_bot_reviewer(review_requests: dict[str, Any] | None) -> bool:
     """Check if any requested reviewer is an agent-controlled bot."""
     if not review_requests:
         return False
@@ -184,12 +185,12 @@ def has_bot_reviewer(review_requests: dict | None) -> bool:
     return False
 
 
-def has_conflicts(pr: dict) -> bool:
+def has_conflicts(pr: dict[str, Any]) -> bool:
     """Return True if the PR has merge conflicts."""
     return pr.get("mergeable") == "CONFLICTING"
 
 
-def has_failing_checks(pr: dict) -> bool:
+def has_failing_checks(pr: dict[str, Any]) -> bool:
     """Return True if the PR's latest commit has failing status checks."""
     commits = pr.get("commits")
     if not commits:
@@ -210,7 +211,7 @@ def has_failing_checks(pr: dict) -> bool:
     return rollup_has_failing_checks(rollup, pr.get("number", "?"))
 
 
-def has_unresolved_threads(pr: dict) -> bool:
+def has_unresolved_threads(pr: dict[str, Any]) -> bool:
     """Return True if the PR has unresolved review threads.
 
     Reads thread data from the bulk GraphQL query (zero additional API calls).
@@ -243,9 +244,9 @@ def has_unresolved_threads(pr: dict) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def get_derivative_prs(prs: list[dict]) -> list[dict]:
+def get_derivative_prs(prs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Return PRs that target non-protected branches (derivative PRs)."""
-    derivatives: list[dict] = []
+    derivatives: list[dict[str, Any]] = []
     for pr in prs:
         if pr.get("baseRefName") not in PROTECTED_BRANCHES:
             derivatives.append(
@@ -260,9 +261,11 @@ def get_derivative_prs(prs: list[dict]) -> list[dict]:
     return derivatives
 
 
-def get_parents_with_derivatives(prs: list[dict], derivatives: list[dict]) -> list[dict]:
+def get_parents_with_derivatives(
+    prs: list[dict[str, Any]], derivatives: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     """Map derivative PRs to their parent PRs."""
-    parents: dict[int, dict] = {}
+    parents: dict[int, dict[str, Any]] = {}
 
     for derivative in derivatives:
         target = derivative["targetBranch"]
@@ -289,16 +292,16 @@ def get_parents_with_derivatives(prs: list[dict], derivatives: list[dict]) -> li
 # ---------------------------------------------------------------------------
 
 
-def discover_and_classify(owner: str, repo: str, max_prs: int) -> dict:
+def discover_and_classify(owner: str, repo: str, max_prs: int) -> dict[str, Any]:
     """Fetch open PRs, classify them, and detect derivatives.
 
     Returns a dict with keys: total_prs, action_required, blocked,
     derivative_prs, errors.
     """
-    action_required: list[dict] = []
-    blocked: list[dict] = []
-    derivative_prs: list[dict] = []
-    errors: list[dict] = []
+    action_required: list[dict[str, Any]] = []
+    blocked: list[dict[str, Any]] = []
+    derivative_prs: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
 
     prs = get_open_prs(owner, repo, max_prs)
     total_prs = len(prs)
@@ -402,7 +405,7 @@ def discover_and_classify(owner: str, repo: str, max_prs: int) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def _print_summary(results: dict) -> None:
+def _print_summary(results: dict[str, Any]) -> None:
     """Print a human-readable summary to stderr."""
     total = results["total_prs"]
     action = results["action_required"]
@@ -448,7 +451,7 @@ def _print_summary(results: dict) -> None:
         print(f"Errors: {len(errors)}", file=sys.stderr)
 
 
-def _write_step_summary(results: dict) -> None:
+def _write_step_summary(results: dict[str, Any]) -> None:
     """Write GitHub Actions step summary if GITHUB_STEP_SUMMARY is set."""
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
     if not summary_path:
