@@ -49,6 +49,16 @@ class TestTasteCountRatchetWiring:
             "so a PR that widens the baseline is blocked before merging."
         )
 
+    def test_baseline_change_triggers_ratchet(self) -> None:
+        content = _lefthook_content()
+        idx = content.find("taste-count-ratchet")
+        assert idx != -1
+        job_section = content[idx: idx + 300]
+        assert "scripts/ci/taste_count_baseline.txt" in job_section, (
+            "The taste-count-ratchet job must run when only its baseline changes. "
+            "Otherwise a widened baseline bypasses the fast pre-push gate."
+        )
+
 
 class TestTypeIgnoreCountRatchetWiring:
     """The type-ignore-count-ratchet job must be present in the pre-push section."""
