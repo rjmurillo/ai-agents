@@ -98,12 +98,18 @@ def test_count_above_baseline_is_a_regression(tmp_path, monkeypatch):
     assert rc == ratchet.EXIT_REGRESSION
 
 
-def test_count_below_baseline_is_regression_without_update(tmp_path, monkeypatch):
+def test_count_below_baseline_is_regression_without_update(
+    tmp_path, monkeypatch, capsys
+):
     baseline = _write_baseline(tmp_path, "615")
     monkeypatch.setattr(subprocess, "run", _fake_scan(10, 600))
     rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path)])
     assert rc == ratchet.EXIT_REGRESSION
     assert baseline.read_text(encoding="utf-8").strip() == "615"
+    # An author who changed nothing here inherited the drift from two branches
+    # that lowered the same baseline concurrently (issue #4057). The text has
+    # to name that, or the failure reads as their own regression.
+    assert "merged without conflict" in capsys.readouterr().err
 
 
 def test_update_lowers_the_baseline(tmp_path, monkeypatch):
@@ -187,6 +193,22 @@ def _base_ref_argv(baseline: Path, tmp_path: Path) -> list[str]:
         "--base-ref",
         "FETCH_HEAD",
     ]
+
+
+def test_a_stale_branch_is_named_as_behind_at_the_cli(tmp_path, monkeypatch, capsys):
+    """The CLI, not just ``run``, must carry the corrected verdict.
+
+    Baseline file 700, base ref 615, measured count 615: the base ref already
+    allows what this tree measures, so nothing here added a violation and the
+    remedy is a merge, not a code fix (issue #4066).
+    """
+    baseline = _write_baseline(tmp_path, "700")
+    monkeypatch.setattr(subprocess, "run", _fake_scan(10, 615, base_baseline="615"))
+    rc = ratchet.main(_base_ref_argv(baseline, tmp_path))
+    assert rc == ratchet.EXIT_REGRESSION
+    err = capsys.readouterr().err
+    assert "BRANCH BEHIND BASE" in err
+    assert "Fix the violations" not in err
 
 
 def test_a_base_ref_without_a_baseline_yet_is_the_bootstrap_case(

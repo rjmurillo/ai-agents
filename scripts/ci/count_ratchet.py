@@ -19,6 +19,14 @@ tracked count of 361 and made that gate report a phantom regression outside CI.
 Tracked files are the only thing a PR can change, so they are the only thing a
 baseline should freeze.
 
+The baseline is a committed absolute number, so two branches can each remove one
+violation and write the same lowered value. Git merges the identical one-line
+edits without a conflict, and the merged tree is then improved twice against a
+baseline that fell once, which reads as STALE on the default branch (issue
+#4057). Nothing in this module can see the other branch, so the failure text
+names that cause and the fix stays a baseline-only commit. Blocking the second
+merge needs a branch-policy gate, not a code change here.
+
 Stdlib only: these gates run by path in CI (``python scripts/ci/<name>.py``) and
 must not depend on the project's import graph.
 
@@ -219,6 +227,52 @@ def build_parser(description: str, default_baseline: Path) -> argparse.ArgumentP
     return parser
 
 
+def _base_ref_verdict(
+    args: argparse.Namespace, *, label: str, baseline: int, count: int
+) -> int | None:
+    """Exit code when ``--base-ref`` blocks the run, or None to keep going.
+
+    A baseline above the one at the base ref always blocks, but the reason
+    splits on the measured count and the two remedies are opposite. When the
+    count is one the base ref already allows, the branch added nothing and is
+    merely behind; telling its author to fix violations sends them hunting for
+    code that is already clean (issue #4066). ``count`` therefore has to be
+    measured before this runs, not after.
+    """
+    root = args.repo_root.resolve()
+    if baseline_absent_at_ref(root, args.base_ref, args.baseline):
+        print(
+            f"{label}: bootstrap. {args.base_ref} records no baseline yet, "
+            f"so there is no earlier value to raise. The one-directional "
+            f"check starts once this baseline lands."
+        )
+        return None
+    base = baseline_at_ref(root, args.base_ref, args.baseline)
+    if base is None:
+        print(f"error: could not read the baseline at {args.base_ref}", file=sys.stderr)
+        return EXIT_EXTERNAL
+    if baseline <= base:
+        return None
+    if count <= base:
+        print(
+            f"{label}: BRANCH BEHIND BASE. This baseline reads {baseline}, "
+            f"{args.base_ref} reads {base}, and the measured count is {count}, "
+            f"which {args.base_ref} already allows. Nothing here added a "
+            f"violation. Merge or rebase onto {args.base_ref} to pick up the "
+            f"lowered baseline.",
+            file=sys.stderr,
+        )
+    else:
+        print(
+            f"{label}: BASELINE RAISED. {base} -> {baseline} "
+            f"(+{baseline - base}) against {args.base_ref}. The baseline "
+            f"may only fall. Fix the violations instead of widening the "
+            f"allowance.",
+            file=sys.stderr,
+        )
+    return EXIT_REGRESSION
+
+
 def run(
     args: argparse.Namespace,
     *,
@@ -233,36 +287,15 @@ def run(
         print(f"error: baseline missing or malformed: {args.baseline}", file=sys.stderr)
         return EXIT_CONFIG
 
-    if args.base_ref:
-        root = args.repo_root.resolve()
-        if baseline_absent_at_ref(root, args.base_ref, args.baseline):
-            print(
-                f"{label}: bootstrap. {args.base_ref} records no baseline yet, "
-                f"so there is no earlier value to raise. The one-directional "
-                f"check starts once this baseline lands."
-            )
-        else:
-            base = baseline_at_ref(root, args.base_ref, args.baseline)
-            if base is None:
-                print(
-                    f"error: could not read the baseline at {args.base_ref}",
-                    file=sys.stderr,
-                )
-                return EXIT_EXTERNAL
-            if baseline > base:
-                print(
-                    f"{label}: BASELINE RAISED. {base} -> {baseline} "
-                    f"(+{baseline - base}) against {args.base_ref}. The baseline "
-                    f"may only fall. Fix the violations instead of widening the "
-                    f"allowance.",
-                    file=sys.stderr,
-                )
-                return EXIT_REGRESSION
-
     count = counter(args.repo_root.resolve())
     if count is None:
         print(f"error: {scan_error}", file=sys.stderr)
         return EXIT_EXTERNAL
+
+    if args.base_ref:
+        verdict = _base_ref_verdict(args, label=label, baseline=baseline, count=count)
+        if verdict is not None:
+            return verdict
 
     if count > baseline:
         print(
@@ -282,7 +315,11 @@ def run(
         print(
             f"{label}: BASELINE STALE. {count} violations < baseline {baseline} "
             f"(-{baseline - count}). Run with --update to lower the baseline and "
-            f"close the slack.",
+            f"close the slack. If this branch changed nothing here, the drift "
+            f"came from two changes that each lowered this baseline to the same "
+            f"value and merged without conflict, so the tree improved twice "
+            f"while the file fell once. The remedy is the same either way: a "
+            f"baseline-only commit recording the true count.",
             file=sys.stderr,
         )
         return EXIT_REGRESSION
