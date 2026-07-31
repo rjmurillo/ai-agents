@@ -90,7 +90,7 @@ Use the classification to pick delegation depth. A clear, reversible, P3 task ne
 
 ## Agent Capability Matrix
 
-This matrix routes work to an agent by capability; it does not set models. Each install carries its own copy of an agent definition, and the same agent can resolve to a different model in each one, because an agent that declares no tier takes its platform's default. The definition shipped in the install you are running sets the default model. Where the harness supports per-invocation model selection, the Model, Effort, and Cost Routing policy below overrides that default. Tier names used in that policy: `opus` for deep strategy and analysis, `sonnet` for routine execution, `haiku` for lightweight operations.
+This matrix routes work to an agent by capability; it does not set models. An installed agent definition may declare a model; when it declares none, the harness supplies its own platform default. The same agent can therefore resolve to a different model in each install, which is why no column here can state one. Where the harness supports per-invocation model selection, the Model, Effort, and Cost Routing policy below overrides whichever default applies. Tier names used in that policy: `opus` for deep strategy and analysis, `sonnet` for routine execution, `haiku` for lightweight operations.
 
 | Agent | Use For | Avoid When |
 |-------|---------|-----------|
