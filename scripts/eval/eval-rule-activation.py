@@ -1608,10 +1608,21 @@ def _is_valid_score(value: object) -> bool:
     Rejects `bool` explicitly: `True` is an `int` in Python and would otherwise
     read as a score of 1. Rejects NaN and the infinities, which survive an
     `isinstance` check but make every threshold comparison meaningless.
+
+    The finiteness question is asked of floats only. An `int` is finite by
+    construction, and `math.isfinite` reaches it by converting to `float`,
+    which raises `OverflowError` on a value too large to convert. JSON admits
+    arbitrary-precision integer literals, so a damaged artifact can carry one.
+    Asking would turn an off-rubric cell into a crash, which is the opposite
+    of what this predicate exists to do: report the cell as unmeasured. The
+    bounds comparison below needs no such guard, because Python compares an
+    `int` to a `float` exactly rather than converting either side.
     """
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return False
-    return math.isfinite(value) and MIN_RUBRIC_SCORE <= value <= MAX_RUBRIC_SCORE
+    if isinstance(value, float) and not math.isfinite(value):
+        return False
+    return MIN_RUBRIC_SCORE <= value <= MAX_RUBRIC_SCORE
 
 
 def _scenario_score_triple(
