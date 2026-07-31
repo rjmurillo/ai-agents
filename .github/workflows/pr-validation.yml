@@ -238,6 +238,12 @@ jobs:
       - name: Checkout repository for workflow validation
         if: steps.should-run.outputs.skip == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # The unconditional steps below include `Enforce security suppression
+          # policy`, which resolves a merge base between the PR base and head
+          # (issue #4061). A default depth-1 checkout has no merge base, so the
+          # gate would exit 2 on every bot PR. Matches the primary checkout.
+          fetch-depth: 0
 
       - name: Setup uv for workflow validation
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
@@ -314,3 +320,24 @@ jobs:
       # changed pins, so it passes clean on today's tree.
       - name: Enforce model pin policy
         run: uv run --frozen python3 scripts/validation/check_model_pins.py --mode enforce
+
+      # Issue #4061: the security-suppression policy shipped only as a lefthook
+      # gate (`security-suppressions-staged` on pre-commit and pre-merge-commit,
+      # `security-suppressions-push` on pre-push). No workflow referenced it, so
+      # it bound exactly those contributors who had lefthook installed and did
+      # not pass --no-verify. `security-suppressions-range` runs the same
+      # collector over the PR's base..head range, so CI and the hook cannot
+      # disagree about what the policy is.
+      #
+      # Deliberately outside the `steps.should-run.outputs.skip` guard. Bots
+      # author code changes here, and a security gate they are exempt from is
+      # weaker than the local hook it backstops, not equal to it.
+      - name: Enforce security suppression policy
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          uv run --frozen python3 scripts/validation/git_hook_policy.py \
+            security-suppressions-range \
+            --base "$BASE_SHA" \
+            --head "$HEAD_SHA"

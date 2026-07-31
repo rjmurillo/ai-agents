@@ -2261,25 +2261,64 @@ def _push_updates(stream: TextIO, repo_root: Path) -> list[PushUpdate] | None:
     return updates
 
 
-def check_pushed_suppressions(stream: TextIO, repo_root: Path) -> int:
-    updates = _push_updates(stream, repo_root)
-    if updates is None:
-        return 2
+def _collect_suppression_violations(
+    updates: Sequence[PushUpdate],
+    repo_root: Path,
+) -> list[str] | None:
+    """Added-suppression violations across every update, or None on a git failure.
+
+    Shared by the pre-push hook and the CI backstop so both decide with one
+    implementation. Issue #4061: CI previously ran no equivalent of this gate,
+    so the policy bound only contributors who had lefthook installed.
+    """
     violations: list[str] = []
     for update in updates:
         paths = _changed_commit_paths(update, repo_root)
         if paths is None:
-            return 2
+            return None
         added_violations = _added_suppression_violations(update, paths, repo_root)
         if added_violations is None:
-            return 2
+            return None
         violations.extend(added_violations)
+    return violations
+
+
+def _report_suppression_violations(violations: Sequence[str], subject: str) -> int:
     if not violations:
         return 0
-    print("ERROR: security suppression comments detected in pushed commits:", file=sys.stderr)
+    print(f"ERROR: security suppression comments detected in {subject}:", file=sys.stderr)
     for violation in violations:
         print(f"  {violation}", file=sys.stderr)
     return 1
+
+
+def check_pushed_suppressions(stream: TextIO, repo_root: Path) -> int:
+    updates = _push_updates(stream, repo_root)
+    if updates is None:
+        return 2
+    violations = _collect_suppression_violations(updates, repo_root)
+    if violations is None:
+        return 2
+    return _report_suppression_violations(violations, "pushed commits")
+
+
+def check_range_suppressions(base_ref: str, head_ref: str, repo_root: Path) -> int:
+    """CI backstop: the pre-push suppression policy applied to a base..head range.
+
+    Resolves the same merge-base relationship `resolve_push_update` uses, then
+    runs the identical violation collector. A shallow clone cannot produce a
+    merge base, so that case exits EXIT_CONFIG rather than passing silently:
+    a security gate that cannot read history must not report success.
+    """
+    try:
+        update = resolve_range_update(base_ref, head_ref, repo_root)
+    except PushUpdateConfigError as error:
+        print(f"ERROR: {error}", file=sys.stderr)
+        return 2
+    violations = _collect_suppression_violations([update], repo_root)
+    if violations is None:
+        return 2
+    return _report_suppression_violations(violations, f"{base_ref}..{head_ref}")
 
 
 def _added_suppression_violations(
@@ -4523,6 +4562,49 @@ def resolve_push_update(push_ref: PushRef, repo_root: Path) -> PushUpdate:
     )
 
 
+def _resolve_commit(repo_root: Path, ref: str) -> str | None:
+    result = _run_git(repo_root, ["rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"])
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip() or None
+
+
+def resolve_range_update(base_ref: str, head_ref: str, repo_root: Path) -> PushUpdate:
+    """Build a PushUpdate for an explicit base..head range (CI backstop path).
+
+    Mirrors ``resolve_push_update``'s merge-base resolution so the CI gate and
+    the pre-push hook examine the same commits. The two-dot ``range_spec`` is
+    deliberate and matches the hook: the merge base is already computed here, so
+    three-dot would recompute it against a different endpoint.
+
+    Raises PushUpdateConfigError when no merge base exists, which is what a
+    shallow clone produces. Callers must surface that as a config failure; a
+    security gate that cannot read history must not report success.
+    """
+    head_sha = _resolve_commit(repo_root, head_ref)
+    if head_sha is None:
+        raise PushUpdateConfigError(f"could not resolve head ref {head_ref!r}")
+    base = _merge_base(repo_root, base_ref, head_sha)
+    if base is None:
+        raise PushUpdateConfigError(
+            f"could not determine merge base between {base_ref!r} and {head_ref!r}; "
+            "fetch full history (fetch-depth: 0) before running this check"
+        )
+    source = PushRef(
+        local_ref=head_ref,
+        local_sha=head_sha,
+        remote_ref="refs/heads/main",
+        remote_sha=base,
+    )
+    return PushUpdate(
+        source=source,
+        base=base,
+        head=head_sha,
+        range_spec=f"{base}..{head_sha}",
+        destination_branch="main",
+    )
+
+
 def _branch_name(ref: str) -> str | None:
     prefix = "refs/heads/"
     return ref[len(prefix) :] if ref.startswith(prefix) else None
@@ -5542,6 +5624,10 @@ def _handle_suppressions_push(args: argparse.Namespace) -> int:
     return check_pushed_suppressions(sys.stdin, _repo_root(args))
 
 
+def _handle_suppressions_range(args: argparse.Namespace) -> int:
+    return check_range_suppressions(args.base, args.head, _repo_root(args))
+
+
 def _handle_staged_suppressions(args: argparse.Namespace) -> int:
     return check_staged_suppressions(_repo_root(args))
 
@@ -5618,6 +5704,10 @@ def build_parser() -> argparse.ArgumentParser:
     generated = subparsers.add_parser("stage-generated")
     generated.add_argument("kind", choices=sorted(GENERATED_PATHS | GENERATED_GLOBS))
     generated.set_defaults(handler=_handle_stage_generated)
+    suppressions_range = subparsers.add_parser("security-suppressions-range")
+    suppressions_range.add_argument("--base", required=True)
+    suppressions_range.add_argument("--head", required=True)
+    suppressions_range.set_defaults(handler=_handle_suppressions_range)
     return parser
 
 
