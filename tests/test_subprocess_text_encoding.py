@@ -76,6 +76,13 @@ _SUBPROCESS_ATTRS = _CAPTURING_ATTRS | _ALWAYS_TEXT_ATTRS
 _PINNED_CODEC = "utf-8"
 _OS_POPEN = "os.popen"
 
+# Maximum recursion depth for _constant_str. A BinOp chain deeper than this
+# cannot be proved to spell a specific codec at parse time, so the call is
+# treated as unresolved (the conservative direction: it gets reported).
+# 128 is well above any realistic codec expression and well below Python's
+# default recursion limit (~1000), so the guard reports rather than crashes.
+_CONSTANT_STR_MAX_DEPTH = 128
+
 # Modules whose aliases have to be followed. Held as a table rather than a
 # hardcoded owner check, so ``import os as myos`` cannot disagree with
 # ``import subprocess as sp`` about which module a name stands for.
@@ -370,20 +377,27 @@ def _is_falsy_literal(node: ast.expr | None) -> bool:
     return isinstance(node, ast.Constant) and not node.value
 
 
-def _constant_str(node: ast.expr | None) -> str | None:
+def _constant_str(node: ast.expr | None, _depth: int = 0) -> str | None:
     """Return the string *node* spells at parse time, or ``None``.
 
     An f-string with no placeholders and a concatenation of literals are both
     ordinary ways to write a codec name, and both reach the runtime as the
     same string. Refusing them flags a call that is already correct.
+
+    Recursion is bounded by ``_CONSTANT_STR_MAX_DEPTH``. An expression that
+    exceeds the limit returns ``None`` (treated as unresolved), which causes
+    the enclosing call to be reported rather than to crash or to silently pass.
     """
+    if _depth > _CONSTANT_STR_MAX_DEPTH:
+        return None
     if isinstance(node, ast.Constant):
         return node.value if isinstance(node.value, str) else None
     if isinstance(node, ast.JoinedStr):
-        parts = [_constant_str(value) for value in node.values]
+        parts = [_constant_str(value, _depth + 1) for value in node.values]
         return None if None in parts else "".join(part for part in parts if part)
     if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
-        left, right = _constant_str(node.left), _constant_str(node.right)
+        left = _constant_str(node.left, _depth + 1)
+        right = _constant_str(node.right, _depth + 1)
         return None if left is None or right is None else left + right
     return None
 
@@ -4120,3 +4134,90 @@ def test_detector_stops_at_known_limits(source: str, why: str) -> None:
     move it to ``test_detector_closes_the_evasions`` and record the fix.
     """
     assert unpinned_lines(source) == [], f"gap closed (move to evasions suite): {why}"
+
+
+# ---------------------------------------------------------------------------
+# Depth-bound: _constant_str must report rather than crash on over-deep trees
+# ---------------------------------------------------------------------------
+
+# Boundary values for _CONSTANT_STR_MAX_DEPTH = 128.
+# With left-associative BinOp chains, each +\"\" term adds one level of
+# recursion. The innermost Constant is reached at depth == number of terms.
+# depth == _CONSTANT_STR_MAX_DEPTH: not exceeded, still analyzable.
+# depth == _CONSTANT_STR_MAX_DEPTH + 1: exceeded, treated as unresolved.
+_DEPTH_AT_BOUND = _CONSTANT_STR_MAX_DEPTH  # 128 terms: still ok
+_DEPTH_PAST_BOUND = _CONSTANT_STR_MAX_DEPTH + 1  # 129 terms: reports
+
+
+@pytest.mark.parametrize(
+    ("source", "why"),
+    [
+        pytest.param(
+            # Simple encoding= with a plain string literal: analyzer works normally.
+            "import subprocess\n"
+            'subprocess.run(["x"], capture_output=True, text=True, encoding="utf-8")\n',
+            "plain utf-8 literal: guard analyzes correctly",
+            id="plain-literal",
+        ),
+        pytest.param(
+            # Short concatenation that the analyzer can resolve.
+            "import subprocess\n"
+            'subprocess.run(["x"], capture_output=True, text=True, encoding="ut" + "f-8")\n',
+            "short BinOp concat resolves to utf-8: guard analyzes correctly",
+            id="short-concat",
+        ),
+        pytest.param(
+            # Exactly at the boundary depth: still analyzable.
+            'import subprocess\nsubprocess.run(["x"], capture_output=True, text=True, encoding='
+            + '"utf-8"'
+            + '+""' * _DEPTH_AT_BOUND
+            + ")\n",
+            f"encoding expression at depth bound ({_DEPTH_AT_BOUND}): still analyzable",
+            id="at-bound",
+        ),
+    ],
+)
+def test_depth_bound_does_not_break_normal_analysis(source: str, why: str) -> None:
+    """The depth bound must not affect normally-nested expressions.
+
+    These shapes are resolvable at or below the limit, so the guard must
+    correctly identify them as UTF-8 and report nothing.
+    """
+    assert unpinned_lines(source) == [], f"false positive introduced by depth bound: {why}"
+
+
+@pytest.mark.parametrize(
+    ("source", "why"),
+    [
+        pytest.param(
+            # One past the boundary: guard cannot resolve the codec, reports it.
+            'import subprocess\nsubprocess.run(["x"], capture_output=True, text=True, encoding='
+            + '"utf-8"'
+            + '+""' * _DEPTH_PAST_BOUND
+            + ")\n",
+            f"encoding BinOp depth {_DEPTH_PAST_BOUND} exceeds limit: reported",
+            id="past-bound",
+        ),
+        pytest.param(
+            # Deeply adversarial expression (the reproduction from issue #3982):
+            # previously crashed with RecursionError.
+            'import subprocess\nsubprocess.run(["x"], capture_output=True, text=True, encoding='
+            + '"utf-8"'
+            + '+""' * 998
+            + ")\n",
+            "adversarial depth 998: reported, not crashed",
+            id="adversarial-depth",
+        ),
+    ],
+)
+def test_depth_bound_reports_over_deep_expression(source: str, why: str) -> None:
+    """Over-deep codec expressions must produce a finding, not a crash or silence.
+
+    The guard cannot prove the codec is UTF-8 when the expression is too deep to
+    traverse. The conservative direction is to treat it as unresolved and report.
+    Silence (fail-open) would be worse than a false positive for a security-adjacent
+    check.
+    """
+    findings = unpinned_lines(source)
+    assert findings, f"over-deep expression silently passed (fail-open): {why}"
+    assert 2 in findings, f"finding expected at line 2, got {findings}: {why}"
