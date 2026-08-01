@@ -1,12 +1,6 @@
 """GitHub Copilot CLI transport for the eval harness.
 
-Split out of `_providers.py` because that module crossed the 500-line taste
-ceiling once this provider landed. The provider shares no helpers with the
-HTTP-based providers, so the seam is clean: nothing here imports `_providers`,
-which keeps the dependency one-directional and rules out an import cycle.
-
-`_providers.resolve_provider("copilot-cli")` remains the only supported entry
-point. Import the class directly only from tests.
+Use `_providers.resolve_provider("copilot-cli")` outside tests.
 """
 
 from __future__ import annotations
@@ -25,11 +19,7 @@ __all__ = ["_CopilotCLIProvider"]
 class _CopilotCLIProvider:
     """GitHub Copilot CLI transport, driven as a subprocess.
 
-    Distinct from every other provider here in one way that matters: it needs
-    no API key. It reuses the operator's existing Copilot authentication, so an
-    eval can run against the models the owner actually works in
-    (`claude-opus-5`, `gpt-5.6-sol`) without separate Anthropic or OpenAI
-    billing. That is why it is the preferred transport for this repository.
+    It uses the operator's Copilot authentication, so evals need no API keys.
 
     Three isolation decisions, all load-bearing:
 
