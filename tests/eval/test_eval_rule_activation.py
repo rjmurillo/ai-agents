@@ -12,7 +12,10 @@ Covers:
 
 from __future__ import annotations
 
+import argparse
+import difflib
 import importlib.util
+import inspect
 import json
 import math
 import sys
@@ -77,6 +80,21 @@ def _make_scenario(
     }
 
 
+def _valid_scenarios(gate: str = "apply-rule") -> list[dict[str, str]]:
+    """The smallest scenario list the loader accepts.
+
+    Both pools are required: a file with no positive case cannot show the rule
+    activating, and one with no negative case cannot show restraint, so the
+    restraint floor would compare against nothing and pass vacuously. Fixtures
+    that only need "a file the loader accepts" build it here, so the next
+    schema requirement lands in one place instead of thirty.
+    """
+    return [
+        {"id": "S1", "input": "x", "expected_gate": gate},
+        {"id": "N1", "input": "y", "expected_gate": eval_mod.NEGATIVE_GATE},
+    ]
+
+
 # ---------------------------------------------------------------------------
 # aggregate() verdicts
 # ---------------------------------------------------------------------------
@@ -84,7 +102,10 @@ def _make_scenario(
 
 class TestAggregateVerdicts:
     def test_pass_when_description_clears_threshold_and_beats_baseline(self):
-        scenarios = [_make_scenario(baseline=1, description=4, full=5)]
+        scenarios = [
+            _make_scenario(baseline=1, description=4, full=5),
+            _make_scenario(baseline=1, description=5, full=5, negative=True),
+        ]
         summary = eval_mod.aggregate(scenarios)
         assert summary["verdict"] == "PASS"
         assert summary["best_mechanism"] in ("description", "full")
@@ -273,27 +294,46 @@ class TestLoadScenariosFile:
 
     def test_rejects_missing_rule_path(self, tmp_path: Path):
         f = tmp_path / "no_rule_path.json"
-        f.write_text(json.dumps({"scenarios": []}), encoding="utf-8")
-        result = eval_mod._load_scenarios_file(str(f))
-        assert result == 2
-
-    def test_rejects_path_outside_rules_dir(self, tmp_path: Path):
-        # Path resolves inside the repo but outside .claude/rules/
-        f = tmp_path / "outside_rules.json"
         f.write_text(
-            json.dumps({"rule_path": "AGENTS.md", "scenarios": []}),
+            json.dumps(
+                {
+                    "scenarios": [
+                        {
+                            "id": "S1",
+                            "input": "x",
+                            "expected_gate": "invert-dependency",
+                        }
+                    ]
+                }
+            ),
             encoding="utf-8",
         )
         result = eval_mod._load_scenarios_file(str(f))
         assert result == 2
 
-    def test_rejects_path_traversal(self, tmp_path: Path):
+    def test_rejects_path_outside_rules_dir(self, tmp_path: Path, capsys):
+        # Path resolves inside the repo but outside .claude/rules/
+        f = tmp_path / "outside_rules.json"
+        f.write_text(
+            json.dumps(
+                {
+                    "rule_path": "AGENTS.md",
+                    "scenarios": _valid_scenarios("invert-dependency"),
+                }
+            ),
+            encoding="utf-8",
+        )
+        result = eval_mod._load_scenarios_file(str(f))
+        assert result == 2
+        assert "under .claude/rules/" in capsys.readouterr().err
+
+    def test_rejects_path_traversal(self, tmp_path: Path, capsys):
         f = tmp_path / "traversal.json"
         f.write_text(
             json.dumps(
                 {
                     "rule_path": "../../etc/passwd",
-                    "scenarios": [],
+                    "scenarios": _valid_scenarios("invert-dependency"),
                 }
             ),
             encoding="utf-8",
@@ -326,7 +366,7 @@ class TestLoadScenariosFile:
                 {
                     "rule_path": ".claude/rules/unified-software-engineering.md",
                     "rule_id": "unified-software-engineering",
-                    "scenarios": [],
+                    "scenarios": _valid_scenarios("invert-dependency"),
                 }
             ),
             encoding="utf-8",
@@ -350,7 +390,7 @@ class TestLoadScenariosFile:
                         "references/working-with-legacy-code.md"
                     ),
                     "rule_id": "working-with-legacy-code",
-                    "scenarios": [],
+                    "scenarios": _valid_scenarios("invert-dependency"),
                 }
             ),
             encoding="utf-8",
@@ -365,20 +405,23 @@ class TestLoadScenariosFile:
         assert reference_path is not None
         assert reference_path.name == "working-with-legacy-code.md"
 
-    def test_rejects_skill_reference_outside_reference_directory(self, tmp_path: Path):
+    def test_rejects_skill_reference_outside_reference_directory(
+        self, tmp_path: Path, capsys
+    ):
         f = tmp_path / "bad_skill_ref.json"
         f.write_text(
             json.dumps(
                 {
                     "skill_path": ".claude/skills/software-engineering-library/SKILL.md",
                     "reference_path": ".claude/skills/autoplan/SKILL.md",
-                    "scenarios": [],
+                    "scenarios": _valid_scenarios("invert-dependency"),
                 }
             ),
             encoding="utf-8",
         )
 
         assert eval_mod._load_scenarios_file(str(f)) == 2
+        assert "references/" in capsys.readouterr().err
 
 
 def _assert_fixture_routes_to_library(rule_id: str) -> None:
@@ -682,7 +725,7 @@ class TestSkillPathResolution:
                 {
                     "skill_path": ".claude/skills/security-scan/SKILL.md",
                     "skill_id": "security-scan",
-                    "scenarios": [{"id": "S1", "input": "scan for injection"}],
+                    "scenarios": _valid_scenarios("flag-injection-sink"),
                 }
             ),
             encoding="utf-8",
@@ -3791,7 +3834,10 @@ class TestNegativeCaseGate:
         # The positive side of this suite passes outright. Over-activation has
         # to win anyway: firing where it must not is harmful, under-firing is
         # merely useless.
-        scenarios = [_make_scenario(baseline=1, description=5, full=5)]
+        scenarios = [
+            _make_scenario(baseline=1, description=5, full=5),
+            _make_scenario(baseline=1, description=5, full=5, negative=True),
+        ]
         assert eval_mod.aggregate(scenarios)["verdict"] == "PASS"
 
         scenarios.append(_make_scenario(baseline=5, description=1, full=1, negative=True))
@@ -3868,15 +3914,22 @@ class TestNegativeCaseGate:
         assert summary["worst_negative_avg"] == 1.0
         assert summary["verdict"] == "FAIL_OVER_ACTIVATION"
 
-    def test_a_suite_with_no_negative_scenarios_is_not_failed(self):
+    def test_a_suite_with_no_negative_scenarios_is_not_floored(self):
         # An empty pool has no average. It used to report 0.0, which sits below
         # every floor, so gating on it unguarded failed every rule. The guard
-        # stays either way: `None` is not comparable against a floor at all.
+        # stays: `None` is not comparable against a floor at all, so the
+        # verdict is never FAIL_OVER_ACTIVATION.
+        #
+        # It is not PASS either. The floor cannot fire over an empty pool, so
+        # a clean positive result used to read as a clean run and certify
+        # restraint nothing measured. The sibling test one down already holds
+        # that an ungraded negative pool must not pass; an empty pool is less
+        # measured than that one, so it cannot pass either.
         summary = eval_mod.aggregate([_make_scenario(baseline=1, description=5, full=5)])
 
         assert summary["negative_case_per_mechanism"]["full"]["avg_score"] is None
         assert summary["worst_negative_avg"] is None
-        assert summary["verdict"] == "PASS"
+        assert summary["verdict"] == "NO_NEGATIVE_CASES"
 
     def test_negative_scenarios_nobody_graded_fail_rather_than_pass(self):
         # One step in from the empty pool: the pool is non-empty but nothing in
@@ -3907,20 +3960,37 @@ class TestNegativeCaseGate:
 
         neg = summary["negative_case_per_mechanism"]["full"]
         assert (neg["graded_count"], neg["scenario_count"]) == (1, 2)
-        assert summary["worst_negative_avg"] == 5.0, "the graded subset looks clean"
+        # No mechanism covers the pool, so no restraint number is published at
+        # all. Publishing the clean-looking 5.0 over the graded half is the
+        # defect this docstring names.
+        assert summary["worst_negative_avg"] is None
         assert summary["verdict"] == "FAIL_NEGATIVE_INCOMPLETE"
 
     def test_an_observed_violation_outranks_incomplete_coverage(self):
-        # A floor violation seen on part of the pool is still a violation.
-        # Naming the harm beats naming the gap that would have found more of it.
+        # A floor violation measured across a whole pool outranks a sibling
+        # mechanism that was measured only in part. Naming the harm beats
+        # naming the gap that would have found more of it.
+        #
+        # `description` covers both negative scenarios and averages 1.0, so the
+        # harm is not an artifact of which cells graded. `full` is 1/2 and only
+        # supplies the incompleteness the harm has to outrank.
         scenarios = [
             _make_scenario(baseline=1, description=5, full=5),
             _make_scenario(baseline=5, description=1, full=1, negative=True),
-            _ungraded_negative(),
+            _scenario_of_mechs(
+                {
+                    "baseline": _make_mech(5),
+                    "description": _make_mech(1),
+                    "full": _unscored_mech(),
+                },
+                negative=True,
+            ),
         ]
         summary = eval_mod.aggregate(scenarios)
 
-        assert summary["negative_gate_incomplete"] == ["description", "full"]
+        assert summary["negative_gate_incomplete"] == ["full"]
+        assert summary["worst_negative_mechanism"] == "description"
+        assert summary["worst_negative_graded"] == 2
         assert summary["verdict"] == "FAIL_OVER_ACTIVATION"
 
     def test_a_fully_graded_negative_pool_passes(self):
@@ -3984,7 +4054,10 @@ class TestRenderTableRestraint:
         summary = eval_mod.aggregate([_make_scenario(baseline=1, description=5, full=5)])
         table = eval_mod.render_table("some-rule", summary)
 
-        assert "Restraint on negative cases: not measured" in table
+        assert (
+            "Restraint on negative cases: not measured on any reachable "
+            "negative-gate mechanism" in table
+        )
         assert "| full         |     5.0 |       - |" in table
 
     def test_a_measured_negative_pool_is_printed_with_its_floor(self):
@@ -4033,6 +4106,12 @@ class TestArchivedSummariesStillAggregate:
             "negative_gate_incomplete",
             "worst_negative_avg",
             "legacy_reduced_count",
+            "route_mismatch_count",
+            "avg_score_exact",
+            "rounding_would_change_verdict",
+    "delta_full_vs_baseline_measured",
+    "delta_description_vs_baseline_measured",
+    "delta_rounding_disagrees",
         }
     )
 
@@ -4307,6 +4386,7 @@ class TestPositivePoolCoverageGates:
         scenarios = [
             _make_scenario(baseline=1, description=5, full=5),
             _make_scenario(baseline=1, description=5, full=5),
+            _make_scenario(baseline=1, description=5, full=5, negative=True),
         ]
 
         summary = eval_mod.aggregate(scenarios)
@@ -4357,6 +4437,8 @@ class TestPositivePoolCoverageGates:
                 }
             )
         ]
+
+        scenarios.append(_make_scenario(baseline=1, description=5, full=5, negative=True))
 
         summary = eval_mod.aggregate(scenarios)
 
@@ -4493,6 +4575,7 @@ class TestVerdictRankingLivesInOnePlace:
             gating_judge_failures=1,
             worst_neg_avg=1.0,
             has_positive_cases=False,
+            has_negative_cases=True,
             desc_avg=1.0,
             baseline_avg=5.0,
         )
@@ -4504,6 +4587,7 @@ class TestVerdictRankingLivesInOnePlace:
             gating_judge_failures=0,
             worst_neg_avg=1.0,
             has_positive_cases=True,
+            has_negative_cases=True,
             desc_avg=5.0,
             baseline_avg=1.0,
         )
@@ -4515,6 +4599,7 @@ class TestVerdictRankingLivesInOnePlace:
             gating_judge_failures=0,
             worst_neg_avg=5.0,
             has_positive_cases=True,
+            has_negative_cases=True,
             desc_avg=5.0,
             baseline_avg=1.0,
         )
@@ -4526,6 +4611,7 @@ class TestVerdictRankingLivesInOnePlace:
             gating_judge_failures=0,
             worst_neg_avg=5.0,
             has_positive_cases=True,
+            has_negative_cases=True,
             desc_avg=5.0,
             baseline_avg=1.0,
         )
@@ -4601,7 +4687,13 @@ class TestUnmeasuredPoolsPublishNoNumber:
 
         assert summary["best_mechanism"] is None
         assert summary["best_avg_score"] is None
-        assert "none measured" in eval_mod.render_table("probe", summary)
+        # `baseline` was graded on its whole pool. A headline reading "none
+        # measured" beside a table row showing that cell contradicts it, so the
+        # headline names the population it actually ranks over.
+        assert summary["per_mechanism"]["baseline"]["avg_score"] == 1.0
+        assert summary["per_mechanism"]["baseline"]["graded_count"] == 1
+        rendered = eval_mod.render_table("probe", summary)
+        assert "Best mechanism: no reachable rule-enhanced mechanism measured" in rendered
 
 
 class TestNegativeJudgeFailuresGateOnTheirOwnPool:
@@ -4842,24 +4934,33 @@ class TestBothExclusionsCanFireAtOnce:
         assert "positive full, negative baseline, negative full" in table
 
 
-class TestPartialPoolsStillReportObservedHarm:
-    """The restraint floor and the deltas treat partial coverage differently.
+class TestPartialCoverageReadsTheSameOnBothPools:
+    """The restraint floor and the deltas treat partial coverage alike.
 
-    A delta needs both sides to cover the same pool, because a difference
-    between two populations describes neither. The restraint floor needs only
-    one graded cell, because a cell that scored 1.0 is real observed harm
-    whatever else went unmeasured. Requiring full coverage there would
-    suppress a true harm signal to avoid an incomplete one, which is the
-    trade in the wrong direction.
+    An earlier version of this class argued the opposite: that the floor
+    should gate on any graded cell, because a cell scoring 1.0 is real harm
+    whatever else went unmeasured, and that requiring full coverage would
+    suppress a true harm signal. It asked a later pass to argue with it.
 
-    These are pinned together so that a later pass unifying the two rules has
-    to argue with this test rather than quietly lose the harm signal.
+    Here is the argument. The premise was that unification loses the signal,
+    and it does not. The floor is a threshold on the average restraint across
+    the negative scenarios, so an average over a subset is not the quantity
+    the floor names, and gating on it made the verdict turn on missingness:
+    one cell at 1.0 with the rest ungraded averaged 1.0 and failed, while that
+    same 1.0 beside two 5.0s averaged 3.67 and passed. Excluding the partial
+    cell does not turn either into a PASS. The gap is already published in
+    `negative_gate_incomplete`, so the run fails as FAIL_NEGATIVE_INCOMPLETE
+    instead of claiming a restraint number it never measured. The harm is not
+    lost, it is named by its real cause.
+
+    Harm measured across a whole pool still outranks an incomplete sibling.
+    That ordering is pinned in `test_an_observed_violation_outranks_incomplete_coverage`.
     """
 
-    def test_a_partly_graded_negative_pool_still_fails_on_harm(self):
+    def test_a_partly_graded_negative_pool_names_the_gap_not_a_number(self):
         scenarios = [
             _make_scenario(baseline=1, description=5, full=5),
-            _make_scenario(baseline=5, description=1, full=1, negative=True),
+            _make_scenario(baseline=5, description=1, full=5, negative=True),
             _scenario_of_mechs(
                 {
                     "baseline": _make_mech(5),
@@ -4873,11 +4974,14 @@ class TestPartialPoolsStillReportObservedHarm:
         summary = eval_mod.aggregate(scenarios)
 
         assert summary["negative_gate_incomplete"] == ["description"]
-        assert summary["worst_negative_avg"] == 1.0
-        assert summary["worst_negative_graded"] == 1
-        # Harm outranks incompleteness. The pool is admittedly partial and the
-        # verdict still names the harm it did observe.
-        assert summary["verdict"] == "FAIL_OVER_ACTIVATION"
+        # `description` is 1/2 and is excluded, so its lone 1.0 no longer sets
+        # the floor. `full` covers both scenarios and clears it at 5.0.
+        assert summary["worst_negative_avg"] == 5.0
+        assert summary["worst_negative_mechanism"] == "full"
+        assert summary["worst_negative_graded"] == 2
+        # The run still fails. Only the reason changed, from a restraint
+        # number read off half a pool to the missing half itself.
+        assert summary["verdict"] == "FAIL_NEGATIVE_INCOMPLETE"
 
     def test_the_same_partial_coverage_suppresses_a_delta(self):
         """The other half of the contrast, on the positive pool."""
@@ -4958,10 +5062,13 @@ class TestTheHeadlineNeedsAWholePool:
         assert summary["best_mechanism"] is None
         assert summary["best_mechanism_partial"] is True
         table = eval_mod.render_table("r", summary)
-        assert "Best mechanism: none graded on every scenario" in table
-        assert "none measured" not in table
+        assert (
+            "Best mechanism: no reachable rule-enhanced mechanism graded on "
+            "every scenario" in table
+        )
+        assert "rule-enhanced mechanism measured" not in table
 
-    def test_nothing_graded_at_all_still_says_none_measured(self):
+    def test_nothing_graded_says_no_rule_enhanced_mechanism_measured(self):
         summary = eval_mod.aggregate(
             [
                 _scenario_of_mechs(
@@ -4976,4 +5083,2809 @@ class TestTheHeadlineNeedsAWholePool:
 
         assert summary["best_mechanism"] is None
         assert summary["best_mechanism_partial"] is False
-        assert "Best mechanism: none measured" in eval_mod.render_table("r", summary)
+        table = eval_mod.render_table("r", summary)
+        assert "Best mechanism: no reachable rule-enhanced mechanism measured" in table
+        assert "graded on every scenario" not in table
+
+
+class TestTheRestraintHeadlineNamesItsOwnPopulation:
+    """The floor is read over the fully graded gate cells, so say which.
+
+    Round 7 narrowed `worst_negative_avg` to mechanisms covering their whole
+    negative pool but left the renderer naming every gate mechanism. The
+    headline then described a population wider than the number, the same
+    defect the positive-side headline was fixed for one round earlier.
+    """
+
+    def test_the_headline_names_only_the_mechanisms_that_set_the_floor(self):
+        # `description` is 1/2 and cannot set the floor. `full` covers both.
+        scenarios = [
+            _make_scenario(baseline=1, description=5, full=5),
+            _make_scenario(baseline=5, description=1, full=5, negative=True),
+            _scenario_of_mechs(
+                {
+                    "baseline": _make_mech(5),
+                    "description": _unscored_mech(),
+                    "full": _make_mech(5),
+                },
+                negative=True,
+            ),
+        ]
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["negative_gate_mechanisms"] == ["description", "full"]
+        assert summary["negative_floor_mechanisms"] == ["full"]
+        table = eval_mod.render_table("r", summary)
+        assert "worst of [full] 5.0" in table
+        # Naming `description` here would attribute the 5.0 to a mechanism the
+        # same table shows at 1.0.
+        assert "worst of [description, full]" not in table
+
+    def test_a_wholly_partial_gate_says_so_rather_than_not_measured(self):
+        scenarios = [
+            _make_scenario(baseline=1, description=5, full=5),
+            _make_scenario(baseline=5, description=1, full=1, negative=True),
+            _scenario_of_mechs(
+                {
+                    "baseline": _make_mech(5),
+                    "description": _unscored_mech(),
+                    "full": _unscored_mech(),
+                },
+                negative=True,
+            ),
+        ]
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["worst_negative_avg"] is None
+        assert summary["negative_floor_mechanisms"] == []
+        assert summary["negative_floor_partial"] is True
+        table = eval_mod.render_table("r", summary)
+        # Both mechanisms carry an average in the table, so "not measured"
+        # contradicts the rows directly below it.
+        assert "no reachable negative-gate mechanism graded on every negative scenario" in table
+
+    def test_an_ungraded_negative_pool_is_still_not_measured(self):
+        scenarios = [
+            _make_scenario(baseline=1, description=5, full=5),
+            _scenario_of_mechs(
+                {
+                    "baseline": _unscored_mech(),
+                    "description": _unscored_mech(),
+                    "full": _unscored_mech(),
+                },
+                negative=True,
+            ),
+        ]
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["negative_floor_partial"] is False
+        table = eval_mod.render_table("r", summary)
+        assert (
+            "Restraint on negative cases: not measured on any reachable "
+            "negative-gate mechanism" in table
+        )
+
+
+class TestTheBestHeadlineNamesWhatItDropped:
+    """A superlative implies a population even when it prints one name.
+
+    `best_mech` ranks over rule-enhanced mechanisms that covered every
+    positive scenario. A mechanism the table shows scoring *above* the
+    winner, dropped for partial coverage, reads as a broken ranking unless
+    the exclusion is stated. This is the positive sibling of the negative
+    floor headline fixed one round earlier.
+    """
+
+    def test_a_higher_scoring_partial_mechanism_is_named_as_excluded(self):
+        # `full` averages 5.0 but covers 1/2, so `description` at 4.0 wins.
+        scenarios = [
+            _make_scenario(baseline=1, description=4, full=5),
+            _scenario_of_mechs(
+                {
+                    "baseline": _make_mech(1),
+                    "description": _make_mech(4),
+                    "full": _unscored_mech(),
+                }
+            ),
+            _make_scenario(baseline=5, description=5, full=5, negative=True),
+        ]
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["best_mechanism"] == "description"
+        assert summary["per_mechanism"]["full"]["avg_score"] == 5.0
+        assert summary["best_mechanism_excluded"] == ["full"]
+        table = eval_mod.render_table("r", summary)
+        assert "Best mechanism: description (avg 4.0), excluding full" in table
+
+    def test_a_fully_graded_field_names_no_exclusion(self):
+        scenarios = [
+            _make_scenario(baseline=1, description=4, full=5),
+            _make_scenario(baseline=1, description=4, full=5),
+            _make_scenario(baseline=5, description=5, full=5, negative=True),
+        ]
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["best_mechanism_excluded"] == []
+        table = eval_mod.render_table("r", summary)
+        assert "Best mechanism: full (avg 5.0)" in table
+        assert "excluding" not in table
+
+    def test_a_never_graded_candidate_is_named_as_unmeasured(self):
+        # An earlier version of this test scored `full` and so never reached
+        # the branch its name claimed to guard, and its comment asserted that
+        # a never-graded mechanism was "already disclosed" elsewhere. It is
+        # not: with `description` graded fully the run returns PASS with no
+        # judge failure, no positive-gate gap, and an empty exclusion list.
+        scenarios = [
+            _make_scenario(baseline=1, description=4, full=5),
+            _scenario_of_mechs(
+                {
+                    "baseline": _make_mech(1),
+                    "description": _make_mech(4),
+                    "full": _unscored_mech(),
+                }
+            ),
+            _make_scenario(baseline=5, description=5, full=5, negative=True),
+        ]
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["per_mechanism"]["full"]["graded_count"] == 1
+        assert summary["best_mechanism_excluded"] == ["full"]
+        assert summary["best_mechanism_unmeasured"] == []
+
+    def test_a_wholly_ungraded_candidate_is_unmeasured_not_partial(self):
+        scenarios = [
+            _scenario_of_mechs(
+                {
+                    "baseline": _make_mech(1),
+                    "description": _make_mech(4),
+                    "full": _unscored_mech(),
+                }
+            ),
+            _scenario_of_mechs(
+                {
+                    "baseline": _make_mech(1),
+                    "description": _make_mech(4),
+                    "full": _unscored_mech(),
+                }
+            ),
+            _make_scenario(baseline=5, description=5, full=5, negative=True),
+        ]
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["per_mechanism"]["full"]["graded_count"] == 0
+        assert summary["best_mechanism_excluded"] == []
+        assert summary["best_mechanism_unmeasured"] == ["full"]
+        table = eval_mod.render_table("r", summary)
+        assert "excluding full as unmeasured" in table
+
+    def test_an_unreachable_mechanism_is_not_reported_as_missing(self):
+        # A routed target never runs `full`. Naming it as a gap would invent a
+        # defect out of a treatment no deployment performs, and it is already
+        # named in `unreachable_mechanisms`.
+        scenarios = [
+            _scenario_of_mechs(
+                {
+                    "baseline": _make_mech(1),
+                    "description": _make_mech(4),
+                    "full": _unscored_mech(),
+                }
+            ),
+            _make_scenario(baseline=5, description=5, full=5, negative=True),
+        ]
+
+        summary = eval_mod.aggregate(scenarios, routed=True)
+
+        assert summary["unreachable_mechanisms"] == ["full"]
+        assert summary["best_mechanism_unmeasured"] == []
+        assert summary["best_mechanism_excluded"] == []
+        assert "excluding" not in eval_mod.render_table("r", summary)
+
+    def test_both_drop_reasons_are_named_together(self):
+        # Reachable with more than two rule-enhanced mechanisms; exercised
+        # directly against the renderer so the branch is not dead.
+        summary = eval_mod.aggregate(
+            [
+                _make_scenario(baseline=1, description=4, full=5),
+                _make_scenario(baseline=5, description=5, full=5, negative=True),
+            ]
+        )
+        summary["best_mechanism"] = "description"
+        summary["best_avg_score"] = 4.0
+        summary["best_mechanism_excluded"] = ["a"]
+        summary["best_mechanism_unmeasured"] = ["b"]
+
+        table = eval_mod.render_table("r", summary)
+
+        assert "excluding a for partial coverage and b as unmeasured" in table
+
+
+class TestALegacySummaryDoesNotGuessItsPopulation:
+    """An archived summary predates the eligible set and cannot name it."""
+
+    def test_a_summary_without_the_eligible_set_says_it_is_unrecorded(self):
+        scenarios = [
+            _make_scenario(baseline=1, description=5, full=5),
+            _make_scenario(baseline=5, description=1, full=5, negative=True),
+            _scenario_of_mechs(
+                {
+                    "baseline": _make_mech(5),
+                    "description": _unscored_mech(),
+                    "full": _make_mech(5),
+                },
+                negative=True,
+            ),
+        ]
+        summary = eval_mod.aggregate(scenarios)
+        legacy = {
+            k: v
+            for k, v in summary.items()
+            if k not in ("negative_floor_mechanisms", "negative_floor_partial")
+        }
+
+        table = eval_mod.render_table("r", legacy)
+
+        # Reprinting the gate list here would restore the exact mislabel the
+        # eligible set was published to remove.
+        assert "worst of [population not recorded]" in table
+        assert "worst of [description, full]" not in table
+
+
+class TestRankingAndItsExclusionsShareOnePopulation:
+    """A routed target performs no `full`, so it can win nothing.
+
+    The ranking and the record of what the ranking dropped are two views of
+    one population. Narrowing only the second let a routed run publish
+    `Best mechanism: full` on the same screen as a caveat naming `full`
+    unreachable, recommending a treatment no deployment performs.
+    """
+
+    @staticmethod
+    def _routed_summary(full_score: int | None) -> dict[str, object]:
+        mechanisms: dict[str, object] = {
+            "baseline": _make_mech(1),
+            "description": _make_mech(4),
+        }
+        if full_score is not None:
+            mechanisms["full"] = _make_mech(full_score)
+        positive: dict[str, object] = {
+            "negative_case": False,
+            "mechanisms": mechanisms,
+        }
+        return eval_mod.aggregate(
+            [positive, _make_scenario(5, 5, 5, negative=True)], routed=True
+        )
+
+    def test_an_unreachable_mechanism_never_takes_the_headline(self):
+        summary = self._routed_summary(full_score=5)
+        # The fixture has to actually reach the state the name claims: `full`
+        # outscores the winner and is fully graded, so only reachability can
+        # be keeping it out of the headline.
+        assert summary["per_mechanism"]["full"]["avg_score"] == 5.0
+        assert summary["per_mechanism"]["full"]["graded_count"] == 1
+        assert summary["unreachable_mechanisms"] == ["full"]
+        assert summary["best_mechanism"] == "description"
+        assert summary["best_avg_score"] == 4.0
+
+    def test_the_table_never_names_one_mechanism_best_and_unreachable(self):
+        table = eval_mod.render_table("R", self._routed_summary(full_score=5))
+        assert "Best mechanism: description (avg 4.0)" in table
+        assert "Excluded as unreachable for a routed target: full" in table
+        assert "Best mechanism: full" not in table
+
+    def test_an_unreachable_mechanism_is_not_reported_as_missing(self):
+        # Absent scores for a treatment no deployment performs are not a gap.
+        summary = self._routed_summary(full_score=None)
+        assert summary["best_mechanism_unmeasured"] == []
+        assert summary["best_mechanism_excluded"] == []
+        assert summary["best_mechanism_partial"] is False
+
+    def test_a_reachable_mechanism_is_still_ranked(self):
+        # The negative control: same shape, unrouted, so `full` must win.
+        summary = eval_mod.aggregate(
+            [_make_scenario(1, 4, 5), _make_scenario(5, 5, 5, negative=True)],
+            routed=False,
+        )
+        assert summary["unreachable_mechanisms"] == []
+        assert summary["best_mechanism"] == "full"
+
+
+
+class TestEmptyHeadlinesNameTheRankedPopulation:
+    """An empty headline describes the ranking, not the whole table.
+
+    Narrowing the ranking to reachable mechanisms left its empty states
+    still claiming every rule-enhanced one. On a routed target that put
+    `no rule-enhanced mechanism measured` directly above a `full` row
+    carrying a score and full coverage.
+    """
+
+    @staticmethod
+    def _routed(*positives: dict[str, object]) -> str:
+        summary = eval_mod.aggregate(
+            [*positives, _make_scenario(5, 5, 5, negative=True)], routed=True
+        )
+        return eval_mod.render_table("R", summary)
+
+    def test_nothing_reachable_measured_does_not_deny_the_full_row(self):
+        table = self._routed(
+            {
+                "negative_case": False,
+                "mechanisms": {"baseline": _make_mech(1), "full": _make_mech(5)},
+            }
+        )
+        # The fixture must actually reach the state the name claims: `full`
+        # is scored and fully graded, so a headline denying any measurement
+        # would be contradicted by its own table.
+        assert "| full         |     5.0 |" in table
+        assert "Best mechanism: no reachable rule-enhanced mechanism measured" in table
+
+    def test_nothing_reachable_fully_graded_does_not_deny_the_full_row(self):
+        table = self._routed(
+            _make_scenario(1, 4, 5),
+            {
+                "negative_case": False,
+                "mechanisms": {"baseline": _make_mech(1), "full": _make_mech(5)},
+            },
+        )
+        assert "| full         |     5.0 |" in table
+        assert (
+            "Best mechanism: no reachable rule-enhanced mechanism graded on "
+            "every scenario" in table
+        )
+
+
+class TestEmptyRestraintHeadlinesNameTheGatedPopulation:
+    """The negative sibling of the empty best-mechanism headlines.
+
+    The floor is read over the gate mechanisms the target can reach, but
+    its two empty states claimed the whole table. On a routed target that
+    printed `not measured` directly above a `full` row carrying a negative
+    average over its whole pool.
+    """
+
+    @staticmethod
+    def _routed(*negatives: dict[str, object]) -> str:
+        summary = eval_mod.aggregate(
+            [_make_scenario(4, 4, 4), *negatives], routed=True
+        )
+        return eval_mod.render_table("R", summary)
+
+    def test_no_floor_at_all_does_not_deny_the_full_row(self):
+        table = self._routed(
+            {
+                "negative_case": True,
+                "mechanisms": {"baseline": _make_mech(5), "full": _make_mech(5)},
+            }
+        )
+        # `full` is graded over its whole negative pool, so a headline saying
+        # nothing was measured would be contradicted by its own table.
+        assert "|     5.0 |          +0.0 |        1/1 |        1/1 |" in table
+        assert (
+            "Restraint on negative cases: not measured on any reachable negative-gate mechanism"
+            in table
+        )
+
+    def test_a_wholly_partial_floor_does_not_deny_the_full_row(self):
+        table = self._routed(
+            _make_scenario(5, 5, 5, negative=True),
+            {
+                "negative_case": True,
+                "mechanisms": {"baseline": _make_mech(5), "full": _make_mech(5)},
+            },
+        )
+        assert "Restraint on negative cases: no reachable negative-gate mechanism" in table
+        assert "graded on every negative scenario" in table
+
+
+class TestEmptyHeadlinesNameEligibilityNotJustReachability:
+    """Reachable is not the same as eligible, and both headlines need both.
+
+    `baseline` is always reachable, and it is excluded from the ranking and
+    from the negative gate on purpose. Labels that named only reachability
+    printed `no reachable mechanism graded ...` directly above a `baseline`
+    row graded over its whole pool.
+    """
+
+    def test_the_best_headline_excludes_baseline_by_name(self):
+        summary = eval_mod.aggregate(
+            [
+                _make_scenario(3, 4, 5),
+                {"negative_case": False, "mechanisms": {"baseline": _make_mech(3)}},
+                _make_scenario(5, 5, 5, negative=True),
+            ],
+            routed=False,
+        )
+        # The fixture must reach the state the name claims: `baseline` covers
+        # its whole pool while no rule-enhanced mechanism does.
+        assert summary["per_mechanism"]["baseline"]["graded_count"] == 2
+        assert summary["per_mechanism"]["baseline"]["scenario_count"] == 2
+        assert summary["best_mechanism"] is None
+        table = eval_mod.render_table("R", summary)
+        assert (
+            "Best mechanism: no reachable rule-enhanced mechanism graded on "
+            "every scenario" in table
+        )
+
+    def test_an_absent_floor_excludes_baseline_by_name(self):
+        summary = eval_mod.aggregate(
+            [
+                _make_scenario(3, 4, 5),
+                {"negative_case": True, "mechanisms": {"baseline": _make_mech(5)}},
+            ],
+            routed=False,
+        )
+        assert summary["negative_case_per_mechanism"]["baseline"]["graded_count"] == 1
+        assert summary["worst_negative_avg"] is None
+        table = eval_mod.render_table("R", summary)
+        assert (
+            "Restraint on negative cases: not measured on any reachable "
+            "negative-gate mechanism" in table
+        )
+
+    def test_a_partial_floor_excludes_baseline_by_name(self):
+        summary = eval_mod.aggregate(
+            [
+                _make_scenario(3, 4, 5),
+                _make_scenario(5, 5, 5, negative=True),
+                {"negative_case": True, "mechanisms": {"baseline": _make_mech(5)}},
+            ],
+            routed=False,
+        )
+        assert summary["negative_case_per_mechanism"]["baseline"]["graded_count"] == 2
+        assert summary["negative_floor_partial"] is True
+        table = eval_mod.render_table("R", summary)
+        assert (
+            "Restraint on negative cases: no reachable negative-gate mechanism "
+            "graded on every negative scenario" in table
+        )
+
+
+class TestTheJuneArchiveReplaysAsAClosedRecord:
+    """The 2026-06-06 archive predates the negative gate, so say what moved.
+
+    Every measurement in that run still reproduces. The `verdict` field does
+    not, because the verdict policy gained an over-activation floor after the
+    run was published. That is a policy change, not a measurement drift, and
+    the report carries a correction naming exactly which verdicts moved. This
+    pins both halves so neither can drift away from the other silently.
+    """
+
+    REPORT_DIR = Path(__file__).resolve().parents[2] / "evals" / "reports"
+    STEM = "rule-activation-conditional-loading-2026-06-06"
+    MEASURED = (
+        "best_mechanism",
+        "best_avg_score",
+        "baseline_avg",
+        "delta_full_vs_baseline",
+        "delta_description_vs_baseline",
+        "total_judge_failures",
+    )
+    MOVED = {
+        "clean-architecture": "FAIL_OVER_ACTIVATION",
+        "domain-driven-design": "FAIL_OVER_ACTIVATION",
+        "philosophy-of-software-design": "FAIL_THRESHOLD",
+        "unified-software-engineering": "FAIL_THRESHOLD",
+    }
+
+    def _archive(self):
+        path = self.REPORT_DIR / (self.STEM + ".json")
+        assert path.is_file(), path
+        return json.loads(path.read_text())["rules"]
+
+    def test_every_measured_field_still_reproduces(self):
+        rules = self._archive()
+        assert len(rules) == 7, len(rules)
+        compared = 0
+        for name, rule in rules.items():
+            current = eval_mod.aggregate(rule["scenarios"], routed=False)
+            archived = rule["summary"]
+            for field in self.MEASURED:
+                assert current[field] == archived[field], (name, field)
+                compared += 1
+            for pool in ("per_mechanism", "negative_case_per_mechanism"):
+                for mech, cell in archived[pool].items():
+                    assert current[pool][mech]["avg_score"] == cell["avg_score"], (
+                        name,
+                        pool,
+                        mech,
+                    )
+                    compared += 1
+        assert compared == 84, compared
+
+    def test_only_the_four_documented_verdicts_moved(self):
+        rules = self._archive()
+        moved = {}
+        for name, rule in rules.items():
+            current = eval_mod.aggregate(rule["scenarios"], routed=False)["verdict"]
+            if current != rule["summary"]["verdict"]:
+                moved[name] = current
+        assert moved == self.MOVED, moved
+
+    def test_the_report_correction_names_those_same_four(self):
+        text = (self.REPORT_DIR / (self.STEM + ".md")).read_text()
+        assert "## Correction" in text
+        for name, verdict in self.MOVED.items():
+            assert f"{name}: PASS to {verdict}" in text, name
+        # A rule whose verdict did not move must not be listed as one that did.
+        assert "release-it: PASS to" not in text
+        assert "working-with-legacy-code: PASS to" not in text
+
+
+# ---------------------------------------------------------------------------
+# Round 17. Two published-number defects, both from a classification that
+# failed quietly instead of loudly.
+#
+# The gate string does two jobs: it selects the judge rubric and it files the
+# scenario in a pool. A missing or misspelled gate used to do both wrong at
+# once, so a scenario authored as a negative was graded against the positive
+# rubric and then averaged into the positive pool.
+#
+# The routed `description` mechanism fronts one skill router over eight sibling
+# references. A sibling resolves for this target as readily as the target does,
+# so a router that opened the wrong one published its score under a reference
+# the run never read.
+# ---------------------------------------------------------------------------
+
+
+_SKILL_REL = ".claude/skills/software-engineering-library/SKILL.md"
+
+
+def _routed_scenario(negative: bool, matched: bool | None) -> dict[str, Any]:
+    """Build a scenario whose description cell carries a routing record.
+
+    `matched=None` is the archived shape: written before the flag existed.
+    """
+    description: dict[str, Any] = _make_mech(5)
+    if matched is not None:
+        description["routing"] = {
+            "selected_skill": "software-engineering-library",
+            "selected_reference": "references/x.md",
+            "route_failed": False,
+            "reference_matched": matched,
+        }
+    mechanisms: dict[str, Any] = {
+        "baseline": _make_mech(3),
+        "description": description,
+        "full": _make_mech(4),
+    }
+    return {"negative_case": negative, "mechanisms": mechanisms}
+
+
+class TestTheNegativeGateIsOneVocabulary:
+    """One gate string decides the rubric and the pool, so it is derived once.
+
+    Two sites used to compare the sentinel independently. A scenario they
+    disagreed about would be graded as a negative and counted as a positive,
+    which corrupts the rubric the score came from and the population it joins.
+    """
+
+    def test_the_sentinel_literal_is_defined_once_in_the_module(self):
+        source = (
+            Path(eval_mod.__file__ or "").read_text(encoding="utf-8")
+            if eval_mod.__file__
+            else (REPO_ROOT / "scripts" / "eval" / "eval-rule-activation.py").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert source.count('"skip-rule-not-applicable"') == 1
+        assert 'NEGATIVE_GATE = "skip-rule-not-applicable"' in source
+
+    @pytest.mark.parametrize(
+        "gate",
+        [
+            "skip-rule-not-applicable",
+            "skip_rule_not_applicable",
+            "SKIP-RULE-NOT-APPLICABLE",
+            "  skip-rule-not-applicable  ",
+            "Skip-Rule-Not-Applicable",
+        ],
+    )
+    def test_every_spelling_of_the_sentinel_reaches_the_negative_pool(self, gate):
+        assert eval_mod._is_negative_gate(gate) is True
+
+    @pytest.mark.parametrize(
+        "gate",
+        ["invert-dependency", "seam-before-edit", "skip-the-cache", "bound-the-queue"],
+    )
+    def test_a_positive_gate_stays_positive(self, gate):
+        assert eval_mod._is_negative_gate(gate) is False
+
+    def test_a_non_string_gate_is_not_a_negative_case(self):
+        assert eval_mod._is_negative_gate(None) is False
+        assert eval_mod._is_negative_gate(123) is False
+
+
+class TestAnUnreadableGateIsRefusedRatherThanReclassified:
+    """A gate the harness cannot read is a refusal, not a positive case.
+
+    Silently defaulting to positive moved the scenario into the pool its
+    author did not choose and graded it under the rubric its author did not
+    choose. Refusing the file is the visible failure.
+    """
+
+    @staticmethod
+    def _check(gate: object) -> int | None:
+        scenario: dict[str, Any] = {"id": "S1", "input": "do a thing"}
+        if gate is not None:
+            scenario["expected_gate"] = gate
+        # Carries a negative so an accepted gate is not then refused for the
+        # empty pool. This helper isolates the gate check, not the pool check.
+        negative = {"id": "N1", "input": "y", "expected_gate": eval_mod.NEGATIVE_GATE}
+        return eval_mod._validate_scenarios_shape(
+            {"scenarios": [scenario, negative]}, Path("scenarios.json")
+        )
+
+    def test_a_missing_gate_is_refused(self):
+        assert self._check(None) == 2
+
+    def test_an_empty_gate_is_refused(self):
+        assert self._check("   ") == 2
+
+    def test_a_non_string_gate_is_refused(self):
+        assert self._check(7) == 2
+
+    @pytest.mark.parametrize(
+        "gate",
+        [
+            "skip-rule-not-appliable",
+            "skip-rule-na",
+            "skip_rule_notapplicable",
+            "skip-rule",
+        ],
+    )
+    def test_a_near_miss_in_the_skip_rule_namespace_is_refused(self, gate):
+        assert self._check(gate) == 2
+
+    def test_a_gate_outside_the_skip_rule_namespace_is_accepted(self):
+        assert self._check("skip-the-cache") is None
+        assert self._check("invert-dependency") is None
+
+    def test_the_refusal_names_the_index_and_the_sentinel(self, capsys):
+        self._check(None)
+        err = capsys.readouterr().err
+        assert "scenarios[0].expected_gate" in err
+        assert "skip-rule-not-applicable" in err
+
+    def test_the_shipped_example_survives_its_own_validator(self):
+        example = REPO_ROOT / "scripts" / "eval" / "examples" / "example-scenarios.json"
+        data = json.loads(example.read_text(encoding="utf-8"))
+        assert eval_mod._validate_scenarios_shape(data, example) is None
+        gates = [s["expected_gate"] for s in data["scenarios"]]
+        # The template teaches both pools. One that showed only positives is
+        # how every scenario copied from it landed in the positive pool.
+        assert eval_mod.NEGATIVE_GATE in gates
+        assert any(not eval_mod._is_negative_gate(g) for g in gates)
+
+
+class TestARoutedCellThatMissedTheTargetIsDisclosed:
+    """A sibling reference resolves for this target as readily as the target.
+
+    The score stays in the average: it is a real measurement of the routed
+    mechanism, and dropping its failures would inflate that mechanism. What
+    changes is that the reader is told the target was never opened.
+    """
+
+    def test_a_sibling_route_on_a_positive_case_is_counted(self):
+        summary = eval_mod.aggregate(
+            [_routed_scenario(False, False), _routed_scenario(False, True)]
+        )
+        assert summary["per_mechanism"]["description"]["route_mismatch_count"] == 1
+
+    def test_a_sibling_route_on_a_positive_case_is_disclosed(self):
+        summary = eval_mod.aggregate([_routed_scenario(False, False)])
+        caveats = eval_mod._render_caveats(summary)
+        routing = [c for c in caveats if c.startswith("Routing:")]
+        assert len(routing) == 1
+        assert "1 positive cell(s) never opened the target reference" in routing[0]
+
+    def test_the_missed_cell_still_counts_toward_the_published_average(self):
+        summary = eval_mod.aggregate([_routed_scenario(False, False)])
+        per_mech = summary["per_mechanism"]["description"]
+        assert per_mech["graded_count"] == 1
+        assert per_mech["avg_score"] == 5.0
+
+    def test_a_declined_route_on_a_negative_case_is_not_called_a_defect(self):
+        summary = eval_mod.aggregate(
+            [_routed_scenario(False, True), _routed_scenario(True, False)]
+        )
+        neg = summary["negative_case_per_mechanism"]["description"]
+        assert neg["route_mismatch_count"] == 1
+        assert summary["per_mechanism"]["description"]["route_mismatch_count"] == 0
+        assert not [c for c in eval_mod._render_caveats(summary) if c.startswith("Routing:")]
+
+    def test_a_cell_with_no_routing_record_counts_zero(self):
+        summary = eval_mod.aggregate([_routed_scenario(False, None)])
+        assert summary["per_mechanism"]["description"]["route_mismatch_count"] == 0
+        assert not [c for c in eval_mod._render_caveats(summary) if c.startswith("Routing:")]
+
+    def test_an_archived_routing_record_without_the_flag_counts_zero(self):
+        """The shape a run written before the flag existed actually has.
+
+        Those cells carry a routing dict with no `reference_matched` key. Read
+        as falsy rather than `is False`, every one of them would count as a
+        miss and publish a caveat about a failure the run never recorded.
+        """
+        scenario = _routed_scenario(False, True)
+        mechanisms: dict[str, Any] = scenario["mechanisms"]
+        routing: dict[str, Any] = mechanisms["description"]["routing"]
+        del routing["reference_matched"]
+        summary = eval_mod.aggregate([scenario])
+        assert summary["per_mechanism"]["description"]["route_mismatch_count"] == 0
+        assert not [c for c in eval_mod._render_caveats(summary) if c.startswith("Routing:")]
+
+    def test_a_routing_record_that_is_not_a_dict_is_refused(self):
+        """Shipped asserting zero, which was the defect this now refuses.
+
+        An unparsed record is a route the run could not read, not a route it
+        did not attempt. Counting it zero gave a damaged cell the silence a
+        legacy cell earns and published its score under the target reference
+        with no evidence the reference was opened.
+        """
+        scenario = _routed_scenario(False, None)
+        mechanisms: dict[str, Any] = scenario["mechanisms"]
+        mechanisms["description"]["routing"] = "unparsed"
+        with pytest.raises(ValueError, match="routing must be a mapping"):
+            eval_mod.aggregate([scenario])
+
+
+class TestTheRouteRecordsWhichReferenceItActuallyOpened:
+    """Pin `reference_matched` where it is computed, not where it is counted."""
+
+    TARGET = "references/clean-architecture.md"
+    SIBLING = "references/domain-driven-design.md"
+
+    @staticmethod
+    def _rule():
+        skill = REPO_ROOT / _SKILL_REL
+        reference = skill.parent / TestTheRouteRecordsWhichReferenceItActuallyOpened.TARGET
+        if not skill.is_file() or not reference.is_file():
+            pytest.skip("software-engineering-library not present in this checkout")
+        return eval_mod.parse_skill_reference(skill, reference)
+
+    @staticmethod
+    def _api(selected: str):
+        route = json.dumps(
+            {
+                "selected_skill": "software-engineering-library",
+                "selected_reference": selected,
+                "reasoning": "picked one",
+            }
+        )
+        judge = json.dumps(
+            {"activation_score": 5, "citation_score": 5, "behavior_score": 5}
+        )
+
+        def _call(_key, _messages, **kwargs):
+            if kwargs.get("max_tokens") == 300:
+                return route
+            if kwargs.get("max_tokens") == 600:
+                return "a response"
+            return judge
+
+        return _call
+
+    def _run(self, monkeypatch, selected: str) -> dict[str, Any]:
+        rule = self._rule()
+        monkeypatch.setattr(eval_mod, "_call_api", self._api(selected))
+        result = eval_mod.eval_one_scenario(
+            "sk-test",
+            rule,
+            "clean-architecture",
+            {"id": "S1", "input": "x", "expected_gate": "invert-dependency"},
+            "model",
+            False,
+        )
+        routing = result["mechanisms"]["description"]["routing"]
+        assert isinstance(routing, dict)
+        return routing
+
+    def test_opening_the_target_reference_records_a_match(self, monkeypatch):
+        assert self._run(monkeypatch, self.TARGET)["reference_matched"] is True
+
+    def test_opening_a_sibling_reference_records_a_miss(self, monkeypatch):
+        routing = self._run(monkeypatch, self.SIBLING)
+        assert routing["reference_matched"] is False
+        assert routing["selected_reference"] == self.SIBLING
+
+    def test_declining_to_route_records_a_miss(self, monkeypatch):
+        routing = self._run(monkeypatch, "")
+        assert routing["reference_matched"] is False
+        assert routing["selected_reference"] is None
+
+
+class TestAGateThatResemblesTheSentinelIsRefused:
+    """A typo in the negative sentinel must fail visibly, not change pools.
+
+    The gate string has three consumers: it picks the judge rubric, it splits
+    the pools, and it is validated here. A near miss corrupts the first two at
+    once, so the scenario is graded against the positive rubric and then
+    averaged into the positive pool.
+    """
+
+    @staticmethod
+    def _check(gate: str):
+        return eval_mod._validate_scenario_gate(
+            {"expected_gate": gate}, 0, Path("scenarios.json")
+        )
+
+    @pytest.mark.parametrize(
+        "gate",
+        [
+            "skip-rul-not-applicable",
+            "skipp-rule-not-applicable",
+            "skiprule-not-applicable",
+            "skip-rule-notapplicable",
+            "skip-rule-not-aplicable",
+            "sikp-rule-not-applicable",
+            "skip-rulenot-applicable",
+        ],
+    )
+    def test_a_near_miss_of_the_sentinel_is_refused(self, gate):
+        assert self._check(gate) == 2
+
+    @pytest.mark.parametrize(
+        "gate",
+        [
+            "skip-rule-not-applicable",
+            "SKIP-RULE-NOT-APPLICABLE",
+            "skip_rule_not_applicable",
+            "  skip-rule-not-applicable  ",
+        ],
+    )
+    def test_the_sentinel_and_its_authoring_variants_are_accepted(self, gate):
+        assert self._check(gate) is None
+        assert eval_mod._is_negative_gate(gate) is True
+
+    @pytest.mark.parametrize(
+        "gate",
+        ["invert-dependency", "seam-before-edit", "skip-the-cache", "bound-the-queue"],
+    )
+    def test_an_unrelated_gate_is_still_accepted(self, gate):
+        assert self._check(gate) is None
+        assert eval_mod._is_negative_gate(gate) is False
+
+    def test_every_gate_in_the_shipped_corpus_still_validates(self):
+        """The refusal must not fire on the corpus it has to keep accepting."""
+        corpus = REPO_ROOT / "tests" / "evals"
+        if not corpus.is_dir():
+            pytest.skip("scenario corpus not present in this checkout")
+        refused = []
+        checked = 0
+        for path in sorted(corpus.rglob("*.json")):
+            for idx, sc in enumerate(json.loads(path.read_text()).get("scenarios", [])):
+                if not isinstance(sc, dict) or "expected_gate" not in sc:
+                    continue
+                checked += 1
+                if eval_mod._validate_scenario_gate(sc, idx, path) is not None:
+                    refused.append((path.name, sc.get("expected_gate")))
+        assert checked > 0
+        assert refused == []
+
+    def test_the_threshold_sits_in_the_gap_the_corpus_measured(self):
+        """Pin the calibration, so a later edit cannot close the gap silently."""
+        corpus = REPO_ROOT / "tests" / "evals"
+        if not corpus.is_dir():
+            pytest.skip("scenario corpus not present in this checkout")
+        real = set()
+        for path in sorted(corpus.rglob("*.json")):
+            for sc in json.loads(path.read_text()).get("scenarios", []):
+                if not isinstance(sc, dict):
+                    continue
+                gate = eval_mod._normalize_gate(sc.get("expected_gate"))
+                if gate and gate != eval_mod.NEGATIVE_GATE:
+                    real.add(gate)
+        assert real
+        worst = max(
+            difflib.SequenceMatcher(None, g, eval_mod.NEGATIVE_GATE).ratio()
+            for g in real
+        )
+        assert worst < eval_mod._GATE_NEAR_MISS_RATIO
+        closest = difflib.SequenceMatcher(
+            None, "sikp-rule-not-applicable", eval_mod.NEGATIVE_GATE
+        ).ratio()
+        assert closest >= eval_mod._GATE_NEAR_MISS_RATIO
+
+
+class TestARouteThatDeclinedTheSkillIsNotAMatch:
+    """Resolution never reads `selected_skill`, so a decline must be caught here."""
+
+    TARGET = "references/clean-architecture.md"
+
+    @staticmethod
+    def _rule():
+        skill = REPO_ROOT / _SKILL_REL
+        reference = skill.parent / TestARouteThatDeclinedTheSkillIsNotAMatch.TARGET
+        if not skill.is_file() or not reference.is_file():
+            pytest.skip("software-engineering-library not present in this checkout")
+        return eval_mod.parse_skill_reference(skill, reference)
+
+    def _run(self, monkeypatch, skill_value):
+        route = json.dumps(
+            {
+                "selected_skill": skill_value,
+                "selected_reference": self.TARGET,
+                "reasoning": "picked one",
+            }
+        )
+        judge = json.dumps(
+            {"activation_score": 5, "citation_score": 5, "behavior_score": 5}
+        )
+
+        def _call(_key, _messages, **kwargs):
+            if kwargs.get("max_tokens") == 300:
+                return route
+            if kwargs.get("max_tokens") == 600:
+                return "a response"
+            return judge
+
+        monkeypatch.setattr(eval_mod, "_call_api", _call)
+        result = eval_mod.eval_one_scenario(
+            "sk-test",
+            self._rule(),
+            "clean-architecture",
+            {"id": "S1", "input": "x", "expected_gate": "invert-dependency"},
+            "model",
+            False,
+        )
+        return result["mechanisms"]["description"]["routing"]
+
+    def test_selecting_the_skill_records_a_match(self, monkeypatch):
+        routing = self._run(monkeypatch, "software-engineering-library")
+        assert routing["reference_matched"] is True
+
+    @pytest.mark.parametrize("skill_value", [None, "", "   ", 7])
+    def test_a_declined_or_unreadable_skill_records_a_miss(
+        self, monkeypatch, skill_value
+    ):
+        routing = self._run(monkeypatch, skill_value)
+        assert routing["reference_matched"] is False
+        assert routing["selected_reference"] == self.TARGET
+
+
+class TestARoutedMissWithholdsTheCertification:
+    """A PASS must not be earned on content the target never supplied."""
+
+    @staticmethod
+    def _summary(mismatches, *, positive_incomplete=False, archived=False):
+        summary = {
+            "per_mechanism": {m: {"route_mismatch_count": 0} for m in eval_mod.MECHANISMS},
+            "negative_gate_incomplete": [],
+            "positive_gate_incomplete": positive_incomplete,
+        }
+        if not archived:
+            summary["positive_route_mismatches"] = mismatches
+        return summary
+
+    @staticmethod
+    def _decide(summary):
+        return eval_mod._decide_verdict(
+            summary,
+            gating_judge_failures=0,
+            worst_neg_avg=None,
+            has_positive_cases=True,
+            has_negative_cases=True,
+            desc_avg=5.0,
+            baseline_avg=1.0,
+        )
+
+    def test_a_clean_route_still_passes(self):
+        assert self._decide(self._summary(0)) == "PASS"
+
+    @pytest.mark.parametrize("mismatches", [1, 2, 9])
+    def test_any_positive_route_miss_withholds_the_pass(self, mismatches):
+        assert self._decide(self._summary(mismatches)) == "FAIL_ROUTE_MISSED_TARGET"
+
+    def test_an_incomplete_pool_still_outranks_a_route_miss(self):
+        """A pool that was never measured is a bigger gap than one mismeasured cell."""
+        summary = self._summary(1, positive_incomplete=["description"])
+        assert self._decide(summary) == "FAIL_POSITIVE_INCOMPLETE"
+
+    def test_an_archived_summary_without_the_key_keeps_its_verdict(self):
+        """Archived runs recorded no route flag, so they must not move."""
+        assert self._decide(self._summary(0, archived=True)) == "PASS"
+
+
+class TestTheRouteMissCountIsDerivedOnce:
+    """The number a reader sees and the number that decides must be one value."""
+
+    def test_the_caveat_reads_the_derived_field(self):
+        summary = {
+            "per_mechanism": {m: {} for m in eval_mod.MECHANISMS},
+            "negative_case_per_mechanism": {m: {} for m in eval_mod.MECHANISMS},
+            "positive_route_mismatches": 3,
+        }
+        text = " ".join(eval_mod._render_caveats(summary))
+        assert "3 positive cell(s) never opened the target" in text
+
+    def test_no_caveat_when_the_derived_field_is_zero(self):
+        summary = {
+            "per_mechanism": {m: {"route_mismatch_count": 5} for m in eval_mod.MECHANISMS},
+            "negative_case_per_mechanism": {m: {} for m in eval_mod.MECHANISMS},
+            "positive_route_mismatches": 0,
+        }
+        text = " ".join(eval_mod._render_caveats(summary))
+        assert "never opened the target" not in text
+
+
+class TestOneTargetPublishesUnderOneId:
+    """Two measured targets must never collapse into one published entry."""
+
+    SKILL = ".claude/skills/software-engineering-library/SKILL.md"
+    REFS = ".claude/skills/software-engineering-library/references"
+
+    @staticmethod
+    def _args():
+        return argparse.Namespace(
+            dry_run=True,
+            judge_repeats=0,
+            judge_reducer="median",
+            seed=None,
+            model="m",
+            verbose=False,
+        )
+
+    def _file(self, tmp_path, name, reference, rule_id=None):
+        skill = REPO_ROOT / self.SKILL
+        if not skill.is_file():
+            pytest.skip("software-engineering-library not present in this checkout")
+        body: dict[str, Any] = {
+            "skill_path": self.SKILL,
+            "reference_path": f"{self.REFS}/{reference}",
+            "scenarios": _valid_scenarios("invert-dependency"),
+        }
+        if rule_id is not None:
+            body["rule_id"] = rule_id
+        path = tmp_path / name
+        path.write_text(json.dumps(body))
+        return str(path)
+
+    def _run(self, files):
+        state = eval_mod._RunState()
+        results: dict[str, Any] = {"rules": {}}
+        codes = [
+            eval_mod._process_scenario_file(f, "sk-test", self._args(), results, state)
+            for f in files
+        ]
+        return codes, state
+
+    def test_a_reference_target_is_named_for_its_reference(self, tmp_path, capsys):
+        """The umbrella skill name would label the wrong population."""
+        first = self._file(tmp_path, "a.json", "clean-architecture.md")
+        codes, state = self._run([first])
+        assert codes == [None]
+        assert sorted(state.claimed_ids) == ["clean-architecture"]
+        assert "software-engineering-library:" not in capsys.readouterr().out
+
+    def test_two_references_under_one_router_stay_distinct(self, tmp_path):
+        files = [
+            self._file(tmp_path, "a.json", "clean-architecture.md"),
+            self._file(tmp_path, "b.json", "domain-driven-design.md"),
+        ]
+        codes, state = self._run(files)
+        assert codes == [None, None]
+        assert sorted(state.claimed_ids) == [
+            "clean-architecture",
+            "domain-driven-design",
+        ]
+
+    def test_a_second_claim_on_one_id_is_refused(self, tmp_path, capsys):
+        """Refusing is visible. Overwriting leaves no trace in the output."""
+        files = [
+            self._file(tmp_path, "a.json", "clean-architecture.md"),
+            self._file(tmp_path, "c.json", "clean-architecture.md"),
+        ]
+        codes, _ = self._run(files)
+        assert codes == [None, 2]
+        assert "already claimed" in capsys.readouterr().err
+
+    def test_the_collision_is_caught_before_any_spend(self, tmp_path):
+        """Dry run is the cheapest place to catch it, and the PR gate runs one."""
+        files = [
+            self._file(tmp_path, "a.json", "clean-architecture.md"),
+            self._file(tmp_path, "c.json", "clean-architecture.md"),
+        ]
+        state = eval_mod._RunState()
+        results: dict[str, Any] = {"rules": {}}
+        args = self._args()
+        assert args.dry_run is True
+        codes = [
+            eval_mod._process_scenario_file(f, "sk-test", args, results, state)
+            for f in files
+        ]
+        assert codes[1] == 2
+        assert results["rules"] == {}
+
+    def test_explicit_distinct_ids_still_coexist(self, tmp_path):
+        """The guard must refuse collisions, not every repeated reference."""
+        files = [
+            self._file(tmp_path, "e.json", "clean-architecture.md", rule_id="alpha"),
+            self._file(tmp_path, "f.json", "clean-architecture.md", rule_id="beta"),
+        ]
+        codes, state = self._run(files)
+        assert codes == [None, None]
+        assert sorted(state.claimed_ids) == ["alpha", "beta"]
+
+    def test_a_fresh_run_state_claims_nothing(self):
+        assert eval_mod._RunState().claimed_ids == {}
+
+
+class TestTheShippedTemplateTeachesTheDocumentedSchema:
+    """The artifact new scenario files are copied from must not contradict the docs."""
+
+    @staticmethod
+    def _template():
+        path = REPO_ROOT / "scripts" / "eval" / "examples" / "example-scenarios.json"
+        if not path.is_file():
+            pytest.skip("example template not present in this checkout")
+        return json.loads(path.read_text())
+
+    def test_the_template_declares_an_id(self):
+        """Without one, two copies pointed at one skill collide by default."""
+        data = self._template()
+        assert isinstance(data.get("rule_id") or data.get("skill_id"), str)
+
+    def test_every_template_scenario_declares_a_gate(self):
+        for scenario in self._template()["scenarios"]:
+            assert eval_mod._validate_scenario_gate(
+                scenario, 0, Path("example-scenarios.json")
+            ) is None
+
+    def test_the_template_demonstrates_a_negative_case(self):
+        gates = [s.get("expected_gate") for s in self._template()["scenarios"]]
+        assert any(eval_mod._is_negative_gate(g) for g in gates)
+
+
+class TestTheExitCodeNamesWhatActuallyWentWrong:
+    """A config problem and a rule failure must not share an exit code."""
+
+    def test_a_clean_run_exits_zero(self):
+        assert eval_mod._classify_verdict("PASS") == 0
+
+    def test_no_positive_cases_is_a_config_error_not_a_rule_failure(self):
+        """It reports on the scenario file, and nothing at all about the rule.
+
+        Exit 1 would claim the rule underperformed. The run never measured
+        the rule, so that claim has no population behind it.
+        """
+        assert eval_mod._classify_verdict("NO_POSITIVE_CASES") == 2
+
+    def test_a_judge_failure_stays_external(self):
+        assert eval_mod._classify_verdict("FAIL_JUDGE_ERRORS") == 3
+
+    @pytest.mark.parametrize(
+        "verdict",
+        [
+            "FAIL_THRESHOLD",
+            "FAIL_NO_DELTA",
+            "FAIL_OVER_ACTIVATION",
+            "FAIL_NEGATIVE_INCOMPLETE",
+            "FAIL_POSITIVE_INCOMPLETE",
+            "FAIL_ROUTE_MISSED_TARGET",
+            "NO_RESULT",
+        ],
+    )
+    def test_every_measured_failure_is_a_logic_failure(self, verdict):
+        assert eval_mod._classify_verdict(verdict) == 1
+
+    def test_an_unknown_verdict_is_not_silently_a_pass(self):
+        """A verdict added later must fail loudly, not default to success."""
+        assert eval_mod._classify_verdict("SOME_FUTURE_VERDICT") != 0
+
+
+class TestAFileWithNoPositiveCaseIsRefusedBeforeSpend:
+    """Only a positive case can show a rule activating."""
+
+    NEG = "skip-rule-not-applicable"
+
+    def _data(self, gates):
+        return {
+            "scenarios": [
+                {"id": f"S{i}", "input": "x", "expected_gate": g}
+                for i, g in enumerate(gates)
+            ]
+        }
+
+    def test_an_all_negative_file_is_refused(self, tmp_path):
+        code = eval_mod._validate_scenarios_shape(
+            self._data([self.NEG, self.NEG]), tmp_path / "s.json"
+        )
+        assert code == 2
+
+    def test_the_refusal_names_the_sentinel_and_the_remedy(self, tmp_path, capsys):
+        eval_mod._validate_scenarios_shape(
+            self._data([self.NEG]), tmp_path / "s.json"
+        )
+        err = capsys.readouterr().err
+        assert self.NEG in err
+        assert "NO_POSITIVE_CASES" in err
+
+    def test_an_empty_scenario_list_is_refused(self, tmp_path):
+        assert eval_mod._validate_scenarios_shape(
+            {"scenarios": []}, tmp_path / "s.json"
+        ) == 2
+
+    def test_one_positive_case_is_enough(self, tmp_path):
+        assert eval_mod._validate_scenarios_shape(
+            self._data(["invert-dependency", self.NEG]), tmp_path / "s.json"
+        ) is None
+
+    def test_a_near_miss_of_the_sentinel_is_still_refused_as_a_near_miss(
+        self, tmp_path, capsys
+    ):
+        """The gate guard must fire first, or a typo would count as positive."""
+        code = eval_mod._validate_scenarios_shape(
+            self._data(["skipp-rule-not-applicable"]), tmp_path / "s.json"
+        )
+        assert code == 2
+        assert "near miss" in capsys.readouterr().err
+
+    def test_the_dry_run_catches_it_before_any_call(self, tmp_path):
+        skill = REPO_ROOT / ".claude/skills/software-engineering-library/SKILL.md"
+        if not skill.is_file():
+            pytest.skip("software-engineering-library not present in this checkout")
+        path = tmp_path / "allneg.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "skill_path": ".claude/skills/software-engineering-library/SKILL.md",
+                    "reference_path": (
+                        ".claude/skills/software-engineering-library"
+                        "/references/clean-architecture.md"
+                    ),
+                    "rule_id": "all-negative",
+                    "scenarios": [
+                        {"id": "N1", "input": "x", "expected_gate": self.NEG}
+                    ],
+                }
+            )
+        )
+        args = argparse.Namespace(
+            dry_run=True,
+            judge_repeats=0,
+            judge_reducer="median",
+            seed=None,
+            model="m",
+            verbose=False,
+        )
+        results: dict[str, Any] = {"rules": {}}
+        code = eval_mod._process_scenario_file(
+            str(path), "sk-test", args, results, eval_mod._RunState()
+        )
+        assert code == 2
+        assert results["rules"] == {}
+
+
+class TestEveryShippedScenarioFileCanValidateActivation:
+    """The corpus the workflow runs must survive its own validator."""
+
+    @staticmethod
+    def _shipped():
+        directory = REPO_ROOT / "tests" / "evals" / "rule-scenarios"
+        if not directory.is_dir():
+            pytest.skip("rule-scenarios corpus not present in this checkout")
+        return sorted(directory.glob("*.json"))
+
+    def test_the_corpus_is_not_empty(self):
+        assert self._shipped()
+
+    def test_every_shipped_file_declares_a_positive_case(self):
+        for path in self._shipped():
+            data = json.loads(path.read_text())
+            assert eval_mod._validate_scenarios_shape(data, path) is None, path
+
+    def test_every_shipped_file_declares_a_negative_case(self):
+        """Restraint is half the measurement; losing it would go unnoticed."""
+        for path in self._shipped():
+            gates = [
+                s.get("expected_gate", "")
+                for s in json.loads(path.read_text())["scenarios"]
+            ]
+            assert any(
+                eval_mod._is_negative_gate(eval_mod._normalize_gate(g)) for g in gates
+            ), path
+
+
+class TestTheRunAccumulatesTheWorstOutcomeItSaw:
+    """Drives the real accumulation, not a local re-implementation of it.
+
+    An earlier version of these tests recomputed max() in the test body. That
+    passes even when the shipped reduction is deleted, which is a claim of
+    coverage the tests did not have.
+    """
+
+    @staticmethod
+    def _args():
+        return argparse.Namespace(
+            dry_run=False,
+            judge_repeats=1,
+            judge_reducer="median",
+            seed=None,
+            model="m",
+            verbose=False,
+            output=None,
+        )
+
+    def _file(self, tmp_path, name="s.json"):
+        rule = REPO_ROOT / ".claude/rules/unified-software-engineering.md"
+        if not rule.is_file():
+            pytest.skip("unified-software-engineering.md not present")
+        path = tmp_path / name
+        path.write_text(
+            json.dumps(
+                {
+                    "rule_path": ".claude/rules/unified-software-engineering.md",
+                    "rule_id": name.split(".")[0],
+                    "scenarios": _valid_scenarios("invert-dependency"),
+                }
+            )
+        )
+        return str(path)
+
+    def _run(self, tmp_path, monkeypatch, verdicts):
+        """Feed one canned verdict per scenario file through the real loop."""
+        queue = list(verdicts)
+
+        def fake_process_one_rule(api_key, scenarios_data, target_paths, args):
+            return (
+                scenarios_data["rule_id"],
+                {"summary": {"verdict": queue.pop(0)}},
+                0,
+            )
+
+        monkeypatch.setattr(eval_mod, "_process_one_rule", fake_process_one_rule)
+        state = eval_mod._RunState()
+        results: dict[str, Any] = {"rules": {}}
+        for idx in range(len(verdicts)):
+            code = eval_mod._process_scenario_file(
+                self._file(tmp_path, f"f{idx}.json"),
+                "key",
+                self._args(),
+                results,
+                state,
+            )
+            assert code is None
+        return state
+
+    def test_a_passing_run_leaves_the_exit_clean(self, tmp_path, monkeypatch):
+        assert self._run(tmp_path, monkeypatch, ["PASS"]).worst_exit == 0
+
+    def test_a_misconfigured_file_surfaces_as_a_config_exit(
+        self, tmp_path, monkeypatch
+    ):
+        assert self._run(tmp_path, monkeypatch, ["NO_POSITIVE_CASES"]).worst_exit == 2
+
+    def test_a_later_pass_does_not_erase_an_earlier_failure(
+        self, tmp_path, monkeypatch
+    ):
+        state = self._run(tmp_path, monkeypatch, ["FAIL_THRESHOLD", "PASS"])
+        assert state.worst_exit == 1
+
+    def test_a_config_error_is_not_hidden_by_a_rule_failure(
+        self, tmp_path, monkeypatch
+    ):
+        state = self._run(tmp_path, monkeypatch, ["FAIL_THRESHOLD", "NO_POSITIVE_CASES"])
+        assert state.worst_exit == 2
+
+    def test_an_external_failure_outranks_everything(self, tmp_path, monkeypatch):
+        state = self._run(
+            tmp_path, monkeypatch, ["NO_POSITIVE_CASES", "FAIL_JUDGE_ERRORS", "PASS"]
+        )
+        assert state.worst_exit == 3
+
+    def test_the_order_targets_are_processed_does_not_matter(
+        self, tmp_path, monkeypatch
+    ):
+        forward = self._run(
+            tmp_path, monkeypatch, ["FAIL_JUDGE_ERRORS", "NO_POSITIVE_CASES"]
+        )
+        backward = self._run(
+            tmp_path, monkeypatch, ["NO_POSITIVE_CASES", "FAIL_JUDGE_ERRORS"]
+        )
+        assert forward.worst_exit == backward.worst_exit == 3
+
+
+class TestTheProcessExitReportsWhatTheRunAccumulated:
+    """main() must hand the reduced code to the shell, not recompute it."""
+
+    def _main_with(self, monkeypatch, tmp_path, verdict):
+        scenario = tmp_path / "s.json"
+        scenario.write_text("{}")
+
+        def fake_process(scenario_file, api_key, args, all_results, state):
+            state.worst_exit = max(
+                state.worst_exit, eval_mod._classify_verdict(verdict)
+            )
+            return None
+
+        monkeypatch.setattr(eval_mod, "_process_scenario_file", fake_process)
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            ["eval", "--dry-run", "--scenarios", str(scenario)],
+        )
+        return eval_mod.main()
+
+    def test_a_clean_run_exits_zero(self, monkeypatch, tmp_path):
+        assert self._main_with(monkeypatch, tmp_path, "PASS") == 0
+
+    def test_a_rule_failure_exits_one(self, monkeypatch, tmp_path):
+        assert self._main_with(monkeypatch, tmp_path, "FAIL_THRESHOLD") == 1
+
+    def test_a_config_error_exits_two(self, monkeypatch, tmp_path):
+        assert self._main_with(monkeypatch, tmp_path, "NO_POSITIVE_CASES") == 2
+
+    def test_an_external_failure_exits_three(self, monkeypatch, tmp_path):
+        assert self._main_with(monkeypatch, tmp_path, "FAIL_JUDGE_ERRORS") == 3
+
+
+class TestALiveRunReportsWhatItAccumulated:
+    """The dry run and the live run must not disagree about the exit code."""
+
+    def _main_live(self, monkeypatch, tmp_path, verdict, output=None):
+        scenario = tmp_path / "s.json"
+        scenario.write_text("{}")
+
+        def fake_process(scenario_file, api_key, args, all_results, state):
+            state.worst_exit = max(
+                state.worst_exit, eval_mod._classify_verdict(verdict)
+            )
+            return None
+
+        monkeypatch.setattr(eval_mod, "_process_scenario_file", fake_process)
+        monkeypatch.setattr(eval_mod, "_load_api_key", lambda: "key")
+        monkeypatch.setattr(
+            eval_mod, "verify_model_available", lambda api_key, model: None
+        )
+        argv = ["eval", "--scenarios", str(scenario)]
+        if output is not None:
+            argv += ["--output", str(output)]
+        monkeypatch.setattr(sys, "argv", argv)
+        return eval_mod.main()
+
+    def test_a_clean_live_run_exits_zero(self, monkeypatch, tmp_path):
+        assert self._main_live(monkeypatch, tmp_path, "PASS") == 0
+
+    def test_a_rule_failure_exits_one(self, monkeypatch, tmp_path):
+        assert self._main_live(monkeypatch, tmp_path, "FAIL_THRESHOLD") == 1
+
+    def test_a_config_error_exits_two(self, monkeypatch, tmp_path):
+        assert self._main_live(monkeypatch, tmp_path, "NO_POSITIVE_CASES") == 2
+
+    def test_an_external_failure_exits_three(self, monkeypatch, tmp_path):
+        assert self._main_live(monkeypatch, tmp_path, "FAIL_JUDGE_ERRORS") == 3
+
+    def test_writing_the_artifact_does_not_clear_the_exit(
+        self, monkeypatch, tmp_path
+    ):
+        """The artifact is written before the exit is returned; both must survive."""
+        out = tmp_path / "results.json"
+        code = self._main_live(monkeypatch, tmp_path, "FAIL_THRESHOLD", output=out)
+        assert code == 1
+        assert out.is_file()
+
+    def test_the_dry_run_and_live_run_agree_on_a_clean_result(
+        self, monkeypatch, tmp_path
+    ):
+        assert self._main_live(monkeypatch, tmp_path, "PASS") == 0
+
+
+class TestAHardRefusalNeverLowersTheExit:
+    """A refusal stops the run. It must not improve what the run already saw.
+
+    This is the invariant the run-wide reduction claims: adding a target can
+    only worsen the exit. An early return that published the refusal code on
+    its own would break it, and the break is invisible because both codes are
+    nonzero and the run still looks like it failed.
+    """
+
+    def _main_with(self, monkeypatch, tmp_path, first_verdict, refusal_code):
+        scenarios = []
+        for name in ("a.json", "b.json"):
+            path = tmp_path / name
+            path.write_text("{}")
+            scenarios.append(str(path))
+        seen = {"n": 0}
+
+        def fake_process(scenario_file, api_key, args, all_results, state):
+            seen["n"] += 1
+            if seen["n"] == 1:
+                if first_verdict is not None:
+                    state.worst_exit = max(
+                        state.worst_exit, eval_mod._classify_verdict(first_verdict)
+                    )
+                return None
+            return refusal_code
+
+        monkeypatch.setattr(eval_mod, "_process_scenario_file", fake_process)
+        monkeypatch.setattr(eval_mod, "_load_api_key", lambda: "key")
+        monkeypatch.setattr(
+            eval_mod, "verify_model_available", lambda api_key, model: None
+        )
+        monkeypatch.setattr(sys, "argv", ["eval", "--scenarios", *scenarios])
+        return eval_mod.main()
+
+    def test_a_config_refusal_does_not_lower_an_earlier_api_failure(
+        self, monkeypatch, tmp_path
+    ):
+        code = self._main_with(monkeypatch, tmp_path, "FAIL_JUDGE_ERRORS", 2)
+        assert code == 3
+
+    def test_a_config_refusal_still_outranks_an_earlier_rule_failure(
+        self, monkeypatch, tmp_path
+    ):
+        code = self._main_with(monkeypatch, tmp_path, "FAIL_THRESHOLD", 2)
+        assert code == 2
+
+    def test_a_refusal_after_a_clean_target_reports_the_refusal(
+        self, monkeypatch, tmp_path
+    ):
+        code = self._main_with(monkeypatch, tmp_path, "PASS", 2)
+        assert code == 2
+
+    def test_a_refusal_on_the_first_target_reports_the_refusal(
+        self, monkeypatch, tmp_path
+    ):
+        code = self._main_with(monkeypatch, tmp_path, None, 2)
+        assert code == 2
+
+    def test_the_run_stops_at_the_refusal(self, monkeypatch, tmp_path):
+        """Continuing past a rejected file would keep feeding it crafted input."""
+        seen = {"n": 0}
+
+        def fake_process(scenario_file, api_key, args, all_results, state):
+            seen["n"] += 1
+            return 2
+
+        paths = []
+        for name in ("a.json", "b.json", "c.json"):
+            path = tmp_path / name
+            path.write_text("{}")
+            paths.append(str(path))
+        monkeypatch.setattr(eval_mod, "_process_scenario_file", fake_process)
+        monkeypatch.setattr(sys, "argv", ["eval", "--dry-run", "--scenarios", *paths])
+        assert eval_mod.main() == 2
+        assert seen["n"] == 1
+
+
+class TestRestraintIsNeverCertifiedOnAnEmptyPool:
+    """The restraint floor compares against the negative pool. Over an empty
+    pool it cannot fire, and a gate that cannot fire has not been run.
+
+    Left alone, a clean positive result then read as a clean run: the summary
+    reported `worst_negative_avg` of None, `negative_gate_incomplete` of [],
+    and a verdict of PASS. That certified restraint nothing had measured.
+    """
+
+    @staticmethod
+    def _scen(baseline, description, full, negative=False):
+        return _make_scenario(baseline, description, full, negative=negative)
+
+    def test_a_file_with_no_negative_is_refused_before_spend(self, capsys):
+        data = {
+            "scenarios": [
+                {"id": "S1", "input": "x", "expected_gate": "apply-rule"},
+                {"id": "S2", "input": "y", "expected_gate": "apply-rule"},
+            ]
+        }
+        assert eval_mod._validate_scenarios_shape(data, Path("s.json")) == 2
+        err = capsys.readouterr().err
+        assert "no negative scenario" in err
+        assert eval_mod.NEGATIVE_GATE in err
+
+    def test_the_refusal_says_why_an_empty_pool_is_not_free(self, capsys):
+        """The message has to name the consequence, not just the rule."""
+        eval_mod._validate_scenarios_shape(
+            {"scenarios": [{"id": "S1", "input": "x", "expected_gate": "g"}]},
+            Path("s.json"),
+        )
+        err = capsys.readouterr().err
+        assert "restraint" in err
+        assert "PASS" in err
+
+    def test_an_empty_list_is_refused_on_its_own_terms(self, capsys):
+        """Not through the positive-pool message, which would be false here.
+
+        `Every expected_gate is <sentinel>` is vacuously true of an empty list
+        and tells the reader to go look at gates that do not exist.
+        """
+        assert eval_mod._validate_scenarios_shape({"scenarios": []}, Path("s.json")) == 2
+        err = capsys.readouterr().err
+        assert "no scenarios" in err
+        assert "Every expected_gate" not in err
+
+    def test_a_file_carrying_both_pools_is_accepted(self):
+        """Negative control. Without it the check could be refusing everything."""
+        data = {"scenarios": _valid_scenarios()}
+        assert eval_mod._validate_scenarios_shape(data, Path("s.json")) is None
+
+    def test_aggregate_fails_closed_without_the_loader(self):
+        """Replay and direct callers skip scenario-file validation entirely."""
+        summary = eval_mod.aggregate([self._scen(1, 5, 5)])
+        assert summary["verdict"] == "NO_NEGATIVE_CASES"
+
+    def test_the_floor_is_still_not_compared_against_nothing(self):
+        """The older guard stays: None is not comparable against a floor."""
+        summary = eval_mod.aggregate([self._scen(1, 5, 5)])
+        assert summary["worst_negative_avg"] is None
+        assert summary["verdict"] != "FAIL_OVER_ACTIVATION"
+
+    def test_a_measured_negative_pool_still_certifies(self):
+        summary = eval_mod.aggregate([self._scen(1, 5, 5), self._scen(1, 5, 5, True)])
+        assert summary["verdict"] == "PASS"
+
+    def test_the_config_error_reports_as_a_config_exit(self):
+        assert eval_mod._classify_verdict("NO_NEGATIVE_CASES") == 2
+
+    @pytest.mark.parametrize(
+        ("kwargs", "expected"),
+        [
+            ({"gating_judge_failures": 1}, "FAIL_JUDGE_ERRORS"),
+            ({"worst_neg_avg": 1.0}, "FAIL_OVER_ACTIVATION"),
+            ({"desc_avg": 1.0, "baseline_avg": 1.0}, "FAIL_THRESHOLD"),
+        ],
+    )
+    def test_it_never_preempts_a_verdict_the_run_actually_earned(
+        self, kwargs, expected
+    ):
+        """Placement, not just presence.
+
+        Ahead of the other gates this would replace an actionable defect with a
+        coverage complaint, and would drop a real FAIL_THRESHOLD out of the
+        rollback set. Only the unearned PASS is taken.
+        """
+        args = {
+            "gating_judge_failures": 0,
+            "worst_neg_avg": 5.0,
+            "has_positive_cases": True,
+            "has_negative_cases": False,
+            "desc_avg": 5.0,
+            "baseline_avg": 1.0,
+        }
+        args.update(kwargs)
+        summary = {"negative_gate_incomplete": [], "positive_gate_incomplete": []}
+        assert eval_mod._decide_verdict(summary, **args) == expected
+
+    def test_every_shipped_scenario_file_declares_both_pools(self):
+        """The corpus guard the positive check already has.
+
+        A requirement nothing enforces on the shipped files is a requirement
+        that drifts. This is how the template shipped without gates twice.
+        """
+        shipped = sorted((REPO_ROOT / "tests" / "evals" / "rule-scenarios").glob("*.json"))
+        shipped.append(REPO_ROOT / "scripts" / "eval" / "examples" / "example-scenarios.json")
+        assert shipped, "no shipped scenario files found"
+        for path in shipped:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            assert eval_mod._validate_scenarios_shape(data, path) is None, path.name
+
+
+def _routed_multi(
+    negative: bool,
+    matched_by_mech: dict[str, bool],
+    scores: tuple[int, int, int] = (2, 5, 4),
+) -> dict[str, Any]:
+    """Build a scenario carrying a routing record on each named mechanism.
+
+    `_routed_scenario` records a route only on `description`, which cannot
+    express a miss on the mechanism a routed target never reaches.
+    """
+    baseline, description, full = scores
+    mechanisms: dict[str, Any] = {
+        "baseline": _make_mech(baseline),
+        "description": _make_mech(description),
+        "full": _make_mech(full),
+    }
+    for mech, matched in matched_by_mech.items():
+        mechanisms[mech]["routing"] = {
+            "selected_skill": "software-engineering-library",
+            "selected_reference": "references/x.md",
+            "route_failed": False,
+            "reference_matched": matched,
+        }
+    return {"negative_case": negative, "mechanisms": mechanisms}
+
+
+def _restrained_negative() -> dict[str, Any]:
+    """A negative case that clears the restraint floor, so a gate under test decides."""
+    return _make_scenario(5, 5, 5, negative=True)
+
+
+class TestAnUnreachableMechanismNeverDecidesARoutedVerdict:
+    """A routed target performs no `full` treatment, so `full` cannot vote.
+
+    Its scores are already dropped from every average, every ranking, and every
+    restraint gate. The route-mismatch count was the last number still summed
+    over all three mechanisms. A miss recorded on the mechanism the target
+    cannot reach could therefore fail a run whose reachable surface was clean,
+    and the caveat that explains the scores was counted over a wider population
+    than the scores it explains.
+    """
+
+    @staticmethod
+    def _summary(matched_by_mech: dict[str, bool], routed: bool = True):
+        return eval_mod.aggregate(
+            [_routed_multi(False, matched_by_mech), _restrained_negative()],
+            routed=routed,
+        )
+
+    def test_a_miss_on_the_unreachable_mechanism_is_not_counted(self):
+        summary = self._summary({"description": True, "full": False})
+        assert summary["per_mechanism"]["full"]["route_mismatch_count"] == 1
+        assert summary["positive_route_mismatches"] == 0
+
+    def test_a_miss_on_the_unreachable_mechanism_does_not_fail_the_run(self):
+        assert self._summary({"description": True, "full": False})["verdict"] == "PASS"
+
+    def test_a_miss_on_the_reachable_mechanism_still_fails_the_run(self):
+        """The negative control: move the same miss onto the surface that ships."""
+        summary = self._summary({"description": False, "full": True})
+        assert summary["positive_route_mismatches"] == 1
+        assert summary["verdict"] == "FAIL_ROUTE_MISSED_TARGET"
+
+    def test_a_miss_on_both_counts_once_not_twice(self):
+        """The count answers "how many measured cells missed", not "how many cells"."""
+        summary = self._summary({"description": False, "full": False})
+        assert summary["per_mechanism"]["description"]["route_mismatch_count"] == 1
+        assert summary["per_mechanism"]["full"]["route_mismatch_count"] == 1
+        assert summary["positive_route_mismatches"] == 1
+
+    def test_an_unrouted_target_still_counts_a_miss_on_full(self):
+        """Without routing, `full` is a measured mechanism, so its miss still votes."""
+        summary = self._summary({"description": True, "full": False}, routed=False)
+        assert summary["positive_route_mismatches"] == 1
+        assert summary["verdict"] == "FAIL_ROUTE_MISSED_TARGET"
+
+    def test_the_caveat_is_withheld_when_only_the_unreachable_mechanism_missed(self):
+        """The caveat and the gate read one derived number, so they cannot disagree."""
+        summary = self._summary({"description": True, "full": False})
+        assert not [
+            c for c in eval_mod._render_caveats(summary) if c.startswith("Routing:")
+        ]
+
+    def test_the_caveat_still_fires_for_a_miss_on_the_reachable_cell(self):
+        summary = self._summary({"description": False, "full": True})
+        routing = [
+            c for c in eval_mod._render_caveats(summary) if c.startswith("Routing:")
+        ]
+        assert len(routing) == 1
+        assert "1 positive cell(s) never opened the target reference" in routing[0]
+
+    def test_the_count_is_summed_over_the_measured_population(self):
+        """Pin the population at the source: the derivation must not widen again."""
+        source = (REPO_ROOT / "scripts" / "eval" / "eval-rule-activation.py").read_text(
+            encoding="utf-8"
+        )
+        marker = 'summary["positive_route_mismatches"] = sum('
+        start = source.index(marker)
+        derivation = "\n".join(source[start:].splitlines()[:4])
+        assert "for m in measured_mechs" in derivation
+        assert "for m in MECHANISMS" not in derivation
+
+
+class TestAPublishedIdMustSurviveSerialization:
+    """The record is keyed by the declared id, and JSON object keys are strings.
+
+    A declared `1` and a declared `"1"` are distinct keys in memory, so the
+    duplicate check clears both. They collapse to one key on serialization and
+    the first target's result leaves the record without a word. The type is
+    refused at load, before any spend, rather than at publication, after all of
+    it.
+    """
+
+    @staticmethod
+    def _write(tmp_path, **extra):
+        payload = {
+            "rule_path": ".claude/rules/universal.md",
+            "scenarios": _valid_scenarios(),
+        }
+        payload.update(extra)
+        path = tmp_path / "scenarios.json"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        return path
+
+    def test_a_string_id_is_accepted(self, tmp_path):
+        result = eval_mod._load_scenarios_file(str(self._write(tmp_path, rule_id="ok")))
+        assert not isinstance(result, int)
+
+    def test_an_absent_id_is_accepted(self, tmp_path):
+        """No declared id means "derive one from the path", which is still a string."""
+        result = eval_mod._load_scenarios_file(str(self._write(tmp_path)))
+        assert not isinstance(result, int)
+
+    def test_a_null_id_is_accepted(self, tmp_path):
+        """Explicit null is the same statement as omitting the key."""
+        result = eval_mod._load_scenarios_file(
+            str(self._write(tmp_path, rule_id=None))
+        )
+        assert not isinstance(result, int)
+
+    @pytest.mark.parametrize("bad", [1, 0, 1.5, True, ["x"], {"a": 1}])
+    def test_a_non_string_id_is_refused(self, tmp_path, bad, capsys):
+        assert eval_mod._load_scenarios_file(str(self._write(tmp_path, rule_id=bad))) == 2
+        assert "rule_id must be a non-empty string" in capsys.readouterr().err
+
+    @pytest.mark.parametrize("blank", ["", "   ", "\t"])
+    def test_a_blank_id_is_refused(self, tmp_path, blank, capsys):
+        """A blank id silently became the filename, so the key was never declared."""
+        assert (
+            eval_mod._load_scenarios_file(str(self._write(tmp_path, rule_id=blank))) == 2
+        )
+        assert "rule_id must be a non-empty string" in capsys.readouterr().err
+
+    def test_the_skill_id_is_held_to_the_same_rule(self, tmp_path):
+        """Both keys reach the same record, so one check cannot cover only one."""
+        assert eval_mod._load_scenarios_file(str(self._write(tmp_path, skill_id=2))) == 2
+
+    def test_the_refusal_names_the_value_it_rejected(self, tmp_path, capsys):
+        eval_mod._load_scenarios_file(str(self._write(tmp_path, rule_id=1)))
+        err = capsys.readouterr().err
+        assert "got 1" in err
+        assert str(self._write(tmp_path, rule_id=1)) in err
+
+    def test_every_shipped_scenario_file_declares_a_serializable_id(self):
+        """The refusal is worthless if a file already in the tree cannot load."""
+        roots = [REPO_ROOT / "tests" / "evals", REPO_ROOT / "scripts" / "eval"]
+        checked = 0
+        for root in roots:
+            for path in sorted(root.rglob("*.json")):
+                data = json.loads(path.read_text(encoding="utf-8"))
+                if not isinstance(data, dict):
+                    continue
+                for key in ("rule_id", "skill_id"):
+                    value = data.get(key)
+                    if value is None:
+                        continue
+                    checked += 1
+                    assert isinstance(value, str) and value.strip(), (
+                        f"{path} declares {key}={value!r}, which the loader now refuses"
+                    )
+        assert checked >= 10, f"only {checked} ids checked; the walk found too few files"
+
+
+def _uniform_cells(count: int, score: int, negative: bool) -> list[dict[str, Any]]:
+    """`count` scenarios whose every mechanism scores `score`."""
+    return [_make_scenario(score, score, score, negative=negative) for _ in range(count)]
+
+
+class TestAGateReadsTheMeasurementNotThePrintedNumber:
+    """The published average is rounded to 2 decimals and cannot gain precision.
+
+    Archived runs recorded it that way, so widening it breaks replay. A gate
+    that read the published number inherited the rounding: a restraint average
+    of 3.499 publishes as 3.5, `3.5 < 3.5` is false, and a measurement below the
+    floor was certified as clearing it. The gates now read the measured value
+    and the published field is untouched, so the record still reproduces.
+    """
+
+    @staticmethod
+    def _below_floor_by_rounding():
+        """Negatives averaging 3.499, which publishes as exactly the floor."""
+        negatives = _uniform_cells(499, 4, True) + _uniform_cells(501, 3, True)
+        return eval_mod.aggregate([_make_scenario(2, 5, 4), *negatives])
+
+    def test_a_restraint_average_under_the_floor_is_not_certified(self):
+        summary = self._below_floor_by_rounding()
+        assert summary["verdict"] == "FAIL_OVER_ACTIVATION"
+
+    def test_the_published_average_keeps_its_recorded_precision(self):
+        """Widening it would break every archived artifact, so it must not move."""
+        summary = self._below_floor_by_rounding()
+        assert summary["worst_negative_avg"] == 3.5
+        assert summary["negative_case_per_mechanism"]["description"]["avg_score"] == 3.5
+
+    def test_the_measured_value_is_published_beside_the_rounded_one(self):
+        summary = self._below_floor_by_rounding()
+        cell = summary["negative_case_per_mechanism"]["description"]
+        assert cell["avg_score_exact"] == 3.499
+        assert cell["avg_score"] != cell["avg_score_exact"]
+
+    def test_the_disagreement_with_the_printed_numbers_is_recorded(self):
+        assert self._below_floor_by_rounding()["rounding_would_change_verdict"] is True
+
+    def test_the_disagreement_is_disclosed_to_the_reader(self):
+        """A reader checking 3.5 against a 3.5 floor would otherwise call this a bug."""
+        caveats = eval_mod._render_caveats(self._below_floor_by_rounding())
+        precision = [c for c in caveats if c.startswith("Precision:")]
+        assert len(precision) == 1
+        assert "decided on the measured values" in precision[0]
+
+    def test_an_ordinary_run_records_no_disagreement(self):
+        """The negative control: the flag must not be always-on."""
+        summary = eval_mod.aggregate(
+            [_make_scenario(2, 5, 4), _make_scenario(5, 5, 5, negative=True)]
+        )
+        assert summary["rounding_would_change_verdict"] is False
+        assert not [
+            c for c in eval_mod._render_caveats(summary) if c.startswith("Precision:")
+        ]
+
+    @staticmethod
+    def _activation_straddle():
+        """Positives averaging 3.499 on description, which publishes as 3.5.
+
+        The activation floor is 3.5, so the measured value misses it and the
+        printed one meets it. Baseline is held far enough below that the delta
+        gate cannot be what decides the run.
+        """
+        positives = [_make_scenario(1, 4, 5) for _ in range(499)]
+        positives += [_make_scenario(1, 3, 5) for _ in range(501)]
+        return eval_mod.aggregate([*positives, _make_scenario(5, 5, 5, negative=True)])
+
+    @staticmethod
+    def _delta_straddle():
+        """Baselines averaging 3.501, which publishes as 3.5.
+
+        Description is exactly 4.0, so the measured gap is 0.499 and the
+        printed gap is 0.500 against a required 0.5.
+        """
+        positives = [_make_scenario(4, 4, 5) for _ in range(501)]
+        positives += [_make_scenario(3, 4, 5) for _ in range(499)]
+        return eval_mod.aggregate([*positives, _make_scenario(5, 5, 5, negative=True)])
+
+    def test_an_activation_average_under_the_floor_is_not_certified(self):
+        summary = self._activation_straddle()
+        assert summary["per_mechanism"]["description"]["avg_score"] == 3.5
+        assert summary["per_mechanism"]["description"]["avg_score_exact"] == 3.499
+        assert summary["verdict"] == "FAIL_THRESHOLD"
+        assert summary["rounding_would_change_verdict"] is True
+
+    def test_a_gap_under_the_required_delta_is_not_certified(self):
+        summary = self._delta_straddle()
+        assert summary["per_mechanism"]["baseline"]["avg_score"] == 3.5
+        assert summary["per_mechanism"]["baseline"]["avg_score_exact"] == 3.501
+        assert summary["verdict"] == "FAIL_NO_DELTA"
+        assert summary["rounding_would_change_verdict"] is True
+
+    def test_the_baseline_average_is_published_rounded(self):
+        """It is an archived field, so it carries the precision the record kept."""
+        summary = eval_mod.aggregate(
+            _uniform_cells(3, 4, False) + [_make_scenario(5, 5, 5, negative=True)]
+        )
+        published = summary["baseline_avg"]
+        assert published is not None
+        assert published == round(published, 2)
+
+
+class TestACellWithoutTheMeasuredValueStillDecides:
+    """The helper's contract for a cell that carries only the published average.
+
+    Every cell this module builds carries both values, and replay rebuilds each
+    summary from the stored cells rather than reading the archived summary, so
+    this path covers a cell handed in from elsewhere. Returning None instead
+    would read such a cell as ungraded and drop it out of every gate, which is
+    a worse answer than the one number it does carry.
+    """
+
+    def test_the_measured_value_is_preferred_when_present(self):
+        assert eval_mod._gate_avg({"avg_score": 3.5, "avg_score_exact": 3.499}) == 3.499
+
+    def test_the_published_value_is_used_when_the_measured_one_is_absent(self):
+        assert eval_mod._gate_avg({"avg_score": 3.5}) == 3.5
+
+    def test_an_explicit_null_measured_value_falls_back(self):
+        assert eval_mod._gate_avg({"avg_score": 3.5, "avg_score_exact": None}) == 3.5
+
+    def test_an_ungraded_cell_stays_ungraded(self):
+        assert eval_mod._gate_avg({"avg_score": None}) is None
+        assert eval_mod._gate_avg({}) is None
+
+
+class TestTheScenarioCountIsGuidanceNotAGate:
+    """The README claimed the harness enforces 3 to 5 positives. It does not.
+
+    Turning that claim into a check would refuse most of the tree, including
+    every file the published result was measured on, so the claim was corrected
+    rather than implemented. These tests pin the contract the loader actually
+    has, so the documentation cannot drift back into describing a detector that
+    does not exist.
+    """
+
+    @staticmethod
+    def _write(tmp_path, positives: int, negatives: int = 1):
+        scenarios = [
+            {"id": f"P{i}", "input": "x", "expected_gate": "apply-rule"}
+            for i in range(positives)
+        ] + [
+            {"id": f"N{i}", "input": "y", "expected_gate": "skip-rule-not-applicable"}
+            for i in range(negatives)
+        ]
+        path = tmp_path / "scenarios.json"
+        path.write_text(
+            json.dumps(
+                {"rule_path": ".claude/rules/universal.md", "scenarios": scenarios}
+            ),
+            encoding="utf-8",
+        )
+        return str(path)
+
+    @pytest.mark.parametrize("positives", [1, 2, 3, 5, 20])
+    def test_any_non_empty_positive_pool_is_accepted(self, tmp_path, positives):
+        assert not isinstance(
+            eval_mod._load_scenarios_file(self._write(tmp_path, positives)), int
+        )
+
+    def test_an_empty_positive_pool_is_still_refused(self, tmp_path):
+        """The one count that is a gate stays a gate."""
+        assert eval_mod._load_scenarios_file(self._write(tmp_path, 0)) == 2
+
+    def test_the_shipped_corpus_would_not_survive_a_floor_of_three(self):
+        """The evidence that the documented range could never be enforced."""
+        counts = []
+        for path in sorted((REPO_ROOT / "tests" / "evals").rglob("*.json")):
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(data, dict) or "scenarios" not in data:
+                continue
+            counts.append(
+                sum(
+                    1
+                    for s in data["scenarios"]
+                    if s.get("expected_gate") != eval_mod.NEGATIVE_GATE
+                )
+            )
+        assert counts, "no scenario files found; the walk is wrong"
+        assert min(counts) < 3, "a floor of three is now viable; revisit the README"
+
+    def test_the_readme_does_not_claim_a_count_it_cannot_enforce(self):
+        readme = (REPO_ROOT / "scripts" / "eval" / "README.md").read_text(
+            encoding="utf-8"
+        )
+        assert "with 3-5 positive scenarios" not in readme
+        assert "That range is guidance, not a check." in readme
+
+
+class TestTheLabelNamesTheMechanismTheNumberCameFrom:
+    """Two mechanisms can tie at the printed precision and differ in measurement.
+
+    The published floor is the measured minimum, so ranking on the printed
+    value let the label name one mechanism while the number came from another.
+    A reader cannot recover which pool the headline covers from the verdict, so
+    the label is the only thing that says it.
+    """
+
+    @staticmethod
+    def _tied_when_printed():
+        """Restraint averages of 3.494 and 3.491, both printing as 3.49."""
+        negatives = [_make_scenario(5, 4, 4, negative=True) for _ in range(491)]
+        negatives += [_make_scenario(5, 3, 3, negative=True) for _ in range(506)]
+        negatives += [_make_scenario(5, 4, 3, negative=True) for _ in range(3)]
+        return eval_mod.aggregate([_make_scenario(1, 5, 5), *negatives])
+
+    def test_the_two_mechanisms_are_indistinguishable_once_printed(self):
+        """Without this the fixture proves nothing about the printed value."""
+        cells = self._tied_when_printed()["negative_case_per_mechanism"]
+        assert cells["description"]["avg_score"] == cells["full"]["avg_score"] == 3.49
+        assert cells["description"]["avg_score_exact"] == 3.494
+        assert cells["full"]["avg_score_exact"] == 3.491
+
+    def test_the_worst_label_names_the_measured_minimum(self):
+        assert self._tied_when_printed()["worst_negative_mechanism"] == "full"
+
+    @staticmethod
+    def _best_hidden_behind_the_tie():
+        """Activation averages of 3.491 and 3.494, both printing as 3.49.
+
+        `full` holds the larger measurement and is second in `MECHANISMS`, so
+        a ranking that reads the printed value ties and keeps the first
+        candidate instead. Ordering the fixture the other way would let both
+        rankings agree and the test would pass on a broken instrument.
+        """
+        positives = [_make_scenario(1, 4, 4) for _ in range(491)]
+        positives += [_make_scenario(1, 3, 3) for _ in range(506)]
+        positives += [_make_scenario(1, 3, 4) for _ in range(3)]
+        return eval_mod.aggregate(
+            [*positives, _make_scenario(5, 5, 5, negative=True)]
+        )
+
+    def test_the_best_candidates_are_indistinguishable_once_printed(self):
+        """Without this the fixture proves nothing about the printed value."""
+        mechs = self._best_hidden_behind_the_tie()["per_mechanism"]
+        assert mechs["description"]["avg_score"] == mechs["full"]["avg_score"] == 3.49
+        assert mechs["description"]["avg_score_exact"] == 3.491
+        assert mechs["full"]["avg_score_exact"] == 3.494
+
+    def test_the_best_label_names_the_measured_maximum(self):
+        assert self._best_hidden_behind_the_tie()["best_mechanism"] == "full"
+
+    def test_the_headline_number_cannot_reveal_the_wrong_label(self):
+        """The published average is equal either way, so only the name says it."""
+        assert self._best_hidden_behind_the_tie()["best_avg_score"] == 3.49
+
+    def test_an_ungraded_cell_cannot_be_ranked(self):
+        """The accessor raises rather than ranking a mechanism at zero."""
+        with pytest.raises(AssertionError):
+            eval_mod._graded_avg({"avg_score": None})
+
+
+class TestThePublishedGapMatchesTheMeasurement:
+    """The archived gap subtracts two averages that were each rounded first.
+
+    That is the difference of rounded numbers rather than the rounded
+    difference, and the two disagree by up to 0.01. One shipped artifact
+    already does. The archived field cannot be corrected without rewriting the
+    record, so the corrected value is published beside it and disclosed.
+    """
+
+    @staticmethod
+    def _gap_that_disagrees():
+        """Baseline 2.996 and description 4.004, printing as 3.0 and 4.0."""
+        positives = [_make_scenario(3, 4, 5) for _ in range(992)]
+        positives += [_make_scenario(2, 4, 5) for _ in range(4)]
+        positives += [_make_scenario(3, 5, 5) for _ in range(4)]
+        return eval_mod.aggregate(
+            [*positives, _make_scenario(5, 5, 5, negative=True)]
+        )
+
+    def test_the_two_averages_print_as_round_numbers(self):
+        """Without this the fixture does not exercise a double rounding."""
+        mechs = self._gap_that_disagrees()["per_mechanism"]
+        assert mechs["baseline"]["avg_score"] == 3.0
+        assert mechs["baseline"]["avg_score_exact"] == 2.996
+        assert mechs["description"]["avg_score"] == 4.0
+        assert mechs["description"]["avg_score_exact"] == 4.004
+
+    def test_the_archived_field_keeps_the_derivation_it_was_written_with(self):
+        summary = self._gap_that_disagrees()
+        assert summary["delta_description_vs_baseline"] == 1.0
+
+    def test_the_measured_gap_is_published_beside_it(self):
+        summary = self._gap_that_disagrees()
+        assert summary["delta_description_vs_baseline_measured"] == 1.01
+
+    def test_the_disagreement_is_recorded(self):
+        assert self._gap_that_disagrees()["delta_rounding_disagrees"] is True
+
+    def test_the_disagreement_is_disclosed(self):
+        caveats = eval_mod._render_caveats(self._gap_that_disagrees())
+        delta = [c for c in caveats if c.startswith("Delta:")]
+        assert len(delta) == 1
+        assert "rounded first" in delta[0]
+
+    def test_an_ordinary_run_records_no_disagreement(self):
+        """The negative control: the flag must not be always-on."""
+        summary = eval_mod.aggregate(
+            [_make_scenario(2, 5, 4), _make_scenario(5, 5, 5, negative=True)]
+        )
+        assert summary["delta_rounding_disagrees"] is False
+        assert not [
+            c for c in eval_mod._render_caveats(summary) if c.startswith("Delta:")
+        ]
+
+    def test_a_partly_graded_pool_publishes_no_measured_gap(self):
+        """A gap between a full pool and a partial one describes neither."""
+        ungraded = _make_scenario(2, 5, 4)
+        ungraded["mechanisms"]["baseline"] = {"scores": {"judge_failed": True}}
+        summary = eval_mod.aggregate(
+            [_make_scenario(2, 5, 4), ungraded, _make_scenario(5, 5, 5, negative=True)]
+        )
+        assert summary["per_mechanism"]["baseline"]["graded_count"] == 1
+        assert summary["per_mechanism"]["baseline"]["scenario_count"] == 2
+        assert summary["delta_description_vs_baseline"] is None
+        assert summary["delta_description_vs_baseline_measured"] is None
+        assert summary["delta_rounding_disagrees"] is False
+
+    def test_the_table_prints_the_measured_gap(self):
+        """The screen and the record must not carry two different numbers."""
+        summary = self._gap_that_disagrees()
+        table = eval_mod.render_table("some-rule", summary)
+        assert "+1.01" in table
+        assert "+1.0 " not in table
+
+    def test_no_third_derivation_of_the_gap_exists(self):
+        """Pins derive-once: the renderer reads the published value."""
+        source = (
+            REPO_ROOT / "scripts" / "eval" / "eval-rule-activation.py"
+        ).read_text(encoding="utf-8")
+        renderer = source[source.index("def render_table(") :]
+        assert "_delta(" not in renderer
+        assert "_delta_measured(" not in renderer
+
+
+class TestAStoredRunStillRenders:
+    """The renderer reads a field that records written earlier do not carry.
+
+    Reading the published gap rather than deriving it keeps the screen and the
+    record on one number, but a record written before that field existed has
+    only the derivation it was written with. Indexing the new field turned
+    every one of those into a crash, so a stored run could no longer be
+    displayed at all. The recorded derivation is that run's record, so it is
+    what the table must show.
+    """
+
+    @staticmethod
+    def _summary_without_the_measured_gap():
+        """A published summary with the measured gap keys stripped out."""
+        summary = eval_mod.aggregate(
+            [_make_scenario(2, 5, 4), _make_scenario(5, 5, 5, negative=True)]
+        )
+        for mech in ("full", "description"):
+            del summary[f"delta_{mech}_vs_baseline_measured"]
+        return summary
+
+    def test_the_stripped_summary_really_lacks_the_field(self):
+        """Without this the fixture does not exercise the absent key."""
+        summary = self._summary_without_the_measured_gap()
+        assert "delta_full_vs_baseline_measured" not in summary
+        assert summary["delta_full_vs_baseline"] is not None
+
+    def test_a_record_without_the_field_still_renders(self):
+        table = eval_mod.render_table("some-rule", self._summary_without_the_measured_gap())
+        assert "baseline" in table
+
+    def test_it_prints_the_derivation_the_record_was_written_with(self):
+        summary = self._summary_without_the_measured_gap()
+        table = eval_mod.render_table("some-rule", summary)
+        assert f"{summary['delta_full_vs_baseline']:+}" in table
+
+    def test_a_current_run_still_prints_the_measured_gap(self):
+        """The fallback must not take over when the measured value is there."""
+        positives = [_make_scenario(3, 4, 5) for _ in range(992)]
+        positives += [_make_scenario(2, 4, 5) for _ in range(4)]
+        positives += [_make_scenario(3, 5, 5) for _ in range(4)]
+        summary = eval_mod.aggregate(
+            [*positives, _make_scenario(5, 5, 5, negative=True)]
+        )
+        assert summary["delta_description_vs_baseline"] == 1.0
+        assert summary["delta_description_vs_baseline_measured"] == 1.01
+        assert "+1.01" in eval_mod.render_table("some-rule", summary)
+
+    def test_every_stored_run_that_records_its_coverage_renders(self):
+        """The real records, not a fixture shaped like one."""
+        rendered = 0
+        for path in sorted(_ARCHIVE_DIR.glob("*.json")):
+            if path.name == _RECOVERED_PAYLOADS.name:
+                continue
+            data = json.loads(path.read_text(encoding="utf-8"))
+            for rule_id, rule in (data.get("rules") or {}).items():
+                summary = rule["summary"]
+                if "graded_count" not in summary["per_mechanism"]["description"]:
+                    continue
+                assert "delta_full_vs_baseline_measured" not in summary
+                table = eval_mod.render_table(rule_id, summary)
+                for mech in ("description", "full"):
+                    recorded = summary[f"delta_{mech}_vs_baseline"]
+                    if recorded is not None:
+                        assert f"{recorded:+}" in table
+                rendered += 1
+        assert rendered == 7
+
+
+class TestAPoolMarkerMustSayWhichPoolItMeans:
+    """The marker that splits the pools is read for truth, not for type.
+
+    A non-boolean decides a scenario's population silently: the string
+    "false" is truthy and files a restraint case among the positives. Every
+    average, count and gap the run publishes is then attached to a pool the
+    scenario does not belong to, and nothing in the output says so. A refusal
+    is visible where a mis-split is not.
+    """
+
+    @staticmethod
+    def _with_marker(marker):
+        return [
+            _make_scenario(1, 5, 5),
+            {**_make_scenario(5, 5, 5, negative=True), "negative_case": marker},
+        ]
+
+    def test_a_string_marker_is_refused(self):
+        with pytest.raises(ValueError, match="negative_case must be a boolean"):
+            eval_mod.aggregate(self._with_marker("false"))
+
+    def test_the_refusal_names_the_offending_scenario(self):
+        with pytest.raises(ValueError, match=r"scenarios\[1\]"):
+            eval_mod.aggregate(self._with_marker("false"))
+
+    def test_the_refusal_names_what_it_got(self):
+        with pytest.raises(ValueError, match="got str 'false'"):
+            eval_mod.aggregate(self._with_marker("false"))
+
+    @pytest.mark.parametrize("marker", [1, 0, None, "true", "", [], {}])
+    def test_no_other_truthy_or_falsy_value_passes_for_a_boolean(self, marker):
+        with pytest.raises(ValueError, match="negative_case must be a boolean"):
+            eval_mod.aggregate(self._with_marker(marker))
+
+    def test_the_string_would_otherwise_land_in_the_wrong_pool(self):
+        """Names the defect: the refused value is truthy, so it read as negative."""
+        assert bool("false") is True
+
+    @pytest.mark.parametrize("marker", [True, False])
+    def test_a_real_boolean_is_accepted(self, marker):
+        """The negative control: the check must not refuse every run."""
+        summary = eval_mod.aggregate(
+            [
+                _make_scenario(1, 5, 5),
+                _make_scenario(5, 5, 5, negative=True),
+                {**_make_scenario(4, 4, 4), "negative_case": marker},
+            ]
+        )
+        assert summary["verdict"] == "PASS"
+
+    def test_the_marker_decides_which_pool_the_scenario_joins(self):
+        """Pins that the check guards a split that really moves scenarios."""
+        as_positive = eval_mod.aggregate(self._with_marker(False))
+        as_negative = eval_mod.aggregate(self._with_marker(True))
+        assert as_positive["per_mechanism"]["description"]["scenario_count"] == 2
+        assert as_negative["per_mechanism"]["description"]["scenario_count"] == 1
+
+
+class TestEveryReaderOfAStoredRunIsExercisedAgainstOne:
+    """Adding a published field breaks every reader that indexes it.
+
+    A stored artifact carries no version, so a reader cannot tell which
+    instrument wrote it and each reader ends up encoding its own assumption
+    about the schema. Replay does not catch this: it rebuilds each summary
+    from the stored cells and compares published fields, and never calls a
+    reader, so a reader can break on every stored record while replay stays
+    green. That is exactly what happened when the measured gap was added.
+
+    This pins the outcome of every reader against every stored record. A new
+    reader, or a new field indexed by an existing one, changes the map and
+    fails here rather than at display time. See issue 4100 for the class.
+    """
+
+    #: Readers that can be handed a stored summary and nothing else.
+    READERS = ("_render_caveats", "render_table")
+
+    #: The one stored record no reader can fully read, and why. It was written
+    #: before per mechanism coverage counts existed, so the table cannot say
+    #: how many scenarios each average rests on. Printing an average without
+    #: that count would assert a coverage the record does not record.
+    PREDATES_COVERAGE_COUNTS = "t-sol56.json"
+
+    @staticmethod
+    def _stored_summaries():
+        for path in sorted(_ARCHIVE_DIR.glob("*.json")):
+            if path.name == _RECOVERED_PAYLOADS.name:
+                continue
+            data = json.loads(path.read_text(encoding="utf-8"))
+            for rule_id, rule in (data.get("rules") or {}).items():
+                yield path.name, rule_id, rule["summary"]
+
+    @staticmethod
+    def _stored_rules():
+        for path in sorted(_ARCHIVE_DIR.glob("*.json")):
+            if path.name == _RECOVERED_PAYLOADS.name:
+                continue
+            data = json.loads(path.read_text(encoding="utf-8"))
+            for rule_id, rule in (data.get("rules") or {}).items():
+                yield path.name, rule_id, rule
+
+    def test_a_summary_reader_is_either_replayed_or_exercised_here(self, monkeypatch):
+        """The round-27 defect was a reader replay never calls.
+
+        Replay exercises whatever `aggregate` reaches and nothing else, so a
+        summary reader outside that set is covered only by this class. This
+        measures which readers a stored record actually reaches, rather than
+        reading the call graph and concluding. A refactor that moves a reader
+        out of `aggregate`'s path fails here, at the point the coverage moved,
+        instead of at display time on every stored record.
+        """
+        reached: set[str] = set()
+
+        def watch(name, fn):
+            def inner(*args, **kwargs):
+                reached.add(name)
+                return fn(*args, **kwargs)
+
+            return inner
+
+        readers = {
+            name
+            for name, fn in vars(eval_mod).items()
+            if inspect.isfunction(fn)
+            and "summary" in inspect.signature(fn).parameters
+        }
+        for name in readers:
+            monkeypatch.setattr(eval_mod, name, watch(name, getattr(eval_mod, name)))
+
+        for _path, _rule_id, rule in self._stored_rules():
+            eval_mod.aggregate(rule["scenarios"], routed=bool(rule.get("routed")))
+
+        assert reached, "no reader ran, so the measurement proves nothing"
+        assert readers - reached == set(self.READERS)
+
+    def test_the_reader_list_cannot_go_stale(self):
+        """A new summary reader must be added here or this fails."""
+        found = {
+            name
+            for name, fn in vars(eval_mod).items()
+            if inspect.isfunction(fn)
+            and "summary" in inspect.signature(fn).parameters
+        }
+        # `_decide_verdict` also takes a summary, but only one `aggregate`
+        # built, never a stored dict: it needs six further values that
+        # `aggregate` computes. Replay covers it, because replay calls
+        # `aggregate` on every stored record and `aggregate` calls it.
+        assert found == {*self.READERS, "_decide_verdict"}
+
+    def test_there_is_something_to_read(self):
+        """Without this the whole class passes vacuously on an empty corpus."""
+        assert len(list(self._stored_summaries())) == 8
+
+    def test_the_caveat_reader_reads_every_stored_record(self):
+        for _name, _rule_id, summary in self._stored_summaries():
+            eval_mod._render_caveats(summary)
+
+    def test_the_table_reads_every_record_that_states_its_coverage(self):
+        read = []
+        for name, rule_id, summary in self._stored_summaries():
+            if name == self.PREDATES_COVERAGE_COUNTS:
+                continue
+            eval_mod.render_table(rule_id, summary)
+            read.append(name)
+        assert len(read) == 7
+
+    def test_the_one_unreadable_record_fails_for_the_pinned_reason(self):
+        """If this stops raising, the exclusion above is stale and must go."""
+        name, rule_id, summary = next(
+            r for r in self._stored_summaries()
+            if r[0] == self.PREDATES_COVERAGE_COUNTS
+        )
+        assert "graded_count" not in summary["per_mechanism"]["description"]
+        with pytest.raises(KeyError, match="graded_count"):
+            eval_mod.render_table(rule_id, summary)
+
+
+class TestARouteResultMustSayWhetherItMatched:
+    """A recorded unknown is not a clean route.
+
+    The flag was read for truth, so anything that is not the literal `False`
+    counted as a match. `None is False` is False and `"false" is False` is
+    False, so a damaged record and a recorded miss spelled as a string both
+    certified the route they failed to make, and the target's own reference
+    was published as opened when it was not. Absence stays tolerated, because
+    a cell written before the flag existed carries no evidence either way and
+    an archived run has to reproduce.
+    """
+
+    @staticmethod
+    def _cell(routing):
+        mech = {} if routing is None else {"routing": routing}
+        return {"mechanisms": {"full": mech}}
+
+    def test_a_cell_with_no_routing_block_counts_no_miss(self):
+        assert eval_mod._route_missed_target(self._cell(None), "full") is False
+
+    def test_a_legacy_cell_without_the_flag_counts_no_miss(self):
+        cell = self._cell({"selected_reference": "x", "route_failed": False})
+        assert eval_mod._route_missed_target(cell, "full") is False
+
+    def test_a_matched_route_counts_no_miss(self):
+        cell = self._cell({"reference_matched": True})
+        assert eval_mod._route_missed_target(cell, "full") is False
+
+    def test_a_missed_route_counts_a_miss(self):
+        cell = self._cell({"reference_matched": False})
+        assert eval_mod._route_missed_target(cell, "full") is True
+
+    def test_a_recorded_unknown_is_refused(self):
+        with pytest.raises(ValueError, match="must be a boolean"):
+            eval_mod._route_missed_target(self._cell({"reference_matched": None}), "full")
+
+    @pytest.mark.parametrize("value", [None, "false", "true", "", 0, 1, [], {}, 0.0])
+    def test_every_non_boolean_is_refused(self, value):
+        with pytest.raises(ValueError, match="must be a boolean"):
+            eval_mod._route_missed_target(self._cell({"reference_matched": value}), "full")
+
+    def test_the_refusal_names_the_mechanism(self):
+        with pytest.raises(ValueError, match=r"mechanisms\[description\]"):
+            eval_mod._route_missed_target(
+                {"mechanisms": {"description": {"routing": {"reference_matched": "no"}}}},
+                "description",
+            )
+
+    def test_the_refusal_names_what_it_got(self):
+        with pytest.raises(ValueError, match=r"got str 'no'"):
+            eval_mod._route_missed_target(self._cell({"reference_matched": "no"}), "full")
+
+    @pytest.mark.parametrize(
+        "routing", ["corrupt", ["reference_matched"], 1, 0, 0.0, True, "", []]
+    )
+    def test_a_routing_block_that_is_not_a_mapping_is_refused(self, routing):
+        """Round 28 pinned this as no-miss, which was the defect, not the fix.
+
+        A present unreadable block is a recorded route the run cannot check.
+        Counting it as no miss gives it the same silence a legacy cell earns
+        and publishes the score under the target reference with no evidence
+        the reference was opened.
+        """
+        with pytest.raises(ValueError, match="routing must be a mapping"):
+            eval_mod._route_missed_target(self._cell(routing), "full")
+
+    def test_a_present_null_routing_block_is_refused_not_read_as_absent(self):
+        """`.get` cannot tell a stored null from a missing key. Presence can."""
+        cell = {"mechanisms": {"full": {"routing": None}}}
+        with pytest.raises(ValueError, match="routing must be a mapping"):
+            eval_mod._route_missed_target(cell, "full")
+
+    def test_the_block_refusal_names_the_mechanism_and_what_it_got(self):
+        with pytest.raises(ValueError, match=r"mechanisms\[description\].*got str 'x'"):
+            eval_mod._route_missed_target(
+                {"mechanisms": {"description": {"routing": "x"}}}, "description"
+            )
+
+    def test_the_run_refuses_rather_than_publishing_a_zero_mismatch_count(self):
+        """End to end: the corrupt block must not reach a published verdict."""
+        scenarios = [
+            {
+                "id": f"s{i}",
+                "negative_case": False,
+                "mechanisms": {
+                    "baseline": {"scores": {"cell_score": 2.0}},
+                    "description": {
+                        "scores": {"cell_score": 5.0},
+                        "routing": "corrupt",
+                    },
+                    "full": {"scores": {"cell_score": 5.0}},
+                },
+            }
+            for i in range(3)
+        ]
+        with pytest.raises(ValueError, match="routing must be a mapping"):
+            eval_mod.aggregate(scenarios)
+
+    def test_no_archived_cell_carries_a_routing_key_so_the_refusal_moves_nothing(self):
+        """Why the refusal is safe against the closed record, measured not assumed."""
+        seen = 0
+        for path in sorted(_ARCHIVE_DIR.glob("*.json")):
+            if "recovered" in path.name:
+                continue
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            for rule in payload["rules"].values():
+                for scenario in rule.get("scenarios", []):
+                    for mech_data in scenario.get("mechanisms", {}).values():
+                        seen += 1
+                        assert "routing" not in mech_data
+        assert seen == 96, f"expected the 96 archived cells, walked {seen}"
+
+    def test_the_shipped_writer_always_records_a_boolean(self):
+        """The refusal is unreachable from the runner, and reachable from a file."""
+        source = (EVAL_DIR / "eval-rule-activation.py").read_text(encoding="utf-8")
+        assert '"reference_matched": False,' in source
+
+
+class TestAMechanismTheTargetCannotReachIsNotMeasured:
+    """A target with no description never receives the description treatment.
+
+    The description prompt for such a target is empty, which is the baseline
+    prompt, so both mechanisms put identical text in front of the model.
+    Scoring that cell publishes an average, a gap against baseline and a
+    candidate for best mechanism that all describe a treatment the target
+    never received, and the gap is whatever two identical runs happened to
+    differ by. A large enough coin flip then certifies a rule the model never
+    saw. The cell is now declined rather than scored, which also stops the
+    spend.
+    """
+
+    @staticmethod
+    def _rule(description: str = "", body: str = "BODY") -> dict[str, str]:
+        return {"description": description, "body": body}
+
+    def test_an_empty_description_collapses_onto_baseline(self):
+        rule = self._rule(description="")
+        system = eval_mod.build_system_prompt("description", rule, "t")
+        assert eval_mod._prompt_collapses_to_baseline("description", system, rule, "t") is True
+
+    def test_a_real_description_does_not_collapse(self):
+        rule = self._rule(description="a real description")
+        system = eval_mod.build_system_prompt("description", rule, "t")
+        assert eval_mod._prompt_collapses_to_baseline("description", system, rule, "t") is False
+
+    def test_baseline_never_collapses_onto_itself(self):
+        """Otherwise the run would decline the mechanism it measures against."""
+        rule = self._rule()
+        system = eval_mod.build_system_prompt("baseline", rule, "t")
+        assert eval_mod._prompt_collapses_to_baseline("baseline", system, rule, "t") is False
+
+    def test_full_does_not_collapse_when_the_body_carries_the_rule(self):
+        rule = self._rule(description="", body="BODY")
+        system = eval_mod.build_system_prompt("full", rule, "t")
+        assert eval_mod._prompt_collapses_to_baseline("full", system, rule, "t") is False
+
+    def test_an_empty_body_does_not_collapse_full(self):
+        """The known limit of this check, measured rather than assumed.
+
+        An empty body still yields a `full` prompt carrying the preamble, so
+        it is a different string from baseline and passes here even though it
+        puts no rule in front of the model. Declining it is not safe from this
+        position: for a routed target the `full` prompt is replaced after
+        routing resolves a reference, so a decline would discard a
+        measurement the run did make. Filed as issue 4103.
+        """
+        rule = self._rule(description="d", body="")
+        system = eval_mod.build_system_prompt("full", rule, "t")
+        assert system != eval_mod.build_system_prompt("baseline", rule, "t")
+        assert eval_mod._prompt_collapses_to_baseline("full", system, rule, "t") is False
+
+    def test_a_declined_cell_carries_no_measurement(self):
+        cell = {"mechanisms": {"description": eval_mod._declined_cell("")}}
+        score, failed, legacy = eval_mod._scenario_score_triple(cell, "description")
+        assert score is None
+        assert legacy is False
+
+    def test_a_declined_cell_is_not_a_judge_error(self):
+        """A judge error reports a broken instrument; this is a property of the target."""
+        cell = {"mechanisms": {"description": eval_mod._declined_cell("")}}
+        _score, failed, _legacy = eval_mod._scenario_score_triple(cell, "description")
+        assert failed is False
+
+    def test_a_declined_cell_says_why(self):
+        assert eval_mod._declined_cell("")["declined"] == "prompt identical to baseline"
+
+    @staticmethod
+    def _declined_run():
+        scenarios = []
+        for i in range(3):
+            scenarios.append(
+                {
+                    "id": f"s{i}",
+                    "negative_case": False,
+                    "mechanisms": {
+                        "baseline": {"scores": {"cell_score": 2.0}},
+                        "description": eval_mod._declined_cell(""),
+                        "full": {"scores": {"cell_score": 5.0}},
+                    },
+                }
+            )
+        return eval_mod.aggregate(scenarios)
+
+    def test_the_declined_mechanism_publishes_no_average(self):
+        assert self._declined_run()["per_mechanism"]["description"]["avg_score"] is None
+
+    def test_the_declined_mechanism_publishes_no_gap(self):
+        assert self._declined_run()["delta_description_vs_baseline"] is None
+
+    def test_the_declined_mechanism_is_named_unmeasured(self):
+        assert "description" in self._declined_run()["best_mechanism_unmeasured"]
+
+    def test_a_declined_front_door_cannot_reach_pass(self):
+        """The whole point: no coin flip between identical prompts can certify."""
+        assert self._declined_run()["verdict"] != "PASS"
+
+    def test_a_declined_front_door_is_not_reported_as_a_judge_error(self):
+        assert self._declined_run()["verdict"] != "FAIL_JUDGE_ERRORS"
+
+    def test_the_same_run_with_a_measured_description_can_pass(self):
+        """Without this the class passes for the wrong reason."""
+        scenarios = []
+        for i in range(3):
+            scenarios.append(
+                {
+                    "id": f"s{i}",
+                    "negative_case": i == 2,
+                    "mechanisms": {
+                        "baseline": {"scores": {"cell_score": 2.0}},
+                        "description": {"scores": {"cell_score": 5.0}},
+                        "full": {"scores": {"cell_score": 5.0}},
+                    },
+                }
+            )
+        assert eval_mod.aggregate(scenarios)["verdict"] == "PASS"
+
+    def test_the_runner_declines_the_cell_without_calling_the_model(self, monkeypatch):
+        called: list[str] = []
+        monkeypatch.setattr(eval_mod, "RATE_LIMIT_SLEEP_SEC", 0)
+        monkeypatch.setattr(
+            eval_mod, "_call_api", lambda *a, **k: called.append("api") or "response"
+        )
+        monkeypatch.setattr(
+            eval_mod,
+            "score_response",
+            lambda *a, **k: {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "judge_failed": False,
+            },
+        )
+        result = eval_mod.eval_one_scenario(
+            "key",
+            self._rule(description=""),
+            "rule",
+            {"id": "S1", "desc": "d", "input": "x", "expected_gate": "apply-rule"},
+            "model",
+            dry_run=False,
+        )
+        assert result["mechanisms"]["description"]["declined"]
+        assert "scores" in result["mechanisms"]["full"]
+        assert len(called) == 2, "one call each for baseline and full, none for description"
+
+    def test_the_motivating_case_is_still_reachable_in_this_repository(self):
+        """If this fails, every rule gained a description and the check idles."""
+        rules_dir = REPO_ROOT / ".claude" / "rules"
+        if not rules_dir.is_dir():
+            pytest.skip("rules directory not present in this checkout")
+        empty = [
+            p.name
+            for p in sorted(rules_dir.glob("*.md"))
+            if not eval_mod.parse_rule(p)["description"]
+        ]
+        assert empty, "no rule target has an empty description, so the collapse cannot occur"
+
+    def test_a_declined_cell_is_not_the_same_exclusion_as_an_unreachable_mechanism(self):
+        """Two exclusions, two causes, two fields. One word would merge them.
+
+        `unreachable_mechanisms` names what the routing gate excluded, which
+        is `full` on a routed target. A cell declined for a collapsed prompt
+        has a different cause and does not join that list, so a reader sent
+        there by a shared word would not find it. It surfaces through the
+        unmeasured machinery instead.
+        """
+        summary = self._declined_run()
+        assert summary["unreachable_mechanisms"] == []
+        assert "description" in summary["best_mechanism_unmeasured"]
+
+    def test_the_two_exclusions_do_not_share_a_key_name(self):
+        """A rename that collapsed them again would pass every other test here."""
+        cell_key = next(k for k in eval_mod._declined_cell("") if k not in
+                        ("response_preview", "scores", "system_prompt_chars"))
+        assert cell_key == "declined"
+        assert cell_key not in self._declined_run()
+        assert "unreachable_mechanisms" in self._declined_run()
+
+
+class TestThePublishedArchiveWasNotGradedOnHarnessOutput:
+    """Every archived run predates the structured session-transcript reader.
+
+    `_read_session_transcript` landed on 2026-07-30; these artifacts are dated
+    2026-07-29, so all eight took the stdout fallback. That path can carry CLI
+    tool traces into the judge (fixed in `_copilot_cli._may_carry_tool_trace`).
+    Whether it actually did is a question about the closed record, answerable
+    by reading it, so this measures rather than assumes. Adversarial review
+    round 32.
+    """
+
+    #: Mirrors `_CopilotCLIProvider._TRACE_LINE_PREFIXES`, plus the footer
+    #: labels, since a preview is a prefix of the raw reply.
+    _TRACE_MARKERS = ("\u25cf", "\u2502", "\u251c", "\u2514")
+
+    def _previews(self) -> list[tuple[str, str, str, str]]:
+        found = []
+        for path in sorted(_ARCHIVE_DIR.glob("*.json")):
+            if path.name == _RECOVERED_PAYLOADS.name:
+                continue
+            data = json.loads(path.read_text(encoding="utf-8"))
+            for rule_name, rule in (data.get("rules") or {}).items():
+                for scenario in rule.get("scenarios", []):
+                    for mech_name, mech in (scenario.get("mechanisms") or {}).items():
+                        found.append(
+                            (
+                                path.stem,
+                                rule_name,
+                                f"{scenario.get('id')}/{mech_name}",
+                                mech.get("response_preview") or "",
+                            )
+                        )
+        return found
+
+    def test_the_archive_still_holds_every_cell_this_check_covers(self) -> None:
+        """Guard the guard: a shrunken archive must not read as a clean result."""
+        assert len(self._previews()) == 96
+
+    def test_no_archived_reply_begins_a_line_with_a_tool_trace(self) -> None:
+        contaminated = [
+            (artifact, coord)
+            for artifact, _rule, coord, preview in self._previews()
+            if any(
+                line.lstrip().startswith(self._TRACE_MARKERS)
+                for line in preview.splitlines()
+            )
+        ]
+
+        assert contaminated == []
+
+    def test_the_scan_would_notice_a_contaminated_preview(self) -> None:
+        """The same predicate, run against the shape it is meant to catch."""
+        planted = "\u25cf tool trace\n  \u2502 ls -la\nMODEL ANSWER"
+
+        assert any(
+            line.lstrip().startswith(self._TRACE_MARKERS)
+            for line in planted.splitlines()
+        )
