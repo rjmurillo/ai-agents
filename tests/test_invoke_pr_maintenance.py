@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
+from scripts import pr_maintenance_rollup
 from scripts.github_core.api import RepoInfo
 
 # ---------------------------------------------------------------------------
@@ -257,6 +258,49 @@ class TestHasFailingChecks:
             },
         }
         assert has_failing_checks(pr) is expected
+
+    @pytest.mark.parametrize(
+        ("total_count", "has_next_page", "expected_incomplete"),
+        [
+            (2, False, False),
+            (3, True, True),
+        ],
+    )
+    def test_page_limit_uses_final_page_state(
+        self, monkeypatch, total_count, has_next_page, expected_incomplete
+    ):
+        monkeypatch.setattr(pr_maintenance_rollup, "_CONTEXTS_MAX_PAGES", 1)
+        contexts = {
+            "totalCount": total_count,
+            "pageInfo": {"hasNextPage": True, "endCursor": "cursor-1"},
+            "nodes": [{"name": "first", "conclusion": "SUCCESS"}],
+        }
+        prs = [
+            {
+                "commits": {
+                    "nodes": [
+                        {
+                            "commit": {
+                                "oid": "abc123",
+                                "statusCheckRollup": {"contexts": contexts},
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+
+        pr_maintenance_rollup.complete_status_check_rollups(
+            "owner",
+            "repo",
+            prs,
+            lambda *_: (
+                [{"name": "second", "conclusion": "SUCCESS"}],
+                {"hasNextPage": has_next_page, "endCursor": "cursor-2"},
+            ),
+        )
+
+        assert contexts["__incomplete"] is expected_incomplete
 
     def test_empty_rollup_is_not_failing(self):
         pr = {

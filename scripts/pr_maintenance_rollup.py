@@ -205,7 +205,7 @@ def _complete_commit_rollup(
             break
         nodes.extend(page_nodes)
         cursor = page_info.get("endCursor")
-    else:
+    if page_info.get("hasNextPage"):
         complete = False
 
     contexts["nodes"] = nodes
