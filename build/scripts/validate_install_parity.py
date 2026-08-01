@@ -279,6 +279,56 @@ def _split_document(text: str) -> tuple[str, dict[str, str]] | None:
     return "\n".join(preamble).strip(), sections
 
 
+def _added_sections(
+    root: Path, base: str, rel: str
+) -> dict[str, str] | None:
+    """The H2 sections ``rel`` ADDS relative to ``base``, or None if unsafe.
+
+    Returns None whenever the delta is anything other than pure addition, so
+    every caller fails closed. That covers: a file absent, unreadable, or not
+    decodable as UTF-8; a document the section parser cannot model (repeated
+    or fenced-shadowed headings, unterminated fence); a preamble edit; a
+    deleted or renamed section; or a body edit to a section that already
+    existed at base.
+
+    An empty dict means the file changed nothing this check can vouch for.
+    """
+    try:
+        after_doc = _split_document((root / rel).read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError):
+        return None
+
+    before_text = _git_show(base, rel, root)
+    if before_text is None:
+        return None
+    before_doc = _split_document(before_text)
+    if before_doc is None or after_doc is None:
+        return None
+    before_preamble, before = before_doc
+    after_preamble, after = after_doc
+
+    if before_preamble != after_preamble:
+        # A preamble edit is a real change this carve-out cannot verify
+        # against the missing siblings, because it lives outside the section
+        # model. Fail closed rather than let it ride along with a repair.
+        return None
+    if set(before) - set(after):
+        # A removed or renamed section is likewise unverifiable.
+        return None
+    if any(heading in before and before[heading] != block
+           for heading, block in after.items()):
+        # A body edit to a section that already existed at base can move the
+        # file *backwards* onto whatever the missing siblings already say,
+        # which would launder a regression as a repair. Only a section that
+        # is absent at base is safe to vouch for: there is no prior text for
+        # it to regress to.
+        return None
+
+    return {
+        heading: block for heading, block in after.items() if heading not in before
+    }
+
+
 def _missing_siblings_already_current(
     root: Path,
     base: str | None,
@@ -294,24 +344,23 @@ def _missing_siblings_already_current(
     that repair apart from the bug this validator exists to catch, so for
     exactly this case we look at content (Issue #4157).
 
-    The comparison is scoped to the H2 sections THIS diff ADDS to the
-    reference, not the whole file and not sections it edits. Sibling copies
-    carry unrelated pre-existing drift (Issue #4082 counts 16 such files);
-    demanding whole-file agreement would force every PR to also repair drift
-    it did not cause, and would make this carve-out unreachable in practice.
+    The comparison is scoped to the H2 sections THIS diff ADDS, not the
+    whole file and not sections it edits. Sibling copies carry unrelated
+    pre-existing drift (Issue #4082 counts 16 such files); demanding
+    whole-file agreement would force every PR to also repair drift it did
+    not cause, and would make this carve-out unreachable in practice.
     Restricting to additions is what makes the content check safe to trust:
-    an edit to a section that already existed at base could move the
-    reference backwards onto stale sibling text and pass as a "repair", while
-    an added section has no prior reference text to regress to.
+    an edit to a section that already existed at base could move a file
+    backwards onto stale sibling text and pass as a "repair", while an added
+    section has no prior text to regress to.
+
+    EVERY touched member must carry that identical addition, not just the
+    reference. Auditing the reference alone let a non-reference member
+    smuggle an unverified body edit, or skip the repair entirely, while the
+    reference's clean additive delta vouched for the whole group.
 
     Returns False whenever the answer cannot be established, so the gate
-    fails closed. That includes: no base; a file absent, unreadable, or not
-    decodable as UTF-8; a document the section parser cannot model (repeated
-    or fenced-shadowed headings, unterminated fence); a change to the
-    preamble; a deleted or renamed section; a body edit to a pre-existing
-    section; or no added section at all. Every one of those would otherwise
-    let an unverified edit ride along with a verified one and reach ``main``
-    unchecked.
+    fails closed. See ``_added_sections`` for the per-file conditions.
     """
     if base is None:
         # Explicit at the boundary. ``_git_show`` also returns None for an
@@ -325,45 +374,21 @@ def _missing_siblings_already_current(
     reference = next(
         (m for m in touched if m.startswith("templates/agents/")), touched[0]
     )
-    try:
-        after_doc = _split_document((root / reference).read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError):
-        return False
-
-    before_text = _git_show(base, reference, root)
-    if before_text is None:
-        return False
-    before_doc = _split_document(before_text)
-    if before_doc is None or after_doc is None:
-        return False
-    before_preamble, before = before_doc
-    after_preamble, after = after_doc
-
-    if before_preamble != after_preamble:
-        # A preamble edit is a real change this carve-out cannot verify
-        # against the missing siblings, because it lives outside the section
-        # model. Fail closed rather than let it ride along with a repair.
-        return False
-    if set(before) - set(after):
-        # A removed or renamed section is likewise unverifiable.
-        return False
-
-    if any(heading in before and before[heading] != block
-           for heading, block in after.items()):
-        # A body edit to a section that already existed at base can move the
-        # reference *backwards* onto whatever the missing siblings already
-        # say, which would launder a regression as a repair. Only a section
-        # that is absent at base is safe to vouch for: there is no prior
-        # reference text for it to regress to.
-        return False
-
-    changed = {
-        heading: block for heading, block in after.items() if heading not in before
-    }
+    changed = _added_sections(root, base, reference)
     if not changed:
-        # Nothing was added to the reference, so this carve-out cannot vouch
-        # for the missing siblings. Fail closed.
+        # Either the delta was unverifiable (None) or nothing was added, so
+        # this carve-out cannot vouch for the missing siblings. Fail closed.
         return False
+
+    for member in touched:
+        if member == reference:
+            continue
+        # Every touched member must carry the SAME addition and nothing else.
+        # Checking only the reference would let a non-reference member smuggle
+        # an unverified body edit, or skip the repair entirely, while the
+        # reference's clean additive delta vouched for the whole group.
+        if _added_sections(root, base, member) != changed:
+            return False
 
     for member in missing:
         try:

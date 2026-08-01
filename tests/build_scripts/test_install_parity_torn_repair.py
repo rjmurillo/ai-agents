@@ -336,3 +336,54 @@ def test_body_edit_riding_along_with_addition_fails_closed(
     )
     violations = vip.find_violations(_TOUCHED, repo_root=torn_repo, base="HEAD")
     assert violations != []
+
+
+# Negative: auditing only the reference let a NON-reference touched member
+# smuggle an unverified edit. The reference's clean additive delta vouched
+# for the whole group while a sibling in the same diff carried a preamble
+# rewrite and skipped the repair entirely. The pre-#4157 gate blocked this
+# shape by co-change alone, so leaving it open would be a regression.
+def test_non_reference_member_smuggling_a_preamble_edit_fails_closed(
+    torn_repo: Path,
+) -> None:
+    repaired = "# alpha\n\n## Budget\n\nCap at 5.\n"
+    (torn_repo / "templates/agents/alpha.shared.md").write_text(repaired)
+    (torn_repo / "src/vs-code-agents/alpha.agent.md").write_text(repaired)
+    (torn_repo / "src/copilot-cli/agents/alpha.agent.md").write_text(
+        "# alpha\n\nSMUGGLED.\n"
+    )
+    violations = vip.find_violations(_TOUCHED, repo_root=torn_repo, base="HEAD")
+    assert violations != []
+
+
+# Negative: a non-reference member that adds the section with a DIFFERENT
+# body is the same hole one layer in. The reference and the missing siblings
+# agree, so the group looks repaired, while the smuggled text rides along
+# inside the very section the carve-out is vouching for.
+def test_non_reference_member_altering_the_added_body_fails_closed(
+    torn_repo: Path,
+) -> None:
+    repaired = "# alpha\n\n## Budget\n\nCap at 5.\n"
+    (torn_repo / "templates/agents/alpha.shared.md").write_text(repaired)
+    (torn_repo / "src/vs-code-agents/alpha.agent.md").write_text(repaired)
+    (torn_repo / "src/copilot-cli/agents/alpha.agent.md").write_text(
+        "# alpha\n\n## Budget\n\nSMUGGLED.\n"
+    )
+    violations = vip.find_violations(_TOUCHED, repo_root=torn_repo, base="HEAD")
+    assert violations != []
+
+
+# Negative: a touched member that does NOT carry the addition changed
+# something else, and whatever that was is exactly what this carve-out
+# cannot verify against the missing siblings.
+def test_touched_member_missing_the_addition_fails_closed(
+    torn_repo: Path,
+) -> None:
+    repaired = "# alpha\n\n## Budget\n\nCap at 5.\n"
+    (torn_repo / "templates/agents/alpha.shared.md").write_text(repaired)
+    (torn_repo / "src/vs-code-agents/alpha.agent.md").write_text(repaired)
+    (torn_repo / "src/copilot-cli/agents/alpha.agent.md").write_text(
+        "# alpha\n\n## Other\n\ny.\n"
+    )
+    violations = vip.find_violations(_TOUCHED, repo_root=torn_repo, base="HEAD")
+    assert violations != []
