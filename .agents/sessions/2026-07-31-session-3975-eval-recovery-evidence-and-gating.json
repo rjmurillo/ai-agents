@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Code and tests at a3bf87800; docs and manifests staged with this log"
+        "Evidence": "All work committed through a64060730, which sets the parity pair to the reserved 0.6.5482 slot"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "1328 tests pass across tests/eval and tests/test_eval_optimizer_adapters.py; ruff clean on both touched files; uv run python scripts/validation/pre_pr.py reports all validations passed"
+        "Evidence": "uv run pytest tests/eval/test_eval_rule_activation.py tests/eval/test_eval_agents_dry_run.py tests/eval/test_eval_knowledge_integration.py -q reports 396 passed in 4.35s; ruff clean on all six changed files; uv run python scripts/validation/pre_pr.py reports All validations passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -154,7 +154,7 @@
       "result": "1728 passed, 3 skipped in tests/eval; ruff clean on every changed file. Mutation checks confirm each new test fails against the pre-fix code"
     }
   ],
-  "endingCommit": "a3bf87800",
+  "endingCommit": "a64060730",
   "nextSteps": [
     "ADR-091 is committed and stays status proposed. The adr-review skill's six-agent debate has not run against it: this harness exposes no Task tool. An agent that can spawn subagents should run adr-review on .agents/architecture/ADR-091-judge-verdict-recovery-bounds.md and replace .agents/analysis/ADR-091-debate-log.md with its output",
     "Issue #3988's remaining ask, provider-enforced structured output for the judge, needs its own issue. No response_format or tool schema exists anywhere in scripts/eval today",

@@ -62,7 +62,7 @@
       "content": "Commit: a3bf87800",
       "caused_by": [],
       "leads_to": [
-        "e009"
+        "e010"
       ]
     },
     {
@@ -79,9 +79,21 @@
       "type": "test",
       "content": "Review round: committed ADR-091, stored judge_raw on the third salvage path in score_response, ranked best_mechanism on the unrounded average, disclosed the salvage rate in the rendered report, corrected the _delta_exact docstring, and kept the whole judge payload in eval-agents.py and eval-knowledge-integration.py      1728 passed, 3 skipped in tests/eval; ruff clean on every changed file. Mutation checks confirm each new test fails against the pre-fix code",
       "caused_by": [
-        "e007"
+        "e010"
       ],
       "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: a64060730",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ]
     }
   ],
   "metrics": {
@@ -89,7 +101,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 4
   },
   "lessons": []
