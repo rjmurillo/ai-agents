@@ -17,7 +17,7 @@ python3 build/scripts/validate_install_parity.py --files templates/agents/archit
 python3 build/scripts/validate_install_parity.py --files src/claude/architect.md;          echo $?  # 0
 ```
 
-A solo template edit is caught. A solo `src/claude/` edit is not: the hand-maintained copies are exempt from the required-sibling set, so you can change Claude agent behavior without touching the template and no gate objects. This carve-out is load-bearing, not vestigial: measured at `origin/main` `08f4941565`, of the 173 commits since 2025-01-01 touching a hand-maintained member of a shared-agent group, **54 (31%) did not touch the template**. Both figures grow as commits land, so re-measure rather than trusting the absolute counts; the ratio is the durable part. Treat the lockstep as a convention you uphold, not a rule the tooling enforces. The drift detector scores similarity against a floor, a much weaker condition than agreement; see the section below. Read both files before you edit either.
+A solo template edit is caught. A solo `src/claude/` edit is not: the hand-maintained copies are exempt from the required-sibling set, so you can change Claude agent behavior without touching the template and no gate objects. This carve-out is load-bearing, not vestigial: measured at `origin/main` `08f4941565`, of the 173 commits since 2025-01-01 touching a hand-maintained member of a shared-agent group, **54 (31%) did not touch the template**. A group is a stem with a `templates/agents/{stem}.shared.md`, and its hand-maintained members are all three of `src/claude/{stem}.md`, `.claude/agents/{stem}.md`, and `.github/agents/{stem}.agent.md`. Counting only `src/claude/` gives a different and narrower 26 of 142, 18%. Both figures grow as commits land, so re-measure rather than trusting the absolute counts; the ratio is the durable part. Treat the lockstep as a convention you uphold, not a rule the tooling enforces. The drift detector scores similarity against a floor, a much weaker condition than agreement; see the section below. Read both files before you edit either.
 2. **Skill schema**. Every skill MUST have a `SKILL.md` with frontmatter fields `name`, `version`, `description` per `.agents/steering/claude-skills.md`.
 3. **Skill tests**. New skills MUST include pytest coverage under `.claude/skills/<name>/tests/`.
 4. **File cap per PR**. Skill additions SHOULD ship ≤10 files per PR (see `.agents/steering/claude-skills.md`).
@@ -102,14 +102,16 @@ The per-section score is **Jaccard on word sets** (`calculate_similarity`, `dete
 | Mutation | Section score | Overall | Result |
 |---|---|---|---|
 | baseline | 100.0 | 92.5 | RC=0, OK |
-| 1 repeated identical line | 80.0 | 90.5 | RC=0, OK |
-| 60 repeated identical lines | 80.0 | 90.5 | RC=0, OK |
-| 1 line of distinct vocabulary | 76.2 | 90.2 | RC=0, OK |
-| 60 lines of distinct vocabulary | 5.1 | 83.0 | RC=0, OK |
+| 1 repeated identical line | 100.0 | 92.5 | RC=0, OK |
+| 60 repeated identical lines | 100.0 | 92.5 | RC=0, OK |
+| 1 line of distinct vocabulary | 84.2 | 91.0 | RC=0, OK |
+| 60 lines of distinct vocabulary | 8.2 | 83.3 | RC=0, OK |
 
-Repeated identical lines are free: after the first, they contribute no new tokens to either set, so the score does not move no matter how many you add. Distinct vocabulary is not free: 60 such lines take the section from 76.2 to 5.1. A previous version of this rule read the flat first pair as "the score saturates" and generalized it. It does not saturate; that measurement had accidentally held vocabulary constant.
+The repeated line is the section's own first line, appended verbatim. The distinct-vocabulary lines are `- zzq{i} bbq{i} ddq{i}` for `i` in `range(n)`, which share no tokens with anything. Both rows depend on the exact text used, so reproduce them with that mutation or expect different numbers.
 
-What survives all of this is the weaker true claim: a **contradiction that reuses the surrounding vocabulary scores high and passes**, because Jaccard sees tokens, not meaning. And note the last row: even a section scored 5.1 leaves `architect` at 83.0 overall, above the floor. On an agent with one section the same mutation would land at 5.1 overall and fail. The check's sensitivity is inversely proportional to how much of the agent it looks at.
+Repeated identical lines are free, and free from the very first one: the line's tokens are already in the set, so appending it adds nothing to either the intersection or the union and the score does not move at all. Distinct vocabulary is not free: 60 such lines take the section from 84.2 to 8.2. Two earlier versions of this rule got this pair wrong in opposite directions. One read the flat scores as "the score saturates" and generalized it; it does not saturate, that measurement had accidentally held vocabulary constant. The other recorded 80.0 for both repeated rows, which forced the prose into claiming repeats are free only "after the first". Nothing is charged for the first either. If a mutation adds no token the union has not already seen, Jaccard cannot move.
+
+What survives all of this is the weaker true claim: a **contradiction that reuses the surrounding vocabulary scores high and passes**, because Jaccard sees tokens, not meaning. And note the last row: even a section scored 8.2 leaves `architect` at 83.3 overall, above the floor. On an agent with one section the same mutation would land at 8.2 overall and fail. The check's sensitivity is inversely proportional to how much of the agent it looks at.
 
 Two further exceptions. `merge-resolver` carries a recorded 20.9 baseline for both of its comparisons (`KNOWN_BASELINE_DRIFT`, `detect_agent_drift.py:116`) and sits in `_ADVISORY_VENDORED_DRIFT` (`:601`). Because the baseline floor is applied in `classify_status`, it does not report drift at all: both comparisons print `OK (baselined)` at 20.9% and exit 0. Install-pair drift is advisory unless `--fail-on-install-drift` is passed (`:714`, `:864-865`); `.github/workflows/drift-detection.yml` does pass it.
 
