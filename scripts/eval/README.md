@@ -166,12 +166,43 @@ Each scenario × mechanism produces a response that is graded by an LLM judge on
 three 1-5 dimensions: `activation_score`, `citation_score`, `behavior_score`.
 The eval passes only when the `description` mechanism averages ≥3.5 and beats
 baseline by ≥0.5. `full` cannot rescue a failed description route. Any judge/API failure forces verdict `FAIL_JUDGE_ERRORS`,
-overriding the score-based gate. A scenarios file that contains no positive
-cases (only `skip-rule-not-applicable` scenarios) yields `NO_POSITIVE_CASES`,
-also a failing verdict because activation cannot be validated by negative
-cases alone.
+overriding the score-based gate.
+
+Both pools are required, and a file missing either one is refused. A file with
+no positive case (only `skip-rule-not-applicable` scenarios) yields
+`NO_POSITIVE_CASES`, because activation cannot be validated by negative cases
+alone. A file with no negative case yields `NO_NEGATIVE_CASES`, because the
+restraint floor would then be computed over an empty pool: it cannot fail
+there, and a clean positive result would read as a clean run, certifying
+restraint the run never measured. Both are refused earlier and more cheaply
+than that. Validation rejects an empty scenario list, a file with no positive
+scenario, and a file with no negative scenario before any API call, so the pull
+request dry run catches all three for free. The verdicts remain because replay
+and direct callers reach the aggregation step without passing through the
+scenario loader, and a gate that only one path enforces is a gate with a hole
+in it.
+
+The process exit code names which kind of thing went wrong: 0 clean, 1 a rule
+that underperformed, 2 a configuration problem, 3 an external or API failure,
+4 a credential that could not be loaded.
+`NO_POSITIVE_CASES` is a 2, not a 1. It reports that the scenario file cannot
+validate activation and says nothing at all about the rule, so reporting it as
+a rule failure would attach a verdict to a population the run never measured.
+`NO_NEGATIVE_CASES` is a 2 for the same reason, one pool over.
+A run reduces the verdict codes with `max()`, so the worst outcome across all
+targets decides the exit and adding a target can never improve it.
+
+Exit 4 sits outside that reduction. It is returned before the first target is
+read, when `_load_api_key` cannot produce a credential, so no scenario has been
+measured and there is nothing to reduce against. Reading 4 as the top of the
+`max()` ordering would invert what it reports: 3 says the run reached the API
+and the API failed, while 4 says the run never got that far. A caller that
+branches on these should treat 4 as "nothing ran" rather than as a worse 3.
+A dry run skips credential loading entirely and so cannot return 4.
 
 Per-rule or per-reference scenario files live in `tests/evals/rule-scenarios/{rule}.json`:
+
+`rule_id` names the population every number in that file is published under, and one run refuses two files that claim the same id rather than letting the second overwrite the first. Omitting it is safe but not free: a reference target then defaults to the reference filename, so two references under one skill router stay distinct only as long as their filenames do. When present, `rule_id` and `skill_id` MUST be non-empty strings. The published record is a JSON object keyed by this value, and JSON keys are strings, so a declared `1` and a declared `"1"` are two distinct keys in memory that clear the duplicate check and then collapse to one key on serialization, dropping a measured target from the record without a word. The loader refuses the type before any API call rather than losing the result after all of them.
 
 ```json
 {
@@ -201,11 +232,13 @@ Per-rule or per-reference scenario files live in `tests/evals/rule-scenarios/{ru
 
 Adding a new activation eval:
 
-1. Write `tests/evals/rule-scenarios/{rule-id}.json` with 3-5 positive scenarios and at least one negative case.
-2. Use `rule_path` for always-on rules, or `skill_path` plus `reference_path` for progressive-disclosure references.
-3. Run `uv run python scripts/eval/eval-rule-activation.py --scenarios tests/evals/rule-scenarios/{rule-id}.json --dry-run` to confirm the script can parse the target.
-4. Run live (without `--dry-run`) to score. Skill-reference targets add one route call per scenario before response scoring.
-5. Iterate on the rule or skill `description` field until the `description` mechanism passes on its own. Treat `full` as ceiling diagnostics, not as a passing route.
+1. Write `tests/evals/rule-scenarios/{rule-id}.json` with at least one positive scenario and at least one negative case. The harness enforces that both pools are non-empty before it spends anything, so a file missing either fails the dry run rather than reaching a live scoring run. Aim for 3 to 5 positives: fewer makes the average a description of one or two observations, more mostly buys API spend. That range is guidance, not a check. Most files in the tree carry two positives, so enforcing a floor of three would refuse the corpus every published result was measured on.
+2. Give every scenario an `expected_gate`. The harness refuses a file where one is missing, because that string picks the judge rubric and the pool: an unreadable gate would grade a negative case against the positive rubric and then average it into the positive pool. `skip-rule-not-applicable` is the one value that marks a negative case, and any near miss of it in the `skip-rule` namespace is refused rather than scored as a positive.
+3. Use `rule_path` for always-on rules, or `skill_path` plus `reference_path` for progressive-disclosure references.
+4. Run `uv run python scripts/eval/eval-rule-activation.py --scenarios tests/evals/rule-scenarios/{rule-id}.json --dry-run` to confirm the script can parse the target.
+5. Run live (without `--dry-run`) to score. Skill-reference targets add one route call per scenario before response scoring.
+6. Iterate on the rule or skill `description` field until the `description` mechanism passes on its own. Treat `full` as ceiling diagnostics, not as a passing route.
+7. Read the `Routing:` caveat before accepting a `description` pass. One skill router fronts every sibling reference, and a sibling resolves for your target as readily as the target does. That caveat counts the positive cells whose router never opened the reference under test, so a pass reported beside a nonzero count is partly a measurement of some other reference.
 
 ### Software Engineering Library Rollback Gate
 
@@ -228,6 +261,29 @@ one entry per moved reference with `consecutive_activation_failures`,
 `FAIL_NO_DELTA`, `NO_POSITIVE_CASES`, and `NO_RESULT` increment the rollback streak.
 `FAIL_JUDGE_ERRORS` is treated as an external eval failure and does not increment
 the activation rollback streak.
+
+The measurement verdicts carry no evidence about the rule, so they are absent
+from that list on purpose. `FAIL_ROUTE_MISSED_TARGET` means at least one positive
+cell scored on a reference the run never opened: one skill router fronts many
+sibling references, and a sibling resolves for any target, so the score measures
+content the target did not supply. Counting it would retire a rule for the
+harness's routing imprecision. The miss is counted only on the mechanisms the
+target can actually reach, which for a routed target excludes `full`: that
+treatment is force-injected, no deployment performs it, and its scores are
+already dropped from every average, ranking, and gate, so letting a miss there
+decide the run would hand the verdict to a mechanism the target cannot reach.
+`FAIL_POSITIVE_INCOMPLETE`,
+`FAIL_NEGATIVE_INCOMPLETE`, and `FAIL_OVER_ACTIVATION` are excluded for the same
+reason. Fix the routing or the reference, then re-run.
+
+`NO_NEGATIVE_CASES` is excluded too, which reads as an inconsistency next to
+`NO_POSITIVE_CASES` on that list until you ask what the rollback does. Rollback
+restores the reference to the always-on rule surface. That remedies "the run
+cannot show the skill activates", so `NO_POSITIVE_CASES` counts. It cannot
+remedy "the run cannot show the skill restrains", because an always-on rule is
+the least restrained state available: rolling back would move the reference
+further from what the missing pool was supposed to measure. Add the negative
+scenario instead.
 
 The workflow runs all eight scenario files live on the weekly schedule and feeds
 `activation-results.json` into

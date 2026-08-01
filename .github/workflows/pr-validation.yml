@@ -254,8 +254,8 @@ jobs:
       # learned to ignore, which is the same training signal that teaches people
       # to ignore the naming and complexity rules in the same output.
       #
-      # Enforcing outright is not viable: 613 error-severity violations exist.
-      # The total in scripts/ci/taste_count_baseline.txt must match exactly.
+      # Existing debt is recorded in scripts/ci/taste_count_baseline.txt.
+      # The committed baseline must match the current total exactly.
       # Record a lower count after cleanup with
       # `python scripts/ci/taste_count_ratchet.py --update`.
       #
