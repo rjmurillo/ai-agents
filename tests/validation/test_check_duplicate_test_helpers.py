@@ -3,7 +3,7 @@ from __future__ import annotations
 import subprocess
 import sys
 import tempfile
-from collections.abc import Generator
+from collections.abc import Iterator
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -19,7 +19,7 @@ import pre_pr_sequence  # noqa: E402
 
 
 @pytest.fixture
-def repo_workspace() -> Generator[Path]:
+def repo_workspace() -> Iterator[Path]:
     scratch_root = REPO_ROOT / ".pytest_tmp"
     scratch_root.mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="duplicate-test-helpers-", dir=scratch_root) as raw:
