@@ -146,7 +146,7 @@ only in `version`, the script resolves them without manual handling:
 
 - **Either side omits `version`**: the merged manifest carries none. ADR-092
   deleted the field from all three manifests, and the version-field gate
-  (`build/scripts/validate_plugin_version_bump.py`) fails when one carries it.
+  (`validate_plugin_version_bump.py`) fails when one carries it.
   This is the shape every branch opened before ADR-092 hits when it merges a
   fixed `main`.
 - **Both sides carry plain semver**: one patch bump above the higher side (for
