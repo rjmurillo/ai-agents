@@ -4649,6 +4649,34 @@ def test_push_policy_names_active_git_operation(
     assert remedy in error
 
 
+def test_push_policy_names_rebase_when_apply_dir_has_no_marker(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A marker-less rebase-apply is an apply-backend rebase, not a `git am`.
+
+    Negative counterpart to test_push_policy_reports_git_am_with_its_own_remedy,
+    which covers the marked case with a real `git am`. Nothing covered the other
+    side, so a marker check that widened to "any rebase-apply is a git am" would
+    have sent every apply-backend rebase to `git am --continue`, which fails.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked.txt", "base\n")
+    apply_dir = Path(_git(repo, "rev-parse", "--git-path", "rebase-apply").stdout.strip())
+    if not apply_dir.is_absolute():
+        apply_dir = repo / apply_dir
+    apply_dir.mkdir(parents=True, exist_ok=True)
+
+    result = policy.check_push_refs(io.StringIO(), repo)
+
+    assert result == 1
+    error = capsys.readouterr().err
+    assert "rebase in progress" in error
+    assert "git rebase --continue or git rebase --abort" in error
+    assert "git am --continue" not in error
+
+
 def _start_conflicted_rebase(repo: Path) -> None:
     """Leave *repo* stopped mid-rebase on a conflict.
 
