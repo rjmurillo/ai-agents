@@ -87,3 +87,13 @@ class TestTypeIgnoreCountRatchetWiring:
             "The type-ignore-count-ratchet job must pass '--base-ref origin/main' "
             "so a PR that raises the baseline is blocked before merging."
         )
+
+    def test_baseline_change_triggers_ratchet(self) -> None:
+        content = _lefthook_content()
+        idx = content.find("type-ignore-count-ratchet")
+        assert idx != -1
+        job_section = content[idx: idx + 300]
+        assert "scripts/ci/type_ignore_count_baseline.txt" in job_section, (
+            "The type-ignore-count-ratchet job must run when only its baseline changes. "
+            "Otherwise a widened baseline bypasses the fast pre-push gate."
+        )
