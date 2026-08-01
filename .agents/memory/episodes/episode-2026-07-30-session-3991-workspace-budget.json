@@ -38,6 +38,15 @@
       "content": "Commit: 10e862e73",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 0b0f5e8a0",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-30-session-3991-workspace-budget"
     }
   ],
   "metrics": {
@@ -45,7 +54,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 5
   },
   "lessons": []
