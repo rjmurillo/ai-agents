@@ -26,11 +26,11 @@ echo "Open PRs: $PR_COUNT"
 
 # CSV output
 gh issue list --json number,title,state \
-  --jq -r '["number","title","state"], (.[] | [.number, .title, .state]) | @csv'
+  --jq '["number","title","state"], (.[] | [.number, .title, .state]) | @csv'
 
 # TSV output
 gh pr list --json number,title \
-  --jq -r '.[] | [.number, .title] | @tsv'
+  --jq '.[] | [.number, .title] | @tsv'
 ```
 
 **Atomicity**: 95%
