@@ -720,7 +720,7 @@ The agent MUST run quality checks before ending.
    - Session objective explicitly includes "format all files"
    - Creating a dedicated formatting cleanup PR
 
-2. The agent SHOULD run validation scripts if available (e.g., `python3 scripts/validation/consistency.py`)
+2. The agent SHOULD run validation scripts if available (e.g., `python3 scripts/validation/pre_pr.py`)
 3. The agent SHOULD check memory sizes if `.serena/memories/` files were created or modified:
 
    ```bash

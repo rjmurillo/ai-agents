@@ -60,10 +60,12 @@ gh pr view 199 --json state,mergeable,reviewDecision
 checks_file=$(mktemp)
 trap 'rm -f "$checks_file"' EXIT
 
-gh pr checks 199 --json name,state,conclusion,detailsUrl > "$checks_file"
+gh pr checks 199 --json name,bucket,link > "$checks_file"
 
-# Parse results
-failed_checks=$(jq '[.[] | select(.conclusion != "success" and .conclusion != "skipped")]' "$checks_file")
+# Parse results. `bucket` is gh's normalized category: pass, fail, pending,
+# skipping, cancel. Prefer it over `state`, which reports NEUTRAL separately
+# even though gh already buckets NEUTRAL as skipping.
+failed_checks=$(jq '[.[] | select(.bucket != "pass" and .bucket != "skipping")]' "$checks_file")
 
 if [ "$(echo "$failed_checks" | jq 'length')" -gt 0 ]; then
   echo "[BLOCKED] CI checks not passing:"
@@ -79,11 +81,58 @@ Before claiming PR review complete, ALL must be true:
 
 | Criterion | Verification Command | Required |
 |-----------|---------------------|----------|
-| All comments resolved | `grep -c "Status: \\[COMPLETE\\]\\|\\[WONTFIX\\]"` equals total | Yes |
+| All comments resolved | count of resolved markers equals total, see command below | Yes |
 | No new comments | Re-check after 45s wait returned 0 new | Yes |
 | **CI checks pass** | **`gh pr checks` all success/skipped** | **Yes** |
 | No unresolved threads | GraphQL query for unresolved reviewThreads | Yes |
 | Commits pushed | `git status` shows "up to date with origin" | Yes |
+
+The resolved-marker count uses a GNU basic regular expression, where `\|` is
+alternation. That spelling is a GNU extension, not portable POSIX BRE.
+`man 7 regex` says of obsolete ("basic") REs: "'|', '+', and '?' are ordinary
+characters and there is no equivalent for their functionality." Measured here
+on GNU grep 3.11.
+
+It is shown outside the table because a table cell would need `\\|`, and
+whether that still matches depends on two things, not one.
+
+First, the bytes grep receives. One backslash is alternation and matches, two
+is an escaped backslash followed by a literal pipe and matches nothing. Each
+layer between the author and grep's argv either collapses the pair or
+preserves it. Measured against a two-line fixture holding both markers, using
+the table form of the pattern:
+
+- bash inline double quotes: collapses, reports 2
+- bash single quotes: preserves, reports 0
+- bash double-quoted variable expansion: preserves, reports 0
+- bash ANSI-C quoting, `$'...'`: collapses, reports 2
+- Python non-raw string literal: collapses, reports 2
+- Python raw string literal: preserves, reports 0
+- `xargs` default mode: treats backslash as an escape, which mangles the pattern
+  without flattening it. `\[` and `\]` lose their shields and become bracket
+  expressions, while `\\` collapses to a single `\`, so the GNU BRE `\|`
+  alternation survives. grep receives `Status: [COMPLETE]\|[WONTFIX]` and reports
+  2, but the hits are single characters drawn from the class `[WONTFIX]`, not the
+  literal markers: the right answer for the wrong reason. Do not restate this as
+  "strips every backslash"; a full strip yields `Status: [COMPLETE]|[WONTFIX]`,
+  whose bare pipe is literal in BRE and reports 0. `xargs -d '\n'` preserves,
+  reports 0.
+
+Second, the dialect flag. Argv bytes are necessary but not sufficient, because
+`-E` inverts the escaping. Against the same fixture: `grep` with one backslash
+reports 2; `grep -E` with one backslash reports 0, because that is a literal
+pipe in ERE; `grep -E` with a bare pipe reports 2; `grep -E` with the table
+form reports 1, reading it as a literal backslash alternated with the second
+marker. A reader who copies the pattern and adds `-E` gets a silent zero, so
+any claim about this pattern has to name both the dialect and the
+implementation.
+
+So neither "double quotes work" nor "no shell means it breaks" holds on its
+own. Fencing the command removes the ambiguity.
+
+```bash
+grep -c "Status: \[COMPLETE\]\|\[WONTFIX\]" review-threads.md
+```
 
 ## Implementation
 
@@ -105,20 +154,20 @@ checks_file=$(mktemp)
 trap 'rm -f "$checks_file"' EXIT
 
 # Fetch all fields in one call, reuse for both waiting and verification
-gh pr checks [number] --json name,state,conclusion,detailsUrl > "$checks_file"
+gh pr checks [number] --json name,bucket,link > "$checks_file"
 
-# Parse for failures
-failed_checks=$(jq '[.[] | select(.conclusion != "success" and .conclusion != "skipped")]' "$checks_file")
+# Parse for failures. `bucket` is gh's normalized category.
+failed_checks=$(jq '[.[] | select(.bucket != "pass" and .bucket != "skipping")]' "$checks_file")
 failed_count=$(echo "$failed_checks" | jq 'length')
 
 if [ "$failed_count" -gt 0 ]; then
   echo "[BLOCKED] $failed_count CI checks not passing:"
-  echo "$failed_checks" | jq -r '.[] | "  - \(.name): \(.conclusion)"'
+  echo "$failed_checks" | jq -r '.[] | "  - \(.name): \(.bucket)"'
 
   # Parse actionable items from failures
   echo ""
   echo "Actionable items:"
-  echo "$failed_checks" | jq -r '.[] | "  - \(.name): Review logs at \(.detailsUrl // "N/A")"'
+  echo "$failed_checks" | jq -r '.[] | "  - \(.name): Review logs at \(.link | select(length > 0) // "N/A")"'
 
   # Return to Phase 6 for fixes
   exit 1

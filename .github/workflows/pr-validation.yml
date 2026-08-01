@@ -254,8 +254,8 @@ jobs:
       # learned to ignore, which is the same training signal that teaches people
       # to ignore the naming and complexity rules in the same output.
       #
-      # Enforcing outright is not viable: 613 error-severity violations exist.
-      # The total in scripts/ci/taste_count_baseline.txt must match exactly.
+      # Existing debt is recorded in scripts/ci/taste_count_baseline.txt.
+      # The committed baseline must match the current total exactly.
       # Record a lower count after cleanup with
       # `python scripts/ci/taste_count_ratchet.py --update`.
       #
@@ -273,6 +273,15 @@ jobs:
         run: |
           git fetch --depth=1 origin "$BASE_REF"
           uv run --frozen python3 scripts/ci/taste_count_ratchet.py --base-ref FETCH_HEAD
+      # Issue #4039: type: ignore suppressions bypass the mypy ratchet by inflating
+      # allowed violations without the ratchet noticing. Counting them separately
+      # ensures net-new suppressions are visible and blocked on a regression.
+      - name: Run type-ignore count ratchet
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --depth=1 origin "$BASE_REF"
+          uv run --frozen python3 scripts/ci/type_ignore_count_ratchet.py --base-ref FETCH_HEAD
       # Issue #3770: `conflict-marker-policy` runs only at pre-commit over the
       # index. Every route that skips local hooks reached the remote unchecked:
       # a server-side merge from the "Update branch" button, `--no-verify`, a
