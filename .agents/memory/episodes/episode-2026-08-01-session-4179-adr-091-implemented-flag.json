@@ -1,0 +1,78 @@
+{
+  "id": "episode-2026-08-01-session-4179-adr-091-implemented-flag",
+  "session": "2026-08-01-session-4179-adr-091-implemented-flag",
+  "timestamp": "2026-08-01T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Correct the ADR-091 implemented flag on main. PR #4179 merged carrying implemented: true while deleting both artifacts that implemented the decision.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Checked ADR-091 frontmatter on main after #4179 merged",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-01-session-4179-adr-091-implemented-flag"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Traced why the fix did not land with the PR",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-01-session-4179-adr-091-implemented-flag"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced the underlying merge behaviour",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-01-session-4179-adr-091-implemented-flag"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Confirmed ADR-092 itself landed correctly",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-01-session-4179-adr-091-implemented-flag"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-01T18:25:34+00:00",
+      "type": "commit",
+      "content": "Commit: 1a2bd3fe8f6a",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4179-adr-091-implemented-flag"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}
