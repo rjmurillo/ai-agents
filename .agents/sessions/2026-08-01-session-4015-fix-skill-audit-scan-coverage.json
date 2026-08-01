@@ -1,0 +1,153 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4015,
+    "date": "2026-08-01",
+    "branch": "fix/scan-coverage-and-portability-exemptions",
+    "startingCommit": "f4411cf72",
+    "objective": "Fix skill audit scan coverage and vendor portability exemptions"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP responded on this worktree; mcp__serena__list_memories returned a result set"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions returned the Serena Instructions Manual"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md; it is read-only per ADR-014 and routes session context to .agents/sessions/"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github/scripts/pr/; new_pr.py is the PR creation entry point"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md and CLAUDE.md loaded at session start; .claude/rules/universal.md and code-quality.md read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md retrieval-led reasoning section"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__list_memories queried with topic 'validation portability skill'; empty result set for that topic"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/scan-coverage-and-portability-exemptions"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/scan-coverage-and-portability-exemptions"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --porcelain empty before the session log was written"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "f4411cf72"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart and sessionEnd MUST items carry evidence"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/ has changes"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "1 files linted"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Five fix commits daa3fb563..f4411cf72 on the branch; this log and the Serena memory land in the closing commit"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run python scripts/validate_session_json.py on this file exits 0"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Work is tracked in issues #4015 and #4046; no separate task file for this branch"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Widen the skill_size.py full-scan corpus to both skill trees (#4015)",
+      "outcome": "default_corpus_files() builds from _SKILL_TREE_PREFIXES anchored on _PROJECT_ROOT; --path and SKILL_PATH stay the narrowing override. Reported Total goes from 98 to 209 and the run stays green.",
+      "evidence": "scripts/validation/skill_size.py; commit 584d9e19b"
+    },
+    {
+      "task": "Apply the same widening to skill_frontmatter.py (#4015 sibling defect)",
+      "outcome": "Default full scan now covers .claude/skills and src/copilot-cli/skills and prints the corpus it measured, naming any absent tree. Both validators now display repo-relative paths from any working directory.",
+      "evidence": "scripts/validation/skill_frontmatter.py; commits ab0a0c4ff and f4411cf72"
+    },
+    {
+      "task": "Key the vendor-portability regex exemption on metacharacters (#4046)",
+      "outcome": "_REGEX_METACHAR replaces the literal backslash-dot test, _BANNED_PATH requires a path component after the separator, and a skill tests/ directory is out of scan scope. Baseline drops the nine false positives.",
+      "evidence": "scripts/validation/check_vendor_portability.py; scripts/validation/vendor_portability_baseline.txt; commit daa3fb563"
+    },
+    {
+      "task": "Scope the vendor-portability exemptions to the scripts/ prefix (#4046 AC2 and AC3)",
+      "outcome": "Both widenings now key on the matched prefix, so .agents/ and .claude/lib/ detection is byte-identical to main. A fourth alternation catches dynamically built scripts/ paths such as f-strings and os.path.join.",
+      "evidence": "scripts/validation/check_vendor_portability.py; commit e2f83b2ee"
+    },
+    {
+      "task": "Run local gates before push",
+      "outcome": "ruff clean on the six changed files; 231 tests pass across the three changed test files; pre_pr.py reports all validations passed.",
+      "evidence": "uv run pytest tests/test_validation_skill_frontmatter.py tests/test_validation_skill_size.py tests/validation/test_check_vendor_portability.py -q -> 231 passed in 2.31s"
+    }
+  ],
+  "endingCommit": "f4411cf72",
+  "nextSteps": [
+    "Open the pull request against main with Fixes #4015 and Fixes #4046",
+    "Watch CI for the vendor-portability and skill-audit workflows"
+  ]
+}

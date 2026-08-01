@@ -1,0 +1,95 @@
+{
+  "id": "episode-2026-08-01-session-4015-fix-skill-audit-scan-coverage",
+  "session": "2026-08-01-session-4015-fix-skill-audit-scan-coverage",
+  "timestamp": "2026-08-01T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix skill audit scan coverage and vendor portability exemptions",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Widen the skill_size.py full-scan corpus to both skill trees (#4015)",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Apply the same widening to skill_frontmatter.py (#4015 sibling defect)",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Key the vendor-portability regex exemption on metacharacters (#4046)",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Scope the vendor-portability exemptions to the scripts/ prefix (#4046 AC2 and AC3)",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Run local gates before push",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "test",
+      "content": "uv run pytest tests/test_validation_skill_frontmatter.py tests/test_validation_skill_size.py tests/validation/test_check_vendor_portability.py -q -> 231 passed in 2.31s",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-31T04:05:22+00:00",
+      "type": "commit",
+      "content": "Commit: daa3fb563",
+      "caused_by": [],
+      "leads_to": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006"
+      ]
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}
