@@ -1,0 +1,150 @@
+{
+  "id": "episode-2026-07-31-session-4004-guard-cluster-fixes",
+  "session": "2026-07-31-session-4004-guard-cluster-fixes",
+  "timestamp": "2026-07-31T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix guard cluster issues: resolve R3/R4 gaps, bound recursion, add differential gate, flush guard improvements, and policy decisions for issues #3823, #3892, #3893, #3927, #3937, #3962, #3968, #3969, #3973, #3982",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed #3823, #3927, #3968 as already fixed by PR #3961 on main",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-07-31-session-4004-guard-cluster-fixes"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed R4 false-positive: _has_splat literal-dict splats",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-07-31-session-4004-guard-cluster-fixes"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed R3 false-negative: _module_from_container",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-07-31-session-4004-guard-cluster-fixes"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added differential gate script and tests (#3973)",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-07-31-session-4004-guard-cluster-fixes"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bounded _constant_str recursion to report instead of crash (#3982)",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-07-31-session-4004-guard-cluster-fixes"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Improved flush guard contextual diagnostics (#3937)",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-07-31-session-4004-guard-cluster-fixes"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Policy decisions for #3962 and #3893 pinned in tests",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-07-31-session-4004-guard-cluster-fixes"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "All 7 gaps from #3969 pinned in tests",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-07-31-session-4004-guard-cluster-fixes"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Drained 5 review threads on PR #4004",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-07-31-session-4004-guard-cluster-fixes"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebased onto origin/main (088292977)",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-07-31-session-4004-guard-cluster-fixes"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-31T23:47:21+00:00",
+      "type": "commit",
+      "content": "Commit: e2ffeaa68c7ed91d58e3031ab969e18d2d5cc5e3",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4004-guard-cluster-fixes"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}

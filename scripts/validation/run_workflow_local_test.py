@@ -501,6 +501,17 @@ _ACT_PATHS_FILTER_BASE_PATTERN = re.compile(
     r"to be set in the event payload"
 )
 
+# act stages a cached action into the container at /var/run/act/actions/<ref>/
+# and copies it with `docker cp`. Recent dockerd rejects that destination with
+# "path escapes from parent" before the action's own code runs, so the step
+# fails on transport, not on anything the workflow does. Reproduced on an
+# unmodified main against .github/workflows/validate-plugin-version-bump.yml,
+# so it is independent of any branch. GitHub does not stage actions this way.
+_ACT_ACTION_CACHE_COPY_PATTERN = re.compile(
+    r"failed to copy content to container: Error response from daemon: "
+    r"statat .*?/?var/run/act/actions/.*?: path escapes from parent"
+)
+
 _ACT_PR_CONTEXT_MISSING_PATTERN = re.compile(
     r"Cannot read properties of undefined \(reading "
     r"'(?:number|head|base|title|body|labels|draft|merged|user|html_url|state|id"
@@ -599,6 +610,14 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
         "actions/upload-artifact client sends, so artifact transport fails only "
         "in local act, not in CI. Artifact defects (no files matched, invalid "
         "name) carry different text and still block.",
+    ),
+    (
+        None,
+        lambda text: bool(_ACT_ACTION_CACHE_COPY_PATTERN.search(text)),
+        "act could not copy its cached action into the container because dockerd "
+        "rejects the /var/run/act/actions staging path, so the step fails on "
+        "local transport before the action runs. CI does not stage actions this "
+        "way, so this fails only in local act.",
     ),
     (
         "pull_request",

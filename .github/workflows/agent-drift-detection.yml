@@ -149,25 +149,14 @@ jobs:
         id: lib-mirror
         continue-on-error: true
         shell: bash
-        run: |
-          mirror_rc=0
-          build_rc=0
-          echo "Checking scripts/ -> .claude/lib/ sync via sync_plugin_lib.py --check"
-          python3 scripts/sync_plugin_lib.py --check || mirror_rc=$?
-          echo ""
-          echo "Checking .claude/lib/ -> src/copilot-cli/lib/ sync via build_all.py --check"
-          python3 build/scripts/build_all.py --check || build_rc=$?
-          if [ "$mirror_rc" -ne 0 ]; then
-            exit "$mirror_rc"
-          fi
-          exit "$build_rc"
+        run: python3 scripts/ci/check_plugin_lib_mirrors.py
 
       - name: "Check plugin manifest parity and description counts"
         id: manifest-parity
         continue-on-error: true
         shell: bash
         run: |
-          echo "Checking manifest version parity and description component counts"
+          echo "Checking manifest description component counts"
           python3 build/scripts/check_plugin_manifest_parity.py
 
       - name: Show diff on failure
@@ -181,60 +170,7 @@ jobs:
           VALIDATE_CONCLUSION: ${{ steps.validate.outcome }}
           LIB_MIRROR_CONCLUSION: ${{ steps.lib-mirror.outcome }}
           MANIFEST_PARITY_CONCLUSION: ${{ steps.manifest-parity.outcome }}
-        run: |
-          echo ""
-          echo "==========================================================="
-          echo "  AGENT DRIFT DETECTED"
-          echo "==========================================================="
-          echo ""
-          echo "Generated agent files or plugin mirrors do not match committed files."
-          echo "Validation conclusions:"
-          echo "  generate_agents: $VALIDATE_CONCLUSION"
-          echo "  lib mirrors: $LIB_MIRROR_CONCLUSION"
-          echo "  manifest parity: $MANIFEST_PARITY_CONCLUSION"
-          echo ""
-
-          if [ "$VALIDATE_CONCLUSION" = "failure" ]; then
-            python3 build/generate_agents.py
-          fi
-          if [ "$LIB_MIRROR_CONCLUSION" = "failure" ]; then
-            python3 scripts/sync_plugin_lib.py || true
-            python3 build/scripts/build_all.py || true
-          fi
-
-          # Show which files drifted
-          changed_files=$(git diff --name-only)
-          if [ -n "$changed_files" ]; then
-            echo "--- Files with semantic drift ---"
-            echo "$changed_files" | while read -r file; do
-              echo "  x  $file"
-            done
-            echo ""
-
-            echo "--- How to fix ---"
-            echo ""
-            echo "  1. Edit the source template (NOT the generated file):"
-            echo "       templates/agents/<agent-name>.shared.md"
-            echo ""
-            echo "  2. Regenerate platform-specific files:"
-            echo "       python3 build/generate_agents.py"
-            echo ""
-            echo "  3. Commit the regenerated files:"
-            echo "       git add src/vs-code-agents/ src/copilot-cli/"
-            echo "       git commit -m 'fix(agents): regenerate from updated template'"
-            echo ""
-            echo "--- Bypass procedure (intentional divergence) ---"
-            echo ""
-            echo "  If this divergence is intentional:"
-            echo "  1. Add [skip-drift-check] to a commit message in this PR"
-            echo "  2. Document the reason in your PR description"
-            echo "  3. Update templates/README.md with the intentional difference"
-            echo "  4. Ensure explicit code-owner approval on this PR"
-            echo ""
-            echo "--- Detailed diff ---"
-            echo ""
-            git diff
-          fi
+        run: python3 scripts/ci/show_drift_failure.py
 
       - name: Fail when any drift check fails
         if: >
@@ -254,34 +190,7 @@ jobs:
           VALIDATE_CONCLUSION: ${{ steps.validate.outcome }}
           LIB_MIRROR_CONCLUSION: ${{ steps.lib-mirror.outcome }}
           MANIFEST_PARITY_CONCLUSION: ${{ steps.manifest-parity.outcome }}
-        run: |
-          if [ "$VALIDATE_CONCLUSION" = "success" ] && \
-             [ "$LIB_MIRROR_CONCLUSION" = "success" ] && \
-             [ "$MANIFEST_PARITY_CONCLUSION" = "success" ]; then
-            {
-              echo "## Agent Drift Detection Passed"
-              echo ""
-              echo "All generated agent files match their source templates."
-            } >> "$GITHUB_STEP_SUMMARY"
-          else
-            {
-              echo "## Agent Drift Detection Failed"
-              echo ""
-              echo "Generated agent files have drifted from their source templates."
-              echo ""
-              echo "### Fix"
-              echo "1. Edit the source template in \`templates/agents/*.shared.md\`"
-              echo "2. Run: \`python3 build/generate_agents.py\`"
-              echo "3. Commit the regenerated files"
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
-          {
-            echo ""
-            echo "### Monitored Paths"
-            echo "- \`templates/\` - source templates"
-            echo "- \`src/vs-code-agents/\` - generated VS Code agents"
-            echo "- \`src/copilot-cli/\` - generated Copilot CLI agents"
-          } >> "$GITHUB_STEP_SUMMARY"
+        run: python3 scripts/ci/write_drift_job_summary.py
 
   # ─── Bypass warning, runs instead of validate when bypass is active ──────────
   bypass-warning:

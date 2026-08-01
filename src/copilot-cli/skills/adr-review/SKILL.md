@@ -228,9 +228,9 @@ After skill invocation:
       authoritative for tooling, the prose `## Status` carries the human nuance.
 - [ ] If this review transitions `status` to `accepted`: the same change carries
       adr-review debate-log evidence at `.agents/critique/ADR-NNN-debate-log.md`
-<!-- vendor-portability: declared. adr-review checks accepted-transition evidence under .agents/critique/; a consumer repo without it reports missing evidence, not a silent pass. Issue #2050. -->
       (ADR-073 Phase-3 acceptance gate). A hand-edit to `accepted` with no
       debate-log artifact is a forgeable approval signal and MUST be rejected.
+<!-- vendor-portability: declared. adr-review checks accepted-transition evidence under .agents/critique/; a consumer repo without it reports missing evidence, not a silent pass. Issue #2050. -->
 - [ ] All P0 issues addressed or documented
 - [ ] Dissent captured for Disagree-and-Commit positions
 - [ ] Recommendations provided to orchestrator
