@@ -736,6 +736,30 @@ def test_copilot_complete_raises_on_empty_prompt() -> None:
         provider.complete(messages=[{"role": "user", "content": "  "}], model="m")
 
 
+def test_copilot_complete_rejects_assistant_role(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Copilot CLI can only accept user and system messages when folding into
+    a single prompt. Non-user roles must fail visibly before subprocess.run."""
+    seen = _capture_run(monkeypatch, _FakeCompleted(stdout="should not reach"))
+    provider = _providers._CopilotCLIProvider()
+
+    with pytest.raises(
+        RuntimeError,
+        match="Copilot CLI can only fold user/system messages into its single prompt channel",
+    ):
+        provider.complete(
+            messages=[
+                {"role": "user", "content": "first"},
+                {"role": "assistant", "content": "response"},
+            ],
+            model="claude-opus-5",
+        )
+
+    # Verify subprocess.run was never called
+    assert "argv" not in seen
+
+
 def test_copilot_complete_nonzero_exit_reports_the_exit_code_not_an_http_status(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
