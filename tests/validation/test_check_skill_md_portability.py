@@ -925,6 +925,12 @@ class TestMainCli:
         (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
             "Writes .agents/x\n", encoding="utf-8"
         )
+        # Every shipped root must hold a readable file or the scan-coverage guard
+        # refuses the write, because one starved root is a partial checkout.
+        (tmp_path / "src" / "copilot-cli" / "skills" / "a").mkdir(parents=True)
+        (tmp_path / "src" / "copilot-cli" / "skills" / "a" / "SKILL.md").write_text(
+            "Nothing upstream.\n", encoding="utf-8"
+        )
         baseline = tmp_path / "baseline.json"
         rc = cmp.main(
             ["--repo-root", str(tmp_path), "--baseline", str(baseline), "--update-baseline"]

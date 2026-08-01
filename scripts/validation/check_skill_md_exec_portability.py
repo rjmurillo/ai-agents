@@ -89,7 +89,7 @@ import re
 import sys
 from pathlib import Path
 
-from scripts.validation.portability_common import refuse_empty_scan
+from scripts.validation.portability_common import refuse_uncovered_scan
 
 # Shipped skill trees to scan. Both carry SKILL.md files that agents execute:
 # .claude/skills is the canonical tree; src/copilot-cli/skills holds the
@@ -207,14 +207,15 @@ def scan_skill_execs(repo_root: Path) -> dict[str, int]:
     return counts
 
 
-def scanned_file_total(repo_root: Path) -> int:
-    """Return how many skill files were actually read across every scan root.
+def scanned_files_by_root(repo_root: Path) -> dict[str, int]:
+    """Return how many skill files each scan root holds, absent roots included.
 
-    The invocation counts cannot answer this: a clean tree and a tree that was
-    never read both produce an empty mapping.
+    A sum cannot answer coverage: one empty root stays invisible in a total
+    another root keeps positive, so a partial checkout would write a baseline
+    dropping every file the unread root owned.
     """
-    roots = (repo_root.joinpath(*parts) for parts in SCAN_ROOTS)
-    return sum(len(_iter_skill_files(d)) for d in roots if d.is_dir())
+    dirs = {"/".join(parts): repo_root.joinpath(*parts) for parts in SCAN_ROOTS}
+    return {n: len(_iter_skill_files(d)) if d.is_dir() else 0 for n, d in dirs.items()}
 
 
 def scan_marker_suppressions(repo_root: Path) -> dict[str, int]:
@@ -467,12 +468,13 @@ def main(argv: list[str] | None = None) -> int:
     try:
         current = scan_skill_execs(root)
         marker_current = scan_marker_suppressions(root)
+        scanned_by_root = scanned_files_by_root(root)
     except OSError as exc:
         print(f"Could not scan skill files under {root}: {exc}", file=sys.stderr)
         return 2
 
     if args.update_baseline:
-        if refuse_empty_scan(root, scanned_file_total(root), "skill files"):
+        if refuse_uncovered_scan(root, scanned_by_root, "skill files"):
             return 2
         return _write_baseline(baseline_path, current, marker_current)
 

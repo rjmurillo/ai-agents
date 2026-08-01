@@ -68,7 +68,7 @@ from scripts.utils.markdown_parser import (
     MarkdownNestingError,
     blank_code_block_lines,
 )
-from scripts.validation.portability_common import build_portability_parser, refuse_empty_scan
+from scripts.validation.portability_common import build_portability_parser, refuse_uncovered_scan
 from scripts.validation.portability_common import (
     diff_against_baseline as _diff_against_baseline,
 )
@@ -421,13 +421,17 @@ def scan_plugin_roots(root: Path) -> dict[str, int]:
     return counts
 
 
-def scanned_markdown_total(root: Path) -> int:
-    """Return how many skill ``.md`` files were actually read across every root.
+def scanned_markdown_by_root(root: Path) -> dict[str, int]:
+    """Return how many skill ``.md`` files were read under each shipped root.
 
-    The offending-file counts cannot answer this: a clean tree and a tree that
-    was never read both produce an empty mapping.
+    A sum cannot answer coverage: one empty root stays invisible in a total
+    another root keeps positive, so a partial checkout would write a baseline
+    dropping every file the unread root owned.
     """
-    return sum(scan_skill_markdown(skills_dir).scanned for skills_dir in skills_dirs(root))
+    return {
+        skills_dir.relative_to(root).as_posix(): scan_skill_markdown(skills_dir).scanned
+        for skills_dir in skills_dirs(root)
+    }
 
 
 def scan_marker_suppressions(root: Path) -> dict[str, int]:
@@ -633,6 +637,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         current = scan_plugin_roots(root)
         marker_current = scan_marker_suppressions(root)
+        scanned_by_root = scanned_markdown_by_root(root)
     except (OSError, MarkdownNestingError) as exc:
         print(f"Could not scan skills dirs under {root}: {exc}", file=sys.stderr)
         return 2
@@ -644,7 +649,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if args.update_baseline:
-        if refuse_empty_scan(root, scanned_markdown_total(root), "skill .md files"):
+        if refuse_uncovered_scan(root, scanned_by_root, "skill .md files"):
             return 2
         return _write_baseline(baseline_path, current, marker_current)
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 RegressionMessageFactory = Callable[[str, int, int], str]
@@ -144,28 +144,33 @@ def write_baseline(
     return 0
 
 
-def refuse_empty_scan(root: Path, read_total: int, unit: str) -> bool:
-    """Report and refuse a baseline write whose scan read nothing.
+def refuse_uncovered_scan(root: Path, scanned_by_root: Mapping[str, int], unit: str) -> bool:
+    """Report and refuse a baseline write that did not cover every shipped root.
 
-    Both portability ratchets share one hazard. A scan root can exist and
-    still yield no readable files, from a partial checkout, a sparse clone, or
-    a mistargeted repo root. The offending-file mapping is empty in that case
-    and equally empty for a genuinely clean tree, so the write path cannot
-    tell them apart from counts alone. Writing anyway replaces the ratchet
-    with an empty one, forgives every current violation, and exits 0.
+    Both portability ratchets share one hazard. A scan root can exist and still
+    yield nothing to read, from a partial checkout, a sparse clone, or a
+    mistargeted repo root. The offending-file mapping is empty in that case and
+    equally empty for a genuinely clean tree, so the write path cannot tell them
+    apart from counts alone.
 
-    Only the count of files actually read separates the two, so the caller
-    passes it here rather than inferring intent from an empty mapping.
-    Returns True when the caller must refuse.
+    Coverage is per root, never a sum. A total stays positive while one root of
+    several reads nothing, so summing hides the partial checkout this exists to
+    catch: the write succeeds, exits 0, and drops every file the unread root
+    owned. Returns True when the caller must refuse.
     """
-    if read_total > 0:
+    unread = sorted(name for name, found in scanned_by_root.items() if found < 1)
+    if scanned_by_root and not unread:
         return False
+    names = ", ".join(unread) or "no scan roots were enumerated at all"
+    read = ", ".join(
+        f"{name} ({found})" for name, found in sorted(scanned_by_root.items()) if found
+    )
     print(
-        f"Refusing to write a baseline from a scan that read 0 {unit} under "
-        f"{root}. A required scan root exists but holds nothing to read, so "
-        "writing now would replace the ratchet with an empty one and silently "
-        "forgive every current violation. Check that --repo-root points at a "
-        "full checkout.",
+        f"Refusing to write a baseline that read 0 {unit} under: {names}. "
+        f"Roots that were read: {read or 'none'}. A shipped scan root holds nothing "
+        "to read, so writing now would drop every file that root owns from the "
+        "ratchet and silently forgive its violations. Check that --repo-root points "
+        f"at a full checkout of {root}.",
         file=sys.stderr,
     )
     return True

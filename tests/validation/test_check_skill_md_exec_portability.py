@@ -280,6 +280,11 @@ class TestMainCli:
 
     def test_update_baseline_writes_and_exits_zero(self, tmp_path: Path) -> None:
         self._make_skill(tmp_path, "python3 .claude/skills/a/x.py\n")
+        # Every shipped root must hold a readable file or the scan-coverage guard
+        # refuses the write, because one starved root is a partial checkout.
+        second = tmp_path / "src" / "copilot-cli" / "skills" / "a"
+        second.mkdir(parents=True)
+        (second / "SKILL.md").write_text("No bare invocations.\n", encoding="utf-8")
         baseline = tmp_path / "baseline.json"
         rc = cep.main(
             ["--repo-root", str(tmp_path), "--baseline", str(baseline), "--update-baseline"]
