@@ -101,9 +101,13 @@
     {
       "time": "2026-07-30T05:30:00Z",
       "entry": "Wired check_nested_tests and check_unreachable_code into pre_pr_sequence.py and pre_pr.py."
+    },
+    {
+      "timestamp": "2026-07-31T08:00:00Z",
+      "action": "Added check_test_tree_writes.py gate for #3772, fixed type-ignore ratchet in pr_commit_count.py, closed #3885 with evidence, added retrospective"
     }
   ],
-  "endingCommit": "d4f8410d7",
+  "endingCommit": "",
   "nextSteps": [
     "Wire gates into pre_pr_sequence.py",
     "Triage #3772, #3806, #3885, #3925 with measurements",

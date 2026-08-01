@@ -106,6 +106,15 @@
       "content": "Wired check_nested_tests and check_unreachable_code into pre_pr_sequence.py and pre_pr.py.",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added check_test_tree_writes.py gate for #3772, fixed type-ignore ratchet in pr_commit_count.py, closed #3885 with evidence, added retrospective",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-30-session-3957-infra-fix-3879-3896-3874"
     }
   ],
   "metrics": {
@@ -114,7 +123,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 4,
-    "files_changed": 3
+    "files_changed": 5
   },
   "lessons": []
 }

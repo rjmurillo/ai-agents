@@ -209,6 +209,7 @@ def _tracked_test_files(repo_root: Path) -> list[Path]:
         cwd=repo_root,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
     paths = []
