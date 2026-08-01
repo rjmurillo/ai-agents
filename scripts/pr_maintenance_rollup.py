@@ -7,6 +7,15 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
+__all__ = [
+    "complete_status_check_rollups",
+    "context_is_failing",
+    "context_name",
+    "contexts_are_incomplete",
+    "dedupe_contexts_by_latest",
+    "rollup_has_failing_checks",
+]
+
 _FAILURE_STATES = {"FAILURE", "ERROR"}
 _CONTEXTS_MAX_PAGES = 50
 
