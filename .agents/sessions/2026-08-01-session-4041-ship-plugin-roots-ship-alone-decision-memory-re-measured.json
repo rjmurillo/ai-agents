@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Serena memory committed as 7f25e3e11b; the retrospective and this log are committed together in the follow-up commit that carries this evidence."
+        "Evidence": "Serena memory committed as 7f25e3e11b; the retrospective, episode, and this log committed together as 70fe6483df."
       },
       "validationPassed": {
         "level": "MUST",
@@ -131,7 +131,7 @@
       "outcome": "None does. Negative control: a citation to a nonexistent file was reintroduced into both trees and all four gates exited 0. Recorded in the memory and in the retrospective as the systemic finding."
     }
   ],
-  "endingCommit": "7f25e3e11b",
+  "endingCommit": "70fe6483df",
   "nextSteps": [
     "File the follow-up for existence validation of paths named in vendor-portability declarations.",
     "Re-run adversarial review on this PR on a different model family, per the standing requirement."
