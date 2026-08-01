@@ -685,6 +685,19 @@ class TestPluginRootScan:
         self._skill_md(tmp_path, "src/copilot-cli", "a/SKILL.md", "Reads .agents/x\n")
         assert cmp.scan_plugin_roots(tmp_path) == {"src/copilot-cli/skills/a/SKILL.md": 1}
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Symlinks require privileges on Windows",
+    )
+    def test_marker_scan_reports_broken_md_symlink(self, tmp_path: Path) -> None:
+        """Marker drift scan must fail closed on the same partial-scan case."""
+        skill = tmp_path / ".claude" / "skills" / "a"
+        skill.mkdir(parents=True)
+        (skill / "broken.md").symlink_to(tmp_path / "missing.md")
+
+        with pytest.raises(OSError, match="Broken .md symlink"):
+            cmp.scan_marker_suppressions(tmp_path)
+
     def test_same_named_skills_in_two_roots_do_not_collide(self, tmp_path: Path) -> None:
         """Keys are repository relative because both roots hold ``skills/spec``.
 
