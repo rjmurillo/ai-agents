@@ -205,7 +205,7 @@ def _translated_argv(argv: tuple[str | Path, ...]) -> list[str]:
                 translated += ["--corpus", str(corpus)]
         except (OSError, ValueError, RecursionError):
             pass
-    if command in {"gate", "score"}:
+    if command in {"gate", "score", "report"}:
         for flag in ("--incumbent", "--candidate", "--results"):
             if flag in translated:
                 index = translated.index(flag)
@@ -2539,6 +2539,188 @@ class TestHeldOutGroupsAreNotReadable:
         code, out = _run(capsys, "score", "--results", self._tasks(tmp_path),
                          "--split", out_path)
         assert code == 0 and out["group"] == "opt" and out["score"] == 1.0
+
+
+class TestTheTestGroupIsReadOnceByReport:
+    """`split` drew a third group and no command could read it.
+
+    Round twenty of adversarial review found the gap through its symptom: the
+    exhausted-budget refusal advised the operator to report on the test group,
+    an invocation the parser rejected statically, and PR #3478 removed the
+    advice rather than widen `score --group` and hand the loop an unmetered
+    read. `report` is the first branch of ADR-087 Open Requirement 7: one
+    budgeted read of the group no gate decision has touched, refusing the
+    second. Refs #3552.
+    """
+
+    def _split_fixture(self, tmp_path, capsys, *, seed="s1", test_ratio="0.2"):
+        tasks = _write(tmp_path, "tasks.json", {f"t{i:02d}": True for i in range(20)})
+        split_path = tmp_path / "split.json"
+        _run(capsys, "split", "--results", tasks, "--seed", seed,
+             "--sel-ratio", "0.4", "--test-ratio", test_ratio, "--out", split_path)
+        record = json.loads(split_path.read_text(encoding="utf-8"))
+        return split_path, record, tasks
+
+    def _candidate(self, tmp_path, *, failing=(), missing=(), name="cand.json"):
+        verdicts = {f"t{i:02d}": True for i in range(20)}
+        for task_id in failing:
+            verdicts[task_id] = False
+        for task_id in missing:
+            verdicts.pop(task_id)
+        return _write(tmp_path, name, verdicts)
+
+    def _report(self, capsys, results, split_path):
+        return _run(capsys, "report", "--results", results, "--split", split_path)
+
+    def test_report_scores_the_test_group(self, tmp_path, capsys):
+        split_path, record, _ = self._split_fixture(tmp_path, capsys)
+        held_out = record["test"]
+        assert held_out, "the fixture must draw a test group for this to measure anything"
+        cand = self._candidate(tmp_path, failing=held_out[:1])
+
+        code, out = self._report(capsys, cand, split_path)
+
+        assert code == EXIT_OK
+        assert out["group"] == "test"
+        assert out["n"] == len(held_out)
+        assert out["score"] == pytest.approx((len(held_out) - 1) / len(held_out))
+        assert out["fingerprint"] == record["fingerprint"]
+        assert "decision" not in out, "a report states a number, it does not gate"
+
+    def test_a_second_report_against_the_same_group_is_refused(self, tmp_path, capsys):
+        split_path, _, _ = self._split_fixture(tmp_path, capsys)
+        cand = self._candidate(tmp_path)
+        first_code, _ = self._report(capsys, cand, split_path)
+
+        code, out = self._report(capsys, cand, split_path)
+
+        assert first_code == EXIT_OK
+        assert (code, out["decision"], out["reported"]) == (EXIT_LOGIC, "REFUSE", False)
+        assert "score" not in out, "the refusal must not hand back the number it withheld"
+
+    def test_an_empty_test_group_is_a_config_error(self, tmp_path, capsys):
+        """The default `--test-ratio` of 0 draws nothing; the fix is at the split."""
+        split_path, record, _ = self._split_fixture(tmp_path, capsys, test_ratio="0.0")
+        assert record["test"] == []
+        cand = self._candidate(tmp_path)
+
+        code, out = self._report(capsys, cand, split_path)
+
+        assert code == EXIT_CONFIG
+        assert "--test-ratio" in out["error"]
+
+    def test_a_drifted_split_is_refused_before_any_number(self, tmp_path, capsys):
+        split_path, record, _ = self._split_fixture(tmp_path, capsys)
+        moved = dict(record)
+        moved["opt"] = [*record["opt"], record["test"][0]]
+        moved["test"] = record["test"][1:]
+        drifted = _write(tmp_path, "drifted.json", moved)
+        cand = self._candidate(tmp_path)
+
+        code, out = self._report(capsys, cand, drifted)
+
+        assert code == EXIT_CONFIG
+        assert "Re-split" in out["error"]
+        assert "score" not in out
+
+    def test_results_missing_the_test_group_are_refused_and_still_charged(
+        self, tmp_path, capsys
+    ):
+        """A free coverage probe would be an oracle over the group it withholds."""
+        split_path, record, _ = self._split_fixture(tmp_path, capsys)
+        short = self._candidate(tmp_path, missing=record["test"][:1], name="short.json")
+        full = self._candidate(tmp_path, name="full.json")
+
+        code, out = self._report(capsys, short, split_path)
+        retry_code, retry = self._report(capsys, full, split_path)
+
+        assert (code, out["decision"]) == (EXIT_LOGIC, "REFUSE")
+        assert not any(task_id in out["reason"] for task_id in record["test"])
+        assert (retry_code, retry["decision"]) == (EXIT_LOGIC, "REFUSE")
+        assert "already been reported" in retry["reason"]
+
+    def test_an_exhausted_gate_budget_does_not_block_the_report(self, tmp_path, capsys):
+        """Two withheld groups, two budgets. One running out must not close the other."""
+        split_path, record, tasks = self._split_fixture(tmp_path, capsys)
+        cand = self._candidate(tmp_path, failing=record["opt"][:1])
+        _run_gate(capsys, tmp_path, "--incumbent", tasks, "--candidate", cand,
+                  "--split", split_path, "--max-consultations", "1")
+        spent_code, spent = _run_gate(capsys, tmp_path, "--incumbent", tasks,
+                                      "--candidate", cand, "--split", split_path,
+                                      "--max-consultations", "1")
+
+        code, out = self._report(capsys, cand, split_path)
+
+        assert (spent_code, spent["compared"]) == (EXIT_LOGIC, False)
+        assert (code, out["group"], out["score"]) == (EXIT_OK, "test", 1.0)
+
+    def test_the_report_does_not_spend_the_gate_budget(self, tmp_path, capsys):
+        split_path, record, tasks = self._split_fixture(tmp_path, capsys)
+        cand = self._candidate(tmp_path, failing=record["opt"][:1])
+        self._report(capsys, cand, split_path)
+
+        code, out = _run_gate(capsys, tmp_path, "--incumbent", tasks,
+                              "--candidate", cand, "--split", split_path,
+                              "--max-consultations", "1")
+
+        assert out["compared"] is True
+        assert out["sel_consultations"] == 1
+        assert code in (EXIT_OK, EXIT_LOGIC)
+
+    def test_the_two_budgets_live_in_different_files(self, tmp_path, capsys):
+        """Keyed on membership and suffixed by role, so neither can be the other."""
+        split_path, record, _ = self._split_fixture(tmp_path, capsys)
+        cand = self._candidate(tmp_path)
+        self._report(capsys, cand, split_path)
+
+        gate_key = oa._holdout_key(record)
+        report_key = oa._holdout_key(record, oa._REPORT_GROUP)
+
+        assert gate_key != report_key
+        assert oa._ledger_path(report_key, oa._REPORT_LEDGER_SUFFIX).exists()
+        assert not oa._ledger_path(gate_key).exists()
+        assert not oa._ledger_path(report_key).exists()
+
+    def test_a_ledger_moved_under_this_group_is_refused(self, tmp_path, capsys):
+        """A record under another group's name is a moved file, not a redraw."""
+        split_path, record, _ = self._split_fixture(tmp_path, capsys)
+        cand = self._candidate(tmp_path)
+        report_key = oa._holdout_key(record, oa._REPORT_GROUP)
+        planted = oa._ledger_path(report_key, oa._REPORT_LEDGER_SUFFIX)
+        planted.parent.mkdir(parents=True, exist_ok=True)
+        planted.write_text(
+            json.dumps({"consultations": 0, "holdout": "0" * 64,
+                        "max_consultations": 1, "max_p": None}),
+            encoding="utf-8",
+        )
+
+        code, out = self._report(capsys, cand, split_path)
+
+        assert (code, out["decision"]) == (EXIT_LOGIC, "REFUSE")
+        assert "score" not in out
+        assert report_key not in out["reason"], "the refusal must not print the key"
+
+    def test_an_unreadable_results_file_does_not_spend_the_report(self, tmp_path, capsys):
+        """Read before charge: a typo in a path must not burn the one reveal."""
+        split_path, _, _ = self._split_fixture(tmp_path, capsys)
+        broken = tmp_path / "broken.json"
+        broken.write_text("{not json", encoding="utf-8")
+        good = self._candidate(tmp_path, name="good.json")
+
+        code, out = self._report(capsys, broken, split_path)
+        retry_code, retry = self._report(capsys, good, split_path)
+
+        assert code == EXIT_CONFIG
+        assert "error" in out
+        assert (retry_code, retry["group"], retry["score"]) == (EXIT_OK, "test", 1.0)
+
+    def test_report_offers_no_group_flag(self, tmp_path, capsys):
+        """Widening the choice is the unmetered read `score --group opt` refuses."""
+        split_path, _, _ = self._split_fixture(tmp_path, capsys)
+        cand = self._candidate(tmp_path)
+        with pytest.raises(SystemExit):
+            _run(capsys, "report", "--results", cand, "--split", split_path,
+                 "--group", "opt")
 
 
 class TestConsultationLedgerIsHeldByTheGate:

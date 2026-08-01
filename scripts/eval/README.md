@@ -418,7 +418,7 @@ This tool splits the task ids into three groups and keeps them apart:
 |-------|-------------|---------|---------------|
 | `opt` | The optimizing agent | Read failures here, propose edits from them. | The remainder, 0.6 |
 | `sel` | The gate | Decides accept or reject. Each decision spends one consultation from a fixed budget. | 0.4 |
-| `test` | Nothing yet | Reserved for a final report. **No command scores it**, so today it only shrinks `opt` and `sel`. See ADR-087 Open Requirement 7. | 0.0, opt in with `--test-ratio` |
+| `test` | `report`, once | The final number, read after the loop converges. `report` scores it once and refuses every read after that. It never gates. | 0.0, opt in with `--test-ratio` |
 
 `--test-ratio` defaults to zero, so out of the box you get two groups and an
 empty `test`. That is a concession to this repo's real fixture counts: most
@@ -448,6 +448,7 @@ one-fixture gate, which measures nothing.
 | `score` | Fraction of one group passing. |
 | `apply` | Apply bounded patches to an artifact file. |
 | `gate` | Decide whether the candidate replaces the incumbent. |
+| `report` | Score the `test` group once, after the loop is done. |
 | `buffer-check` | Has this edit already been rejected? |
 | `buffer-add` | Record a rejected edit so it is not re-proposed. |
 
@@ -649,6 +650,37 @@ was rejected so a later step, or a reader auditing the buffer, can tell a gate
 reject apart from a refused patch or an operator veto. Name the deciding
 signal, not the intent: `gate: sel score dropped 0.62 -> 0.55` tells the next
 reader something, `bad edit` does not.
+
+### Reporting the test group, once
+
+When the loop has converged and the consultation budget is spent, one command
+reads the third group:
+
+```bash
+uv run --frozen python "$OA" report --results cand.json --split split.json
+```
+
+It prints `score`, `group`, `n`, and `fingerprint`, and no `decision` field,
+because it reports rather than decides. Exit 0 on a number, 1 on a refusal,
+2 on a split it cannot use.
+
+Four things bound it. It has no `--group`, so it reads `test` and nothing
+else. It answers once per test group: the second call refuses, and the record
+is keyed on the group's membership, so copying or renaming the split does not
+buy another. Its budget is separate from the gate's, so an exhausted
+consultation budget does not block the report and a spent report does not
+block the gate. And a results file that does not cover the test group is
+refused **after** the read is charged, for the same reason the gate charges
+first: a free coverage probe against a withheld group is an oracle over its
+membership.
+
+Score the artifact over the whole task set before calling this. There is one
+attempt, and spending it on a short results file means re-splitting and
+re-running the loop.
+
+`--test-ratio` defaults to 0, so this command has nothing to read unless the
+split was drawn with a test group. It says so rather than reporting a score
+over an empty set.
 
 ### What the gate refuses
 
