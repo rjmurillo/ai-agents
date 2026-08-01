@@ -110,7 +110,7 @@
       "result": "The version key is absent from both parity manifests on main, which is what ADR-092 requires."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "a5017d74df4daa5a733e750f2813ac70ad176fe6",
   "nextSteps": [
     "Close #4202 once this lands: the workflow it describes is deleted from main by ADR-092, so the direct-push failure cannot recur",
     "Correct the public causal account in #4195: adversarial review showed the two count decreases came from prose and table edits, not from fenced-block stripping",
