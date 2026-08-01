@@ -97,44 +97,12 @@ SCAN_ROOTS: tuple[tuple[str, ...], ...] = (
     ("src", "copilot-cli", "skills"),
 )
 
-# An executable invocation of a bare .claude/skills or scripts/ path. The
-# negative lookbehind (?<![\w.]) keeps the lead-in a standalone token so that
-# the "sh" inside "bash"/"flash" does not match, while still allowing a
-# backtick, whitespace, line start, or shell operator immediately before it.
-#
-# Two execution lead-ins are recognized, both anchored to an execution context
-# so bare *prose* path mentions stay exempt (the sibling prose guard owns those):
-#   1. An interpreter token (python/python3/bash/sh) with optional short options
-#      (`python3 -u .claude/...`, `bash -x .claude/...`).
-#   2. A direct `./`-prefixed executable (`./.claude/skills/x/y.sh`).
-# Shell line continuations (`python3 \<newline>.claude/...`) are normalized to a
-# single line before matching so a split invocation is not missed (issue #2838).
-#
-# `scripts/` is added alongside `.claude/skills/` (issue #4013): the scripts/
-# tree exists only in the upstream checkout and does not ship in either plugin
-# root. A skill instruction like `python3 scripts/validation/pre_pr.py` will
-# fail silently in every consumer install just as a bare .claude/skills/ path
-# would. The path-prefix group is anchored to require `scripts/` at the start
-# of the path argument (not inside a longer resolved prefix).
-#
-# `./`-prefixed forms (`python3 ./scripts/x.py`, `uv run python ./scripts/x.py`)
-# ARE covered, but by the second lead-in alternative rather than the first: the
-# `\./` branch consumes the `./` and the path-prefix group then matches
-# `scripts/`. Do not "simplify" by deleting that branch as redundant with the
-# interpreter branch, and do not drop `scripts/` from the path-prefix group:
-# either edit alone silently un-covers every `./scripts/...` invocation. Both
-# mutations are pinned by TestDotSlashScriptsExecDetection (PR #4029 review).
-#
-# Alternative considered and rejected: fold `./` into the path-prefix group
-# (`(?:\.claude/skills/|\.?/?scripts/)`) so the interpreter branch matches
-# `./scripts/` directly and the coverage stops being split across two branches.
-# Rejected because it changes no observable output, and a redundant prefix
-# alternative invites the opposite mistake later (deleting the `\./` branch as
-# dead). If that branch is ever removed for another reason, make the prefix
-# group explicit at the same time and delete this note.
+# Bare .claude/skills, build, and scripts invocations fail in vendored installs.
+# The lead-in keeps prose mentions exempt; line continuations are normalized
+# before matching so split commands still count.
 EXEC_PATTERN = re.compile(
-    r"(?<![\w.])(?:(?:python3?|bash|sh)\s+(?:-\S+\s+)*|\./)"
-    r"[\"']?(?:\.claude/skills/|scripts/)\S+\.(?:py|sh)(?!\.\w)[\"']?"
+    r"(?<![\w.])(?:(?:python3?|bash|sh)[ \t]+(?:-\S+[ \t]+)*|\./)"
+    r"[\"']?(?:\.claude/skills/|build/|scripts/)\S+\.(?:py|sh)(?!\.\w)[\"']?"
 )
 
 # Shell line-continuation: a backslash immediately before a newline splices the
@@ -190,6 +158,14 @@ def count_file_invocations(text: str) -> int:
     return count_exec_invocations(text)
 
 
+def count_marker_suppressed_invocations(text: str) -> int:
+    """Count invocations hidden by a ``vendor-portability-exec`` marker."""
+    if not has_portability_marker(text):
+        return 0
+    text_without_markers = _MARKER_PATTERN.sub("", text)
+    return count_exec_invocations(text_without_markers)
+
+
 def _iter_skill_files(root: Path) -> list[Path]:
     paths: list[Path] = []
     for skill_root in sorted(p for p in root.iterdir() if p.is_dir()):
@@ -229,6 +205,24 @@ def scan_skill_execs(repo_root: Path) -> dict[str, int]:
     return counts
 
 
+def scan_marker_suppressions(repo_root: Path) -> dict[str, int]:
+    """Return marker-suppressed invocation counts across every scan root."""
+    counts: dict[str, int] = {}
+    for parts in SCAN_ROOTS:
+        root = repo_root.joinpath(*parts)
+        if not root.is_dir():
+            continue
+        for path in _iter_skill_files(root):
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError) as exc:
+                raise OSError(f"Failed to read skill file {path}: {exc}") from exc
+            n = count_marker_suppressed_invocations(text)
+            if n > 0:
+                counts[path.relative_to(repo_root).as_posix()] = n
+    return counts
+
+
 def _load_baseline(path: Path) -> dict[str, int]:
     if not path.is_file():
         raise FileNotFoundError(f"Baseline file not found: {path}")
@@ -247,6 +241,22 @@ def _load_baseline(path: Path) -> dict[str, int]:
             baseline[str(key)] = int(value)
         except (TypeError, ValueError) as exc:
             raise ValueError(f"Baseline count for {key!r} is not an integer") from exc
+    return baseline
+
+
+def _load_marker_baseline(path: Path) -> dict[str, int]:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError("Baseline must be a JSON object")
+    marker_files = data.get("marker_files", {})
+    if not isinstance(marker_files, dict):
+        raise ValueError("Baseline 'marker_files' must be a JSON object")
+    baseline: dict[str, int] = {}
+    for key, value in marker_files.items():
+        try:
+            baseline[str(key)] = int(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Marker baseline count for {key!r} is not an integer") from exc
     return baseline
 
 
@@ -276,6 +286,22 @@ def diff_against_baseline(
         if n < allowed:
             improvements.append(f"{rel}: {n} invocations (baseline {allowed})")
     return regressions, improvements
+
+
+def diff_marker_baseline(
+    current: dict[str, int], baseline: dict[str, int]
+) -> tuple[list[str], list[str]]:
+    """Return exact-count marker drift."""
+    regressions: list[str] = []
+    for rel in sorted(set(current) | set(baseline)):
+        count = current.get(rel, 0)
+        allowed = baseline.get(rel, 0)
+        if count != allowed:
+            regressions.append(
+                f"{rel}: vendor-portability-exec marker suppresses {count} invocations "
+                f"(baseline {allowed}). Update the marker or regenerate the marker baseline."
+            )
+    return regressions, []
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -323,36 +349,45 @@ def _resolve_baseline_path(root: Path, baseline: Path | None) -> Path | None:
     return resolved
 
 
-def _write_baseline(baseline_path: Path, current: dict[str, int]) -> int:
+def _write_baseline(
+    baseline_path: Path, current: dict[str, int], marker_current: dict[str, int]
+) -> int:
     total = sum(current.values())
+    marker_total = sum(marker_current.values())
     baseline_path.write_text(
         json.dumps(
             {
                 "_comment": (
                     "Exec-path vendor-portability ratchet baseline for skill "
-                    "Markdown files (issues #2838, #4013). Counts of bare "
-                    "'.claude/skills/...' or 'scripts/...' executable "
+                    "Markdown files (issues #2838, #4013, #4156). files counts "
+                    "bare '.claude/skills/...', 'build/...', or 'scripts/...' executable "
                     "invocations per file "
                     "under SKILL.md, references/**/*.md, and scripts/README-*.md "
                     "(files with a '<!-- vendor-portability-exec: ... -->' marker "
-                    "excluded). Generated by "
-                    "check_skill_md_exec_portability.py --update-baseline. "
-                    "Lower is better; migrate '.claude/skills/...' offenders to "
+                    "excluded). marker_files records the invocations suppressed "
+                    "by those markers so stale declarations do not stay green "
+                    "forever. Generated by check_skill_md_exec_portability.py "
+                    "--update-baseline. Lower files counts are better; migrate "
+                    "'.claude/skills/...' offenders to "
                     "the "
                     "'${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}' "
-                    "resolved form and tighten this baseline. The 'scripts/' "
-                    "tree is upstream-only and has no resolved form: drop the "
-                    "invocation or declare it with a "
+                    "resolved form and tighten this baseline. The 'build/' and "
+                    "'scripts/' trees are upstream-only and have no resolved "
+                    "form: drop the invocation or declare it with a "
                     "'<!-- vendor-portability-exec: ... -->' marker."
                 ),
                 "files": dict(sorted(current.items())),
+                "marker_files": dict(sorted(marker_current.items())),
             },
             indent=2,
         )
         + "\n",
         encoding="utf-8",
     )
-    print(f"Baseline written: {len(current)} files, {total} invocations.")
+    print(
+        f"Baseline written: {len(current)} files, {total} invocations; "
+        f"{len(marker_current)} marker files, {marker_total} suppressed invocations."
+    )
     return 0
 
 
@@ -419,20 +454,27 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         current = scan_skill_execs(root)
+        marker_current = scan_marker_suppressions(root)
     except OSError as exc:
         print(f"Could not scan skill files under {root}: {exc}", file=sys.stderr)
         return 2
 
     if args.update_baseline:
-        return _write_baseline(baseline_path, current)
+        return _write_baseline(baseline_path, current, marker_current)
 
     try:
         baseline = _load_baseline(baseline_path)
+        marker_baseline = _load_marker_baseline(baseline_path)
     except (OSError, ValueError) as exc:
         print(f"Could not read baseline {baseline_path}: {exc}", file=sys.stderr)
         return 2
 
     regressions, improvements = diff_against_baseline(current, baseline)
+    marker_regressions, marker_improvements = diff_marker_baseline(
+        marker_current, marker_baseline
+    )
+    regressions.extend(marker_regressions)
+    improvements.extend(marker_improvements)
     _print_report(args.output_format, regressions, improvements, current, baseline)
 
     return 1 if regressions else 0
