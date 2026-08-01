@@ -141,6 +141,10 @@
     {
       "task": "Act on adversarial review of PR #4136",
       "outcome": "Reviewer raised a Critical finding on .claude/skills/ paths in shipped Copilot skills. Verified counts identical on main and HEAD and zero such lines added by the diff; check_skill_md_exec_portability.py reports 738 grandfathered invocations against a baseline of 738. Pre-existing tracked debt, not a regression, so not fixed in that PR. The one legitimate finding, an incomplete vendor-portability declaration I had authored, was fixed."
+    },
+    {
+      "task": "Correct the memory store that made the wrong-tree edit likely",
+      "outcome": "An untruncated search found 36 memories touching agent generation, four of which gave incomplete or false edit-location guidance. architecture-agent-mirror-two-pipeline.md listed .claude/agents/ as a GENERATED destination; agent-generation-edit-locations.md named a PowerShell generator that no longer exists and left .github/agents/ as an unanswered question; two recipe memories named only two of the four files to edit. All four corrected against a negative control: reverting only .claude/agents/orchestrator.md and running build_all.py leaves it reverted, proving it is hand-maintained. The first duplicate check was truncated with head -10 and missed these; the untruncated grep is what surfaced them."
     }
   ],
   "endingCommit": "5d1f67d4f6",

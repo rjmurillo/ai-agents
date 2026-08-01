@@ -2,10 +2,20 @@
 
 ## Recipe
 
-To change shared agent behavior, edit BOTH of these in the same change, then regenerate:
+To change shared agent behavior, edit the template plus all three
+hand-maintained copies in the same change, then regenerate:
 
-1. `src/claude/<agent>.md` , the hand-maintained Claude agent prompt (carries Claude-specific `name`/`model` frontmatter). NOT generated; edit directly.
-2. `templates/agents/<agent>.shared.md` , the shared body the Copilot CLI and VS Code copies are generated from.
+1. `templates/agents/<agent>.shared.md` , the shared body the Copilot CLI and VS Code copies are generated from. Edit this first.
+2. `src/claude/<agent>.md` , hand-maintained Claude agent prompt (carries Claude-specific `name`/`model` frontmatter). NOT generated; edit directly.
+3. `.claude/agents/<agent>.md` , hand-maintained Claude Code copy. NOT generated; edit directly.
+4. `.github/agents/<agent>.agent.md` , hand-maintained GitHub Copilot self-host copy. NOT generated; edit directly.
+
+Correction verified 2026-07-31: this recipe previously named only items 1 and 2.
+Omitting items 3 and 4 is how PR #1715 shipped an orchestrator section to the
+Claude copies and never to Copilot. Negative control: revert only
+`.claude/agents/orchestrator.md` to `origin/main`, run `build_all.py` (exit 0),
+and the reverted content stays reverted. See
+`.serena/memories/decision-agent-files-are-not-canonical.md`.
 
 Then run `python3 build/generate_agents.py` to refresh the generated copies (`src/copilot-cli/agents/`, `src/vs-code-agents/`).
 
