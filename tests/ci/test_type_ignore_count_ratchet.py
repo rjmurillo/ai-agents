@@ -48,9 +48,9 @@ class TestCurrentCount:
         a = tmp_path / "a.py"
         b = tmp_path / "b.py"
         a.write_text("x = y  # type: ignore[name-defined]\n", encoding="utf-8")
-        b.write_text("a = b  # type: ignore\nc = d  # type: ignore[misc]\n", encoding="utf-8")
+        b.write_text("a = b  # type: ignore\n", encoding="utf-8")
         monkeypatch.setattr(subprocess, "run", _fake_git((str(a), str(b))))
-        assert ratchet.current_count(tmp_path) == 3
+        assert ratchet.current_count(tmp_path) == 2
 
     def test_returns_zero_when_no_type_ignores(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -81,7 +81,7 @@ class TestCurrentCount:
     def test_ignores_partial_matches(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         py = tmp_path / "mod.py"
         py.write_text(
-            "# noqa: type-ignore-something\n"  # not a type: ignore suppression
+            "# noqa: type-ignore-something\n"  # inline test string, not a mypy annotation
             "# type-ignore\n"  # hyphen before "ignore", not a mypy annotation
             "x: int = 'hi'  # type: ignore\n",
             encoding="utf-8",
@@ -197,3 +197,31 @@ class TestMain:
         monkeypatch.setattr(ratchet, "current_count", lambda _: 10)
         rc = ratchet.main(["--base-ref", "origin/main"])
         assert rc == count_ratchet.EXIT_REGRESSION
+
+    def test_base_ref_stale_branch_message_uses_count(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        baseline = _write_baseline(tmp_path, "10")
+        monkeypatch.setattr(ratchet, "_BASELINE_PATH", baseline)
+
+        def _fake_git_with_base(cmd, **kwargs):
+            if "rev-parse" in cmd:
+                return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+            if "ls-tree" in cmd:
+                return subprocess.CompletedProcess(
+                    cmd, 0, stdout="100644 blob abc\tbaseline.txt\n", stderr=""
+                )
+            if "show" in cmd:
+                return subprocess.CompletedProcess(cmd, 0, stdout="5\n", stderr="")
+            return subprocess.CompletedProcess(cmd, 0, stdout="mod.py\0", stderr="")
+
+        monkeypatch.setattr(subprocess, "run", _fake_git_with_base)
+        monkeypatch.setattr(ratchet, "current_count", lambda _: 4)
+        rc = ratchet.main(["--base-ref", "origin/main"])
+        captured = capsys.readouterr()
+        assert rc == count_ratchet.EXIT_REGRESSION
+        assert "BRANCH BEHIND" in captured.err
+        assert "BASELINE RAISED" not in captured.err

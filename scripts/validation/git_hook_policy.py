@@ -100,15 +100,39 @@ RUFF_COUNT_RATCHET = REPO_ROOT / "scripts" / "ci" / "ruff_count_ratchet.py"
 BANDIT_SUFFIXES = frozenset({".py", ".pyw"})
 TEXTUAL_DIFF_FLAGS = ("--no-ext-diff", "--no-textconv", "--text")
 EMPTY_TREE_SHA1 = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
-ACTIVE_GIT_OPERATION_FILES = (
-    ("MERGE_HEAD", "merge", "git commit to finish the merge or git merge --abort"),
-    ("REBASE_HEAD", "rebase", "git rebase --continue or git rebase --abort"),
+# Git deletes MERGE_HEAD and CHERRY_PICK_HEAD when those operations finish, so
+# their presence means the operation is still open. REBASE_HEAD is not usable
+# the same way: measured on git 2.43.0, it survives a conflicted rebase that has
+# already been continued to completion, so a gate keyed on it blocks every push
+# afterwards. Git's own code calls delete_ref on REBASE_HEAD (builtin/rebase.c
+# and sequencer.c in v2.43.0), so treat this as a cleanup gap rather than a
+# documented guarantee, and re-measure before relying on it in another version.
+# Rebase state lives in the rebase-merge and rebase-apply directories, which git
+# does remove on completion, so those are what this table tracks. The kind field
+# keeps a stray directory named MERGE_HEAD from reading as an open merge.
+ACTIVE_GIT_OPERATION_PATHS = (
+    (
+        "MERGE_HEAD",
+        "file",
+        "merge",
+        "git commit to finish the merge or git merge --abort",
+    ),
+    ("rebase-merge", "dir", "rebase", "git rebase --continue or git rebase --abort"),
+    ("rebase-apply", "dir", "rebase", "git rebase --continue or git rebase --abort"),
     (
         "CHERRY_PICK_HEAD",
+        "file",
         "cherry-pick",
         "git cherry-pick --continue or git cherry-pick --abort",
     ),
 )
+# git am and the apply-backend rebase both use the rebase-apply directory, and a
+# marker file inside it says which one is running. The remedies are not
+# interchangeable: git rebase --continue during a git am exits 128 with
+# "It looks like 'git am' is in progress. Cannot rebase."
+GIT_AM_MARKER = "applying"
+GIT_AM_OPERATION = "git am"
+GIT_AM_REMEDY = "git am --continue or git am --abort"
 SEMGREP_POWERSHELL_RULES = frozenset(
     {
         "yaml.github-actions.security.curl-eval.curl-eval",
@@ -1476,10 +1500,18 @@ def _git_path(repo_root: Path, path_name: str) -> Path | None:
 
 
 def _active_git_operation(repo_root: Path) -> tuple[str, str] | None:
-    for path_name, operation, remedy in ACTIVE_GIT_OPERATION_FILES:
+    for path_name, kind, operation, remedy in ACTIVE_GIT_OPERATION_PATHS:
         git_path = _git_path(repo_root, path_name)
-        if git_path is not None and git_path.is_file():
-            return operation, remedy
+        if git_path is None:
+            continue
+        if kind == "dir":
+            if not git_path.is_dir():
+                continue
+            if (git_path / GIT_AM_MARKER).is_file():
+                return GIT_AM_OPERATION, GIT_AM_REMEDY
+        elif not git_path.is_file():
+            continue
+        return operation, remedy
     return None
 
 
@@ -4427,8 +4459,8 @@ def _suppression_renames(
     return _parse_suppression_renames(result.stdout, context=context)
 
 
-PATH_SEPARATOR_RE = re.compile(r"[\\/]")
 
+PATH_SEPARATOR_RE = re.compile(r"[\\/]")
 
 def _step_defeats_bash_subparse(shell: str | None, run: str) -> bool:
     if _body_declares_its_own_interpreter(run):
@@ -4900,6 +4932,75 @@ def _unpushed_commit_count(update: PushUpdate, repo_root: Path) -> int | None:
         return None
 
 
+def _new_commits_for_branch(update: PushUpdate, branch: str | None, repo_root: Path) -> int | None:
+    """Count commits in this push that are not yet on the remote branch.
+
+    Returns None on any git failure. Used for the needs-split bypass: a PR
+    labelled needs-split may still receive small fix commits even when the
+    branch is over the total limit (issue #3895).
+    """
+    if not branch:
+        return None
+    result = _run_git(
+        repo_root,
+        ["rev-list", "--count", update.source.local_sha, f"^origin/{branch}"],
+    )
+    if result.returncode != 0:
+        return None
+    try:
+        return int(result.stdout.strip())
+    except ValueError:
+        return None
+
+
+# Maximum new commits allowed through the needs-split bypass per push.
+# The bypass is for small fix/merge commits while the PR awaits splitting, not
+# for landing an entirely new batch of work (issue #3895).
+_NEEDS_SPLIT_NEW_COMMIT_CAP = 5
+
+_NEEDS_SPLIT_LABEL = "needs-split"
+
+
+def _check_needs_split_bypass(
+    update: PushUpdate, branch: str | None, repo_root: Path
+) -> int | None:
+    """Return 0 if needs-split label permits this push, None if not.
+
+    Checks the PR for a needs-split label and validates that the number of new
+    commits in this push stays within _NEEDS_SPLIT_NEW_COMMIT_CAP (issue #3895).
+    """
+    split_args = [
+        sys.executable,
+        "scripts/validation/check_pr_bypass_label.py",
+        "--label",
+        _NEEDS_SPLIT_LABEL,
+    ]
+    if branch:
+        split_args.extend(["--branch", branch])
+    split_check = _run_command(split_args, repo_root)
+    if split_check.returncode != 0:
+        return None
+    new_count = _new_commits_for_branch(update, branch, repo_root)
+    if new_count is not None and new_count <= _NEEDS_SPLIT_NEW_COMMIT_CAP:
+        print(
+            f"NOTE: PR is labelled {_NEEDS_SPLIT_LABEL!r}; this push adds "
+            f"{new_count} new commit(s) (cap {_NEEDS_SPLIT_NEW_COMMIT_CAP}). "
+            "Allowing while splitting is in progress.",
+        )
+        return 0
+    cap_msg = (
+        f"{new_count} new commit(s) exceeds the needs-split cap ({_NEEDS_SPLIT_NEW_COMMIT_CAP})"
+        if new_count is not None
+        else "could not count new commits"
+    )
+    print(
+        f"NOTE: PR has {_NEEDS_SPLIT_LABEL!r} but {cap_msg}; "
+        "use commit-limit-bypass to override the ceiling entirely.",
+        file=sys.stderr,
+    )
+    return None
+
+
 def _check_commit_limit(update: PushUpdate, repo_root: Path) -> int:
     result = _run_git(repo_root, ["rev-list", "--count", update.range_spec])
     if result.returncode != 0:
@@ -4930,6 +5031,14 @@ def _check_commit_limit(update: PushUpdate, repo_root: Path) -> int:
             f"limit is {limit}.",
         )
         return 0
+    # needs-split bypass (issue #3895): a PR labelled needs-split is already
+    # scheduled for splitting. Block only when this push itself is large; allow
+    # small fix pushes (up to _NEEDS_SPLIT_NEW_COMMIT_CAP new commits) so the
+    # author can address review comments without being forced onto --no-verify.
+    # commit-limit-bypass (checked above) remains the unconditional escape.
+    needs_split_rc = _check_needs_split_bypass(update, branch, repo_root)
+    if needs_split_rc is not None:
+        return needs_split_rc
     _print_process_output(bypass, stdout_stream=sys.stderr)
     print(f"ERROR: push has {commit_count} commits, limit is {limit}", file=sys.stderr)
     return 1

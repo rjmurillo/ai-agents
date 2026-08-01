@@ -227,12 +227,24 @@ def run(
     counter: Callable[[Path], int | None],
     scan_error: str,
     regression_advice: str,
+    lister: Callable[[Path], list[str] | None] | None = None,
 ) -> int:
-    """Evaluate one ratchet. ``counter`` returns the current count, or None."""
+    """Evaluate one ratchet. ``counter`` returns the current count, or None.
+
+    ``lister`` is an optional function that returns the full violation list.
+    When provided and a regression is detected, the violations are printed to
+    stderr so contributors can see what needs fixing without a separate run
+    (issue #3902).
+    """
     baseline = read_baseline(args.baseline)
     if baseline is None:
         print(f"error: baseline missing or malformed: {args.baseline}", file=sys.stderr)
         return EXIT_CONFIG
+
+    count = counter(args.repo_root.resolve())
+    if count is None:
+        print(f"error: {scan_error}", file=sys.stderr)
+        return EXIT_EXTERNAL
 
     if args.base_ref:
         root = args.repo_root.resolve()
@@ -251,19 +263,23 @@ def run(
                 )
                 return EXIT_EXTERNAL
             if baseline > base:
-                print(
-                    f"{label}: BASELINE RAISED. {base} -> {baseline} "
-                    f"(+{baseline - base}) against {args.base_ref}. The baseline "
-                    f"may only fall. Fix the violations instead of widening the "
-                    f"allowance.",
-                    file=sys.stderr,
-                )
+                if count <= base:
+                    print(
+                        f"{label}: BRANCH BEHIND. Baseline file records {baseline}, "
+                        f"but {args.base_ref} records {base} and current count is "
+                        f"{count}. Merge or rebase onto {args.base_ref} to pick up "
+                        "the lowered baseline.",
+                        file=sys.stderr,
+                    )
+                else:
+                    print(
+                        f"{label}: BASELINE RAISED. {base} -> {baseline} "
+                        f"(+{baseline - base}) against {args.base_ref}. The baseline "
+                        f"may only fall. Current count is {count}; fix the "
+                        f"violations instead of widening the allowance.",
+                        file=sys.stderr,
+                    )
                 return EXIT_REGRESSION
-
-    count = counter(args.repo_root.resolve())
-    if count is None:
-        print(f"error: {scan_error}", file=sys.stderr)
-        return EXIT_EXTERNAL
 
     if count > baseline:
         print(
@@ -271,6 +287,19 @@ def run(
             f"(+{count - baseline}). {regression_advice}",
             file=sys.stderr,
         )
+        if lister is not None:
+            violations = lister(args.repo_root.resolve())
+            if violations:
+                max_lines = 40
+                lines = violations[:max_lines]
+                print("\nCurrent violations:", file=sys.stderr)
+                for line in lines:
+                    print(f"  {line}", file=sys.stderr)
+                if len(violations) > max_lines:
+                    print(
+                        f"  ... and {len(violations) - max_lines} more",
+                        file=sys.stderr,
+                    )
         return EXIT_REGRESSION
 
     if count < baseline:
