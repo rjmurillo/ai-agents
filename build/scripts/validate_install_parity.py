@@ -210,7 +210,15 @@ _FENCE_RE = re.compile(r"^ {0,3}(?P<marker>`{3,}|~{3,})")
 
 
 def _git_show(base: str, path: str, root: Path) -> str | None:
-    """Return ``path`` content at ``base``, or None when unavailable."""
+    """Return ``path`` content at ``base``, or None when unavailable.
+
+    ``UnicodeDecodeError`` is caught alongside ``OSError`` because it is a
+    ``ValueError``, not an ``OSError``: ``text=True`` decodes git's stdout
+    with the locale codec and strict errors, so a base revision holding
+    undecodable bytes raised out of here even when the current file was
+    clean UTF-8. That crashed the run with a traceback instead of failing
+    closed, which is what every caller is written to expect.
+    """
     try:
         proc = subprocess.run(
             ["git", "show", f"{base}:{path}"],
@@ -219,7 +227,7 @@ def _git_show(base: str, path: str, root: Path) -> str | None:
             text=True,
             check=False,
         )
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return None
     return proc.stdout if proc.returncode == 0 else None
 

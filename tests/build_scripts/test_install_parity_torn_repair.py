@@ -387,3 +387,25 @@ def test_touched_member_missing_the_addition_fails_closed(
     )
     violations = vip.find_violations(_TOUCHED, repo_root=torn_repo, base="HEAD")
     assert violations != []
+
+
+# Negative: a base revision holding undecodable bytes must fail closed, not
+# raise. ``_git_show`` runs git with ``text=True``, which decodes stdout with
+# strict errors, and ``UnicodeDecodeError`` is a ``ValueError`` rather than an
+# ``OSError``. It therefore escaped the original handler whenever the working
+# copy was clean UTF-8 but the base blob was not, crashing the run with a
+# traceback while ``_added_sections`` documents that it returns None.
+def test_undecodable_base_revision_fails_closed(tmp_path: Path) -> None:
+    root = tmp_path / "repo"
+    root.mkdir()
+    subprocess.run(["git", "init", "-q", "."], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t.t"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=root, check=True)
+    target = root / "f.md"
+    target.write_bytes(b"## A\nhi \x80\x81 bad\n")
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+    subprocess.run(["git", "commit", "-qm", "base"], cwd=root, check=True)
+    target.write_text("## A\n\nhi clean\n\n## B\n\nadded\n")
+
+    assert vip._git_show("HEAD", "f.md", root) is None
+    assert vip._added_sections(root, "HEAD", "f.md") is None
