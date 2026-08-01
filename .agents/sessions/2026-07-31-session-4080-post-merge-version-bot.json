@@ -150,7 +150,7 @@
       "result": "New rule: do NOT bump parity manifests manually; bot handles it after merge"
     }
   ],
-  "endingCommit": "6af7749a1504c0978f1a5dc651dc2a5981193c17",
+  "endingCommit": "bc5365dde4b36805679a46f15eff1e587c53bbb1",
   "nextSteps": [
     "Issue #4080 closed by PR merge",
     "The 11 manifest-only conflicting PRs can rebase and remove their manual version bumps"
