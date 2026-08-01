@@ -226,8 +226,15 @@ def run(
     counter: Callable[[Path], int | None],
     scan_error: str,
     regression_advice: str,
+    lister: Callable[[Path], list[str] | None] | None = None,
 ) -> int:
-    """Evaluate one ratchet. ``counter`` returns the current count, or None."""
+    """Evaluate one ratchet. ``counter`` returns the current count, or None.
+
+    ``lister`` is an optional function that returns the full violation list.
+    When provided and a regression is detected, the violations are printed to
+    stderr so contributors can see what needs fixing without a separate run
+    (issue #3902).
+    """
     baseline = read_baseline(args.baseline)
     if baseline is None:
         print(f"error: baseline missing or malformed: {args.baseline}", file=sys.stderr)
@@ -270,6 +277,19 @@ def run(
             f"(+{count - baseline}). {regression_advice}",
             file=sys.stderr,
         )
+        if lister is not None:
+            violations = lister(args.repo_root.resolve())
+            if violations:
+                max_lines = 40
+                lines = violations[:max_lines]
+                print("\nCurrent violations:", file=sys.stderr)
+                for line in lines:
+                    print(f"  {line}", file=sys.stderr)
+                if len(violations) > max_lines:
+                    print(
+                        f"  ... and {len(violations) - max_lines} more",
+                        file=sys.stderr,
+                    )
         return EXIT_REGRESSION
 
     if count < baseline:
