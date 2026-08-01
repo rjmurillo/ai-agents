@@ -19,6 +19,13 @@ Battery file format:
 Each entry may override ``command``. A mutation is ``CAUGHT`` when the command
 fails, because the test suite detected the mutant. It is ``MISSED`` when the
 command succeeds, because the mutant survived.
+
+Exit codes:
+    0 - Success: all mutations were caught
+    1 - Logic error: one or more mutations were missed
+    2 - Config error: battery JSON, entry shape, or source anchors are invalid
+    3 - External error: source or process I/O failed
+    130 - Script-specific interrupt: source was restored after Ctrl-C
 """
 
 from __future__ import annotations
@@ -78,7 +85,10 @@ class ValidationProblem:
 
 def load_battery(path: Path) -> list[MutationEntry]:
     """Load mutation entries from a JSON battery file."""
-    raw = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise BatteryConfigError(f"battery file is not valid JSON: {exc.msg}") from exc
     if not isinstance(raw, dict):
         raise BatteryConfigError("battery root must be a JSON object")
 

@@ -256,6 +256,37 @@ class TestStreaming:
 
 
 class TestCli:
+    def test_valid_battery_runs_without_config_error(self) -> None:
+        workspace = _case_dir("cli_valid")
+        source = workspace / "subject.py"
+        source.write_text("def guard() -> bool:\n    return True\n", encoding="utf-8")
+        battery = workspace / "battery.json"
+        battery.write_text(
+            json.dumps(
+                {
+                    "command": [sys.executable, "-c", "raise SystemExit(1)"],
+                    "entries": [
+                        {
+                            "name": "caught",
+                            "path": "subject.py",
+                            "old": "return True",
+                            "new": "return False",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = subprocess.run(
+            [sys.executable, "-m", "scripts.testing.mutation_harness", str(battery)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 0
+
     def test_config_error_has_distinct_exit_code(self) -> None:
         workspace = _case_dir("cli_config")
         source = workspace / "subject.py"
@@ -287,3 +318,45 @@ class TestCli:
 
         assert result.returncode == 2
         assert "CONFIG_ERROR" in result.stderr
+
+    def test_malformed_json_battery_has_config_exit_code(self) -> None:
+        workspace = _case_dir("cli_malformed_json")
+        battery = workspace / "battery.json"
+        battery.write_text('{"entries": [', encoding="utf-8")
+
+        result = subprocess.run(
+            [sys.executable, "-m", "scripts.testing.mutation_harness", str(battery)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 2
+
+    def test_empty_battery_file_has_config_exit_code(self) -> None:
+        workspace = _case_dir("cli_empty_json")
+        battery = workspace / "battery.json"
+        battery.write_text("", encoding="utf-8")
+
+        result = subprocess.run(
+            [sys.executable, "-m", "scripts.testing.mutation_harness", str(battery)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 2
+
+    def test_json_scalar_battery_has_config_exit_code(self) -> None:
+        workspace = _case_dir("cli_scalar_json")
+        battery = workspace / "battery.json"
+        battery.write_text("[]", encoding="utf-8")
+
+        result = subprocess.run(
+            [sys.executable, "-m", "scripts.testing.mutation_harness", str(battery)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 2
