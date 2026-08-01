@@ -96,6 +96,11 @@ def _git(
     *args: str,
     check: bool = True,
 ) -> subprocess.CompletedProcess[str]:
+    # GIT_EDITOR and GIT_SEQUENCE_EDITOR outrank -c core.editor, so a developer
+    # who exports either one can make an editor-launching git command in a test
+    # fail before the assertion under test ever runs. Pin them to true so the
+    # suite does not depend on the invoking shell.
+    env = {**os.environ, "GIT_EDITOR": "true", "GIT_SEQUENCE_EDITOR": "true"}
     return subprocess.run(
         ["git", *args],
         cwd=repo,
@@ -104,6 +109,7 @@ def _git(
         errors="replace",
         capture_output=True,
         check=check,
+        env=env,
     )
 
 
@@ -2887,6 +2893,148 @@ def test_pushed_semgrep_detects_collision_with_unchanged_head_path(
     assert policy.scan_pushed_heads(io.StringIO(), tmp_path) == 2
 
 
+def test_semgrep_uses_sibling_binary_without_version_probe(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    policy._resolve_semgrep_executable.cache_clear()
+    policy._semgrep_pinned_version.cache_clear()
+    bin_dir = tmp_path / "venv" / "bin"
+    bin_dir.mkdir(parents=True)
+    sibling = bin_dir / ("semgrep.exe" if os.name == "nt" else "semgrep")
+    sibling.write_text("", encoding="utf-8")
+    sibling.chmod(0o755)
+    monkeypatch.setattr(policy.sys, "executable", str(bin_dir / "python"))
+    calls: list[list[str]] = []
+
+    def fake_run(
+        args: Sequence[str],
+        *_args: object,
+        **_kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(list(args))
+        assert args[1] != "--version"
+        return _semgrep_completed(0, [tmp_path / "source.py"])
+
+    monkeypatch.setattr(policy, "_run_command", fake_run)
+
+    result = policy._run_semgrep_tree(tmp_path, ["source.py"], tmp_path)
+
+    assert result.returncode == 0
+    assert calls[0][0] == str(sibling)
+    policy._resolve_semgrep_executable.cache_clear()
+    policy._semgrep_pinned_version.cache_clear()
+
+
+def test_semgrep_falls_back_to_matching_path_binary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    policy._resolve_semgrep_executable.cache_clear()
+    policy._semgrep_pinned_version.cache_clear()
+    bin_dir = tmp_path / "venv" / "bin"
+    bin_dir.mkdir(parents=True)
+    fallback = tmp_path / "path-semgrep"
+    monkeypatch.setattr(policy.sys, "executable", str(bin_dir / "python"))
+    monkeypatch.setattr(policy.shutil, "which", lambda command: str(fallback))
+    monkeypatch.setattr(policy, "_semgrep_pinned_version", lambda _repo_root=tmp_path: "1.171.0")
+    calls: list[list[str]] = []
+
+    def fake_run(
+        args: Sequence[str],
+        *_args: object,
+        **_kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(list(args))
+        if args == [str(fallback), "--version"]:
+            return subprocess.CompletedProcess(args, 0, "1.171.0\n", "")
+        return _semgrep_completed(0, [tmp_path / "source.py"])
+
+    monkeypatch.setattr(policy, "_run_command", fake_run)
+
+    result = policy._run_semgrep_tree(tmp_path, ["source.py"], tmp_path)
+
+    assert result.returncode == 0
+    assert calls[0] == [str(fallback), "--version"]
+    assert calls[1][0] == str(fallback)
+    policy._resolve_semgrep_executable.cache_clear()
+
+
+def test_semgrep_fallback_version_mismatch_blocks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    policy._resolve_semgrep_executable.cache_clear()
+    policy._semgrep_pinned_version.cache_clear()
+    bin_dir = tmp_path / "venv" / "bin"
+    bin_dir.mkdir(parents=True)
+    fallback = tmp_path / "path-semgrep"
+    monkeypatch.setattr(policy.sys, "executable", str(bin_dir / "python"))
+    monkeypatch.setattr(policy.shutil, "which", lambda command: str(fallback))
+    monkeypatch.setattr(policy, "_semgrep_pinned_version", lambda _repo_root=tmp_path: "1.171.0")
+    calls: list[list[str]] = []
+
+    def fake_run(
+        args: Sequence[str],
+        *_args: object,
+        **_kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(list(args))
+        return subprocess.CompletedProcess(args, 0, "1.153.1\n", "")
+
+    monkeypatch.setattr(policy, "_run_command", fake_run)
+
+    result = policy._run_semgrep_tree(tmp_path, ["source.py"], tmp_path)
+
+    assert result.returncode == 2
+    assert "pyproject.toml pins 1.171.0" in result.stderr
+    assert str(fallback) in result.stderr
+    assert "1.153.1" in result.stderr
+    assert calls == [[str(fallback), "--version"]]
+    policy._resolve_semgrep_executable.cache_clear()
+
+
+def test_semgrep_missing_pyproject_reports_pin_read_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    policy._resolve_semgrep_executable.cache_clear()
+    policy._semgrep_pinned_version.cache_clear()
+    bin_dir = tmp_path / "venv" / "bin"
+    bin_dir.mkdir(parents=True)
+    fallback = tmp_path / "path-semgrep"
+    monkeypatch.setattr(policy.sys, "executable", str(bin_dir / "python"))
+    monkeypatch.setattr(policy.shutil, "which", lambda command: str(fallback))
+    monkeypatch.setattr(
+        policy,
+        "_run_command",
+        lambda args, *_args, **_kwargs: subprocess.CompletedProcess(
+            args,
+            0,
+            "1.171.0\n",
+            "",
+        ),
+    )
+
+    result = policy._run_semgrep_tree(tmp_path, ["source.py"], tmp_path)
+
+    assert result.returncode == 2
+    assert "cannot read semgrep pin from" in result.stderr
+    assert "pyproject.toml" in result.stderr
+    assert "semgrep executable not found" not in result.stderr
+    policy._resolve_semgrep_executable.cache_clear()
+    policy._semgrep_pinned_version.cache_clear()
+
+
+def test_semgrep_pin_is_read_from_pyproject() -> None:
+    policy._semgrep_pinned_version.cache_clear()
+    pyproject = PROJECT_ROOT / "pyproject.toml"
+    matches = re.findall(r'^\s*"semgrep==([^"]+)",\s*$', pyproject.read_text(), re.MULTILINE)
+
+    assert matches == [policy._semgrep_pinned_version(PROJECT_ROOT)] * 2
+    policy._semgrep_pinned_version.cache_clear()
+
+
 def test_semgrep_missing_executable_blocks(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -4475,7 +4623,6 @@ def test_push_policy_blocks_resolved_uncommitted_merge(
 @pytest.mark.parametrize(
     ("head_file", "operation", "remedy"),
     [
-        ("REBASE_HEAD", "rebase", "git rebase --continue"),
         ("CHERRY_PICK_HEAD", "cherry-pick", "git cherry-pick --continue"),
     ],
 )
@@ -4500,6 +4647,171 @@ def test_push_policy_names_active_git_operation(
     error = capsys.readouterr().err
     assert f"{operation} in progress" in error
     assert remedy in error
+
+
+def test_push_policy_names_rebase_when_apply_dir_has_no_marker(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A marker-less rebase-apply is an apply-backend rebase, not a `git am`.
+
+    Negative counterpart to test_push_policy_reports_git_am_with_its_own_remedy,
+    which covers the marked case with a real `git am`. Nothing covered the other
+    side, so a marker check that widened to "any rebase-apply is a git am" would
+    have sent every apply-backend rebase to `git am --continue`, which fails.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked.txt", "base\n")
+    apply_dir = Path(_git(repo, "rev-parse", "--git-path", "rebase-apply").stdout.strip())
+    if not apply_dir.is_absolute():
+        apply_dir = repo / apply_dir
+    apply_dir.mkdir(parents=True, exist_ok=True)
+
+    result = policy.check_push_refs(io.StringIO(), repo)
+
+    assert result == 1
+    error = capsys.readouterr().err
+    assert "rebase in progress" in error
+    assert "git rebase --continue or git rebase --abort" in error
+    assert "git am --continue" not in error
+
+
+def _start_conflicted_rebase(repo: Path) -> None:
+    """Leave *repo* stopped mid-rebase on a conflict.
+
+    Both branches rewrite the same line, so replaying `topic` onto `other`
+    always conflicts and git halts with its rebase state directory in place.
+    """
+    _init_repo(repo)
+    _commit_file(repo, "tracked.txt", "base\n")
+    _git(repo, "checkout", "-q", "-b", "other")
+    _commit_file(repo, "tracked.txt", "other\n")
+    _git(repo, "checkout", "-q", "feature/test")
+    _commit_file(repo, "tracked.txt", "topic\n")
+    _git(repo, "rebase", "other", check=False)
+
+
+def test_push_policy_blocks_while_rebase_is_actually_in_progress(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = tmp_path / "repo"
+    _start_conflicted_rebase(repo)
+
+    result = policy.check_push_refs(io.StringIO(), repo)
+
+    assert result == 1
+    error = capsys.readouterr().err
+    assert "rebase in progress" in error
+    assert "git rebase --continue" in error
+
+
+def test_push_policy_allows_push_after_a_conflicted_rebase_completes(
+    tmp_path: Path,
+) -> None:
+    """A finished rebase must not block the push that follows it.
+
+    Measured on git 2.43.0: REBASE_HEAD survives a conflicted rebase that has
+    already been continued to completion. Git's own code calls delete_ref on it,
+    so this is a cleanup gap rather than a documented guarantee. Treating the
+    leftover pointer as live state blocked every push after a conflict
+    resolution, and the advice it printed ("git rebase --continue") failed with
+    "No rebase in progress?", leaving `git update-ref -d REBASE_HEAD` as the
+    only way out.
+    """
+    repo = tmp_path / "repo"
+    _start_conflicted_rebase(repo)
+    _write_file(repo, "tracked.txt", "resolved\n")
+    _git(repo, "add", "tracked.txt")
+    _git(repo, "-c", "core.editor=true", "rebase", "--continue")
+
+    rebase_head = Path(_git(repo, "rev-parse", "--git-path", "REBASE_HEAD").stdout.strip())
+    if not rebase_head.is_absolute():
+        rebase_head = repo / rebase_head
+    assert rebase_head.is_file(), "expected git to leave REBASE_HEAD behind"
+
+    assert policy.check_push_refs(io.StringIO(), repo) == 0
+
+
+def test_push_policy_reports_git_am_with_its_own_remedy(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A stopped `git am` must not be reported as a rebase.
+
+    git am and the apply-backend rebase share the rebase-apply directory, so a
+    gate that keys on the directory alone calls both "rebase". The remedies are
+    not interchangeable: `git rebase --continue` during an am exits 128 with
+    "It looks like 'git am' is in progress. Cannot rebase.", which is the same
+    dead-end this gate exists to stop printing.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked.txt", "base\n")
+    _git(repo, "checkout", "-q", "-b", "other")
+    _commit_file(repo, "tracked.txt", "other\n")
+    patch_dir = tmp_path / "patches"
+    _git(repo, "format-patch", "-1", "-q", "-o", str(patch_dir))
+    _git(repo, "checkout", "-q", "feature/test")
+    _commit_file(repo, "tracked.txt", "topic\n")
+    patches = sorted(patch_dir.glob("*.patch"))
+    assert patches, "expected format-patch to emit a patch"
+    _git(repo, "am", str(patches[0]), check=False)
+
+    rebase_apply = Path(_git(repo, "rev-parse", "--git-path", "rebase-apply").stdout.strip())
+    if not rebase_apply.is_absolute():
+        rebase_apply = repo / rebase_apply
+    assert (rebase_apply / "applying").exists(), "expected git am to leave its marker"
+
+    assert policy.check_push_refs(io.StringIO(), repo) == 1
+    error = capsys.readouterr().err
+    assert "git am in progress" in error
+    assert "git am --continue" in error
+    assert "git rebase --continue" not in error
+
+
+def test_push_policy_ignores_a_directory_named_like_a_pseudo_ref(tmp_path: Path) -> None:
+    """MERGE_HEAD is a file. A directory at that path is not an open merge."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked.txt", "base\n")
+    merge_head = Path(_git(repo, "rev-parse", "--git-path", "MERGE_HEAD").stdout.strip())
+    if not merge_head.is_absolute():
+        merge_head = repo / merge_head
+    merge_head.mkdir(parents=True)
+
+    assert policy.check_push_refs(io.StringIO(), repo) == 0
+
+
+def test_push_policy_ignores_a_directory_named_like_the_git_am_marker(
+    tmp_path: Path,
+) -> None:
+    """The git-am marker is a file. A directory there is not an open ``git am``.
+
+    ``rebase-apply`` is shared by ``git am`` and the apply-backend rebase, and
+    only the marker inside it tells them apart. Testing the marker with
+    ``exists()`` accepted a directory and reported ``git am`` for a rebase,
+    which hands back ``git am --continue``. That command exits 128 during a
+    rebase, so the wrong-kind marker reintroduces the dead-end remedy this
+    module exists to remove.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked.txt", "base\n")
+    rebase_apply = Path(
+        _git(repo, "rev-parse", "--git-path", "rebase-apply").stdout.strip()
+    )
+    if not rebase_apply.is_absolute():
+        rebase_apply = repo / rebase_apply
+    (rebase_apply / policy.GIT_AM_MARKER).mkdir(parents=True)
+
+    result = policy._active_git_operation(repo)
+
+    assert result is not None
+    operation, remedy = result
+    assert (operation, remedy) != (policy.GIT_AM_OPERATION, policy.GIT_AM_REMEDY)
+    assert operation == "rebase"
 
 
 def test_push_policy_allows_clean_tree_without_active_git_operation(tmp_path: Path) -> None:
@@ -5318,6 +5630,159 @@ def test_main_merge_detection_handles_git_errors(
 
     assert not policy._contains_main_merge(update, tmp_path)
     assert not policy._merge_has_main_parent("merge", tmp_path)
+
+
+def test_needs_split_bypass_allows_small_push_on_large_branch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """needs-split label + <= 5 new commits bypasses the limit (issue #3895).
+
+    PR #3688 scenario: branch has 52 commits (over limit) but only adds
+    3 new commits in this push to address review feedback. The push must
+    succeed because splitting is already in progress.
+    """
+    update = policy.PushUpdate(
+        source=policy.PushRef("refs/heads/fix/big", "a" * 40, "refs/heads/fix/big", "b" * 40),
+        base="base",
+        head="head",
+        range_spec="base..head",
+        destination_branch="fix/big",
+    )
+
+    def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        if args[:2] == ["rev-list", "--count"] and "^origin/" in " ".join(args):
+            # New commits only: 3
+            return _completed(0, "3\n")
+        if args[:2] == ["rev-list", "--count"]:
+            # Total branch commits: 52
+            return _completed(0, "52\n")
+        return _completed(0)
+
+    call_count = [0]
+
+    def fake_command(
+        args: Sequence[str], _root: Path, **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        call_count[0] += 1
+        if "--label" in args and "needs-split" in args:
+            return _completed(0, "needs-split present on PR #3688\n")
+        # commit-limit-bypass not present
+        return _completed(1, stdout="no commit-limit-bypass label (PR #3688)\n")
+
+    monkeypatch.setattr(policy, "_run_git", fake_git)
+    monkeypatch.setattr(policy, "_run_command", fake_command)
+
+    assert policy._check_commit_limit(update, tmp_path) == 0
+    assert "needs-split" in capsys.readouterr().out
+
+
+def test_needs_split_bypass_blocks_when_new_commits_exceed_cap(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """needs-split label does NOT bypass when this push is itself large (issue #3895).
+
+    If the author is adding 10 commits to an already-over-limit branch, the
+    needs-split bypass must not apply. Only commit-limit-bypass unlocks this.
+    """
+    update = policy.PushUpdate(
+        source=policy.PushRef("refs/heads/fix/big", "a" * 40, "refs/heads/fix/big", "b" * 40),
+        base="base",
+        head="head",
+        range_spec="base..head",
+        destination_branch="fix/big",
+    )
+
+    def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        if args[:2] == ["rev-list", "--count"] and "^origin/" in " ".join(args):
+            # New commits: 10 (over the cap of 5)
+            return _completed(0, "10\n")
+        if args[:2] == ["rev-list", "--count"]:
+            return _completed(0, "52\n")
+        return _completed(0)
+
+    def fake_command(
+        args: Sequence[str], _root: Path, **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        if "--label" in args and "needs-split" in args:
+            return _completed(0, "needs-split present on PR #3688\n")
+        return _completed(1, stdout="no commit-limit-bypass label (PR #3688)\n")
+
+    monkeypatch.setattr(policy, "_run_git", fake_git)
+    monkeypatch.setattr(policy, "_run_command", fake_command)
+
+    assert policy._check_commit_limit(update, tmp_path) == 1
+
+
+def test_needs_split_bypass_absent_falls_through_to_block(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When neither bypass label is present, the block stands (issue #3895)."""
+    update = policy.PushUpdate(
+        source=policy.PushRef("refs/heads/fix/big", "a" * 40, "refs/heads/fix/big", "b" * 40),
+        base="base",
+        head="head",
+        range_spec="base..head",
+        destination_branch="fix/big",
+    )
+    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "52\n"))
+    monkeypatch.setattr(
+        policy,
+        "_run_command",
+        lambda *_args, **_kwargs: _completed(1, stdout="no label\n"),
+    )
+
+    assert policy._check_commit_limit(update, tmp_path) == 1
+
+
+def test_needs_split_bypass_allows_push_at_exact_cap(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """needs-split bypass allows exactly _NEEDS_SPLIT_NEW_COMMIT_CAP new commits.
+
+    The boundary: 5 new commits on a 52-commit over-limit branch must succeed.
+    6 new commits must not. This test covers cap=5 exactly so the <= vs < mutation
+    is detected.
+    """
+    update = policy.PushUpdate(
+        source=policy.PushRef("refs/heads/fix/big", "a" * 40, "refs/heads/fix/big", "b" * 40),
+        base="base",
+        head="head",
+        range_spec="base..head",
+        destination_branch="fix/big",
+    )
+
+    def _fake_git_with_new(new_count: int) -> object:
+        def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+            if args[:2] == ["rev-list", "--count"] and "^origin/" in " ".join(args):
+                return _completed(0, f"{new_count}\n")
+            return _completed(0, "52\n")
+
+        return fake_git
+
+    def fake_command(
+        args: Sequence[str], _root: Path, **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        if "--label" in args and "needs-split" in args:
+            return _completed(0, "needs-split\n")
+        return _completed(1, stdout="no commit-limit-bypass\n")
+
+    monkeypatch.setattr(policy, "_run_command", fake_command)
+
+    # Exactly at cap (5): must pass
+    monkeypatch.setattr(policy, "_run_git", _fake_git_with_new(policy._NEEDS_SPLIT_NEW_COMMIT_CAP))
+    assert policy._check_commit_limit(update, tmp_path) == 0
+
+    # One over the cap (6): must block
+    monkeypatch.setattr(
+        policy, "_run_git", _fake_git_with_new(policy._NEEDS_SPLIT_NEW_COMMIT_CAP + 1)
+    )
+    assert policy._check_commit_limit(update, tmp_path) == 1
 
 
 def test_main_merge_detection_rejects_non_main_second_parent(

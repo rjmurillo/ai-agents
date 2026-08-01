@@ -1710,9 +1710,9 @@ class TestAdrReviewPolicyMergeScope:
         Found by adversarial review round 51.
         """
         repo = _merge_carrying_main_adr(
-            tmp_path, b"# ADR 091\n\nmain \xff\xfe wrote this.\n", "ADR-091-endings.md"
+            tmp_path, b"# ADR 091\n\nmain \xff\xfe wrote this.\n", "ADR-092-endings.md"
         )
-        relative = ".agents/architecture/ADR-091-endings.md"
+        relative = ".agents/architecture/ADR-092-endings.md"
         (repo / relative).write_bytes(b"# ADR 091\n\nmain \x80\x81 wrote this.\n")
         _git(repo, "add", relative)
 

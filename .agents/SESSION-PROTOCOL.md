@@ -821,7 +821,7 @@ The agent MUST run pre-PR validation before creating a pull request. This is a *
 1. The agent MUST run the PR readiness validation script:
 
    ```bash
-   python3 scripts/validation/pre_pr.py
+   uv run python scripts/validation/pre_pr.py
    ```
 
 2. The script validates:
@@ -917,7 +917,7 @@ Copy this checklist to each session log and verify completion:
 | MUST | Update Serena memory (cross-session context) | [ ] | Memory write confirmed |
 | MUST | Run markdown lint | [ ] | Lint output clean |
 | MUST | Route to qa agent (feature implementation) | [ ] | QA report: `.agents/qa/[report].md` OR `SKIPPED: investigation-only` |
-| MUST | Run pre-PR validation: `python3 scripts/validation/pre_pr.py` | [ ] | Exit code 0 |
+| MUST | Run pre-PR validation: `uv run python scripts/validation/pre_pr.py` | [ ] | Exit code 0 |
 | MUST | Commit all changes (including .serena/memories) | [ ] | Commit SHA: _______ |
 | MUST | Preserve `.agents/HANDOFF.md` (read-only) | [ ] | HANDOFF.md unchanged |
 | MUST | Write per-issue handoff to `.agents/sessions/handoffs/{date}-{issue}-handoff.md` (if issue incomplete) | [ ] | File path: _______ (or "SKIPPED: issue closed / no issue") |

@@ -66,13 +66,13 @@ def test_count_above_baseline_is_regression(tmp_path, monkeypatch):
     assert rc == ratchet.EXIT_REGRESSION
 
 
-def test_count_below_baseline_passes_without_update(tmp_path, monkeypatch):
-    # ADR-091: post-merge bot owns baseline lowering; a PR that improves the
-    # count should not be blocked waiting to self-edit the baseline file.
+def test_count_below_baseline_blocks_without_update(tmp_path, monkeypatch):
+    # ADR-092: the post-merge bot that owned this write was removed with the
+    # plugin version field, so an unrecorded improvement leaves slack and blocks.
     baseline = _write_baseline(tmp_path, "408")
     monkeypatch.setattr(subprocess, "run", _fake_scan(1, 400))
     rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path)])
-    assert rc == ratchet.EXIT_OK
+    assert rc == ratchet.EXIT_REGRESSION
     assert baseline.read_text(encoding="utf-8").strip() == "408"
 
 
@@ -84,15 +84,16 @@ def test_count_below_baseline_with_update_lowers_baseline(tmp_path, monkeypatch)
     assert baseline.read_text(encoding="utf-8").strip() == "400"
 
 
-def test_count_below_baseline_prints_improvement_message(tmp_path, monkeypatch, capsys):
-    # ADR-091: count below baseline prints an improvement note, not a regression.
+def test_count_below_baseline_names_the_remedy(tmp_path, monkeypatch, capsys):
+    # ADR-092: the message must name --update, not a bot that no longer exists.
     baseline = _write_baseline(tmp_path, "408")
     monkeypatch.setattr(subprocess, "run", _fake_scan(1, 400))
     rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path)])
-    assert rc == ratchet.EXIT_OK
+    assert rc == ratchet.EXIT_REGRESSION
     captured = capsys.readouterr()
-    assert "improved" in captured.out
-    assert "post-merge bot" in captured.out
+    assert "BASELINE STALE" in captured.err
+    assert "--update" in captured.err
+    assert "post-merge bot" not in captured.err
 
 
 def test_clean_tree_zero_count_passes(tmp_path, monkeypatch):

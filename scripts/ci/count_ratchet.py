@@ -3,7 +3,7 @@
 A count ratchet freezes a repository-wide violation total in a baseline file.
 The measured count must not exceed the baseline. An improvement (count <
 baseline) passes; the post-merge bot commits the lower baseline after the PR
-lands (ADR-091). ``--update`` explicitly lowers the baseline (used by the bot).
+lands (ADR-092). ``--update`` explicitly lowers the baseline (used by the bot).
 A regression (count > baseline) blocks.
 
 Two gates use this: ``ruff_count_ratchet.py`` (issue #2993) and
@@ -226,12 +226,24 @@ def run(
     counter: Callable[[Path], int | None],
     scan_error: str,
     regression_advice: str,
+    lister: Callable[[Path], list[str] | None] | None = None,
 ) -> int:
-    """Evaluate one ratchet. ``counter`` returns the current count, or None."""
+    """Evaluate one ratchet. ``counter`` returns the current count, or None.
+
+    ``lister`` is an optional function that returns the full violation list.
+    When provided and a regression is detected, the violations are printed to
+    stderr so contributors can see what needs fixing without a separate run
+    (issue #3902).
+    """
     baseline = read_baseline(args.baseline)
     if baseline is None:
         print(f"error: baseline missing or malformed: {args.baseline}", file=sys.stderr)
         return EXIT_CONFIG
+
+    count = counter(args.repo_root.resolve())
+    if count is None:
+        print(f"error: {scan_error}", file=sys.stderr)
+        return EXIT_EXTERNAL
 
     if args.base_ref:
         root = args.repo_root.resolve()
@@ -250,19 +262,23 @@ def run(
                 )
                 return EXIT_EXTERNAL
             if baseline > base:
-                print(
-                    f"{label}: BASELINE RAISED. {base} -> {baseline} "
-                    f"(+{baseline - base}) against {args.base_ref}. The baseline "
-                    f"may only fall. Fix the violations instead of widening the "
-                    f"allowance.",
-                    file=sys.stderr,
-                )
+                if count <= base:
+                    print(
+                        f"{label}: BRANCH BEHIND. Baseline file records {baseline}, "
+                        f"but {args.base_ref} records {base} and current count is "
+                        f"{count}. Merge or rebase onto {args.base_ref} to pick up "
+                        "the lowered baseline.",
+                        file=sys.stderr,
+                    )
+                else:
+                    print(
+                        f"{label}: BASELINE RAISED. {base} -> {baseline} "
+                        f"(+{baseline - base}) against {args.base_ref}. The baseline "
+                        f"may only fall. Current count is {count}; fix the "
+                        f"violations instead of widening the allowance.",
+                        file=sys.stderr,
+                    )
                 return EXIT_REGRESSION
-
-    count = counter(args.repo_root.resolve())
-    if count is None:
-        print(f"error: {scan_error}", file=sys.stderr)
-        return EXIT_EXTERNAL
 
     if count > baseline:
         print(
@@ -270,6 +286,19 @@ def run(
             f"(+{count - baseline}). {regression_advice}",
             file=sys.stderr,
         )
+        if lister is not None:
+            violations = lister(args.repo_root.resolve())
+            if violations:
+                max_lines = 40
+                lines = violations[:max_lines]
+                print("\nCurrent violations:", file=sys.stderr)
+                for line in lines:
+                    print(f"  {line}", file=sys.stderr)
+                if len(violations) > max_lines:
+                    print(
+                        f"  ... and {len(violations) - max_lines} more",
+                        file=sys.stderr,
+                    )
         return EXIT_REGRESSION
 
     if count < baseline:
@@ -279,13 +308,17 @@ def run(
                 f"{label}: improved {baseline} -> {count} (-{baseline - count}). Baseline lowered."
             )
             return EXIT_OK
-        # ADR-091: the post-merge bot owns the baseline update. PRs that reduce
-        # the count do not need to --update; the bot ratchets after merge.
+        # An improvement that is not recorded leaves slack: the next regression
+        # up to the stale baseline passes silently. The post-merge bot that
+        # briefly owned this write was removed with the plugin version field,
+        # so the author records it. Conflict cost tracked in issue #4171.
         print(
-            f"{label}: improved {baseline} -> {count} (-{baseline - count}). "
-            "Baseline update will be committed by the post-merge bot."
+            f"{label}: BASELINE STALE. {count} violations < baseline {baseline} "
+            f"(-{baseline - count}). Run with --update to lower the baseline and "
+            "close the slack.",
+            file=sys.stderr,
         )
-        return EXIT_OK
+        return EXIT_REGRESSION
 
     print(f"{label}: OK (count == baseline {baseline}).")
     return EXIT_OK
