@@ -202,18 +202,30 @@ def _external_parent_sha(parent: object, own_shas: set[str]) -> str | None:
     """Return this parent's sha only when it is readable and the branch does not own it.
 
     An unreadable parent must not buy relief: a parent that is not a mapping,
-    carries no ``sha``, or carries a non-string ``sha`` is unreadable and fails
-    closed to None.
+    carries no ``sha``, or carries a ``sha`` that is not exactly ``str`` is
+    unreadable and fails closed to None.
 
     The sha is read once and returned, so the caller inserts the same value that
     was validated here. Reading the key a second time at the call site would let
     a mapping whose ``get`` is not a pure lookup return a different, unvalidated
     value on the second read.
+
+    Two narrower guards keep that single read honest. ``dict.get`` is called
+    unbound so a subclass cannot override the lookup to raise or to answer
+    differently. The sha is then normalised through the unbound ``str.__str__``
+    to an exact ``str``, because a ``str`` subclass may define ``__hash__`` and
+    ``__eq__`` that miss on the ``own_shas`` probe and match afterwards, which
+    would let the branch's own sha pose as external and buy the exemption this
+    function gates. Normalising rather than rejecting keeps a subclass from
+    being read as an unrelated sha.
     """
     if not isinstance(parent, dict):
         return None
-    sha = parent.get("sha")
-    if not isinstance(sha, str) or not sha:
+    sha = dict.get(parent, "sha")
+    if not isinstance(sha, str):
+        return None
+    sha = str.__str__(sha)
+    if not sha:
         return None
     return None if sha in own_shas else sha
 
@@ -222,19 +234,26 @@ def _external_non_first_parent_shas(commits: list[Any]) -> set[str]:
     """Collect SHAs of non-first parents that are not in the PR's own commit list.
 
     Used by contains_main_merge (precise check verified against origin/main).
+
+    ``own_shas`` is the deny list a parent is probed against, so it is built
+    with the same two guards ``_external_parent_sha`` uses: an unbound
+    ``dict.get`` that a subclass cannot override, and normalisation through the
+    unbound ``str.__str__``. Normalising rather than rejecting matters here in
+    particular: dropping an entry from a deny list widens the exemption, so a
+    ``str`` subclass must be admitted in its plain form rather than discarded.
     """
     own_shas: set[str] = set()
     for commit in commits:
         if not isinstance(commit, dict):
             continue
-        own_sha = commit.get("sha")
-        if isinstance(own_sha, str) and own_sha:
-            own_shas.add(own_sha)
+        own_sha = dict.get(commit, "sha")
+        if isinstance(own_sha, str) and str.__str__(own_sha):
+            own_shas.add(str.__str__(own_sha))
     shas: set[str] = set()
     for commit in commits:
         if not isinstance(commit, dict):
             continue
-        parents = commit.get("parents")
+        parents = dict.get(commit, "parents")
         if not isinstance(parents, list) or len(parents) < 2:
             continue
         for parent in parents[1:]:
