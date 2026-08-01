@@ -89,6 +89,6 @@
       "tests": "7 new tests: 5 type-guard (string/None/unparseable values), 2 path-prefix boundary"
     }
   ],
-  "endingCommit": "ff8c1aa4e",
+  "endingCommit": "143c572c2",
   "nextSteps": []
 }
