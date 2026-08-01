@@ -68,7 +68,10 @@ from scripts.utils.markdown_parser import (
     MarkdownNestingError,
     blank_code_block_lines,
 )
-from scripts.validation.portability_common import build_portability_parser, refuse_uncovered_scan
+from scripts.validation.portability_common import (
+    build_portability_parser,
+    refuse_unsafe_baseline_write,
+)
 from scripts.validation.portability_common import (
     diff_against_baseline as _diff_against_baseline,
 )
@@ -649,7 +652,14 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if args.update_baseline:
-        if refuse_uncovered_scan(root, scanned_by_root, "skill .md files"):
+        if refuse_unsafe_baseline_write(
+            root,
+            scanned_by_root,
+            baseline_path,
+            current,
+            "skill .md files",
+            args.allow_baseline_shrink,
+        ):
             return 2
         return _write_baseline(baseline_path, current, marker_current)
 

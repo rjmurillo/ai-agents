@@ -91,7 +91,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.validation.portability_common import refuse_uncovered_scan
+from scripts.validation.portability_common import (
+    build_portability_parser,
+    refuse_unsafe_baseline_write,
+)
 
 # Shipped skill trees to scan. Both carry SKILL.md files that agents execute:
 # .claude/skills is the canonical tree; src/copilot-cli/skills holds the
@@ -318,30 +321,8 @@ def diff_marker_baseline(
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--repo-root",
-        type=Path,
-        default=None,
-        help="Repository root (default: walk up for .claude/skills).",
-    )
-    parser.add_argument(
-        "--baseline",
-        type=Path,
-        default=None,
-        help=f"Baseline JSON (default: scripts/validation/{_DEFAULT_BASELINE_NAME}).",
-    )
-    parser.add_argument(
-        "--update-baseline",
-        action="store_true",
-        help="Rewrite the baseline to the current state and exit 0.",
-    )
-    parser.add_argument(
-        "--output-format",
-        choices=("human", "json"),
-        default="human",
-    )
-    return parser
+    """Delegate to the shared parser; both ratchets take the same flags."""
+    return build_portability_parser(__doc__, _DEFAULT_BASELINE_NAME)
 
 
 def _resolve_root(repo_root: Path | None) -> Path:
@@ -474,7 +455,14 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if args.update_baseline:
-        if refuse_uncovered_scan(root, scanned_by_root, "skill files"):
+        if refuse_unsafe_baseline_write(
+            root,
+            scanned_by_root,
+            baseline_path,
+            current,
+            "skill files",
+            args.allow_baseline_shrink,
+        ):
             return 2
         return _write_baseline(baseline_path, current, marker_current)
 
