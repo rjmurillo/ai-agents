@@ -52,7 +52,7 @@ The remaining three need the same edit applied by hand, in the same change.
 2. Installed-copy parity: `scripts/validation/run_install_parity_ci.py` (backed
    by `build/scripts/validate_install_parity.py`). It checks **co-change in a
    diff, not content**: "reports the sibling files that should have changed
-   together and did not" (`validate_install_parity.py:21`). It never compares
+   together and did not" (`validate_install_parity.py:24`). It never compares
    two files' text. Measured 2026-08-01 at `7e8d3ac2f4`:
 
    ```bash

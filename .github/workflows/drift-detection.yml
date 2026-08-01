@@ -223,7 +223,7 @@ jobs:
               echo ""
               echo "See the created/updated GitHub issue for details."
             else
-              echo ":white_check_mark: **No drift detected** - All Claude agents are in sync with templates"
+              echo ":white_check_mark: **No drift below threshold** - compared copies scored above the similarity floor. This does not compare against \`templates/agents/\`."
             fi
 
             echo ""
