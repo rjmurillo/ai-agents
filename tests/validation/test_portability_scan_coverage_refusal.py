@@ -353,6 +353,19 @@ class TestWorktreeGapCoverage:
         assert baseline.read_bytes() == before
 
     @pytest.mark.parametrize("module", [cmp, cep])
+    def test_checkers_refuse_a_tree_that_is_not_a_repository(
+        self, tmp_path: Path, module: ModuleType
+    ) -> None:
+        """Exit 2 rather than crash: git being unanswerable is a refusal, not an error."""
+        self._populate(tmp_path)
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(json.dumps({"files": {"keep/SKILL.md": 4}}), encoding="utf-8")
+        before = baseline.read_bytes()
+        argv = ["--repo-root", str(tmp_path), "--baseline", "baseline.json", "--update-baseline"]
+        assert module.main(argv) == 2
+        assert baseline.read_bytes() == before
+
+    @pytest.mark.parametrize("module", [cmp, cep])
     def test_checkers_refuse_a_root_git_does_not_track_and_leave_the_baseline(
         self, tmp_path: Path, module: ModuleType
     ) -> None:
