@@ -69,7 +69,7 @@ Generator inventory inside `build/scripts/build_all.py` (list `GENERATORS`, buil
 Facts that prevent confusion:
 
 - `build_all.py` enforces a no-write invariant on `.claude/` (REQ-003-010): if any generator writes there, the run exits 2 with `REQ-003-010 VIOLATION`. `.claude/` is input only.
-- Generated-tree ownership is exactly `OWNED_PREFIXES = ("src/", ".github/instructions/", "docs/agent-catalog.md")` (build_all.py:821). `--check` only flags staleness inside those prefixes.
+- Generated-tree ownership is exactly `OWNED_PREFIXES = ("src/", ".github/instructions/", "docs/agent-catalog.md")` (build_all.py:765). `--check` only flags staleness inside those prefixes.
 - The hooks generator maps Stop, SubagentStop, PermissionRequest, and
   PreCompact to their PascalCase compatibility names. Stop and SubagentStop
   remain direct host registrations because their structured decisions require
@@ -206,27 +206,27 @@ Run this checklist before pushing any change that touched a canonical or generat
 
 ## Provenance and Maintenance
 
-Verified 2026-07-30 against the working tree (re-verification pass; the 2026-07-03 pass had rotted for `build/scripts/build_all.py`, `build/generate_agents.py`, `pyproject.toml`, `scripts/sync_plugin_lib.py`, `.github/workflows/publish.yml`, and `.github/workflows/validate-generated-agents.yml`). Volatile facts and how to re-check them:
+Verified 2026-07-29 against the working tree (re-verification pass; the 2026-07-03 pass had rotted for `build/scripts/build_all.py`, `build/generate_agents.py`, `pyproject.toml`, `scripts/sync_plugin_lib.py`, `.github/workflows/publish.yml`, and `.github/workflows/validate-generated-agents.yml`). Volatile facts and how to re-check them:
 
 | Fact | Source | Re-verify |
 |------|--------|-----------|
 | 7 generators and their order | build/scripts/build_all.py:435-443 | `grep -n -A9 "^GENERATORS" build/scripts/build_all.py` |
-| OWNED_PREFIXES trio | build/scripts/build_all.py:821 | `grep -n "OWNED_PREFIXES" build/scripts/build_all.py` |
-| .claude/ no-write invariant | build/scripts/build_all.py:674 (rule), :1108-1115 (snapshot), :1171-1178 (enforcement) | `sed -n '674p;1108,1115p;1171,1178p' build/scripts/build_all.py` |
+| OWNED_PREFIXES trio | build/scripts/build_all.py:765 | `grep -n "OWNED_PREFIXES" build/scripts/build_all.py` |
+| .claude/ no-write invariant | build/scripts/build_all.py:674 (rule), :1013 (snapshot), :1076-1081 (enforcement) | `grep -n "REQ-003-010" build/scripts/build_all.py` |
 | build_all exit codes 0/1/2/3 | build/scripts/build_all.py:16-20 | `sed -n '16,20p' build/scripts/build_all.py` |
 | generate_agents flags and exit codes | build/generate_agents.py:13-16,460-487 | `uv run python build/generate_agents.py --help` |
 | sync pairs scripts to .claude/lib | scripts/sync_plugin_lib.py:27-31 | `grep -n -A4 "SYNC_PAIRS" scripts/sync_plugin_lib.py` |
-| Plugin manifest locations and current values | the three plugin.json files | `git grep -n version -- "*claude-plugin/plugin.json"` |
+| Plugin manifest locations and current values | the three plugin.json files | `git ls-files '*claude-plugin/plugin.json' \| xargs grep -H version` |
 | Strictly-greater bump rule, PR #1942 story | build/scripts/validate_plugin_version_bump.py:1-40 | `head -40 build/scripts/validate_plugin_version_bump.py` |
 | Parity gate #2222 | build/scripts/check_plugin_manifest_parity.py:1-16 | `python3 build/scripts/check_plugin_manifest_parity.py` |
-| Drift CI wiring | .github/workflows/validate-generated-agents.yml:139,148,186,199; agent-drift-detection.yml:146,156,159 | `grep -n -e "generate_agents.py --validate" -e "build_all.py --check" -e "run_install_parity_ci.py" -e "sync_plugin_lib.py --check" .github/workflows/validate-generated-agents.yml; grep -n -e "generate_agents.py --validate" -e "sync_plugin_lib.py --check" -e "build_all.py --check" .github/workflows/agent-drift-detection.yml` |
-| Weekly semantic drift cron, threshold 80 | .github/workflows/drift-detection.yml:15; build/scripts/detect_agent_drift.py:666-671 | `grep -n "cron" .github/workflows/drift-detection.yml; sed -n '666,671p' build/scripts/detect_agent_drift.py` |
+| Drift CI wiring | .github/workflows/validate-generated-agents.yml:165,174,212,225,239; agent-drift-detection.yml:146,156,159,171 | `grep -n "uv run python" .github/workflows/validate-generated-agents.yml` |
+| Weekly semantic drift cron, threshold 80 | .github/workflows/drift-detection.yml:13-15; build/scripts/detect_agent_drift.py:666-668 | `grep -n "cron" .github/workflows/drift-detection.yml` |
 | Git hook jobs, filters, and validators | `lefthook.yml` | `uv run --frozen lefthook validate` |
 | Ruff exemption for generated Python | pyproject.toml:129-130 | `grep -n "src/copilot-cli" pyproject.toml` |
-| npm package, bun build, tag flow | packages/ai-agents-cli/package.json; RELEASING.md:35-54; .github/workflows/publish.yml:13-16 | `grep -n -e '"version"' -e '"build"' packages/ai-agents-cli/package.json; sed -n '35,54p' RELEASING.md; sed -n '13,16p' .github/workflows/publish.yml` |
-| Marketplace count validator retired | no dedicated count validator or marketplace counter YAML should exist | `find . -name "*marketplace*count*" -not -path "./.venv/*"` prints nothing |
+| npm package, bun build, tag flow | packages/ai-agents-cli/package.json; RELEASING.md:35-54; .github/workflows/publish.yml:13-16 | `grep -n "tags" .github/workflows/publish.yml` |
+| Marketplace count validator retired | no dedicated count validator or marketplace counter YAML should exist | `find . -name "*marketplace*count*" -not -path "./.venv/*"` |
 | Audit log path, gitignored | .gitignore:70 | `grep -n "build/audit" .gitignore` |
-| 2025-12-15 direction story | .agents/retrospective/2025-12-15-drift-detection-disaster.md | `find .agents/retrospective -maxdepth 1 -name "*drift*"` |
-| ADR-036 Accepted, ADR-072 Proposed | .agents/architecture/ADR-036-*.md, ADR-072-*.md | `head -12 .agents/architecture/ADR-036-*.md; head -12 .agents/architecture/ADR-072-jtbd-plugin-architecture.md` |
+| 2025-12-15 direction story | .agents/retrospective/2025-12-15-drift-detection-disaster.md | `ls .agents/retrospective/ \| grep drift` |
+| ADR-036 Accepted, ADR-072 Proposed | .agents/architecture/ADR-036-*.md, ADR-072-*.md | `head -12 .agents/architecture/ADR-072-jtbd-plugin-architecture.md` |
 
 Maintenance: when a generator is added or removed from `GENERATORS`, when a fourth plugin.json appears, or if a marketplace count validator is reintroduced to replace the retired one, update Phase 1/4 tables and re-run every re-verify command above.
