@@ -2586,7 +2586,9 @@ def _diff_notebook_suppression_violations(
         head_text = _commit_text_or_none("HEAD", path, repo_root)
         if head_text is None:
             return None
-        base_text = _commit_text_or_empty(base_ref, path, repo_root)
+        base_text = _commit_text_for_base(base_ref, path, repo_root)
+        if base_text is None:
+            return None
         violations.extend(
             _notebook_suppression_violations_for_text("HEAD", path, base_text, head_text)
         )
@@ -2779,6 +2781,22 @@ def _commit_text_or_none(head: str, path: str, repo_root: Path) -> str | None:
 def _commit_text_or_empty(head: str, path: str, repo_root: Path) -> str:
     result = _run_git(repo_root, ["show", f"{head}:{path}"])
     return result.stdout if result.returncode == 0 else ""
+
+
+def _commit_text_for_base(base_ref: str, path: str, repo_root: Path) -> str | None:
+    """Return the text of a file at ``base_ref``, or ``""`` when the file is
+    absent at that ref (new file), or ``None`` when ``base_ref`` itself is
+    invalid so the caller can propagate rc=3 rather than rc=1."""
+    result = _run_git(repo_root, ["show", f"{base_ref}:{path}"])
+    if result.returncode == 0:
+        return result.stdout
+    # Distinguish "file not in tree" (new file, treat as empty) from any
+    # other git failure (bad ref, corrupt repo, etc.) which is an external
+    # error that should surface as rc=3, not produce spurious violations.
+    if "does not exist in" in result.stderr or "exists on disk, but not in" in result.stderr:
+        return ""
+    _print_process_output(result)
+    return None
 
 
 def _notebook_code_lines(text: str) -> list[str]:
