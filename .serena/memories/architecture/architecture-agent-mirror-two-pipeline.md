@@ -2,8 +2,10 @@
 
 Agent definitions have five destination trees. The generator writes exactly two
 of them. The other three are hand-maintained copies that a human or agent must
-edit deliberately. Regeneration will not carry a change into them, and no check
-compares their text.
+edit deliberately. Regeneration will not carry a change into them, and no PR
+gate compares their text. The only text comparison is a weekly, allowlist-scoped
+audit that covers two pairs; see "The two verifications" below for what it does
+and does not prove.
 
 ## The pipeline
 
