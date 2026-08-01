@@ -170,6 +170,8 @@ def test_skill_tree_nonzero_file_count() -> None:
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     output = result.stdout + result.stderr
     match = re.search(r"Linting:\s+(\d+)\s+file", output)
