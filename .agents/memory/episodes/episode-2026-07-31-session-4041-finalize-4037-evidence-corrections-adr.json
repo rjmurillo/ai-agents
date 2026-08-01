@@ -206,6 +206,19 @@
       "caused_by": [
         "e018"
       ],
+      "leads_to": [
+        "e021"
+      ],
+      "_source_session": "2026-07-31-session-4041-finalize-4037-evidence-corrections-adr"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 5ec1f90f6c10d02e320308f01ffa4dc360d03ae0",
+      "caused_by": [
+        "e020"
+      ],
       "leads_to": [],
       "_source_session": "2026-07-31-session-4041-finalize-4037-evidence-corrections-adr"
     }
@@ -215,7 +228,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 9,
+    "commits": 10,
     "files_changed": 7
   },
   "lessons": []
