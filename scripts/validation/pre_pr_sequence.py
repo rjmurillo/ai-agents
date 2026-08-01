@@ -28,7 +28,7 @@ from check_duplicate_test_helpers import validate_duplicate_test_helpers
 from check_nested_tests import validate_no_nested_tests
 from check_test_tree_writes import validate_test_tree_writes
 from check_unreachable_code import validate_unreachable_code
-from checks_coverage import (  # noqa: E402
+from checks_coverage import (
     validate_review_marker,
 )
 from checks_dash import validate_dash_prohibition

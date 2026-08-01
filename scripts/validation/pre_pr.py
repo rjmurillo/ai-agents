@@ -51,7 +51,7 @@ from active_plan_closeout import validate_active_plan_closeout
 from check_nested_tests import validate_no_nested_tests
 from check_test_tree_writes import validate_test_tree_writes
 from check_unreachable_code import validate_unreachable_code
-from checks_common import (  # noqa: E402, F401
+from checks_common import (
     MissingScriptSkip,
     _gh_base_ref,
     _resolve_branch_base_ref,
