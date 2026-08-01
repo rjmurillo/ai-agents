@@ -135,7 +135,7 @@
       "outcome": ".claude/.claude-plugin/plugin.json and src/copilot-cli/.claude-plugin/plugin.json both hold 0.6.5478. src/claude/.claude-plugin/plugin.json holds 0.3.56 on its own line because src/claude/merge-resolver.md changed."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "a32c26809",
   "nextSteps": [
     "Open the PR against main with Fixes #4058 and let CI run the full suite.",
     "Do not enable auto-merge; the orchestrator merges in a fixed order."
