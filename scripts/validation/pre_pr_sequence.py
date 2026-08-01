@@ -25,6 +25,7 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 from active_plan_closeout import validate_active_plan_closeout
 from check_nested_tests import validate_no_nested_tests
+from check_test_tree_writes import validate_test_tree_writes
 from check_unreachable_code import validate_unreachable_code
 from checks_coverage import (  # noqa: E402
     validate_review_marker,
@@ -129,6 +130,12 @@ def run_all_validations(
         "Unreachable Code Detection",
         state,
         lambda: validate_unreachable_code(repo_root),
+    )
+
+    run_validation(
+        "Test Working Tree Writes",
+        state,
+        lambda: validate_test_tree_writes(repo_root),
     )
 
     # 1. Session End
