@@ -49,6 +49,7 @@ repository's owner works in. The confirmed panel is
 
 ```bash
 python3 scripts/eval/eval-model-panel.py \
+  --agents orchestrator \
   --panel-config scripts/eval/panels/owner-copilot-cli.json
 ```
 
