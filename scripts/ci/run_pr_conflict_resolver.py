@@ -71,8 +71,12 @@ def main() -> int:
 
     try:
         parsed = json.loads(result.stdout)
-    except json.JSONDecodeError:
-        parsed = {}
+    except json.JSONDecodeError as exc:
+        print(
+            f"::error::PR #{pr_number}: resolver output is not valid JSON: {exc}",
+            file=sys.stderr,
+        )
+        return EXIT_FAILURE
 
     with open(output_path, "a", encoding="utf-8") as f:
         if parsed.get("success"):
