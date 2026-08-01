@@ -33,7 +33,7 @@ from scripts.validation import check_skill_md_exec_portability as cep  # noqa: E
 from scripts.validation import check_skill_md_portability as cmp  # noqa: E402
 from scripts.validation.portability_common import (  # noqa: E402
     refuse_uncovered_scan,
-    worktree_gaps_by_root,
+    tracked_coverage_by_root,
 )
 
 ROOT_NAMES = (".claude/skills", "src/copilot-cli/skills")
@@ -43,12 +43,27 @@ def _git(root: Path, *args: str) -> None:
     subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
 
 
+def _commit_tree(root: Path) -> None:
+    """Make the fixture a repository, so coverage is decided the way it is in CI."""
+    _git(root, "init", "-q", "-b", "main")
+    _git(root, "add", "-A")
+    _git(
+        root, "-c", "user.email=t@t", "-c", "user.name=t",
+        "commit", "-q", "--allow-empty", "-m", "seed",
+    )
+
+
 class TestRefuseUncoveredScanHelper:
     """The shared decision, tested directly rather than only through callers."""
 
     def test_every_root_read_permits(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
-        assert refuse_uncovered_scan(tmp_path, {"a": 3, "b": 4}, "skill files") is False
-        assert "root presence only" in capsys.readouterr().err
+        for name in ROOT_NAMES:
+            (tmp_path / name).mkdir(parents=True)
+            (tmp_path / name / "SKILL.md").write_text("x\n", encoding="utf-8")
+        _commit_tree(tmp_path)
+        counts = dict.fromkeys(ROOT_NAMES, 3)
+        assert refuse_uncovered_scan(tmp_path, counts, "skill files") is False
+        assert capsys.readouterr().err == ""
 
     def test_one_unread_root_among_several_refuses(
         self, tmp_path: Path, capsys: pytest.CaptureFixture
@@ -86,6 +101,7 @@ class TestMarkdownCheckerCoverage:
             for slug in ("alpha", "beta"):
                 (skills / slug).mkdir()
                 (skills / slug / "SKILL.md").write_text("Nothing upstream.\n", encoding="utf-8")
+        _commit_tree(root)
 
     def _run(self, root: Path, baseline: Path) -> int:
         return cmp.main(
@@ -162,6 +178,7 @@ class TestExecCheckerCoverage:
             for slug in ("alpha", "beta"):
                 (skills / slug).mkdir()
                 (skills / slug / "SKILL.md").write_text("No bare invocations.\n", encoding="utf-8")
+        _commit_tree(root)
 
     def _run(self, root: Path, baseline: Path) -> int:
         return cep.main(
@@ -228,15 +245,22 @@ class TestExecCheckerCoverage:
 
 
 class TestWorktreeGapCoverage:
-    """Presence is not coverage: one readable file per root is still a subset.
+    """Presence is not coverage, and an empty index is not proof of a full tree.
 
     A per-root non-zero rule accepts a checkout holding a single file in each
-    root, which writes a baseline that drops every other file. Git already
-    knows what the tree should contain, so the index is the ground truth rather
-    than expected counts persisted in the baseline, which would drift.
+    root, which writes a baseline that drops every other file. Git already knows
+    what the tree should contain, so the index is the ground truth rather than
+    expected counts persisted in the baseline, which would drift. Zero tracked
+    files is the trap: an untracked root, a tree that is not a repository, and a
+    mistargeted root all report zero missing, so completeness git cannot confirm
+    is refused rather than permitted.
     """
 
     def _repo(self, root: Path, skills: tuple[str, ...] = ("alpha", "beta", "gamma")) -> None:
+        self._populate(root, skills)
+        _commit_tree(root)
+
+    def _populate(self, root: Path, skills: tuple[str, ...] = ("alpha", "beta", "gamma")) -> None:
         for name in ROOT_NAMES:
             for skill in skills:
                 skill_dir = root / name / skill
@@ -244,21 +268,26 @@ class TestWorktreeGapCoverage:
                 (skill_dir / "SKILL.md").write_text(
                     f"---\nname: {skill}\n---\nSee `.claude/skills/x/y.py`.\n", encoding="utf-8"
                 )
-        _git(root, "init", "-q", "-b", "main")
-        _git(root, "add", "-A")
-        _git(root, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "seed")
 
-    def test_gaps_are_unknowable_outside_a_git_repo(self, tmp_path: Path) -> None:
-        assert worktree_gaps_by_root(tmp_path, ROOT_NAMES) is None
+    def test_coverage_is_unknowable_outside_a_git_repo(self, tmp_path: Path) -> None:
+        assert tracked_coverage_by_root(tmp_path, ROOT_NAMES) is None
 
-    def test_complete_worktree_reports_no_gaps(self, tmp_path: Path) -> None:
+    def test_complete_worktree_reports_every_file_tracked_and_present(self, tmp_path: Path) -> None:
         self._repo(tmp_path)
-        assert worktree_gaps_by_root(tmp_path, ROOT_NAMES) == dict.fromkeys(ROOT_NAMES, 0)
+        assert tracked_coverage_by_root(tmp_path, ROOT_NAMES) == dict.fromkeys(ROOT_NAMES, (3, 0))
 
-    def test_gaps_count_tracked_files_absent_from_disk(self, tmp_path: Path) -> None:
+    def test_coverage_counts_tracked_files_absent_from_disk(self, tmp_path: Path) -> None:
         self._repo(tmp_path)
         (tmp_path / ROOT_NAMES[1] / "beta" / "SKILL.md").unlink()
-        assert worktree_gaps_by_root(tmp_path, ROOT_NAMES) == {ROOT_NAMES[0]: 0, ROOT_NAMES[1]: 1}
+        coverage = tracked_coverage_by_root(tmp_path, ROOT_NAMES)
+        assert coverage == {ROOT_NAMES[0]: (3, 0), ROOT_NAMES[1]: (3, 1)}
+
+    def test_untracked_root_reports_nothing_tracked(self, tmp_path: Path) -> None:
+        self._repo(tmp_path)
+        extra = tmp_path / ROOT_NAMES[1] / "delta"
+        extra.mkdir(parents=True)
+        (extra / "SKILL.md").write_text("x\n", encoding="utf-8")
+        assert tracked_coverage_by_root(tmp_path, ["nowhere"]) == {"nowhere": (0, 0)}
 
     def test_complete_worktree_permits_the_write(self, tmp_path: Path) -> None:
         self._repo(tmp_path)
@@ -274,6 +303,34 @@ class TestWorktreeGapCoverage:
         err = capsys.readouterr().err
         assert "incomplete checkout" in err
         assert f"{ROOT_NAMES[1]} (2 missing)" in err
+
+    def test_untracked_files_refuse_rather_than_read_as_complete(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture
+    ) -> None:
+        self._populate(tmp_path)
+        _git(tmp_path, "init", "-q", "-b", "main")
+        assert refuse_uncovered_scan(tmp_path, dict.fromkeys(ROOT_NAMES, 3), "skill files") is True
+        err = capsys.readouterr().err
+        assert "git does not track" in err
+        assert ROOT_NAMES[0] in err and ROOT_NAMES[1] in err
+
+    def test_a_tree_that_is_not_a_repository_refuses(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture
+    ) -> None:
+        self._populate(tmp_path)
+        assert refuse_uncovered_scan(tmp_path, dict.fromkeys(ROOT_NAMES, 3), "skill files") is True
+        assert "git cannot vouch for" in capsys.readouterr().err
+
+    def test_a_missing_git_executable_refuses(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        self._repo(tmp_path)
+
+        def _boom(*_args: object, **_kwargs: object) -> None:
+            raise OSError("git not found")
+
+        monkeypatch.setattr(subprocess, "run", _boom)
+        assert tracked_coverage_by_root(tmp_path, ROOT_NAMES) is None
 
     def test_staged_deletions_are_accepted_as_intentional(self, tmp_path: Path) -> None:
         self._repo(tmp_path)
@@ -291,6 +348,26 @@ class TestWorktreeGapCoverage:
         before = baseline.read_bytes()
         for skill in ("beta", "gamma"):
             (tmp_path / ROOT_NAMES[1] / skill / "SKILL.md").unlink()
+        argv = ["--repo-root", str(tmp_path), "--baseline", "baseline.json", "--update-baseline"]
+        assert module.main(argv) == 2
+        assert baseline.read_bytes() == before
+
+    @pytest.mark.parametrize("module", [cmp, cep])
+    def test_checkers_refuse_a_root_git_does_not_track_and_leave_the_baseline(
+        self, tmp_path: Path, module: ModuleType
+    ) -> None:
+        """One tracked root beside one untracked root: the shape found in the wild."""
+        self._populate(tmp_path)
+        _git(tmp_path, "init", "-q", "-b", "main")
+        _git(tmp_path, "add", "--", ROOT_NAMES[0])
+        _git(tmp_path, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "partial")
+        assert tracked_coverage_by_root(tmp_path, ROOT_NAMES) == {
+            ROOT_NAMES[0]: (3, 0),
+            ROOT_NAMES[1]: (0, 0),
+        }
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(json.dumps({"files": {"keep/SKILL.md": 4}}), encoding="utf-8")
+        before = baseline.read_bytes()
         argv = ["--repo-root", str(tmp_path), "--baseline", "baseline.json", "--update-baseline"]
         assert module.main(argv) == 2
         assert baseline.read_bytes() == before

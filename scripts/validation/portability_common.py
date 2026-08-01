@@ -145,43 +145,66 @@ def write_baseline(
     return 0
 
 
-def worktree_gaps_by_root(repo_root: Path, root_names: Iterable[str]) -> dict[str, int] | None:
-    """Count tracked files each root is missing from disk, None when git cannot answer.
+def tracked_coverage_by_root(
+    repo_root: Path, root_names: Iterable[str]
+) -> dict[str, tuple[int, int]] | None:
+    """Return (tracked, missing) file counts per root, None when git cannot answer.
 
     Presence is not coverage. Every root can hold one readable file and the
     checkout still be missing hundreds, which a per-root non-zero rule accepts.
     Git already knows what the tree should contain, so comparing the index
     against disk detects a sparse clone, a partial checkout, or a mistargeted
     root without persisting expected counts that would then drift.
+
+    The tracked total is carried alongside the missing total because zero
+    missing is not evidence of a full tree when zero files are indexed. An
+    untracked root, a tree that is not a repository, and a mistargeted root all
+    produce an empty listing that a missing count alone reads as complete.
     """
-    gaps: dict[str, int] = {}
+    coverage: dict[str, tuple[int, int]] = {}
     for name in root_names:
-        proc = subprocess.run(
-            ["git", "-C", str(repo_root), "ls-files", "-z", "--", name],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            check=False,
-        )
+        try:
+            proc = subprocess.run(
+                ["git", "-C", str(repo_root), "ls-files", "-z", "--", name],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                check=False,
+            )
+        except OSError:
+            return None
         if proc.returncode != 0:
             return None
-        gaps[name] = sum(
-            1 for rel in proc.stdout.split("\0") if rel and not (repo_root / rel).exists()
-        )
-    return gaps
+        tracked = [rel for rel in proc.stdout.split("\0") if rel]
+        coverage[name] = (len(tracked), sum(1 for rel in tracked if not (repo_root / rel).exists()))
+    return coverage
 
 
 def _refuse_partial_worktree(root: Path, scanned_by_root: Mapping[str, int]) -> bool:
-    """Refuse when git tracks files under a scanned root that are absent from disk."""
-    gaps = worktree_gaps_by_root(root, scanned_by_root)
-    if gaps is None:
+    """Refuse a baseline write whose completeness git cannot confirm."""
+    coverage = tracked_coverage_by_root(root, scanned_by_root)
+    if coverage is None:
         print(
-            "Coverage checked by root presence only: git could not enumerate tracked "
-            f"files under {root}. Confirm --repo-root is a full checkout.",
+            "Refusing to write a baseline that git cannot vouch for: no index could "
+            f"be read for {root}. A baseline write replaces the record for every "
+            "shipped root, so it needs proof the tree is whole, and an unreadable "
+            "index is the state where that proof is most likely to be missing. "
+            "Point --repo-root at a checkout of this repository.",
             file=sys.stderr,
         )
-        return False
-    short = {name: count for name, count in sorted(gaps.items()) if count}
+        return True
+    untracked = sorted(name for name, (tracked, _) in coverage.items() if not tracked)
+    if untracked:
+        print(
+            f"Refusing to write a baseline from roots git does not track: {', '.join(untracked)}. "
+            "An empty index listing is what a mistargeted root, an unstaged tree, and "
+            "a complete checkout all look like from the missing count alone, so a "
+            "write here would drop every shipped file and forgive its violations. "
+            "Stage the files, or point --repo-root at a checkout of this repository.",
+            file=sys.stderr,
+        )
+        return True
+    short = {name: missing for name, (_, missing) in sorted(coverage.items()) if missing}
     if not short:
         return False
     detail = ", ".join(f"{name} ({count} missing)" for name, count in short.items())
@@ -210,7 +233,10 @@ def refuse_uncovered_scan(root: Path, scanned_by_root: Mapping[str, int], unit: 
     catch: the write succeeds, exits 0, and drops every file the unread root
     owned. Presence is not coverage either, so a root that did read something is
     then checked against git: tracked files missing from disk mean the scan saw
-    a subset. Returns True when the caller must refuse.
+    a subset. Completeness that git cannot confirm is refused rather than
+    permitted, because an unreadable index and an untracked root are exactly the
+    states where the tree is least likely to be whole. Returns True when the
+    caller must refuse.
     """
     unread = sorted(name for name, found in scanned_by_root.items() if found < 1)
     if scanned_by_root and not unread:
