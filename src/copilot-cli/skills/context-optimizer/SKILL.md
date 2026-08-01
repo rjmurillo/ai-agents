@@ -85,7 +85,7 @@ The first question is not "skill or passive context." It is: **does the model al
 
 - Knowledge in passive context (routing, classification)
 - Actions in skill (script execution, state changes)
-- Example: pr-comment-responder has routing in SKILL-QUICK-REF.md, scripts in skill
+- Example: pr-comment-responder is routed from the always-on AGENTS.md skill table, and its scripts stay in the skill
 
 ## Why This Matters
 
@@ -124,7 +124,6 @@ The pass-rate table has no cost column. Passive context is paid on every request
 - [Vercel: AGENTS.md outperforms skills](https://vercel.com/blog/agents-md-outperforms-skills-in-our-agent-evals)
 - Analysis: `.agents/analysis/vercel-passive-context-vs-skills-research.md`
 - Memory: `passive-context-vs-skills-vercel-research`
-- Decision framework: `SKILL-QUICK-REF.md` (see the "Decision Framework" section)
 - [vibe-engineering.md](references/vibe-engineering.md) - 7-step agent interaction protocol for structured context optimization
 - [claude-code-productivity-patterns.md](references/claude-code-productivity-patterns.md) - Cost control, context management, and quality gates
 
