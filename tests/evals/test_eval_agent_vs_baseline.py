@@ -435,6 +435,23 @@ class TestPlanRunner:
                 model_id="model-without-pricing",
             )
 
+    def test_opus_5_costs_the_published_per_mtok_rate(self):
+        # Issue #3905: claude-opus-5 had no pricing row, so every plan naming
+        # it raised UnsupportedModelError. The expected value is derived from
+        # the published $5/$25 per MTok rather than copied from the table, so
+        # an order-of-magnitude typo in the row fails here.
+        plan = PlanRunner.build_plan(
+            fixtures=_make_fixtures(1),
+            model_id="claude-opus-5",
+            n_runs=1,
+        )
+
+        expected_usd = (
+            plan.estimated_tokens_in * 5.0 + plan.estimated_tokens_out * 25.0
+        ) / 1_000_000
+        assert plan.estimated_cost_usd == pytest.approx(expected_usd)
+        assert plan.estimated_cost_usd == pytest.approx(0.077)
+
     def test_cost_line_format(self):
         plan = PlanRunner.build_plan(
             fixtures=_make_fixtures(1),
@@ -571,6 +588,50 @@ class TestCliExitCodes:
         assert "planned_calls=6" in captured.out
         assert "cost_estimate_usd=" in captured.out
         assert "rate_as_of=" in captured.out
+
+    def test_panel_model_opus_5_plans_and_exits_zero(self, tmp_path, capsys):
+        # The exact command that failed in issue #3905. claude-opus-5 is the
+        # reference tier in scripts/eval/panels/owner-copilot-cli.json, and
+        # eval-model-panel.py shells this child with --model.
+        fixtures_dir = tmp_path / "fixtures"
+        fixtures_dir.mkdir()
+        _write_fixture(fixtures_dir, "F001.json", _valid_fixture_payload())
+
+        rc = cli_main([
+            "--dry-run",
+            "--agent",
+            "security",
+            "--fixtures",
+            str(fixtures_dir),
+            "--model",
+            "claude-opus-5",
+        ])
+
+        assert rc == 0
+        captured = capsys.readouterr()
+        assert "cost_estimate_usd=" in captured.out
+        assert "No pricing rate" not in captured.err
+
+    def test_unpriced_model_still_exits_two(self, tmp_path, capsys):
+        # The fail-closed guard #2858 added must survive the #3905 fix: an id
+        # with no rate must not silently plan at a fabricated cost.
+        fixtures_dir = tmp_path / "fixtures"
+        fixtures_dir.mkdir()
+        _write_fixture(fixtures_dir, "F001.json", _valid_fixture_payload())
+
+        rc = cli_main([
+            "--dry-run",
+            "--agent",
+            "security",
+            "--fixtures",
+            str(fixtures_dir),
+            "--model",
+            "claude-opus-99",
+        ])
+
+        assert rc == 2
+        captured = capsys.readouterr()
+        assert "No pricing rate for model_id='claude-opus-99'" in captured.err
 
 
 # ===========================================================================
@@ -2096,7 +2157,11 @@ class TestReportAggregatorCost:
         # 6 records × tokens_in=100, tokens_out=50.
         # cost = (600 * 0.003 + 300 * 0.015) / 1000 = (1.8 + 4.5)/1000 = 0.0063
         assert result.cost_estimate_usd == pytest.approx(0.0063)
-        assert result.pricing_rate_as_of == "2026-07-08"
+        # DESIGN-004 §5.3a: the aggregator and the plan runner both read the
+        # date from _eval_common rather than minting one. Asserted against the
+        # constant, not a literal, so a verified rate refresh (issue #3905)
+        # does not require editing a test that is about threading, not dates.
+        assert result.pricing_rate_as_of == plan_mod.PRICING_RATE_AS_OF
 
 
 # ===========================================================================
