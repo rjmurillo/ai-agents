@@ -17,7 +17,7 @@ python3 build/scripts/validate_install_parity.py --files templates/agents/archit
 python3 build/scripts/validate_install_parity.py --files src/claude/architect.md;          echo $?  # 0
 ```
 
-A solo template edit is caught. A solo `src/claude/` edit is not: the hand-maintained copies are exempt from the required-sibling set, so you can change Claude agent behavior without touching the template and no gate objects. This carve-out is load-bearing, not vestigial: of the 156 commits since 2025-01-01 touching a hand-maintained member of a shared-agent group, **40 (26%) did not touch the template**. Treat the lockstep as a convention you uphold, not a rule the tooling enforces. The drift detector scores similarity against a floor, a much weaker condition than agreement; see the section below. Read both files before you edit either.
+A solo template edit is caught. A solo `src/claude/` edit is not: the hand-maintained copies are exempt from the required-sibling set, so you can change Claude agent behavior without touching the template and no gate objects. This carve-out is load-bearing, not vestigial: measured at `origin/main` `08f4941565`, of the 173 commits since 2025-01-01 touching a hand-maintained member of a shared-agent group, **54 (31%) did not touch the template**. Both figures grow as commits land, so re-measure rather than trusting the absolute counts; the ratio is the durable part. Treat the lockstep as a convention you uphold, not a rule the tooling enforces. The drift detector scores similarity against a floor, a much weaker condition than agreement; see the section below. Read both files before you edit either.
 2. **Skill schema**. Every skill MUST have a `SKILL.md` with frontmatter fields `name`, `version`, `description` per `.agents/steering/claude-skills.md`.
 3. **Skill tests**. New skills MUST include pytest coverage under `.claude/skills/<name>/tests/`.
 4. **File cap per PR**. Skill additions SHOULD ship ≤10 files per PR (see `.agents/steering/claude-skills.md`).
@@ -72,17 +72,21 @@ PY
 
 For the other agents it is a **similarity floor, not an equality check**. The score is the mean across the allowlisted sections present in **either** file, not both: `compare_agent` skips a section only when it is absent from both sides (`detect_agent_drift.py:280-281`), so a section one copy has and the other lacks is compared against the empty string and scores zero.
 
-How forgiving the floor is depends entirely on how many sections the agent has, and most agents have very few. Measured across both comparison pairs at `origin/main` (60 content comparisons, 30 agents x 2 pairs):
+How forgiving the floor is depends on how many sections the agent has and on how far those sections already sit below 100. Measured across both comparison pairs at `origin/main` (60 content comparisons, 30 agents x 2 pairs), zeroing the highest-scoring sections first:
 
 | Allowlisted sections present | Comparisons | Zero-overlap rewrites needed to breach the 80 floor |
 |---|---|---|
 | 0 | 8 | unreachable (hardcoded 100.0) |
 | 1 | 20 | 1 |
-| 2 to 4 | 12 | 1 |
-| 5 to 9 | 18 | 2 |
-| 10 | 2 | 3 |
+| 2 to 5 | 14 | 1 |
+| 6 to 7 | 10 | 1 for six of them, 2 for four |
+| 8 | 4 | already below the floor for two, else 1 |
+| 9 | 2 | 1 for one, 2 for the other |
+| 10 | 2 | 2 |
 
-So for **16 of the 26 agents that have any compared section, one wholly rewritten section is enough to trip the check**; nine more need two; only `architect` (10 sections) needs three. An earlier version of this rule generalized "more than a fifth of an agent's allowlisted sections" from `architect` alone. That was wrong for 25 of the 26.
+So for **22 of the 26 agents that have any compared section, one wholly rewritten section is enough to trip the check**; three more need two, and `merge-resolver` already sits below the floor. Even `architect`, the widest at 10 sections, needs only two.
+
+Do not compute this column from section counts alone. An earlier version of this rule did, assuming every section scores 100, and concluded `architect` needed three. It needs two, because its sections already average 92.5 rather than 100. The same idealized model produced "more than a fifth of an agent's allowlisted sections", generalized from `architect` alone, which was wrong for 25 of the 26. The real threshold depends on the actual per-section scores, so measure it.
 
 The per-section score is **Jaccard on word sets** (`calculate_similarity`, `detect_agent_drift.py:213-232`): the size of the token intersection over the size of the union. Two consequences follow, and mixing them up produces a badly wrong mental model. Measured by mutation inside `## Constraints` on `src/claude/architect.md`:
 
