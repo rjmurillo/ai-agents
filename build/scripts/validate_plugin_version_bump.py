@@ -300,9 +300,12 @@ def evaluate(
                 )
                 continue
             if new is None:
-                # Manifest absent at HEAD: either a new plugin or the file
-                # simply does not exist in this repo slice. No version to
-                # check for a manual bump.
+                if old is not None and not isinstance(old, _BaseRefError):
+                    # Manifest existed at base but absent at HEAD: deletion.
+                    config_errors.append(
+                        f"{plugin.manifest}: manifest deleted in this PR for {plugin.name}"
+                    )
+                # New plugin not yet committed, or truly absent from repo: skip.
                 continue
             if isinstance(old, _BaseRefError):
                 config_errors.append(

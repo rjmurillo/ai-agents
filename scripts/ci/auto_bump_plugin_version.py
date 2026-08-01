@@ -166,10 +166,8 @@ def _run_ratchet_update(script: Path, repo_root: Path) -> None:
         return
     if proc.stdout:
         print(proc.stdout, end="")
-    if proc.returncode not in (0, 1):
-        # Exit 1 = regression (count went up); log but don't stop the bump.
-        if proc.stderr:
-            print(proc.stderr, end="", file=sys.stderr)
+    if proc.stderr:
+        print(proc.stderr, end="", file=sys.stderr)
 
 
 def _should_bump(before_sha: str, after_sha: str, repo_root: Path) -> tuple[bool, int]:
@@ -235,7 +233,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     repo_root = (args.repo_root or _REPO_ROOT).resolve()
 
-    before_sha = os.environ.get("PUSH_BEFORE_SHA", "")
+    before_sha: str | None = os.environ.get("PUSH_BEFORE_SHA")
+    if before_sha is None:
+        print(
+            "ERROR: PUSH_BEFORE_SHA not set; this script must run inside the workflow",
+            file=sys.stderr,
+        )
+        return 2
     after_sha = os.environ.get("PUSH_AFTER_SHA", "HEAD")
 
     do_bump, rc = _should_bump(before_sha, after_sha, repo_root)

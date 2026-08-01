@@ -53,8 +53,6 @@ jobs:
 
       - name: Commit and push bump
         if: steps.bump.outcome == 'success'
-        env:
-          NEW_VERSION_LINE: ${{ steps.bump.outputs.new_version }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

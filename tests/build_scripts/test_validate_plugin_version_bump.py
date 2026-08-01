@@ -289,10 +289,18 @@ def test_unparseable_current_version_is_config_error():
     assert CLAUDE in errs[0]
 
 
-def test_missing_current_version_skips_for_bot_managed():
-    # Bot-managed: manifest absent at HEAD (new=None) means file was deleted or
-    # never existed. There is no version to check for a manual bump, so skip.
+def test_manifest_deleted_in_pr_is_config_error_for_bot_managed():
+    # Bot-managed: manifest existed at base (old="0.3.0") but absent at HEAD
+    # (new=None) means the manifest was deleted in this PR. That is a config error.
     v, errs = vpb.evaluate([".claude/x.md"], _pairs(claude=("0.3.0", None)))
+    assert v == []
+    assert len(errs) == 1
+    assert "deleted" in errs[0]
+
+
+def test_manifest_never_existed_skips_for_bot_managed():
+    # Bot-managed: manifest never existed (old=None, new=None). Skip silently.
+    v, errs = vpb.evaluate([".claude/x.md"], _pairs(claude=(None, None)))
     assert v == []
     assert errs == []
 

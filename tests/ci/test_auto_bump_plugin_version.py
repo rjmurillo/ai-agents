@@ -229,6 +229,19 @@ def test_main_git_diff_failure_returns_2(tmp_path: Path, monkeypatch: pytest.Mon
     assert rc == 2
 
 
+def test_main_missing_push_before_sha_env_returns_2(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    _make_manifest(tmp_path / _V1, "0.6.5446")
+    _make_manifest(tmp_path / _V2, "0.6.5446")
+
+    monkeypatch.delenv("PUSH_BEFORE_SHA", raising=False)
+    monkeypatch.setenv("PUSH_AFTER_SHA", "bbb")
+
+    rc = abv.main(["--repo-root", str(tmp_path)])
+    assert rc == 2
+
+
 # ---------------------------------------------------------------------------
 # Acceptance criterion: two disjoint PRs pass the gate without touching version
 # ---------------------------------------------------------------------------
