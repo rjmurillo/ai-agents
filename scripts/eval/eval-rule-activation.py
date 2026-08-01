@@ -2033,7 +2033,7 @@ def _delta_exact(
     """
     if not _fully_graded(treatment) or not _fully_graded(control):
         return None
-    return treatment["avg_score_exact"] - control["avg_score_exact"]
+    return float(treatment["avg_score_exact"]) - float(control["avg_score_exact"])
 
 
 def _positive_verdict(desc_avg: float | None, baseline_avg: float | None) -> str:
