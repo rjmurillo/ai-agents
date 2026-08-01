@@ -21,7 +21,7 @@
 ## Boundaries
 
 **BLOCKING verify**: unrun gen'd artifact -> runtime test|security thread -> code fix or owner|skip validation -> `pre_pr.py`
-**Always**: Python (ADR-042)|Verify branch|Check skills|Assign issues|PR template|Atomic commits <=5 files|Scoped lint|Pin Actions SHA|Run changed workflows pre-push|Bump plugin manifest
+**Always**: Python (ADR-042)|Verify branch|Check skills|Assign issues|PR template|Atomic commits <=5 files|Scoped lint|Pin Actions SHA|Run changed workflows pre-push|No manifest version
 **Ask First**: Architecture|New ADRs|Breaking|Security
 **Autonomy Guardrail**: Internal+reversible: act|External/irreversible: confirm|Ambiguous: act minimal, flag rest
 **Never**: Commit secrets|Edit HANDOFF.md|Use bash|Logic in YAML (ADR-006)|Raw gh if skill exists|Force push|Skip hooks|Internal refs in src|Scratch in tree|Resolve security threads w/o fix|Ship unrun gen artifact

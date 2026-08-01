@@ -36,7 +36,7 @@ siblings:
 
 | You want | Use instead |
 |----------|-------------|
-| Regenerate mirrors, bump plugin versions, release | `ai-agents-generation-and-release` |
+| Regenerate mirrors, run the drift gates, release | `ai-agents-generation-and-release` |
 | Understand what counts as test evidence, run CI-equivalent gates | `ai-agents-validation-and-qa` |
 | Full catalog of env vars, skip markers, escape hatches | `ai-agents-config-catalog` |
 | Triage a failing hook, gate, or test | `ai-agents-debugging-playbook` |
@@ -202,11 +202,11 @@ the repo on that date. Re-verify volatile facts before trusting them:
 | .env key names | `.env.example` | `cat .env.example` |
 | Forgetful fallback table | `ADR-007` (`.agents/architecture/ADR-007-memory-first-architecture.md:108-130`) | `grep -n "Graceful degradation" .agents/architecture/ADR-007-memory-first-architecture.md` |
 | LF enforcement rationale | `.gitattributes:59` and header comments | `grep -n "eol=lf" .gitattributes` |
-| Serena memory file count (122) | `.serena/memories/` | `ls .serena/memories/ | wc -l` |
+| Serena memory file count (122) | `.serena/memories/` | `ls .serena/memories/ \| wc -l` |
 | tests/test_paths.py count (28) | pytest | `uv run pytest tests/test_paths.py --collect-only -q` |
 | uv TLS var rename | uv 0.11.26 runtime warning | `uv run python -c pass` under `UV_NATIVE_TLS` |
 
 Maintenance rule: if any re-verify command disagrees with this file, the repo
-won. Update this skill in the same PR that changes the underlying fact, and bump
-`.claude-plugin/plugin.json` per the plugin version rule (see
+won. Update this skill in the same PR that changes the underlying fact. Do not
+touch `.claude-plugin/plugin.json`: the manifests carry no version (ADR-091, see
 `ai-agents-change-control`).

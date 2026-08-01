@@ -13,8 +13,8 @@ Verified against the working tree on 2026-07-03. Volatile facts and their re-ver
 | build_all no-claude-writes invariant | `build/scripts/build_all.py:962-967` | `grep -n "REQ-003-010" build/scripts/build_all.py` |
 | 20-commit block threshold and bypass label | `scripts/validation/pr_commit_count.py:56-58,64`; `scripts/ci/enforce_pr_validation.py:11,54` | `grep -n "THRESHOLD = " scripts/validation/pr_commit_count.py; grep -n "BYPASS_LABEL" scripts/ci/enforce_pr_validation.py` |
 | Git hook jobs, filters, and validators | `lefthook.yml` | `uv run --frozen lefthook validate` |
-| Plugin versions (volatile; never hard-code them in prose) | the three `.claude-plugin/plugin.json` files | `grep -o '"version": "[^"]*"' .claude/.claude-plugin/plugin.json src/claude/.claude-plugin/plugin.json src/copilot-cli/.claude-plugin/plugin.json` |
-| PR #1942 motivating failure | `build/scripts/validate_plugin_version_bump.py:10-12` | `sed -n 8,14p build/scripts/validate_plugin_version_bump.py` |
+| No `version` in any manifest or marketplace entry (ADR-091) | the three `.claude-plugin/plugin.json` files, both `marketplace.json` files | `python3 build/scripts/validate_plugin_version_bump.py` |
+| Why the field must be absent | `build/scripts/validate_plugin_version_bump.py` docstring | `grep -n "WHY THE FIELD MUST BE ABSENT" build/scripts/validate_plugin_version_bump.py` |
 | SHA-pin tension (Exceptions: None vs GP-006) | `.agents/governance/PROJECT-CONSTRAINTS.md:180`; `.agents/governance/golden-principles.md:63-69` | `grep -n "Exceptions" .agents/governance/PROJECT-CONSTRAINTS.md; sed -n 63,70p .agents/governance/golden-principles.md` |
 | ADR-066 proposed, ADR-071 accepted, #2230 rejected | Status sections of both ADR files | `sed -n 1,20p .agents/architecture/ADR-066-hook-fail-open-reconciliation.md; sed -n 1,10p .agents/architecture/ADR-071-plugin-hook-runtime-contract-verification.md` |
 | FM-9 and FM-10 sections; "neutral default" quote | `.agents/governance/FAILURE-MODES.md:284,315` | `grep -n "neutral default" .agents/governance/FAILURE-MODES.md` |
@@ -24,4 +24,4 @@ Verified against the working tree on 2026-07-03. Volatile facts and their re-ver
 | ADR-006 amendment scope and conditions | `.agents/architecture/ADR-006-thin-workflows-testable-modules.md:255-309` | `grep -n "Amendment 2026-04-28" .agents/architecture/ADR-006-thin-workflows-testable-modules.md` |
 | Hook-install check rationale | `scripts/validation/checks_plugin.py:174-180` | `grep -n "def validate_lefthook_installed" scripts/validation/checks_plugin.py` |
 
-Maintenance rule: any edit to a cited source line number, plugin version, or ADR status invalidates the matching row. Re-run the re-verify command and update the row in the same commit. This file is plugin content; editing it requires bumping both `.claude/.claude-plugin/plugin.json` and `src/copilot-cli/.claude-plugin/plugin.json` (parity enforced by `build/scripts/check_plugin_manifest_parity.py`).
+Maintenance rule: any edit to a cited source line number or ADR status invalidates the matching row. Re-run the re-verify command and update the row in the same commit. This file is plugin content, so regenerate the Copilot mirror (`python3 build/scripts/build_all.py`) in the same commit. No manifest bump: the manifests carry no version (ADR-091).

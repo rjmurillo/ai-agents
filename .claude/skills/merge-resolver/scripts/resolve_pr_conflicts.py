@@ -192,12 +192,33 @@ def _parse_plain_semver(version: str) -> tuple[int, int, int] | None:
     return (int(match.group(1)), int(match.group(2)), int(match.group(3)))
 
 
-def resolve_plugin_manifest_conflict(file_path: str, cwd: str | None = None) -> bool:
-    """Resolve a version-only plugin.json conflict to one patch bump above max.
+def _write_manifest_resolution(
+    file_path: str, resolved: dict[str, Any], cwd: str | None = None
+) -> bool:
+    """Write a resolved manifest and stage it. False on path escape or git failure."""
+    # Anchor the write to the repo the conflict lives in and refuse paths
+    # that escape it (CWE-22); file_path normally comes from git itself,
+    # but the function is importable with arbitrary arguments.
+    base_dir = Path(cwd).resolve() if cwd else Path.cwd().resolve()
+    target = (base_dir / file_path).resolve()
+    if not target.is_relative_to(base_dir):
+        return False
+    target.write_text(json.dumps(resolved, indent=2) + "\n", encoding="utf-8")
+    return _run_git("add", file_path, cwd=cwd).returncode == 0
 
-    Reads both sides of the conflicted manifest from the index. When the two
-    sides differ only in ``version`` and both versions are plain semver, write
-    the manifest with ``patch + 1`` above the higher version and stage it.
+
+def resolve_plugin_manifest_conflict(file_path: str, cwd: str | None = None) -> bool:
+    """Resolve a version-only plugin.json conflict and stage the result.
+
+    Reads both sides of the conflicted manifest from the index. Two shapes
+    resolve automatically when the sides differ only in ``version``:
+
+    - Either side omits ``version``. ADR-091 deleted the field, so the merged
+      manifest carries none. This is the shape every plugin PR opened before
+      ADR-091 hits when it merges the fixed ``main``.
+    - Both sides carry plain semver. Write ``patch + 1`` above the higher
+      version. Kept for branches that predate the field's deletion on both
+      sides.
 
     Returns True when resolved and staged; False when manual resolution is
     required (non-version differences, prerelease/build versions, unreadable
@@ -221,6 +242,12 @@ def resolve_plugin_manifest_conflict(file_path: str, cwd: str | None = None) -> 
     if ours_rest != theirs_rest:
         return False
 
+    # ADR-091 deleted the field. A side without it is the post-ADR shape, and
+    # the merged manifest must carry no version or the version-field gate
+    # (build/scripts/validate_plugin_version_bump.py) fails.
+    if "version" not in ours or "version" not in theirs:
+        return _write_manifest_resolution(file_path, theirs_rest, cwd=cwd)
+
     ours_version = _parse_plain_semver(str(ours.get("version") or ""))
     theirs_version = _parse_plain_semver(str(theirs.get("version") or ""))
     if ours_version is None or theirs_version is None:
@@ -229,17 +256,7 @@ def resolve_plugin_manifest_conflict(file_path: str, cwd: str | None = None) -> 
     major, minor, patch = max(ours_version, theirs_version)
     resolved = dict(theirs)
     resolved["version"] = f"{major}.{minor}.{patch + 1}"
-
-    # Anchor the write to the repo the conflict lives in and refuse paths
-    # that escape it (CWE-22); file_path normally comes from git itself,
-    # but the function is importable with arbitrary arguments.
-    base_dir = Path(cwd).resolve() if cwd else Path.cwd().resolve()
-    target = (base_dir / file_path).resolve()
-    if not target.is_relative_to(base_dir):
-        return False
-    target.write_text(json.dumps(resolved, indent=2) + "\n", encoding="utf-8")
-    add_r = _run_git("add", file_path, cwd=cwd)
-    return add_r.returncode == 0
+    return _write_manifest_resolution(file_path, resolved, cwd=cwd)
 
 
 def _resolve_conflicted_file(

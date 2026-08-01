@@ -17,14 +17,24 @@ dogfood = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(dogfood)
 
 
-def _make_plugin_root(path: Path, version: str) -> Path:
-    """Create a minimal plugin root with a manifest carrying version."""
+def _make_plugin_root(path: Path, marker: str = "shipped") -> Path:
+    """Create a minimal plugin root whose hook body carries marker.
+
+    The shipped manifests carry no version (ADR-091), so drift detection keys
+    on file content. The marker stands in for the hook body a developer edits.
+    """
     (path / ".claude-plugin").mkdir(parents=True, exist_ok=True)
     (path / ".claude-plugin" / "plugin.json").write_text(
-        json.dumps({"name": "project-toolkit", "version": version}), encoding="utf-8"
+        json.dumps({"name": "project-toolkit"}), encoding="utf-8"
     )
     (path / "hooks").mkdir(exist_ok=True)
+    (path / "hooks" / "guard.py").write_text(marker, encoding="utf-8")
     return path
+
+
+def _marker(root: Path) -> str:
+    """Return the hook-body marker installed under root."""
+    return (root / "hooks" / "guard.py").read_text(encoding="utf-8")
 
 
 def _require_symlinks(tmp_path: Path) -> None:
@@ -41,7 +51,7 @@ def _require_symlinks(tmp_path: Path) -> None:
 
 @pytest.fixture
 def source(tmp_path: Path) -> Path:
-    return _make_plugin_root(tmp_path / "src" / "copilot-cli", "9.9.9")
+    return _make_plugin_root(tmp_path / "src" / "copilot-cli", "shipped")
 
 
 @pytest.fixture
@@ -57,7 +67,7 @@ def test_install_creates_copy(source: Path, target: Path) -> None:
     assert target.is_dir()
     assert not target.is_symlink()
     assert (target / ".claude-plugin" / "plugin.json").is_file()
-    assert dogfood._plugin_version(target) == "9.9.9"
+    assert _marker(target) == "shipped"
     assert "copied" in note
 
 
@@ -78,14 +88,14 @@ def test_install_excludes_local_caches(source: Path, target: Path) -> None:
 
 
 def test_install_refreshes_stale_copy(source: Path, target: Path) -> None:
-    _make_plugin_root(target, "0.0.1")  # older install
+    _make_plugin_root(target, "old")  # older install
     note = dogfood.dogfood_install(source, target)
-    assert dogfood._plugin_version(target) == "9.9.9"
+    assert _marker(target) == "shipped"
     assert "backed up copy" in note
 
 
 def test_install_backs_up_existing_copy_once(source: Path, target: Path) -> None:
-    _make_plugin_root(target, "0.0.1")
+    _make_plugin_root(target, "old")
     original = (target / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
 
     dogfood.dogfood_install(source, target)  # first install backs up
@@ -98,7 +108,7 @@ def test_install_backs_up_existing_copy_once(source: Path, target: Path) -> None
 
 def test_install_replaces_prior_symlink(source: Path, target: Path, tmp_path: Path) -> None:
     _require_symlinks(tmp_path)
-    other = _make_plugin_root(tmp_path / "other", "1.0.0")
+    other = _make_plugin_root(tmp_path / "other", "other")
     target.parent.mkdir(parents=True, exist_ok=True)
     target.symlink_to(other, target_is_directory=True)
 
@@ -113,42 +123,42 @@ def test_install_survives_dangling_backup_symlink(
     source: Path, target: Path, tmp_path: Path
 ) -> None:
     _require_symlinks(tmp_path)
-    _make_plugin_root(target, "0.0.1")  # a real copy to back up
+    _make_plugin_root(target, "old")  # a real copy to back up
     backup = target.with_name(target.name + ".marketplace-bak")
     backup.symlink_to(tmp_path / "gone")  # dangling: points nowhere
 
     note = dogfood.dogfood_install(source, target)
 
-    assert dogfood._plugin_version(target) == "9.9.9"
+    assert _marker(target) == "shipped"
     assert "backed up copy" in note
     assert backup.is_dir()  # stray link replaced by the real backup
     assert not backup.is_symlink()
 
 
 def test_install_replaces_corrupt_file_backup(source: Path, target: Path) -> None:
-    _make_plugin_root(target, "0.0.1")  # a real copy to back up
+    _make_plugin_root(target, "old")  # a real copy to back up
     backup = target.with_name(target.name + ".marketplace-bak")
     backup.write_text("not a backup", encoding="utf-8")  # corrupt: a regular file
 
     note = dogfood.dogfood_install(source, target)
 
-    assert dogfood._plugin_version(target) == "9.9.9"
+    assert _marker(target) == "shipped"
     assert "backed up copy" in note
     assert backup.is_dir()  # corrupt file replaced by the real backup
-    assert dogfood._plugin_version(backup) == "0.0.1"  # prior copy preserved
+    assert _marker(backup) == "old"  # prior copy preserved
 
 
 def test_install_replaces_stray_non_plugin_backup_dir(source: Path, target: Path) -> None:
-    _make_plugin_root(target, "0.0.1")  # a real copy to back up
+    _make_plugin_root(target, "old")  # a real copy to back up
     backup = target.with_name(target.name + ".marketplace-bak")
     backup.mkdir()  # stray directory, not a plugin root
     (backup / "junk.txt").write_text("stray", encoding="utf-8")
 
     note = dogfood.dogfood_install(source, target)
 
-    assert dogfood._plugin_version(target) == "9.9.9"
+    assert _marker(target) == "shipped"
     assert "backed up copy" in note
-    assert dogfood._plugin_version(backup) == "0.0.1"  # real prior copy backed up
+    assert _marker(backup) == "old"  # real prior copy backed up
     assert not (backup / "junk.txt").exists()  # stray directory discarded
 
 
@@ -190,12 +200,12 @@ def test_install_rejects_manifest_without_name(tmp_path: Path, target: Path) -> 
 def test_install_rejects_malformed_source_before_touching_target(
     source: Path, target: Path, tmp_path: Path
 ) -> None:
-    _make_plugin_root(target, "0.0.1")  # a healthy prior install
+    _make_plugin_root(target, "old")  # a healthy prior install
     bad = _write_manifest(tmp_path / "bad", "null")
     with pytest.raises(ValueError, match="not a plugin root"):
         dogfood.dogfood_install(bad, target)
     # The bad source must not have disturbed the existing install or made a backup.
-    assert dogfood._plugin_version(target) == "0.0.1"
+    assert _marker(target) == "old"
     assert not target.with_name(target.name + ".marketplace-bak").exists()
 
 
@@ -223,12 +233,12 @@ def test_main_returns_config_error_on_git_failure(monkeypatch, capsys) -> None:
 
 
 def test_uninstall_restores_backup(source: Path, target: Path) -> None:
-    _make_plugin_root(target, "0.0.1")
+    _make_plugin_root(target, "old")
     dogfood.dogfood_install(source, target)
     note = dogfood.dogfood_uninstall(target)
     assert "restored backup" in note
     assert target.is_dir()
-    assert dogfood._plugin_version(target) == "0.0.1"
+    assert _marker(target) == "old"
 
 
 def test_uninstall_without_backup_advises_reinstall(source: Path, target: Path) -> None:
@@ -244,7 +254,7 @@ def test_uninstall_when_nothing_installed(target: Path) -> None:
 
 
 def test_uninstall_removes_regular_file_and_restores_backup(target: Path) -> None:
-    backup = _make_plugin_root(target.with_name(target.name + ".marketplace-bak"), "0.0.1")
+    backup = _make_plugin_root(target.with_name(target.name + ".marketplace-bak"), "old")
     assert backup.is_dir()
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text("stray file", encoding="utf-8")  # target is a plain file
@@ -253,7 +263,7 @@ def test_uninstall_removes_regular_file_and_restores_backup(target: Path) -> Non
 
     assert "removed file" in note
     assert target.is_dir()  # backup restored over the removed file
-    assert dogfood._plugin_version(target) == "0.0.1"
+    assert _marker(target) == "old"
 
 
 # --- status (each state) ---
@@ -263,14 +273,14 @@ def test_status_reports_current_copy(source: Path, target: Path) -> None:
     dogfood.dogfood_install(source, target)
     status = dogfood.dogfood_status(source, target)
     assert "dogfood copy" in status
-    assert "9.9.9" in status
-    assert "re-run" not in status  # matches the shipped version
+    assert "content" in status
+    assert "re-run" not in status  # matches the shipped content
 
 
 def test_status_labels_marketplace_copy(source: Path, target: Path) -> None:
     # A markerless install is a marketplace copy; --status must not describe it
     # as a dogfood copy (issue #3256).
-    _make_plugin_root(target, "0.0.1")
+    _make_plugin_root(target, "old")
     status = dogfood.dogfood_status(source, target)
     assert "marketplace copy" in status
     assert "not dogfooded" in status
@@ -278,7 +288,7 @@ def test_status_labels_marketplace_copy(source: Path, target: Path) -> None:
 
 
 def test_status_flags_stale_copy(source: Path, target: Path) -> None:
-    _make_plugin_root(target, "0.0.1")
+    _make_plugin_root(target, "old")
     # Create dogfood marker to indicate this is a dogfood copy, not marketplace
     (target / ".dogfood").write_text("", encoding="utf-8")
     status = dogfood.dogfood_status(source, target)
@@ -298,7 +308,7 @@ def test_is_stale_false_when_versions_match(source: Path, target: Path) -> None:
 
 
 def test_is_stale_true_when_installed_older(source: Path, target: Path) -> None:
-    _make_plugin_root(target, "0.0.1")
+    _make_plugin_root(target, "old")
     # Create dogfood marker to indicate this is a dogfood copy, not marketplace
     (target / ".dogfood").write_text("", encoding="utf-8")
     assert dogfood._is_stale(source, target) is True
@@ -307,7 +317,7 @@ def test_is_stale_true_when_installed_older(source: Path, target: Path) -> None:
 def test_is_stale_true_when_installed_newer(source: Path, target: Path) -> None:
     # Any mismatch is stale, in either direction: a copy newer than the tree
     # (older branch checked out) is just as wrong for dogfood fidelity.
-    _make_plugin_root(target, "99.0.0")
+    _make_plugin_root(target, "newer")
     # Create dogfood marker to indicate this is a dogfood copy, not marketplace
     (target / ".dogfood").write_text("", encoding="utf-8")
     assert dogfood._is_stale(source, target) is True
@@ -316,7 +326,7 @@ def test_is_stale_true_when_installed_newer(source: Path, target: Path) -> None:
 def test_is_stale_false_when_marketplace_install(source: Path, target: Path) -> None:
     # A marketplace install (no dogfood marker) is not a dogfood copy and cannot
     # be stale, even if its version differs from the working tree (issue #3256).
-    _make_plugin_root(target, "0.0.1")
+    _make_plugin_root(target, "old")
     # No dogfood marker - this is a stock marketplace install
     assert dogfood._is_stale(source, target) is False
 
@@ -326,39 +336,33 @@ def test_is_stale_false_when_orphan_backup_exists(source: Path, target: Path) ->
     # a marketplace install to be treated as stale. After dogfooding once, if
     # Copilot overwrites the target with a marketplace copy (no .dogfood marker),
     # the backup persists but the current install is NOT a dogfood copy.
-    _make_plugin_root(target, "0.0.1")
+    _make_plugin_root(target, "old")
     # Orphan backup exists from a prior dogfood session
-    _make_plugin_root(target.with_name(target.name + ".marketplace-bak"), "0.0.0")
+    _make_plugin_root(target.with_name(target.name + ".marketplace-bak"), "orphan")
     # No .dogfood marker in target - this is a marketplace install
     assert dogfood._is_stale(source, target) is False
 
 
-def test_is_stale_true_after_first_install_with_version_change(source: Path, target: Path) -> None:
+def test_is_stale_true_after_first_install_with_content_change(source: Path, target: Path) -> None:
     # First install (no prior copy) must still be detected as stale when the
-    # source version changes (issue #3256 regression: backup-only detection
+    # source content changes (issue #3256 regression: backup-only detection
     # missed first installs because no backup was created).
     dogfood.dogfood_install(source, target)
-    # Simulate a version bump in the working tree
-    (source / ".claude-plugin" / "plugin.json").write_text(
-        json.dumps({"name": "project-toolkit", "version": "10.0.0"}), encoding="utf-8"
-    )
+    (source / "hooks" / "guard.py").write_text("edited", encoding="utf-8")
     assert dogfood._is_stale(source, target) is True
 
 
-def test_is_stale_true_after_symlink_replacement_with_version_change(
+def test_is_stale_true_after_symlink_replacement_with_content_change(
     source: Path, target: Path, tmp_path: Path
 ) -> None:
     # Replacing a symlink must still be detected as stale when the source
-    # version changes (issue #3256 regression: no backup created for symlinks).
+    # content changes (issue #3256 regression: no backup created for symlinks).
     _require_symlinks(tmp_path)
-    other = _make_plugin_root(tmp_path / "other", "1.0.0")
+    other = _make_plugin_root(tmp_path / "other", "other")
     target.parent.mkdir(parents=True, exist_ok=True)
     target.symlink_to(other, target_is_directory=True)
     dogfood.dogfood_install(source, target)
-    # Simulate a version bump in the working tree
-    (source / ".claude-plugin" / "plugin.json").write_text(
-        json.dumps({"name": "project-toolkit", "version": "10.0.0"}), encoding="utf-8"
-    )
+    (source / "hooks" / "guard.py").write_text("edited", encoding="utf-8")
     assert dogfood._is_stale(source, target) is True
 
 
@@ -381,13 +385,13 @@ def test_check_reports_current_when_in_sync(source: Path, target: Path) -> None:
 
 
 def test_check_flags_stale_copy(source: Path, target: Path) -> None:
-    _make_plugin_root(target, "0.0.1")
+    _make_plugin_root(target, "old")
     # Create dogfood marker to indicate this is a dogfood copy, not marketplace
     (target / ".dogfood").write_text("", encoding="utf-8")
     stale, message = dogfood.dogfood_check(source, target)
     assert stale is True
-    assert "0.0.1" in message  # installed version
-    assert "9.9.9" in message  # shipped version
+    assert dogfood._short_fingerprint(target) in message  # installed content
+    assert dogfood._short_fingerprint(source) in message  # shipped content
     assert "--install" in message
 
 
@@ -407,8 +411,8 @@ def test_check_reports_symlink_state(source: Path, target: Path, tmp_path: Path)
 
 
 def test_main_check_returns_1_on_stale(monkeypatch, tmp_path: Path, capsys) -> None:
-    _make_plugin_root(tmp_path / "src" / "copilot-cli", "9.9.9")
-    tgt = _make_plugin_root(tmp_path / "installed" / "project-toolkit", "0.0.1")
+    _make_plugin_root(tmp_path / "src" / "copilot-cli", "shipped")
+    tgt = _make_plugin_root(tmp_path / "installed" / "project-toolkit", "old")
     # Create dogfood marker to indicate this is a dogfood copy, not marketplace
     (tgt / ".dogfood").write_text("", encoding="utf-8")
     monkeypatch.setattr(dogfood, "_repo_root", lambda: tmp_path)
@@ -416,19 +420,20 @@ def test_main_check_returns_1_on_stale(monkeypatch, tmp_path: Path, capsys) -> N
     rc = dogfood.main(["--check"])
     assert rc == 1
     out = capsys.readouterr().out
-    assert "0.0.1" in out and "9.9.9" in out
+    assert dogfood._short_fingerprint(tgt) in out
+    assert "--install" in out
 
 
 def test_main_check_returns_0_when_current(monkeypatch, tmp_path: Path) -> None:
-    _make_plugin_root(tmp_path / "src" / "copilot-cli", "9.9.9")
-    tgt = _make_plugin_root(tmp_path / "installed" / "project-toolkit", "9.9.9")
+    _make_plugin_root(tmp_path / "src" / "copilot-cli", "shipped")
+    tgt = _make_plugin_root(tmp_path / "installed" / "project-toolkit", "shipped")
     monkeypatch.setattr(dogfood, "_repo_root", lambda: tmp_path)
     monkeypatch.setattr(dogfood, "default_target", lambda: tgt)
     assert dogfood.main(["--check"]) == 0
 
 
 def test_main_check_returns_0_when_not_installed(monkeypatch, tmp_path: Path) -> None:
-    _make_plugin_root(tmp_path / "src" / "copilot-cli", "9.9.9")
+    _make_plugin_root(tmp_path / "src" / "copilot-cli", "shipped")
     monkeypatch.setattr(dogfood, "_repo_root", lambda: tmp_path)
     monkeypatch.setattr(dogfood, "default_target", lambda: tmp_path / "installed" / "nope")
     assert dogfood.main(["--check"]) == 0
@@ -437,8 +442,8 @@ def test_main_check_returns_0_when_not_installed(monkeypatch, tmp_path: Path) ->
 def test_main_check_returns_0_when_marketplace_install(monkeypatch, tmp_path: Path) -> None:
     # A marketplace install (no .dogfood marker) with a version mismatch is
     # not a stale dogfood copy (issue #3256).
-    _make_plugin_root(tmp_path / "src" / "copilot-cli", "9.9.9")
-    tgt = _make_plugin_root(tmp_path / "installed" / "project-toolkit", "0.0.1")
+    _make_plugin_root(tmp_path / "src" / "copilot-cli", "shipped")
+    tgt = _make_plugin_root(tmp_path / "installed" / "project-toolkit", "old")
     # No .dogfood marker: this is a stock marketplace install.
     monkeypatch.setattr(dogfood, "_repo_root", lambda: tmp_path)
     monkeypatch.setattr(dogfood, "default_target", lambda: tgt)
@@ -448,33 +453,11 @@ def test_main_check_returns_0_when_marketplace_install(monkeypatch, tmp_path: Pa
 def test_check_labels_marketplace_install(source: Path, target: Path) -> None:
     # A markerless install at the target path is a marketplace copy, not a
     # stale-or-current dogfood copy; the advisory names it as such and skips.
-    _make_plugin_root(target, "0.0.1")
+    _make_plugin_root(target, "old")
     stale, message = dogfood.dogfood_check(source, target)
     assert stale is False
     assert "marketplace copy" in message
     assert "advisory skipped" in message
-
-
-# --- helpers ---
-
-
-def test_plugin_version_none_without_manifest(tmp_path: Path) -> None:
-    assert dogfood._plugin_version(tmp_path) is None
-
-
-def test_plugin_version_none_on_non_object_manifest(tmp_path: Path) -> None:
-    root = _write_manifest(tmp_path / "list", "[1, 2, 3]")
-    assert dogfood._plugin_version(root) is None
-
-
-def test_plugin_version_none_on_malformed_manifest(tmp_path: Path) -> None:
-    root = _write_manifest(tmp_path / "bad", "{oops")
-    assert dogfood._plugin_version(root) is None
-
-
-def test_plugin_version_none_when_version_missing(tmp_path: Path) -> None:
-    root = _write_manifest(tmp_path / "noversion", json.dumps({"name": "x"}))
-    assert dogfood._plugin_version(root) is None
 
 
 def test_default_target_honors_copilot_home(monkeypatch, tmp_path: Path) -> None:

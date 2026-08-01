@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -252,6 +253,7 @@ def _make_manifest_conflict(
     base: str,
     ours: str,
     theirs: str,
+    rel: str = MANIFEST,
 ) -> None:
     """Create a real merge conflict on the plugin manifest in a tmp repo.
 
@@ -265,7 +267,7 @@ def _make_manifest_conflict(
     # Hermetic: a host-level commit.gpgsign with an unreachable signer would
     # fail every fixture commit and dissolve the conflict under test.
     _git(repo, "config", "commit.gpgsign", "false")
-    manifest = repo / MANIFEST
+    manifest = repo / rel
     manifest.parent.mkdir(parents=True)
     manifest.write_text(base, encoding="utf-8")
     _git(repo, "add", "-A")
@@ -287,6 +289,11 @@ def _manifest_json(version: str, description: str = "toolkit") -> str:
         f'  "description": "{description}",\n'
         f'  "version": "{version}"\n}}\n'
     )
+
+
+def _versionless_manifest_json(description: str = "toolkit") -> str:
+    """The post-ADR-091 manifest shape: same keys, no version field."""
+    return f'{{\n  "name": "project-toolkit",\n  "description": "{description}"\n}}\n'
 
 
 class TestResolvePluginManifestConflict:
@@ -351,6 +358,72 @@ class TestResolvePluginManifestConflict:
     def test_no_conflict_stages_returns_false(self, tmp_path: Path) -> None:
         _git(tmp_path, "init", "-b", "main")
         assert resolve_plugin_manifest_conflict(MANIFEST, cwd=str(tmp_path)) is False
+
+
+class TestResolvePluginManifestAdr091Migration:
+    """A side that dropped the version field wins: ADR-091 forbids the field."""
+
+    def test_main_dropped_version_resolves_to_versionless(self, tmp_path: Path) -> None:
+        # The shape every plugin PR opened before ADR-091 hits on merging main.
+        _make_manifest_conflict(
+            tmp_path,
+            base=_manifest_json("0.6.5448"),
+            ours=_manifest_json("0.6.5449"),
+            theirs=_versionless_manifest_json(),
+        )
+        assert resolve_plugin_manifest_conflict(MANIFEST, cwd=str(tmp_path)) is True
+        content = (tmp_path / MANIFEST).read_text(encoding="utf-8")
+        assert "version" not in json.loads(content)
+        assert "<<<<<<<" not in content
+        staged = _git(tmp_path, "diff", "--name-only", "--cached").stdout
+        assert MANIFEST in staged
+        unmerged = _git(tmp_path, "diff", "--name-only", "--diff-filter=U").stdout
+        assert MANIFEST not in unmerged
+
+    def test_branch_dropped_version_resolves_to_versionless(self, tmp_path: Path) -> None:
+        # The rebase direction, where ours and theirs swap.
+        _make_manifest_conflict(
+            tmp_path,
+            base=_manifest_json("0.6.5448"),
+            ours=_versionless_manifest_json(),
+            theirs=_manifest_json("0.6.5449"),
+        )
+        assert resolve_plugin_manifest_conflict(MANIFEST, cwd=str(tmp_path)) is True
+        assert "version" not in json.loads((tmp_path / MANIFEST).read_text(encoding="utf-8"))
+
+    def test_versionless_conflict_dispatches_as_resolved(self, tmp_path: Path) -> None:
+        # The full dispatch path at a real plugin-root path, not just the
+        # helper: pre-fix this returned "blocked" and every migrating PR
+        # needed a hand edit.
+        rooted = f".claude/{MANIFEST}"
+        _make_manifest_conflict(
+            tmp_path,
+            base=_manifest_json("0.6.5448"),
+            ours=_manifest_json("0.6.5449"),
+            theirs=_versionless_manifest_json(),
+            rel=rooted,
+        )
+        result: dict[str, Any] = {
+            "success": False,
+            "message": "",
+            "files_resolved": [],
+            "files_blocked": [],
+        }
+        status = _resolve_conflicted_file(rooted, result, cwd=str(tmp_path))
+        assert status == "resolved"
+        assert result["files_blocked"] == []
+        assert result["files_resolved"] == [rooted]
+
+    def test_versionless_with_other_difference_still_blocks(self, tmp_path: Path) -> None:
+        _make_manifest_conflict(
+            tmp_path,
+            base=_manifest_json("0.6.5448"),
+            ours=_manifest_json("0.6.5449", description="changed on pr"),
+            theirs=_versionless_manifest_json(),
+        )
+        assert resolve_plugin_manifest_conflict(MANIFEST, cwd=str(tmp_path)) is False
+        unmerged = _git(tmp_path, "diff", "--name-only", "--diff-filter=U").stdout
+        assert MANIFEST in unmerged
 
 
 class TestResolveConflictedFileDispatch:

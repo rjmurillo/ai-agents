@@ -1,0 +1,275 @@
+{
+  "id": "episode-2026-08-01-session-4041-issue-4080-delete-version-field",
+  "session": "2026-08-01-session-4041-issue-4080-delete-version-field",
+  "timestamp": "2026-08-01T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Issue #4080: delete the version field from all three packaged plugin manifests, invert the version gate, and record ADR-091 superseding ADR-079",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-verified the Copilot premise ADR-079 rested on rather than trusting the research brief. Read ~/.copilot/pkg/linux-x64/1.0.78-0/app.js, newer than the 1.0.69-0 bundle ADR-079 cited: updateAll iterates installed plugins and calls updatePlugin unconditionally, and every previousVersion!==newVersion occurrence is a display string or the version_changed telemetry property. Cache invalidation keys off skillsCacheDirty from the native operation.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bounded that claim honestly: updatePlugin delegates to the native binding pluginOperationsUpdatePlugin, which was not readable. The JS layer provably does not gate on version; the native layer is unverified and is recorded as finding F1 in the debate log and as a Negative consequence in ADR-091.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured this repository rather than assuming: both marketplace files list relative-path sources and neither carries a per-plugin version, so with plugin.json clean every plugin resolves at Claude Code step 3, the commit SHA.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Deleted the version field from the three manifests, leaving every other field byte-identical, and inverted build/scripts/validate_plugin_version_bump.py so it fails when the field is present. Kept the module name, CLI flags, and 0/1/2 exit contract so run_plugin_version_bump_ci.py, checks_plugin.py, git_hook_policy.py, and the workflow keep working.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Confirmed build/scripts/validate_plugin_manifests.py sets REQUIRED_KEYS to name alone, so removing version does not trip the manifest schema validator.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rewrote the gate tests around the inverted rule: 20 tests driving the CLI through subprocess in a real temp git repo, asserting exit 0 clean, exit 1 on a present field, exit 2 on malformed JSON, an unreadable ref, and a missing repo root.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Covered the cases a name-only check would miss: a non-string version, an explicit null version, and a working tree where the line was deleted but not committed. All three fail, because the gate reads the ref rather than the working tree.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added the marketplace guard as a repository-state test: a version in either marketplace file is Claude Code resolution step 2 and would re-pin freshness ahead of the SHA.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Retired check_version_parity from check_plugin_manifest_parity.py and its five tests. With no version there is nothing to hold equal. The description-count check (#2187, #3651) is untouched and still passes over 8 descriptions.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran the merge-conflict demonstration with git merge-tree --write-tree --name-only over throwaway commits built by plumbing, so the working tree was never touched. On the fixed HEAD 236b9d263, two branches editing different files under .claude/skills reported no conflict (exit 0). On the pre-fix commit c59473239 the same two edits plus the version bump the old gate required conflicted on .claude/.claude-plugin/plugin.json (exit 1) when the branches picked different next versions.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recorded the third measurement instead of only the flattering one: on the pre-fix commit, two branches that pick the identical next version produce identical blobs and do NOT conflict textually. That case fails the old strictly-greater gate after the first branch merges rather than at merge-tree, which is why the recovery recipe in .claude/rules/plugin-version-bump.md existed.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected the live instructions that would otherwise tell an agent to re-add the field: .claude/rules/plugin-version-bump.md rewritten, MUST-3 removed from .claude/rules/knowledge-persistence.md, the Always list in AGENTS.md trimmed, and both instruction mirrors regenerated with build/scripts/generate_rules.py.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Listed the stale prose left behind rather than sweeping it: the ai-agents-* knowledge packs, validation-authority, and merge-resolver still describe the strictly-greater rule as repository history. Named in debate-log finding F6 so the next reader does not mistake silence for currency.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: c59473239",
+      "caused_by": [],
+      "leads_to": [
+        "e019"
+      ],
+      "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran the whole suite rather than only the touched files, which surfaced a real break the scoped run missed: tests/e2e/test_plugin_load_smoke.py proved the CLI had loaded the shipped plugin by finding the manifest version string in plugin details. Re-keyed that load signal on the manifest name, which the CLI still echoes, and turned the ungated precondition test into the ADR-091 invariant.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Separated my breakage from the base branch's rather than reporting a raw failure count. Checked out the pre-fix commit c59473239 and re-ran the two remaining failing suites there: tests/ci/test_validation_scripts_are_reachable.py fails 109 tests at that commit too, and the orphan-ref-validator retired-kebab test fails there too. Both predate this branch, so the run goes from 111 failures to 110, and the one that moved is the one this change caused.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "error",
+      "content": "Separated my breakage from the base branch's rather than reporting a raw failure count. Checked out the pre-fix commit c59473239 and re-ran the two remaining failing suites there: tests/ci/test_validation_scripts_are_reachable.py fails 109 tests at that commit too, and the orphan-ref-validator retired-kebab test fails there too. Both predate this branch, so the run goes from 111 failures to 110, and the one that moved is the one this change caused.",
+      "caused_by": [
+        "e021"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Lowered the taste ratchet baseline from 612 to 610. Deleting the semver parsing block removed two violations and the ratchet enforces an exact match, so the baseline had to follow the tree down.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: b9ef052ce",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e021"
+      ],
+      "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured the migration conflict rather than naming its shape from memory. Merged a branch carrying a version bump against the fixed HEAD with git merge-tree --write-tree --name-only: git reports CONFLICT (content) in .claude/.claude-plugin/plugin.json with the branch value on one side, the base value in the middle, and the incoming side empty. ADR-091 and the rule both said modify/delete; both now state what git actually reports, so the resolver knows to take the empty side.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 153ac73f2",
+      "caused_by": [
+        "e019"
+      ],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Review round 2 (three independent reviewers, 10 findings). Fixed the dogfood staleness detector: _is_stale compared two manifest versions that are both absent after ADR-091, so --check could never exit 1. It now compares a sha256 fingerprint of the shipped file names and bytes, which also catches the unbumped hook edit the version comparison never saw. Proved with a sandbox install, a real edit under src/copilot-cli, and exit 1 then exit 0 after restore.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed the merge-resolver. _resolve_conflicted_file short-circuits on any plugin manifest, so a manifest it cannot resolve is blocked and never falls through to checkout --theirs. resolve_plugin_manifest_conflict now takes the versionless side whenever either side omits the field, which is the shape every open plugin PR hits on merging the fixed main.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the marketplace hole. A version in a marketplace entry is Claude Code resolution step 2 and no CI job ran on a marketplace-only change: pytest.yml filters on Python paths, and the version workflow filtered on the three plugin source dirs. The gate now reads both marketplace files, and the workflow filter gained both paths.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rewrote six shipped skills plus GENERATOR-FILES.md off the strictly-greater bump rule. The debugging playbook's remedy row was the exact inverse of the fix: following it produced VERSION FIELD PRESENT, exit 1, permanently. Copilot mirrors regenerated with build_all.py.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Finished the supersession bookkeeping: ADR-079 status accepted -> superseded, ADR-083's two version-keyed acceptance criteria restated, ADR-091's impact table extended with the five components it had missed and a scope section naming the conflict class it does not close.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
+    },
+    {
+      "id": "e027",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Disputed one finding with evidence: the branch does not touch scripts/validation/vendor_portability_baseline.txt (git diff c59473239..HEAD over that path is empty). The taste and ruff baselines are unchanged by this round; both ratchets print OK at 610 and 329.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 111,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 59
+  },
+  "lessons": []
+}

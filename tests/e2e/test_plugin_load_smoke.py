@@ -19,7 +19,7 @@ the shipped plugin directory, and assert the plugin loads.
     when the CLI does enumerate the shipped plugin under ``source: plugin``.
   - Claude: ``claude --plugin-dir <repo>/.claude plugin list`` and
     ``plugin details project-toolkit`` with ``cwd`` set to a neutral directory.
-    Assert returncode 0, the manifest version appears, and the expected lifecycle
+    Assert returncode 0, the manifest name appears, and the expected lifecycle
     skills are present in the details output.
 
 Why version-agnostic (issue #3148): earlier the smoke keyed the benign path on a
@@ -203,12 +203,23 @@ def _has_plugin_source_record(
     )
 
 
-def _read_manifest_version(manifest_path: Path) -> str:
+def _read_manifest_name(manifest_path: Path) -> str:
+    """The plugin's declared name, used to address `plugin details`.
+
+    The smoke used to key its load assertion on the manifest ``version``.
+    ADR-091 deleted that field so Claude Code resolves freshness from the commit
+    SHA, which means `plugin details` reports a SHA the manifest cannot predict.
+    ``name`` replaces it as the ARGUMENT, not as the proof: `plugin details
+    <name>` echoes the string it was handed, so finding it in the output cannot
+    distinguish a parsed manifest from a hollow one. The load signal in this
+    smoke is the ``EXPECTED_SKILLS`` assertion below, which can only pass if the
+    CLI walked the shipped plugin tree.
+    """
     data = json.loads(manifest_path.read_text(encoding="utf-8"))
-    version = data.get("version")
-    if not isinstance(version, str) or not version:
-        raise ValueError(f"manifest {manifest_path} has no string version: {data!r}")
-    return version
+    name = data.get("name")
+    if not isinstance(name, str) or not name:
+        raise ValueError(f"manifest {manifest_path} has no string name: {data!r}")
+    return name
 
 
 @pytest.mark.smoke
@@ -374,7 +385,7 @@ def test_claude_plugin_loads_expected_skills(tmp_path: Path) -> None:
     )
     print(f"claude --version: {version.stdout.strip() or version.stderr.strip()}")
 
-    manifest_version = _read_manifest_version(_CLAUDE_MANIFEST)
+    manifest_name = _read_manifest_name(_CLAUDE_MANIFEST)
 
     try:
         listing = _run_cli(
@@ -417,8 +428,11 @@ def test_claude_plugin_loads_expected_skills(tmp_path: Path) -> None:
         f"stdout={details.stdout[-600:]!r} stderr={details.stderr[-600:]!r}"
     )
     combined = details.stdout + details.stderr
-    assert manifest_version in combined, (
-        f"claude did not report manifest version {manifest_version!r}. "
+    # Weak by construction: `plugin details <name>` echoes its own argument.
+    # Kept as a cheap sanity check that the command addressed the right plugin.
+    # The real load signal is the skills assertion below.
+    assert manifest_name in combined, (
+        f"claude did not report manifest name {manifest_name!r}. "
         f"stdout={details.stdout[-600:]!r} stderr={details.stderr[-600:]!r}"
     )
     missing = {name for name in EXPECTED_SKILLS if name not in combined}
@@ -469,15 +483,24 @@ def test_expected_skills_ship_in_claude_tree() -> None:
     )
 
 
-def test_claude_manifest_exposes_string_version() -> None:
-    """The Claude manifest carries a non-empty string version.
+def test_claude_manifest_exposes_string_name_and_no_version() -> None:
+    """The Claude manifest carries a non-empty string name and no version.
 
-    The gated Claude smoke asserts this version appears in `plugin details`. If
-    the manifest loses its version or makes it non-string, the smoke assertion
-    becomes meaningless; pin the precondition here so it fails in bare CI.
+    The gated Claude smoke asserts this name appears in `plugin details`. If the
+    manifest loses its name or makes it non-string, the smoke assertion becomes
+    meaningless; pin the precondition here so it fails in bare CI.
+
+    The version half is the ADR-091 invariant: a version field would pin Claude
+    Code freshness to that string instead of the commit SHA. The dedicated gate
+    is build/scripts/validate_plugin_version_bump.py; this asserts the smoke's
+    own precondition so the load signal cannot silently go back to a version.
     """
-    version = _read_manifest_version(_CLAUDE_MANIFEST)
-    assert version
+    assert _read_manifest_name(_CLAUDE_MANIFEST)
+    data = json.loads(_CLAUDE_MANIFEST.read_text(encoding="utf-8"))
+    assert "version" not in data, (
+        f"{_CLAUDE_MANIFEST} carries a version field; ADR-091 requires its absence "
+        "so Claude Code resolves freshness from the commit SHA"
+    )
 
 
 def test_plugin_skill_names_counts_only_plugin_source() -> None:

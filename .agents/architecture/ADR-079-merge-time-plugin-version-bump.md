@@ -1,10 +1,10 @@
 ---
 id: ADR-079
-status: accepted
+status: superseded
 date: 2026-07-08
 decision-makers: [rjmurillo]
 supersedes: []
-superseded-by: null
+superseded-by: ADR-091
 explainer: null
 implemented: true
 ---
@@ -12,6 +12,8 @@ implemented: true
 # ADR-079: Plugin Version Bump Stays at PR Time (Reject Merge-Time Automation)
 
 ## Status
+
+Superseded by ADR-091 (2026-08-01), which deletes the `version` field from all three manifests so Claude Code resolves freshness from the commit SHA. ADR-091 does not contradict the objection below: that objection is to a post-merge *stamp*, and omitting the field stamps nothing at any point. The premise that has changed is the Copilot one: the shipped 1.0.78-0 bundle calls `updatePlugin` unconditionally, and the official CLI plugin reference lists `version` as optional metadata.
 
 Accepted (2026-07-08). Requested by issue #2855 (labels `bug`, `agent-qa`, `area-workflows`, `area-infrastructure`, `area-skills`, `priority:P1`, `technical-debt`). The issue surfaces a real throughput cost: parallel plugin-source PRs serialize on the monotonic version-bump gate.
 

@@ -1,6 +1,6 @@
 ---
 name: ai-agents-generation-and-release
-description: Operate the ai-agents generation and release machinery, covering the seven build_all.py generators, generate_agents.py, sync_plugin_lib.py, the drift gates, three plugin.json semver bumps, and the npm publish path. Use when you say `regenerate the mirrors`, `run the drift checks`, `bump the plugin version`, `release the npm cli`. Do NOT use for environment setup (use `ai-agents-build-and-env`) or architecture rationale (use `ai-agents-architecture-contract`).
+description: Operate the ai-agents generation and release machinery, covering the seven build_all.py generators, generate_agents.py, sync_plugin_lib.py, the drift gates, the version-free plugin manifests, and the npm publish path. Use when you say `regenerate the mirrors`, `run the drift checks`, `why is the plugin version gate red`, `release the npm cli`. Do NOT use for environment setup (use `ai-agents-build-and-env`) or architecture rationale (use `ai-agents-architecture-contract`).
 version: 1.0.0
 license: MIT
 ---
@@ -15,13 +15,13 @@ Jargon, defined once:
 - Generator: a Python function or script that reads a canonical tree and writes a derived (generated) tree.
 - Drift: the generated tree no longer matches what the generators would produce from the canonical tree.
 - Canonical: the tree you are allowed to edit. Generated trees are outputs; you never hand-edit them.
-- Semver: semantic version string MAJOR.MINOR.PATCH; "strictly greater" means the new version compares higher than the old one.
+- Semver: semantic version string MAJOR.MINOR.PATCH. The plugin manifests carry no version at all (ADR-091); the npm package still does.
 
 ## Triggers
 
 - `regenerate the mirrors`
 - `run the drift checks`
-- `bump the plugin version`
+- `why is the plugin version gate red`
 - `release the npm cli`
 - `why is the drift gate red`
 
@@ -86,10 +86,10 @@ Interpreter note: `build/generate_agents.py` and `build/scripts/build_all.py` bo
 | You edited | Run | Then |
 |------------|-----|------|
 | `templates/agents/*.shared.md` | `uv run python build/generate_agents.py` then `uv run python build/scripts/build_all.py` (refreshes docs/agent-catalog.md) | commit template + all regenerated files. If the same agent exists in `src/claude/agents/`, hand-apply the equivalent edit there (ADR-036 manual sync; semantic drift CI is the only net). |
-| `.claude/skills/`, `.claude/commands/`, `.claude/rules/` | `uv run python build/scripts/build_all.py` | bump plugin versions (Phase 4), commit source + generated |
+| `.claude/skills/`, `.claude/commands/`, `.claude/rules/` | `uv run python build/scripts/build_all.py` | commit source + generated. No manifest edit (Phase 4) |
 | `.claude/hooks/` or `.claude/settings.json` | `uv run python build/scripts/build_all.py` | same as above. The `build-all-check` pre-push job in `lefthook.yml` re-runs `build_all.py --check` at `git push` time and blocks if any generated output (including shims under `src/copilot-cli/hooks/`) drifts, so regenerate BEFORE pushing. |
-| `scripts/hook_utilities/`, `scripts/github_core/`, `scripts/ai_review_common/` | `python3 scripts/sync_plugin_lib.py` (writes `.claude/lib/`) THEN `uv run python build/scripts/build_all.py` (writes `src/copilot-cli/lib/`) | BOTH are required; skipping either fails the Validate Generated Files CI. Bump plugin versions. |
-| `src/claude/` (deliberate manual change) | nothing to regenerate | bump `src/claude/.claude-plugin/plugin.json` (Phase 4) |
+| `scripts/hook_utilities/`, `scripts/github_core/`, `scripts/ai_review_common/` | `python3 scripts/sync_plugin_lib.py` (writes `.claude/lib/`) THEN `uv run python build/scripts/build_all.py` (writes `src/copilot-cli/lib/`) | BOTH are required; skipping either fails the Validate Generated Files CI. No manifest edit. |
+| `src/claude/` (deliberate manual change) | nothing to regenerate | nothing to bump; the manifest carries no version (Phase 4) |
 
 Useful flags, verified against source:
 
@@ -107,8 +107,8 @@ Drift-gate matrix (all local commands verified runnable, all green on 2026-07-29
 | Full pipeline staleness | any canonical edit not mirrored to owned prefixes | `uv run python build/scripts/build_all.py --check` | `validate-generated-agents.yml`; named pre-push job in `lefthook.yml` |
 | Lib mirror drift | `scripts/` package edited without sync | `python3 scripts/sync_plugin_lib.py --check` | `validate-generated-agents.yml` |
 | Install parity | plugin install layout broken | `python3 scripts/validation/run_install_parity_ci.py` | `validate-generated-agents.yml` |
-| Manifest version parity | `.claude` vs `src/copilot-cli` plugin versions differ | `python3 build/scripts/check_plugin_manifest_parity.py` | `validate-generated-agents.yml`, `agent-drift-detection.yml` (fix for #2222) |
-| Plugin version bump | content change without semver bump | `pre-pr-validation` job in `lefthook.yml` (`scripts/validation/pre_pr.py`) | `validate-plugin-version-bump.yml` |
+| Manifest description parity | `.claude` vs `src/copilot-cli` plugin descriptions carry component counts | `python3 build/scripts/check_plugin_manifest_parity.py` | `validate-generated-agents.yml`, `agent-drift-detection.yml` (the version half was retired with ADR-091) |
+| Plugin version field present | a manifest or marketplace entry carries `version` | `pre-pr-validation` job in `lefthook.yml` (`scripts/validation/pre_pr.py`) | `validate-plugin-version-bump.yml` |
 | Semantic agent drift (src/claude) | hand-synced tree diverging in meaning | `python3 build/scripts/detect_agent_drift.py` | `drift-detection.yml`, weekly cron Monday 09:00 UTC (line 15); similarity threshold default 80 (detect_agent_drift.py:666-668), with a recorded-baseline floor so a clean checkout does not fail |
 
 When a drift gate is red, the output shows the DIFFERENCE, not the DIRECTION. Ask "which side is canonical?" using the Phase 1 table before touching anything. The 2025-12-15 incident (retro: `.agents/retrospective/2025-12-15-drift-detection-disaster.md`) happened because an agent edited the SOURCE to match the GENERATED tree; the commit was reverted. Fix is always: edit canonical, rerun generator, commit both.
@@ -135,31 +135,29 @@ project-toolkit` while leaving the `_direct/project-toolkit` cache. The active
 session then lost its hook scripts and denied matching tools until the
 marketplace plugin was reinstalled.
 
-### Phase 4: Plugin Versioning Discipline
+### Phase 4: Plugin Manifests Carry No Version
 
 Three plugin manifests exist (verify:
 `find . -name plugin.json -path "*claude-plugin*"`):
 
-| Tree | Manifest | Plugin name | Version source |
-|------|----------|-------------|----------------|
-| `.claude/` | `.claude/.claude-plugin/plugin.json` | project-toolkit (Claude) | Read this manifest |
-| `src/copilot-cli/` | `src/copilot-cli/.claude-plugin/plugin.json` | project-toolkit (Copilot) | Read this manifest |
-| `src/claude/` | `src/claude/.claude-plugin/plugin.json` | claude-agents | Read this manifest |
+| Tree | Manifest | Plugin name |
+|------|----------|-------------|
+| `.claude/` | `.claude/.claude-plugin/plugin.json` | project-toolkit (Claude) |
+| `src/copilot-cli/` | `src/copilot-cli/.claude-plugin/plugin.json` | project-toolkit (Copilot) |
+| `src/claude/` | `src/claude/.claude-plugin/plugin.json` | claude-agents |
 
-Current values are intentionally not copied into this skill. Read each manifest
-at execution time. The rule (docstring of
-`build/scripts/validate_plugin_version_bump.py`): when any CONTENT file under a
-packaged plugin's source dir changes, that tree's `plugin.json` version MUST be
-strictly greater than at the base ref. A metadata-only edit to plugin.json needs
-no other change; a bump with no content change is always allowed. Motivating
-failure: PR #1942 deleted a skill without bumping, installed caches kept serving
-the dead skill until PR #2114 caught it by hand.
+The rule (docstring of `build/scripts/validate_plugin_version_bump.py`): none of
+those manifests may carry a `version` field, and neither may an entry in either
+`marketplace.json`. Claude Code then resolves freshness from the git commit SHA,
+which moves on every merge. ADR-091 records the reversal of ADR-079's
+hand-bumped rule after issue #4080 measured 14 of 22 conflicting PRs conflicting
+on that one line.
 
 Practical consequences:
 
-- Any `.claude/` content edit regenerates `src/copilot-cli/` too, so you bump BOTH project-toolkit manifests, and `check_plugin_manifest_parity.py` requires the two versions to be IDENTICAL. Bump them to the same new value in one commit.
-- `src/claude/` bumps independently (its own line).
-- `.github/instructions/` and `src/vs-code-agents/` carry no plugin.json; no bump.
+- Any `.claude/` content edit regenerates `src/copilot-cli/` too, but neither manifest changes: both are version-free, and `check_plugin_manifest_parity.py` now checks description component counts only.
+- `src/claude/` is the same: no version to move.
+- `.github/instructions/` and `src/vs-code-agents/` carry no plugin.json at all.
 - Marketplace: `.claude-plugin/marketplace.json` lists two plugins (claude-agents from `./src/claude`, project-toolkit from `./.claude`). The old marketplace count validator and its YAML config were retired, so treat description-count validation as currently unenforced and keep counts honest by hand.
 
 ### Phase 5: npm Release Path
@@ -186,7 +184,7 @@ Rollback is roll-FORWARD: npm unpublish is restricted; fix, bump patch, retag (R
 | Editing source to make a drift gate green | The 2025-12-15 disaster; drift output shows difference, not direction | Identify canonical side first, regenerate outward |
 | Syncing lib with only one of the two steps | `sync_plugin_lib.py` feeds `.claude/lib/`; `build_all.py` feeds `src/copilot-cli/lib/`; missing either fails CI | Run both, in that order |
 | Bumping one project-toolkit manifest | Parity gate fails (#2222) | Bump `.claude` and `src/copilot-cli` manifests to the same value |
-| Skipping the plugin bump because "it is just a skill tweak" | Installed caches key off version; consumers keep stale content (PR #1942) | Strictly-greater bump on any content change |
+| Re-adding a `version` to a manifest to clear a red gate | The gate fails on the field's presence, so the red is permanent | Delete the field; freshness already tracks the commit SHA |
 | Treating `Dropped: N` as normal without checking the source | Current source registrations all map to Copilot events; an unexplained drop means contract drift | Read `build/audit/GENERATION-AUDIT.md`, identify the source registration, and require an explicit `eventDrop` decision |
 | Running `build_all.py` with bare `python3` in a fresh shell | PyYAML lives in the venv; import fails | `uv run python build/scripts/build_all.py` |
 | Running installed-plugin E2E against live `~/.copilot` | Version skew and ambiguous uninstall mutate active hooks; a missing hook root can deny every matching tool | Set both `HOME` and `COPILOT_HOME` to one isolated directory and register the worktree marketplace there |
@@ -200,7 +198,7 @@ Run this checklist before pushing any change that touched a canonical or generat
 - [ ] `uv run python build/scripts/build_all.py --check` exits 0 (2 means staleness: regenerate and stage)
 - [ ] `python3 scripts/sync_plugin_lib.py --check` exits 0 (only relevant if `scripts/` packages changed)
 - [ ] `python3 build/scripts/check_plugin_manifest_parity.py` exits 0
-- [ ] If content under `.claude/`, `src/claude/`, or `src/copilot-cli/` changed: the matching plugin.json version is strictly greater than on origin/main
+- [ ] `python3 build/scripts/validate_plugin_version_bump.py` exits 0 (no manifest or marketplace entry carries a `version`)
 - [ ] Canonical edit and regenerated output are staged in the same commit set
 - [ ] For an npm release: tag matches `packages/ai-agents-cli/package.json` version exactly
 
@@ -216,8 +214,8 @@ Verified 2026-07-29 against the working tree (re-verification pass; the 2026-07-
 | build_all exit codes 0/1/2/3 | build/scripts/build_all.py:16-20 | `sed -n '16,20p' build/scripts/build_all.py` |
 | generate_agents flags and exit codes | build/generate_agents.py:13-16,460-487 | `uv run python build/generate_agents.py --help` |
 | sync pairs scripts to .claude/lib | scripts/sync_plugin_lib.py:27-31 | `grep -n -A4 "SYNC_PAIRS" scripts/sync_plugin_lib.py` |
-| Plugin manifest locations and current values | the three plugin.json files | `git ls-files '*claude-plugin/plugin.json' | xargs grep -H version` |
-| Strictly-greater bump rule, PR #1942 story | build/scripts/validate_plugin_version_bump.py:1-40 | `head -40 build/scripts/validate_plugin_version_bump.py` |
+| Plugin manifest locations, all version-free | the three plugin.json files | `python3 build/scripts/validate_plugin_version_bump.py` |
+| Version-field prohibition and the ADR-091 reversal | build/scripts/validate_plugin_version_bump.py docstring | `grep -n "WHY THE FIELD MUST BE ABSENT" build/scripts/validate_plugin_version_bump.py` |
 | Parity gate #2222 | build/scripts/check_plugin_manifest_parity.py:1-16 | `python3 build/scripts/check_plugin_manifest_parity.py` |
 | Drift CI wiring | .github/workflows/validate-generated-agents.yml:165,174,212,225,239; agent-drift-detection.yml:146,156,159,171 | `grep -n "uv run python" .github/workflows/validate-generated-agents.yml` |
 | Weekly semantic drift cron, threshold 80 | .github/workflows/drift-detection.yml:13-15; build/scripts/detect_agent_drift.py:666-668 | `grep -n "cron" .github/workflows/drift-detection.yml` |
