@@ -1,0 +1,164 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4007,
+    "date": "2026-07-31",
+    "branch": "fix/diff-scoped-quality-scan",
+    "startingCommit": "ea6c7398c",
+    "objective": "Fix #4007: diff-scoped quality scans reporting pre-existing whole-file violations"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Running under Copilot CLI worktree; Serena MCP not available in this harness"
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena not available in Copilot CLI harness"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md read at session start"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill catalog reviewed via AGENTS.md"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md usage-mandatory reviewed"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PROJECT-CONSTRAINTS.md and ADRs reviewed"
+      },
+      "memoriesLoaded": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena not available; used issue text and git log for context instead"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/diff-scoped-quality-scan"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/diff-scoped-quality-scan, not main"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status clean after rebase"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "ea6c7398c (previous session end)"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items complete"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified"
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena not available in Copilot CLI harness; findings recorded in session log instead"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files changed in this session"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "6beb62a76 (docstring fix), df493aecf (type-ignore fix now in main via PR #4004), plus this session log"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "150 tests pass; ruff, mypy pass; all pre-push ratchets pass"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "PR #4033 open addressing issue #4007; 6 reviewer threads resolved"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "## Retrospective captured in workLog"
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "No rework required"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": 1,
+      "action": "Rebased onto origin/main (088292977), resolved plugin.json conflict by bumping to 0.6.5487",
+      "result": "150 tests passing after rebase"
+    },
+    {
+      "step": 2,
+      "action": "Push failed: type-ignore-count-ratchet at 56 vs baseline 55",
+      "result": "Traced to PR #4091 adding shas.add(parent.get(sha)) with type: ignore without updating baseline"
+    },
+    {
+      "step": 3,
+      "action": "Removed unnecessary type: ignore[arg-type] from pr_commit_count.py; used parent[sha] subscript instead",
+      "result": "parent[sha] guaranteed non-None by _is_external_parent; mypy passes; ratchet restored to 55"
+    },
+    {
+      "step": 4,
+      "action": "Fixed _filter_violations_for_diff docstring mismatch (grew past threshold vs grew at all)",
+      "result": "Docstring now correctly describes new_count > old_count behavior"
+    },
+    {
+      "step": 5,
+      "action": "Resolved 6 copilot reviewer threads: 1 code fix, 4 stale (code already correct), 1 acknowledged limitation",
+      "result": "All 6 threads resolved with evidence"
+    },
+    {
+      "step": 6,
+      "action": "Push succeeded with all pre-push gates passing",
+      "result": "19917 tests passed; all ratchets OK"
+    }
+  ],
+  "retrospective": {
+    "section": "## Retrospective",
+    "learningsCaptured": [
+      "Type-ignore-count-ratchet has a double gate: count vs baseline AND baseline vs base-ref baseline. Cannot raise the baseline to match a regression introduced in main.",
+      "The right fix for an unnecessary type: ignore is to fix the code, not update the baseline.",
+      "Copilot reviewer threads can reference stale diff versions. Re-measure all premises before acting on reviewer comments.",
+      "git diff --unified=0 means violations anchored to structure header lines may not appear in changed-line sets when only the body is modified; document as known limitation."
+    ]
+  },
+  "endingCommit": "6beb62a76",
+  "nextSteps": []
+}
