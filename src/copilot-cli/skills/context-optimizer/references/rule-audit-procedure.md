@@ -1,5 +1,14 @@
 # Rule Audit Procedure
 
+<!-- # taste-lint: ignore file-size -->
+<!-- file-size rationale: this is one linear procedure, executed top to bottom
+from step 0 through step 8. The 500-line limit encodes code cohesion, and the
+linter's own remediation advice for it (extract helper functions, type
+definitions, constants) has no referent in a prose procedure. Splitting the
+steps across files breaks the execution path a reader follows. Same treatment
+as the peer reference doc `memory-search/references/memory-router.md` and the
+over-limit prose ADRs cited in ADR-085. -->
+
 How to decide whether an always-on rule earns its slot, with evidence rather
 than taste. Companion to `model-context-doctrine.md`, which holds the argument
 this procedure tests.
@@ -33,6 +42,59 @@ Two traps:
 - The ceilings in `scripts/validation/instruction_budget_constants.py` track
   measured size, not a goal. A PASS means "no growth since the last ceiling
   raise", not "the corpus is small".
+
+## Step 0b. Conflict audit
+
+Run this when Step 0 shows the corpus near its ceiling. A contradiction between
+two always-on files is the highest-value thing you can remove: it costs tokens
+twice and it also makes the model guess, so fixing one buys budget and behavior
+at the same time.
+
+**Read the files. Do not build a scanner.** Automated conflict detection was
+tried and disproved on 2026-08-01. An opposite-polarity bag-of-words scanner
+over 168 directive lines in 27 files produced 83 candidates at three or more
+shared content words. Manual review of the top 12 found **zero conflicts**: all
+12 were agreement or duplication, for example "Pin Actions to SHA" restated in
+three files. The decisive measurement is the positive control. The one
+known-true conflict in the corpus shares exactly **1** content word between its
+two sides, while pure agreement shares up to **7**. Signal and noise are
+inverted with respect to any shared-vocabulary ranking, so the instrument is
+structurally incapable of the job. Rebuilding it with better tokenization or a
+higher threshold does not help; the ordering is backwards, not noisy.
+
+**What a real conflict looks like.** Contradictions hide in the verb, not the
+vocabulary. The one found in this corpus:
+
+| Source | Scope | Said, before the fix |
+|--------|-------|------|
+| `AGENTS.md` | entrypoint, read first | `Use bash` under **Never**, removed by #4169 |
+| `.claude/rules/universal.md` | applyTo `**` | MUST NOT **create** new bash scripts |
+| `.claude/rules/ci-scripts.md` | scripts and build paths | MUST NOT **create** new `*.sh` scripts |
+| `.claude/rules/claude-model-patches.md` | applyTo `**` | publishes an **allowed** bash list |
+
+Both rules that state the prohibition say *create*. The compressed index said
+*use*. Nothing
+reconciled them, so an agent reading the entrypoint first would refuse `git`
+and `gh`. Compression is where this defect class is born: when a long rule is
+squeezed into an index line, the verb is the first casualty.
+
+**Two hypotheses that were checked and are false.** Do not re-file these.
+
+- `code-quality.md` versus `pragmatic-programmer.md` on naming, error handling,
+  and testing is **complementary altitude**, not contradiction. One is
+  mechanical and language-specific (`try`/`finally`, `raise`), the other is
+  architectural (detect close to the source, separate retryable from
+  permanent).
+- `universal.md` SHOULD use Python versus `ci-scripts.md` MUST be Python is
+  **scope graduation**, the normal RFC 2119 shape of a broad SHOULD tightening
+  to a MUST in a narrower path.
+
+**Procedure.** List the always-on set from Step 0. Read each file's directive
+lines. For every rule that appears in more than one file, compare the verb and
+the scope, not the topic. A narrower scope being stricter is correct. The same
+scope disagreeing on the verb is the defect. File one issue per contradiction
+with all sources quoted, because the fix is a wording decision and needs a
+record.
 
 ## Step 1. Behavioral baseline
 
@@ -496,4 +558,4 @@ scenario the model handles correctly with an empty system prompt proves
 nothing about the rule. Aim for cases where the rule's specific guidance
 changes the answer.
 
-<!-- vendor-portability: declared. The provenance table cites .agents/analysis/eval-artifacts/2026-07-29-unified-software-engineering/ as the archive holding the eight runs behind the published numbers, so a reader can re-derive every cell instead of taking them on faith. It is a citation in a narrative, not a path the skill reads or writes. A vendored install loses the ability to check the raw artifacts locally; the procedure still runs, it just produces new data rather than reproducing ours. Issue #2050. -->
+<!-- vendor-portability: declared, and it covers two different kinds of dependency. The severe one is executable: commands in this file invoke scripts/validation/instruction_budget.py, scripts/eval/eval-rule-activation.py, and build/scripts/generate_rules.py, none of which ships in any plugin root, so a vendored install cannot run this procedure at all. That is intended. The audience is repo contributors working in a full checkout, and SKILL.md's audit always-on rules trigger says so in its own words: "Requires a full rjmurillo/ai-agents checkout". The milder one is a citation: the provenance table points at .agents/analysis/eval-artifacts/2026-07-29-unified-software-engineering/ as the archive holding the eight runs behind the published numbers, so a reader can re-derive every cell instead of taking them on faith. A vendored install loses the ability to check those raw artifacts locally; the procedure still reads, it just cannot reproduce our data. Do not resolve either by moving the eval harness under the skill: scripts/eval is large and still growing, three workflows (slash-command-quality.yml, skill-overlap-eval.yml, software-engineering-library-activation.yml) depend on it, check_rule_activation_coverage.py names it in its module docstring, and the parity requirement would ship a second byte-identical copy to every consumer. Issue #2050. -->
