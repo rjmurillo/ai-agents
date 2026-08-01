@@ -233,6 +233,11 @@ def run(
         print(f"error: baseline missing or malformed: {args.baseline}", file=sys.stderr)
         return EXIT_CONFIG
 
+    count = counter(args.repo_root.resolve())
+    if count is None:
+        print(f"error: {scan_error}", file=sys.stderr)
+        return EXIT_EXTERNAL
+
     if args.base_ref:
         root = args.repo_root.resolve()
         if baseline_absent_at_ref(root, args.base_ref, args.baseline):
@@ -250,19 +255,23 @@ def run(
                 )
                 return EXIT_EXTERNAL
             if baseline > base:
-                print(
-                    f"{label}: BASELINE RAISED. {base} -> {baseline} "
-                    f"(+{baseline - base}) against {args.base_ref}. The baseline "
-                    f"may only fall. Fix the violations instead of widening the "
-                    f"allowance.",
-                    file=sys.stderr,
-                )
+                if count <= base:
+                    print(
+                        f"{label}: BRANCH BEHIND. Baseline file records {baseline}, "
+                        f"but {args.base_ref} records {base} and current count is "
+                        f"{count}. Merge or rebase onto {args.base_ref} to pick up "
+                        "the lowered baseline.",
+                        file=sys.stderr,
+                    )
+                else:
+                    print(
+                        f"{label}: BASELINE RAISED. {base} -> {baseline} "
+                        f"(+{baseline - base}) against {args.base_ref}. The baseline "
+                        f"may only fall. Current count is {count}; fix the "
+                        f"violations instead of widening the allowance.",
+                        file=sys.stderr,
+                    )
                 return EXIT_REGRESSION
-
-    count = counter(args.repo_root.resolve())
-    if count is None:
-        print(f"error: {scan_error}", file=sys.stderr)
-        return EXIT_EXTERNAL
 
     if count > baseline:
         print(

@@ -142,6 +142,29 @@ def test_a_raised_baseline_fails_against_the_base_ref(tmp_path, monkeypatch):
     assert rc == ratchet.EXIT_REGRESSION
 
 
+def test_a_stale_branch_message_is_not_baseline_raised(tmp_path, monkeypatch, capsys):
+    baseline = _write_baseline(tmp_path, "700")
+    monkeypatch.setattr(subprocess, "run", _fake_scan(10, 600, base_baseline="615"))
+    rc = ratchet.main(_base_ref_argv(baseline, tmp_path))
+    captured = capsys.readouterr()
+    assert rc == ratchet.EXIT_REGRESSION
+    assert "BRANCH BEHIND" in captured.err
+    assert "BASELINE RAISED" not in captured.err
+    assert "Fix the violations" not in captured.err
+
+
+def test_a_real_raised_baseline_still_reports_baseline_raised(
+    tmp_path, monkeypatch, capsys
+):
+    baseline = _write_baseline(tmp_path, "700")
+    monkeypatch.setattr(subprocess, "run", _fake_scan(10, 650, base_baseline="615"))
+    rc = ratchet.main(_base_ref_argv(baseline, tmp_path))
+    captured = capsys.readouterr()
+    assert rc == ratchet.EXIT_REGRESSION
+    assert "BASELINE RAISED" in captured.err
+    assert "BRANCH BEHIND" not in captured.err
+
+
 def test_a_lowered_baseline_passes_against_the_base_ref(tmp_path, monkeypatch):
     baseline = _write_baseline(tmp_path, "600")
     monkeypatch.setattr(subprocess, "run", _fake_scan(10, 600, base_baseline="615"))
