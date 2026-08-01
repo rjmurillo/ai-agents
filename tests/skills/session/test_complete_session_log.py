@@ -10,6 +10,108 @@ sys.path.insert(0, str(SCRIPT_DIR))
 import complete_session_log
 
 
+class TestGetRepoRoot:
+    """Tests for _get_repo_root function (#3922)."""
+
+    @patch("complete_session_log.subprocess.run")
+    def test_returns_show_toplevel_output(self, mock_run):
+        """Uses --show-toplevel so linked worktrees return their own root."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="/tmp/wt_sess2\n")
+        result = complete_session_log._get_repo_root()
+        assert result == "/tmp/wt_sess2"
+        # Verify the correct git subcommand is used
+        call_args = mock_run.call_args[0][0]
+        assert "--show-toplevel" in call_args
+        assert "--git-common-dir" not in call_args
+
+    @patch("complete_session_log.subprocess.run")
+    def test_falls_back_when_git_fails(self, mock_run):
+        """Returns a path derived from __file__ when git fails."""
+        mock_run.return_value = MagicMock(returncode=128, stdout="")
+        result = complete_session_log._get_repo_root()
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+    @patch("complete_session_log.subprocess.run")
+    def test_linked_worktree_not_primary_root(self, mock_run):
+        """--show-toplevel returns the worktree dir, not the primary root (#3922)."""
+        # In a linked worktree /tmp/wt, --show-toplevel gives /tmp/wt.
+        # --git-common-dir would give /primary/.git (primary repo's .git dir).
+        mock_run.return_value = MagicMock(returncode=0, stdout="/tmp/wt\n")
+        result = complete_session_log._get_repo_root()
+        assert result == "/tmp/wt"
+
+
+class TestReworkWarningShape:
+    """Tests for reworkWarning Evidence field shape (#3929, #3954)."""
+
+    def _make_session(self):
+        return {"protocolCompliance": {"sessionEnd": {"reworkWarning": {}}}}
+
+    @patch("complete_session_log._run_rework_warning_step")
+    def test_evidence_written_as_string_not_list(self, mock_rework):
+        """Evidence must be a string to satisfy the checklistItem schema (#3929)."""
+        mock_rework.return_value = ("rework-warning: none", ["rework-warning: none"])
+        session = self._make_session()
+        session_end = session["protocolCompliance"]["sessionEnd"]
+
+        # Simulate the relevant portion of main() that writes reworkWarning
+        rework_summary, rework_evidence = complete_session_log._run_rework_warning_step()
+        if "reworkWarning" not in session_end:
+            session_end["reworkWarning"] = {}
+        session_end["reworkWarning"]["level"] = "SHOULD"
+        session_end["reworkWarning"]["Complete"] = True
+        session_end["reworkWarning"]["Evidence"] = (
+            "\n".join(rework_evidence)
+            if isinstance(rework_evidence, list)
+            else str(rework_evidence)
+        )
+
+        assert isinstance(session_end["reworkWarning"]["Evidence"], str)
+        assert session_end["reworkWarning"]["level"] == "SHOULD"
+        assert session_end["reworkWarning"]["Complete"] is True
+
+    @patch("complete_session_log._run_rework_warning_step")
+    def test_list_evidence_joined_with_newline(self, mock_rework):
+        """Multi-line rework evidence is joined into a single string (#3954)."""
+        lines = ["rework-warning: line1", "rework-warning: line2"]
+        mock_rework.return_value = ("rework: 2 lines", lines)
+        session = self._make_session()
+        session_end = session["protocolCompliance"]["sessionEnd"]
+
+        rework_summary, rework_evidence = complete_session_log._run_rework_warning_step()
+        session_end["reworkWarning"]["level"] = "SHOULD"
+        session_end["reworkWarning"]["Complete"] = True
+        session_end["reworkWarning"]["Evidence"] = (
+            "\n".join(rework_evidence)
+            if isinstance(rework_evidence, list)
+            else str(rework_evidence)
+        )
+
+        assert (
+            session_end["reworkWarning"]["Evidence"]
+            == "rework-warning: line1\nrework-warning: line2"
+        )
+
+    @patch("complete_session_log._run_rework_warning_step")
+    def test_string_evidence_used_directly(self, mock_rework):
+        """If rework step already returns a string, it is used as-is (#3954)."""
+        mock_rework.return_value = ("rework: none", "rework-warning: none")
+        session = self._make_session()
+        session_end = session["protocolCompliance"]["sessionEnd"]
+
+        rework_summary, rework_evidence = complete_session_log._run_rework_warning_step()
+        session_end["reworkWarning"]["level"] = "SHOULD"
+        session_end["reworkWarning"]["Complete"] = True
+        session_end["reworkWarning"]["Evidence"] = (
+            "\n".join(rework_evidence)
+            if isinstance(rework_evidence, list)
+            else str(rework_evidence)
+        )
+
+        assert session_end["reworkWarning"]["Evidence"] == "rework-warning: none"
+
+
 class TestFindCurrentSessionLog:
     """Tests for _find_current_session_log function."""
 
@@ -61,9 +163,7 @@ class TestSerenaMemoryUpdated:
 
     @patch("complete_session_log.subprocess.run")
     def test_detects_memory_changes(self, mock_run):
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout=".serena/memories/test.md\n"
-        )
+        mock_run.return_value = MagicMock(returncode=0, stdout=".serena/memories/test.md\n")
         assert complete_session_log._test_serena_memory_updated() is True
 
     @patch("complete_session_log.subprocess.run")
@@ -104,9 +204,7 @@ class TestPathContainment:
         sessions_dir.mkdir()
         evil_path = tmp_path / "evil.json"
         evil_path.write_text("{}")
-        result = complete_session_log._validate_path_containment(
-            str(evil_path), str(sessions_dir)
-        )
+        result = complete_session_log._validate_path_containment(str(evil_path), str(sessions_dir))
         assert result is None
 
 
@@ -119,3 +217,113 @@ class TestRunMarkdownLint:
         success, output = complete_session_log._run_markdown_lint()
         assert success is True
         assert "No markdown" in output
+
+
+class TestMainReworkWarningShape:
+    """Integration: main() writes reworkWarning.Evidence as a string, not a list (#3929, #3954)."""
+
+    def _make_session_json(self, path):
+        """Write a minimal valid session JSON to path."""
+        import json
+
+        data = {
+            "session": {
+                "number": 99,
+                "date": "2026-07-30",
+                "branch": "fix/test",
+                "startingCommit": "abc1234",
+                "objective": "test",
+            },
+            "protocolCompliance": {
+                "sessionStart": {},
+                "sessionEnd": {
+                    "handoffPreserved": {
+                        "level": "MUST",
+                        "Complete": False,
+                        "Evidence": "",
+                    },
+                    "serenaMemoryUpdated": {
+                        "level": "SHOULD",
+                        "Complete": False,
+                        "Evidence": "",
+                    },
+                    "markdownLintRun": {
+                        "level": "SHOULD",
+                        "Complete": False,
+                        "Evidence": "",
+                    },
+                    "reworkWarning": {
+                        "level": "SHOULD",
+                        "Complete": False,
+                        "Evidence": "",
+                    },
+                    "changesCommitted": {
+                        "level": "MUST",
+                        "Complete": False,
+                        "Evidence": "",
+                    },
+                    "validationPassed": {
+                        "level": "MUST",
+                        "Complete": False,
+                        "Evidence": "",
+                    },
+                    "checklistComplete": {
+                        "level": "MUST",
+                        "Complete": False,
+                        "Evidence": "",
+                    },
+                },
+            },
+        }
+        path.write_text(json.dumps(data, indent=2))
+        return data
+
+    @patch("complete_session_log.subprocess.run")
+    @patch("complete_session_log._run_rework_warning_step")
+    @patch("complete_session_log._run_markdown_lint")
+    @patch("complete_session_log._test_serena_memory_updated")
+    @patch("complete_session_log._test_handoff_modified")
+    @patch("complete_session_log._get_ending_commit")
+    @patch("complete_session_log._test_uncommitted_changes")
+    @patch("complete_session_log._get_repo_root")
+    def test_rework_evidence_is_string_in_output(
+        self,
+        mock_root,
+        mock_uncommitted,
+        mock_commit,
+        mock_handoff,
+        mock_serena,
+        mock_lint,
+        mock_rework,
+        mock_subprocess,
+        tmp_path,
+    ):
+        """main() writes Evidence as a string, never a list (#3929, #3954)."""
+        import json
+
+        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir.mkdir(parents=True)
+        session_file = sessions_dir / "2026-07-30-session-99-test.json"
+        self._make_session_json(session_file)
+
+        mock_root.return_value = str(tmp_path)
+        mock_uncommitted.return_value = False
+        mock_commit.return_value = "abc1234"
+        mock_handoff.return_value = False
+        mock_serena.return_value = True
+        mock_lint.return_value = (True, "lint passed")
+        mock_rework.return_value = ("rework: none", ["rework-warning: none", "extra line"])
+        # subprocess.run is for the final validate step; skip it
+        mock_subprocess.return_value = MagicMock(returncode=0)
+
+        with patch(
+            "complete_session_log.resolve_artifact_root",
+            return_value=sessions_dir,
+        ):
+            exit_code = complete_session_log.main(["--session-path", str(session_file)])
+
+        assert exit_code == 0
+        result = json.loads(session_file.read_text())
+        evidence = result["protocolCompliance"]["sessionEnd"]["reworkWarning"]["Evidence"]
+        assert isinstance(evidence, str), f"Evidence must be a string, got {type(evidence)}"
+        assert "rework-warning: none" in evidence

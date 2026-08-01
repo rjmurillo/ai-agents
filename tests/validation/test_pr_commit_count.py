@@ -104,6 +104,44 @@ def test_the_block_boundary_agrees_with_the_local_hook(count: int, blocked: bool
     assert (mod.classify_count(count) == "BLOCKED") is blocked
 
 
+def test_agents_md_mid_gate_names_warning_threshold() -> None:
+    """AGENTS.md must state the WARNING_THRESHOLD (10) on the mid-session check line.
+
+    Issue #3944: AGENTS.md previously said 'warn >15' which is the ALERT band,
+    not the WARNING band. An agent following that would miss CI notices from
+    commit 10 through 14. This test pins the correct value so the doc cannot
+    silently revert to the stale number.
+    """
+    agents_md = (_PROJECT_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    gate_line = next(
+        (ln for ln in agents_md.splitlines() if "rev-list" in ln),
+        "",
+    )
+    assert gate_line, "AGENTS.md must contain a mid-session commit gate line with rev-list"
+    assert str(mod.WARNING_THRESHOLD) in gate_line, (
+        f"AGENTS.md mid-gate line must name WARNING_THRESHOLD ({mod.WARNING_THRESHOLD}); "
+        f"found: {gate_line!r}"
+    )
+
+
+def test_agents_md_context_budget_is_not_8kb() -> None:
+    """AGENTS.md must not claim the context budget is less than 8KB.
+
+    Issue #3907: AGENTS.md previously stated '<8KB' which is 12x below the
+    enforced gate ceiling (~99KB). This test pins that the stale value is gone.
+    """
+    agents_md = (_PROJECT_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    context_line = next(
+        (ln for ln in agents_md.splitlines() if "Knowledge -> context" in ln),
+        "",
+    )
+    assert context_line, "AGENTS.md must contain the Knowledge -> context line"
+    assert "<8KB" not in context_line, (
+        "AGENTS.md must not claim context budget is <8KB; "
+        f"found: {context_line!r}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # is_transient_error
 # ---------------------------------------------------------------------------
@@ -366,17 +404,28 @@ def _merge_commits_json(n: int, external_parent: bool) -> str:
     return json.dumps(commits)
 
 
-def test_external_non_first_parent_shas_is_empty_for_a_linear_branch() -> None:
+def test_external_non_first_parent_shas_empty_for_linear_branch() -> None:
     payload = json.loads(_merge_commits_json(5, external_parent=False))
     assert mod._external_non_first_parent_shas(payload) == set()
 
 
-def test_external_non_first_parent_shas_collects_a_parent_outside_the_branch() -> None:
+def test_external_non_first_parent_shas_nonempty_when_parent_outside_branch() -> None:
     payload = json.loads(_merge_commits_json(5, external_parent=True))
     assert mod._external_non_first_parent_shas(payload) == {"f" * 40}
 
 
-def test_external_non_first_parent_shas_ignores_a_merge_between_branch_commits() -> None:
+def test_external_non_first_parent_shas_returns_correct_sha() -> None:
+    """Returns the external parent's actual sha, not an arbitrary non-empty value."""
+    external_sha = "e" * 40
+    payload = [
+        {"sha": "a" * 40, "parents": [{"sha": "b" * 40}, {"sha": external_sha}]},
+        {"sha": "b" * 40, "parents": [{"sha": "0" * 40}]},
+    ]
+    result = mod._external_non_first_parent_shas(payload)
+    assert result == {external_sha}
+
+
+def test_external_non_first_parent_shas_empty_for_internal_merge() -> None:
     """An internal merge is the branch's own history, not a merge from main."""
     payload = [
         {"sha": "a" * 40, "parents": [{"sha": "0" * 40}]},
@@ -400,7 +449,7 @@ def test_external_non_first_parent_shas_ignores_a_merge_between_branch_commits()
 def test_external_non_first_parent_shas_fails_closed_on_malformed_payloads(
     payload: list[object],
 ) -> None:
-    """Malformed data yields no candidate, so the stricter 20 ceiling holds."""
+    """Malformed data must not grant the relief: empty set keeps the stricter 20."""
     assert mod._external_non_first_parent_shas(payload) == set()
 
 
@@ -570,11 +619,11 @@ def test_malformed_parents_do_not_grant_the_relaxed_ceiling(
         ("empty payload", [], False),
     ],
 )
-def test_external_non_first_parent_sha_controls(
+def test_external_non_first_parent_shas_controls(
     label: str, payload: list[object], expected: bool
 ) -> None:
     """Behaviour that must survive the malformed-parent narrowing unchanged."""
-    assert bool(mod._external_non_first_parent_shas(payload)) is expected, label
+    assert bool(mod._external_non_first_parent_shas(payload)) == expected, label
 
 
 def test_the_broader_base_merge_predicate_is_not_importable() -> None:
