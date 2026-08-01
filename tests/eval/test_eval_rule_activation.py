@@ -3768,3 +3768,61 @@ class TestRawJudgeResponseNoTruncation:
         assert result["judge_failed"] is False
         assert result["raw_judge_response"] == payload
         assert len(result["raw_judge_response"]) > 200
+
+    def test_raw_judge_response_preserves_leading_trailing_whitespace(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """raw_judge_response stores raw, not raw.strip() (#3998 review)."""
+        inner = '{"activation_score": 3, "citation_score": 2, "behavior_score": 4}'
+        payload_with_ws = "\n  " + inner + "  \n"
+        result = _score_response_with(monkeypatch, payload_with_ws)
+        assert result["judge_failed"] is False
+        assert result["raw_judge_response"] == payload_with_ws
+        assert result["raw_judge_response"].startswith("\n  ")
+
+    def test_failure_raw_judge_response_preserves_leading_trailing_whitespace(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Failure path also stores raw, not raw.strip()."""
+        payload_with_ws = "  not json  "
+        result = _score_response_with(monkeypatch, payload_with_ws)
+        assert result["judge_failed"] is True
+        assert result["raw_judge_response"] == payload_with_ws
+        assert result["raw_judge_response"].startswith("  ")
+        assert result["raw_judge_response"].endswith("  ")
+
+    def test_non_dict_path_preserves_raw_whitespace(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Non-dict branch stores raw, not stripped text."""
+        payload_with_ws = "  [1, 2, 3]  "
+        result = _score_response_with(monkeypatch, payload_with_ws)
+        assert result["judge_failed"] is True
+        assert result["raw_judge_response"] == payload_with_ws
+        assert result["raw_judge_response"].startswith("  ")
+        assert result["raw_judge_response"].endswith("  ")
+
+    def test_two_verdicts_path_preserves_raw_whitespace(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Two-verdicts branch stores raw, not stripped text."""
+        payload_with_ws = (
+            ' {"activation_score": 5, "citation_score": 5, "behavior_score": 5,'
+            ' "revised": {"activation_score": 1, "citation_score": 1, "behavior_score": 1}} '
+        )
+        result = _score_response_with(monkeypatch, payload_with_ws)
+        assert result["judge_failed"] is True
+        assert result["raw_judge_response"] == payload_with_ws
+        assert result["raw_judge_response"].startswith(" ")
+        assert result["raw_judge_response"].endswith(" ")
+
+    def test_shape_error_path_preserves_raw_whitespace(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Shape-error branch stores raw, not stripped text."""
+        payload_with_ws = ' {"activation_score": 5, "citation_score": 5} '
+        result = _score_response_with(monkeypatch, payload_with_ws)
+        assert result["judge_failed"] is True
+        assert result["raw_judge_response"] == payload_with_ws
+        assert result["raw_judge_response"].startswith(" ")
+        assert result["raw_judge_response"].endswith(" ")

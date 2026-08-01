@@ -390,28 +390,28 @@ Respond in JSON only, no other text:
     except ValueError:
         return _failed_judge(
             "judge response could not be parsed as JSON",
-            raw_judge_response=text,
+            raw_judge_response=raw,
         )
     if not isinstance(parsed, dict):
         return _failed_judge(
             "judge returned non-object JSON",
-            raw_judge_response=text,
+            raw_judge_response=raw,
         )
     if _parsed_names_two_verdicts(parsed):
         return _failed_judge(
             "ambiguous judge output names two verdicts",
-            raw_judge_response=text,
+            raw_judge_response=raw,
         )
     score_error = _judge_score_shape_error(parsed)
     if score_error is not None:
-        return _failed_judge(score_error, raw_judge_response=text)
+        return _failed_judge(score_error, raw_judge_response=raw)
     result = {
         "activation_score": _clamp_score(parsed["activation_score"]),
         "citation_score": _clamp_score(parsed["citation_score"]),
         "behavior_score": _clamp_score(parsed["behavior_score"]),
         "reasoning": str(parsed.get("reasoning", ""))[:300],
         "judge_failed": False,
-        "raw_judge_response": text,
+        "raw_judge_response": raw,
     }
     fingerprint = metadata.get("system_fingerprint")
     if isinstance(fingerprint, str):
@@ -480,9 +480,9 @@ def _sample_scalar(sample: dict[str, Any]) -> float:
 
 _SCORE_FIELDS = ("activation_score", "citation_score", "behavior_score")
 
-# The judge rubric is 1-5. Kept as one authoritative range because three code
-# paths police it: the shape gate, the clamp, and salvage. They disagreed once
-# already, and that disagreement is what let an out-of-range score through.
+# The judge rubric is 1-5. Kept as one authoritative range because two code
+# paths police it: the shape gate and the clamp. They disagreed once already,
+# and that disagreement is what let an out-of-range score through.
 _SCORE_RANGE = range(1, 6)
 # The same field names, used only to detect that a decoded layer names a score
 # field at all. Neither the quoting nor the separator is required, and the value
