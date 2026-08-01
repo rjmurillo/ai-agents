@@ -752,10 +752,11 @@ def _filter_violations_for_diff(
     """Keep only violations whose line numbers fall within the diff.
 
     A violation with ``line == 0`` is file-level (e.g. file-size).  File-level
-    violations are kept only when the file grew past the threshold *in this
-    diff*, i.e. the new line count exceeds the count at ``diff_base``.  Any
-    other violation is kept only if its line number appears in the changed-line
-    set for that file.
+    violations are kept only when the file grew in this diff, i.e. the new
+    line count exceeds the line count at ``diff_base``.  A file already over
+    the threshold that did not grow further is suppressed: its size violation
+    was pre-existing, not introduced by this PR.  Any other violation is kept
+    only if its line number appears in the changed-line set for that file.
 
     When ``filepath`` is not in ``diff_lines`` (no changed lines recorded for
     the file), all violations are suppressed so pre-existing issues in
