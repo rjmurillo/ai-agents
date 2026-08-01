@@ -232,16 +232,60 @@
       "caused_by": [
         "e021"
       ],
+      "leads_to": [
+        "e026"
+      ],
+      "_source_session": "2026-07-31-session-4041-finalize-4037-evidence-corrections-adr"
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged current origin/main after the correct push exposed stale count evidence",
+      "caused_by": [],
       "leads_to": [],
+      "_source_session": "2026-07-31-session-4041-finalize-4037-evidence-corrections-adr"
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Completed the PR #4037 autofix retrospective before rerunning exact-SHA review",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4041-finalize-4037-evidence-corrections-adr"
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "error",
+      "content": "Completed the PR #4037 autofix retrospective before rerunning exact-SHA review    Recorded three Five Whys, classified FM-4 and FM-9 failures, linked issues #4118, #4134, and #4135, and persisted four atomic learnings to Serena memory",
+      "caused_by": [
+        "e026"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4041-finalize-4037-evidence-corrections-adr"
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 66d1bd6aeabcdcf4d7de59426718025f15f830f1",
+      "caused_by": [
+        "e022"
+      ],
+      "leads_to": [
+        "e025"
+      ],
       "_source_session": "2026-07-31-session-4041-finalize-4037-evidence-corrections-adr"
     }
   ],
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 0,
+    "errors": 9,
     "recoveries": 0,
-    "commits": 11,
+    "commits": 12,
     "files_changed": 7
   },
   "lessons": []

@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "ADR corrections, current-main merge, Markdown auto-fix safeguards, both count-ratchet trigger repairs, measured research claims, and parameterized structural ratchet tests are committed through 56c40fe28"
+        "Evidence": "ADR corrections, current-main merges, Markdown auto-fix safeguards, both count-ratchet trigger repairs, measured research claims, and parameterized structural ratchet tests are committed through 66d1bd6ae"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "63 changed-skill tests passed; build_all.py and pre_pr.py passed before the main refresh; ADR reviews converged; golden-principles passed; 52 focused ratchet tests and 5 research-frontier tests passed; taste count matches baseline 609; plugin manifests match at 0.6.5488"
+        "Evidence": "63 changed-skill tests passed; build_all.py and pre_pr.py passed before the main refresh; ADR reviews converged; golden-principles passed; 52 focused ratchet tests and 5 research-frontier tests passed; merged taste count matches baseline 608; merged type-ignore count matches baseline 55; plugin manifests match at 0.6.5488"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -108,8 +108,8 @@
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-07-31-pr-4037-autofix.md records three Five Whys, failure-mode classifications, actions, and four atomic learnings"
       }
     }
   },
@@ -153,11 +153,19 @@
     {
       "action": "Replaced an unsupported research-frontier generalization with a measured rule-coverage claim",
       "outcome": "Verified 25 rule files and 12 one-rule scenario fixtures, recorded that 13 rules lack an activation baseline, regenerated the Copilot mirror, and advanced project-toolkit to 0.6.5488"
+    },
+    {
+      "action": "Merged current origin/main after the correct push exposed stale count evidence",
+      "outcome": "Removed the inherited type-ignore suppression, measured the combined taste count at 608, resolved the only merge conflict from evidence, and committed merge 66d1bd6ae"
+    },
+    {
+      "action": "Completed the PR #4037 autofix retrospective before rerunning exact-SHA review",
+      "outcome": "Recorded three Five Whys, classified FM-4 and FM-9 failures, linked issues #4118, #4134, and #4135, and persisted four atomic learnings to Serena memory"
     }
   ],
-  "endingCommit": "56c40fe2834eec2ada5af8bce21da245cd5bd08c",
+  "endingCommit": "66d1bd6aeabcdcf4d7de59426718025f15f830f1",
   "nextSteps": [
-    "Complete the fresh exact-SHA review, create a review marker, and push without force.",
+    "Commit the frozen retrospective and session evidence, complete the fresh exact-SHA review, create a review marker, and push without force.",
     "Reply to and resolve all PR #4037 review threads, run completion gates, and merge ready PRs."
   ]
 }
