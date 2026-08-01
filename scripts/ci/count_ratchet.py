@@ -309,12 +309,11 @@ def run(
                 f"{label}: improved {baseline} -> {count} (-{baseline - count}). Baseline lowered."
             )
             return EXIT_OK
-        if not args.update:
-            print(
-                f"{label}: OK. {count} violations <= baseline {baseline} "
-                f"(-{baseline - count} slack)."
-            )
-            return EXIT_OK
+        print(
+            f"{label}: OK. {count} violations <= baseline {baseline} "
+            f"(-{baseline - count} slack)."
+        )
+        return EXIT_OK
 
     print(f"{label}: OK (count == baseline {baseline}).")
     return EXIT_OK
