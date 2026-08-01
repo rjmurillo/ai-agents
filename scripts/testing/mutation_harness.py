@@ -92,6 +92,7 @@ def load_battery(path: Path) -> list[MutationEntry]:
     if not isinstance(raw, dict):
         raise BatteryConfigError("battery root must be a JSON object")
 
+    repo_root = _find_containment_root()
     default_command = _read_command(raw.get("command"), "battery command")
     raw_entries = raw.get("entries")
     if not isinstance(raw_entries, list) or not raw_entries:
@@ -105,7 +106,11 @@ def load_battery(path: Path) -> list[MutationEntry]:
         entries.append(
             MutationEntry(
                 name=_read_string(raw_entry, "name", index),
-                path=_resolve_entry_path(path.parent, _read_string(raw_entry, "path", index)),
+                path=_resolve_entry_path(
+                    path.parent,
+                    _read_string(raw_entry, "path", index),
+                    repo_root,
+                ),
                 old=_read_string(raw_entry, "old", index),
                 new=_read_string(raw_entry, "new", index),
                 command=command or default_command,
@@ -203,11 +208,31 @@ def _purge_pycache(root: Path) -> None:
             shutil.rmtree(pycache)
 
 
-def _resolve_entry_path(base: Path, raw_path: str) -> Path:
+def _find_containment_root() -> Path:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=False,
+        )
+    except OSError:
+        return Path.cwd().resolve()
+    if result.returncode == 0 and result.stdout.strip():
+        return Path(result.stdout.strip()).resolve()
+    return Path.cwd().resolve()
+
+
+def _resolve_entry_path(base: Path, raw_path: str, containment_root: Path) -> Path:
     path = Path(raw_path)
     if not path.is_absolute():
         path = base / path
-    return path.resolve()
+    resolved = path.resolve()
+    root = containment_root.resolve()
+    if not resolved.is_relative_to(root):
+        raise BatteryConfigError(f"entry path escapes containment root: {raw_path}")
+    return resolved
 
 
 def _read_string(raw_entry: dict[str, Any], key: str, index: int) -> str:

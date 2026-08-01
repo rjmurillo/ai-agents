@@ -11,8 +11,10 @@ from pathlib import Path
 import pytest
 
 from scripts.testing.mutation_harness import (
+    BatteryConfigError,
     MutationEntry,
     MutationRunner,
+    _resolve_entry_path,
     validate_battery,
 )
 
@@ -104,6 +106,28 @@ class TestBatteryValidation:
 
         assert len(problems) == 1
         assert "identity mutation" in problems[0].message
+
+    def test_rejects_relative_path_escape(self) -> None:
+        workspace = _case_dir("relative_escape")
+
+        with pytest.raises(BatteryConfigError):
+            _resolve_entry_path(workspace, "../../../../..", Path.cwd())
+
+    def test_rejects_absolute_path_escape(self) -> None:
+        workspace = _case_dir("absolute_escape")
+        outside = Path.cwd().parent / "outside.py"
+
+        with pytest.raises(BatteryConfigError):
+            _resolve_entry_path(workspace, str(outside), Path.cwd())
+
+    def test_accepts_path_inside_containment_root(self) -> None:
+        workspace = _case_dir("inside_root")
+        source = workspace / "subject.py"
+        source.write_text("def guard() -> bool:\n    return True\n", encoding="utf-8")
+
+        resolved = _resolve_entry_path(workspace, "subject.py", Path.cwd())
+
+        assert resolved == source.resolve()
 
 
 class TestMutationResults:
@@ -351,6 +375,35 @@ class TestCli:
         workspace = _case_dir("cli_scalar_json")
         battery = workspace / "battery.json"
         battery.write_text("[]", encoding="utf-8")
+
+        result = subprocess.run(
+            [sys.executable, "-m", "scripts.testing.mutation_harness", str(battery)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 2
+
+    def test_path_escape_battery_has_config_exit_code(self) -> None:
+        workspace = _case_dir("cli_path_escape")
+        battery = workspace / "battery.json"
+        battery.write_text(
+            json.dumps(
+                {
+                    "command": [sys.executable, "-c", "pass"],
+                    "entries": [
+                        {
+                            "name": "escape",
+                            "path": "../../../../..",
+                            "old": "x",
+                            "new": "y",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
 
         result = subprocess.run(
             [sys.executable, "-m", "scripts.testing.mutation_harness", str(battery)],
