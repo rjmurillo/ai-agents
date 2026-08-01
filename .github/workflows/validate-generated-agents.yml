@@ -21,7 +21,7 @@ on:
 
 concurrency:
   group: validate-agents-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   # Check if relevant files changed using paths-filter
