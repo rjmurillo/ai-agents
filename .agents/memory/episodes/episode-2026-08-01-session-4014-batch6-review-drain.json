@@ -1,0 +1,83 @@
+{
+  "id": "episode-2026-08-01-session-4014-batch6-review-drain",
+  "session": "2026-08-01-session-4014-batch6-review-drain",
+  "timestamp": "2026-08-01T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Drain all 8 unresolved review threads on PR #4014 (ADR-006 batch 6 extraction), fix type-ignore-count-ratchet false-positive, push, and resolve threads via GraphQL",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fetched 8 unresolved review thread IDs from PR #4014 via GraphQL and categorized them",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4014-batch6-review-drain"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed drift_create_alert_issue.py: return EXIT_OK/EXIT_ERR instead of raw returncode",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4014-batch6-review-drain"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed cli-smoke.yml: removed stray echo, changed python3 to python on Windows matrix steps",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4014-batch6-review-drain"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed test_artifact_collect.py and test_agent_review_generate_summary.py: removed dead with-patch blocks",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4014-batch6-review-drain"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Posted /fp comments on 3 semgrep threads: shell=False, list-form subprocess, no injection path",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4014-batch6-review-drain"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Diagnosed type-ignore-count-ratchet blocker: test string literal embedded 2 patterns, count 56 vs baseline 55",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4014-batch6-review-drain"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created retrospective and session log; squashed commits to stay at 20",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4014-batch6-review-drain"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 3
+  },
+  "lessons": []
+}
