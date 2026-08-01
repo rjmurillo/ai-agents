@@ -397,6 +397,63 @@ def test_external_non_first_parent_shas_empty_for_internal_merge() -> None:
     assert mod._external_non_first_parent_shas(payload) == set()
 
 
+def test_external_non_first_parent_shas_inserts_the_validated_sha() -> None:
+    """A mapping whose ``get`` is not a pure lookup cannot smuggle in a second value.
+
+    The sha is validated and inserted from a single read. Reading the key twice
+    would let the second read return a value that was never checked against
+    ``own_shas`` or the non-empty-string rule.
+    """
+
+    class ChangingParent(dict[str, object]):
+        """Returns a valid external sha on the first read, then a different one."""
+
+        def __init__(self, first: str, second: str) -> None:
+            super().__init__(sha=first)
+            self._values = [first, second]
+            self._reads = 0
+
+        def get(self, key: str, default: object = None) -> object:
+            if key != "sha":
+                return super().get(key, default)
+            value = self._values[min(self._reads, len(self._values) - 1)]
+            self._reads += 1
+            return value
+
+    validated = "e" * 40
+    smuggled = "f" * 40
+    payload = [
+        {
+            "sha": "a" * 40,
+            "parents": [{"sha": "b" * 40}, ChangingParent(validated, smuggled)],
+        },
+    ]
+    assert mod._external_non_first_parent_shas(payload) == {validated}
+
+
+def test_external_parent_sha_returns_none_for_a_sha_the_branch_owns() -> None:
+    """A parent the branch already owns yields no sha, so it buys no relief."""
+    own = "a" * 40
+    assert mod._external_parent_sha({"sha": own}, {own}) is None
+    assert mod._external_parent_sha({"sha": own}, set()) == own
+
+
+@pytest.mark.parametrize(
+    "parent",
+    [
+        "not-a-dict",
+        None,
+        {},
+        {"sha": None},
+        {"sha": 42},
+        {"sha": ""},
+    ],
+)
+def test_external_parent_sha_fails_closed_on_unreadable_parent(parent: object) -> None:
+    """An unreadable parent is not a merge from main and must not buy relief."""
+    assert mod._external_parent_sha(parent, set()) is None
+
+
 @pytest.mark.parametrize(
     "payload",
     [
@@ -412,6 +469,72 @@ def test_external_non_first_parent_shas_fails_closed_on_malformed_payloads(
     payload: list[object],
 ) -> None:
     """Malformed data must not grant the relief: empty set keeps the stricter 20."""
+    assert mod._external_non_first_parent_shas(payload) == set()
+
+
+class _RaisingGet(dict[str, object]):
+    """A mapping whose ``get`` raises instead of answering."""
+
+    def get(self, key: str, default: object = None) -> object:
+        raise RuntimeError("hostile get")
+
+
+def test_external_parent_sha_fails_closed_when_get_raises() -> None:
+    """An overridden ``get`` must not turn an unreadable parent into a crash.
+
+    The helper promises to fail closed on anything it cannot read. A mapping
+    subclass whose ``get`` raises would instead propagate out of the gate and
+    abort the check, which is neither open nor closed. Calling ``dict.get``
+    unbound skips the override entirely.
+    """
+    assert mod._external_parent_sha(_RaisingGet(), set()) is None
+
+
+def test_external_non_first_parent_shas_survives_a_raising_get() -> None:
+    """The raising mapping must not escape through the caller either."""
+    payload = [{"sha": "a" * 40, "parents": [{"sha": "b" * 40}, _RaisingGet()]}]
+    assert mod._external_non_first_parent_shas(payload) == set()
+
+
+class _SneakySha(str):
+    """A sha that misses the first hash probe and matches every one after it."""
+
+    _probed = False
+
+    def __hash__(self) -> int:
+        if not self._probed:
+            self._probed = True
+            return hash("no-such-sha")
+        return str.__hash__(self)
+
+    def __eq__(self, other: object) -> bool:
+        return bool(self._probed) and str.__eq__(self, other) is True
+
+
+def test_external_parent_sha_normalises_a_str_subclass() -> None:
+    """A ``str`` subclass must not pose as external and buy the exemption.
+
+    ``_SneakySha`` answers the ``own_shas`` membership probe as a miss, then
+    behaves like the owned sha afterwards. Validated with ``isinstance`` and
+    probed directly, it passes and the branch's own commit enters the external
+    set, which is the exemption this function exists to gate. Normalising
+    through the unbound ``str.__str__`` first makes the probe use plain-string
+    hashing on both sides, so the owned sha is recognised.
+    """
+    owned = "b" * 40
+    assert mod._external_parent_sha({"sha": _SneakySha(owned)}, {owned}) is None
+
+
+def test_external_non_first_parent_shas_normalises_a_str_subclass_into_own_shas() -> None:
+    """The deny list must still contain a sha whose value arrived as a subclass.
+
+    Discarding the subclass instead of normalising it would empty the deny list
+    entry for this commit, and the same sha appearing as a non-first parent
+    would then read as external. That widens the exemption, so the fix must
+    normalise rather than reject on this side.
+    """
+    owned = "c" * 40
+    payload = [{"sha": _SneakySha(owned), "parents": [{"sha": "d" * 40}, {"sha": owned}]}]
     assert mod._external_non_first_parent_shas(payload) == set()
 
 
