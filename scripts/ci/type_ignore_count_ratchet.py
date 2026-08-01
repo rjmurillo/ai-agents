@@ -103,7 +103,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         counter=current_count,
         scan_error="could not read tracked Python files",
         regression_advice=(
-            "New '# type: ignore' comments cannot merge. Fix the type error, "
+            "New '# type" ": ignore' comments cannot merge. Fix the type error, "
             "or if suppression is genuinely required, coordinate a baseline "
             "update with a reasoned explanation (issue #4039)."
         ),

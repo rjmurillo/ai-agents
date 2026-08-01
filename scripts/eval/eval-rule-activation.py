@@ -44,6 +44,7 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import difflib
 import json
 import math
 import re
@@ -181,6 +182,54 @@ def build_system_prompt(mechanism: str, rule: dict[str, str], rule_id: str) -> s
             f"{rule['body']}"
         )
     raise ValueError(f"Unknown mechanism: {mechanism}")
+
+
+NEGATIVE_GATE = "skip-rule-not-applicable"
+
+
+def _normalize_gate(value: object) -> str:
+    """Normalize an ``expected_gate`` label for comparison.
+
+    Case and separator style are authoring noise, not meaning. Folding them
+    here means a scenario written `SKIP_RULE_NOT_APPLICABLE` lands in the pool
+    its author intended instead of silently becoming a positive case.
+    """
+    if not isinstance(value, str):
+        return ""
+    return value.strip().lower().replace("_", "-")
+
+
+def _is_negative_gate(value: object) -> bool:
+    """True when this scenario's gate marks it as a negative case.
+
+    Every consumer that splits the pools calls this. The gate string also
+    selects the judge rubric, so a scenario misclassified here is graded
+    against the wrong rubric and then filed in the wrong pool: the score is
+    wrong and the population it joins is wrong.
+    """
+    return _normalize_gate(value) == NEGATIVE_GATE
+
+
+# Calibrated against the shipped corpus: the 32 distinct real positive gate
+# names score at most 0.400 similarity to the sentinel, while single-character
+# corruptions of the sentinel score at least 0.958. Any threshold inside that
+# gap separates them; 0.80 sits clear of both edges. A prefix test cannot do
+# this job, because `skiprule-not-applicable` and `skip-rul-not-applicable`
+# never carry the literal prefix yet both mean the negative case.
+_GATE_NEAR_MISS_RATIO = 0.80
+
+
+def _is_gate_near_miss(normalized: str) -> bool:
+    """True when a gate is close enough to the sentinel to be a typo of it.
+
+    Refusing a near miss is the visible failure. Accepting one is invisible:
+    the scenario is graded against the positive rubric and then averaged into
+    the positive pool, so both the score and the population are wrong.
+    """
+    if normalized.startswith("skip-rule"):
+        return True
+    ratio = difflib.SequenceMatcher(None, normalized, NEGATIVE_GATE).ratio()
+    return ratio >= _GATE_NEAR_MISS_RATIO
 
 
 def build_skill_route_prompt(rule: dict[str, str], scenario: dict[str, Any]) -> str:
@@ -440,7 +489,7 @@ def score_response(
     expected_gate = scenario.get("expected_gate", "")
     rationale = scenario.get("rationale", "")
 
-    is_negative = expected_gate == "skip-rule-not-applicable"
+    is_negative = _is_negative_gate(expected_gate)
     signals_str = ", ".join(expected_signals) if expected_signals else "none"
     negative_flag = "YES" if is_negative else "no"
 
@@ -1479,6 +1528,61 @@ def _judge_score_shape_error(parsed: dict[str, Any]) -> str | None:
 # ---------------------------------------------------------------------------
 
 
+def _prompt_collapses_to_baseline(
+    mechanism: str, system: str, rule: dict[str, str], rule_id: str
+) -> bool:
+    """True when this mechanism hands the model the baseline prompt.
+
+    A target with no description produces an empty description prompt, which
+    is the baseline prompt, so the two mechanisms put identical text in front
+    of the model. Scoring that cell publishes a description average, a gap
+    against baseline and a candidate for best mechanism, all describing a
+    treatment the target never received. The gap is then whatever the two
+    identical runs happened to differ by, and a large enough coin flip
+    certifies a rule the model never saw. Nineteen of this repository's
+    twenty five rule targets carry no description, so this is the common case
+    rather than an edge.
+
+    Written as a comparison against the baseline prompt rather than a test for
+    emptiness so it keeps holding if baseline ever carries text.
+
+    This sees only what `build_system_prompt` produced. A rule with an empty
+    body still yields a `full` prompt carrying the preamble and nothing else,
+    which is a different string from baseline and so passes here, and for a
+    routed target the `full` prompt is replaced after routing resolves a
+    reference. Declining `full` on an empty body would therefore discard a
+    measurement the routed path did make. That case is filed separately
+    rather than guessed at here. See issue 4103.
+    """
+    if mechanism == "baseline":
+        return False
+    return system == build_system_prompt("baseline", rule, rule_id)
+
+
+def _declined_cell(system: str) -> dict[str, Any]:
+    """A cell the run declined to measure, and the reason.
+
+    `graded` False is the existing spelling for a cell carrying no usable
+    measurement, and it deliberately does not set `judge_failed`: the judge
+    did not fail, it was never asked. Marking it as a judge error would report
+    a broken instrument for what is a property of the target.
+
+    Named `declined` rather than `unreachable` because the summary already
+    publishes `unreachable_mechanisms`, and that field means something else:
+    it lists the mechanisms the routing gate excluded, which today is `full`
+    on a routed target. A cell declined here is not in that list, it drops out
+    of its mechanism's average and surfaces through
+    `best_mechanism_unmeasured`. One word covering both exclusions would send
+    a reader to the wrong field to find this one.
+    """
+    return {
+        "response_preview": "(not called: prompt identical to baseline)",
+        "scores": {"graded": False},
+        "declined": "prompt identical to baseline",
+        "system_prompt_chars": len(system),
+    }
+
+
 def eval_one_scenario(
     api_key: str,
     rule: dict[str, str],
@@ -1494,12 +1598,15 @@ def eval_one_scenario(
     result: dict[str, Any] = {
         "id": scenario["id"],
         "desc": scenario.get("desc", ""),
-        "negative_case": scenario.get("expected_gate") == "skip-rule-not-applicable",
+        "negative_case": _is_negative_gate(scenario.get("expected_gate")),
         "mechanisms": {},
     }
 
     for mechanism in MECHANISMS:
         system = build_system_prompt(mechanism, rule, rule_id)
+        if _prompt_collapses_to_baseline(mechanism, system, rule, rule_id):
+            result["mechanisms"][mechanism] = _declined_cell(system)
+            continue
         routing: dict[str, Any] | None = None
         if dry_run:
             result["mechanisms"][mechanism] = {
@@ -1535,6 +1642,7 @@ def eval_one_scenario(
                             "selected_skill": None,
                             "selected_reference": None,
                             "route_failed": True,
+                            "reference_matched": False,
                         },
                     }
                     continue
@@ -1546,6 +1654,26 @@ def eval_one_scenario(
                     "selected_skill": selected_skill if isinstance(selected_skill, str) else None,
                     "selected_reference": selected_reference,
                     "route_failed": False,
+                    # One skill router fronts many sibling references, and a
+                    # sibling resolves for this target as readily as the target
+                    # does. Without this the score a sibling earned is published
+                    # under a reference the run never opened.
+                    "reference_matched": (
+                        selected_reference is not None
+                        # A route that declined the skill still resolves a
+                        # reference, because resolution reads `skill_path` off
+                        # the target and never consults `selected_skill`.
+                        # Counting a decline as a match credits the description
+                        # mechanism with a route it refused to make. The name
+                        # itself is not compared: no archived run records
+                        # `selected_skill`, so there is no evidence about how
+                        # models spell it, and a miscalibrated name check would
+                        # flag every routed cell.
+                        and isinstance(selected_skill, str)
+                        and bool(selected_skill.strip())
+                        and selected_reference
+                        == _normalize_selected_reference(rule.get("reference_path"))
+                    ),
                     "reasoning": str(parsed_route.get("reasoning", ""))[:300],
                 }
                 system = _build_routed_reference_prompt(rule, selected_reference)
@@ -1671,6 +1799,46 @@ def _scenario_score_triple(
     return sum(triple) / len(_SCORE_KEYS), failed, True
 
 
+def _route_missed_target(scenario: dict[str, Any], mech: str) -> bool:
+    """True when this cell's router did not open the target reference.
+
+    Absence and a recorded unknown are different facts. A cell written before
+    the flag existed carries no evidence either way, so it counts zero and an
+    archived run reproduces unchanged. A cell that carries the key with
+    something other than a boolean recorded a route result the run could not
+    read, and reading that for truth turns it into a clean route: `None is
+    False` is False, and so is `"false" is False`, so a damaged record and a
+    recorded miss both certify the route they failed to make. Refuse instead,
+    because a refusal is visible where a fabricated match is not.
+
+    The same split applies one level up, to the routing block itself. A cell
+    with no `routing` key is the archived shape and counts zero. A cell whose
+    `routing` is present but is not a mapping recorded a route the run cannot
+    read, and treating that as absence hands it the same silence a legacy
+    record earns, so the score is published under the target reference with
+    no evidence the reference was opened. All 96 cells in the archived record
+    carry no `routing` key at all, so refusing here moves no stored number.
+    """
+    mech_data = scenario["mechanisms"].get(mech, {})
+    if "routing" not in mech_data:
+        return False
+    routing = mech_data["routing"]
+    if not isinstance(routing, dict):
+        raise ValueError(
+            f"mechanisms[{mech}].routing must be a mapping, "
+            f"got {type(routing).__name__} {routing!r}"
+        )
+    if "reference_matched" not in routing:
+        return False
+    matched = routing["reference_matched"]
+    if not isinstance(matched, bool):
+        raise ValueError(
+            f"mechanisms[{mech}].routing.reference_matched must be a boolean, "
+            f"got {type(matched).__name__} {matched!r}"
+        )
+    return not matched
+
+
 def _incomplete_mechanisms(
     per_mech: dict[str, dict[str, Any]], mechs: list[str], pool_size: int
 ) -> list[str]:
@@ -1691,8 +1859,11 @@ def _mechanism_summary(
     scores: list[float] = []
     failures = 0
     legacy = 0
+    route_missed = 0
     for s in pool:
         score, failed, legacy_reduced = _scenario_score_triple(s, mech)
+        if _route_missed_target(s, mech):
+            route_missed += 1
         if score is not None:
             scores.append(score)
         if failed:
@@ -1707,11 +1878,56 @@ def _mechanism_summary(
     avg = round(sum(scores) / len(scores), 2) if scores else None
     return {
         "avg_score": avg,
+        # The published average is rounded, and archived runs recorded it that
+        # way, so it cannot gain precision without breaking replay. A gate that
+        # reads it inherits the rounding: a restraint average of 3.4991 is
+        # published as 3.5, and `3.5 < 3.5` is false, so a measurement below the
+        # floor is certified as clearing it. Keep the measured value beside the
+        # published one and let the gates read this.
+        "avg_score_exact": (sum(scores) / len(scores)) if scores else None,
         "scenario_count": len(pool),
         "graded_count": len(scores),
         "judge_failures": failures,
         "legacy_reduced_count": legacy,
+        "route_mismatch_count": route_missed,
     }
+
+
+def _dropped_candidates(
+    per_mech: dict[str, Any], candidates: list[str]
+) -> tuple[list[str], list[str]]:
+    """Split the candidates a ranking passed over by why each fell out.
+
+    Partial coverage and no coverage are different things to go fix, so they
+    are returned separately rather than as one "not eligible" bucket.
+    """
+    partial = [
+        m
+        for m in candidates
+        if per_mech[m]["avg_score"] is not None and not _fully_graded(per_mech[m])
+    ]
+    unmeasured = [m for m in candidates if per_mech[m]["avg_score"] is None]
+    return partial, unmeasured
+
+
+def _require_boolean_pool_markers(scenarios: list[dict[str, Any]]) -> None:
+    """Refuse a scenario whose pool marker is not a boolean.
+
+    The marker is read for truth, so a non-boolean silently decides a
+    scenario's population: the string "false" is truthy and files a restraint
+    case among the positives. Every number the run then publishes is attached
+    to a pool the scenario does not belong to, and nothing in the output says
+    so. The grader in this module always writes a boolean, but `aggregate` is
+    also handed scenario records parsed from a stored file, and a refusal here
+    is visible where a mis-split is not.
+    """
+    for idx, scenario in enumerate(scenarios):
+        marker = scenario["negative_case"]
+        if not isinstance(marker, bool):
+            raise ValueError(
+                f"scenarios[{idx}].negative_case must be a boolean, got "
+                f"{type(marker).__name__} {marker!r}"
+            )
 
 
 def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str, Any]:
@@ -1735,6 +1951,7 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     exposes how many scenarios each average actually rests on.
     """
     summary: dict[str, Any] = {"per_mechanism": {}, "negative_case_per_mechanism": {}}
+    _require_boolean_pool_markers(scenarios)
     pos_scenarios = [s for s in scenarios if not s["negative_case"]]
     neg_scenarios = [s for s in scenarios if s["negative_case"]]
 
@@ -1744,12 +1961,18 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
             neg_scenarios, mech
         )
 
-    baseline_avg = summary["per_mechanism"]["baseline"]["avg_score"]
-    desc_avg = summary["per_mechanism"]["description"]["avg_score"]
+    baseline_avg = _gate_avg(summary["per_mechanism"]["baseline"])
+    desc_avg = _gate_avg(summary["per_mechanism"]["description"])
 
+    # A routed target performs no `full` treatment, so it is a candidate for
+    # nothing: not the ranking, not the record of what the ranking dropped.
+    # Reachability is derived once here so both read the same population. Rank
+    # it and the table names a best the operator cannot adopt, on the same
+    # screen as the caveat calling it unreachable.
+    measured_mechs = [m for m in MECHANISMS if not (routed and m == "full")]
     # `description` is the progressive-disclosure gate. The `full` mechanism is
     # retained only as a diagnostic ceiling and cannot rescue a failed front door.
-    rule_enhanced = [m for m in MECHANISMS if m != "baseline"]
+    rule_enhanced = [m for m in measured_mechs if m != "baseline"]
     # Ranking two mechanisms is the same comparison a delta makes, so it needs
     # the same footing: both averages must cover the whole pool. A mechanism
     # graded on one lucky scenario would otherwise take the headline from a
@@ -1757,13 +1980,15 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     # comparison one line later as a delta.
     best_mech = max(
         (m for m in rule_enhanced if _fully_graded(summary["per_mechanism"][m])),
-        key=lambda m: summary["per_mechanism"][m]["avg_score"],
+        key=lambda m: _graded_avg(summary["per_mechanism"][m]),
         default=None,
     )
     best_avg = summary["per_mechanism"][best_mech]["avg_score"] if best_mech else None
-    # Distinguish "no cell was graded" from "no mechanism was graded
+    # Distinguish "no rule-enhanced mechanism was graded" from "none was graded
     # completely". Both leave the headline empty and they are not the same
-    # problem to go fix.
+    # problem to go fix. Both states are read off `rule_enhanced` alone, so
+    # neither says anything about `baseline`: a run can grade `baseline` fully
+    # and still reach either one.
     summary["best_mechanism_partial"] = best_mech is None and any(
         summary["per_mechanism"][m]["avg_score"] is not None for m in rule_enhanced
     )
@@ -1781,7 +2006,6 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     # Failing on it would fail a rule for a broken measurement of something
     # that is not shipped. The two counts are equal whenever nothing is
     # excluded, which is every always-on rule.
-    measured_mechs = [m for m in MECHANISMS if not (routed and m == "full")]
     # The negative pool is counted over the mechanisms that actually gate it,
     # not over every measured one. `baseline` carries no rule, so a broken
     # judgement of what the baseline did on a negative case says nothing about
@@ -1798,12 +2022,22 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
 
     summary["best_mechanism"] = best_mech
     summary["best_avg_score"] = best_avg
-    summary["baseline_avg"] = baseline_avg
+    summary["baseline_avg"] = _round_or_none(baseline_avg)
     pos_cells = summary["per_mechanism"]
     summary["delta_full_vs_baseline"] = _delta(pos_cells["full"], pos_cells["baseline"])
     summary["delta_description_vs_baseline"] = _delta(
         pos_cells["description"], pos_cells["baseline"]
     )
+    for mech_name in ("full", "description"):
+        summary[f"delta_{mech_name}_vs_baseline_measured"] = _delta_measured(
+            pos_cells[mech_name], pos_cells["baseline"]
+        )
+    summary["delta_rounding_disagrees"] = any(
+        summary[f"delta_{mech_name}_vs_baseline"]
+        != summary[f"delta_{mech_name}_vs_baseline_measured"]
+        for mech_name in ("full", "description")
+    )
+
     summary["total_judge_failures"] = total_judge_failures
     # Name the cells whose failures no gate reads. Deriving this in the
     # renderer instead would let the disclosure drift from the exclusion, which
@@ -1822,6 +2056,16 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     summary["unreachable_mechanisms"] = [
         m for m in MECHANISMS if m not in measured_mechs
     ]
+    # "Best" is a superlative over a population even though it prints one
+    # name. Any candidate the ranking dropped has to be named, or a table row
+    # scoring above the winner reads as a broken ordering. Partial coverage
+    # and no coverage are different things to go fix, so they are published
+    # separately. `rule_enhanced` is already narrowed to what the target can
+    # reach, which is what keeps this list and the ranking on one population.
+    (
+        summary["best_mechanism_excluded"],
+        summary["best_mechanism_unmeasured"],
+    ) = _dropped_candidates(summary["per_mechanism"], rule_enhanced)
 
     # Negative scenarios were measured but never gated: a rule that fired on
     # every case it was written to stay out of still returned PASS. Their
@@ -1836,16 +2080,31 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     # doing. For a routed target `full` is excluded too, because force-injecting
     # a reference is a measurement treatment no deployment performs.
     #
-    # Only mechanisms with a graded negative cell contribute. An ungraded pool
-    # has no average to gate on: `_mechanism_summary` reports `None`, which is
-    # not comparable against a floor, and `min` over an empty list raises. A
-    # suite with no negative scenarios reports that it measured none rather
-    # than failing every rule in it.
+    # Only mechanisms whose negative cell covers the whole pool contribute. The
+    # floor is a threshold on the average restraint across the negative
+    # scenarios, so an average over a subset is not the quantity the floor
+    # names. Gating on a subset made the verdict turn on which scenarios
+    # happened to grade: one cell scoring 1.0 with the rest ungraded averaged
+    # 1.0 and failed, while that same 1.0 beside two 5.0s averaged 3.67 and
+    # passed. Requiring the whole pool does not hide that harm, it renames it:
+    # `negative_gate_incomplete` is non-empty in exactly that case, so the run
+    # reports FAIL_NEGATIVE_INCOMPLETE instead of claiming a measurement it
+    # does not have. `_fully_graded` implies a non-empty pool, so a suite with
+    # no negative scenarios still reports that it measured none rather than
+    # failing every rule in it.
     gate_mechs = neg_gate_mechs
     gate_cells = {m: summary["negative_case_per_mechanism"][m] for m in gate_mechs}
-    graded_neg = [c["avg_score"] for c in gate_cells.values() if c["graded_count"] > 0]
+    # `_fully_graded` already implies a measured average, so the None filter is
+    # a type guard rather than a behavior change.
+    gate_avgs = (_gate_avg(c) for c in gate_cells.values() if _fully_graded(c))
+    graded_neg = [avg for avg in gate_avgs if avg is not None]
     worst_neg_avg = min(graded_neg) if graded_neg else None
-    summary["worst_negative_avg"] = worst_neg_avg
+    # `round` is monotone, so the minimum of the rounded values and the rounded
+    # minimum are the same number. The published field is unchanged; only the
+    # value the floor is compared against gained its measured precision.
+    summary["worst_negative_avg"] = (
+        None if worst_neg_avg is None else round(worst_neg_avg, 2)
+    )
     # Name the population the number was read off. An average over a subset of
     # the negative scenarios, reported as if it covered them all, is the defect
     # this whole change exists to remove.
@@ -1857,11 +2116,27 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     # rests on. `worst_negative_avg` is a min across mechanisms that need not
     # have graded the same scenarios, so the number alone does not say what it
     # covers, and a reader cannot recover it from the verdict.
+    # Keyed on the measured average because `worst_negative_avg` is the
+    # measured minimum. Ranking on the published 2dp value lets two mechanisms
+    # tie there while differing in measurement, and the label then names a
+    # mechanism the published number did not come from.
     worst_neg_mech = min(
-        (m for m in gate_mechs if gate_cells[m]["graded_count"] > 0),
-        key=lambda m: gate_cells[m]["avg_score"],
+        (m for m in gate_mechs if _fully_graded(gate_cells[m])),
+        key=lambda m: _graded_avg(gate_cells[m]),
         default=None,
     )
+    # The floor is read over the fully graded gate cells only, so the gate
+    # mechanism list no longer names the population behind the number. Publish
+    # the eligible set beside it, and whether any gate cell was graded but not
+    # completely, so an absent floor distinguishes "nothing graded" from
+    # "nothing graded on every negative scenario". This mirrors
+    # `best_mechanism_partial` on the positive side.
+    summary["negative_floor_mechanisms"] = [
+        m for m in gate_mechs if _fully_graded(gate_cells[m])
+    ]
+    summary["negative_floor_partial"] = not summary[
+        "negative_floor_mechanisms"
+    ] and any(gate_cells[m]["graded_count"] > 0 for m in gate_mechs)
     summary["worst_negative_mechanism"] = worst_neg_mech
     summary["worst_negative_graded"] = (
         gate_cells[worst_neg_mech]["graded_count"] if worst_neg_mech else 0
@@ -1878,16 +2153,78 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
         summary["per_mechanism"], pos_gate_mechs, len(pos_scenarios)
     )
 
+    # Derived once here and read by both the verdict and the caveat, so the
+    # number a reader sees and the number that decides the run cannot drift.
+    # Positive pool only: on a negative case the router is supposed to decline,
+    # so a miss there is correct restraint rather than a defect. Measured
+    # mechanisms only: a routed target cannot reach `full`, and its scores are
+    # already excluded from every average and every gate, so counting a miss
+    # there would let a mechanism the target cannot reach decide the run and
+    # would put the caveat on a different population than the scores it
+    # explains.
+    summary["positive_route_mismatches"] = sum(
+        summary["per_mechanism"][m].get("route_mismatch_count", 0)
+        for m in measured_mechs
+    )
+
+    common = {
+        "gating_judge_failures": gating_judge_failures,
+        "has_positive_cases": bool(pos_scenarios),
+        "has_negative_cases": bool(neg_scenarios),
+    }
     summary["verdict"] = _decide_verdict(
         summary,
-        gating_judge_failures=gating_judge_failures,
         worst_neg_avg=worst_neg_avg,
-        has_positive_cases=bool(pos_scenarios),
         desc_avg=desc_avg,
         baseline_avg=baseline_avg,
+        **common,
+    )
+    # The table prints the rounded averages, so a reader who checks the verdict
+    # against them can reach a different answer than the run did whenever a
+    # threshold sits inside the rounding window. Decide again on the printed
+    # numbers and record the disagreement rather than leaving the reader to
+    # conclude the instrument is broken.
+    summary["rounding_would_change_verdict"] = summary["verdict"] != _decide_verdict(
+        summary,
+        worst_neg_avg=_round_or_none(worst_neg_avg),
+        desc_avg=_round_or_none(desc_avg),
+        baseline_avg=_round_or_none(baseline_avg),
+        **common,
     )
 
     return summary
+
+
+def _round_or_none(value: float | None) -> float | None:
+    """Round to the precision the table prints, preserving an absent value."""
+    return None if value is None else round(value, 2)
+
+
+def _gate_avg(cell: dict[str, Any]) -> float | None:
+    """The average a gate compares, at the precision it was measured.
+
+    Falls back to the published 2dp value for any cell that lacks the measured
+    one. Every cell this module builds carries both, and replay rebuilds each
+    summary from the stored cells rather than reading the archived summary, so
+    the fallback covers a cell handed in from elsewhere rather than the
+    archived-replay path.
+    """
+    exact = cell.get("avg_score_exact")
+    return cell.get("avg_score") if exact is None else exact
+
+
+def _graded_avg(cell: dict[str, Any]) -> float:
+    """The measured average of a cell the caller has already found graded.
+
+    `_fully_graded` requires a non-null published average, and `_gate_avg`
+    returns that value when the measured one is absent, so a graded cell
+    always has an average. Raising rather than substituting a default keeps a
+    broken invariant visible instead of ranking a mechanism at zero.
+    """
+    avg = _gate_avg(cell)
+    if avg is None:
+        raise AssertionError("a fully graded cell must carry an average")
+    return avg
 
 
 def _fully_graded(cell: dict[str, Any]) -> bool:
@@ -1912,6 +2249,22 @@ def _delta(treatment: dict[str, Any], control: dict[str, Any]) -> float | None:
     treatment_avg: float = treatment["avg_score"]
     control_avg: float = control["avg_score"]
     return round(treatment_avg - control_avg, 2)
+
+
+def _delta_measured(treatment: dict[str, Any], control: dict[str, Any]) -> float | None:
+    """The same gap taken between the measured averages.
+
+    `_delta` subtracts two values that were each rounded to 2 decimals, so it
+    reports the difference of rounded numbers rather than the rounded
+    difference. The two disagree by up to 0.01, and one shipped artifact
+    already does: its published gap is -0.16 where the measurement gives
+    -0.17. The archived field cannot be corrected without rewriting the
+    record, so the corrected value is published beside it and the table prints
+    this one.
+    """
+    if not _fully_graded(treatment) or not _fully_graded(control):
+        return None
+    return round(_graded_avg(treatment) - _graded_avg(control), 2)
 
 
 def _positive_verdict(desc_avg: float | None, baseline_avg: float | None) -> str:
@@ -1940,6 +2293,7 @@ def _decide_verdict(
     gating_judge_failures: int,
     worst_neg_avg: float | None,
     has_positive_cases: bool,
+    has_negative_cases: bool,
     desc_avg: float | None,
     baseline_avg: float | None,
 ) -> str:
@@ -1969,7 +2323,27 @@ def _decide_verdict(
         # Under the negative gates on purpose: shipping a rule that might fire
         # where it must not costs more than withholding one that might help.
         return "FAIL_POSITIVE_INCOMPLETE"
-    return _positive_verdict(desc_avg, baseline_avg)
+    if summary.get("positive_route_mismatches", 0) > 0:
+        # One router fronts many sibling references and any sibling resolves
+        # for any target, so a routed cell can score well on content the target
+        # never supplied. A PASS here would certify the rule on a population
+        # that partly did not involve the rule. The score stays in the average
+        # (dropping a mechanism's failures would inflate that mechanism); what
+        # is withheld is the certification.
+        return "FAIL_ROUTE_MISSED_TARGET"
+    verdict = _positive_verdict(desc_avg, baseline_avg)
+    if verdict == "PASS" and not has_negative_cases:
+        # Last, not first. The defect an empty negative pool causes is a false
+        # certification: the restraint floor compares against nothing, cannot
+        # fire, and a clean positive result then reads as a clean run. Every
+        # gate above already withholds the certification on its own evidence,
+        # so preempting them would replace an actionable defect with a coverage
+        # complaint and would drop a genuine threshold failure out of the
+        # rollback set. Only the PASS is unearned, so only the PASS is taken.
+        # The scenario loader refuses such a file before any spend; this is the
+        # fallback for replay and for direct callers that skip that path.
+        return "NO_NEGATIVE_CASES"
+    return verdict
 
 
 # ---------------------------------------------------------------------------
@@ -1986,6 +2360,20 @@ def _render_caveats(summary: dict[str, Any]) -> list[str]:
     silent one.
     """
     lines: list[str] = []
+    if summary.get("delta_rounding_disagrees"):
+        lines.append(
+            "Delta: the archived gap fields subtract two averages that were "
+            "each rounded first, which differs from the rounded difference by "
+            "up to 0.01. The table prints the measured gap; the archived "
+            "fields keep the derivation their record was written with."
+        )
+    if summary.get("rounding_would_change_verdict"):
+        lines.append(
+            "Precision: the averages printed below are rounded to 2 decimals "
+            "and a gate threshold falls inside that rounding. The verdict was "
+            "decided on the measured values, so checking it against the "
+            "printed numbers will disagree."
+        )
     for label, key in (
         ("Negative", "negative_gate_incomplete"),
         ("Positive", "positive_gate_incomplete"),
@@ -2009,6 +2397,14 @@ def _render_caveats(summary: dict[str, Any]) -> list[str]:
             f"Judge failures: {total_jf} in the record, {gating_jf} on gating "
             + (f"surfaces. Not gated: {', '.join(where)}." if where else "surfaces.")
         )
+    # Positive pool only. On a negative case the router is supposed to decline,
+    # so counting a miss there would report correct restraint as a defect.
+    route_missed = summary.get("positive_route_mismatches", 0)
+    if route_missed:
+        lines.append(
+            f"Routing: {route_missed} positive cell(s) never opened the target "
+            "reference, so those scores measure a sibling reference or none"
+        )
     legacy = sum(
         summary["per_mechanism"][m].get("legacy_reduced_count", 0)
         + summary["negative_case_per_mechanism"][m].get("legacy_reduced_count", 0)
@@ -2024,14 +2420,31 @@ def _render_caveats(summary: dict[str, Any]) -> list[str]:
 
 def render_table(rule_id: str, summary: dict[str, Any]) -> str:
     worst_neg = summary.get("worst_negative_avg")
-    gate_mechs = summary.get("negative_gate_mechanisms") or []
     if worst_neg is None:
-        restraint = "not measured"
+        # An absent floor has two causes and they are not the same thing to go
+        # fix. Saying "not measured" beside a table row carrying an average
+        # contradicts the row. Both states are read over the gate mechanisms
+        # the target can reach, so both say so: on a routed target the table
+        # can show `full` fully graded while the floor has no candidate.
+        restraint = (
+            "no reachable negative-gate mechanism graded on every negative scenario"
+            if summary.get("negative_floor_partial")
+            else "not measured on any reachable negative-gate mechanism"
+        )
     else:
-        # `worst_neg` is a min across mechanisms that need not have graded the
-        # same scenarios, so printing the mechanism list alone leaves the reader
-        # unable to say which one the number came from or how much it covers.
-        population = ", ".join(gate_mechs) if gate_mechs else "rule mechanisms"
+        # `worst_neg` is a min over the gate cells that covered their whole
+        # pool. Printing every gate mechanism would name a population wider
+        # than the one the number was read off, which is the defect this
+        # instrument exists to remove.
+        floor_mechs = summary.get("negative_floor_mechanisms")
+        if floor_mechs is None:
+            # A summary archived before the eligible set was published cannot
+            # say which mechanisms set its floor. Falling back to the gate list
+            # would reprint the exact mislabel this field exists to remove, so
+            # say the population is unrecorded instead of guessing it.
+            population = "population not recorded"
+        else:
+            population = ", ".join(floor_mechs) if floor_mechs else "rule mechanisms"
         source = summary.get("worst_negative_mechanism") or "?"
         graded = summary.get("worst_negative_graded", 0)
         neg_total = summary["negative_case_per_mechanism"][source]["scenario_count"] if (
@@ -2041,17 +2454,28 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
             f"worst of [{population}] {worst_neg} (floor {MIN_RESTRAINT_SCORE}), "
             f"from {source} over {graded}/{neg_total} negative scenario(s)"
         )
+    dropped = []
+    if summary.get("best_mechanism_excluded"):
+        dropped.append(
+            f"{', '.join(summary['best_mechanism_excluded'])} for partial coverage"
+        )
+    if summary.get("best_mechanism_unmeasured"):
+        dropped.append(
+            f"{', '.join(summary['best_mechanism_unmeasured'])} as unmeasured"
+        )
+    best_excluded = f", excluding {' and '.join(dropped)}" if dropped else ""
     rows = [
         f"\nRule: {rule_id}",
         f"Verdict: {summary['verdict']}",
         (
             f"Best mechanism: {summary['best_mechanism']} "
             f"(avg {summary['best_avg_score']})"
+            + best_excluded
             if summary.get("best_mechanism")
             else (
-                "Best mechanism: none graded on every scenario"
+                "Best mechanism: no reachable rule-enhanced mechanism graded on every scenario"
                 if summary.get("best_mechanism_partial")
-                else "Best mechanism: none measured"
+                else "Best mechanism: no reachable rule-enhanced mechanism measured"
             )
         ),
         f"Restraint on negative cases: {restraint}",
@@ -2071,15 +2495,18 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
         # Both columns report the absence instead.
         pos = pos_stats["avg_score"] if pos_stats["graded_count"] else "-"
         neg = neg_stats["avg_score"] if neg_stats["graded_count"] else "-"
-        pos_graded = (
-            f"{pos_stats.get('graded_count', pos_stats['scenario_count'])}"
-            f"/{pos_stats['scenario_count']}"
-        )
+        pos_graded = f"{pos_stats['graded_count']}/{pos_stats['scenario_count']}"
         neg_graded = f"{neg_stats['graded_count']}/{neg_stats['scenario_count']}"
+        # Read the published value rather than deriving a third one here: the
+        # number on the screen and the number in the record must not drift. A
+        # record written before the measured gap existed carries only the
+        # derivation it was written with, and that derivation is its record, so
+        # render it rather than refusing to display an archived run.
+        measured_key = f"delta_{mech}_vs_baseline_measured"
         delta_val = (
             None
             if mech == "baseline"
-            else _delta(pos_stats, summary["per_mechanism"]["baseline"])
+            else summary.get(measured_key, summary[f"delta_{mech}_vs_baseline"])
         )
         delta = f"{delta_val:+}" if delta_val is not None else ""
         rows.append(
@@ -2155,6 +2582,84 @@ def _read_scenarios_json(spath: Path) -> dict[str, Any] | int:
     return data
 
 
+def _validate_scenario_gate(
+    sc: dict[str, Any], idx: int, spath: Path
+) -> int | None:
+    """Validate one scenario's ``expected_gate``. Exit code 2 on error.
+
+    An absent gate and a misspelled one both used to read as a positive case,
+    so a scenario authored as a negative was graded against the positive rubric
+    and then averaged into the positive pool. Refusing the file is the visible
+    failure; silently moving a case between pools is an invisible one.
+    """
+    gate = sc.get("expected_gate")
+    if not isinstance(gate, str) or not gate.strip():
+        print(
+            f"ERROR: scenarios[{idx}].expected_gate must be a non-empty "
+            f"string in {spath}. Use {NEGATIVE_GATE!r} for a negative case "
+            "or name the gate the scenario expects.",
+            file=sys.stderr,
+        )
+        return 2
+    normalized = _normalize_gate(gate)
+    if normalized != NEGATIVE_GATE and _is_gate_near_miss(normalized):
+        print(
+            f"ERROR: scenarios[{idx}].expected_gate {gate!r} reads as a "
+            f"near miss of {NEGATIVE_GATE!r} in {spath}. A near miss would be "
+            "graded against the positive rubric and averaged into the "
+            "positive pool. Use the sentinel exactly, or rename the gate so "
+            "it does not resemble it.",
+            file=sys.stderr,
+        )
+        return 2
+    return None
+
+
+def _validate_scenario_pools(scenarios: list[Any], spath: Path) -> int | None:
+    """Require both a positive and a negative pool. Exit code 2 on error.
+
+    Separate from the per-scenario shape checks above because it is a different
+    question. Those ask whether each entry is well formed; this asks whether the
+    set of entries can answer anything. Both pools are knowable without a single
+    API call, so refuse here rather than spending a run that cannot answer.
+    They are checked together because they are the same defect: a gate computed
+    over an empty pool cannot fail, and a gate that cannot fail has not been run.
+    """
+    if not scenarios:
+        print(
+            f"ERROR: {spath} declares no scenarios. Every gate would pass "
+            "over an empty pool, so the run would certify the rule without "
+            "measuring it once.",
+            file=sys.stderr,
+        )
+        return 2
+    positives: list[Any] = []
+    negatives: list[Any] = []
+    for sc in scenarios:
+        gate = _normalize_gate(sc.get("expected_gate", ""))
+        target = negatives if _is_negative_gate(gate) else positives
+        target.append(sc)
+    if not positives:
+        print(
+            f"ERROR: {spath} declares no positive scenario. Every "
+            f"expected_gate is {NEGATIVE_GATE!r}, so the run could only ever "
+            "report NO_POSITIVE_CASES. Add a scenario whose expected_gate "
+            "names the gate the rule should reach.",
+            file=sys.stderr,
+        )
+        return 2
+    if not negatives:
+        print(
+            f"ERROR: {spath} declares no negative scenario, so the restraint "
+            "floor would be computed over an empty pool. It cannot fail there, "
+            "and the run would report PASS for restraint it never measured. "
+            f"Add a scenario whose expected_gate is {NEGATIVE_GATE!r}.",
+            file=sys.stderr,
+        )
+        return 2
+    return None
+
+
 def _validate_scenarios_shape(data: dict[str, Any], spath: Path) -> int | None:
     """Validate scenarios array shape. Return exit code 2 on error, None on ok."""
     scenarios = data.get("scenarios")
@@ -2168,6 +2673,9 @@ def _validate_scenarios_shape(data: dict[str, Any], spath: Path) -> int | None:
                 file=sys.stderr,
             )
             return 2
+        gate_error = _validate_scenario_gate(sc, idx, spath)
+        if gate_error is not None:
+            return gate_error
         for required in ("id", "input"):
             value = sc.get(required)
             if not isinstance(value, str) or not value.strip():
@@ -2177,7 +2685,7 @@ def _validate_scenarios_shape(data: dict[str, Any], spath: Path) -> int | None:
                     file=sys.stderr,
                 )
                 return 2
-    return None
+    return _validate_scenario_pools(scenarios, spath)
 
 
 def _resolve_rule_path(rule_path_str: str) -> Path | int:
@@ -2309,6 +2817,32 @@ def _resolve_target_paths(data: dict[str, Any], spath: Path) -> tuple[Path, Path
     return _resolve_skill_reference(skill_ref, reference_ref)
 
 
+def _validate_target_id(data: dict[str, Any], spath: Path) -> int | None:
+    """Require any declared id to be a non-empty string. Exit code 2 on error.
+
+    The id is the key the published record is written under, and JSON object
+    keys are strings. A declared `1` and a declared `"1"` are distinct keys in
+    memory, so the duplicate check clears both, and then they collapse to one
+    key on serialization and the first target's result is gone from the record
+    without a word. Refuse the type here, where it costs nothing, rather than
+    losing a measured target at publication.
+    """
+    for key in ("rule_id", "skill_id"):
+        value = data.get(key)
+        if value is None:
+            continue
+        if not isinstance(value, str) or not value.strip():
+            print(
+                f"ERROR: {key} must be a non-empty string in {spath}, got "
+                f"{value!r}. The published record is keyed by this value and "
+                "JSON keys are strings, so a non-string id would collide with "
+                "its own string form and drop a measured target.",
+                file=sys.stderr,
+            )
+            return 2
+    return None
+
+
 def _load_scenarios_file(
     scenario_file: str,
 ) -> tuple[dict[str, Any], tuple[Path, Path | None]] | int:
@@ -2336,6 +2870,10 @@ def _load_scenarios_file(
     if shape_err is not None:
         return shape_err
 
+    id_err = _validate_target_id(scenarios_data, spath)
+    if id_err is not None:
+        return id_err
+
     resolved = _resolve_target_paths(scenarios_data, spath)
     if isinstance(resolved, int):
         return resolved
@@ -2350,9 +2888,17 @@ def _process_one_rule(
 ) -> tuple[str, dict[str, Any] | None, int]:
     """Run all scenarios for one rule or skill. Return (target_id, result_or_none, n_calls)."""
     primary_path, reference_path = target_paths
-    default_id = (
-        primary_path.parent.name if primary_path.name == "SKILL.md" else primary_path.stem
-    )
+    if reference_path is not None:
+        # A reference target measures one reference, not the skill that fronts
+        # it. Defaulting to the skill directory gave every reference under one
+        # router the same id, so the label named the umbrella population while
+        # the numbers measured a single reference. `.stem` matches the ids the
+        # shipped scenario files already declare.
+        default_id = reference_path.stem
+    elif primary_path.name == "SKILL.md":
+        default_id = primary_path.parent.name
+    else:
+        default_id = primary_path.stem
     rule_id = (
         scenarios_data.get("rule_id")
         or scenarios_data.get("skill_id")
@@ -2435,28 +2981,40 @@ def main() -> int:
             scenario_file, api_key, args, all_results, state
         )
         if exit_code is not None:
-            return exit_code
+            # max, not the bare code: a hard refusal stops the run, but an
+            # earlier target may already have recorded something worse. A
+            # config refusal on file 8 must not lower an API failure seen on
+            # file 1, or adding a target could improve the exit.
+            return max(state.worst_exit, exit_code)
 
     if args.dry_run:
         _print_dry_run_summary(state.total_calls)
-        return 0
+        # A dry run produces no verdict, so this is 0 today. Returning the
+        # accumulated code rather than a literal keeps one exit path: a
+        # hardcoded success here would silently swallow anything a later
+        # change starts recording during a dry run.
+        return state.worst_exit
 
     if args.output:
         Path(args.output).write_text(json.dumps(all_results, indent=2), encoding="utf-8")
         print(f"\nWrote results: {args.output}")
 
-    if state.external_failure:
-        return 3
-    return 0 if state.overall_pass else 1
+    return state.worst_exit
 
 
 class _RunState:
     """Mutable accumulator for the main loop."""
 
     def __init__(self) -> None:
-        self.overall_pass = True
-        self.external_failure = False
+        # One reduced exit code rather than a boolean per failure kind: the
+        # precedence then falls out of the numeric ordering instead of a
+        # branch that has to be kept in sync with it.
+        self.worst_exit = 0
         self.total_calls = 0
+        # Which scenario file claimed each id. Results are stored by id into a
+        # plain dict, so without this a second file claiming a taken id would
+        # overwrite the first and publish one entry for two measured targets.
+        self.claimed_ids: dict[str, str] = {}
 
 
 def _process_scenario_file(
@@ -2475,27 +3033,54 @@ def _process_scenario_file(
     rule_id, result, n_calls = _process_one_rule(
         api_key, scenarios_data, target_paths, args
     )
+    # Checked before the results are stored and before any spend, so a dry run
+    # catches the collision too. Refusing is the visible failure; overwriting
+    # is an invisible one that leaves no trace in the published output.
+    claimed_by = state.claimed_ids.get(rule_id)
+    if claimed_by is not None:
+        print(
+            f"ERROR: {scenario_file} declares id {rule_id!r}, already claimed "
+            f"by {claimed_by}. Two targets cannot publish under one id: the "
+            "second would overwrite the first. Set a distinct rule_id or "
+            "skill_id in one of them.",
+            file=sys.stderr,
+        )
+        return 2
+    state.claimed_ids[rule_id] = scenario_file
     state.total_calls += n_calls
 
     if result is not None:
         all_results["rules"][rule_id] = result
-        ok, judge_failed = _classify_verdict(result["summary"]["verdict"])
-        if not ok:
-            state.overall_pass = False
-        if judge_failed:
-            state.external_failure = True
+        state.worst_exit = max(
+            state.worst_exit, _classify_verdict(result["summary"]["verdict"])
+        )
     return None
 
 
-def _classify_verdict(verdict: str) -> tuple[bool, bool]:
-    """Return (ok, judge_failed). ok=True only for PASS; judge_failed only for FAIL_JUDGE_ERRORS.
+def _classify_verdict(verdict: str) -> int:
+    """Return the process exit code this verdict implies.
 
-    NO_POSITIVE_CASES is a config error (no positive scenarios = activation
-    cannot be validated). FAIL_JUDGE_ERRORS is an external/API failure that
-    surfaces as exit code 3 so CI can distinguish transient infrastructure
-    problems from genuine activation failures.
+    Codes follow the repository convention: 0 ok, 1 logic, 2 config, 3
+    external. NO_POSITIVE_CASES and NO_NEGATIVE_CASES are config errors, not
+    logic ones. Each says the scenario file cannot measure one of the two
+    pools and reports nothing at all about the rule, so returning 1 would
+    attach a rule failure to a file problem and a run could not tell an
+    under-firing rule from a misconfigured input. FAIL_JUDGE_ERRORS is external
+    so CI can distinguish transient infrastructure trouble from a genuine
+    activation failure.
+
+    A run reduces these with max(), which makes the precedence a property of
+    the ordering rather than a branch kept in sync with it: external outranks
+    config, config outranks logic, and adding a target can only worsen the
+    exit, never improve it.
     """
-    return verdict == "PASS", verdict == "FAIL_JUDGE_ERRORS"
+    if verdict == "PASS":
+        return 0
+    if verdict == "FAIL_JUDGE_ERRORS":
+        return 3
+    if verdict in ("NO_POSITIVE_CASES", "NO_NEGATIVE_CASES"):
+        return 2
+    return 1
 
 
 def _print_dry_run_summary(total_calls: int) -> None:

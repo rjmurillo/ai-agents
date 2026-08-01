@@ -216,8 +216,7 @@ def _is_external_parent(parent: object, own_shas: set[str]) -> bool:
 def _external_non_first_parent_shas(commits: list[Any]) -> set[str]:
     """Collect SHAs of non-first parents that are not in the PR's own commit list.
 
-    Used by both contains_base_merge (backward-compat approximation) and
-    contains_main_merge (precise check verified against origin/main).
+    Used by contains_main_merge (precise check verified against origin/main).
     """
     own_shas: set[str] = set()
     for commit in commits:
@@ -235,20 +234,9 @@ def _external_non_first_parent_shas(commits: list[Any]) -> set[str]:
             continue
         for parent in parents[1:]:
             if _is_external_parent(parent, own_shas):
-                sha = parent.get("sha")
-                if isinstance(sha, str) and sha:
-                    shas.add(sha)
+                # _is_external_parent guarantees parent["sha"] is a non-empty str.
+                shas.add(parent["sha"])
     return shas
-
-
-def contains_base_merge(commits: list[Any]) -> bool:
-    """Return True when the PR carries a merge commit from outside the branch.
-
-    BROADER APPROXIMATION: this grants relief for any external merge, not only
-    merges of origin/main's first-parent trunk. Use contains_main_merge when
-    a repo_root is available so the check matches the pre-push hook exactly.
-    """
-    return bool(_external_non_first_parent_shas(commits))
 
 
 def contains_main_merge(

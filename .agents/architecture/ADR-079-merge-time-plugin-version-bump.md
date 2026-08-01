@@ -4,7 +4,7 @@ status: superseded
 date: 2026-07-08
 decision-makers: [rjmurillo]
 supersedes: []
-superseded-by: ADR-091
+superseded-by: ADR-092
 explainer: null
 implemented: true
 ---

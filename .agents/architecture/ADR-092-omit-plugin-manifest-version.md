@@ -1,15 +1,15 @@
 ---
-id: ADR-091
+id: ADR-092
 status: accepted
 date: 2026-08-01
 decision-makers: [rjmurillo]
-supersedes: [ADR-079]
+supersedes: [ADR-079, ADR-091]
 superseded-by: null
 explainer: null
 implemented: true
 ---
 
-# ADR-091: Omit `version` From Plugin Manifests and Resolve Freshness From the Commit SHA
+# ADR-092: Omit `version` From Plugin Manifests and Resolve Freshness From the Commit SHA
 
 ## Status
 
@@ -118,6 +118,43 @@ The gate existed because an installed plugin cache keyed off the version, so a c
 ### Trade-offs
 
 The chosen option gives up a human-legible semantic version in `/plugin` listings and gives up any version signal for a host that ignores git. In exchange it removes a per-PR write that 14 of 22 conflicting PRs collided on, removes the rebump recovery loop, and upgrades Claude Code freshness from hand-bumped to per-commit.
+
+## Why ADR-091 is superseded within hours of landing
+
+ADR-091 (PR #4147, merged as `edecb8e85`) chose a post-merge bot to own the parity versions. The
+direction was not unreasonable: it removes the per-PR write, which is the actual conflict source, and
+it covered the count baselines too, which this ADR does not. It is superseded because its mechanism
+cannot run in this repository, and its failure mode is silent.
+
+Four facts, each verified against the merged commit:
+
+1. **It tore `main` on its own merge.** `edecb8e85` changed packaged plugin source
+   (`.claude/rules/plugin-version-bump.md` and both instruction mirrors, 179 lines each) and left the
+   version at `0.6.5493`, identical to `edecb8e85^`. Content changed, freshness key did not.
+
+2. **The bot never ran, and could not have.** The squashed merge message quotes the bot's own commit
+   template and so contains the literal `[skip ci]`, which suppresses push-triggered workflows on that
+   commit. `gh run list --workflow post-merge-version-bump.yml` returned 0 runs.
+
+3. **The bot could not push even when triggered.** Protection is ruleset 11104075, whose sole bypass
+   actor is `RepositoryRole id=5`. `github-actions[bot]` is not one, and the `pull_request` rule
+   refuses direct pushes regardless of `contents: write`. ADR-091 asserted a branch-protection
+   carve-out; its diff contained no ruleset change and its migration plan listed no manual step.
+
+4. **A human could not repair it either.** The same PR marked both parity manifests `bot_managed=True`
+   and raised `manually-bumped` when a PR changed their version, so the obvious repair bump failed a
+   required check. Bot blocked, human blocked, tear open.
+
+The deciding property is not that a bot is wrong in principle. It is that a bot fails *silently*: a
+workflow that does not fire produces no red check, so the tear is invisible until someone measures a
+manifest against its source. Omitting the field has no runtime component at all, so there is nothing
+that can fail to fire.
+
+What is lost, stated plainly: ADR-091 also relaxed `count_ratchet` and handed baseline `--update` to
+the bot, which covered `taste_count_baseline.txt` and `ruff_count_baseline.txt`. Removing the bot
+removes that coverage. This ADR restores `EXIT_REGRESSION` on an unrecorded improvement so the
+ratchets stay honest, and the baseline conflict class is tracked separately in issue #4171 rather than
+being treated as solved here.
 
 ## Consequences
 

@@ -1,6 +1,20 @@
-# ADR-091 Review: Omit `version` From Plugin Manifests
+# ADR Review Protocol: ADR-092 (omit the plugin manifest version)
 
-Subject: `.agents/architecture/ADR-091-omit-plugin-manifest-version.md`, which supersedes ADR-079.
+> Renumbering note. This debate ran under the adr-review skill against the same decision when it
+> carried the number ADR-092. That number was taken by PR #4147 (post-merge version bot), merged as
+> `edecb8e85` while this work was in flight, so the decision was renumbered to ADR-092. The findings
+> and dispositions below are unchanged; only the identifier moved.
+>
+> Scope limit, stated rather than glossed. This debate was held before #4147 merged. It therefore did
+> not review the section "Why ADR-092 is superseded within hours of landing", which was added
+> afterwards. Every factual claim in that section was verified directly against the merged commit:
+> the unchanged version across `edecb8e85`, the zero workflow runs, the `[skip ci]` in the merge
+> message, and the sole ruleset bypass actor. The commands and their output are recorded in issue
+> #4168.
+
+# ADR-092 Review: Omit `version` From Plugin Manifests
+
+Subject: `.agents/architecture/ADR-092-omit-plugin-manifest-version.md`, which supersedes ADR-079.
 Date: 2026-08-01. Branch: `fix/4080-omit-plugin-version`.
 
 ## How this review ran, and what that limits

@@ -115,6 +115,11 @@
         "level": "MUST",
         "Complete": true,
         "Evidence": "adr-review skill lenses applied to ADR-091 and recorded at .agents/analysis/2026-08-01-adr-091-omit-plugin-version-debate.md. The log states plainly that this context has no subagent tool, so one model argued each of the six lenses in turn rather than six agents debating; verdict 6/6 Accept with finding F1 (Copilot native update binding unread) carried as the standing risk."
+      },
+      "adrReviewInvoked": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "adr-review skill run for ADR-092 (omit the plugin manifest version); six-lens debate with seven findings and dispositions at .agents/analysis/2026-08-01-adr-092-omit-plugin-version-debate.md. Decision renumbered from ADR-091 to ADR-092 after PR #4147 took that number. The post-debate supersession section was verified directly against merged commit edecb8e85; evidence in #4168."
       }
     }
   },

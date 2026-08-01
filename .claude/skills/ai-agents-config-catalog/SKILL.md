@@ -177,8 +177,8 @@ Audited 2026-07-03 against the working tree. Sources: files and line numbers cit
 | no version in any manifest or marketplace entry | `uv run python build/scripts/validate_plugin_version_bump.py` |
 | GIT_CONFIG_COUNT injection | `grep -n "GIT_CONFIG_COUNT" tests/conftest.py` |
 | pytest markers | `grep -n -A 5 "^markers" pyproject.toml` |
-| .env keys | `grep -n "API_KEY\|COMPRESS_TOKENIZER" .env.example` |
+| .env keys | `grep -n -e "API_KEY" -e "COMPRESS_TOKENIZER" .env.example` |
 | hook registration surfaces | `python3 -c "import json; s=json.load(open('.claude/settings.json'))['hooks']; print({k: len(v) for k, v in s.items()})"` |
-| removed flags absent from CONTRIBUTING | `grep -n "SKIP_PREPUSH\|SKIP_TESTS" CONTRIBUTING.md` (expect no matches) |
+| removed flags absent from CONTRIBUTING | `grep -n -e "SKIP_PREPUSH" -e "SKIP_TESTS" CONTRIBUTING.md` (expect no matches) |
 
 `COMPRESS_TOKENIZER` consumer not located; verify before documenting it as live.
