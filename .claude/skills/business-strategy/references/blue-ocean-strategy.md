@@ -72,6 +72,7 @@ A budget airline enters a market dominated by full-service carriers competing on
 Strategy canvas: every full-service rival has the same shape, strong on every factor, priced high.
 
 Four actions:
+
 - Eliminate: lounges, meal service, seat-class tiers, assigned hubs.
 - Reduce: ticket price, route complexity, in-flight frills.
 - Raise: departure frequency on a few high-demand point-to-point routes, friendly fast boarding.

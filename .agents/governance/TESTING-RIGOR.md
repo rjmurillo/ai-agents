@@ -79,3 +79,87 @@ Security-sensitive contract flips (authentication, authorization, cryptography, 
 Bots and external reviewers (Copilot, CodeRabbit, Gemini) systematically catch the gaps that happy-path-only tests leave behind. Shipping with success-case tests alone wastes review cycles, exposes real defects to merge, and signals that the contributor has not internalized the failure modes of their own code.
 
 The cost of writing pos+neg+edge tests up front is small. The cost of shipping a defective change, getting a review round, fixing it, re-running CI, and re-requesting review is roughly 10x larger. This rule pays for itself.
+
+---
+
+## Mutation Harness Safety: Bytecode Cache Invalidation
+
+**Source**: Issue #3896. Observed in mutation testing of
+`scripts/ci/parse_memory_validation_results.py`.
+
+### The hazard
+
+CPython validates `.pyc` caches against two fields: `st_mtime` (truncated to
+whole seconds) and `st_size`. A same-length source mutation leaves `st_size`
+unchanged. If the write lands in the same wall-clock second the cache was
+created, `st_mtime` also matches and the interpreter reuses the stale cache.
+The suite then runs the ORIGINAL bytecode, not the mutant, and the harness
+reports a false verdict.
+
+### The fix (mandatory for every mutation harness)
+
+Before each subprocess invocation that runs under a mutated source file:
+
+1. Purge the `__pycache__` directory:
+   ```python
+   import shutil, pathlib
+   pycache = pathlib.Path(source_file).parent / "__pycache__"
+   if pycache.exists():
+       shutil.rmtree(pycache)
+   ```
+
+2. Set `PYTHONDONTWRITEBYTECODE=1` in the child environment to prevent the
+   mutant's bytecode from contaminating the NEXT run's cache:
+   ```python
+   env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+   subprocess.run([sys.executable, "-m", "pytest", ...], env=env)
+   ```
+
+### Why the flag alone is insufficient
+
+`PYTHONDONTWRITEBYTECODE=1` prevents writing new `.pyc` files but does NOT
+prevent reading existing ones. If a `.pyc` with matching (mtime, size) headers
+is already on disk, the interpreter uses it even with the flag set. The purge
+is the load-bearing step; the flag prevents cross-mutant contamination.
+
+### Verification
+
+`tests/test_stale_bytecode_harness.py` contains four tests that reproduce the
+defect (`test_before__stale_cache_hides_mutation`), document the insufficient
+flag-only approach, and prove both fixes work independently and in combination.
+
+---
+
+## External Tool Fake Fidelity
+
+**Source**: Issue #3885. Two instances of wrong exit-code contracts in git fakes:
+`_fake_scan` in `tests/ci/test_taste_count_ratchet.py` and `_confirm_ignored`
+tests in `tests/build_scripts/test_build_all.py`.
+
+### The hazard
+
+A monkeypatched fake that models an external binary's exit codes or output
+shape is a claim about that binary's behavior. If the claim is wrong, every
+test built on the fake passes while asserting a contract the binary does not
+have. The production code then inherits the false contract. A wrong fake makes
+tests MORE confident, not less.
+
+### The rule
+
+For any fake that encodes an external binary's exit codes, stdout shape, or
+error semantics, add at least one test that runs the REAL binary and exercises
+the discriminating rows the fake models.
+
+- The real-binary test does not need 100% coverage of the fake. It needs to
+  cover the exit codes and output shapes that the fake encodes.
+- Write the fake FROM a measurement of the real binary, not from prose or
+  documentation alone.
+- When a binary is unavailable in CI (e.g., a proprietary tool), document the
+  version and environment the fake was measured against in a comment.
+
+### Pattern (from PR #3824)
+
+`tests/ci/test_count_ratchet_against_real_git.py` is the exemplar. It runs
+real `git` to exercise the exact bootstrap-detection paths that
+`_fake_scan` in `test_taste_count_ratchet.py` models. A failing real-git test
+catches a wrong fake at merge time rather than in production.
