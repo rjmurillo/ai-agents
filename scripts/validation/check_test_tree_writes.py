@@ -117,84 +117,67 @@ class _WriteDetector(ast.NodeVisitor):
 
     def _check_call(self, node: ast.Call) -> None:
         callee = node.func
-
-        # Pattern A: path.write_text(...) / path.mkdir(...) / path.touch(...)
-        # The check is on the OBJECT being called on, not on the arguments.
         if isinstance(callee, ast.Attribute) and callee.attr in _WRITE_METHODS:
-            obj = callee.value
-            if (
-                self._is_root_rooted(obj)
-                and not self._is_temp_routed(obj)
-                and not self._is_sanctioned(obj)
-            ):
-                self.findings.append(
-                    (
-                        node.lineno,
-                        f"write via .{callee.attr}() on project-root-rooted path",
-                    )
-                )
-            return
-
-        # Remaining patterns require at least one positional argument.
-        if not node.args:
-            return
-
-        first_arg = node.args[0]
-
-        # Pattern B: open(ROOT / "something", "w")
-        if isinstance(callee, ast.Name) and callee.id == "open":
-            if (
-                self._is_root_rooted(first_arg)
-                and not self._is_temp_routed(first_arg)
-                and not self._is_sanctioned(first_arg)
-            ):
-                # Only flag if opened for writing.
-                mode = ""
-                if len(node.args) >= 2 and isinstance(node.args[1], ast.Constant):
-                    mode = str(node.args[1].value)
-                for kw in node.keywords:
-                    if kw.arg == "mode" and isinstance(kw.value, ast.Constant):
-                        mode = str(kw.value.value)
-                if "w" in mode or "a" in mode or "x" in mode:
-                    self.findings.append(
-                        (
-                            node.lineno,
-                            "open() for writing on project-root-rooted path",
-                        )
-                    )
-            return
-
-        # Pattern C: shutil.copy / shutil.copytree / shutil.move etc.
-        # For shutil functions that take (src, dst), only the DESTINATION
-        # (arg[1]) creates files in the tree. arg[0] is a source read.
-        # shutil.rmtree(path) deletes, but check arg[0] as the target.
-        if (
+            self._check_method_write(node, callee)
+        elif isinstance(callee, ast.Name) and callee.id == "open" and node.args:
+            self._check_open_write(node)
+        elif (
             isinstance(callee, ast.Attribute)
             and callee.attr in _SHUTIL_WRITE_FUNCS
             and isinstance(callee.value, ast.Name)
             and callee.value.id == "shutil"
+            and node.args
         ):
-            # Determine which argument is the destination (write target).
-            if callee.attr == "rmtree":
-                dest_args = node.args[:1]  # rmtree(path, ...)
-            elif len(node.args) >= 2:
-                dest_args = node.args[1:2]  # copy/copytree/move: (src, dst)
-            else:
-                dest_args = []
+            self._check_shutil_write(node, callee)
 
-            for arg in dest_args:
-                if (
-                    self._is_root_rooted(arg)
-                    and not self._is_temp_routed(arg)
-                    and not self._is_sanctioned(arg)
-                ):
-                    self.findings.append(
-                        (
-                            node.lineno,
-                            f"shutil.{callee.attr}() writes to project-root-rooted path",
-                        )
-                    )
-                    break
+    def _check_method_write(self, node: ast.Call, callee: ast.Attribute) -> None:
+        """Flag path.write_text() / mkdir() / touch() on a project-root object."""
+        obj = callee.value
+        if (
+            self._is_root_rooted(obj)
+            and not self._is_temp_routed(obj)
+            and not self._is_sanctioned(obj)
+        ):
+            self.findings.append(
+                (node.lineno, f"write via .{callee.attr}() on project-root-rooted path")
+            )
+
+    def _check_open_write(self, node: ast.Call) -> None:
+        """Flag open(ROOT / ..., 'w') calls."""
+        first_arg = node.args[0]
+        if (
+            not self._is_root_rooted(first_arg)
+            or self._is_temp_routed(first_arg)
+            or self._is_sanctioned(first_arg)
+        ):
+            return
+        mode = self._extract_open_mode(node)
+        if any(c in mode for c in "wax"):
+            self.findings.append((node.lineno, "open() for writing on project-root-rooted path"))
+
+    @staticmethod
+    def _extract_open_mode(node: ast.Call) -> str:
+        mode = ""
+        if len(node.args) >= 2 and isinstance(node.args[1], ast.Constant):
+            mode = str(node.args[1].value)
+        for kw in node.keywords:
+            if kw.arg == "mode" and isinstance(kw.value, ast.Constant):
+                mode = str(kw.value.value)
+        return mode
+
+    def _check_shutil_write(self, node: ast.Call, callee: ast.Attribute) -> None:
+        """Flag shutil operations that write to a project-root destination."""
+        dest_args = node.args[:1] if callee.attr == "rmtree" else node.args[1:2]
+        for arg in dest_args:
+            if (
+                self._is_root_rooted(arg)
+                and not self._is_temp_routed(arg)
+                and not self._is_sanctioned(arg)
+            ):
+                self.findings.append(
+                    (node.lineno, f"shutil.{callee.attr}() writes to project-root-rooted path")
+                )
+                break
 
 
 # --------------------------------------------------------------------------- #
