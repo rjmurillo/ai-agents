@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import textwrap
 from pathlib import Path
 
 import pytest
@@ -41,7 +42,10 @@ def _run_script(
         else:
             env[key] = val
     cmd = [sys.executable, str(script)] + (extra_args or [])
-    return subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=30)
+    return subprocess.run(
+        cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
+        env=env, timeout=30,
+    )
 
 
 class TestBootstrapFallback:
@@ -154,11 +158,14 @@ class TestBootstrapFallbackIsolating:
         fake_plugin = tmp_path / "unrelated"
         fake_plugin.mkdir()
 
+        # Build without indentation to avoid IndentationError in the subprocess.
+        # Use repr() for the path so Windows backslashes are safely escaped.
         old_bootstrap = tmp_path / "old_bootstrap_demo.py"
         old_bootstrap.write_text(
-            f"""
+            textwrap.dedent(
+                f"""\
 import os, sys
-_plugin_root = "{fake_plugin}"  # blindly trust
+_plugin_root = {repr(str(fake_plugin))}  # blindly trust
 if _plugin_root:  # old behavior: no isdir check
     _lib_dir = os.path.join(_plugin_root, "lib")
 else:
@@ -167,11 +174,14 @@ if not os.path.isdir(_lib_dir):
     print(f"Plugin lib directory not found: {{_lib_dir}}", file=sys.stderr)
     sys.exit(2)
 """
+            )
         )
         result = subprocess.run(
             [sys.executable, str(old_bootstrap)],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
         )
         assert result.returncode == 2, (

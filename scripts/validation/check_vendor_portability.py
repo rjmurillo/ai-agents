@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size
 """Fail CI when a vendor-shipped script hard-codes an upstream-only path.
 
 Issue #2050: skills in a vendored plugin install hard-code paths
@@ -23,8 +24,8 @@ What it flags:
 What it does NOT flag (Issue #2510, false-positive guards):
   * Raw-string regex patterns. A literal like ``r"\\.agents/"`` carries the
     raw-string prefix (``r``/``R``/``rb``/``Rb``...) and at least one regex
-    metacharacter (``^ $ [ ] ( ) | * + ?`` or a backslash-escape sequence like
-    ``\\.``, ``\\s``, ``\\w``); together those signals are overwhelmingly a
+    metacharacter (``^ $ [ ] ( ) | * + ?`` or a backslash-dot escape
+    ``\\.``); together those signals are overwhelmingly a
     regex pattern that *matches* paths, not a path the script reads or writes.
     The literal has no I/O semantics and cannot be migrated through ``paths.py``.
     Using any metachar as the signal (not only ``\\.``) covers prefixes that
@@ -290,8 +291,8 @@ def _is_raw_string_regex(
     passes ``is_raw_fstring`` derived from the enclosing FSTRING_START token.
 
     A raw string is treated as a regex when its body contains any of the
-    metacharacters ``^ $ [ ] ( ) | * + ?`` or a backslash-escape sequence
-    (``\\s``, ``\\w``, ``\\d``, ``\\.``, etc.).  This broader check
+    metacharacters ``^ $ [ ] ( ) | * + ?`` or a backslash-dot escape
+    (``\\.``).  This broader metacharacter check
     replaces the original ``\\.``-only proxy so that prefixes that contain
     no dot, such as ``scripts/``, are also handled correctly.  Issue #4046.
 

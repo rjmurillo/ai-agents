@@ -716,7 +716,7 @@ def test_nested_dot_slash_scripts_path_is_not_offender(fake_repo: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Issue #4046 – exemption gaps for the scripts/ prefix
+# Issue #4046 - exemption gaps for the scripts/ prefix
 # ---------------------------------------------------------------------------
 
 
