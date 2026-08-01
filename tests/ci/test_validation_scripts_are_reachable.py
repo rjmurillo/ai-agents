@@ -113,7 +113,11 @@ def _python_sources() -> tuple[Path, ...]:
         base = _REPO_ROOT / root
         if not base.is_dir():
             continue
-        sources.extend(p for p in base.rglob("*.py") if not any(s in p.parts for s in skip))
+        sources.extend(
+            p
+            for p in base.rglob("*.py")
+            if not any(s in p.relative_to(_REPO_ROOT).parts for s in skip)
+        )
     return tuple(sources)
 
 
