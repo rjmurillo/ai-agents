@@ -4,7 +4,7 @@ SKILL.md Process steps 3 and 4 point here for the proposal display format,
 user-response handling, persistence strategy, memory format, and the Phase 4
 auto-citation capture.
 
-### Phase 3: Propose Learnings
+## Phase 3: Propose Learnings
 
 Present findings using WCAG AA accessible colors (4.5:1 contrast ratio):
 
@@ -57,7 +57,7 @@ Present findings using WCAG AA accessible colors (4.5:1 contrast ratio):
 3. Repeat for each finding
 4. Confirm final list before applying
 
-### Phase 4: Persist Learnings to Memory
+## Phase 4: Persist Learnings to Memory
 
 **ALWAYS show changes before applying.**
 
@@ -118,7 +118,7 @@ After user approval:
 - {note 2} (Session {N}, {date})
 ```
 
-#### Phase 4 Enhancement: Auto-Citation Capture
+### Phase 4 Enhancement: Auto-Citation Capture
 
 When persisting learnings that reference specific code locations, automatically capture citations:
 

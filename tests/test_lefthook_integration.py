@@ -2887,6 +2887,148 @@ def test_pushed_semgrep_detects_collision_with_unchanged_head_path(
     assert policy.scan_pushed_heads(io.StringIO(), tmp_path) == 2
 
 
+def test_semgrep_uses_sibling_binary_without_version_probe(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    policy._resolve_semgrep_executable.cache_clear()
+    policy._semgrep_pinned_version.cache_clear()
+    bin_dir = tmp_path / "venv" / "bin"
+    bin_dir.mkdir(parents=True)
+    sibling = bin_dir / ("semgrep.exe" if os.name == "nt" else "semgrep")
+    sibling.write_text("", encoding="utf-8")
+    sibling.chmod(0o755)
+    monkeypatch.setattr(policy.sys, "executable", str(bin_dir / "python"))
+    calls: list[list[str]] = []
+
+    def fake_run(
+        args: Sequence[str],
+        *_args: object,
+        **_kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(list(args))
+        assert args[1] != "--version"
+        return _semgrep_completed(0, [tmp_path / "source.py"])
+
+    monkeypatch.setattr(policy, "_run_command", fake_run)
+
+    result = policy._run_semgrep_tree(tmp_path, ["source.py"], tmp_path)
+
+    assert result.returncode == 0
+    assert calls[0][0] == str(sibling)
+    policy._resolve_semgrep_executable.cache_clear()
+    policy._semgrep_pinned_version.cache_clear()
+
+
+def test_semgrep_falls_back_to_matching_path_binary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    policy._resolve_semgrep_executable.cache_clear()
+    policy._semgrep_pinned_version.cache_clear()
+    bin_dir = tmp_path / "venv" / "bin"
+    bin_dir.mkdir(parents=True)
+    fallback = tmp_path / "path-semgrep"
+    monkeypatch.setattr(policy.sys, "executable", str(bin_dir / "python"))
+    monkeypatch.setattr(policy.shutil, "which", lambda command: str(fallback))
+    monkeypatch.setattr(policy, "_semgrep_pinned_version", lambda _repo_root=tmp_path: "1.171.0")
+    calls: list[list[str]] = []
+
+    def fake_run(
+        args: Sequence[str],
+        *_args: object,
+        **_kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(list(args))
+        if args == [str(fallback), "--version"]:
+            return subprocess.CompletedProcess(args, 0, "1.171.0\n", "")
+        return _semgrep_completed(0, [tmp_path / "source.py"])
+
+    monkeypatch.setattr(policy, "_run_command", fake_run)
+
+    result = policy._run_semgrep_tree(tmp_path, ["source.py"], tmp_path)
+
+    assert result.returncode == 0
+    assert calls[0] == [str(fallback), "--version"]
+    assert calls[1][0] == str(fallback)
+    policy._resolve_semgrep_executable.cache_clear()
+
+
+def test_semgrep_fallback_version_mismatch_blocks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    policy._resolve_semgrep_executable.cache_clear()
+    policy._semgrep_pinned_version.cache_clear()
+    bin_dir = tmp_path / "venv" / "bin"
+    bin_dir.mkdir(parents=True)
+    fallback = tmp_path / "path-semgrep"
+    monkeypatch.setattr(policy.sys, "executable", str(bin_dir / "python"))
+    monkeypatch.setattr(policy.shutil, "which", lambda command: str(fallback))
+    monkeypatch.setattr(policy, "_semgrep_pinned_version", lambda _repo_root=tmp_path: "1.171.0")
+    calls: list[list[str]] = []
+
+    def fake_run(
+        args: Sequence[str],
+        *_args: object,
+        **_kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(list(args))
+        return subprocess.CompletedProcess(args, 0, "1.153.1\n", "")
+
+    monkeypatch.setattr(policy, "_run_command", fake_run)
+
+    result = policy._run_semgrep_tree(tmp_path, ["source.py"], tmp_path)
+
+    assert result.returncode == 2
+    assert "pyproject.toml pins 1.171.0" in result.stderr
+    assert str(fallback) in result.stderr
+    assert "1.153.1" in result.stderr
+    assert calls == [[str(fallback), "--version"]]
+    policy._resolve_semgrep_executable.cache_clear()
+
+
+def test_semgrep_missing_pyproject_reports_pin_read_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    policy._resolve_semgrep_executable.cache_clear()
+    policy._semgrep_pinned_version.cache_clear()
+    bin_dir = tmp_path / "venv" / "bin"
+    bin_dir.mkdir(parents=True)
+    fallback = tmp_path / "path-semgrep"
+    monkeypatch.setattr(policy.sys, "executable", str(bin_dir / "python"))
+    monkeypatch.setattr(policy.shutil, "which", lambda command: str(fallback))
+    monkeypatch.setattr(
+        policy,
+        "_run_command",
+        lambda args, *_args, **_kwargs: subprocess.CompletedProcess(
+            args,
+            0,
+            "1.171.0\n",
+            "",
+        ),
+    )
+
+    result = policy._run_semgrep_tree(tmp_path, ["source.py"], tmp_path)
+
+    assert result.returncode == 2
+    assert "cannot read semgrep pin from" in result.stderr
+    assert "pyproject.toml" in result.stderr
+    assert "semgrep executable not found" not in result.stderr
+    policy._resolve_semgrep_executable.cache_clear()
+    policy._semgrep_pinned_version.cache_clear()
+
+
+def test_semgrep_pin_is_read_from_pyproject() -> None:
+    policy._semgrep_pinned_version.cache_clear()
+    pyproject = PROJECT_ROOT / "pyproject.toml"
+    matches = re.findall(r'^\s*"semgrep==([^"]+)",\s*$', pyproject.read_text(), re.MULTILINE)
+
+    assert matches == [policy._semgrep_pinned_version(PROJECT_ROOT)] * 2
+    policy._semgrep_pinned_version.cache_clear()
+
+
 def test_semgrep_missing_executable_blocks(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -5318,6 +5460,159 @@ def test_main_merge_detection_handles_git_errors(
 
     assert not policy._contains_main_merge(update, tmp_path)
     assert not policy._merge_has_main_parent("merge", tmp_path)
+
+
+def test_needs_split_bypass_allows_small_push_on_large_branch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """needs-split label + <= 5 new commits bypasses the limit (issue #3895).
+
+    PR #3688 scenario: branch has 52 commits (over limit) but only adds
+    3 new commits in this push to address review feedback. The push must
+    succeed because splitting is already in progress.
+    """
+    update = policy.PushUpdate(
+        source=policy.PushRef("refs/heads/fix/big", "a" * 40, "refs/heads/fix/big", "b" * 40),
+        base="base",
+        head="head",
+        range_spec="base..head",
+        destination_branch="fix/big",
+    )
+
+    def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        if args[:2] == ["rev-list", "--count"] and "^origin/" in " ".join(args):
+            # New commits only: 3
+            return _completed(0, "3\n")
+        if args[:2] == ["rev-list", "--count"]:
+            # Total branch commits: 52
+            return _completed(0, "52\n")
+        return _completed(0)
+
+    call_count = [0]
+
+    def fake_command(
+        args: Sequence[str], _root: Path, **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        call_count[0] += 1
+        if "--label" in args and "needs-split" in args:
+            return _completed(0, "needs-split present on PR #3688\n")
+        # commit-limit-bypass not present
+        return _completed(1, stdout="no commit-limit-bypass label (PR #3688)\n")
+
+    monkeypatch.setattr(policy, "_run_git", fake_git)
+    monkeypatch.setattr(policy, "_run_command", fake_command)
+
+    assert policy._check_commit_limit(update, tmp_path) == 0
+    assert "needs-split" in capsys.readouterr().out
+
+
+def test_needs_split_bypass_blocks_when_new_commits_exceed_cap(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """needs-split label does NOT bypass when this push is itself large (issue #3895).
+
+    If the author is adding 10 commits to an already-over-limit branch, the
+    needs-split bypass must not apply. Only commit-limit-bypass unlocks this.
+    """
+    update = policy.PushUpdate(
+        source=policy.PushRef("refs/heads/fix/big", "a" * 40, "refs/heads/fix/big", "b" * 40),
+        base="base",
+        head="head",
+        range_spec="base..head",
+        destination_branch="fix/big",
+    )
+
+    def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        if args[:2] == ["rev-list", "--count"] and "^origin/" in " ".join(args):
+            # New commits: 10 (over the cap of 5)
+            return _completed(0, "10\n")
+        if args[:2] == ["rev-list", "--count"]:
+            return _completed(0, "52\n")
+        return _completed(0)
+
+    def fake_command(
+        args: Sequence[str], _root: Path, **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        if "--label" in args and "needs-split" in args:
+            return _completed(0, "needs-split present on PR #3688\n")
+        return _completed(1, stdout="no commit-limit-bypass label (PR #3688)\n")
+
+    monkeypatch.setattr(policy, "_run_git", fake_git)
+    monkeypatch.setattr(policy, "_run_command", fake_command)
+
+    assert policy._check_commit_limit(update, tmp_path) == 1
+
+
+def test_needs_split_bypass_absent_falls_through_to_block(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When neither bypass label is present, the block stands (issue #3895)."""
+    update = policy.PushUpdate(
+        source=policy.PushRef("refs/heads/fix/big", "a" * 40, "refs/heads/fix/big", "b" * 40),
+        base="base",
+        head="head",
+        range_spec="base..head",
+        destination_branch="fix/big",
+    )
+    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "52\n"))
+    monkeypatch.setattr(
+        policy,
+        "_run_command",
+        lambda *_args, **_kwargs: _completed(1, stdout="no label\n"),
+    )
+
+    assert policy._check_commit_limit(update, tmp_path) == 1
+
+
+def test_needs_split_bypass_allows_push_at_exact_cap(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """needs-split bypass allows exactly _NEEDS_SPLIT_NEW_COMMIT_CAP new commits.
+
+    The boundary: 5 new commits on a 52-commit over-limit branch must succeed.
+    6 new commits must not. This test covers cap=5 exactly so the <= vs < mutation
+    is detected.
+    """
+    update = policy.PushUpdate(
+        source=policy.PushRef("refs/heads/fix/big", "a" * 40, "refs/heads/fix/big", "b" * 40),
+        base="base",
+        head="head",
+        range_spec="base..head",
+        destination_branch="fix/big",
+    )
+
+    def _fake_git_with_new(new_count: int) -> object:
+        def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+            if args[:2] == ["rev-list", "--count"] and "^origin/" in " ".join(args):
+                return _completed(0, f"{new_count}\n")
+            return _completed(0, "52\n")
+
+        return fake_git
+
+    def fake_command(
+        args: Sequence[str], _root: Path, **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        if "--label" in args and "needs-split" in args:
+            return _completed(0, "needs-split\n")
+        return _completed(1, stdout="no commit-limit-bypass\n")
+
+    monkeypatch.setattr(policy, "_run_command", fake_command)
+
+    # Exactly at cap (5): must pass
+    monkeypatch.setattr(policy, "_run_git", _fake_git_with_new(policy._NEEDS_SPLIT_NEW_COMMIT_CAP))
+    assert policy._check_commit_limit(update, tmp_path) == 0
+
+    # One over the cap (6): must block
+    monkeypatch.setattr(
+        policy, "_run_git", _fake_git_with_new(policy._NEEDS_SPLIT_NEW_COMMIT_CAP + 1)
+    )
+    assert policy._check_commit_limit(update, tmp_path) == 1
 
 
 def test_main_merge_detection_rejects_non_main_second_parent(
