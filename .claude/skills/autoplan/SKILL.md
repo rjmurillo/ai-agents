@@ -131,7 +131,7 @@ Apply these without asking. Log each application for the final gate.
 4. **Bias to action.** Internal and reversible: act. Flag what you assumed in
    the final gate instead of pausing mid-run.
 5. **Mirrors and gates.** Honor repo obligations without prompting: sync
-   generated mirrors, bump plugin manifests, write the session log, keep
+   generated mirrors, write the session log, keep
    commits atomic.
 
 Classify every decision the run surfaces; never promote silently.

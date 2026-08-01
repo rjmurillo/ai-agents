@@ -43,7 +43,8 @@ jobs:
     name: Scan Artifacts for Insights
     # ADR-025: ARM runner for cost optimization
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 15
+    # Budget: ceil(sum(3 * step timeout + 1.5) + 5) for 10.
+    timeout-minutes: 37
 
     steps:
       - name: Checkout repository
@@ -97,19 +98,21 @@ jobs:
           CONTEXT_FILE=$(mktemp)
           echo "context_file=$CONTEXT_FILE" >> "$GITHUB_OUTPUT"
 
-          echo "## Artifacts to Analyze" > "$CONTEXT_FILE"
-          echo "" >> "$CONTEXT_FILE"
+          {
+            echo "## Artifacts to Analyze"
+            echo ""
 
-          while IFS= read -r artifact; do
-            if [ -f "$artifact" ]; then
-              echo "### $artifact" >> "$CONTEXT_FILE"
-              echo '```' >> "$CONTEXT_FILE"
-              # Limit each file to 500 lines to prevent context overflow
-              head -500 "$artifact" >> "$CONTEXT_FILE"
-              echo '```' >> "$CONTEXT_FILE"
-              echo "" >> "$CONTEXT_FILE"
-            fi
-          done < "$ARTIFACT_FILE"
+            while IFS= read -r artifact; do
+              if [ -f "$artifact" ]; then
+                echo "### $artifact"
+                echo '```'
+                # Limit each file to 500 lines to prevent context overflow
+                head -500 "$artifact"
+                echo '```'
+                echo ""
+              fi
+            done < "$ARTIFACT_FILE"
+          } > "$CONTEXT_FILE"
 
           CONTEXT_SIZE=$(wc -c < "$CONTEXT_FILE" | tr -d ' ')
           echo "context_size=$CONTEXT_SIZE" >> "$GITHUB_OUTPUT"
