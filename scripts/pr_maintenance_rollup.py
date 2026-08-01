@@ -7,7 +7,15 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-_FAILURE_STATES = {"FAILURE", "ERROR"}
+_FAILURE_STATES = {
+    "ACTION_REQUIRED",
+    "CANCELLED",
+    "ERROR",
+    "FAILURE",
+    "STALE",
+    "STARTUP_FAILURE",
+    "TIMED_OUT",
+}
 _CONTEXTS_MAX_PAGES = 50
 
 FetchContextPage = Callable[

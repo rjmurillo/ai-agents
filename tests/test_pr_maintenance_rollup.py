@@ -8,6 +8,32 @@ from scripts import pr_maintenance_rollup
 
 
 @pytest.mark.parametrize(
+    "conclusion",
+    [
+        "ACTION_REQUIRED",
+        "CANCELLED",
+        "FAILURE",
+        "STALE",
+        "STARTUP_FAILURE",
+        "TIMED_OUT",
+    ],
+)
+def test_check_run_failure_conclusions_are_failing(conclusion: str) -> None:
+    assert pr_maintenance_rollup.context_is_failing({"conclusion": conclusion})
+
+
+@pytest.mark.parametrize("conclusion", [None, "NEUTRAL", "SKIPPED", "SUCCESS"])
+def test_non_failure_check_run_conclusions_are_not_failing(
+    conclusion: str | None,
+) -> None:
+    assert not pr_maintenance_rollup.context_is_failing({"conclusion": conclusion})
+
+
+def test_status_context_error_is_failing() -> None:
+    assert pr_maintenance_rollup.context_is_failing({"state": "ERROR"})
+
+
+@pytest.mark.parametrize(
     ("total_count", "has_next_page", "expected_incomplete"),
     [
         (2, False, False),
