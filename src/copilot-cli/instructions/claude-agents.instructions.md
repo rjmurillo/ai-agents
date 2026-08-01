@@ -4,11 +4,11 @@ applyTo: src/claude/**
 
 # Claude Agent and Skill Rules
 
-`src/claude/*.md` are hand-maintained Claude agent prompts with unique Claude-specific content (`name`/`model` frontmatter). They are NOT generated. `templates/agents/*.shared.md` holds the shared body that the Copilot and VS Code copies are generated from; `build/scripts/detect_agent_drift.py` enforces that `src/claude/*.md` does not diverge from that shared body. `.claude/agents/`, `.claude/skills/`, and `.claude/commands/` hold per-repo artifacts loaded by Claude Code.
+`src/claude/*.md` are hand-maintained Claude agent prompts with unique Claude-specific content (`name`/`model` frontmatter). They are NOT generated. `templates/agents/*.shared.md` holds the shared body that the Copilot and VS Code copies are generated from; `build/scripts/detect_agent_drift.py` detects when `src/claude/*.md` diverges from the VS Code copies (`src/vs-code-agents/`), not from the templates directly. `.claude/agents/`, `.claude/skills/`, and `.claude/commands/` hold per-repo artifacts loaded by Claude Code.
 
 ## MUST
 
-1. **Edit Claude agents directly, in lockstep with the shared template**. `src/claude/*.md` is hand-maintained; no generator writes it (`detect_agent_drift.py:19` "Claude agents ... are NOT generated from templates"). To change shared agent behavior, edit BOTH `src/claude/<agent>.md` AND `templates/agents/<agent>.shared.md` in the same change, then run `python3 build/generate_agents.py` to refresh the generated Copilot and VS Code copies (`src/copilot-cli/`, `src/vs-code-agents/`). `detect_agent_drift.py` fails if `src/claude/*.md` diverges from the shared body.
+1. **Edit Claude agents directly, in lockstep with the shared template**. `src/claude/*.md` is hand-maintained; no generator writes it (`detect_agent_drift.py:19` "Claude agents ... are NOT generated from templates"). To change shared agent behavior, edit BOTH `src/claude/<agent>.md` AND `templates/agents/<agent>.shared.md` in the same change, then run `python3 build/generate_agents.py` to refresh the generated Copilot and VS Code copies (`src/copilot-cli/`, `src/vs-code-agents/`). `detect_agent_drift.py` flags divergence between `src/claude/*.md` and the VS Code copies (`src/vs-code-agents/`); it runs weekly via `drift-detection.yml`, not as a PR gate on template edits.
 2. **Skill schema**. Every skill MUST have a `SKILL.md` with frontmatter fields `name`, `version`, `description` per `.agents/steering/claude-skills.md`.
 3. **Skill tests**. New skills MUST include pytest coverage under `.claude/skills/<name>/tests/`.
 4. **File cap per PR**. Skill additions SHOULD ship ≤10 files per PR (see `.agents/steering/claude-skills.md`).
@@ -30,7 +30,7 @@ applyTo: src/claude/**
 ## References
 
 - `build/generate_agents.py`. Generator (emits the Copilot and VS Code copies `src/copilot-cli/`, `src/vs-code-agents/` only; does NOT write `src/claude/`)
-- `build/scripts/detect_agent_drift.py`. Enforces `src/claude/*.md` stays in sync with the shared template body
+- `build/scripts/detect_agent_drift.py`. Compares `src/claude/*.md` against VS Code copies (`src/vs-code-agents/`); runs weekly via `.github/workflows/drift-detection.yml`
 - `.agents/steering/agent-prompts.md`. Prompt standards
 - `.agents/steering/claude-skills.md`. Skill authoring standards
 - `scripts/validation/check_skill_contract_tests.py`. Enforces the executable-contract test requirement
