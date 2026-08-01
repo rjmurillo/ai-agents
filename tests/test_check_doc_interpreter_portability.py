@@ -93,6 +93,34 @@ def test_transitive_local_import_reaches_third_party(tmp_path: Path) -> None:
     assert scan(repo) == {"README.md": 1}
 
 
+def test_dot_directory_script_path_is_flagged(tmp_path: Path) -> None:
+    """`python3 .claude/skills/<name>/scripts/<file>.py` is a documented invocation.
+
+    The operand used to have to start with a word character, so every script
+    under a dot-directory was invisible to the guard. Four `.claude/` invocations
+    of `detect_adr_changes.py` (which is `import yaml`) sat unreported.
+    """
+    repo = make_repo(
+        tmp_path,
+        {
+            ".claude/skills/x/scripts/tool.py": "import yaml\n",
+            "README.md": "Run `python3 .claude/skills/x/scripts/tool.py`.\n",
+        },
+    )
+
+    assert scan(repo) == {"README.md": 1}
+
+
+def test_relative_dot_slash_script_path_is_flagged(tmp_path: Path) -> None:
+    """`./scripts/<file>.py` names the same script as `scripts/<file>.py`."""
+    repo = make_repo(
+        tmp_path,
+        {"scripts/tool.py": "import yaml\n", "README.md": "Run `python3 ./scripts/tool.py`.\n"},
+    )
+
+    assert scan(repo) == {"README.md": 1}
+
+
 def test_class_body_import_runs_at_import_time_and_is_flagged(tmp_path: Path) -> None:
     repo = make_repo(tmp_path, {"tool.py": "class A:\n    import yaml\n"})
 
@@ -315,6 +343,27 @@ def test_repository_is_at_or_below_its_baseline() -> None:
     exit_code = main(["--repo-root", str(REPO_ROOT)])
 
     assert exit_code == 0
+
+
+def test_repository_has_no_documented_bare_interpreter_invocations() -> None:
+    """No in-scope document may name a bare interpreter for a non-stdlib script.
+
+    Issue #3791 named one instance (`scripts/sync_adr_protocol.py` in
+    CONTRIBUTING.md). Fixing only that one left 112 identical siblings across 47
+    files, all of which die with the same ModuleNotFoundError on a clean
+    checkout. They were migrated in the same change, so the correct count is
+    zero, and this asserts the whole class rather than the named instance.
+
+    Stronger than `test_repository_is_at_or_below_its_baseline`, which a
+    `--update-baseline` run would satisfy by grandfathering a new offender.
+    """
+    offenders = scan(REPO_ROOT)
+
+    assert offenders == {}, (
+        "documented bare-interpreter invocations came back: "
+        + ", ".join(f"{rel} ({count})" for rel, count in sorted(offenders.items()))
+        + ". Use 'uv run python <script>' (issue #3791)."
+    )
 
 
 def test_bare_python3_still_fails_for_a_declared_dependency() -> None:

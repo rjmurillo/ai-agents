@@ -57,11 +57,13 @@ Scope:
     belongs in the canonical source and arrives here by regeneration.
 
 Baseline ratchet:
-  Current offenders are grandfathered in ``doc_interpreter_baseline.json``. The
-  check FAILS only when a file rises above its baseline or a clean file starts
-  offending. It REPORTS when a count drops so the baseline can be tightened with
-  ``--update-baseline``. Because history and mirrors are out of scope, the
-  baseline is the live migration worklist, not a dump of the whole repository.
+  ``doc_interpreter_baseline.json`` grandfathers per-file counts, and it is
+  **empty**. Every in-scope document was migrated in the same change that added
+  this guard: 112 invocations across 47 files, which is the full sibling set of
+  the one instance issue #3791 named. So any offense at all is a regression, and
+  the check FAILS on it. Keep the baseline empty. ``--update-baseline`` exists to
+  tighten a count after a fix, never to admit a new offender; adding an entry
+  also breaks ``test_repository_has_no_documented_bare_interpreter_invocations``.
 
 Exit codes (ADR-035):
   0 - no drift (counts at or below baseline), or --update-baseline wrote the file
@@ -116,13 +118,20 @@ GENERATED_ROOTS: tuple[str, ...] = (
 # `uv run [flags] python[3] [short opts] <tracked>.py`
 # The optional `uv` group is captured so an already-fixed invocation can be
 # recognized and skipped rather than reported.
+#
+# The `\.{0,2}/?` prefix on the path is load-bearing. Without it the operand had
+# to start with a word character, so every documented invocation of a script
+# under a dot-directory was invisible: `python3 .claude/skills/adr-review/
+# scripts/detect_adr_changes.py` (which is `import yaml`) went unreported, and so
+# did `./scripts/<name>.py`, which made the `./` strip in `find_offenses` dead
+# code. Seven offenses across four files hid behind that one character class.
 INVOCATION_PATTERN = re.compile(
     r"(?<![\w./-])"
     r"(?P<uv>uv[ \t]+run[ \t]+(?:--?[\w-]+(?:[ \t]+|=)\S*[ \t]*)*)?"
     r"python3?"
     r"(?:[ \t]+-[\w-]+)*"
     r"[ \t]+"
-    r"(?P<path>[A-Za-z0-9_][A-Za-z0-9_./-]*\.py)"
+    r"(?P<path>\.{0,2}/?[A-Za-z0-9_][A-Za-z0-9_./-]*\.py)"
     r"(?![\w./-])"
 )
 
