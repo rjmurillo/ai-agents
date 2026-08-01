@@ -474,7 +474,7 @@ def main(argv: list[str] | None = None) -> int:
         dangling = scan_dangling_skill_relative_scripts(root)
     except OSError as exc:
         print(f"Could not scan skill files under {root}: {exc}", file=sys.stderr)
-        dangling = []
+        return 2
 
     _print_report(args.output_format, regressions, improvements, dangling, current, baseline)
 

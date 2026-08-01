@@ -1,24 +1,14 @@
 """Tests for the exec-path vendor-portability ratchet (issue #2838).
 
-scripts/validation/check_skill_md_exec_portability.py is the executable-invocation
-counterpart to check_skill_md_portability.py. The prose guard strips fenced code
-and counts upstream-only *prose* path references; it deliberately excludes
-``.claude/skills/`` and erases exec invocations when it strips fences. This
-validator is the inverse: it counts *executable* invocations of bare
-``.claude/skills/...`` scripts (``python3 .claude/skills/.../x.py``) inside
-SKILL.md files, grandfathers current offenders in a JSON baseline, fails on new
-drift, and honors a distinct ``vendor-portability-exec`` HTML-comment opt-out.
-
-These tests cover the detection regex (interpreter tokenization, resolved-var
-and prose-crosslink negatives), the opt-out marker, the two-tree scan, the diff
-ratchet, the CLI exit codes, and assert the committed tree has no drift against
-its baseline.
+Covers: detection regex, opt-out marker, two-tree scan, diff ratchet, CLI exit
+codes, and the committed-tree baseline assertion.
 """
 
 from __future__ import annotations
 
 import json
 import sys
+import unittest.mock
 from pathlib import Path
 
 import pytest
@@ -306,6 +296,19 @@ class TestMainCli:
         outside.write_text("{}", encoding="utf-8")
         result = cep._resolve_baseline_path(root, outside)
         assert result is None, "absolute path outside root must return None"
+
+    def test_dangling_scan_oserror_returns_exit_2(self, tmp_path: Path) -> None:
+        # I/O failure must exit 2 (fail-closed), not 0 (false green).
+        self._make_skill(tmp_path, "python3 .claude/skills/a/x.py\n")
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(
+            json.dumps({"files": {".claude/skills/a/SKILL.md": 1}}), encoding="utf-8"
+        )
+        with unittest.mock.patch.object(
+            cep, "scan_dangling_skill_relative_scripts", side_effect=OSError("disk read failed")
+        ):
+            rc = cep.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+        assert rc == 2, "OSError during dangling scan must exit 2, not 0 or 1"
 
 
 class TestPrAutofixConverted:
