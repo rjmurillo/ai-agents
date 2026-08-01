@@ -21,7 +21,6 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import pytest
 
@@ -32,7 +31,6 @@ sys.path.insert(0, str(scripts_dir))
 
 from analyze_skill_placement import (  # noqa: E402
     analyze_content,
-    detect_always_needed_patterns,
     detect_user_trigger_patterns,
     get_classification,
     get_hybrid_recommendations,
@@ -41,10 +39,6 @@ from analyze_skill_placement import (  # noqa: E402
     measure_reference_content,
     measure_tool_calls,
 )
-
-if TYPE_CHECKING:
-    pass
-
 
 # Sample content for testing
 SKILL_CONTENT = """# GitHub Operations
@@ -308,38 +302,49 @@ class TestUserTriggerPatternDetection:
         assert count == 0
 
 
-class TestAlwaysNeededPatternDetection:
-    """Tests for detect_always_needed_patterns function."""
+class TestAdmissionIsNotPatternMatched:
+    """Issue #3936: always-on vocabulary must not push content toward passive.
 
-    def test_detects_always_keyword(self) -> None:
-        """Detects 'always' keyword."""
-        count = detect_always_needed_patterns("Always check this before proceeding")
-        assert count > 0
+    SKILL.md routes what the model already knows to progressive disclosure or
+    nowhere; scoring "always" and "mandatory" toward passive inverted that.
+    """
 
-    def test_detects_every_turn_patterns(self) -> None:
-        """Detects 'every turn' patterns."""
-        count = detect_always_needed_patterns("Every turn the agent must verify")
-        assert count > 0
+    def test_always_on_vocabulary_alone_does_not_reach_passive(self) -> None:
+        """Vocabulary must not carry weak reference shape (0.67) into passive."""
+        content = (
+            "# Memory Hierarchy\n\n"
+            "- Always apply this policy. Every turn the agent must verify.\n"
+            "- Mandatory for all: framework knowledge and reference data.\n"
+            "1. Decision framework and routing rules stay constantly persistent.\n"
+        )
 
-    def test_detects_mandatory_keyword(self) -> None:
-        """Detects 'mandatory' keyword."""
-        count = detect_always_needed_patterns("This is mandatory for all operations")
-        assert count > 0
+        result = analyze_content(content, detailed=True)
 
-    def test_detects_framework_knowledge_patterns(self) -> None:
-        """Detects framework knowledge patterns."""
-        count = detect_always_needed_patterns("Framework knowledge and reference data")
-        assert count >= 2
+        assert result["classification"] != "PassiveContext"
+        assert "Always-needed" not in result["reasoning"]
 
-    def test_detects_routing_rules_patterns(self) -> None:
-        """Detects routing rules patterns."""
-        count = detect_always_needed_patterns("Decision framework and routing rules")
-        assert count >= 2
+    def test_known_principles_digest_is_not_promoted_by_vocabulary(self) -> None:
+        """Same body scores identically with and without the always-on words."""
+        body = (
+            "# Unified Software Engineering\n\n"
+            "- Prefer small cohesive functions\n"
+            "- Validate the diff before review\n"
+        )
+        loaded = body + "- Always mandatory framework knowledge and routing rules\n"
 
-    def test_returns_zero_for_on_demand_content(self) -> None:
-        """Returns zero for on-demand content."""
-        count = detect_always_needed_patterns("User requests this when needed")
-        assert count == 0
+        plain_result = analyze_content(body)
+        loaded_result = analyze_content(loaded)
+
+        assert loaded_result["classification"] == plain_result["classification"]
+        assert loaded_result["confidence"] == plain_result["confidence"]
+        assert loaded_result["reasoning"] == plain_result["reasoning"]
+
+    def test_detailed_metrics_expose_no_always_needed_key(self) -> None:
+        """The JSON contract no longer carries an always-needed metric."""
+        metrics = analyze_content(HYBRID_CONTENT, detailed=True)["metrics"]
+
+        assert metrics is not None
+        assert "always_needed" not in metrics
 
 
 class TestGetClassification:
@@ -348,26 +353,24 @@ class TestGetClassification:
     def test_classifies_tool_heavy_as_skill(self) -> None:
         """Classifies tool-heavy content as Skill."""
         classification, confidence, _ = get_classification(
-            tool_calls=10, action_verbs=15, reference_ratio=0.3,
-            user_triggers=5, always_needed=0
+            tool_calls=10, action_verbs=15, reference_ratio=0.3, user_triggers=5
         )
         assert classification == "Skill"
         assert confidence > 60
 
     def test_classifies_reference_heavy_as_passive(self) -> None:
-        """Classifies reference-heavy content as PassiveContext."""
-        classification, confidence, _ = get_classification(
-            tool_calls=0, action_verbs=2, reference_ratio=0.9,
-            user_triggers=0, always_needed=5
+        """Reference shape alone still reaches PassiveContext (#3936 coverage)."""
+        classification, confidence, reasons = get_classification(
+            tool_calls=0, action_verbs=2, reference_ratio=0.9, user_triggers=0
         )
         assert classification == "PassiveContext"
         assert confidence > 60
+        assert any("reference content" in r for r in reasons)
 
     def test_classifies_mixed_as_hybrid(self) -> None:
         """Classifies mixed content as Hybrid."""
         classification, confidence, reasons = get_classification(
-            tool_calls=3, action_verbs=6, reference_ratio=0.7,
-            user_triggers=2, always_needed=2
+            tool_calls=3, action_verbs=6, reference_ratio=0.7, user_triggers=2
         )
         assert classification == "Hybrid"
         assert 50 <= confidence <= 70
@@ -376,10 +379,17 @@ class TestGetClassification:
     def test_returns_confidence_between_0_and_100(self) -> None:
         """Returns confidence between 0 and 100."""
         _, confidence, _ = get_classification(
-            tool_calls=20, action_verbs=30, reference_ratio=0.2,
-            user_triggers=10, always_needed=0
+            tool_calls=20, action_verbs=30, reference_ratio=0.2, user_triggers=10
         )
         assert 0 <= confidence <= 100
+
+    def test_rejects_removed_always_needed_argument(self) -> None:
+        """The removed parameter is gone from the signature, not ignored."""
+        with pytest.raises(TypeError):
+            get_classification(
+                tool_calls=0, action_verbs=0, reference_ratio=0.5,
+                user_triggers=0, always_needed=5,
+            )
 
 
 class TestGetHybridRecommendations:

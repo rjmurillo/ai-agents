@@ -4,8 +4,13 @@
 This script evaluates a skill's SKILL.md content or directory to classify whether
 it should be:
 - Skill: Action-heavy, tool execution, user-triggered workflows
-- Passive Context: Knowledge-heavy, reference data, always-needed information
+- Passive Context: Knowledge-heavy, reference data
 - Hybrid: Both knowledge (passive) and actions (skill)
+
+Admission (whether content belongs always-on at all) is decided by the Decision
+Framework in SKILL.md, not by this script. Pattern matching cannot tell whether
+the model already knows the content, and that is the question admission turns
+on. Use this script for shape, size, and duplication only.
 
 Classification is based on Vercel research showing passive context achieves 100%
 pass rates versus 53-79% for skills due to elimination of decision points.
@@ -41,7 +46,6 @@ class Metrics(TypedDict):
     action_verbs: int
     reference_content_ratio: float
     user_triggers: int
-    always_needed: int
 
 
 class Recommendations(TypedDict):
@@ -228,42 +232,11 @@ def detect_user_trigger_patterns(text: str) -> int:
     return count
 
 
-def detect_always_needed_patterns(text: str) -> int:
-    """Count always-needed patterns in text.
-
-    Args:
-        text: Content to analyze
-
-    Returns:
-        Number of always-needed patterns detected
-    """
-    always_needed_patterns = [
-        r"\balways\b",
-        r"every\s+(?:turn|session)",
-        r"required\s+(?:for|in)\s+all",
-        r"\bmandatory\b",
-        r"constant(?:ly)?",
-        r"persistent",
-        r"framework\s+knowledge",
-        r"reference\s+data",
-        r"decision\s+framework",
-        r"routing\s+rules",
-    ]
-
-    count = 0
-    for pattern in always_needed_patterns:
-        matches = re.findall(pattern, text, re.IGNORECASE)
-        count += len(matches)
-
-    return count
-
-
 def get_classification(
     tool_calls: int,
     action_verbs: int,
     reference_ratio: float,
     user_triggers: int,
-    always_needed: int,
 ) -> tuple[str, int, list[str]]:
     """Determine classification based on metrics.
 
@@ -272,7 +245,6 @@ def get_classification(
         action_verbs: Number of action verbs
         reference_ratio: Reference content ratio
         user_triggers: Number of user triggers
-        always_needed: Number of always-needed patterns
 
     Returns:
         Tuple of (classification, confidence, reasons)
@@ -311,11 +283,6 @@ def get_classification(
     if user_triggers > 3:
         score.skill_score += 2
         score.reasons.append(f"User-triggered workflow ({user_triggers} triggers)")
-
-    # Always-needed patterns indicate passive
-    if always_needed > 3:
-        score.passive_score += 2
-        score.reasons.append(f"Always-needed information ({always_needed} indicators)")
 
     # Determine classification
     diff = score.skill_score - score.passive_score
@@ -397,11 +364,10 @@ def analyze_content(
     action_verbs = measure_action_verbs(content)
     reference_ratio = measure_reference_content(content)
     user_triggers = detect_user_trigger_patterns(content)
-    always_needed = detect_always_needed_patterns(content)
 
     # Get classification
     classification, confidence, reasons = get_classification(
-        tool_calls, action_verbs, reference_ratio, user_triggers, always_needed
+        tool_calls, action_verbs, reference_ratio, user_triggers
     )
 
     # Build result
@@ -420,7 +386,6 @@ def analyze_content(
             "action_verbs": action_verbs,
             "reference_content_ratio": round(reference_ratio, 2),
             "user_triggers": user_triggers,
-            "always_needed": always_needed,
         }
 
     # Add hybrid recommendations

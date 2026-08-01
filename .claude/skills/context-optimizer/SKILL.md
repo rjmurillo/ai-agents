@@ -139,11 +139,10 @@ The pass-rate table has no cost column. Passive context is paid on every request
 
 Analyzes skill content and recommends Skill, Passive Context, or Hybrid placement.
 
-> The script's `always_needed` heuristic predates the Decision Framework above
-> and disagrees with it: it reads "always", "mandatory", and "framework
-> knowledge" as reasons to make content passive, where the framework reads them
-> as reasons to scrutinize it. **The Decision Framework wins.** Use the script
-> for size and duplication, not for admission. Tracked in #3936.
+> The script reports shape, not admission. It cannot tell whether the model
+> already knows the content, and that is the question the Decision Framework
+> above turns on. Use it for size and duplication; the Decision Framework
+> decides what earns an always-on slot.
 
 **Classification Logic**:
 
@@ -151,7 +150,6 @@ Analyzes skill content and recommends Skill, Passive Context, or Hybrid placemen
 - **Action Verbs**: create, update, delete, execute, run -> Skill
 - **Reference Content**: Tables, lists, code blocks -> Passive
 - **User Triggers**: "when user", slash commands, explicit requests -> Skill
-- **Always-Needed**: "always", "mandatory", "framework knowledge" -> Passive
 
 **Usage**:
 
@@ -335,11 +333,10 @@ python3 scripts/test_skill_passive_compliance.py --path .claude/skills/github --
 
 ### Clear Passive Classification
 
-**Input**: Memory hierarchy reference with tables and always-needed patterns
+**Input**: Memory hierarchy reference, tables and lists, no commands
 
 ```json
-
-{"classification": "PassiveContext", "confidence": 90, "reasoning": "High reference content ratio (0.85); Always-needed information (5 indicators)"}
+{"classification": "PassiveContext", "confidence": 80, "reasoning": "High reference content ratio (0.85)"}
 ```
 
 ### Hybrid Classification
