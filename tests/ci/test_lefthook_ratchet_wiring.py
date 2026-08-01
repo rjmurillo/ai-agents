@@ -14,7 +14,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 _LEFTHOOK = Path(__file__).resolve().parents[2] / "lefthook.yml"
+_JOB_NAMES = ("taste-count-ratchet", "type-ignore-count-ratchet")
+_SCRIPT_WIRING = (
+    ("taste-count-ratchet", "taste_count_ratchet.py"),
+    ("type-ignore-count-ratchet", "type_ignore_count_ratchet.py"),
+)
+_BASELINE_WIRING = (
+    ("taste-count-ratchet", "scripts/ci/taste_count_baseline.txt"),
+    ("type-ignore-count-ratchet", "scripts/ci/type_ignore_count_baseline.txt"),
+)
 
 
 def _lefthook_content() -> str:
@@ -28,67 +39,32 @@ def _job_section(job_name: str) -> str:
     return content[start:] if end == -1 else content[start:end]
 
 
-class TestTasteCountRatchetWiring:
-    """The taste-count-ratchet job must be present in the pre-push section."""
-
-    def test_job_name_is_present(self) -> None:
-        assert "taste-count-ratchet" in _lefthook_content(), (
-            "lefthook.yml is missing the 'taste-count-ratchet' pre-push job. "
-            "Without it, a taste regression only surfaces in the 6+ minute "
-            "full test suite instead of the 2-second direct ratchet run "
-            "(issue #4041)."
-        )
-
-    def test_ratchet_script_is_wired(self) -> None:
-        content = _lefthook_content()
-        assert "taste_count_ratchet.py" in content, (
-            "lefthook.yml does not call 'taste_count_ratchet.py'. "
-            "The job exists but does not invoke the ratchet script."
-        )
-
-    def test_base_ref_flag_is_present(self) -> None:
-        job_section = _job_section("taste-count-ratchet")
-        assert "--base-ref" in job_section, (
-            "The taste-count-ratchet job must pass '--base-ref origin/main' "
-            "so a PR that widens the baseline is blocked before merging."
-        )
-
-    def test_baseline_change_triggers_ratchet(self) -> None:
-        job_section = _job_section("taste-count-ratchet")
-        assert "scripts/ci/taste_count_baseline.txt" in job_section, (
-            "The taste-count-ratchet job must run when only its baseline changes. "
-            "Otherwise a widened baseline bypasses the fast pre-push gate."
-        )
+@pytest.mark.parametrize("job_name", _JOB_NAMES)
+def test_job_name_is_present(job_name: str) -> None:
+    assert job_name in _lefthook_content(), (
+        f"lefthook.yml is missing the {job_name!r} pre-push job. "
+        "Without it, a count regression only surfaces in the full test suite."
+    )
 
 
-class TestTypeIgnoreCountRatchetWiring:
-    """The type-ignore-count-ratchet job must be present in the pre-push section."""
+@pytest.mark.parametrize(("job_name", "script_name"), _SCRIPT_WIRING)
+def test_ratchet_script_is_wired(job_name: str, script_name: str) -> None:
+    assert script_name in _job_section(job_name), (
+        f"The {job_name} job does not call {script_name}."
+    )
 
-    def test_job_name_is_present(self) -> None:
-        assert "type-ignore-count-ratchet" in _lefthook_content(), (
-            "lefthook.yml is missing the 'type-ignore-count-ratchet' pre-push job. "
-            "Without it, the repo-wide type: ignore count is enforced only in CI, "
-            "meaning a 2-second regression costs a 400-second push cycle (issue #4039). "
-            "Note: git_hook_policy.py explicitly excludes type: ignore from the security "
-            "suppression gate, so there is no changed-line fallback for this check."
-        )
 
-    def test_ratchet_script_is_wired(self) -> None:
-        content = _lefthook_content()
-        assert "type_ignore_count_ratchet.py" in content, (
-            "lefthook.yml does not call 'type_ignore_count_ratchet.py'."
-        )
+@pytest.mark.parametrize("job_name", _JOB_NAMES)
+def test_base_ref_flag_is_present(job_name: str) -> None:
+    assert "--base-ref" in _job_section(job_name), (
+        f"The {job_name} job must pass '--base-ref origin/main' "
+        "so a widened baseline is blocked before merging."
+    )
 
-    def test_base_ref_flag_is_present(self) -> None:
-        job_section = _job_section("type-ignore-count-ratchet")
-        assert "--base-ref" in job_section, (
-            "The type-ignore-count-ratchet job must pass '--base-ref origin/main' "
-            "so a PR that raises the baseline is blocked before merging."
-        )
 
-    def test_baseline_change_triggers_ratchet(self) -> None:
-        job_section = _job_section("type-ignore-count-ratchet")
-        assert "scripts/ci/type_ignore_count_baseline.txt" in job_section, (
-            "The type-ignore-count-ratchet job must run when only its baseline changes. "
-            "Otherwise a widened baseline bypasses the fast pre-push gate."
-        )
+@pytest.mark.parametrize(("job_name", "baseline_path"), _BASELINE_WIRING)
+def test_baseline_change_triggers_ratchet(job_name: str, baseline_path: str) -> None:
+    assert baseline_path in _job_section(job_name), (
+        f"The {job_name} job must run when only {baseline_path} changes. "
+        "Otherwise a widened baseline bypasses the fast pre-push gate."
+    )
