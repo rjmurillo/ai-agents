@@ -1,6 +1,9 @@
 # Weekly Agent Drift Detection
 #
-# Detects drift between Claude agents and shared templates.
+# Detects drift between the two mirrored agent pairs:
+#   src/claude/*.md      vs src/vs-code-agents/*.agent.md
+#   .claude/agents/*.md  vs .github/agents/*.agent.md
+# templates/agents/*.shared.md supplies FILENAMES only; its body is never compared.
 # Runs weekly on Monday at 9 AM UTC and can be triggered manually.
 # Creates a GitHub issue when drift is detected.
 #
