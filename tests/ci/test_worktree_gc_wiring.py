@@ -31,7 +31,8 @@ def _lefthook_job(name: str) -> dict[str, Any]:
 
 def test_worktree_gc_report_runs_in_pre_push_without_apply() -> None:
     job = _lefthook_job("worktree-gc-report")
-    assert job["run"] == "uv run --frozen python scripts/maintenance/gc_worktrees.py --json"
+    assert job["run"] == "uv run --frozen python scripts/maintenance/gc_worktrees.py"
+    assert "--apply" not in job["run"]
     assert job["timeout"] == "2m"
 
 

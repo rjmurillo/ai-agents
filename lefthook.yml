@@ -374,7 +374,7 @@ pre-push:
 
           - name: worktree-gc-report
             timeout: 2m
-            run: uv run --frozen python scripts/maintenance/gc_worktrees.py --json
+            run: uv run --frozen python scripts/maintenance/gc_worktrees.py
 
           - name: python-tests
             timeout: 30m
