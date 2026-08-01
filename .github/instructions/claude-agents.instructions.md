@@ -4,11 +4,20 @@ applyTo: src/claude/**,.claude/agents/**,.claude/skills/**,.claude/commands/**
 
 # Claude Agent and Skill Rules
 
-`src/claude/*.md` are hand-maintained Claude agent prompts with unique Claude-specific content (`name`/`model` frontmatter). They are NOT generated. `templates/agents/*.shared.md` holds the shared body that the Copilot and VS Code copies are generated from. **No check compares the content of `src/claude/*.md` against that shared body**; what enforces the lockstep is co-change, not content (see MUST-1). `.claude/agents/`, `.claude/skills/`, and `.claude/commands/` hold per-repo artifacts loaded by Claude Code.
+`src/claude/*.md` are hand-maintained Claude agent prompts with unique Claude-specific content (`name`/`model` frontmatter). They are NOT generated. `templates/agents/*.shared.md` holds the shared body that the Copilot and VS Code copies are generated from. **No check compares the content of `src/claude/*.md` against that shared body**, and the co-change check that exists is one-directional (see MUST-1). `.claude/agents/`, `.claude/skills/`, and `.claude/commands/` hold per-repo artifacts loaded by Claude Code.
 
 ## MUST
 
-1. **Edit Claude agents directly, in lockstep with the shared template**. `src/claude/*.md` is hand-maintained; no generator writes it (`detect_agent_drift.py:19` "Claude agents have unique content and are NOT generated from templates."). To change shared agent behavior, edit BOTH `src/claude/<agent>.md` AND `templates/agents/<agent>.shared.md` in the same change, then run `python3 build/generate_agents.py` to refresh the generated Copilot and VS Code copies (`src/copilot-cli/`, `src/vs-code-agents/`). What enforces the lockstep is `build/scripts/validate_install_parity.py`, and it checks **co-change in a diff, not content agreement**: "reports the sibling files that should have changed together and did not" (`validate_install_parity.py:21`). Nothing compares the two files' text for agreement. The drift detector scores similarity against a floor, which is a much weaker condition than agreement; see the section below for what it does and does not catch. Read both before you edit either.
+1. **Edit Claude agents directly, in lockstep with the shared template**. `src/claude/*.md` is hand-maintained; no generator writes it (`detect_agent_drift.py:19` "Claude agents have unique content and are NOT generated from templates."). To change shared agent behavior, edit BOTH `src/claude/<agent>.md` AND `templates/agents/<agent>.shared.md` in the same change, then run `python3 build/generate_agents.py` to refresh the generated Copilot and VS Code copies (`src/copilot-cli/`, `src/vs-code-agents/`). `build/scripts/validate_install_parity.py` checks **co-change in a diff, not content agreement**: "reports the sibling files that should have changed together and did not" (`validate_install_parity.py:24`). Nothing compares the two files' text for agreement.
+
+That co-change check is **asymmetric, so it does not enforce the lockstep in the direction you most need**. Measured at `origin/main`:
+
+```bash
+python3 build/scripts/validate_install_parity.py --files templates/agents/architect.shared.md; echo $?  # 1
+python3 build/scripts/validate_install_parity.py --files src/claude/architect.md;          echo $?  # 0
+```
+
+A solo template edit is caught. A solo `src/claude/` edit is not: the hand-maintained copies are exempt from the required-sibling set, so you can change Claude agent behavior without touching the template and no gate objects. This carve-out is load-bearing, not vestigial: of the 156 commits since 2025-01-01 touching a hand-maintained member of a shared-agent group, **40 (26%) did not touch the template**. Treat the lockstep as a convention you uphold, not a rule the tooling enforces. The drift detector scores similarity against a floor, a much weaker condition than agreement; see the section below. Read both files before you edit either.
 2. **Skill schema**. Every skill MUST have a `SKILL.md` with frontmatter fields `name`, `version`, `description` per `.agents/steering/claude-skills.md`.
 3. **Skill tests**. New skills MUST include pytest coverage under `.claude/skills/<name>/tests/`.
 4. **File cap per PR**. Skill additions SHOULD ship ≤10 files per PR (see `.agents/steering/claude-skills.md`).
@@ -61,19 +70,35 @@ PY
 
 8 of those 60 match zero sections and return a hardcoded 100.0 via `detect_agent_drift.py:302` (`overall = round(total_similarity / compared_count, 1) if compared_count > 0 else 100.0`). They are the two comparisons each for `analyst`, `explainer`, `silent-failure-hunter`, and `type-design-analyzer`: for those four agents the check cannot fail. Replacing the entire body of `src/vs-code-agents/silent-failure-hunter.agent.md` still yields RC=0 / 100.0 / OK.
 
-For the other agents it is a **similarity floor, not an equality check**, and the floor is forgiving. The score is the mean across the allowlisted sections present in both files, so on `architect` (10 such sections) each wholly rewritten section costs about 10 points against a default threshold of 80 (`detect_agent_drift.py:666-668`). Measured by mutation at the same commit:
+For the other agents it is a **similarity floor, not an equality check**. The score is the mean across the allowlisted sections present in **either** file, not both: `compare_agent` skips a section only when it is absent from both sides (`detect_agent_drift.py:280-281`), so a section one copy has and the other lacks is compared against the empty string and scores zero.
 
-| Mutation to `src/claude/architect.md` | Similarity | Result |
+How forgiving the floor is depends entirely on how many sections the agent has, and most agents have very few. Measured across both comparison pairs at `origin/main` (60 content comparisons, 30 agents x 2 pairs):
+
+| Allowlisted sections present | Comparisons | Zero-overlap rewrites needed to breach the 80 floor |
 |---|---|---|
-| Add a contradictory line inside `## Constraints` | 88.7% | RC=0, OK |
-| Add 60 contradictory lines inside `## Constraints` | 88.7% | RC=0, OK |
-| Add a whole new section outside the allowlist | 92.5% | RC=0, OK |
-| Wholly replace 1 allowlisted section | 82.5% | RC=0, OK |
-| Wholly replace 2 allowlisted sections | 72.5% | RC=1, DRIFT DETECTED |
+| 0 | 8 | unreachable (hardcoded 100.0) |
+| 1 | 20 | 1 |
+| 2 to 4 | 12 | 1 |
+| 5 to 9 | 18 | 2 |
+| 10 | 2 | 3 |
 
-So a contradiction that adds text without deleting the original passes, however long it is. A contradiction confined to one section passes. What trips the floor is a wholesale rewrite of more than a fifth of an agent's allowlisted sections.
+So for **16 of the 26 agents that have any compared section, one wholly rewritten section is enough to trip the check**; nine more need two; only `architect` (10 sections) needs three. An earlier version of this rule generalized "more than a fifth of an agent's allowlisted sections" from `architect` alone. That was wrong for 25 of the 26.
 
-Two further exceptions. `merge-resolver` carries a recorded 20.9 baseline for both of its comparisons (`_RECORDED_BASELINES`, `detect_agent_drift.py:117-118`) and sits in `_ADVISORY_VENDORED_DRIFT` (`:601`), so it reports `DRIFT DETECTED` and still exits 0. Install-pair drift is advisory unless `--fail-on-install-drift` is passed (`:714`, `:864-865`); `.github/workflows/drift-detection.yml` does pass it.
+The per-section score is **Jaccard on word sets** (`calculate_similarity`, `detect_agent_drift.py:213-232`): the size of the token intersection over the size of the union. Two consequences follow, and mixing them up produces a badly wrong mental model. Measured by mutation inside `## Constraints` on `src/claude/architect.md`:
+
+| Mutation | Section score | Overall | Result |
+|---|---|---|---|
+| baseline | 100.0 | 92.5 | RC=0, OK |
+| 1 repeated identical line | 80.0 | 90.5 | RC=0, OK |
+| 60 repeated identical lines | 80.0 | 90.5 | RC=0, OK |
+| 1 line of distinct vocabulary | 76.2 | 90.2 | RC=0, OK |
+| 60 lines of distinct vocabulary | 5.1 | 83.0 | RC=0, OK |
+
+Repeated identical lines are free: after the first, they contribute no new tokens to either set, so the score does not move no matter how many you add. Distinct vocabulary is not free: 60 such lines take the section from 76.2 to 5.1. A previous version of this rule read the flat first pair as "the score saturates" and generalized it. It does not saturate; that measurement had accidentally held vocabulary constant.
+
+What survives all of this is the weaker true claim: a **contradiction that reuses the surrounding vocabulary scores high and passes**, because Jaccard sees tokens, not meaning. And note the last row: even a section scored 5.1 leaves `architect` at 83.0 overall, above the floor. On an agent with one section the same mutation would land at 5.1 overall and fail. The check's sensitivity is inversely proportional to how much of the agent it looks at.
+
+Two further exceptions. `merge-resolver` carries a recorded 20.9 baseline for both of its comparisons (`KNOWN_BASELINE_DRIFT`, `detect_agent_drift.py:116`) and sits in `_ADVISORY_VENDORED_DRIFT` (`:601`). Because the baseline floor is applied in `classify_status`, it does not report drift at all: both comparisons print `OK (baselined)` at 20.9% and exit 0. Install-pair drift is advisory unless `--fail-on-install-drift` is passed (`:714`, `:864-865`); `.github/workflows/drift-detection.yml` does pass it.
 
 That workflow is a **weekly and manual audit, not a PR merge gate**: its only triggers are `schedule` (Mondays 09:00 UTC) and `workflow_dispatch`, and it opens an issue when it finds drift. The PR-time workflow `agent-drift-detection.yml` runs `generate_agents.py --validate`, which regenerates and compares, and never invokes this detector.
 

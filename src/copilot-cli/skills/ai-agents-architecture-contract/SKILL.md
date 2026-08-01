@@ -129,7 +129,7 @@ belong to `ai-agents-generation-and-release`.
 | Generated hooks anchor to repo root, never cwd | `scripts/validation/validate_hook_anchoring.py`, runtime-contract tests | #2205 class: hooks silently no-op in every customer install |
 | HANDOFF.md is read-only | ADR-014, AGENTS.md Never list | Merge-conflict storm returns |
 | No em/en dashes, block-style YAML arrays, no generated-file headers | `universal.md` MUST NOT 5/6, dash guards, bot reviewers | One review thread per violation, every PR |
-| Hand-synced siblings stay identical | `validate_install_parity.py` | Self-hosted copies diverge from shipped ones |
+| Hand-synced siblings change together | `validate_install_parity.py` (co-change, one direction: a solo `src/claude/` edit is exempt) | Self-hosted copies diverge from shipped ones |
 | Retrieval precedes reasoning | ADR-007, session-protocol gates | Agents re-fight settled battles (see `ai-agents-failure-archaeology`) |
 
 ### Phase 7: Account for the known-weak points
