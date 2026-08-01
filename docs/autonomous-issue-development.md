@@ -252,7 +252,7 @@ gh pr list --search "{number} in:title" --state all --json number,title,state
 # reach gh as literal text. Dropping the quotes word-splits the title rather
 # than executing it. read -r only stops backslash mangling; it is not the
 # injection control.
-read -r pr_title < <(gh issue view {number} --json title --jq .title)
+read -r pr_title < <(gh issue view {number} --json title --jq '.title')
 gh pr create --title "feat: ${pr_title}" --body "Fixes #{number}"
 
 # Run PR review after creation

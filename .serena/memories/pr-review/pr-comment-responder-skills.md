@@ -330,7 +330,7 @@ $pr = $data.repository.pullRequest  # NO .data prefix needed
 **Implementation Details**:
 
 - Replaced: `gh pr create --title "fix(scope): description"` (hardcoded)
-- With: `read -r pr_title < <(gh issue view {number} --json title --jq .title)`
+- With: `read -r pr_title < <(gh issue view {number} --json title --jq '.title')`
 - Then: `gh pr create --title "fix: ${pr_title}"`
 - Added 3-line security warning comment explaining CWE-78 risk
 - Demonstrates safe handling of external untrusted input (GitHub issue titles)
