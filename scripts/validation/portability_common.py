@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from collections.abc import Callable
 from pathlib import Path
 
@@ -141,3 +142,30 @@ def write_baseline(
     )
     print(f"Baseline written: {len(current)} files, {total} {label}.")
     return 0
+
+
+def refuse_empty_scan(root: Path, read_total: int, unit: str) -> bool:
+    """Report and refuse a baseline write whose scan read nothing.
+
+    Both portability ratchets share one hazard. A scan root can exist and
+    still yield no readable files, from a partial checkout, a sparse clone, or
+    a mistargeted repo root. The offending-file mapping is empty in that case
+    and equally empty for a genuinely clean tree, so the write path cannot
+    tell them apart from counts alone. Writing anyway replaces the ratchet
+    with an empty one, forgives every current violation, and exits 0.
+
+    Only the count of files actually read separates the two, so the caller
+    passes it here rather than inferring intent from an empty mapping.
+    Returns True when the caller must refuse.
+    """
+    if read_total > 0:
+        return False
+    print(
+        f"Refusing to write a baseline from a scan that read 0 {unit} under "
+        f"{root}. A required scan root exists but holds nothing to read, so "
+        "writing now would replace the ratchet with an empty one and silently "
+        "forgive every current violation. Check that --repo-root points at a "
+        "full checkout.",
+        file=sys.stderr,
+    )
+    return True

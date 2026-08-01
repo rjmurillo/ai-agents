@@ -68,7 +68,7 @@ from scripts.utils.markdown_parser import (
     MarkdownNestingError,
     blank_code_block_lines,
 )
-from scripts.validation.portability_common import build_portability_parser
+from scripts.validation.portability_common import build_portability_parser, refuse_empty_scan
 from scripts.validation.portability_common import (
     diff_against_baseline as _diff_against_baseline,
 )
@@ -421,6 +421,15 @@ def scan_plugin_roots(root: Path) -> dict[str, int]:
     return counts
 
 
+def scanned_markdown_total(root: Path) -> int:
+    """Return how many skill ``.md`` files were actually read across every root.
+
+    The offending-file counts cannot answer this: a clean tree and a tree that
+    was never read both produce an empty mapping.
+    """
+    return sum(scan_skill_markdown(skills_dir).scanned for skills_dir in skills_dirs(root))
+
+
 def scan_marker_suppressions(root: Path) -> dict[str, int]:
     """Return marker-suppressed reference counts across every plugin root."""
     counts: dict[str, int] = {}
@@ -635,6 +644,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if args.update_baseline:
+        if refuse_empty_scan(root, scanned_markdown_total(root), "skill .md files"):
+            return 2
         return _write_baseline(baseline_path, current, marker_current)
 
     try:

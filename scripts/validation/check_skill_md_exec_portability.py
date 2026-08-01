@@ -89,6 +89,8 @@ import re
 import sys
 from pathlib import Path
 
+from scripts.validation.portability_common import refuse_empty_scan
+
 # Shipped skill trees to scan. Both carry SKILL.md files that agents execute:
 # .claude/skills is the canonical tree; src/copilot-cli/skills holds the
 # generated twins plus copilot-cli-native skills (e.g. pr-autofix).
@@ -203,6 +205,16 @@ def scan_skill_execs(repo_root: Path) -> dict[str, int]:
             if n > 0:
                 counts[path.relative_to(repo_root).as_posix()] = n
     return counts
+
+
+def scanned_file_total(repo_root: Path) -> int:
+    """Return how many skill files were actually read across every scan root.
+
+    The invocation counts cannot answer this: a clean tree and a tree that was
+    never read both produce an empty mapping.
+    """
+    roots = (repo_root.joinpath(*parts) for parts in SCAN_ROOTS)
+    return sum(len(_iter_skill_files(d)) for d in roots if d.is_dir())
 
 
 def scan_marker_suppressions(repo_root: Path) -> dict[str, int]:
@@ -460,6 +472,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if args.update_baseline:
+        if refuse_empty_scan(root, scanned_file_total(root), "skill files"):
+            return 2
         return _write_baseline(baseline_path, current, marker_current)
 
     try:
