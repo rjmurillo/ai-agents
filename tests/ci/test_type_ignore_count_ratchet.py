@@ -29,15 +29,14 @@ def _fake_git(files: tuple[str, ...] = ("pkg/mod.py",), git_rc: int = 0):
 
 # --- unit tests for current_count -----------------------------------------
 
+
 class TestCurrentCount:
     def test_counts_type_ignore_in_single_file(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         py = tmp_path / "mod.py"
         py.write_text(
-            "x: int = 'hi'  # type: ignore[assignment]\n"
-            "y = 1\n"
-            "z: str = 2  # type: ignore\n",
+            "x: int = 'hi'  # type: ignore[assignment]\ny = 1\nz: str = 2  # type: ignore\n",
             encoding="utf-8",
         )
         monkeypatch.setattr(subprocess, "run", _fake_git((str(py),)))
@@ -103,6 +102,7 @@ class TestConstants:
 
 # --- integration tests for main() -----------------------------------------
 
+
 class TestMain:
     def test_ok_when_count_equals_baseline(
         self, tmp_path: Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
@@ -123,19 +123,18 @@ class TestMain:
         rc = ratchet.main([])
         assert rc == count_ratchet.EXIT_REGRESSION
 
-    def test_regression_when_count_below_baseline_without_update(
+    def test_count_below_baseline_blocks_without_update(
         self, tmp_path: Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Stale baseline: --update required to lock in improvements."""
+        """ADR-092: the bot that owned this write is gone, so slack blocks."""
         baseline = _write_baseline(tmp_path, "5")
         monkeypatch.setattr(ratchet, "_BASELINE_PATH", baseline)
         monkeypatch.setattr(ratchet, "current_count", lambda _: 4)
         rc = ratchet.main([])
         assert rc == count_ratchet.EXIT_REGRESSION
+        assert "BASELINE STALE" in capsys.readouterr().err
 
-    def test_update_lowers_baseline(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_update_lowers_baseline(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         baseline = _write_baseline(tmp_path, "5")
         monkeypatch.setattr(ratchet, "_BASELINE_PATH", baseline)
         monkeypatch.setattr(ratchet, "current_count", lambda _: 3)
