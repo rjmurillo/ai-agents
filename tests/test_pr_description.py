@@ -194,9 +194,18 @@ class TestOverall:
     def test_fail_on_violation_with_warnings(self):
         """--fail-on-violation promotes warnings to failures (exit code 1)."""
         result = subprocess.run(
-            [sys.executable, SCRIPT, "--title", "feat: Feature", "--body", "Minimal body",
-             "--fail-on-violation"],
-            capture_output=True, text=True, timeout=30,
+            [
+                sys.executable,
+                SCRIPT,
+                "--title",
+                "feat: Feature",
+                "--body",
+                "Minimal body",
+                "--fail-on-violation",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         r = json.loads(result.stdout)
         # Warnings present (no issue keywords, incomplete template)
@@ -215,9 +224,18 @@ class TestOverall:
           - Exposes EffectiveSuccess/WarningsAreFatal/FailOnViolation in JSON.
         """
         result = subprocess.run(
-            [sys.executable, SCRIPT, "--title", "feat: Feature", "--body", "Minimal body",
-             "--fail-on-violation"],
-            capture_output=True, text=True, timeout=30,
+            [
+                sys.executable,
+                SCRIPT,
+                "--title",
+                "feat: Feature",
+                "--body",
+                "Minimal body",
+                "--fail-on-violation",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         r = json.loads(result.stdout)
         assert result.returncode == 1
@@ -241,7 +259,9 @@ class TestOverall:
         """Without --fail-on-violation, warnings remain advisory and exit is 0."""
         result = subprocess.run(
             [sys.executable, SCRIPT, "--title", "feat: Feature", "--body", "Minimal body"],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         r = json.loads(result.stdout)
         assert result.returncode == 0
@@ -260,9 +280,18 @@ class TestOverall:
             "## Changes\n\n- Added OAuth2\n"
         )
         result = subprocess.run(
-            [sys.executable, SCRIPT, "--title", "feat: Auth", "--body", body,
-             "--fail-on-violation"],
-            capture_output=True, text=True, timeout=30,
+            [
+                sys.executable,
+                SCRIPT,
+                "--title",
+                "feat: Auth",
+                "--body",
+                body,
+                "--fail-on-violation",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         r = json.loads(result.stdout)
         assert result.returncode == 0
@@ -273,9 +302,18 @@ class TestOverall:
     def test_fail_on_violation_with_errors(self):
         """--fail-on-violation returns exit code 1 when errors exist."""
         result = subprocess.run(
-            [sys.executable, SCRIPT, "--title", "Bad title", "--body", "Closes #123",
-             "--fail-on-violation"],
-            capture_output=True, text=True, timeout=30,
+            [
+                sys.executable,
+                SCRIPT,
+                "--title",
+                "Bad title",
+                "--body",
+                "Closes #123",
+                "--fail-on-violation",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         r = json.loads(result.stdout)
         assert r["Success"] is False
@@ -292,18 +330,36 @@ class TestExitMessageMatchesExitCode:
 
     def test_passed_not_printed_when_warnings_are_fatal(self):
         result = subprocess.run(
-            [sys.executable, SCRIPT, "--title", "feat: Feature", "--body", "Minimal body",
-             "--fail-on-violation"],
-            capture_output=True, text=True, timeout=30,
+            [
+                sys.executable,
+                SCRIPT,
+                "--title",
+                "feat: Feature",
+                "--body",
+                "Minimal body",
+                "--fail-on-violation",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         assert result.returncode == 1
         assert "Validation passed" not in result.stderr
 
     def test_warning_fatal_message_present_when_warnings_are_fatal(self):
         result = subprocess.run(
-            [sys.executable, SCRIPT, "--title", "feat: Feature", "--body", "Minimal body",
-             "--fail-on-violation"],
-            capture_output=True, text=True, timeout=30,
+            [
+                sys.executable,
+                SCRIPT,
+                "--title",
+                "feat: Feature",
+                "--body",
+                "Minimal body",
+                "--fail-on-violation",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         assert result.returncode == 1
         assert "Validation failed" in result.stderr
@@ -313,16 +369,27 @@ class TestExitMessageMatchesExitCode:
         """Without --fail-on-violation, warnings are non-fatal: exit 0, pass message."""
         result = subprocess.run(
             [sys.executable, SCRIPT, "--title", "feat: Feature", "--body", "Minimal body"],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         assert result.returncode == 0
         assert "Validation passed" in result.stderr
 
     def test_passed_not_printed_when_errors_are_fatal(self):
         result = subprocess.run(
-            [sys.executable, SCRIPT, "--title", "Bad title", "--body", "Closes #123",
-             "--fail-on-violation"],
-            capture_output=True, text=True, timeout=30,
+            [
+                sys.executable,
+                SCRIPT,
+                "--title",
+                "Bad title",
+                "--body",
+                "Closes #123",
+                "--fail-on-violation",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         assert result.returncode == 1
         assert "Validation passed" not in result.stderr
@@ -340,9 +407,8 @@ class TestInlineCitationStripping:
     def _import_extract():
         import importlib.util
         import sys as _sys
-        pr_desc_path = str(
-            _REPO_ROOT / "scripts" / "validation" / "pr_description.py"
-        )
+
+        pr_desc_path = str(_REPO_ROOT / "scripts" / "validation" / "pr_description.py")
         spec = importlib.util.spec_from_file_location("pr_desc_mod", pr_desc_path)
         assert spec is not None
         assert spec.loader is not None
@@ -367,9 +433,7 @@ class TestInlineCitationStripping:
             "The skill (e.g. `.claude/skills/security-scan/scripts/scan_vulnerabilities.py`)"
             " is not changed."
         )
-        assert (
-            ".claude/skills/security-scan/scripts/scan_vulnerabilities.py" not in extract(body)
-        )
+        assert ".claude/skills/security-scan/scripts/scan_vulnerabilities.py" not in extract(body)
 
     def test_for_example_citation_not_collected(self):
         extract = self._import_extract()
@@ -553,3 +617,107 @@ class TestChangeClaimContextContract:
     def test_change_claim_heading_variants_accept_inline_paths(self, heading: str):
         offenders = self._critical_files(f"{heading}\nChanged `foo.py`.\n", ["bar.py"])
         assert offenders == ["foo.py"]
+
+
+class TestExtractAllMentionedFiles:
+    """Tests for extract_all_mentioned_files (issue #3712).
+
+    This function extracts paths from the full description INCLUDING
+    contextual/reference sections, for use in WARNING suppression only.
+    """
+
+    def test_returns_empty_for_empty_description(self) -> None:
+        from scripts.validation.pr_description import extract_all_mentioned_files
+
+        assert extract_all_mentioned_files("") == frozenset()
+
+    def test_extracts_path_from_references_section(self) -> None:
+        from scripts.validation.pr_description import extract_all_mentioned_files
+
+        desc = "## Summary\nSome changes.\n\n## References\n- `scripts/foo.py`\n"
+        result = extract_all_mentioned_files(desc)
+        assert "scripts/foo.py" in result
+
+    def test_extracts_path_from_notes_section(self) -> None:
+        from scripts.validation.pr_description import extract_all_mentioned_files
+
+        desc = "## Changes\n- bar.py\n\n## Notes\n- `scripts/helper.py` is unchanged.\n"
+        result = extract_all_mentioned_files(desc)
+        assert "scripts/helper.py" in result
+
+    def test_does_not_include_paths_from_stripped_citations(self) -> None:
+        """Citation cues (see, per, per ADR) must still be stripped."""
+        from scripts.validation.pr_description import extract_all_mentioned_files
+
+        desc = "## Summary\nSee `scripts/other.py` for context.\n"
+        # extract_all_mentioned_files strips citation cues too
+        result = extract_all_mentioned_files(desc)
+        assert "scripts/other.py" not in result
+
+
+class TestWarningSuppressionFromReferenceSection:
+    """validate_pr_description WARNING is suppressed by reference-section mentions (issue #3712).
+
+    A file under ## References or ## Notes should NOT trigger
+    'significant file not mentioned' even though it is stripped from the
+    strict extraction used for CRITICAL checks.
+    """
+
+    def test_warning_suppressed_when_file_in_references_section(self) -> None:
+        from scripts.validation.pr_description import (
+            extract_all_mentioned_files,
+            extract_mentioned_files,
+            validate_pr_description,
+        )
+
+        desc = "## Summary\nBug fix.\n\n## References\n- `scripts/validation/pr_commit_count.py`\n"
+        pr_files = ["scripts/validation/pr_commit_count.py"]
+        mentioned = extract_mentioned_files(desc)
+        all_mentioned = extract_all_mentioned_files(desc)
+
+        issues = validate_pr_description(pr_files, mentioned, all_mentioned_files=all_mentioned)
+        # No CRITICAL (path not in strict extraction, so not a false claim)
+        # No WARNING (path IS in all_mentioned, so warning is suppressed)
+        warnings = [i for i in issues if i.severity == "WARNING"]
+        assert warnings == [], f"Unexpected warnings: {warnings}"
+
+    def test_critical_still_fires_for_wrong_path_in_strict_body(self) -> None:
+        """CRITICAL check is not weakened by the broader extraction.
+
+        Bold paths (`**file.py**`) are extracted unconditionally (not scoped to
+        change-claim sections), so a bold path in the summary that is NOT in
+        the diff triggers CRITICAL.
+        """
+        from scripts.validation.pr_description import (
+            extract_all_mentioned_files,
+            extract_mentioned_files,
+            validate_pr_description,
+        )
+
+        # Bold path is NOT scoped to change-claim sections, so it IS in mentioned_files
+        desc = "## Summary\nChanged **scripts/nonexistent.py**.\n"
+        pr_files = ["scripts/real.py"]
+        mentioned = extract_mentioned_files(desc)
+        all_mentioned = extract_all_mentioned_files(desc)
+
+        issues = validate_pr_description(pr_files, mentioned, all_mentioned_files=all_mentioned)
+        critical = [i for i in issues if i.severity == "CRITICAL"]
+        assert len(critical) == 1
+        assert "nonexistent.py" in critical[0].file
+
+    def test_warning_still_fires_when_file_not_mentioned_anywhere(self) -> None:
+        """If file is absent from both strict and broad sets, WARNING fires."""
+        from scripts.validation.pr_description import (
+            extract_all_mentioned_files,
+            extract_mentioned_files,
+            validate_pr_description,
+        )
+
+        desc = "## Summary\nDid a thing.\n"
+        pr_files = ["scripts/validation/pr_commit_count.py"]
+        mentioned = extract_mentioned_files(desc)
+        all_mentioned = extract_all_mentioned_files(desc)
+
+        issues = validate_pr_description(pr_files, mentioned, all_mentioned_files=all_mentioned)
+        warnings = [i for i in issues if i.severity == "WARNING"]
+        assert len(warnings) == 1
