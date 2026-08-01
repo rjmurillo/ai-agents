@@ -1,7 +1,7 @@
 """Drift-detection tests for the Copilot dogfood-install helper.
 
 Split from ``test_dogfood_copilot_plugin.py`` to keep both files under the
-500-line taste ceiling. Covers what ADR-091 changed: the manifests carry no
+500-line taste ceiling. Covers what ADR-092 changed: the manifests carry no
 ``version``, so ``_is_stale`` keys on a content fingerprint of the shipped tree
 instead. A version-keyed detector read None on both sides and never fired.
 """
@@ -64,7 +64,7 @@ def test_fingerprint_ignores_pycache_written_after_install(source: Path, target:
 
 
 def test_fingerprint_detects_unversioned_hook_edit(source: Path, target: Path) -> None:
-    # ADR-091 deletes the manifest version, so content is the only drift
+    # ADR-092 deletes the manifest version, so content is the only drift
     # signal left. An edited hook body with an identical manifest is stale.
     dogfood.dogfood_install(source, target)
     (source / "hooks" / "guard.py").write_text("edited", encoding="utf-8")
@@ -85,7 +85,7 @@ def test_fingerprint_detects_added_and_removed_files(source: Path, target: Path)
 
 
 def test_shipped_manifest_carries_no_version() -> None:
-    # Regression for the ADR-091 hole: the real manifest has no version, so a
+    # Regression for the ADR-092 hole: the real manifest has no version, so a
     # version-keyed detector read None on both sides and never fired. This
     # test fails the day someone re-couples drift detection to the field.
     root = Path(__file__).resolve().parents[1]

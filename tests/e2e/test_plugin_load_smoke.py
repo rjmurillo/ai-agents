@@ -207,7 +207,7 @@ def _read_manifest_name(manifest_path: Path) -> str:
     """The plugin's declared name, used to address `plugin details`.
 
     The smoke used to key its load assertion on the manifest ``version``.
-    ADR-091 deleted that field so Claude Code resolves freshness from the commit
+    ADR-092 deleted that field so Claude Code resolves freshness from the commit
     SHA, which means `plugin details` reports a SHA the manifest cannot predict.
     ``name`` replaces it as the ARGUMENT, not as the proof: `plugin details
     <name>` echoes the string it was handed, so finding it in the output cannot
@@ -490,7 +490,7 @@ def test_claude_manifest_exposes_string_name_and_no_version() -> None:
     manifest loses its name or makes it non-string, the smoke assertion becomes
     meaningless; pin the precondition here so it fails in bare CI.
 
-    The version half is the ADR-091 invariant: a version field would pin Claude
+    The version half is the ADR-092 invariant: a version field would pin Claude
     Code freshness to that string instead of the commit SHA. The dedicated gate
     is build/scripts/validate_plugin_version_bump.py; this asserts the smoke's
     own precondition so the load signal cannot silently go back to a version.
@@ -498,7 +498,7 @@ def test_claude_manifest_exposes_string_name_and_no_version() -> None:
     assert _read_manifest_name(_CLAUDE_MANIFEST)
     data = json.loads(_CLAUDE_MANIFEST.read_text(encoding="utf-8"))
     assert "version" not in data, (
-        f"{_CLAUDE_MANIFEST} carries a version field; ADR-091 requires its absence "
+        f"{_CLAUDE_MANIFEST} carries a version field; ADR-092 requires its absence "
         "so Claude Code resolves freshness from the commit SHA"
     )
 

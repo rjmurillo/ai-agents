@@ -30,7 +30,7 @@ Every change belongs to at least one class. A mixed change inherits the union of
 | Docs-only | Markdown prose only; no code, no generated trees | QA evidence row `SKIPPED: docs-only` (case-insensitive; ADR-034 cites it as the pre-existing pattern) |
 | Investigation-only | Nothing outside the ADR-034 allowlist (below) | QA evidence row `SKIPPED: investigation-only` |
 | Code | Python, scripts, tests, libs | Full QA evidence per `.agents/governance/TESTING-RIGOR.md`; see `ai-agents-validation-and-qa` |
-| Plugin content | Anything under `.claude/`, `src/claude/`, or `src/copilot-cli/` | No manifest edit. The `.claude-plugin/plugin.json` files carry no `version`; Claude Code resolves freshness from the commit SHA (ADR-091) |
+| Plugin content | Anything under `.claude/`, `src/claude/`, or `src/copilot-cli/` | No manifest edit. The `.claude-plugin/plugin.json` files carry no `version`; Claude Code resolves freshness from the commit SHA (ADR-092) |
 | Git hook configuration | `lefthook.yml` | Named-job validation and relevant validator tests |
 | Claude lifecycle hook | `.claude/hooks/**`, hook generators | Dual-registration sync; runtime-contract tests; `scripts/validation/validate_hook_anchoring.py` |
 | Workflow | `.github/workflows/*.yml` | No logic in YAML (ADR-006); SHA-pinned actions; run changed workflows before push (AGENTS.md Always list) |
@@ -85,7 +85,7 @@ Check this table before any push. The incident column is the answer to "why"; do
 | No em or en dashes in authored text | `validate_dash_prohibition` (`scripts/validation/checks_dash.py` via `pre_pr.py`) + dash-guard hook; `tests/hooks/fixtures/` exempt | `.claude/rules/universal.md` MUST NOT 5: bot reviewers open one or more threads per dash, every PR (Issue #1923) |
 | SHA-pin all GitHub Actions | Pre-commit hook + workflow validation (`.agents/governance/PROJECT-CONSTRAINTS.md:162`) | Tags are mutable, so pinning blocks supply-chain tag-moving. Operative rule: pin everything unless a human explicitly approves the GP-006 first-party `actions/*` tag allowance, and disclose the tension in your PR description when you hit it. Fuller writeup in `references/incident-history.md` |
 | Generated and released hook artifacts fail closed and loud (ADR-066 D1, ADR-071). Scoped, not blanket: push guards fail open on infrastructure errors by design (`.claude/hooks/PreToolUse/push_guard_base.py` docstring); repo-wide audit tracked in #2271. Per-family table: `ai-agents-architecture-contract` Phase 3 | `validate_hook_anchoring.py`, runtime-contract tests, named Lefthook jobs, and CI enforcement | #2205 customer wedge; policy reversal in the incident history |
-| No `version` field in any plugin manifest or marketplace entry | `pre_pr.py` + `validate-plugin-version-bump.yml` | ADR-091: the field pins freshness to a hand-bumped string and conflicts across every concurrent PR (issue #4080 measured 14 of 22) |
+| No `version` field in any plugin manifest or marketplace entry | `pre_pr.py` + `validate-plugin-version-bump.yml` | ADR-092: the field pins freshness to a hand-bumped string and conflicts across every concurrent PR (issue #4080 measured 14 of 22) |
 | Block-style YAML arrays only in frontmatter | `.agents/governance/PROJECT-CONSTRAINTS.md:224` ("Exceptions: None") | Copilot CLI frontmatter parser fails on CRLF and related formatting: github/copilot-cli#694, cited at PROJECT-CONSTRAINTS.md:220; ADR-044 |
 | `.agents/HANDOFF.md` is read-only | `.claude/rules/universal.md` MUST NOT 3 | ADR-014 (Accepted): the monolithic handoff file bloated and became a chronic merge-conflict magnet; distributed handoffs replaced it |
 | Memory-first: retrieval precedes reasoning | AGENTS.md Retrieval section; session-start gates | ADR-007: Serena memories are canonical, Forgetful supplementary. Search before building; do not re-derive settled decisions |
@@ -104,7 +104,7 @@ Six of the table's incidents compress a multi-round failure and are told in full
 |--------------|-------------------|
 | Editing a generated tree to silence a drift gate | Inverts the source of truth (2025-12-15 incident, reverted). Ask which side is canonical first |
 | Using `[skip-drift-check]` or `commit-limit-bypass` without a stated reason and human approval | Bypass markers are audited; unexplained use reads as the session 1187 pattern |
-| Adding a `version` back to a plugin.json or marketplace entry | The gate fails on the field's presence (ADR-091). Freshness already tracks the commit SHA, so the field only re-creates the merge conflict it was deleted for |
+| Adding a `version` back to a plugin.json or marketplace entry | The gate fails on the field's presence (ADR-092). Freshness already tracks the commit SHA, so the field only re-creates the merge conflict it was deleted for |
 | Adding a fail-open wrapper so a broken hook "does not block anyone" | Rejected pattern (#2230, recorded in ADR-071): silent exit 0 disables the hook while looking like success, exactly the #2205 failure |
 | Classifying a mixed session as investigation-only | One staged file outside the ADR-034 allowlist voids the exemption; split the work |
 | Fixing a bot-flagged dash or style claim without byte-level verification | Bots false-positive; count the actual bytes before editing (PR #1873 observation: an em-dash flag on a line with zero em-dashes) |
@@ -128,4 +128,4 @@ Before you push, confirm:
 
 Authored 2026-07-03, facts re-verified against the working tree on 2026-07-30. A selected index of the drift-prone cited source lines, each paired with its re-verify command, is in `references/provenance.md`. Consult and update it when you edit this skill or any reference it points to.
 
-Maintenance rule: any edit to a cited source line number or ADR status invalidates the matching row. Re-run the re-verify command and update the row in the same commit. This file is plugin content, so regenerate the Copilot mirror (`python3 build/scripts/build_all.py`) in the same commit. No manifest bump: the manifests carry no version (ADR-091).
+Maintenance rule: any edit to a cited source line number or ADR status invalidates the matching row. Re-run the re-verify command and update the row in the same commit. This file is plugin content, so regenerate the Copilot mirror (`python3 build/scripts/build_all.py`) in the same commit. No manifest bump: the manifests carry no version (ADR-092).

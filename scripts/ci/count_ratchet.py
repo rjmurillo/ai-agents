@@ -3,7 +3,7 @@
 A count ratchet freezes a repository-wide violation total in a baseline file.
 The measured count must not exceed the baseline. An improvement (count <
 baseline) passes; the post-merge bot commits the lower baseline after the PR
-lands (ADR-091). ``--update`` explicitly lowers the baseline (used by the bot).
+lands (ADR-092). ``--update`` explicitly lowers the baseline (used by the bot).
 A regression (count > baseline) blocks.
 
 Two gates use this: ``ruff_count_ratchet.py`` (issue #2993) and

@@ -478,7 +478,7 @@ def test_operational_sources_exclude_superseded_claims() -> None:
 
 
 def test_operational_skills_state_the_manifests_carry_no_version() -> None:
-    # ADR-091 deleted the field, so these sections must state the prohibition
+    # ADR-092 deleted the field, so these sections must state the prohibition
     # rather than tell the reader to look the current value up. A semver
     # literal here would be a value that no longer exists to read.
     semver_literal = re.compile(r"\b\d+\.\d+\.\d+\b")

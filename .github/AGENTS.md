@@ -314,7 +314,7 @@ sequenceDiagram
 
 ### validate-plugin-version-bump.yml
 
-**Role**: Plugin version-field gate (ADR-091, Issue #4080)
+**Role**: Plugin version-field gate (ADR-092, Issue #4080)
 
 | Attribute | Value |
 |-----------|-------|

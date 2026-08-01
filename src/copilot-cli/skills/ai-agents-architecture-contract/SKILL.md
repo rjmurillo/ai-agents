@@ -111,7 +111,7 @@ No manifest may carry a `version` field, and neither may a marketplace entry.
 With the field absent, Claude Code resolves freshness from the git commit SHA,
 which moves on every merge; with it present, freshness pins to the string until
 someone hand-bumps it. Enforced by the push hook plus
-`.github/workflows/validate-plugin-version-bump.yml` (ADR-091, which supersedes
+`.github/workflows/validate-plugin-version-bump.yml` (ADR-092, which supersedes
 ADR-079; issue #4080). Marketplaces: `.claude-plugin/marketplace.json` (lists
 `claude-agents` and `project-toolkit`) and `.github/plugin/marketplace.json`;
 parity checked by `build/scripts/check_plugin_manifest_parity.py`. The npm
@@ -126,7 +126,7 @@ belong to `ai-agents-generation-and-release`.
 | Generators never write `.claude/` | `build_all.py:962` REQ-003-010 check, exit 2 | Canonical tree gets silently overwritten by its own mirror; source of truth inverts |
 | Generated trees match sources | `build_all.py --check`, `generate_agents.py --validate`, drift CI | Harness mirrors ship stale behavior; the two fix paths diverge |
 | `.claude/lib/` matches `scripts/` packages | `sync_plugin_lib.py --check` | Plugin-distributed hooks import different code than the tested originals |
-| No `version` field in any manifest or marketplace entry | push hook plus `validate-plugin-version-bump.yml` | Freshness pins to a hand-bumped string instead of the commit SHA, and the line conflicts across every concurrent plugin PR (ADR-091, issue #4080) |
+| No `version` field in any manifest or marketplace entry | push hook plus `validate-plugin-version-bump.yml` | Freshness pins to a hand-bumped string instead of the commit SHA, and the line conflicts across every concurrent plugin PR (ADR-092, issue #4080) |
 | Generated hooks anchor to repo root, never cwd | `scripts/validation/validate_hook_anchoring.py`, runtime-contract tests | #2205 class: hooks silently no-op in every customer install |
 | HANDOFF.md is read-only | ADR-014, AGENTS.md Never list | Merge-conflict storm returns |
 | No em/en dashes, block-style YAML arrays, no generated-file headers | `universal.md` MUST NOT 5/6, dash guards, bot reviewers | One review thread per violation, every PR |
@@ -154,7 +154,7 @@ State these plainly when working near them; do not design as if they were sound.
 - Citing a Proposed ADR (069, 072) as settled architecture, or dismissing a live enforcement mechanism because an older ADR status is stale.
 - Treating `.serena/memories/` as inert docs. The advisory correction-applier and topical-memory-injection hooks were deleted (issue #3184; see the Phase 4 observation-loop entry above); they were never active runtime inputs. Explicit retrieval through the `memory` or `memory-search` skill is what makes memories load-bearing, not an automatic hook.
 - Adding a rule without a gate. Verification-based governance means prose without enforcement is dead on arrival (route new rules through `ai-agents-change-control`).
-- Adding a `version` back to a plugin.json or marketplace entry. ADR-091 deleted it; the gate fails on its presence.
+- Adding a `version` back to a plugin.json or marketplace entry. ADR-092 deleted it; the gate fails on its presence.
 
 ## Verification
 

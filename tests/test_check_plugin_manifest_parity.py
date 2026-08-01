@@ -4,7 +4,7 @@ Covers the one invariant the script still gates:
 
 * no component count embedded in any published description (#2187, #3651)
 
-The version-parity half was retired with ADR-091: the manifests carry no
+The version-parity half was retired with ADR-092: the manifests carry no
 ``version`` field, so there is no value left to hold equal. That the field stays
 absent is gated by ``build/scripts/validate_plugin_version_bump.py``.
 """

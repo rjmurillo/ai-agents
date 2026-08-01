@@ -40,7 +40,7 @@ lists ``name`` as the only required field and ``version`` under "Optional
 metadata fields"). Its shipped bundle calls ``updatePlugin`` unconditionally
 from ``updateAll``; the version string feeds display text and telemetry only.
 
-ADR-091 records the decision and supersedes ADR-079.
+ADR-092 records the decision and supersedes ADR-079.
 
 RULE
 ----
@@ -373,7 +373,7 @@ _FIX = (
     "Fix: delete the `version` line from each manifest above. Claude Code "
     "resolves freshness from the git commit SHA when the field is absent, which "
     "is per-commit and needs no hand bump. A committed version pins freshness to "
-    "that string and conflicts across every concurrent PR (ADR-091, issue #4080)."
+    "that string and conflicts across every concurrent PR (ADR-092, issue #4080)."
 )
 
 

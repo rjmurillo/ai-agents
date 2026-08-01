@@ -292,7 +292,7 @@ def _manifest_json(version: str, description: str = "toolkit") -> str:
 
 
 def _versionless_manifest_json(description: str = "toolkit") -> str:
-    """The post-ADR-091 manifest shape: same keys, no version field."""
+    """The post-ADR-092 manifest shape: same keys, no version field."""
     return f'{{\n  "name": "project-toolkit",\n  "description": "{description}"\n}}\n'
 
 
@@ -361,10 +361,10 @@ class TestResolvePluginManifestConflict:
 
 
 class TestResolvePluginManifestAdr091Migration:
-    """A side that dropped the version field wins: ADR-091 forbids the field."""
+    """A side that dropped the version field wins: ADR-092 forbids the field."""
 
     def test_main_dropped_version_resolves_to_versionless(self, tmp_path: Path) -> None:
-        # The shape every plugin PR opened before ADR-091 hits on merging main.
+        # The shape every plugin PR opened before ADR-092 hits on merging main.
         _make_manifest_conflict(
             tmp_path,
             base=_manifest_json("0.6.5448"),

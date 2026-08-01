@@ -99,7 +99,7 @@ Not a flag, but the config obligation most often tripped over. No packaged
 plugin manifest may carry a `version` field, and neither may a marketplace
 entry. Claude Code resolves freshness from the first version it finds, so a
 committed version pins consumers to a hand-bumped string instead of the git
-commit SHA (ADR-091, which supersedes ADR-079; issue #4080).
+commit SHA (ADR-092, which supersedes ADR-079; issue #4080).
 
 | File | Must not carry |
 |---|---|

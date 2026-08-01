@@ -21,7 +21,7 @@ field, 2 config. Any error in steps 1-3 returns 2 with a stderr message.
 
 Steps 2 and 3 stay because a shallow checkout still has to resolve the head ref
 the validator reads the manifests from. The resolved base is passed through and
-no longer changes the verdict (ADR-091).
+no longer changes the verdict (ADR-092).
 """
 
 from __future__ import annotations

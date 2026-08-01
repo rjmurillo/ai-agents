@@ -208,5 +208,5 @@ the repo on that date. Re-verify volatile facts before trusting them:
 
 Maintenance rule: if any re-verify command disagrees with this file, the repo
 won. Update this skill in the same PR that changes the underlying fact. Do not
-touch `.claude-plugin/plugin.json`: the manifests carry no version (ADR-091, see
+touch `.claude-plugin/plugin.json`: the manifests carry no version (ADR-092, see
 `ai-agents-change-control`).

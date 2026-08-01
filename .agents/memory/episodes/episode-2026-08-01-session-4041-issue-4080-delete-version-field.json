@@ -4,7 +4,7 @@
   "timestamp": "2026-08-01T00:00:00+00:00",
   "causal_order_version": 2,
   "outcome": "success",
-  "task": "Issue #4080: delete the version field from all three packaged plugin manifests, invert the version gate, and record ADR-091 superseding ADR-079",
+  "task": "Issue #4080: delete the version field from all three packaged plugin manifests, invert the version gate, and record ADR-092 superseding ADR-079",
   "decisions": [],
   "events": [
     {
@@ -20,7 +20,7 @@
       "id": "e002",
       "timestamp": "2026-08-01T00:00:00+00:00",
       "type": "milestone",
-      "content": "Bounded that claim honestly: updatePlugin delegates to the native binding pluginOperationsUpdatePlugin, which was not readable. The JS layer provably does not gate on version; the native layer is unverified and is recorded as finding F1 in the debate log and as a Negative consequence in ADR-091.",
+      "content": "Bounded that claim honestly: updatePlugin delegates to the native binding pluginOperationsUpdatePlugin, which was not readable. The JS layer provably does not gate on version; the native layer is unverified and is recorded as finding F1 in the debate log and as a Negative consequence in ADR-092.",
       "caused_by": [],
       "leads_to": [],
       "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
@@ -139,7 +139,7 @@
       "id": "e015",
       "timestamp": "2026-08-01T00:00:00+00:00",
       "type": "milestone",
-      "content": "Ran the whole suite rather than only the touched files, which surfaced a real break the scoped run missed: tests/e2e/test_plugin_load_smoke.py proved the CLI had loaded the shipped plugin by finding the manifest version string in plugin details. Re-keyed that load signal on the manifest name, which the CLI still echoes, and turned the ungated precondition test into the ADR-091 invariant.",
+      "content": "Ran the whole suite rather than only the touched files, which surfaced a real break the scoped run missed: tests/e2e/test_plugin_load_smoke.py proved the CLI had loaded the shipped plugin by finding the manifest version string in plugin details. Re-keyed that load signal on the manifest name, which the CLI still echoes, and turned the ungated precondition test into the ADR-092 invariant.",
       "caused_by": [],
       "leads_to": [],
       "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
@@ -190,7 +190,7 @@
       "id": "e020",
       "timestamp": "2026-08-01T00:00:00+00:00",
       "type": "milestone",
-      "content": "Measured the migration conflict rather than naming its shape from memory. Merged a branch carrying a version bump against the fixed HEAD with git merge-tree --write-tree --name-only: git reports CONFLICT (content) in .claude/.claude-plugin/plugin.json with the branch value on one side, the base value in the middle, and the incoming side empty. ADR-091 and the rule both said modify/delete; both now state what git actually reports, so the resolver knows to take the empty side.",
+      "content": "Measured the migration conflict rather than naming its shape from memory. Merged a branch carrying a version bump against the fixed HEAD with git merge-tree --write-tree --name-only: git reports CONFLICT (content) in .claude/.claude-plugin/plugin.json with the branch value on one side, the base value in the middle, and the incoming side empty. ADR-092 and the rule both said modify/delete; both now state what git actually reports, so the resolver knows to take the empty side.",
       "caused_by": [],
       "leads_to": [],
       "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
@@ -212,7 +212,7 @@
       "id": "e022",
       "timestamp": "2026-08-01T00:00:00+00:00",
       "type": "milestone",
-      "content": "Review round 2 (three independent reviewers, 10 findings). Fixed the dogfood staleness detector: _is_stale compared two manifest versions that are both absent after ADR-091, so --check could never exit 1. It now compares a sha256 fingerprint of the shipped file names and bytes, which also catches the unbumped hook edit the version comparison never saw. Proved with a sandbox install, a real edit under src/copilot-cli, and exit 1 then exit 0 after restore.",
+      "content": "Review round 2 (three independent reviewers, 10 findings). Fixed the dogfood staleness detector: _is_stale compared two manifest versions that are both absent after ADR-092, so --check could never exit 1. It now compares a sha256 fingerprint of the shipped file names and bytes, which also catches the unbumped hook edit the version comparison never saw. Proved with a sandbox install, a real edit under src/copilot-cli, and exit 1 then exit 0 after restore.",
       "caused_by": [],
       "leads_to": [],
       "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
@@ -248,7 +248,7 @@
       "id": "e026",
       "timestamp": "2026-08-01T00:00:00+00:00",
       "type": "milestone",
-      "content": "Finished the supersession bookkeeping: ADR-079 status accepted -> superseded, ADR-083's two version-keyed acceptance criteria restated, ADR-091's impact table extended with the five components it had missed and a scope section naming the conflict class it does not close.",
+      "content": "Finished the supersession bookkeeping: ADR-079 status accepted -> superseded, ADR-083's two version-keyed acceptance criteria restated, ADR-092's impact table extended with the five components it had missed and a scope section naming the conflict class it does not close.",
       "caused_by": [],
       "leads_to": [],
       "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
@@ -258,6 +258,15 @@
       "timestamp": "2026-08-01T00:00:00+00:00",
       "type": "milestone",
       "content": "Disputed one finding with evidence: the branch does not touch scripts/validation/vendor_portability_baseline.txt (git diff c59473239..HEAD over that path is empty). The taste and ruff baselines are unchanged by this round; both ratchets print OK at 610 and 329.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"
+    },
+    {
+      "id": "e028",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Renumbered every ADR-091 prose reference to ADR-092 across 54 files after reviewers flagged six stale citations; regenerated mirrors.",
       "caused_by": [],
       "leads_to": [],
       "_source_session": "2026-08-01-session-4041-issue-4080-delete-version-field"

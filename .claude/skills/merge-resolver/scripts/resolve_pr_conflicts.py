@@ -213,9 +213,9 @@ def resolve_plugin_manifest_conflict(file_path: str, cwd: str | None = None) -> 
     Reads both sides of the conflicted manifest from the index. Two shapes
     resolve automatically when the sides differ only in ``version``:
 
-    - Either side omits ``version``. ADR-091 deleted the field, so the merged
+    - Either side omits ``version``. ADR-092 deleted the field, so the merged
       manifest carries none. This is the shape every plugin PR opened before
-      ADR-091 hits when it merges the fixed ``main``.
+      ADR-092 hits when it merges the fixed ``main``.
     - Both sides carry plain semver. Write ``patch + 1`` above the higher
       version. Kept for branches that predate the field's deletion on both
       sides.
@@ -242,7 +242,7 @@ def resolve_plugin_manifest_conflict(file_path: str, cwd: str | None = None) -> 
     if ours_rest != theirs_rest:
         return False
 
-    # ADR-091 deleted the field. A side without it is the post-ADR shape, and
+    # ADR-092 deleted the field. A side without it is the post-ADR shape, and
     # the merged manifest must carry no version or the version-field gate
     # (build/scripts/validate_plugin_version_bump.py) fails.
     if "version" not in ours or "version" not in theirs:

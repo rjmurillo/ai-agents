@@ -5,7 +5,7 @@
     "date": "2026-08-01",
     "branch": "fix/4080-omit-plugin-version",
     "startingCommit": "236b9d263",
-    "objective": "Issue #4080: delete the version field from all three packaged plugin manifests, invert the version gate, and record ADR-091 superseding ADR-079"
+    "objective": "Issue #4080: delete the version field from all three packaged plugin manifests, invert the version gate, and record ADR-092 superseding ADR-079"
   },
   "protocolCompliance": {
     "sessionStart": {
@@ -104,7 +104,7 @@
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "Issue #4080 is referenced by every commit in this session and by ADR-091."
+        "Evidence": "Issue #4080 is referenced by every commit in this session and by ADR-092."
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
@@ -114,12 +114,12 @@
       "adrReviewEvidence": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "adr-review skill lenses applied to ADR-091 and recorded at .agents/analysis/2026-08-01-adr-091-omit-plugin-version-debate.md. The log states plainly that this context has no subagent tool, so one model argued each of the six lenses in turn rather than six agents debating; verdict 6/6 Accept with finding F1 (Copilot native update binding unread) carried as the standing risk."
+        "Evidence": "adr-review skill lenses applied to ADR-092 and recorded at .agents/analysis/2026-08-01-adr-091-omit-plugin-version-debate.md. The log states plainly that this context has no subagent tool, so one model argued each of the six lenses in turn rather than six agents debating; verdict 6/6 Accept with finding F1 (Copilot native update binding unread) carried as the standing risk."
       },
       "adrReviewInvoked": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "adr-review skill run for ADR-092 (omit the plugin manifest version); six-lens debate with seven findings and dispositions at .agents/analysis/2026-08-01-adr-092-omit-plugin-version-debate.md. Decision renumbered from ADR-091 to ADR-092 after PR #4147 took that number. The post-debate supersession section was verified directly against merged commit edecb8e85; evidence in #4168."
+        "Evidence": "adr-review skill run for ADR-092 (omit the plugin manifest version); six-lens debate with seven findings and dispositions at .agents/analysis/2026-08-01-adr-092-omit-plugin-version-debate.md. Decision renumbered from ADR-092 to ADR-092 after PR #4147 took that number. The post-debate supersession section was verified directly against merged commit edecb8e85; evidence in #4168."
       }
     }
   },
@@ -128,7 +128,7 @@
       "step": "Re-verified the Copilot premise ADR-079 rested on rather than trusting the research brief. Read ~/.copilot/pkg/linux-x64/1.0.78-0/app.js, newer than the 1.0.69-0 bundle ADR-079 cited: updateAll iterates installed plugins and calls updatePlugin unconditionally, and every previousVersion!==newVersion occurrence is a display string or the version_changed telemetry property. Cache invalidation keys off skillsCacheDirty from the native operation."
     },
     {
-      "step": "Bounded that claim honestly: updatePlugin delegates to the native binding pluginOperationsUpdatePlugin, which was not readable. The JS layer provably does not gate on version; the native layer is unverified and is recorded as finding F1 in the debate log and as a Negative consequence in ADR-091."
+      "step": "Bounded that claim honestly: updatePlugin delegates to the native binding pluginOperationsUpdatePlugin, which was not readable. The JS layer provably does not gate on version; the native layer is unverified and is recorded as finding F1 in the debate log and as a Negative consequence in ADR-092."
     },
     {
       "step": "Measured this repository rather than assuming: both marketplace files list relative-path sources and neither carries a per-plugin version, so with plugin.json clean every plugin resolves at Claude Code step 3, the commit SHA."
@@ -164,7 +164,7 @@
       "step": "Listed the stale prose left behind rather than sweeping it: the ai-agents-* knowledge packs, validation-authority, and merge-resolver still describe the strictly-greater rule as repository history. Named in debate-log finding F6 so the next reader does not mistake silence for currency."
     },
     {
-      "step": "Ran the whole suite rather than only the touched files, which surfaced a real break the scoped run missed: tests/e2e/test_plugin_load_smoke.py proved the CLI had loaded the shipped plugin by finding the manifest version string in plugin details. Re-keyed that load signal on the manifest name, which the CLI still echoes, and turned the ungated precondition test into the ADR-091 invariant."
+      "step": "Ran the whole suite rather than only the touched files, which surfaced a real break the scoped run missed: tests/e2e/test_plugin_load_smoke.py proved the CLI had loaded the shipped plugin by finding the manifest version string in plugin details. Re-keyed that load signal on the manifest name, which the CLI still echoes, and turned the ungated precondition test into the ADR-092 invariant."
     },
     {
       "step": "Separated my breakage from the base branch's rather than reporting a raw failure count. Checked out the pre-fix commit c59473239 and re-ran the two remaining failing suites there: tests/ci/test_validation_scripts_are_reachable.py fails 109 tests at that commit too, and the orphan-ref-validator retired-kebab test fails there too. Both predate this branch, so the run goes from 111 failures to 110, and the one that moved is the one this change caused."
@@ -173,10 +173,10 @@
       "step": "Lowered the taste ratchet baseline from 612 to 610. Deleting the semver parsing block removed two violations and the ratchet enforces an exact match, so the baseline had to follow the tree down."
     },
     {
-      "step": "Measured the migration conflict rather than naming its shape from memory. Merged a branch carrying a version bump against the fixed HEAD with git merge-tree --write-tree --name-only: git reports CONFLICT (content) in .claude/.claude-plugin/plugin.json with the branch value on one side, the base value in the middle, and the incoming side empty. ADR-091 and the rule both said modify/delete; both now state what git actually reports, so the resolver knows to take the empty side."
+      "step": "Measured the migration conflict rather than naming its shape from memory. Merged a branch carrying a version bump against the fixed HEAD with git merge-tree --write-tree --name-only: git reports CONFLICT (content) in .claude/.claude-plugin/plugin.json with the branch value on one side, the base value in the middle, and the incoming side empty. ADR-092 and the rule both said modify/delete; both now state what git actually reports, so the resolver knows to take the empty side."
     },
     {
-      "step": "Review round 2 (three independent reviewers, 10 findings). Fixed the dogfood staleness detector: _is_stale compared two manifest versions that are both absent after ADR-091, so --check could never exit 1. It now compares a sha256 fingerprint of the shipped file names and bytes, which also catches the unbumped hook edit the version comparison never saw. Proved with a sandbox install, a real edit under src/copilot-cli, and exit 1 then exit 0 after restore."
+      "step": "Review round 2 (three independent reviewers, 10 findings). Fixed the dogfood staleness detector: _is_stale compared two manifest versions that are both absent after ADR-092, so --check could never exit 1. It now compares a sha256 fingerprint of the shipped file names and bytes, which also catches the unbumped hook edit the version comparison never saw. Proved with a sandbox install, a real edit under src/copilot-cli, and exit 1 then exit 0 after restore."
     },
     {
       "step": "Fixed the merge-resolver. _resolve_conflicted_file short-circuits on any plugin manifest, so a manifest it cannot resolve is blocked and never falls through to checkout --theirs. resolve_plugin_manifest_conflict now takes the versionless side whenever either side omits the field, which is the shape every open plugin PR hits on merging the fixed main."
@@ -188,10 +188,13 @@
       "step": "Rewrote six shipped skills plus GENERATOR-FILES.md off the strictly-greater bump rule. The debugging playbook's remedy row was the exact inverse of the fix: following it produced VERSION FIELD PRESENT, exit 1, permanently. Copilot mirrors regenerated with build_all.py."
     },
     {
-      "step": "Finished the supersession bookkeeping: ADR-079 status accepted -> superseded, ADR-083's two version-keyed acceptance criteria restated, ADR-091's impact table extended with the five components it had missed and a scope section naming the conflict class it does not close."
+      "step": "Finished the supersession bookkeeping: ADR-079 status accepted -> superseded, ADR-083's two version-keyed acceptance criteria restated, ADR-092's impact table extended with the five components it had missed and a scope section naming the conflict class it does not close."
     },
     {
       "step": "Disputed one finding with evidence: the branch does not touch scripts/validation/vendor_portability_baseline.txt (git diff c59473239..HEAD over that path is empty). The taste and ruff baselines are unchanged by this round; both ratchets print OK at 610 and 329."
+    },
+    {
+      "summary": "Renumbered every ADR-091 prose reference to ADR-092 across 54 files after reviewers flagged six stale citations; regenerated mirrors."
     }
   ],
   "endingCommit": "c59473239",

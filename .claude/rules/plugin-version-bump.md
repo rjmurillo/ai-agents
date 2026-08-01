@@ -43,7 +43,7 @@ GitHub Copilot CLI lists `version` under optional metadata, with `name` as the
 only required field, and its shipped update path calls `updatePlugin`
 unconditionally.
 
-See ADR-091, which supersedes ADR-079.
+See ADR-092, which supersedes ADR-079.
 
 ## What a PR does now
 

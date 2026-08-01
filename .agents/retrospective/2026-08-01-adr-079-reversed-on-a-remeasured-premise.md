@@ -1,6 +1,6 @@
 # An owner decision stood for three weeks on a string comparison that never gated anything
 
-Issue #4080. Branch `fix/4080-omit-plugin-version`. ADR-079 superseded by ADR-091.
+Issue #4080. Branch `fix/4080-omit-plugin-version`. ADR-079 superseded by ADR-092.
 
 ## What happened
 

@@ -203,7 +203,7 @@ jobs:
         # One invariant: no description in either marketplace file or any plugin
         # manifest may embed a component count, because nothing recomputes it and
         # it goes stale on the next component change (PR #2187).
-        # The version-parity half (Issue #2222) was retired with ADR-091: the
+        # The version-parity half (Issue #2222) was retired with ADR-092: the
         # manifests carry no version, so there is nothing to hold in parity.
         # Exits 1 on staleness, 2 on malformed input, 0 when it holds.
         run: |

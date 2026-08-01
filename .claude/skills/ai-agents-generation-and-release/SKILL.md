@@ -15,7 +15,7 @@ Jargon, defined once:
 - Generator: a Python function or script that reads a canonical tree and writes a derived (generated) tree.
 - Drift: the generated tree no longer matches what the generators would produce from the canonical tree.
 - Canonical: the tree you are allowed to edit. Generated trees are outputs; you never hand-edit them.
-- Semver: semantic version string MAJOR.MINOR.PATCH. The plugin manifests carry no version at all (ADR-091); the npm package still does.
+- Semver: semantic version string MAJOR.MINOR.PATCH. The plugin manifests carry no version at all (ADR-092); the npm package still does.
 
 ## Triggers
 
@@ -107,7 +107,7 @@ Drift-gate matrix (all local commands verified runnable, all green on 2026-07-29
 | Full pipeline staleness | any canonical edit not mirrored to owned prefixes | `uv run python build/scripts/build_all.py --check` | `validate-generated-agents.yml`; named pre-push job in `lefthook.yml` |
 | Lib mirror drift | `scripts/` package edited without sync | `python3 scripts/sync_plugin_lib.py --check` | `validate-generated-agents.yml` |
 | Install parity | plugin install layout broken | `python3 scripts/validation/run_install_parity_ci.py` | `validate-generated-agents.yml` |
-| Manifest description parity | `.claude` vs `src/copilot-cli` plugin descriptions carry component counts | `python3 build/scripts/check_plugin_manifest_parity.py` | `validate-generated-agents.yml`, `agent-drift-detection.yml` (the version half was retired with ADR-091) |
+| Manifest description parity | `.claude` vs `src/copilot-cli` plugin descriptions carry component counts | `python3 build/scripts/check_plugin_manifest_parity.py` | `validate-generated-agents.yml`, `agent-drift-detection.yml` (the version half was retired with ADR-092) |
 | Plugin version field present | a manifest or marketplace entry carries `version` | `pre-pr-validation` job in `lefthook.yml` (`scripts/validation/pre_pr.py`) | `validate-plugin-version-bump.yml` |
 | Semantic agent drift (src/claude) | hand-synced tree diverging in meaning | `python3 build/scripts/detect_agent_drift.py` | `drift-detection.yml`, weekly cron Monday 09:00 UTC (line 15); similarity threshold default 80 (detect_agent_drift.py:666-668), with a recorded-baseline floor so a clean checkout does not fail |
 
@@ -149,7 +149,7 @@ Three plugin manifests exist (verify:
 The rule (docstring of `build/scripts/validate_plugin_version_bump.py`): none of
 those manifests may carry a `version` field, and neither may an entry in either
 `marketplace.json`. Claude Code then resolves freshness from the git commit SHA,
-which moves on every merge. ADR-091 records the reversal of ADR-079's
+which moves on every merge. ADR-092 records the reversal of ADR-079's
 hand-bumped rule after issue #4080 measured 14 of 22 conflicting PRs conflicting
 on that one line.
 
@@ -215,7 +215,7 @@ Verified 2026-07-29 against the working tree (re-verification pass; the 2026-07-
 | generate_agents flags and exit codes | build/generate_agents.py:13-16,460-487 | `uv run python build/generate_agents.py --help` |
 | sync pairs scripts to .claude/lib | scripts/sync_plugin_lib.py:27-31 | `grep -n -A4 "SYNC_PAIRS" scripts/sync_plugin_lib.py` |
 | Plugin manifest locations, all version-free | the three plugin.json files | `python3 build/scripts/validate_plugin_version_bump.py` |
-| Version-field prohibition and the ADR-091 reversal | build/scripts/validate_plugin_version_bump.py docstring | `grep -n "WHY THE FIELD MUST BE ABSENT" build/scripts/validate_plugin_version_bump.py` |
+| Version-field prohibition and the ADR-092 reversal | build/scripts/validate_plugin_version_bump.py docstring | `grep -n "WHY THE FIELD MUST BE ABSENT" build/scripts/validate_plugin_version_bump.py` |
 | Parity gate #2222 | build/scripts/check_plugin_manifest_parity.py:1-16 | `python3 build/scripts/check_plugin_manifest_parity.py` |
 | Drift CI wiring | .github/workflows/validate-generated-agents.yml:165,174,212,225,239; agent-drift-detection.yml:146,156,159,171 | `grep -n "uv run python" .github/workflows/validate-generated-agents.yml` |
 | Weekly semantic drift cron, threshold 80 | .github/workflows/drift-detection.yml:13-15; build/scripts/detect_agent_drift.py:666-668 | `grep -n "cron" .github/workflows/drift-detection.yml` |

@@ -15,7 +15,7 @@
 # Runs only on PRs/pushes that touch a plugin source dir, a marketplace file,
 # or the gate itself.
 #
-# Related: ADR-091, Issue rjmurillo/ai-agents#4080, Issue rjmurillo/ai-agents#2118
+# Related: ADR-092, Issue rjmurillo/ai-agents#4080, Issue rjmurillo/ai-agents#2118
 
 name: Validate Plugin Version Bump
 
@@ -104,7 +104,7 @@ jobs:
           echo "commit SHA, and conflicts across every concurrent PR."
           echo ""
           echo "Fix: delete the 'version' line from the reported"
-          echo ".claude-plugin/plugin.json, then commit. See ADR-091."
+          echo ".claude-plugin/plugin.json, then commit. See ADR-092."
           echo ""
 
   skip-validation:

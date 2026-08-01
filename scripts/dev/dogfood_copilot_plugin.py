@@ -121,7 +121,7 @@ def _content_fingerprint(root: Path) -> str:
     """Return a digest of a plugin tree's shipped file names and bytes.
 
     Content is the only honest drift signal now that the manifests carry no
-    version (ADR-091). A digest catches every edit under the tree, which is
+    version (ADR-092). A digest catches every edit under the tree, which is
     strictly more than the old version comparison caught: an unbumped hook
     edit used to slip past it.
     """

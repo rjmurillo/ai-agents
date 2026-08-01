@@ -1,8 +1,8 @@
-# ADR-091 Debate Log
+# ADR-092 Debate Log
 
 ## Summary
 
-ADR review ran on 2026-08-01 for `ADR-091: Post-Merge Bot Owns Parity Plugin Versions`.
+ADR review ran on 2026-08-01 for `ADR-092: Post-Merge Bot Owns Parity Plugin Versions`.
 The review evaluated three candidate directions from issue #4080 and reached consensus
 on the post-merge bot (option 1) over merge queue (option 2) and git merge driver (option 3).
 
@@ -19,7 +19,7 @@ on the post-merge bot (option 1) over merge queue (option 2) and git merge drive
 
 ## Key findings and resolution
 
-| Finding | Resolution in ADR-091 |
+| Finding | Resolution in ADR-092 |
 |---------|----------------------|
 | Torn-main window | Documented: 30-120s window; Copilot CLI refresh is hours; no practical user impact. |
 | Shallow clone hazard | Option 1 does not use `git rev-list --count`; bot bumps patch from existing SemVer instead. |
@@ -30,7 +30,7 @@ on the post-merge bot (option 1) over merge queue (option 2) and git merge drive
 
 ## Decision
 
-Post-merge bot (ADR-091 option 1) chosen. Implementation: `scripts/ci/auto_bump_plugin_version.py`
+Post-merge bot (ADR-092 option 1) chosen. Implementation: `scripts/ci/auto_bump_plugin_version.py`
 triggered by `.github/workflows/post-merge-version-bump.yml` on push to `main` for parity
 source paths. Gate change: `validate_plugin_version_bump.py` blocks manual version changes
 on bot-managed plugins (`manually-bumped` violation). Count ratchet change: `count < baseline`

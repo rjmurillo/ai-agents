@@ -1,6 +1,6 @@
 """Tests for build/scripts/validate_plugin_version_bump.py.
 
-The gate is inverted per ADR-091: a packaged plugin manifest must NOT carry a
+The gate is inverted per ADR-092: a packaged plugin manifest must NOT carry a
 ``version`` field, because its presence pins Claude Code freshness to that
 string (resolution step 1) instead of the git commit SHA (step 3) and re-creates
 the merge conflict measured in issue #4080.
@@ -171,7 +171,7 @@ def test_shipped_marketplaces_carry_no_version() -> None:
         for entry in data.get("plugins", []):
             assert "version" not in entry, (
                 f"{path} entry {entry.get('name')!r} has a version; "
-                "it would pin freshness ahead of the commit SHA (ADR-091)"
+                "it would pin freshness ahead of the commit SHA (ADR-092)"
             )
 
 

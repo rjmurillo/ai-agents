@@ -5,7 +5,7 @@ RETIRED: VERSION PARITY
 -----------------------
 
 This module used to require the two project-toolkit manifests to carry
-identical version strings (#2222). ADR-091 removed the ``version`` field from
+identical version strings (#2222). ADR-092 removed the ``version`` field from
 all three manifests, so there is no value left to hold equal. The parity check
 is gone; ``build/scripts/validate_plugin_version_bump.py`` now fails when any
 manifest carries the field at all.

@@ -20,7 +20,7 @@ _spec.loader.exec_module(dogfood)
 def _make_plugin_root(path: Path, marker: str = "shipped") -> Path:
     """Create a minimal plugin root whose hook body carries marker.
 
-    The shipped manifests carry no version (ADR-091), so drift detection keys
+    The shipped manifests carry no version (ADR-092), so drift detection keys
     on file content. The marker stands in for the hook body a developer edits.
     """
     (path / ".claude-plugin").mkdir(parents=True, exist_ok=True)
