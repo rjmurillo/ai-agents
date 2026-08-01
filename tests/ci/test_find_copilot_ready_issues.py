@@ -175,7 +175,7 @@ def test_gh_failure_exit_code_propagated(monkeypatch: pytest.MonkeyPatch, tmp_pa
     output_file = tmp_path / "output"
     output_file.write_text("")
     monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
-    # gh exits 2 (auth failure) — must propagate as EXIT_FAILURE
+    # gh exits 2 (auth failure); must propagate as EXIT_FAILURE
     rec = _GhRecorder(returncode=2)
     _install(monkeypatch, rec)
     rc = main()
