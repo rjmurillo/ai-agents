@@ -70,6 +70,11 @@
         "level": "MUST",
         "Complete": true,
         "Evidence": "1146 memory tests pass; ruff/mypy clean"
+      },
+      "retrospectiveWritten": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-07-31-memory-cluster-pr4003-squash-rebase.md"
       }
     }
   },
