@@ -342,6 +342,13 @@ def _is_file_size_exempt(filepath: str) -> bool:
     return any(parts[: len(segment)] == segment for segment in FILE_SIZE_EXEMPT_SEGMENTS)
 
 
+# Extensions that hold structured data rather than authored source code. The
+# file-size rule still fires (oversized data files do affect context cost and
+# ratchet counts), but the remediation text for these files must not suggest
+# extracting helper functions or type definitions. Issue #3970.
+_DATA_EXTENSIONS: frozenset[str] = frozenset({".json", ".yaml", ".yml"})
+
+
 def check_file_size(filepath: str, lines: list[str]) -> list[Violation]:
     """Check file line count against thresholds."""
     if _is_file_size_exempt(filepath):
@@ -349,9 +356,27 @@ def check_file_size(filepath: str, lines: list[str]) -> list[Violation]:
     if has_suppression(lines, "file-size"):
         return []
     line_count = len(lines)
+    is_data_file = Path(filepath).suffix.lower() in _DATA_EXTENSIONS
     if line_count > 500:
-        bn = Path(filepath).stem
-        sx = Path(filepath).suffix
+        if is_data_file:
+            remediation = (
+                "AGENT_REMEDIATION: Data file exceeds 500 lines. Options:\n"
+                "  1. Shard by a natural key (e.g. date, id range, category)\n"
+                "  2. Exempt the path in FILE_SIZE_EXEMPT_SEGMENTS if the file\n"
+                "     is append-only generated data with no module boundary.\n"
+                "  Target: each shard under 500 lines or path-exempt the directory."
+            )
+        else:
+            bn = Path(filepath).stem
+            sx = Path(filepath).suffix
+            remediation = (
+                f"AGENT_REMEDIATION: Split this file into smaller modules. "
+                f"Consider extracting:\n"
+                f"  1. Helper functions -> {bn}_helpers{sx}\n"
+                f"  2. Type definitions -> {bn}_types{sx}\n"
+                f"  3. Constants -> {bn}_constants{sx}\n"
+                f"  Target: each module under 300 lines for good cohesion."
+            )
         return [
             Violation(
                 rule="file-size",
@@ -359,17 +384,25 @@ def check_file_size(filepath: str, lines: list[str]) -> list[Violation]:
                 file=filepath,
                 line=line_count,
                 message=f"File exceeds 500 lines ({line_count} lines)",
-                remediation=(
-                    f"AGENT_REMEDIATION: Split this file into smaller modules. "
-                    f"Consider extracting:\n"
-                    f"  1. Helper functions -> {bn}_helpers{sx}\n"
-                    f"  2. Type definitions -> {bn}_types{sx}\n"
-                    f"  3. Constants -> {bn}_constants{sx}\n"
-                    f"  Target: each module under 300 lines for good cohesion."
-                ),
+                remediation=remediation,
             )
         ]
     if line_count > 300:
+        if is_data_file:
+            remediation = (
+                "AGENT_REMEDIATION: Data file is growing large. If it is "
+                "append-only generated data, consider exempting the path in "
+                "FILE_SIZE_EXEMPT_SEGMENTS or sharding by a natural key before "
+                "it exceeds 500 lines."
+            )
+        else:
+            remediation = (
+                "AGENT_REMEDIATION: File is growing large. Plan extraction "
+                "before it exceeds 500 lines. Look for:\n"
+                "  1. Groups of related functions that form a cohesive module\n"
+                "  2. Data classes or constants that can be separated\n"
+                "  3. Test helpers that belong in a conftest or fixture file"
+            )
         return [
             Violation(
                 rule="file-size",
@@ -377,13 +410,7 @@ def check_file_size(filepath: str, lines: list[str]) -> list[Violation]:
                 file=filepath,
                 line=line_count,
                 message=f"File approaching size limit ({line_count}/500 lines)",
-                remediation=(
-                    "AGENT_REMEDIATION: File is growing large. Plan extraction "
-                    "before it exceeds 500 lines. Look for:\n"
-                    "  1. Groups of related functions that form a cohesive module\n"
-                    "  2. Data classes or constants that can be separated\n"
-                    "  3. Test helpers that belong in a conftest or fixture file"
-                ),
+                remediation=remediation,
             )
         ]
     return []
