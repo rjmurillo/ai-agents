@@ -3,12 +3,12 @@
 > [!NOTE]
 > Generated file. Do not edit by hand.
 > Source: `templates/agents/*.shared.md`.
-> Regenerate: `python3 build/generate_agent_catalog.py`.
+> Regenerate: `uv run python build/generate_agent_catalog.py`.
 > Validated by: `scripts/validation/validate_agent_catalog.py`.
 
 Auto-generated index of every agent template under `templates/agents/`.
 Each row links the agent name to its tier, line count, and description.
-Run `python3 build/generate_agent_catalog.py` to refresh after a template
+Run `uv run python build/generate_agent_catalog.py` to refresh after a template
 change; CI fails if this file drifts from the templates.
 
 | Agent | Tier | LOC | Description |

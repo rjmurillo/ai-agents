@@ -56,12 +56,12 @@ _HEADER = (
     "> [!NOTE]\n"
     "> Generated file. Do not edit by hand.\n"
     "> Source: `templates/agents/*.shared.md`.\n"
-    "> Regenerate: `python3 build/generate_agent_catalog.py`.\n"
+    "> Regenerate: `uv run python build/generate_agent_catalog.py`.\n"
     "> Validated by: `scripts/validation/validate_agent_catalog.py`.\n"
     "\n"
     "Auto-generated index of every agent template under `templates/agents/`.\n"
     "Each row links the agent name to its tier, line count, and description.\n"
-    "Run `python3 build/generate_agent_catalog.py` to refresh after a template\n"
+    "Run `uv run python build/generate_agent_catalog.py` to refresh after a template\n"
     "change; CI fails if this file drifts from the templates.\n"
     "\n"
 )
@@ -253,13 +253,13 @@ def _run_check(templates_dir: Path, output_path: Path) -> int:
     generated = render_catalog(collect_entries(templates_dir)).replace("\r\n", "\n")
     if not output_path.exists():
         print(f"MISSING: {output_path} does not exist", file=sys.stderr)
-        print("To fix: python3 build/generate_agent_catalog.py", file=sys.stderr)
+        print("To fix: uv run python build/generate_agent_catalog.py", file=sys.stderr)
         return 1
 
     committed = output_path.read_text(encoding="utf-8").replace("\r\n", "\n")
     if committed != generated:
         print(f"DRIFT: {output_path} differs from generated output", file=sys.stderr)
-        print("To fix: python3 build/generate_agent_catalog.py", file=sys.stderr)
+        print("To fix: uv run python build/generate_agent_catalog.py", file=sys.stderr)
         return 1
 
     print(f"OK: {output_path} matches templates/agents/")
