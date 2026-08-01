@@ -61,13 +61,13 @@ def main() -> int:
     )
 
     # Resolver exit contract: 0=all resolved, 1=some blocked (both valid JSON).
-    # Exit 2/3/4 = fatal; fail loudly.
+    # Exit 2/3/4 = fatal per ADR-035; propagate the category so callers can distinguish.
     if result.returncode > 1:
         msg = (
             f"::error::PR #{pr_number}: resolver failed (exit {result.returncode}): {result.stdout}"
         )
         print(msg, file=sys.stderr)
-        return EXIT_FAILURE
+        return result.returncode
 
     try:
         parsed = json.loads(result.stdout)

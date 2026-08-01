@@ -47,12 +47,7 @@ def _conflict_lines(filepath: str) -> list[str]:
 
     lines = []
     for line in content.splitlines():
-        if line.startswith(("<<<<<<< ", "======= ", ">>>>>>> ")) or (
-            line.startswith("<<<<<<<") or line.startswith("=======") or line.startswith(">>>>>>>")
-        ):
-            lines.append(line)
-        else:
-            lines.append(line)
+        lines.append(line)
         if len(lines) >= 100:
             break
     return lines

@@ -33,7 +33,7 @@ def test_main_resolver_fatal_exit(tmp_path, monkeypatch):
     mock = MagicMock(returncode=3, stdout="fatal", stderr="")
     with patch("scripts.ci.run_pr_conflict_resolver.subprocess.run", return_value=mock):
         rc = rpcr.main()
-    assert rc == rpcr.EXIT_FAILURE
+    assert rc == 3  # propagated from resolver; ADR-035 exit 3=external
 
 
 # ---------------------------------------------------------------------------
