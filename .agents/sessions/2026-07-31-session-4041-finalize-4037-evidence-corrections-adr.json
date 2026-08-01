@@ -74,7 +74,7 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Full-diff review, six-role ADR review, 63 changed-skill tests, generated drift check, scoped markdownlint attempt, pre_pr.py, and 34 focused taste-ratchet tests completed"
+        "Evidence": "Full-diff review, six-role ADR review, 63 changed-skill tests, generated drift check, scoped markdownlint attempt, pre_pr.py, and 52 focused ratchet tests completed"
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "ADR corrections, current-main merge, Markdown auto-fix safeguards, and taste-ratchet trigger repair are committed through 4adec5eef"
+        "Evidence": "ADR corrections, current-main merge, Markdown auto-fix safeguards, and both count-ratchet trigger repairs are committed through 44c888705"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "63 changed-skill tests passed; build_all.py and pre_pr.py passed before the main refresh; ADR reviews converged; golden-principles passed; 34 focused ratchet tests passed; taste count matches baseline 609"
+        "Evidence": "63 changed-skill tests passed; build_all.py and pre_pr.py passed before the main refresh; ADR reviews converged; golden-principles passed; 52 focused ratchet tests passed; taste count matches baseline 609"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -147,11 +147,11 @@
       "outcome": "Five roles voted Accept. The critic voted Disagree-and-Commit after requesting explicit in-file rationale. The rationale was added, no P0 or P1 finding remained, and both debate logs record convergence"
     },
     {
-      "action": "Closed the taste-count ratchet baseline-only trigger gap found during final push validation",
-      "outcome": "Lowered the verified baseline to 609, added the baseline file to the pre-push glob, removed duplicated stale totals, added a negative-control test, and corrected the ADR amendment review artifact to count all five ADR-085 locations"
+      "action": "Closed both count-ratchet baseline-only trigger gaps found during final push validation",
+      "outcome": "Lowered the verified taste baseline to 609, added both baseline files to their pre-push globs, removed duplicated stale totals, added negative-control tests, and corrected the ADR amendment review artifact to count all five ADR-085 locations"
     }
   ],
-  "endingCommit": "4adec5eef0c36d5fa3ea739668b0ee9c24ac1ad9",
+  "endingCommit": "44c888705b694bc7ff420a06e02911411b665e79",
   "nextSteps": [
     "Complete the fresh exact-SHA review, create a review marker, and push without force.",
     "Reply to and resolve all PR #4037 review threads, run completion gates, and merge ready PRs."
