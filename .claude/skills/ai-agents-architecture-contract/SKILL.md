@@ -160,7 +160,7 @@ State these plainly when working near them; do not design as if they were sound.
 
 Before relying on or amending this contract:
 
-- [ ] Ran `python3 build/scripts/build_all.py --check` and `python3 build/generate_agents.py --validate` from repo root; both exit 0 on a clean tree
+- [ ] Ran `uv run python build/scripts/build_all.py --check` and `uv run python build/generate_agents.py --validate` from repo root; both exit 0 on a clean tree
 - [ ] Confirmed the canonical side of any file you plan to edit against the Phase 1 table (and `GENERATOR-FILES.md`, minding its known `src/claude` row error)
 - [ ] Confirmed event counts still match: local settings print `3 4`, vendored source prints `2 2`, and generated Copilot config prints `2 2`
 - [ ] Checked the ADR status header of any decision you cite (statuses drift; content beats number, and ADR numbers have collided historically)

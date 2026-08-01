@@ -8,7 +8,7 @@ applyTo: src/claude/**,.claude/agents/**,.claude/skills/**,.claude/commands/**
 
 ## MUST
 
-1. **Edit Claude agents directly, in lockstep with the shared template**. `src/claude/*.md` is hand-maintained; no generator writes it (`detect_agent_drift.py:19` "Claude agents ... are NOT generated from templates"). To change shared agent behavior, edit BOTH `src/claude/<agent>.md` AND `templates/agents/<agent>.shared.md` in the same change, then run `python3 build/generate_agents.py` to refresh the generated Copilot and VS Code copies (`src/copilot-cli/`, `src/vs-code-agents/`). `detect_agent_drift.py` fails if `src/claude/*.md` diverges from the shared body.
+1. **Edit Claude agents directly, in lockstep with the shared template**. `src/claude/*.md` is hand-maintained; no generator writes it (`detect_agent_drift.py:19` "Claude agents ... are NOT generated from templates"). To change shared agent behavior, edit BOTH `src/claude/<agent>.md` AND `templates/agents/<agent>.shared.md` in the same change, then run `uv run python build/generate_agents.py` to refresh the generated Copilot and VS Code copies (`src/copilot-cli/`, `src/vs-code-agents/`). `detect_agent_drift.py` fails if `src/claude/*.md` diverges from the shared body.
 2. **Skill schema**. Every skill MUST have a `SKILL.md` with frontmatter fields `name`, `version`, `description` per `.agents/steering/claude-skills.md`.
 3. **Skill tests**. New skills MUST include pytest coverage under `.claude/skills/<name>/tests/`.
 4. **File cap per PR**. Skill additions SHOULD ship ≤10 files per PR (see `.agents/steering/claude-skills.md`).

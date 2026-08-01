@@ -8,7 +8,7 @@ applyTo: templates/**
 
 ## MUST
 
-1. **Regenerate after edits**. Changes MUST be followed by running `python3 build/generate_agents.py` before commit. Uncommitted generator output is a protocol failure.
+1. **Regenerate after edits**. Changes MUST be followed by running `uv run python build/generate_agents.py` before commit. Uncommitted generator output is a protocol failure.
 2. **Commit generated output**. Regenerated files under `src/claude/`, `.github/agents/`, and similar target directories MUST be committed in the same PR as the template change.
 3. **Toolset integrity**. Changes that add or remove tools MUST update `templates/toolsets.yaml` consistently.
 4. **Frontmatter fields**. Agent templates MUST keep required YAML frontmatter fields (`name`, `description`, `model`) present and valid per ADR-002.
