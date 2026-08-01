@@ -54,7 +54,9 @@ It compares two pairs, and `templates/` is in neither:
 
 Within a pair it scores only the sections named in `SECTIONS_TO_COMPARE` (`detect_agent_drift.py:57`), an 18-entry allowlist. Everything outside it is invisible, including a whole section present in one copy and absent from the other.
 
-Measured on `origin/main` at `7e8d3ac2f4` (2026-08-01): across the 32 files in `src/claude/*.md`, the 18 allowlisted sections hold 48,177 of the 426,714 characters that `get_markdown_sections()` returns, 11.3%.
+Measured on `origin/main` at `7e8d3ac2f4` (2026-08-01): across the 32 files in `src/claude/*.md`, the 18 allowlisted sections hold 48,177 of the 412,265 characters that `get_markdown_sections()` returns, 11.7%.
+
+Both sides of that ratio exclude YAML frontmatter, because `compare_agent_files` strips it with `remove_yaml_frontmatter` before sectioning, so frontmatter is never a comparison input. Leaving frontmatter in the denominator alone gives 426,714 and a flattering 11.3%, which is the wrong figure: it measures the numerator and the denominator by two different rules.
 
 A run emits 61 result records: 60 content comparisons plus one `NO COUNTERPART` for `claude-instructions.template`, which has no sibling. Reproduce every number above and below with:
 
@@ -70,6 +72,13 @@ records = list(a) + list(b)
 content = [r for r in records if r.status != 'NO COUNTERPART']
 print(len(records), 'records;', len(content), 'content comparisons;',
       len([r for r in content if not r.sections]), 'match zero sections')
+
+cov = tot = 0
+for f in sorted(Path('src/claude').glob('*.md')):
+    secs = d.get_markdown_sections(d.remove_yaml_frontmatter(f.read_text()))
+    tot += sum(len(v) for v in secs.values())
+    cov += sum(len(secs[s]) for s in d.SECTIONS_TO_COMPARE if s in secs)
+print(cov, 'of', tot, 'chars sit in allowlisted sections')
 PY
 ```
 
