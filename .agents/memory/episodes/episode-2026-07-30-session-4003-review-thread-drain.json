@@ -22,6 +22,15 @@
       "content": "Commit: b66fc31a9",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: ff8c1aa4e",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-30-session-4003-review-thread-drain"
     }
   ],
   "metrics": {
@@ -29,7 +38,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 9
   },
   "lessons": []
