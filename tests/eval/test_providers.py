@@ -145,6 +145,7 @@ def test_openai_provider_folds_system_into_leading_message(
     )
 
     sent = captured[0].recorder[0]["messages"]
+    assert isinstance(sent, list)
     assert sent[0] == {"role": "system", "content": "be terse"}
     assert sent[1] == {"role": "user", "content": "hello"}
 
@@ -353,8 +354,8 @@ def test_call_api_default_uses_urllib_not_provider(
         def __enter__(self) -> _Resp:
             return self
 
-        def __exit__(self, *_: object) -> bool:
-            return False
+        def __exit__(self, *_: object) -> None:
+            return None
 
     payload = json.dumps({"content": [{"type": "text", "text": "URLLIB"}]}).encode()
     monkeypatch.setattr(
@@ -384,8 +385,8 @@ def test_call_api_anthropic_name_uses_urllib(
         def __enter__(self) -> _Resp:
             return self
 
-        def __exit__(self, *_: object) -> bool:
-            return False
+        def __exit__(self, *_: object) -> None:
+            return None
 
     payload = json.dumps({"content": [{"type": "text", "text": "URLLIB"}]}).encode()
     monkeypatch.setattr(
@@ -736,6 +737,26 @@ def test_copilot_complete_raises_on_empty_prompt() -> None:
         provider.complete(messages=[{"role": "user", "content": "  "}], model="m")
 
 
+def test_copilot_complete_allows_system_role_messages(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen = _capture_run(monkeypatch, _FakeCompleted(stdout="ok\n"))
+    provider = _providers._CopilotCLIProvider()
+
+    provider.complete(
+        messages=[
+            {"role": "system", "content": "extra constraints"},
+            {"role": "user", "content": "question"},
+        ],
+        system="primary constraints",
+        model="claude-opus-5",
+    )
+
+    argv = seen["argv"]
+    prompt = argv[argv.index("--prompt") + 1]
+    assert prompt == "primary constraints\n\nextra constraints\n\nquestion"
+
+
 def test_copilot_complete_rejects_assistant_role(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -747,7 +768,7 @@ def test_copilot_complete_rejects_assistant_role(
     with pytest.raises(
         RuntimeError,
         match="Copilot CLI can only fold user/system messages into its single prompt channel",
-    ):
+    ) as exc_info:
         provider.complete(
             messages=[
                 {"role": "user", "content": "first"},
@@ -756,7 +777,7 @@ def test_copilot_complete_rejects_assistant_role(
             model="claude-opus-5",
         )
 
-    # Verify subprocess.run was never called
+    assert "assistant" in str(exc_info.value)
     assert "argv" not in seen
 
 
