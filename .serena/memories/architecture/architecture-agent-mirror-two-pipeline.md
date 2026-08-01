@@ -20,10 +20,15 @@ trees on regeneration.
 
 ## The two verifications
 
-1. Source-to-generated drift: `build/scripts/detect_agent_drift.py`. Reports
-   the percentage match on every (source, generated) pair. The #2707 fix
-   required "detect_agent_drift 100% on all silent-failure-hunter pairs" before
-   it was mergeable.
+1. Source-to-generated drift: `build/scripts/detect_agent_drift.py`. Scores
+   `src/claude` against `src/vs-code-agents`, and `.claude/agents` against
+   `.github/agents`, over an 18-section allowlist. It never reads a template
+   body. The #2707 fix cited "detect_agent_drift 100% on all
+   silent-failure-hunter pairs" as evidence, but that 100.0 is vacuous:
+   `silent-failure-hunter` matches zero allowlisted sections, so the score is
+   hardcoded and cannot fall (verified 2026-08-01 at `7e8d3ac2f4`). Treat a
+   100.0 as evidence only after confirming the pair compares a nonzero number
+   of sections.
 2. Installed-copy parity: `scripts/validation/run_install_parity_ci.py` (backed
    by `build/scripts/validate_install_parity.py`). An agent ships in several
    installed locations (the "install-parity members"); parity asserts every
@@ -42,7 +47,9 @@ enforceable in CI instead of a convention people forget.
 
 1. Edit `templates/agents/<name>.shared.md`.
 2. Run `build/scripts/build_all.py --check` (must be clean after commit).
-3. Confirm `detect_agent_drift.py` reports 100% on the changed pairs.
+3. Confirm `detect_agent_drift.py` reports 100% on the changed pairs, AND that
+   those pairs compare a nonzero number of sections (otherwise the 100.0 is
+   hardcoded and proves nothing).
 4. Confirm `run_install_parity_ci.py` is OK.
 5. The agent catalog line count regenerates (155 to 158 in #2707); commit the
    regenerated catalog with the change. Generated artifacts ship WITH the
