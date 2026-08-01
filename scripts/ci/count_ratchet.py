@@ -1,10 +1,11 @@
 """Shared machinery for whole-repo violation-count ratchets.
 
-A count ratchet freezes a repository-wide violation total in a baseline file.
+A count ratchet freezes a repository-wide violation ceiling in a baseline file.
 The measured count must not exceed the baseline. An improvement (count <
-baseline) passes; the post-merge bot commits the lower baseline after the PR
-lands (ADR-092). ``--update`` explicitly lowers the baseline (used by the bot).
-A regression (count > baseline) blocks.
+baseline) passes without rewriting the baseline, which keeps concurrent cleanup
+PRs from conflicting on a shared line. ``--update`` explicitly lowers the
+baseline when a maintainer chooses to close slack. A regression (count >
+baseline) blocks.
 
 Two gates use this: ``ruff_count_ratchet.py`` (issue #2993) and
 ``taste_count_ratchet.py`` (issue #3779). Only the counting differs. Everything
@@ -279,17 +280,12 @@ def run(
                 f"{label}: improved {baseline} -> {count} (-{baseline - count}). Baseline lowered."
             )
             return EXIT_OK
-        # An improvement that is not recorded leaves slack: the next regression
-        # up to the stale baseline passes silently. The post-merge bot that
-        # briefly owned this write was removed with the plugin version field,
-        # so the author records it. Conflict cost tracked in issue #4171.
-        print(
-            f"{label}: BASELINE STALE. {count} violations < baseline {baseline} "
-            f"(-{baseline - count}). Run with --update to lower the baseline and "
-            "close the slack.",
-            file=sys.stderr,
-        )
-        return EXIT_REGRESSION
+        if not args.update:
+            print(
+                f"{label}: OK. {count} violations <= baseline {baseline} "
+                f"(-{baseline - count} slack)."
+            )
+            return EXIT_OK
 
     print(f"{label}: OK (count == baseline {baseline}).")
     return EXIT_OK

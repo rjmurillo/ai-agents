@@ -123,16 +123,18 @@ class TestMain:
         rc = ratchet.main([])
         assert rc == count_ratchet.EXIT_REGRESSION
 
-    def test_count_below_baseline_blocks_without_update(
+    def test_count_below_baseline_passes_without_update(
         self, tmp_path: Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """ADR-092: the bot that owned this write is gone, so slack blocks."""
+        """Issue #4171: lower counts pass without rewriting shared baseline."""
         baseline = _write_baseline(tmp_path, "5")
         monkeypatch.setattr(ratchet, "_BASELINE_PATH", baseline)
         monkeypatch.setattr(ratchet, "current_count", lambda _: 4)
         rc = ratchet.main([])
-        assert rc == count_ratchet.EXIT_REGRESSION
-        assert "BASELINE STALE" in capsys.readouterr().err
+        assert rc == count_ratchet.EXIT_OK
+        captured = capsys.readouterr()
+        assert "<= baseline" in captured.out
+        assert "BASELINE STALE" not in captured.err
 
     def test_update_lowers_baseline(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         baseline = _write_baseline(tmp_path, "5")
