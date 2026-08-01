@@ -89,6 +89,8 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 from scripts.validation.portability_common import refuse_uncovered_scan
 
 # Shipped skill trees to scan. Both carry SKILL.md files that agents execute:
@@ -208,13 +210,11 @@ def scan_skill_execs(repo_root: Path) -> dict[str, int]:
 
 
 def scanned_files_by_root(repo_root: Path) -> dict[str, int]:
-    """Return how many skill files each scan root holds, absent roots included.
+    """Return per-root skill-file counts, absent roots as zero.
 
-    A sum cannot answer coverage: one empty root stays invisible in a total
-    another root keeps positive, so a partial checkout would write a baseline
-    dropping every file the unread root owned.
+    A sum hides one starved root behind a positive total.
     """
-    dirs = {"/".join(parts): repo_root.joinpath(*parts) for parts in SCAN_ROOTS}
+    dirs = {"/".join(p): repo_root.joinpath(*p) for p in SCAN_ROOTS}
     return {n: len(_iter_skill_files(d)) if d.is_dir() else 0 for n, d in dirs.items()}
 
 
