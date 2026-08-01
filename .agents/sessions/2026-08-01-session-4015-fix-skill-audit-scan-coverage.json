@@ -108,8 +108,8 @@
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Learnings captured in .serena/memories/decision-validator-full-scan-corpus-asymmetry.md: a validator's prefix tuple binds only the staged branch, so the full-scan branch must be read separately, and an exemption predicate keyed on one prefix shape fails silently when a differently shaped prefix joins the list"
       },
       "reworkWarning": {
         "level": "SHOULD",
