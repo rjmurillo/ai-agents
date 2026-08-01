@@ -156,3 +156,39 @@ until the follow-up commit landed. Omitting the field stamps nothing at any
 point, so no such window exists. The premise that changed is the Copilot one:
 ADR-079 concluded from 1.0.69-0 that a changing in-tree value was mandatory, and
 that conclusion does not survive the current bundle or the official reference.
+
+## Relationship to ADR-091
+
+ADR-092 supersedes ADR-091 as well, and that half of the review was adversarial
+against a decision that had already merged, so the bar was evidence from the
+merged artifact rather than argument about the design.
+
+ADR-091 chose a post-merge bot to own the version and the count baselines. Its
+conflict measurement is sound and ADR-092 reuses it. The mechanism is what
+failed, on four counts, each checked against the merged commit `edecb8e85`:
+
+1. It tore `main` on its own merge. `edecb8e85` changed packaged plugin source,
+   the `plugin-version-bump` rule and both generated mirrors at 179 lines each,
+   and left the version identical to `edecb8e85^`.
+2. The bot never ran. Its squashed merge message quotes its own commit template,
+   so the commit body carries a literal `[skip ci]`, which suppressed push
+   workflows on that commit. 0 runs recorded.
+3. It could not have pushed if it had run. Ruleset 11104075's only bypass actor
+   is `RepositoryRole id=5`; `github-actions[bot]` is not one, and the
+   `pull_request` rule refuses direct pushes regardless of `contents: write`.
+4. A human could not repair it either. ADR-091 marked both manifests
+   `bot_managed`, raising `manually-bumped` on any PR-side version change, so
+   the repair bump would have failed a required check.
+
+The lens that mattered here was the silent-failure one. A workflow that never
+fires emits no red check, so all four failures presented as success. That is the
+property ADR-092 removes rather than fixes: deleting the field leaves no runtime
+component, so there is nothing left that can fail to fire.
+
+What ADR-091 covered and ADR-092 does not: the count-baseline conflict class
+(`taste_count_baseline.txt`, `ruff_count_baseline.txt`), which has the same
+one-shared-line shape. That coverage dies with the bot and is not replaced.
+Tracked in issue #4171 with the measurement, 2 of 24 blocked PRs conflicting
+only on the taste baseline. `count_ratchet` therefore returns to
+`EXIT_REGRESSION` on an unrecorded improvement, since the slack ADR-091 opened
+no longer has an owner.
