@@ -2006,27 +2006,31 @@ def validate_episode_file(path: Path) -> list[str]:
     return [f"{path}: {problem}" for problem in problems]
 
 
-def repair_episode_file(path: Path) -> list[str]:
-    """Repair backwards commit order at ``path``. Return messages, empty on success.
+def repair_episode_file(path: Path) -> tuple[bool, list[str]]:
+    """Repair backwards commit order at ``path``.
+
+    Returns whether the file was rewritten, and one message per reason the
+    repair could not proceed.
 
     A file with no backwards commit edge is left alone: this repair addresses
     that defect only, and rewriting a sound episode would churn timestamps no
-    check objects to.
+    check objects to. That decision lives here rather than in the caller so one
+    read of the file answers both questions.
     """
     data, failure = _read_episode(path)
     if data is None:
-        return [f"{path}: {failure}"]
+        return False, [f"{path}: {failure}"]
     events = data.get("events")
     if not isinstance(events, list) or not validate_commit_order(events):
-        return []
+        return False, []
     refusal = repair_commit_order(events)
     if refusal:
-        return [f"{path}: {refusal}"]
+        return False, [f"{path}: {refusal}"]
     try:
         path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     except OSError as exc:
-        return [f"{path}: write failed: {exc}"]
-    return []
+        return False, [f"{path}: write failed: {exc}"]
+    return True, []
 
 
 def _episode_paths(target: Path) -> list[Path]:
@@ -2050,14 +2054,10 @@ def run_validate(target: Path, *, fix: bool = False) -> int:
     repaired = 0
     if fix:
         for path in paths:
-            data, _ = _read_episode(path)
-            if data is None or not validate_commit_order(data.get("events")):
-                continue
-            failures = repair_episode_file(path)
+            changed, failures = repair_episode_file(path)
             for failure in failures:
                 print(failure, file=sys.stderr)
-            if not failures:
-                repaired += 1
+            repaired += int(changed)
     problems = [problem for path in paths for problem in validate_episode_file(path)]
     for problem in problems:
         print(problem, file=sys.stderr)
