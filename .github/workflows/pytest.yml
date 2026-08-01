@@ -155,6 +155,10 @@ jobs:
         if: steps.should-run.outputs.skip != 'true'
         run: python scripts/validation/validate_python_syntax.py
 
+      - name: Validate AI review workflow budgets
+        if: steps.should-run.outputs.skip != 'true'
+        run: python scripts/ci/validate_ai_review_budgets.py
+
       # Issue #2939: keep repo-wide ruff debt from blocking unrelated PRs while
       # failing new violations in changed Python files.
       - name: Run ruff ratchet (changed Python files)
