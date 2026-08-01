@@ -155,10 +155,15 @@ def parse_skill_reference(skill_path: Path, reference_path: Path) -> dict[str, s
     }
 
 
+def _baseline_system_prompt(_rule: dict[str, str], _rule_id: str) -> str:
+    """Construct the baseline prompt shared by collapsed mechanisms."""
+    return ""
+
+
 def build_system_prompt(mechanism: str, rule: dict[str, str], rule_id: str) -> str:
     """Construct the system prompt for a given activation mechanism."""
     if mechanism == "baseline":
-        return ""
+        return _baseline_system_prompt(rule, rule_id)
     if mechanism == "description":
         if not rule["description"]:
             return ""
@@ -178,7 +183,7 @@ def build_system_prompt(mechanism: str, rule: dict[str, str], rule_id: str) -> s
         )
     if mechanism == "full":
         if not rule["body"].strip() and not rule.get("skill_name"):
-            return ""
+            return _baseline_system_prompt(rule, rule_id)
         return (
             "The following project rule applies to your work. "
             "Apply it when relevant.\n\n"

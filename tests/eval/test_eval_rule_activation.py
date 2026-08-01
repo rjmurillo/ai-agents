@@ -7720,6 +7720,14 @@ class TestAMechanismTheTargetCannotReachIsNotMeasured:
         system = eval_mod.build_system_prompt("full", rule, "t")
         assert eval_mod._prompt_collapses_to_baseline("full", system, rule, "t") is True
 
+    def test_an_empty_body_reuses_the_baseline_prompt(self, monkeypatch):
+        monkeypatch.setattr(
+            eval_mod, "_baseline_system_prompt", lambda _rule, _rule_id: "BASE"
+        )
+        rule = self._rule(description="d", body="")
+        assert eval_mod.build_system_prompt("baseline", rule, "t") == "BASE"
+        assert eval_mod.build_system_prompt("full", rule, "t") == "BASE"
+
     def test_a_routed_empty_body_does_not_collapse_before_resolution(self):
         rule = {**self._rule(description="d", body=""), "skill_name": "s"}
         system = eval_mod.build_system_prompt("full", rule, "t")
