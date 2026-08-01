@@ -10,9 +10,8 @@ prints an error the author correctly learns to ignore. That is the same training
 signal that teaches people to ignore the naming and complexity rules riding in
 the same output.
 
-Enforcing the ceiling outright is not viable: 615 error-severity violations
-exist today (458 file-size, 133 complexity, 24 naming), measured with the linter
-itself rather than a reimplementation of it. So this freezes the total and
+Existing debt is recorded in ``taste_count_baseline.txt``, measured with the
+linter itself rather than a reimplementation of it. This freezes the total and
 blocks growth, the same shape ``ruff_count_ratchet.py`` uses for lint debt.
 Every currently-failing file keeps passing on day one and no contributor's
 existing work breaks, but the count can only fall.

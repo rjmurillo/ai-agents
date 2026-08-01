@@ -11,7 +11,6 @@ metadata:
 
 # Negotiation Skill
 
-
 Codifies deal intelligence behavior. Use when reviewing any offer or
 designing how an agentic system should analyze and counter-propose.
 The full crystallized skill set lives in `references/skills.md`.
