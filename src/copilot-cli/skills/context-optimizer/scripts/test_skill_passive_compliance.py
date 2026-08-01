@@ -499,7 +499,7 @@ def run_compliance_checks(
                     results.recommendations.append(
                         f"{skill_name} has no actions: consider progressive "
                         "disclosure or deletion, not an always-on slot "
-                        "(SKILL-QUICK-REF.md Decision Framework)"
+                        "(see the Decision Framework in this skill's SKILL.md)"
                     )
                 else:
                     results.summary["failed"] += 1

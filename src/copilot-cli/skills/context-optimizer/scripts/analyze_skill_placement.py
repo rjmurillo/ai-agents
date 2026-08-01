@@ -21,7 +21,7 @@ Exit Codes:
 
 Based on:
     - .agents/analysis/vercel-passive-context-vs-skills-research.md
-    - SKILL-QUICK-REF.md lines 152-203
+    - The "Decision Framework" section of this skill's SKILL.md
 
 See: ADR-035 Exit Code Standardization
 """
