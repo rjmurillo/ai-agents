@@ -372,6 +372,20 @@ class _CopilotCLIProvider:
         # own prior replies as user instructions, and this signature accepts
         # that input without complaint, so the loss would be silent. See #4128.
         del max_tokens, temperature, seed
+
+        # Guard against unsupported message roles before any subprocess call.
+        # Copilot CLI only folds user and system messages into its single
+        # prompt channel. Other roles (e.g., assistant) cannot be represented
+        # faithfully and must fail visibly.
+        for msg in messages:
+            role = msg.get("role", "")
+            if role not in ("user", "system"):
+                raise RuntimeError(
+                    f"{self._provider_label} API does not support message role "
+                    f"{role!r}. Copilot CLI can only fold user/system messages "
+                    "into its single prompt channel."
+                )
+
         parts = [system.strip()] if system.strip() else []
         parts.extend(
             str(m.get("content", "")).strip()
