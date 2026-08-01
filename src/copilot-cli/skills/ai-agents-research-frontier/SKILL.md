@@ -91,8 +91,8 @@ durable competitive surface and everything else is plumbing.
   almost nobody measures whether a rule changes model behavior at all.
 - Rules are unmeasured even here: this repo has 25 rule files under
   `.claude/rules/` but only 12 scenario fixtures under
-  `tests/evals/rule-scenarios/` (as of 2026-07-30). Each fixture names one
-  rule, so 13 of 25 rules have no activation baseline.
+  `tests/evals/rule-scenarios/` (as of 2026-07-30). Those fixtures name 12
+  distinct rules, so 13 of 25 rules have no activation baseline.
 - Weight tuning is unavailable to a repository: you cannot fine-tune the vendor
   model, so context curation is the only lever, and the field has no shared
   methodology for verifying it.
