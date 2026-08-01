@@ -30,8 +30,10 @@ They never reach a consumer.
 This repository self-hosts its own plugins. `.claude/` is simultaneously the
 plugin source and the live Claude Code configuration, so every outward
 reference resolves here and every local test passes. The break appears only on
-a consumer's machine. No local CI reproduces that environment, so the defect
-ships silently.
+a consumer's machine. The nightly real-CLI smoke loads `.claude` and
+`src/copilot-cli` from the checkout while running from a neutral working
+directory. It does not cover `src/claude`, isolated package contents, or every
+prose reference. A broken citation can still ship silently.
 
 ## Evidence (measured 2026-07-31 on `origin/main` at `088292977f`)
 
@@ -85,30 +87,34 @@ Key obligations:
 
 ## What is actually enforced
 
-Four gates exist. Each is a frozen ratchet over a narrow scope, so "the gates
-are green" is a weaker statement than "this rule is satisfied."
+Four baselined ratchets and one absolute frontmatter gate exist. "The gates are
+green" is still weaker than "this rule is satisfied."
 
 | Gate | Scans | Enforces |
 |---|---|---|
-| `check_skill_md_portability` | `.claude`, `src/claude`, `src/copilot-cli` | Markdown refs, ratcheted against a per-file baseline |
-| `check_vendor_portability` | `.claude/skills` only | Declaration presence, 30 baselined offenders |
-| `check_plugin_frontmatter_self_containment` | all three roots, frontmatter only | No outward frontmatter refs |
-| `check_skill_md_exec_portability` | `.claude/skills` and mirrors | Executable paths only |
+| `check_skill_portability` | scripts under `.claude/skills` | Counts upstream-only runtime paths |
+| `check_vendor_portability` | Python under `.claude/skills` | Requires helper routing unless the file is in the offender baseline |
+| `check_skill_md_portability` | Markdown under each plugin root's `skills` directory | Counts prose refs; a file marker suppresses the file |
+| `check_skill_md_exec_portability` | `SKILL.md`, references, and script READMEs under `.claude` and `src/copilot-cli` | Counts bare executable paths |
+| `check_plugin_frontmatter_self_containment` | Markdown under all three roots | Rejects outward files in `name` or `description`; no baseline |
 
 Two consequences worth carrying:
 
 **Existing violations are grandfathered, not fixed.** The
-`docs/agent-catalog.md` references above are not ungated. They are carried as
-4 baselined entries per mirror in
-`scripts/validation/skill_md_exec_portability_baseline.json`. Tracked debt,
-Issue #2050. A green gate here means "no new drift," never "no violation."
+`docs/agent-catalog.md` references above sit outside all five matchers. The
+Markdown prose ratchet matches `.agents/`, `.claude/lib/`, and
+`.claude/review-axes/`, not `docs/`. The file-level `vendor-portability` marker
+documents intent but does not cause the green result. Issue #2050 tracks this
+declared debt.
 
 **No gate checks that a declared path exists.** Measured 2026-07-31 by
-reintroducing a citation to a nonexistent file into both trees: all four gates
-exited 0. They validate that a declaration is present and well formed, never
-that the paths it names resolve. A declaration is therefore a claim the
-toolchain accepts on trust. Verify the path resolves before writing it into a
-declaration. See `.agents/retrospective/2026-07-31-backticking-is-not-repair.md`.
+adding `.agents/this-path-does-not-exist.md` to both shipped copies of a skill
+with a file-level declaration: all five gates exited 0. The Markdown prose gate
+matched the path, then suppressed the declared file. The other four scan
+scripts, executable paths, or frontmatter, not body prose. None resolves paths
+named by a declaration. Verify the path resolves before writing it into a
+declaration. See
+`.agents/retrospective/2026-07-31-backticking-is-not-repair.md`.
 
 ## Detection
 

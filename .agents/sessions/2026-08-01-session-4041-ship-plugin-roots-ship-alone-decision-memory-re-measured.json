@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Serena memory committed as 7f25e3e11b; the retrospective, episode, and this log committed together as 70fe6483df."
+        "Evidence": "PR #4146 squashed the two branch commits into merge commit 74be9dab99."
       },
       "validationPassed": {
         "level": "MUST",
@@ -116,22 +116,22 @@
   "workLog": [
     {
       "task": "Re-measure the memory's evidence block against a clean origin/main worktree",
-      "outcome": "3,808 reference occurrences on 3,186 lines across 564 tracked files. The draft claimed 3,804 across 538. A separate measurement in this session read 3,186, which looked like a contradiction until both were run side by side: 3,808 counts occurrences and 3,186 counts lines. All three numbers are now published so the ambiguity cannot recur."
+      "outcome": "3,808 reference occurrences on 3,186 lines across 564 tracked files. The draft claimed 3,804 across 538. A separate measurement in this session read 3,186, which looked like a contradiction until both were run side by side: 3,808 counts occurrences and 3,186 counts lines. All three numbers are now published so the ambiguity cannot recur. The branch changed 4 files across two commits, then PR #4146 squash merged them as one commit."
     },
     {
       "task": "Verify the draft's claim that no automated gate exists",
-      "outcome": "False. Four gates exist. Their scan scopes were read from source: check_vendor_portability scans only .claude/skills, check_skill_md_portability scans all three roots, check_plugin_frontmatter_self_containment checks frontmatter only, check_skill_md_exec_portability checks exec paths only. The claim was replaced with a scope table."
+      "outcome": "False. Four baselined ratchets and one absolute frontmatter gate exist. check_skill_portability counts runtime paths in scripts under .claude/skills. check_vendor_portability requires helper routing in Python under .claude/skills unless the file is in its offender baseline. check_skill_md_portability counts selected prose prefixes in skill Markdown under all three roots. check_skill_md_exec_portability counts executable paths in skill instructions under .claude and src/copilot-cli. check_plugin_frontmatter_self_containment rejects outward files in name or description across all three roots without a baseline."
     },
     {
       "task": "Verify whether the docs/agent-catalog.md references are ungated",
-      "outcome": "They are not ungated. They are grandfathered as 4 baselined entries per mirror in skill_md_exec_portability_baseline.json under Issue #2050. The memory now records that a green gate means no new drift, never no violation."
+      "outcome": "They sit outside all five matchers. The Markdown prose ratchet matches .agents/, .claude/lib/, and .claude/review-axes/, not docs/. The file-level vendor-portability marker documents intent but does not cause the green result. Issue #2050 tracks the declared debt."
     },
     {
       "task": "Measure whether any gate validates that a declared path exists",
-      "outcome": "None does. Negative control: a citation to a nonexistent file was reintroduced into both trees and all four gates exited 0. Recorded in the memory and in the retrospective as the systemic finding."
+      "outcome": "None does. Negative control: .agents/this-path-does-not-exist.md was added to both shipped copies of a declared skill and all five gates exited 0. check_skill_md_portability matched the path, then suppressed the declared file. The other four did not inspect body prose. Recorded in the memory and retrospective. After PR #4146 squash merged, the derived episode was grounded to merge commit 74be9dab99. Regeneration staged all four session artifacts, preserving files_changed=4."
     }
   ],
-  "endingCommit": "70fe6483df",
+  "endingCommit": "74be9dab99",
   "nextSteps": [
     "File the follow-up for existence validation of paths named in vendor-portability declarations.",
     "Re-run adversarial review on this PR on a different model family, per the standing requirement."
