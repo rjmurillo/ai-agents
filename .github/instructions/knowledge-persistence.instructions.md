@@ -56,7 +56,7 @@ Before persisting anything, ask in order:
 3. **Required investigation?** If it took failed attempts, non-obvious codebase traversal, or
    cross-file reasoning to arrive at -> persist it.
 4. **Which surface?**
-   - Binds all harnesses / all contributors -> `.claude/rules/<name>.md` (+ mirrors + manifest bump)
+   - Binds all harnesses / all contributors -> `.claude/rules/<name>.md` (+ mirrors; no manifest bump, per MUST-3)
    - Retrieval context, useful to recall -> write a Serena memory
    - Ephemeral / task-only -> neither; session log only if relevant for handoff
 
