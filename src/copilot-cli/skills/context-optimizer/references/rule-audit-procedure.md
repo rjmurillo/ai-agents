@@ -1,5 +1,14 @@
 # Rule Audit Procedure
 
+<!-- # taste-lint: ignore file-size -->
+<!-- file-size rationale: this is one linear procedure, executed top to bottom
+from step 0 through step 8. The 500-line limit encodes code cohesion, and the
+linter's own remediation advice for it (extract helper functions, type
+definitions, constants) has no referent in a prose procedure. Splitting the
+steps across files breaks the execution path a reader follows. Same treatment
+as the peer reference doc `memory-search/references/memory-router.md` and the
+over-limit prose ADRs cited in ADR-085. -->
+
 How to decide whether an always-on rule earns its slot, with evidence rather
 than taste. Companion to `model-context-doctrine.md`, which holds the argument
 this procedure tests.
