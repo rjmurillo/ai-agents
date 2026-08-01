@@ -154,5 +154,19 @@
   "nextSteps": [
     "Issue #4080 closed by PR merge",
     "The 11 manifest-only conflicting PRs can rebase and remove their manual version bumps"
-  ]
+  ],
+  "retrospective": {
+    "summary": "## Retrospective: post-merge version bot (ADR-091)",
+    "what_worked": [
+      "Bot-managed version approach correctly removes O(N^2) conflict class",
+      "Removing setup-code-env from workflow fixed act local runner failures",
+      "Fixing type error in pr_commit_count.py eliminated type: ignore cascade",
+      "Updating all three count ratchet test files (taste, ruff, type-ignore) for EXIT_OK behavior"
+    ],
+    "what_to_improve": [
+      "Check all test files that mirror the ratchet behavior when changing count_ratchet.py",
+      "The workflow-local-run failure pattern (setup-code-env + Docker perms) should be investigated as a potential baseline advisory"
+    ],
+    "learnings_captured": true
+  }
 }
