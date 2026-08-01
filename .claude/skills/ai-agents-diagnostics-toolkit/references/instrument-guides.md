@@ -147,4 +147,3 @@ Cap 20 commits per PR (or 40 if the branch merges main), notice at 10, warning a
 Two instruments read red on main: golden principles (exit 10) and the description budget in gate mode (exit 1). Guard maturity is unassessable rather than green: its telemetry feed is not wired, so exit 0 only proves the classifier runs. Every other instrument is green.
 
 Re-measure before trusting any of these numbers; they are a snapshot, and the whole point of this skill is that re-measuring costs one command.
-
