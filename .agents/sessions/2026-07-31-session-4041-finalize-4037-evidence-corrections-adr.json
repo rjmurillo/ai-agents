@@ -99,7 +99,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "63 changed-skill tests passed; build_all.py and pre_pr.py passed before the final main refresh; ADR reviews converged; golden-principles passed; 52 focused ratchet tests and 5 research-frontier tests passed; merged taste count matches baseline 608; merged type-ignore count matches baseline 55; plugin manifests match at 0.6.5491"
+        "Evidence": "63 changed-skill tests passed; build_all.py and pre_pr.py passed before the latest main refresh; ADR reviews converged; golden-principles passed; 52 focused ratchet tests and 5 research-frontier tests passed; merged taste count matches baseline 608; merged type-ignore count matches baseline 55; plugin manifests match at 0.6.5492"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -169,9 +169,13 @@
     {
       "action": "Merged the final origin/main documentation update before push",
       "outcome": "Preserved both branches' skill corrections, regenerated all mirrors, advanced project-toolkit above both parents to 0.6.5491, and reverified taste 608 and type-ignore 55"
+    },
+    {
+      "action": "Merged the next origin/main test-infrastructure update before push",
+      "outcome": "Accepted main's project-toolkit description change, advanced both project-toolkit manifests above both parents to 0.6.5492, regenerated mirrors, and reverified both count ratchets"
     }
   ],
-  "endingCommit": "849704b9a3ca43063ef389db5ce4d2b994064d52",
+  "endingCommit": "64383d51738098422cb6410ef1f49c4690526727",
   "nextSteps": [
     "Complete the fresh exact-SHA review, create a review marker, and push without force.",
     "Reply to and resolve all PR #4037 review threads, run completion gates, and merge ready PRs."
