@@ -19,6 +19,7 @@ EXIT CODES (ADR-035):
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -46,8 +47,12 @@ def run(_argv: list[str] | None = None) -> int:
     print(f"Working directory: {work_dir}")
 
     def _run(cmd: list[str]) -> int:
+        exe = shutil.which(cmd[0])
+        if exe is None:
+            print(f"::error::{cmd[0]} not found in PATH")
+            return 1
         sys.stdout.flush()
-        result = subprocess.run(cmd, cwd=work_dir, check=False)
+        result = subprocess.run([exe, *cmd[1:]], cwd=work_dir, check=False)
         return result.returncode
 
     rc = _run(["npm", "init", "-y"])

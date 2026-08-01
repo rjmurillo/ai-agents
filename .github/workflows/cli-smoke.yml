@@ -125,19 +125,19 @@ jobs:
         shell: bash
         env:
           TARBALL: ${{ steps.pack.outputs.tarball }}
-        run: python3 "$GITHUB_WORKSPACE/scripts/ci/smoke_install_tarball.py"
+        run: python "$GITHUB_WORKSPACE/scripts/ci/smoke_install_tarball.py"
 
       - name: Assert vendored tree
         shell: bash
         env:
           DEMO: ${{ steps.init.outputs.demo }}
-        run: python3 "$GITHUB_WORKSPACE/scripts/ci/smoke_assert_vendored_tree.py"
+        run: python "$GITHUB_WORKSPACE/scripts/ci/smoke_assert_vendored_tree.py"
 
       - name: First-turn verification (lint-only, REQ-4.4 / T7.3 fallback)
         shell: bash
         env:
           DEMO: ${{ steps.init.outputs.demo }}
-        run: python3 "$GITHUB_WORKSPACE/scripts/ci/smoke_first_turn_verify.py"
+        run: python "$GITHUB_WORKSPACE/scripts/ci/smoke_first_turn_verify.py"
 
   verify:
     name: Typecheck and Unit Tests
@@ -201,4 +201,3 @@ jobs:
           SMOKE_RESULT: ${{ needs.smoke.result }}
           VERIFY_RESULT: ${{ needs.verify.result }}
         run: python3 scripts/ci/smoke_report_result.py
-          echo "Smoke matrix passed on all 6 jobs; typecheck and unit tests passed."

@@ -27,61 +27,88 @@ class TestWriteGithubOutput:
         assert "k=v" in capsys.readouterr().out
 
 
+def _npm_patch(tmp_path: Path) -> tuple[dict[str, str], MagicMock, MagicMock]:
+    """Return (env, which_mock, ok_result) for tests that need a found npm."""
+    which_mock = MagicMock(return_value="/usr/bin/npm")
+    ok = MagicMock(returncode=0)
+    env = {"TARBALL": "/fake/pkg.tgz", "GITHUB_OUTPUT": str(tmp_path / "out.txt")}
+    return env, which_mock, ok
+
+
 class TestRun:
     def test_missing_tarball_returns_1(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
             os.environ.pop("TARBALL", None)
             assert run() == 1
 
-    def test_npm_init_failure_propagates(self, tmp_path: Path) -> None:
+    def test_npm_not_found_returns_1(self, tmp_path: Path) -> None:
         env = {"TARBALL": "/fake/pkg.tgz", "GITHUB_OUTPUT": str(tmp_path / "out.txt")}
-        mock_result = MagicMock()
-        mock_result.returncode = 2
         with patch.dict(os.environ, env):
-            with patch("scripts.ci.smoke_install_tarball.subprocess.run", return_value=mock_result):
+            with patch("scripts.ci.smoke_install_tarball.shutil.which", return_value=None):
                 with patch(
                     "scripts.ci.smoke_install_tarball.tempfile.mkdtemp", return_value=str(tmp_path)
                 ):
-                    assert run() == 2
+                    assert run() == 1
+
+    def test_npm_init_failure_propagates(self, tmp_path: Path) -> None:
+        env, which_mock, _ = _npm_patch(tmp_path)
+        mock_result = MagicMock(returncode=2)
+        with patch.dict(os.environ, env):
+            with patch("scripts.ci.smoke_install_tarball.shutil.which", which_mock):
+                with patch(
+                    "scripts.ci.smoke_install_tarball.subprocess.run", return_value=mock_result
+                ):
+                    with patch(
+                        "scripts.ci.smoke_install_tarball.tempfile.mkdtemp",
+                        return_value=str(tmp_path),
+                    ):
+                        assert run() == 2
 
     def test_npm_install_failure_propagates(self, tmp_path: Path) -> None:
-        env = {"TARBALL": "/fake/pkg.tgz", "GITHUB_OUTPUT": str(tmp_path / "out.txt")}
-        init_ok = MagicMock(returncode=0)
+        env, which_mock, ok = _npm_patch(tmp_path)
         install_fail = MagicMock(returncode=3)
         with patch.dict(os.environ, env):
-            with patch(
-                "scripts.ci.smoke_install_tarball.subprocess.run",
-                side_effect=[init_ok, install_fail],
-            ):
+            with patch("scripts.ci.smoke_install_tarball.shutil.which", which_mock):
                 with patch(
-                    "scripts.ci.smoke_install_tarball.tempfile.mkdtemp", return_value=str(tmp_path)
+                    "scripts.ci.smoke_install_tarball.subprocess.run",
+                    side_effect=[ok, install_fail],
                 ):
-                    assert run() == 3
+                    with patch(
+                        "scripts.ci.smoke_install_tarball.tempfile.mkdtemp",
+                        return_value=str(tmp_path),
+                    ):
+                        assert run() == 3
 
     def test_ai_agents_init_failure_propagates(self, tmp_path: Path) -> None:
-        env = {"TARBALL": "/fake/pkg.tgz", "GITHUB_OUTPUT": str(tmp_path / "out.txt")}
-        ok = MagicMock(returncode=0)
+        env, which_mock, ok = _npm_patch(tmp_path)
         fail = MagicMock(returncode=5)
         with patch.dict(os.environ, env):
-            with patch(
-                "scripts.ci.smoke_install_tarball.subprocess.run",
-                side_effect=[ok, ok, fail],
-            ):
+            with patch("scripts.ci.smoke_install_tarball.shutil.which", which_mock):
                 with patch(
-                    "scripts.ci.smoke_install_tarball.tempfile.mkdtemp", return_value=str(tmp_path)
+                    "scripts.ci.smoke_install_tarball.subprocess.run",
+                    side_effect=[ok, ok, fail],
                 ):
-                    assert run() == 5
+                    with patch(
+                        "scripts.ci.smoke_install_tarball.tempfile.mkdtemp",
+                        return_value=str(tmp_path),
+                    ):
+                        assert run() == 5
 
     def test_success_writes_demo_output(self, tmp_path: Path) -> None:
         out_file = tmp_path / "out.txt"
         env = {"TARBALL": "/fake/pkg.tgz", "GITHUB_OUTPUT": str(out_file)}
         ok = MagicMock(returncode=0)
         with patch.dict(os.environ, env):
-            with patch("scripts.ci.smoke_install_tarball.subprocess.run", return_value=ok):
-                with patch(
-                    "scripts.ci.smoke_install_tarball.tempfile.mkdtemp", return_value=str(tmp_path)
-                ):
-                    result = run()
+            with patch(
+                "scripts.ci.smoke_install_tarball.shutil.which",
+                return_value="/usr/bin/npm",
+            ):
+                with patch("scripts.ci.smoke_install_tarball.subprocess.run", return_value=ok):
+                    with patch(
+                        "scripts.ci.smoke_install_tarball.tempfile.mkdtemp",
+                        return_value=str(tmp_path),
+                    ):
+                        result = run()
         assert result == 0
         assert "demo=" in out_file.read_text()
 
@@ -96,14 +123,20 @@ class TestRun:
             return ok
 
         with patch.dict(os.environ, env):
-            with patch("scripts.ci.smoke_install_tarball.subprocess.run", side_effect=capture):
-                with patch(
-                    "scripts.ci.smoke_install_tarball.tempfile.mkdtemp", return_value=str(tmp_path)
-                ):
-                    run()
-        assert calls_seen[0][:2] == ["npm", "init"]
-        assert calls_seen[1][:2] == ["npm", "install"]
-        assert calls_seen[2][:2] == ["npm", "exec"]
+            with patch(
+                "scripts.ci.smoke_install_tarball.shutil.which",
+                return_value="/usr/bin/npm",
+            ):
+                with patch("scripts.ci.smoke_install_tarball.subprocess.run", side_effect=capture):
+                    with patch(
+                        "scripts.ci.smoke_install_tarball.tempfile.mkdtemp",
+                        return_value=str(tmp_path),
+                    ):
+                        run()
+        # first element is the resolved path, second is the npm sub-command
+        assert calls_seen[0][1] == "init"
+        assert calls_seen[1][1] == "install"
+        assert calls_seen[2][1] == "exec"
 
 
 class TestMain:

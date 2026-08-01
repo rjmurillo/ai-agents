@@ -32,15 +32,6 @@ class TestRun:
 
     def test_writes_summary_to_file(self, tmp_path: Path) -> None:
         env = self._make_env(tmp_path)
-        mock_alert = MagicMock(return_value="NOTE")
-        mock_emoji = MagicMock(return_value="✅")
-        with patch.dict(os.environ, env):
-            with patch(
-                "scripts.ci.agent_review_generate_summary.run",
-                wraps=lambda *a, **k: _run_with_mocks(mock_alert, mock_emoji, a, k),
-            ):
-                pass
-        # Direct import
 
         with patch.dict(os.environ, env):
             with patch("scripts.ci.agent_review_generate_summary.sys") as mock_sys:

@@ -30,12 +30,6 @@ class TestWriteGithubOutput:
 
 class TestCollectArtifacts:
     def test_returns_empty_when_no_dirs_exist(self, tmp_path: Path) -> None:
-        with patch("scripts.ci.artifact_collect.Path") as mock_path_cls:
-            # Fake all directories as non-existent
-            mock_base = mock_path_cls.return_value
-            mock_base.is_dir.return_value = False
-            # Actually call original Path for the function
-        # Use monkeypatch via tmp_path CWD
         original_cwd = os.getcwd()
         os.chdir(tmp_path)
         try:

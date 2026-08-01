@@ -77,7 +77,7 @@ def run(_argv: list[str] | None = None) -> int:
         ],
         check=False,
     )
-    return result.returncode
+    return EXIT_OK if result.returncode == 0 else EXIT_ERR
 
 
 def main() -> int:

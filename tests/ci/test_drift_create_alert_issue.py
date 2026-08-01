@@ -85,6 +85,21 @@ def test_gh_failure_propagated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     assert rc == 1
 
 
+def test_gh_nonzero_exit_maps_to_exit_err(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Any non-zero returncode from gh must map to EXIT_ERR=1 (ADR-035)."""
+    monkeypatch.chdir(tmp_path)
+    _make_template(tmp_path)
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
+    monkeypatch.setenv("SERVER_URL", "https://github.com")
+    monkeypatch.setenv("REPOSITORY", "owner/repo")
+    monkeypatch.setenv("RUN_ID", "1")
+
+    with patch("scripts.ci.drift_create_alert_issue.subprocess.run", return_value=_mock_gh(2)):
+        rc = run()
+
+    assert rc == 1, "returncode=2 from gh must be mapped to EXIT_ERR=1"
+
+
 def test_template_substitution(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     _make_template(tmp_path)
