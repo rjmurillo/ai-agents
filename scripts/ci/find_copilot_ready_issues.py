@@ -43,7 +43,7 @@ def find_issues() -> tuple[list[str], int, str]:
         encoding="utf-8",
     )
     if result.returncode != 0:
-        return [], result.returncode, result.stderr
+        return [], result.returncode, result.stderr or ""
 
     numbers = result.stdout.strip().split() if result.stdout.strip() else []
     return numbers, 0, ""
@@ -59,8 +59,9 @@ def main() -> int:
     numbers, rc, stderr = find_issues()
 
     if rc != 0:
+        safe = stderr.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
         print(
-            f"::error::gh issue list failed (exit {rc}): {stderr}",
+            f"::error::gh issue list failed (exit {rc}): {safe}",
             file=sys.stderr,
         )
         return EXIT_FAILURE
