@@ -92,7 +92,7 @@ class TestIsBotReviewer:
 
 
 class TestHasFailingChecks:
-    def test_returns_true_for_failure_state(self) -> None:
+    def test_ignores_aggregate_failure_without_failing_contexts(self) -> None:
         rollup = {"state": "FAILURE", "contexts": {"nodes": []}}
         pr = {
             "commits": {
@@ -101,7 +101,7 @@ class TestHasFailingChecks:
                 ]
             }
         }
-        assert has_failing_checks(pr) is True
+        assert has_failing_checks(pr) is False
 
     def test_returns_false_for_success_state(self) -> None:
         rollup = {"state": "SUCCESS", "contexts": {"nodes": []}}
@@ -175,7 +175,7 @@ class TestHasFailingChecks:
                     {
                         "commit": {
                             "statusCheckRollup": {
-                                "state": "SUCCESS",
+                                "state": "FAILURE",
                                 "contexts": {
                                     "totalCount": 2,
                                     "nodes": [

@@ -162,13 +162,10 @@ class TestHasConflicts:
 
 
 class TestHasFailingChecks:
-    def test_failure_state(self):
-        pr = _make_pr(check_state="FAILURE")
-        assert has_failing_checks(pr) is True
-
-    def test_error_state(self):
-        pr = _make_pr(check_state="ERROR")
-        assert has_failing_checks(pr) is True
+    @pytest.mark.parametrize("aggregate_state", ["ERROR", "FAILURE"])
+    def test_stale_aggregate_failure_state_is_ignored(self, aggregate_state):
+        pr = _make_pr(check_state=aggregate_state)
+        assert has_failing_checks(pr) is False
 
     def test_success_state(self):
         pr = _make_pr(check_state="SUCCESS")
@@ -221,7 +218,7 @@ class TestHasFailingChecks:
                     {
                         "commit": {
                             "statusCheckRollup": {
-                                "state": "SUCCESS",
+                                "state": "FAILURE",
                                 "contexts": {
                                     "totalCount": 2,
                                     "nodes": [

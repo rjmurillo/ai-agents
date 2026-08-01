@@ -151,9 +151,6 @@ def rollup_has_failing_checks(
     pr_number: object = "?",
 ) -> bool:
     """Return True when a rollup fails or is incomplete."""
-    if rollup.get("state", "") in _FAILURE_STATES:
-        return True
-
     contexts = rollup.get("contexts") or {}
     if contexts_are_incomplete(contexts):
         logging.error("PR #%s has incomplete statusCheckRollup contexts", pr_number)
