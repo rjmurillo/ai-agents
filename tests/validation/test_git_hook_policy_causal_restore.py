@@ -2871,6 +2871,9 @@ def _repo_where_a_rename_repadded_the_number(
     return repo, after_name, before
 
 
+class TestBlobIdentityAndRenameLookup:
+    """Blob identity and rename-crossing lookups behind the ADR-review gate."""
+
     def test_blob_readers_do_not_normalise_line_endings_or_undecodable_bytes(self, tmp_path):
         """Distinct blobs must not compare equal. Refs #3679.
 
@@ -3023,5 +3026,230 @@ def _repo_where_a_rename_repadded_the_number(
         assert policy._merge_authored_adr_paths([relative], repo) == []
 
 
-if __name__ == "__main__":
+def _run_suppression_diff(
+    monkeypatch: pytest.MonkeyPatch,
+    repo_root: Path,
+    diff_text: str,
+    changed_paths: tuple[str, ...] = ("pkg/module.py",),
+    *,
+    base_ref: str = "c" * 40,
+    rename_status_output: str = "",
+) -> int:
+    range_spec = f"{base_ref}..HEAD"
+
+    def _run_git(repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+        if args[0] == "diff" and "--name-only" in args and "--diff-filter=ACMRT" in args:
+            assert range_spec in args
+            return _completed("\0".join(changed_paths) + "\0")
+        if args[0] == "diff" and "--name-status" in args and "--diff-filter=R" in args:
+            assert range_spec in args
+            return _completed(rename_status_output)
+        if "diff" in args and "--unified=0" in args:
+            assert range_spec in args
+            return _completed(diff_text)
+        if args[0] == "show":
+            return _completed("")
+        raise AssertionError(f"unexpected git call: {args!r}")
+
+    monkeypatch.setattr(policy, "_run_git", _run_git)
+    return policy.check_suppression_diff(base_ref, repo_root)
+
+
+class TestSuppressionDiff:
+    """Tests for check_suppression_diff - CI backstop for issue #4061.
+
+    Two-directional: blocks what it must block, permits what it must permit.
+    """
+
+    def test_new_nosec_in_diff_is_blocked(self, tmp_path, monkeypatch, capsys):
+        comment = "# no" "sec"
+        diff = (
+            "diff --git a/pkg/module.py b/pkg/module.py\n"
+            "--- a/pkg/module.py\n"
+            "+++ b/pkg/module.py\n"
+            "@@ -0,0 +1 @@\n"
+            f"+import subprocess  {comment}\n"
+        )
+        assert _run_suppression_diff(monkeypatch, tmp_path, diff) == 1
+        assert "pkg/module.py:1" in capsys.readouterr().err
+
+    def test_new_s_rule_noqa_in_diff_is_blocked(self, tmp_path, monkeypatch, capsys):
+        comment = "# no" "qa: S101"
+        diff = (
+            "diff --git a/pkg/module.py b/pkg/module.py\n"
+            "--- a/pkg/module.py\n"
+            "+++ b/pkg/module.py\n"
+            "@@ -0,0 +1 @@\n"
+            f"+assert True  {comment}\n"
+        )
+        assert _run_suppression_diff(monkeypatch, tmp_path, diff) == 1
+        assert "pkg/module.py:1" in capsys.readouterr().err
+
+    def test_non_security_noqa_in_diff_is_allowed(self, tmp_path, monkeypatch):
+        comment = "# no" "qa: E402"
+        diff = (
+            "diff --git a/pkg/module.py b/pkg/module.py\n"
+            "--- a/pkg/module.py\n"
+            "+++ b/pkg/module.py\n"
+            "@@ -0,0 +1 @@\n"
+            f"+import os  {comment}\n"
+        )
+        assert _run_suppression_diff(monkeypatch, tmp_path, diff) == 0
+
+    def test_clean_diff_is_allowed(self, tmp_path, monkeypatch):
+        diff = (
+            "diff --git a/pkg/module.py b/pkg/module.py\n"
+            "--- a/pkg/module.py\n"
+            "+++ b/pkg/module.py\n"
+            "@@ -1 +1 @@\n"
+            "-old = 1\n"
+            "+new = 1\n"
+        )
+        assert _run_suppression_diff(monkeypatch, tmp_path, diff) == 0
+
+    def test_empty_changed_file_list_is_allowed(self, tmp_path, monkeypatch):
+        def _run_git(repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+            if args[0] == "diff" and "--name-only" in args:
+                return _completed("")
+            raise AssertionError(f"unexpected git call: {args!r}")
+
+        monkeypatch.setattr(policy, "_run_git", _run_git)
+        assert policy.check_suppression_diff("c" * 40, tmp_path) == 0
+
+    def test_git_error_on_initial_diff_returns_3(self, tmp_path, monkeypatch):
+        def _run_git(repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+            return subprocess.CompletedProcess(["git"], 128, "", "fatal: not a git repo")
+
+        monkeypatch.setattr(policy, "_run_git", _run_git)
+        assert policy.check_suppression_diff("c" * 40, tmp_path) == 3
+
+    def test_git_error_on_renames_returns_3(self, tmp_path, monkeypatch):
+        base_ref = "c" * 40
+
+        def _run_git(repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+            if args[0] == "diff" and "--name-only" in args:
+                return _completed("pkg/module.py\0")
+            if args[0] == "diff" and "--name-status" in args:
+                return subprocess.CompletedProcess(["git"], 128, "", "fatal")
+            raise AssertionError(f"unexpected git call: {args!r}")
+
+        monkeypatch.setattr(policy, "_run_git", _run_git)
+        assert policy.check_suppression_diff(base_ref, tmp_path) == 3
+
+    def test_pure_rename_suppression_is_allowed(self, tmp_path, monkeypatch):
+        """A suppression that moved via a pure rename is not flagged as new."""
+        rename_output = "R100\0old/module.py\0new/module.py"
+        assert _run_suppression_diff(
+            monkeypatch,
+            tmp_path,
+            "",
+            changed_paths=("new/module.py",),
+            rename_status_output=rename_output,
+        ) == 0
+
+    def test_non_py_extension_is_not_scanned(self, tmp_path, monkeypatch):
+        """Files with extensions outside SECURITY_SUPPRESSION_SUFFIXES are skipped."""
+
+        def _run_git(repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+            if args[0] == "diff" and "--name-only" in args:
+                return _completed("pkg/data.csv\0pkg/README.md\0")
+            raise AssertionError(f"unexpected git call: {args!r}")
+
+        monkeypatch.setattr(policy, "_run_git", _run_git)
+        assert policy.check_suppression_diff("c" * 40, tmp_path) == 0
+
+    def test_invalid_base_ref_for_notebook_returns_rc3(self, tmp_path, monkeypatch):
+        """_commit_text_for_base returns None on git failures that are NOT
+        'file not in tree'.  That None propagates rc=3 through
+        _diff_notebook_suppression_violations instead of producing spurious
+        rc=1 violations (issue #4141 reviewer finding)."""
+        base_ref = "c" * 40
+
+        def _run_git(repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+            if args[0] == "diff" and "--name-only" in args and "--diff-filter=ACMRT" in args:
+                return _completed("pkg/notebook.ipynb\0")
+            if args[0] == "diff" and "--name-status" in args and "--diff-filter=R" in args:
+                return _completed("")
+            if "diff" in args and "--unified=0" in args:
+                return _completed("")
+            if args[0] == "show" and args[1].endswith(":pkg/notebook.ipynb"):
+                ref = args[1].split(":")[0]
+                if ref == "HEAD":
+                    return _completed("{}")  # valid notebook at HEAD
+                # base_ref: simulate git failure (bad ref or corrupt repo)
+                return subprocess.CompletedProcess(
+                    args, returncode=128, stdout="", stderr="fatal: some git error"
+                )
+            raise AssertionError(f"unexpected git call: {args!r}")
+
+        monkeypatch.setattr(policy, "_run_git", _run_git)
+        assert policy.check_suppression_diff(base_ref, tmp_path) == 3
+
+    def test_new_notebook_file_missing_from_base_is_treated_as_empty(self, tmp_path, monkeypatch):
+        """When a notebook is new (absent from base_ref), _commit_text_for_base
+        returns '' so all suppressions in HEAD count as net-new additions.  A
+        notebook with no security suppressions must still be rc=0."""
+        base_ref = "c" * 40
+        notebook_content = json.dumps(
+            {"cells": [{"cell_type": "code", "source": "x = 1  # plain comment\n"}]}
+        )
+
+        def _run_git(repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+            if args[0] == "diff" and "--name-only" in args and "--diff-filter=ACMRT" in args:
+                return _completed("pkg/new_nb.ipynb\0")
+            if args[0] == "diff" and "--name-status" in args and "--diff-filter=R" in args:
+                return _completed("")
+            if "diff" in args and "--unified=0" in args:
+                return _completed("")
+            if args[0] == "show" and args[1].endswith(":pkg/new_nb.ipynb"):
+                ref = args[1].split(":")[0]
+                if ref == "HEAD":
+                    return _completed(notebook_content)
+                # file absent from base: git returns "does not exist in"
+                return subprocess.CompletedProcess(
+                    args,
+                    returncode=128,
+                    stdout="",
+                    stderr=f"fatal: path 'pkg/new_nb.ipynb' does not exist in '{base_ref}'",
+                )
+            raise AssertionError(f"unexpected git call: {args!r}")
+
+        monkeypatch.setattr(policy, "_run_git", _run_git)
+        assert policy.check_suppression_diff(base_ref, tmp_path) == 0
+
+
+def test_commit_text_for_base_returns_empty_for_new_file(tmp_path, monkeypatch):
+    """_commit_text_for_base returns '' when git reports the file is absent
+    from the base ref (new-file case), not None."""
+
+    def _run_git(repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            args,
+            returncode=128,
+            stdout="",
+            stderr="fatal: path 'pkg/new.py' does not exist in 'abc123'",
+        )
+
+    monkeypatch.setattr(policy, "_run_git", _run_git)
+    result = policy._commit_text_for_base("abc123", "pkg/new.py", tmp_path)
+    assert result == ""
+
+
+def test_commit_text_for_base_returns_none_on_git_error(tmp_path, monkeypatch, capsys):
+    """_commit_text_for_base returns None (and prints stderr) when git fails for
+    reasons other than the file being absent."""
+
+    def _run_git(repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            args, returncode=128, stdout="", stderr="fatal: bad object invalid_ref"
+        )
+
+    monkeypatch.setattr(policy, "_run_git", _run_git)
+    result = policy._commit_text_for_base("invalid_ref", "pkg/new.py", tmp_path)
+    assert result is None
+    # Should print the git error so CI logs are diagnosable
+    captured = capsys.readouterr()
+    assert "bad object" in captured.out or "bad object" in captured.err
+
+if __name__ == '__main__':
     raise SystemExit(pytest.main([__file__]))

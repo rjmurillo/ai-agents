@@ -14,7 +14,6 @@ metadata:
 
 # Autoplan
 
-
 One lazy entry point for the whole catalog. Classify the request, route it,
 apply defaults, and only stop for decisions that are genuinely the user's.
 Models and people do not hand-route across dozens of skills; this skill does.

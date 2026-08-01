@@ -104,6 +104,44 @@ def test_the_block_boundary_agrees_with_the_local_hook(count: int, blocked: bool
     assert (mod.classify_count(count) == "BLOCKED") is blocked
 
 
+def test_agents_md_mid_gate_names_warning_threshold() -> None:
+    """AGENTS.md must state the WARNING_THRESHOLD (10) on the mid-session check line.
+
+    Issue #3944: AGENTS.md previously said 'warn >15' which is the ALERT band,
+    not the WARNING band. An agent following that would miss CI notices from
+    commit 10 through 14. This test pins the correct value so the doc cannot
+    silently revert to the stale number.
+    """
+    agents_md = (_PROJECT_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    gate_line = next(
+        (ln for ln in agents_md.splitlines() if "rev-list" in ln),
+        "",
+    )
+    assert gate_line, "AGENTS.md must contain a mid-session commit gate line with rev-list"
+    assert str(mod.WARNING_THRESHOLD) in gate_line, (
+        f"AGENTS.md mid-gate line must name WARNING_THRESHOLD ({mod.WARNING_THRESHOLD}); "
+        f"found: {gate_line!r}"
+    )
+
+
+def test_agents_md_context_budget_is_not_8kb() -> None:
+    """AGENTS.md must not claim the context budget is less than 8KB.
+
+    Issue #3907: AGENTS.md previously stated '<8KB' which is 12x below the
+    enforced gate ceiling (~99KB). This test pins that the stale value is gone.
+    """
+    agents_md = (_PROJECT_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    context_line = next(
+        (ln for ln in agents_md.splitlines() if "Knowledge -> context" in ln),
+        "",
+    )
+    assert context_line, "AGENTS.md must contain the Knowledge -> context line"
+    assert "<8KB" not in context_line, (
+        "AGENTS.md must not claim context budget is <8KB; "
+        f"found: {context_line!r}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # is_transient_error
 # ---------------------------------------------------------------------------

@@ -95,6 +95,7 @@ class PluginManifest:
     name: str
     source_dir: str  # posix prefix, no trailing slash
     manifest: str  # posix path to plugin.json (lives under source_dir)
+    bot_managed: bool = False  # ADR-091: if True, PRs must NOT bump; bot does it post-merge
 
 
 # The three packaged plugins. Each manifest path is itself under its source
@@ -104,16 +105,22 @@ PLUGINS: tuple[PluginManifest, ...] = (
         name="project-toolkit (claude)",
         source_dir=".claude",
         manifest=".claude/.claude-plugin/plugin.json",
+        # ADR-091: parity manifest version is bot-managed; PRs must not bump it.
+        bot_managed=True,
     ),
     PluginManifest(
         name="claude-agents",
         source_dir="src/claude",
         manifest="src/claude/.claude-plugin/plugin.json",
+        # claude-agents is a separate plugin; PRs still own the bump.
+        bot_managed=False,
     ),
     PluginManifest(
         name="project-toolkit (copilot)",
         source_dir="src/copilot-cli",
         manifest="src/copilot-cli/.claude-plugin/plugin.json",
+        # ADR-091: parity manifest version is bot-managed; PRs must not bump it.
+        bot_managed=True,
     ),
 )
 
@@ -126,7 +133,7 @@ class Violation:
     manifest: str
     old_version: str | None
     new_version: str | None
-    reason: str  # "not-bumped" | "not-increased"
+    reason: str  # "not-bumped" | "not-increased" | "manually-bumped"
     touched: tuple[str, ...]
 
 
@@ -271,18 +278,70 @@ def evaluate(
     Returns ``(violations, config_errors)``. ``config_errors`` is non-empty
     when a version string cannot be parsed or a ref is unreadable; the
     CLI maps that to exit 2.
+
+    For ``bot_managed`` plugins (ADR-091): the bot owns the version field after
+    each merge to main. PRs must NOT include a version change. Violation reason
+    is ``"manually-bumped"``. Source changes with an unchanged version pass.
+
+    For non-``bot_managed`` plugins: original behavior -- source changes require
+    a strictly-greater version bump.
     """
     touched = [_normalize_path(p) for p in changed_files]
     violations: list[Violation] = []
     config_errors: list[str] = []
 
     for plugin in plugins:
+        if plugin.bot_managed:
+            # ADR-091: bot owns version; block any PR-level version change.
+            old, new = version_pairs.get(plugin.manifest, (None, None))
+            if isinstance(new, _BaseRefError):
+                config_errors.append(
+                    f"{plugin.manifest}: cannot read head version for {plugin.name}: {new.message}"
+                )
+                continue
+            if new is None:
+                if old is not None and not isinstance(old, _BaseRefError):
+                    # Manifest existed at base but absent at HEAD: deletion.
+                    config_errors.append(
+                        f"{plugin.manifest}: manifest deleted in this PR for {plugin.name}"
+                    )
+                # New plugin not yet committed, or truly absent from repo: skip.
+                continue
+            if isinstance(old, _BaseRefError):
+                config_errors.append(
+                    f"{plugin.manifest}: cannot read base version for {plugin.name}: {old.message}"
+                )
+                continue
+            if old is not None:
+                # Both old and new are present: compare.
+                old_tuple = parse_version(old)
+                new_tuple = parse_version(new)
+                if old_tuple is None:
+                    config_errors.append(
+                        f"{plugin.manifest}: base version {old!r} is not valid semver"
+                    )
+                    continue
+                if new_tuple is None:
+                    config_errors.append(
+                        f"{plugin.manifest}: current version {new!r} is not valid semver"
+                    )
+                    continue
+                if old_tuple != new_tuple:
+                    violations.append(
+                        Violation(
+                            plugin=plugin.name,
+                            manifest=plugin.manifest,
+                            old_version=old,
+                            new_version=new,
+                            reason="manually-bumped",
+                            touched=(),
+                        )
+                    )
+            continue
+
+        # Non-bot-managed: source changes require a strictly-greater version bump.
         content = tuple(
-            sorted(
-                p
-                for p in touched
-                if _under(plugin.source_dir, p) and p != plugin.manifest
-            )
+            sorted(p for p in touched if _under(plugin.source_dir, p) and p != plugin.manifest)
         )
         if not content:
             continue
@@ -291,8 +350,7 @@ def evaluate(
 
         if isinstance(new, _BaseRefError):
             config_errors.append(
-                f"{plugin.manifest}: cannot read head version for "
-                f"{plugin.name}: {new.message}"
+                f"{plugin.manifest}: cannot read head version for {plugin.name}: {new.message}"
             )
             continue
 
@@ -305,15 +363,12 @@ def evaluate(
 
         new_tuple = parse_version(new)
         if new_tuple is None:
-            config_errors.append(
-                f"{plugin.manifest}: current version {new!r} is not valid semver"
-            )
+            config_errors.append(f"{plugin.manifest}: current version {new!r} is not valid semver")
             continue
 
         if isinstance(old, _BaseRefError):
             config_errors.append(
-                f"{plugin.manifest}: cannot read base version for "
-                f"{plugin.name}: {old.message}"
+                f"{plugin.manifest}: cannot read base version for {plugin.name}: {old.message}"
             )
             continue
 
@@ -323,9 +378,7 @@ def evaluate(
 
         old_tuple = parse_version(old)
         if old_tuple is None:
-            config_errors.append(
-                f"{plugin.manifest}: base version {old!r} is not valid semver"
-            )
+            config_errors.append(f"{plugin.manifest}: base version {old!r} is not valid semver")
             continue
 
         if new_tuple == old_tuple:
@@ -378,9 +431,7 @@ def _disk_version(manifest: str, repo_root: Path) -> str | None:
         return None
 
 
-def _head_version(
-    head_ref: str, manifest: str, repo_root: Path
-) -> str | None | _BaseRefError:
+def _head_version(head_ref: str, manifest: str, repo_root: Path) -> str | None | _BaseRefError:
     """Read the manifest version at ``head_ref`` via ``git show``.
 
     Returns the version string on success; ``None`` when the manifest did not
@@ -401,9 +452,7 @@ def _head_version(
         stderr = proc.stderr.strip()
         if any(marker in stderr for marker in _PATH_ABSENT_MARKERS):
             return None
-        return _BaseRefError(
-            f"git show {head_ref}:{manifest} exit {proc.returncode}: {stderr}"
-        )
+        return _BaseRefError(f"git show {head_ref}:{manifest} exit {proc.returncode}: {stderr}")
     version = _read_version_text(proc.stdout)
     if version is None:
         return _BaseRefError(
@@ -458,9 +507,7 @@ _PATH_ABSENT_MARKERS = (
 )
 
 
-def _base_version(
-    base_ref: str, manifest: str, repo_root: Path
-) -> str | None | _BaseRefError:
+def _base_version(base_ref: str, manifest: str, repo_root: Path) -> str | None | _BaseRefError:
     """Read the manifest version at ``base_ref`` via ``git show``.
 
     Returns the version string on success; ``None`` when the manifest did not
@@ -483,9 +530,7 @@ def _base_version(
         stderr = proc.stderr.strip()
         if any(marker in stderr for marker in _PATH_ABSENT_MARKERS):
             return None  # path absent at a valid ref: a new plugin
-        return _BaseRefError(
-            f"git show {base_ref}:{manifest} exit {proc.returncode}: {stderr}"
-        )
+        return _BaseRefError(f"git show {base_ref}:{manifest} exit {proc.returncode}: {stderr}")
     # git show succeeded: the manifest EXISTS at the base ref. If its content
     # cannot yield a version (invalid JSON, no version field, non-string
     # version), that is a malformed base manifest, a config error. Returning
@@ -564,8 +609,7 @@ def _git_diff_files(base: str, head: str, repo_root: Path) -> tuple[list[str], i
         return (
             [],
             2,
-            f"git diff --name-only {base}..{head} exit {proc.returncode}: "
-            f"{proc.stderr.strip()}",
+            f"git diff --name-only {base}..{head} exit {proc.returncode}: {proc.stderr.strip()}",
         )
     return [ln for ln in proc.stdout.splitlines() if ln.strip()], 0, ""
 
@@ -575,26 +619,50 @@ def _git_diff_files(base: str, head: str, repo_root: Path) -> tuple[list[str], i
 
 def _format_text(violations: Sequence[Violation], config_errors: Sequence[str]) -> str:
     if config_errors and not violations:
-        lines = ["plugin-version-bump: CONFIG ERROR"]
-        lines.extend(f"  {e}" for e in config_errors)
-        return "\n".join(lines)
+        err_lines = ["plugin-version-bump: CONFIG ERROR"]
+        err_lines.extend(f"  {e}" for e in config_errors)
+        return "\n".join(err_lines)
     if not violations:
         return "plugin-version-bump: OK"
-    lines = ["plugin-version-bump: NOT BUMPED"]
-    for v in violations:
+
+    manual = [v for v in violations if v.reason == "manually-bumped"]
+    missing = [v for v in violations if v.reason != "manually-bumped"]
+    lines: list[str] = []
+
+    if manual:
+        lines.append("plugin-version-bump: MANUAL BUMP REJECTED")
+        for v in manual:
+            lines.append("")
+            lines.append(f"  [manually-bumped] {v.plugin}")
+            lines.append(f"    manifest: {v.manifest}")
+            lines.append(f"    version:  {v.old_version} (base) -> {v.new_version} (now)")
         lines.append("")
-        lines.append(f"  [{v.reason}] {v.plugin}")
-        lines.append(f"    manifest: {v.manifest}")
-        lines.append(f"    version:  {v.old_version} (base) -> {v.new_version} (now)")
-        lines.append("    changed under source dir:")
-        for p in v.touched:
-            lines.append(f"      {p}")
-    lines.append("")
-    lines.append(
-        "Fix: bump the `version` in each manifest above to a strictly greater "
-        "semver. Source changed but the published version did not, so installs "
-        "will not re-sync."
-    )
+        lines.append(
+            "Fix: remove the version change from the manifests listed above. "
+            "These versions are managed by the post-merge bot (ADR-091). "
+            "Do not bump the version manually; the bot increments it automatically "
+            "after your PR merges."
+        )
+
+    if missing:
+        if lines:
+            lines.append("")
+        lines.append("plugin-version-bump: NOT BUMPED")
+        for v in missing:
+            lines.append("")
+            lines.append(f"  [{v.reason}] {v.plugin}")
+            lines.append(f"    manifest: {v.manifest}")
+            lines.append(f"    version:  {v.old_version} (base) -> {v.new_version} (now)")
+            lines.append("    changed under source dir:")
+            for p in v.touched:
+                lines.append(f"      {p}")
+        lines.append("")
+        lines.append(
+            "Fix: bump the `version` in each manifest above to a strictly greater "
+            "semver. Source changed but the published version did not, so installs "
+            "will not re-sync."
+        )
+
     if config_errors:
         lines.append("")
         lines.append("Config errors:")
@@ -681,7 +749,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 2
 
     violations, config_errors = find_violations(
-        changed, base_ref=base, head_ref=head_ref, repo_root=repo_root,
+        changed,
+        base_ref=base,
+        head_ref=head_ref,
+        repo_root=repo_root,
         base_already_resolved=(args.files is None),
     )
 

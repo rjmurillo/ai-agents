@@ -1,8 +1,10 @@
 """Shared machinery for whole-repo violation-count ratchets.
 
 A count ratchet freezes a repository-wide violation total in a baseline file.
-The measured count must equal the baseline. ``--update`` records an improvement;
-an unrecorded decrease fails because it leaves slack for later regressions.
+The measured count must not exceed the baseline. An improvement (count <
+baseline) passes; the post-merge bot commits the lower baseline after the PR
+lands (ADR-091). ``--update`` explicitly lowers the baseline (used by the bot).
+A regression (count > baseline) blocks.
 
 Two gates use this: ``ruff_count_ratchet.py`` (issue #2993) and
 ``taste_count_ratchet.py`` (issue #3779). Only the counting differs. Everything
@@ -23,8 +25,8 @@ Stdlib only: these gates run by path in CI (``python scripts/ci/<name>.py``) and
 must not depend on the project's import graph.
 
 Exit codes (AGENTS.md contract):
-    0 - ok (count == baseline, or --update records a decrease)
-    1 - regression (count != baseline, or baseline raised vs --base-ref)
+    0 - ok (count <= baseline, or --update records a decrease)
+    1 - regression (count > baseline, or baseline raised vs --base-ref)
     2 - config error (baseline missing or malformed, bad args)
     3 - external error (the underlying linter could not run)
 """
@@ -107,9 +109,7 @@ def _baseline_rel(repo_root: Path, baseline: Path) -> str:
         return baseline.as_posix()
 
 
-def _git_run(
-    repo_root: Path, argv: Sequence[str]
-) -> subprocess.CompletedProcess[str] | None:
+def _git_run(repo_root: Path, argv: Sequence[str]) -> subprocess.CompletedProcess[str] | None:
     """Run a git command, or None when git could not be launched."""
     try:
         return subprocess.run(
@@ -279,13 +279,13 @@ def run(
                 f"{label}: improved {baseline} -> {count} (-{baseline - count}). Baseline lowered."
             )
             return EXIT_OK
+        # ADR-091: the post-merge bot owns the baseline update. PRs that reduce
+        # the count do not need to --update; the bot ratchets after merge.
         print(
-            f"{label}: BASELINE STALE. {count} violations < baseline {baseline} "
-            f"(-{baseline - count}). Run with --update to lower the baseline and "
-            f"close the slack.",
-            file=sys.stderr,
+            f"{label}: improved {baseline} -> {count} (-{baseline - count}). "
+            "Baseline update will be committed by the post-merge bot."
         )
-        return EXIT_REGRESSION
+        return EXIT_OK
 
     print(f"{label}: OK (count == baseline {baseline}).")
     return EXIT_OK

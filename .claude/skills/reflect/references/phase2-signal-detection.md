@@ -4,10 +4,9 @@ Scan the conversation for learning signals with confidence levels. SKILL.md
 Process step 2 points here for the full detection patterns and the confidence
 threshold table.
 
-
 Scan the conversation for learning signals with confidence levels:
 
-#### HIGH Confidence: Corrections
+## HIGH Confidence: Corrections
 
 User actively steered or corrected output. These are the most valuable signals.
 
@@ -26,7 +25,7 @@ User: "No, use the PowerShell skill script instead of raw gh commands"
 → [HIGH] + Add constraint: "Use PowerShell skill scripts, never raw gh commands"
 ```
 
-#### MEDIUM Confidence: Success Patterns
+## MEDIUM Confidence: Success Patterns
 
 Output was accepted or praised. Good signals but may be context-specific.
 
@@ -44,7 +43,7 @@ User: "Perfect, that's exactly what I needed"
 → [MED] + Add preference: "Include example usage in script headers"
 ```
 
-#### MEDIUM Confidence: Edge Cases
+## MEDIUM Confidence: Edge Cases
 
 Scenarios the skill didn't anticipate. Opportunities for improvement.
 
@@ -62,7 +61,7 @@ User: "What if the file doesn't exist?"
 → [MED] ~ Add edge case: "Handle missing file scenario"
 ```
 
-#### LOW Confidence: Preferences
+## LOW Confidence: Preferences
 
 Accumulated patterns over time. Need more evidence before formalizing.
 
@@ -80,7 +79,7 @@ User consistently uses `-Force` flag
 → [LOW] ~ Note for review: "User prefers -Force flag for overwrites"
 ```
 
-#### Confidence Threshold
+## Confidence Threshold
 
 Only propose changes when sufficient evidence exists. The table is a total
 function over the HIGH/MED/LOW signal counts: evaluate rows top to bottom and

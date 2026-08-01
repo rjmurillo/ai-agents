@@ -47,17 +47,17 @@ Direction rule: generators read canonical, write mirrors. They NEVER write `.cla
 
 ### Phase 2: Load the load-bearing decisions
 
-| Decision | ADR | Status (as of 2026-07-03) | Why it exists |
+| Decision | ADR | Status (as of 2026-07-30) | Why it exists |
 |---|---|---|---|
-| Memory-first: retrieval precedes reasoning; Serena (`.serena/memories/`, 122 files) canonical, Forgetful supplementary | ADR-007 | Accepted (revised 2026-01-01) | Agents re-derive knowledge badly; retrieval is cheaper and auditable |
+| Memory-first: retrieval precedes reasoning; Serena (`.serena/memories/`) canonical, Forgetful supplementary | ADR-007 | Accepted (revised 2026-01-01) | Agents re-derive knowledge badly; retrieval is cheaper and auditable |
 | HANDOFF.md read-only, distributed handoffs | ADR-014 | Accepted | Single-file write target caused merge-conflict storms |
 | Two-source agent templates (shared templates plus hand-written `src/claude/`) | ADR-036 | Accepted | Claude prompts need harness-specific depth; 3 full sources would drift |
 | Python-only new scripts, bash prohibited | ADR-042 | Accepted | One toolchain, testable, cross-platform |
 | Skill-first over subagent dispatch | ADR-030 | doc's own header reads "Status: Critical Update - Changes Recommendation" (line 4); treated as binding by AGENTS.md Skill-First section | In-context skill plus direct MCP call is 5-20ms vs 100-200ms Task spawn overhead (ADR-030 line 31 comparison table) |
 | Memory skill decomposition into tiers | ADR-063, amended by ADR-089 | Accepted; ADR-089 proposed | Tier 1 semantic (Serena plus Forgetful search), Tier 2 episodic. ADR-063's Tier 3 causal graph was removed: nothing read it |
-| Hook failure policy: prevention-first, fail-closed-and-loud | ADR-066 | Proposed, but the position is the owner's canonical one after incident #2205 | Launcher fail-open hid a broken hook from every customer for 33 days |
+| Hook failure policy: prevention-first, fail-closed-and-loud | ADR-066 | Accepted (2026-07-19) | Launcher fail-open hid a broken hook from every customer for 33 days |
 | Plugin hook runtime-contract verification | ADR-071 | Accepted (six-agent adr-review) | Vendor docs were wrong by omission twice; contracts are tested, not assumed |
-| Consolidated per-event hook dispatcher for Copilot CLI | ADR-068 | Accepted; transitional after the 2026-07-22 hook purge | Historical matcher and timeout behavior made one process per shim unsafe; #3218 owns removal or simplification |
+| Consolidated per-event hook dispatcher for Copilot CLI | ADR-068 | Accepted (2026-07-19); rationale narrowed after the 2026-07-22 hook purge | Historical matcher and timeout behavior made one process per shim unsafe; #3218 closed after confirming the generation machinery remains live |
 | JTBD plugin slicing, per-harness emission | ADR-072 | Proposed, five approval conditions unmet, "No code moves on this ADR alone" | Plugins are sliced by directory today, not by job-to-be-done |
 | Context corpus is the product | ADR-069 | Proposed | Thesis only; do not cite as settled |
 | LSP-first navigation (static steering) | ADR-062 | Amended 2026-07; runtime enforcement retired (#3216) | Symbol queries beat grep on token cost |
@@ -93,7 +93,7 @@ Why the split fails loud on shipped artifacts (the #2205 33-day silent-no-op inc
 
 - Canonical/supplementary split (ADR-007): `.serena/memories/` markdown files are the source of truth; Forgetful is a supplementary graph store. `scripts/memory_sync/sync_engine.py` mirrors Serena into Forgetful ("Serena-to-Forgetful synchronization ... to mirror Serena's canonical .serena/memories/ files").
 - Tiers (ADR-063, Accepted; amended by ADR-089, Proposed): Tier 1 semantic search, Tier 2 episodic session replay. The Tier 3 causal graph shipped by ADR-063 was deleted because it was a derived cache with no reader. Front doors are the `memory` and `memory-search` skills.
-- Observation loop (issue #1345): the `reflect` skill detects corrections, observations land in Serena memories, and the skillbook agent graduates patterns. The advisory correction-applier and topical-memory-injection PreToolUse hooks were deleted (issue #3184) after being deregistered from both Claude source manifests. Retrieve corrections and topical memories explicitly through the `memory` or `memory-search` skill. The absence is guarded by `tests/build_scripts/test_copilot_dispatcher_artifact.py::test_only_advisory_pretooluse_registrations_are_absent`.
+- Observation loop (issue #1345): the `reflect` skill detects corrections, observations land in Serena memories, and the skillbook agent graduates patterns. The advisory correction-applier and topical-memory-injection PreToolUse hooks were deleted (issue #3184) after being deregistered from both Claude source manifests. Retrieve corrections and topical memories explicitly through the `memory` or `memory-search` skill. The absence is guarded by `tests/build_scripts/test_copilot_dispatcher_artifact.py::TestDispatcherArtifacts::test_retired_hooks_are_absent_and_keepers_are_plugin_only`.
 
 Architectural consequence: memories are load-bearing runtime inputs, not documentation. Deleting or renaming a `.serena/memories/` file changes hook behavior in live sessions.
 
@@ -139,11 +139,11 @@ State these plainly when working near them; do not design as if they were sound.
 - **Hook sources serve different consumers**: `.claude/settings.json` has 3 events and 4 groups, `.claude/hooks/hooks.json` has 2 events and 2 groups; do not force parity; verify repository-only vs vendored before editing either source.
 - **`src/claude/` manual dual-edit**: shared-template edits silently skip the Claude surface unless you make the second edit.
 - **Stale docs contradict reality**: following docs verbatim fails; quote the canonical source when correcting (FM-9).
-- **ruff is advisory in CI**: lint debt accumulates invisibly; only syntax parsing blocks.
+- **Ruff debt is ratcheted, not eliminated**: changed-file and whole-tree count gates block regressions, but existing lint debt remains.
 - **Skill tests split by location**: green CI does not prove skill tests ran; run them explicitly (`ai-agents-validation-and-qa`).
 - **Proposed-ADR ambiguity**: the status field is not a reliable is-this-binding signal; check enforcement, not status.
 - **EVENT telemetry consumer is thin**: telemetry may be written and never read; verify before citing intercept ratios.
-- **Retro-cited SHAs unresolvable locally**: archaeology routes through retros and memories as primary sources, not git log.
+- **Retro-cited SHAs are clone-ref dependent and off `main`**: verify ancestry, then route archaeology through retros and memories rather than relying on `git log`.
 
 ## Anti-Patterns
 
@@ -167,6 +167,6 @@ Before relying on or amending this contract:
 
 ## Provenance and Maintenance
 
-Verified 2026-07-03 against the working tree. Volatile facts are date-stamped inline. The full per-claim source and re-verify command index is in `references/provenance.md`; consult it when editing or auditing this skill.
+Authored 2026-07-03, facts re-verified against the working tree on 2026-07-30. Volatile facts are date-stamped inline. The full per-claim source and re-verify command index is in `references/provenance.md`; consult it when editing or auditing this skill.
 
 Maintenance rule: when any row in `references/provenance.md` fails its re-verify command, fix this skill (SKILL.md and the affected reference) in the same PR as the change that broke it, and label anything newly Proposed as Proposed. Sibling map: pipeline operation `ai-agents-generation-and-release`, triage `ai-agents-debugging-playbook`, harness facts `agent-harness-reference`, flags `ai-agents-config-catalog`, change process `ai-agents-change-control`, history `ai-agents-failure-archaeology`, evidence bar `ai-agents-validation-and-qa`.
