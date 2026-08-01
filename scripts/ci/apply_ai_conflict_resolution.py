@@ -8,13 +8,14 @@ commits, and pushes via safe_push_pr_branch.py.
 EXIT CODES (ADR-035):
   0 - Success
   1 - Parse failure, missing required fields, or push failure
-  2 - Configuration error (GITHUB_OUTPUT not set or missing required env)
+  2 - Configuration error (HEAD_REF or BASE_REF not set)
 """
 
 from __future__ import annotations
 
 import json
 import os
+import pathlib
 import re
 import subprocess
 import sys
@@ -29,6 +30,19 @@ _SAFE_PUSH = ".trusted-helper/.github/scripts/safe_push_pr_branch.py"
 
 def _git(args: list[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(["git", *args], capture_output=True, text=True, encoding="utf-8")
+
+
+def _safe_repo_path(filepath: str) -> str:
+    """Reject absolute paths and path-traversal sequences; return filepath unchanged."""
+    p = pathlib.Path(filepath)
+    if p.is_absolute():
+        raise ValueError(f"Absolute path rejected: {filepath!r}")
+    resolved = (pathlib.Path.cwd() / p).resolve()
+    try:
+        resolved.relative_to(pathlib.Path.cwd().resolve())
+    except ValueError as exc:
+        raise ValueError(f"Path traversal rejected: {filepath!r}") from exc
+    return filepath
 
 
 def extract_json(text: str) -> str:
@@ -55,7 +69,7 @@ def parse_resolutions(findings: str) -> list[dict[str, Any]]:
 
 
 def apply_resolution(res: dict[str, Any]) -> None:
-    filepath = res.get("file", "")
+    filepath = _safe_repo_path(res.get("file", ""))
     strategy = res.get("strategy", "")
     print(f"Resolving {filepath} with strategy: {strategy}")
     print(f"  Reasoning: {res.get('reasoning', '')}")

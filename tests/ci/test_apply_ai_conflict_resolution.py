@@ -62,6 +62,43 @@ def test_parse_resolutions_with_code_fence():
 
 
 # ---------------------------------------------------------------------------
+# _safe_repo_path
+# ---------------------------------------------------------------------------
+
+
+def test_safe_repo_path_accepts_relative(tmp_path):
+    import os
+
+    orig = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        assert aacr._safe_repo_path("some/file.py") == "some/file.py"
+    finally:
+        os.chdir(orig)
+
+
+def test_safe_repo_path_rejects_absolute(tmp_path):
+    with pytest.raises(ValueError, match="Absolute path"):
+        aacr._safe_repo_path("/etc/passwd")
+
+
+def test_safe_repo_path_rejects_traversal(tmp_path):
+    import os
+
+    orig = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        with pytest.raises(ValueError, match="Path traversal"):
+            aacr._safe_repo_path("../../outside")
+    finally:
+        os.chdir(orig)
+
+
+def test_apply_resolution_rejects_absolute_path():
+    with pytest.raises(ValueError, match="Absolute path"):
+        aacr.apply_resolution({"file": "/etc/passwd", "strategy": "theirs", "reasoning": ""})
+
+
 # apply_resolution - theirs
 # ---------------------------------------------------------------------------
 
