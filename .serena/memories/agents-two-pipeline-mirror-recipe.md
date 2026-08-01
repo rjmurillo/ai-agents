@@ -9,7 +9,7 @@ To change shared agent behavior, edit BOTH of these in the same change, then reg
 
 Then run `python3 build/generate_agents.py` to refresh the generated copies (`src/copilot-cli/agents/`, `src/vs-code-agents/`).
 
-No check compares `src/claude/<agent>.md` against the shared body in `templates/agents/<agent>.shared.md`. `build/scripts/detect_agent_drift.py` never reads a template body; it scores `src/claude` against `src/vs-code-agents` over an 18-section allowlist. What enforces the lockstep is co-change in a diff (`build/scripts/validate_install_parity.py`), so the two must move together in the same commit or nothing catches it. Do NOT hand-edit the generated `src/copilot-cli/` or `src/vs-code-agents/` copies (canonical-source-mirror rule); add behavior to the template and regenerate.
+No check compares `src/claude/<agent>.md` against the shared body in `templates/agents/<agent>.shared.md`. `build/scripts/detect_agent_drift.py` never reads a template body; it scores `src/claude` against `src/vs-code-agents` over an 18-section allowlist, and it is a similarity floor (default 80), not an equality check. What enforces the lockstep is co-change in a diff (`build/scripts/validate_install_parity.py`), so the two must move together in the same PR diff. Do NOT hand-edit the generated `src/copilot-cli/` or `src/vs-code-agents/` copies (canonical-source-mirror rule); add behavior to the template and regenerate.
 
 ## Why (evidence)
 
