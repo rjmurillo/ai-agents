@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "6beb62a76 (docstring fix), df493aecf (type-ignore fix now in main via PR #4004), plus this session log"
+        "Evidence": "40bca0206 (docstring fix - latest SHA after final rebase)"
       },
       "validationPassed": {
         "level": "MUST",
@@ -159,6 +159,6 @@
       "git diff --unified=0 means violations anchored to structure header lines may not appear in changed-line sets when only the body is modified; document as known limitation."
     ]
   },
-  "endingCommit": "6beb62a76",
+  "endingCommit": "40bca0206",
   "nextSteps": []
 }
