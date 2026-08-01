@@ -2328,6 +2328,24 @@ def _added_suppression_violations(
     return violations
 
 
+def suppression_identity(text: str, match: re.Match[str]) -> str:
+    """Identity used to credit a removed suppression against an added one.
+
+    `match.group(0)` stops at the directive token, so a Bandit `B324` waiver
+    and a `B605` waiver share one key. Keying credits on that lets an
+    unrelated harmless removal authorize a dangerous addition (issue #4152).
+    The same truncation applies to the semgrep directive and to the bracketed
+    rule in the CodeQL and LGTM forms.
+
+    The comment tail from the match start carries the rule ID and any
+    justification, so it distinguishes suppressions that the token alone
+    conflates. Whitespace is dropped so reindentation, and a directive
+    written with or without a space after the comment marker, still credit a
+    relocated suppression.
+    """
+    return "".join(text[match.start() :].split())
+
+
 def _suppression_violations_in_diff(
     head: str,
     diff_text: str,
@@ -2345,7 +2363,7 @@ def _suppression_violations_in_diff(
         match = SECURITY_SUPPRESSION_RE.search(text)
         if match is None:
             continue
-        removed.setdefault(path, Counter())[match.group(0)] += 1
+        removed.setdefault(path, Counter())[suppression_identity(text, match)] += 1
 
     violations: list[str] = []
     for path, operation, line_number, text in changes:
@@ -2354,9 +2372,10 @@ def _suppression_violations_in_diff(
         match = SECURITY_SUPPRESSION_RE.search(text)
         if match is None:
             continue
+        identity = suppression_identity(text, match)
         file_removed = removed.get(path)
-        if file_removed and file_removed[match.group(0)] > 0:
-            file_removed[match.group(0)] -= 1
+        if file_removed and file_removed[identity] > 0:
+            file_removed[identity] -= 1
             continue
         violations.append(f"{head[:12]}:{path}:{line_number}")
     return violations
