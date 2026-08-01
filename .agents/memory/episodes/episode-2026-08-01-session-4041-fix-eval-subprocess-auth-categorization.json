@@ -1,0 +1,56 @@
+{
+  "id": "episode-2026-08-01-session-4041-fix-eval-subprocess-auth-categorization",
+  "session": "2026-08-01-session-4041-fix-eval-subprocess-auth-categorization",
+  "timestamp": "2026-08-01T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix eval subprocess auth categorization for issue 4129",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced issue #4129 with a failing subprocess auth regression test",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-fix-eval-subprocess-auth-categorization"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added narrow auth text hints for subprocess providers",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-fix-eval-subprocess-auth-categorization"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Preserved the unknown subprocess fallback",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-fix-eval-subprocess-auth-categorization"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran local validation",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-fix-eval-subprocess-auth-categorization"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 4
+  },
+  "lessons": []
+}

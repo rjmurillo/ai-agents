@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4041,
+    "date": "2026-08-01",
+    "branch": "fix/4129-eval-subprocess-auth-category",
+    "startingCommit": "08829297",
+    "objective": "Fix eval subprocess auth categorization for issue 4129"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP tools unavailable in this Hermes worker; used repository docs and injected memory fallback for this narrow eval bug."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions unavailable in this Hermes worker; fallback documented per degraded-mode protocol."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md lines 1-116; read-only handoff notice observed."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded github-url-intercept, github-pr-workflow, and github skills; github skill script catalog reviewed in skill output."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded applicable skills: kanban-worker, github-url-intercept, github-pr-workflow, github, test-driven-development, session-init, session-end."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read root AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, scripts/AGENTS.md, ADR-035 and ADR-058; .agents/ARCHITECTURE.md absent."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Injected Hermes memory/user profile reviewed; no extra durable memory needed for this narrow issue."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4129-eval-subprocess-auth-category"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4129-eval-subprocess-auth-category"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Verified branch fix/4129-eval-subprocess-auth-category with staged changes in eval adapter, tests, and this session log."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "08829297"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All required session start/end evidence populated before commit hook validation."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Confirmed .agents/HANDOFF.md unchanged; task handoff recorded in Kanban instead."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No durable Serena memory update needed; no reusable project learning beyond issue-specific fix."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run python scripts/validation/pre_pr.py passed; markdown lint reported no markdown files on branch."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Prepared for this commit: eval adapter, regression tests, and session log staged together."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest tests/evals/test_eval_agent_vs_baseline.py -q passed; ruff touched files passed; pre_pr.py passed after lefthook install."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Kanban task t_d4315428 heartbeat/status updated; PR review task will be queued after PR opens."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "extract-session-episodes pre-commit hook generated .agents/memory/episodes/episode-2026-08-01-session-4041-fix-eval-subprocess-auth-categorization.json."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Reproduced issue #4129 with a failing subprocess auth regression test",
+      "outcome": "Before the fix the adapter returned server_error and retried three times for a Copilot CLI authentication failed message."
+    },
+    {
+      "action": "Added narrow auth text hints for subprocess providers",
+      "outcome": "Messages containing authentication failed or no authentication token provided now categorize as auth without matching broad auth substrings."
+    },
+    {
+      "action": "Preserved the unknown subprocess fallback",
+      "outcome": "Added a regression test showing an unrecognized authoring helper failure still retries and reports server_error."
+    },
+    {
+      "action": "Ran local validation",
+      "outcome": "Targeted eval adapter tests, full test_eval_agent_vs_baseline.py, touched-file ruff, and pre_pr.py passed."
+    }
+  ],
+  "endingCommit": "08829297",
+  "nextSteps": [
+    "Open PR and queue QA review via Kanban."
+  ]
+}

@@ -83,6 +83,10 @@ _TIMEOUT_HINT = "timed out"
 # Subprocess-backed providers have no HTTP status to report. They surface a
 # rate limit as text on stderr, which the provider copies into the message.
 _RATE_LIMIT_HINT = "rate limit"
+_AUTH_HINTS = (
+    "authentication failed",
+    "no authentication token provided",
+)
 
 
 def _categorize_error(exc: Exception) -> str:
@@ -95,13 +99,16 @@ def _categorize_error(exc: Exception) -> str:
     transient default, which retries rather than discarding a sample.
     """
     message = str(exc)
+    message_lower = message.lower()
     if _TIMEOUT_HINT in message:
         return ERR_TIMEOUT
     match = _HTTP_STATUS_RE.search(message)
     if match is None:
         # No HTTP status. Check the text signals a subprocess provider can
         # give, then treat the rest as a transient network issue.
-        if _RATE_LIMIT_HINT in message.lower():
+        if any(hint in message_lower for hint in _AUTH_HINTS):
+            return ERR_AUTH
+        if _RATE_LIMIT_HINT in message_lower:
             return ERR_RATE_LIMIT
         return ERR_SERVER_ERROR
     code = int(match.group(1))

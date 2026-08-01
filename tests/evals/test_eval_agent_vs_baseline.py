@@ -706,6 +706,52 @@ class TestAnthropicAPIAdapterErrors:
         assert result.error_category == ERR_CLIENT_ERROR
         assert result.attempts == 1
 
+    def test_subprocess_auth_failure_is_not_retried(self):
+        transport = _FakeTransport(
+            script=[
+                lambda: (_ for _ in ()).throw(
+                    RuntimeError(
+                        "Copilot CLI exited with code 1: authentication failed: token expired"
+                    )
+                )
+            ]
+        )
+        adapter = AnthropicAPIAdapter(
+            transport=transport, sleep=lambda _s: None
+        )
+        result = adapter.call_model(
+            prompt="x",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F009",
+            variant="agent",
+            run_index=0,
+        )
+        assert result.outcome == "error"
+        assert result.error_category == ERR_AUTH
+        assert result.attempts == 1
+
+    def test_unrecognized_subprocess_error_still_retries(self):
+        transport = _FakeTransport(
+            script=[
+                lambda: (_ for _ in ()).throw(RuntimeError("authoring helper failed")),
+                lambda: (_ for _ in ()).throw(RuntimeError("authoring helper failed")),
+                lambda: (_ for _ in ()).throw(RuntimeError("authoring helper failed")),
+            ]
+        )
+        adapter = AnthropicAPIAdapter(
+            transport=transport, sleep=lambda _s: None
+        )
+        result = adapter.call_model(
+            prompt="x",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F010",
+            variant="agent",
+            run_index=0,
+        )
+        assert result.outcome == "error"
+        assert result.error_category == ERR_SERVER_ERROR
+        assert result.attempts == 3
+
     def test_408_retried_then_success(self):
         transport = _FakeTransport(
             script=[lambda: (_ for _ in ()).throw(_http_error(408)), "OK"]
