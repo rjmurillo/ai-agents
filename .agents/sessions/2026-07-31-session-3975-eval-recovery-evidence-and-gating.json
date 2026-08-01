@@ -108,8 +108,8 @@
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": "Skipped: PR not yet merged"
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-08-01-eval-judge-recovery-evidence.md records the shared root across the four issues, the two tests that were wrong on the first pass, and the session-end worktree-identity defect"
       },
       "reworkWarning": {
         "level": "SHOULD",
