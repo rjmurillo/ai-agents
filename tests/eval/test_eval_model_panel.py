@@ -9,10 +9,12 @@ from __future__ import annotations
 import ast
 import importlib.util
 import json
+import shlex
 import sys
 from pathlib import Path
 
 EVAL_DIR = Path(__file__).resolve().parents[2] / "scripts" / "eval"
+OWNER_PANEL_CONFIG = EVAL_DIR / "panels" / "owner-copilot-cli.json"
 if str(EVAL_DIR) not in sys.path:
     sys.path.insert(0, str(EVAL_DIR))
 
@@ -86,6 +88,35 @@ def test_dry_run_zero_spend(capsys):
     assert "DRY RUN" in out
     assert "ZERO spend" in out
     assert "qa @ opus" in out
+
+
+def _documented_usage_argv(panel_path: Path) -> list[str]:
+    """The argv a panel config documents, with its repo-relative path resolved."""
+    payload = json.loads(panel_path.read_text(encoding="utf-8"))
+    usage_lines = [
+        line for line in payload["_comment"] if line.startswith("Usage: ")
+    ]
+    assert len(usage_lines) == 1, usage_lines
+
+    tokens = shlex.split(usage_lines[0][len("Usage: "):])
+    assert tokens[0] == "eval-model-panel.py", tokens[0]
+
+    repo_root = EVAL_DIR.parents[1]
+    return [
+        str(repo_root / token) if token.endswith(".json") else token
+        for token in tokens[1:]
+    ]
+
+
+def test_documented_owner_panel_usage_string_runs(capsys):
+    # Issue #3905: the shipped panel documented a command that exits 2 on
+    # argparse because --agents is required, so the copy-paste path failed.
+    argv = _documented_usage_argv(OWNER_PANEL_CONFIG)
+
+    code = cli.main([*argv, "--dry-run"])
+
+    assert code == cli.EXIT_OK
+    assert "orchestrator @ opus5" in capsys.readouterr().out
 
 
 def test_bad_n_runs_exits_config(capsys):
