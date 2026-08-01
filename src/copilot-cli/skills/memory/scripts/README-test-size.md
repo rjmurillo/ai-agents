@@ -50,7 +50,7 @@ if [ $? -ne 0 ]; then
     echo ""
     echo "❌ Memory size validation failed"
     echo "See recommendations above for decomposition guidance"
-    echo "Reference: .serena/memories/memory-size-001-decomposition-thresholds.md"
+    echo "Reference: .serena/memories/memory/memory-size-001-decomposition-thresholds.md"
     exit 1
 fi
 
@@ -195,7 +195,7 @@ Validator counts 2 categories (H1 headings).
 
 Backticked paths below are in the `rjmurillo/ai-agents` repository. They do not ship with this skill; a consumer install cannot resolve them.
 
-- `.serena/memories/memory-size-001-decomposition-thresholds.md`. Memory size thresholds.
+- `.serena/memories/memory/memory-size-001-decomposition-thresholds.md`. Memory size thresholds.
 - `.agents/analysis/context-engineering.md`. Context engineering analysis.
 
-<!-- vendor-portability: declared. This README cites .agents/analysis/context-engineering.md and .serena/memories/memory-size-001-decomposition-thresholds.md as background. They are documentation citations; the test-size script runs without them and a vendored install loses only the reference. Issue #2050. -->
+<!-- vendor-portability: declared. This README cites .agents/analysis/context-engineering.md and .serena/memories/memory/memory-size-001-decomposition-thresholds.md as background. They are documentation citations; the test-size script runs without them and a vendored install loses only the reference. Issue #2050. -->
