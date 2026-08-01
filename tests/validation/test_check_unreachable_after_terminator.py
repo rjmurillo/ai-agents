@@ -262,7 +262,7 @@ class TestIsolatingNegativeControls:
 
 
 class TestCausalRestoreClassPlacement:
-    """Proves that TestAdrReviewPolicyRenameAndBlobScope is a module-level class.
+    """Proves that TestBlobIdentityAndRenameLookup is a module-level class.
 
     The class was accidentally nested inside _repo_where_a_rename_repadded_the_number
     (commit 54449b351), making its 4 test methods unreachable. This test is the
@@ -282,8 +282,8 @@ class TestCausalRestoreClassPlacement:
         module_level_classes = {
             node.name for node in ast.iter_child_nodes(tree) if isinstance(node, ast.ClassDef)
         }
-        assert "TestAdrReviewPolicyRenameAndBlobScope" in module_level_classes, (
-            "TestAdrReviewPolicyRenameAndBlobScope must be a module-level class; "
+        assert "TestBlobIdentityAndRenameLookup" in module_level_classes, (
+            "TestBlobIdentityAndRenameLookup must be a module-level class; "
             "if it is missing, its 4 test methods are unreachable."
         )
 
@@ -292,14 +292,11 @@ class TestCausalRestoreClassPlacement:
         source = self._FILE.read_text(encoding="utf-8")
         tree = ast.parse(source)
         for node in ast.iter_child_nodes(tree):
-            if (
-                isinstance(node, ast.ClassDef)
-                and node.name == "TestAdrReviewPolicyRenameAndBlobScope"
-            ):
+            if isinstance(node, ast.ClassDef) and node.name == "TestBlobIdentityAndRenameLookup":
                 methods = [n.name for n in ast.walk(node) if isinstance(n, ast.FunctionDef)]
                 assert len(methods) == 4, (
-                    f"Expected 4 test methods in TestAdrReviewPolicyRenameAndBlobScope, "
+                    f"Expected 4 test methods in TestBlobIdentityAndRenameLookup, "
                     f"got {len(methods)}: {methods}"
                 )
                 return
-        pytest.fail("TestAdrReviewPolicyRenameAndBlobScope class not found in module")
+        pytest.fail("TestBlobIdentityAndRenameLookup class not found in module")
