@@ -93,9 +93,9 @@ silence a reference you should have fixed.
 
 ## Known coverage gap
 
-`check_skill_md_portability.py` flags only `.agents/`, `.claude/lib/`, and `.claude/review-axes/` in prose. It does not flag `templates/agents/` or `templates/platforms/`, which exist only in this repository and generate shipped output.
+`check_skill_md_portability.py` flags `.agents/`, `.claude/lib/`, `.claude/review-axes/`, `build/`, `scripts/`, `templates/agents/`, and `templates/platforms/` in prose. The remaining prose gap is `docs/`, which no pattern matches; see "What is gated, and what is not" below for why that mattered.
 
-Do not widen that to a bare `templates/`. The directory name is overloaded three ways, and only the first is a defect:
+The two `templates/` patterns are deliberately narrow. Do not widen them to a bare `templates/`. The directory name is overloaded three ways, and only the first is a defect:
 
 - `templates/agents/`, `templates/platforms/`. Upstream-only. Never present inside a plugin root.
 - A bundled `templates/` directory inside a skill, for example `.claude/skills/threat-modeling/templates/threat-model-template.md`. Ships with the plugin and resolves fine.
