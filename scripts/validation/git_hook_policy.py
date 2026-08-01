@@ -3192,6 +3192,70 @@ def _filesystem_collision_key(path: str) -> str | None:
     return "/".join(normalized_parts)
 
 
+class _SemgrepExecutableError(RuntimeError):
+    """Semgrep executable resolution failed before the scan ran."""
+
+
+@lru_cache(maxsize=1)
+def _semgrep_pinned_version(repo_root: Path = REPO_ROOT) -> str:
+    pyproject = repo_root / "pyproject.toml"
+    try:
+        pyproject_text = pyproject.read_text(encoding="utf-8")
+    except OSError as error:
+        raise _SemgrepExecutableError(
+            f"cannot read semgrep pin from {pyproject}: {error}\n"
+        ) from error
+    matches: list[str] = re.findall(
+        r'^\s*"semgrep==([^"]+)",\s*$',
+        pyproject_text,
+        re.MULTILINE,
+    )
+    versions = set(matches)
+    if len(versions) != 1:
+        raise _SemgrepExecutableError(
+            f"pyproject.toml must declare one semgrep pin, found: {sorted(versions)!r}\n"
+        )
+    return versions.pop()
+
+
+@lru_cache(maxsize=1)
+def _resolve_semgrep_executable(repo_root: Path = REPO_ROOT) -> str:
+    sibling_name = "semgrep.exe" if os.name == "nt" else "semgrep"
+    sibling = Path(sys.executable).parent / sibling_name
+    if sibling.is_file() and os.access(sibling, os.X_OK):
+        return str(sibling)
+
+    resolved = shutil.which("semgrep")
+    if resolved is None:
+        raise FileNotFoundError("semgrep")
+
+    version = _probe_semgrep_version(resolved, repo_root)
+    pinned = _semgrep_pinned_version(repo_root)
+    if version != pinned:
+        raise _SemgrepExecutableError(
+            f"semgrep version mismatch: pyproject.toml pins {pinned}, "
+            f"but {resolved} reports {version}\n"
+        )
+    return resolved
+
+
+def _probe_semgrep_version(executable: str, repo_root: Path) -> str:
+    result = _run_command(
+        [executable, "--version"],
+        repo_root,
+        timeout_seconds=SEMGREP_TIMEOUT_SECONDS,
+    )
+    if result.returncode != 0:
+        raise _SemgrepExecutableError(
+            f"semgrep version probe failed for {executable}: {result.stderr.strip()}\n"
+        )
+    version = result.stdout.strip().splitlines()[0] if result.stdout.strip() else ""
+    if not version:
+        raise _SemgrepExecutableError(
+            f"semgrep version probe returned no version for {executable}\n"
+        )
+    return version
+
 def _run_semgrep_tree(
     tree: Path,
     paths: Sequence[str],
@@ -3201,9 +3265,9 @@ def _run_semgrep_tree(
     finding: subprocess.CompletedProcess[str] | None = None
     last_result: subprocess.CompletedProcess[str] | None = None
     try:
-        for batch in _semgrep_target_batches(targets):
+        for batch in _semgrep_target_batches(targets, repo_root):
             result = _run_command(
-                _semgrep_command("auto", batch),
+                _semgrep_command("auto", batch, repo_root),
                 repo_root,
                 timeout_seconds=SEMGREP_TIMEOUT_SECONDS,
             )
@@ -3217,14 +3281,20 @@ def _run_semgrep_tree(
                 finding = verified
     except FileNotFoundError:
         return subprocess.CompletedProcess([], 2, "", "semgrep executable not found\n")
+    except _SemgrepExecutableError as error:
+        return subprocess.CompletedProcess([], 2, "", str(error))
     except OSError as error:
         return subprocess.CompletedProcess([], 2, "", f"cannot execute semgrep: {error}\n")
     return finding or last_result or subprocess.CompletedProcess([], 0, "", "")
 
 
-def _semgrep_command(config: str, targets: Sequence[str]) -> list[str]:
+def _semgrep_command(
+    config: str,
+    targets: Sequence[str],
+    repo_root: Path = REPO_ROOT,
+) -> list[str]:
     return [
-        "semgrep",
+        _resolve_semgrep_executable(repo_root),
         "scan",
         "--config",
         config,
@@ -3242,8 +3312,11 @@ def _semgrep_command(config: str, targets: Sequence[str]) -> list[str]:
     ]
 
 
-def _semgrep_target_batches(targets: Sequence[str]) -> list[list[str]]:
-    base_length = sum(len(argument) + 1 for argument in _semgrep_command("auto", []))
+def _semgrep_target_batches(
+    targets: Sequence[str],
+    repo_root: Path = REPO_ROOT,
+) -> list[list[str]]:
+    base_length = sum(len(argument) + 1 for argument in _semgrep_command("auto", [], repo_root))
     batches: list[list[str]] = []
     batch: list[str] = []
     batch_length = base_length
