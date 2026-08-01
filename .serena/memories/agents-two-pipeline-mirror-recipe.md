@@ -9,7 +9,7 @@ To change shared agent behavior, edit BOTH of these in the same change, then reg
 
 Then run `python3 build/generate_agents.py` to refresh the generated copies (`src/copilot-cli/agents/`, `src/vs-code-agents/`).
 
-`build/scripts/detect_agent_drift.py` FAILS if `src/claude/<agent>.md` diverges from the shared body in `templates/agents/<agent>.shared.md`. So the two must move in lockstep. Do NOT hand-edit the generated `src/copilot-cli/` or `src/vs-code-agents/` copies (canonical-source-mirror rule); add behavior to the template and regenerate.
+`build/scripts/detect_agent_drift.py` compares `src/claude/<agent>.md` against the VS Code copies in `src/vs-code-agents/` (NOT against the templates). It flags when the two diverge significantly. The comparison runs weekly via `.github/workflows/drift-detection.yml`. Do NOT hand-edit the generated `src/copilot-cli/` or `src/vs-code-agents/` copies (canonical-source-mirror rule); add behavior to the template and regenerate.
 
 ## Why (evidence)
 

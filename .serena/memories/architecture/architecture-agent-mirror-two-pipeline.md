@@ -1,60 +1,66 @@
-# Two-pipeline agent mirror: source, generate both trees, verify with drift + parity
+# Agent mirror pipelines: generated vs hand-maintained trees
 
-Agent definitions have ONE source and TWO generated destinations. Edit the
-source, regenerate, and let two independent checks prove the mirror is intact.
-Never hand-edit a generated agent file.
+Agent files live in several trees. Two are generated from templates; the rest
+are hand-maintained. Never confuse them.
 
-## The pipeline
+## Generated trees (template source -> generator -> output)
 
-- Source of truth: `templates/agents/<name>.shared.md` (29 shared bodies as of
-  #2707).
+- Source of truth: `templates/agents/<name>.shared.md`.
 - Generator: `build/generate_agents.py` (+ `build/generate_agents_common.py`),
-  invoked by `build/scripts/build_all.py::_build_agents` which calls
-  `generate_agents.main([...])` across all platform configs.
-- Destination 1 (Claude): `.claude/agents/<name>.md`.
-- Destination 2 (Copilot CLI mirror): `src/copilot-cli/agents/<name>.agent.md`.
+  invoked by `build/scripts/build_all.py::_build_agents`.
+- Destination 1 (Copilot CLI): `src/copilot-cli/agents/<name>.agent.md`.
+- Destination 2 (VS Code): `src/vs-code-agents/<name>.agent.md`.
 
-A single behavioral change (for example a severity rubric on
-silent-failure-hunter) is made ONCE in the `.shared.md` body and flows to both
-trees on regeneration.
+A behavioral change to a shared agent is made ONCE in the `.shared.md` body
+and flows to both generated trees on regeneration. Do NOT hand-edit the
+generated destinations.
+
+## Hand-maintained trees (NOT generated from templates)
+
+- `src/claude/*.md`: canonical hand-maintained Claude agent prompts. Edit
+  directly, in lockstep with the shared template (ADR-036).
+- `.claude/agents/`: hand-maintained self-host install copy for Claude Code.
+- `.github/agents/`: hand-maintained self-host install copy for GitHub Copilot.
+
+These three trees are never written by `build/generate_agents.py`. The generator
+carries a hard guard against writing under `.claude/` (REQ-003-010).
 
 ## The two verifications
 
-1. Source-to-generated drift: `build/scripts/detect_agent_drift.py`. Reports
-   the percentage match on every (source, generated) pair. The #2707 fix
-   required "detect_agent_drift 100% on all silent-failure-hunter pairs" before
-   it was mergeable.
-2. Installed-copy parity: `scripts/validation/run_install_parity_ci.py` (backed
-   by `build/scripts/validate_install_parity.py`). An agent ships in several
-   installed locations (the "install-parity members"); parity asserts every
-   member carries the identical body. The #2707 fix confirmed "all six
-   silent-failure-hunter install-parity members carry the identical rubric
-   body."
+1. Template-to-generated staleness: `build/generate_agents.py --validate`.
+   Runs on PRs via `.github/workflows/agent-drift-detection.yml`. Catches "I
+   edited the generated file instead of the template" or "I edited the template
+   but forgot to regenerate."
 
-## Why this matters
+2. Claude-vs-VS-Code semantic drift: `build/scripts/detect_agent_drift.py`.
+   Compares `src/claude/` against `src/vs-code-agents/` using section
+   similarity. Runs weekly via `.github/workflows/drift-detection.yml`. Catches
+   Claude-specific enrichment that has diverged significantly from the
+   template-derived VS Code body. Note: this detector does NOT compare against
+   the templates directly.
 
-The drift check catches "I edited the generated file, not the source" and "I
-edited the source but forgot to regenerate." The parity check catches "the two
-platform trees diverged." Together they make the single-source invariant
-enforceable in CI instead of a convention people forget.
+3. Install-copy parity: `scripts/validation/run_install_parity_ci.py` (backed
+   by `build/scripts/validate_install_parity.py`). Asserts that every
+   install-parity member of a shared-template agent carries the identical body.
 
-## Workflow when changing an agent
+## Workflow when changing a shared agent
 
 1. Edit `templates/agents/<name>.shared.md`.
-2. Run `build/scripts/build_all.py --check` (must be clean after commit).
-3. Confirm `detect_agent_drift.py` reports 100% on the changed pairs.
-4. Confirm `run_install_parity_ci.py` is OK.
-5. The agent catalog line count regenerates (155 to 158 in #2707); commit the
-   regenerated catalog with the change. Generated artifacts ship WITH the
-   change, never in a follow-up PR.
+2. Also edit `src/claude/<name>.md` in the same change (it is NOT auto-synced).
+3. Run `python3 build/generate_agents.py` to refresh `src/copilot-cli/agents/`
+   and `src/vs-code-agents/`.
+4. Run `build/scripts/build_all.py --check` (must be clean after commit).
+5. Confirm `run_install_parity_ci.py` is OK.
+6. Commit all generated and hand-edited files together.
 
 ## Evidence
 
-- PR #2707 (merge a4af5d2f66aa): three SkillOpt fixes including
-  silent-failure-hunter, verified via `build_all.py --check`,
-  `detect_agent_drift` (100% on all pairs), and `run_install_parity_ci.py`.
-- Source tree: `templates/agents/*.shared.md`.
-- Generator: `build/generate_agents.py`, `build/scripts/build_all.py`.
+- Source: `build/scripts/detect_agent_drift.py` module docstring (verified
+  at HEAD); `templates/platforms/copilot-cli.yaml` and
+  `templates/platforms/vscode.yaml` `outputDir` fields.
+- Issue #4155 documents that the prior "two-pipeline" description incorrectly
+  listed `.claude/agents/` as a generated destination and incorrectly stated
+  that `detect_agent_drift.py` compares against templates.
 - Checks: `build/scripts/detect_agent_drift.py`,
   `scripts/validation/run_install_parity_ci.py`,
   `build/scripts/validate_install_parity.py`.
