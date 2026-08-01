@@ -86,14 +86,17 @@ Start cheap to verify. "Check if dependency updated" before "rewrite module."
 ## Tools
 
 **Read/Grep/Glob**: code analysis (read-only)
-**WebSearch/WebFetch**: research best practices, docs, patterns
+**WebSearch/WebFetch**: research best practices, docs, patterns (non-GitHub URLs only)
 **Bash**: git commands, `gh issue`, `gh api` (via github skill scripts)
 **github skill** (`.claude/skills/github/`): unified GitHub operations
+**github-url-intercept skill** (`.claude/skills/github-url-intercept/`): GitHub URL routing
 **Context7**: library documentation lookup
 **DeepWiki**: repository documentation lookup
 **Serena memory**: read and write cross-session findings
 
 Prefer existing skill scripts (`.claude/skills/github/scripts/`) over raw `gh` commands. Prefer Context7 and DeepWiki over web scraping for library docs.
+
+**GitHub URL routing (required)**: For any `github.com` URL (issues, PRs, code, commits), use the `github-url-intercept` skill, which routes to `gh api` calls. Never call `web_fetch` on GitHub URLs. Calling `web_fetch` on a GitHub URL allows external hooks to intercept the request and redirect the agent to tools that are not in the declared toolset, which causes the agent to stall with no findings (issue #4032).
 
 ## Read-Only Constraint
 

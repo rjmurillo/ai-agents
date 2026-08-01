@@ -17,6 +17,7 @@
 .claude/skills/chestertons-fence/scripts/investigate.py
 .claude/skills/github/scripts/pr/new_pr.py
 .claude/skills/golden-principles/scripts/scan_principles.py
+.claude/skills/golden-principles/scripts/scan_principles_core.py
 .claude/skills/memory/memory_core/reflexion_memory.py
 .claude/skills/memory/scripts/extract_session_episode.py
 .claude/skills/memory/scripts/search_memory.py

@@ -93,26 +93,9 @@ jobs:
             python scripts/workflows/resolve_dispatch_input.py
 
       - name: Synthesize context and assign Copilot
-        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
-        run: |
-          Write-Host "Starting context synthesis for issue #$env:ISSUE_NUMBER" -ForegroundColor Cyan
-
-          # Run the synthesis script
-          $result = & "./.claude/skills/github/scripts/issue/Invoke-CopilotAssignment.ps1" `
-            -IssueNumber $env:ISSUE_NUMBER
-
-          # Output result summary
-          if ($result.Success) {
-            Write-Host "::notice::$($result.Action) synthesis comment: $($result.CommentUrl)"
-            if ($result.Assigned) {
-              Write-Host "::notice::Assigned copilot-swe-agent to issue #$env:ISSUE_NUMBER"
-            }
-          } else {
-            Write-Host "::error::Failed to synthesize context for issue #$env:ISSUE_NUMBER"
-            exit 1
-          }
+        run: python3 scripts/ci/run_copilot_synthesis.py
 
       - name: Remove copilot-ready label
         if: success()
@@ -164,86 +147,18 @@ jobs:
 
       - name: Find issues with copilot-ready label
         id: find-issues
-        run: |
-          echo "Searching for issues with copilot-ready label..."
-          ISSUES=$(gh issue list --label "copilot-ready" --state open --json number --jq '.[].number' | tr '\n' ' ')
-          echo "issues=$ISSUES" >> $GITHUB_OUTPUT
-
-          if [ -z "$ISSUES" ]; then
-            echo "No issues found with copilot-ready label"
-            echo "count=0" >> $GITHUB_OUTPUT
-          else
-            COUNT=$(echo $ISSUES | wc -w)
-            echo "Found $COUNT issue(s) to process: $ISSUES"
-            echo "count=$COUNT" >> $GITHUB_OUTPUT
-          fi
+        run: python3 scripts/ci/find_copilot_ready_issues.py
 
       - name: Process each issue
         if: steps.find-issues.outputs.count != '0'
-        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           ISSUES: ${{ steps.find-issues.outputs.issues }}
-        run: |
-          $issues = $env:ISSUES.Trim() -split '\s+'
-          $results = @()
-          $failed = @()
-
-          Write-Host "Processing $($issues.Count) issue(s)..." -ForegroundColor Cyan
-
-          foreach ($issueNumber in $issues) {
-            if ([string]::IsNullOrWhiteSpace($issueNumber)) { continue }
-
-            Write-Host "`n=== Processing Issue #$issueNumber ===" -ForegroundColor Yellow
-
-            try {
-              # Run the synthesis script (same script as single-issue job - DRY!)
-              $result = & "./.claude/skills/github/scripts/issue/Invoke-CopilotAssignment.ps1" `
-                -IssueNumber $issueNumber
-
-              if ($result.Success) {
-                Write-Host "::notice::Issue #$issueNumber - $($result.Action) synthesis comment"
-
-                # Remove the label to indicate successful processing
-                gh issue edit $issueNumber --remove-label "copilot-ready"
-                Write-Host "::notice::Issue #$issueNumber - Removed copilot-ready label"
-
-                $results += [PSCustomObject]@{
-                  Issue = $issueNumber
-                  Status = "Success"
-                  Action = $result.Action
-                }
-              } else {
-                Write-Host "::warning::Issue #$issueNumber - Synthesis failed"
-                $failed += $issueNumber
-              }
-            }
-            catch {
-              Write-Host "::error::Issue #$issueNumber - Error: $_"
-              $failed += $issueNumber
-            }
-          }
-
-          # Summary
-          Write-Host "`n=== Sweep Complete ===" -ForegroundColor Cyan
-          Write-Host "Processed: $($results.Count) issue(s)"
-          if ($failed.Count -gt 0) {
-            Write-Host "Failed: $($failed.Count) issue(s): $($failed -join ', ')" -ForegroundColor Red
-            # Don't fail the job - we want to process as many as possible
-          }
+        run: python3 scripts/ci/sweep_copilot_synthesis.py
 
       - name: Summary
         if: always()
-        run: |
-          echo "## Copilot Context Synthesis Sweep :broom:" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Issues Found**: ${{ steps.find-issues.outputs.count }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.find-issues.outputs.count }}" == "0" ]; then
-            echo "No issues with \`copilot-ready\` label found. All caught up! :white_check_mark:" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "### Issues Processed" >> $GITHUB_STEP_SUMMARY
-            echo "Issues: ${{ steps.find-issues.outputs.issues }}" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Check the job logs for individual issue processing results." >> $GITHUB_STEP_SUMMARY
-          fi
+        env:
+          TRIGGER: ${{ github.event_name }}
+          ISSUES_COUNT: ${{ steps.find-issues.outputs.count }}
+          ISSUES: ${{ steps.find-issues.outputs.issues }}
+        run: python3 scripts/ci/write_synthesis_sweep_summary.py

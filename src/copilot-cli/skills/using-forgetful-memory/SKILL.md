@@ -1,9 +1,9 @@
 ---
 name: using-forgetful-memory
-description: Guidance for using Forgetful semantic memory effectively. Applies Zettelkasten atomic memory principles. Use when deciding whether to query or create memories, structuring memory content, or understanding memory importance scoring. Guidance only. Use when you say "how do I create a memory", "how do I link memories together", or "what importance score should I use". Do NOT use to run a search (use memory) or for LSP symbol navigation guidance (use using-serena-symbols).
+description: Guidance for using Forgetful semantic memory effectively. Applies Zettelkasten atomic memory principles. Use when deciding whether to query or create memories, structuring memory content, or understanding memory importance scoring. Guidance only. Use when you say "how do I create a memory", "how do I link memories together", or "what importance score should I use". Do NOT use to run a search (use memory), for LSP symbol navigation guidance (use using-serena-symbols), or to update an existing memory (use curating-memories).
 license: MIT
 metadata:
-version: 1.0.0
+version: 1.0.1
 ---
 
 # Using Forgetful Memory
@@ -168,7 +168,6 @@ Example: Architecture overview (document) → separate memories for each layer/d
 |----------------|-----------|
 | `how do I create a memory` | Memory creation workflow |
 | `how do I search memories` | query_memory with semantic search |
-| `how do I update a memory` | update_memory with PATCH semantics |
 | `how do I link memories together` | link_memories bidirectional linking |
 | `what importance score should I use` | Importance scoring guide |
 

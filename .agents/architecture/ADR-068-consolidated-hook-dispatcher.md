@@ -1,7 +1,8 @@
 ---
+# taste-lint: ignore file-size, accepted append-only record; splitting breaks audit continuity.
 id: ADR-068
 status: accepted
-date: 2026-07-22
+date: 2026-07-31
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -35,11 +36,19 @@ The post-purge rebaseline also closed at 6 Accept after current economics,
 closed issue state, the ADR-082 dependency, and the retirement endpoint were
 made explicit.
 
-The decision remains active but transitional after the 2026-07-22 hook purge.
-The current one-shim PreToolUse and one-shim PostToolUse dispatchers save no
-process starts. Issue #3218 owns removal or simplification while this machinery
-still ships. The same change that removes or replaces the generated dispatcher
-must mark this ADR deprecated or superseded and update ADR-082's dependency.
+The decision remains active after the 2026-07-22 hook purge. The current
+one-shim PreToolUse and one-shim PostToolUse dispatchers save no process
+starts. Issue #3218 closed on 2026-07-28 after verification showed its
+retirement premise was wrong: `_expand_dispatch_groups` and
+`event_matcher_union` remain live generation paths, while parity tests cover
+the generated surfaces. Removing or replacing the generated dispatcher
+requires a new architecture decision that marks this ADR deprecated or
+superseded and updates ADR-082's dependency.
+
+The 2026-07-31 factual amendment received a six-role adr-review. All six roles
+accepted the correction. The amendment changed no runtime behavior or accepted
+design outcome. It replaced stale issue ownership with a re-evaluation trigger
+that can fire and preserved the low process-savings finding.
 
 The security-policy amendment removes test-runner auto-approval from both
 harnesses. Test runners execute repository-controlled code, so an exact command
@@ -54,7 +63,7 @@ reviewed policy.
 
 ## Date
 
-2026-06-02; amended 2026-07-22
+2026-06-02; amended 2026-07-22 and 2026-07-31
 
 ## Context
 
@@ -289,7 +298,7 @@ The current reasons to keep the dispatcher are:
 | Keep PreCompact direct with shell suppression | Rejected as the normal mode when a vendored source exists because it restores repeated startup. Retained as a tested rollback shape. |
 | Keep UserPromptSubmit direct | Rejected when a vendored source exists because plaintext output has no documented host field and direct entries restore repeated startup. |
 | Discard observer stdout by default | Rejected. Dormant SessionStart, PreCompact, and UserPromptSubmit adapters have reviewed discard policies. Active PostToolUse uses `additionalContext`, and unclassified events stay direct. |
-| Consolidate observers but direct-register every PreToolUse gate | The current PreToolUse inventory is one shim, so direct registration would not increase gate process count. Issue #3218 owns removal or simplification of the now-low-value dispatcher machinery. |
+| Consolidate observers but direct-register every PreToolUse gate | The current PreToolUse inventory is one shim, so direct registration would not increase gate process count. The dispatcher remains on the live generation path; simplification requires a new architecture decision. |
 | Reorder guards by perceived risk, or split selected critical gates | No stable criticality contract exists, and reordering only changes which later guards a hang bypasses. A split is a narrower form of the hybrid and needs the same measurement. |
 | Tighten test-runner command matching | Rejected because a narrower pattern keeps the same trust flaw. A command name cannot prove the code executed by the runner is safe. |
 | Replace the hook with `permissions.allow` (#3192, #3217) | Rejected for test runners because it recreates the same trust flaw on a declarative surface. |
@@ -321,7 +330,8 @@ The current reasons to keep the dispatcher are:
 
 - One dispatcher defect affects every shim registered for that event.
 - The current complexity-to-value ratio is low. Neither active event saves a
-  process start. Issue #3218 owns removal or simplification.
+  process start. Issue #3218 closed without removing the live generation
+  machinery. Simplification requires a new architecture decision.
 - One hung consolidated gate can reach the host timeout. On the measured
   1.0.72-1 host, that timeout fails open. The current one-shim PreToolUse
   manifest has no later gate to bypass, but its tool call can still proceed.
@@ -401,23 +411,21 @@ Reopen this decision when any of these occurs:
 4. A PostToolUseFailure producer emits repository-controlled or other untrusted
    content. Its direct exit-2 stdout becomes model recovery context and requires
    security review.
-5. Issue #3218 starts implementation. The vendored source now has one
-   PreToolUse shim and one PostToolUse shim. The retirement issue owns removal
-   or simplification of dispatcher, translation, parity, and drift machinery.
-   It must complete before the next feature change that adds or removes a
-   vendored registration or expands dispatcher behavior. Safety fixes remain
-   allowed while retirement is in progress.
+5. A proposal removes or simplifies dispatcher, translation, parity, or drift
+   machinery. The proposal requires a new architecture decision that maps
+   active consumers, preserves or replaces live generation paths, and proves
+   generated-surface parity before implementation.
 6. Untrusted extension authors gain write access to the packaged hook tree, or
    observer output requires a hard storage quota.
 7. The host adds a diagnostics side channel that can carry per-shim duration
    events without entering model context.
 
-Live GitHub verification on 2026-07-22 confirms that #3295 is closed and #3218
-remains open. The latter owns retirement of orphaned dispatcher machinery. It
-does not own a hybrid benchmark. Sources:
+Live GitHub verification on 2026-07-31 confirms that #3295 and #3218 are
+closed. Issue #3218 closed on 2026-07-28 after verification showed the
+expansion seam and matcher union remain live, while parity tests cover
+generated surfaces. Sources:
 <https://github.com/rjmurillo/ai-agents/issues/3295> and
-<https://github.com/rjmurillo/ai-agents/issues/3218>. Retirement is planned but
-not complete.
+<https://github.com/rjmurillo/ai-agents/issues/3218>.
 
 ## Impact on Dependent Components
 
