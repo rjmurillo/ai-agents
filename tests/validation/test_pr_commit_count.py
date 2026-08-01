@@ -1091,7 +1091,8 @@ def test_authored_count_excludes_merges_from_classification(
     rc = mod.main(["--pr-number", "42", "--owner", "o", "--repo", "r"])
     assert rc == 0
     written = (tmp_path / "gh_out").read_text(encoding="utf-8")
-    assert "status=OK" in written or "status=WARNING" in written
+    # 4 authored commits < WARNING_THRESHOLD=10, so status is deterministically OK.
+    assert "status=OK" in written
     assert "status=BLOCKED" not in written
     assert "commit_count=4" in written
 

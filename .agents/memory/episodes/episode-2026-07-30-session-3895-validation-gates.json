@@ -78,6 +78,15 @@
       "content": "Mutation harness: 7 mutants killed across 6 production files. Added boundary test for needs-split cap (exactly 5 new commits = allow; 6 = block) after the <= mutation survived with only 3 and 10 as test values.",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 6a4f9abb9",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-30-session-3895-validation-gates"
     }
   ],
   "metrics": {
@@ -85,7 +94,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 8
   },
   "lessons": []
