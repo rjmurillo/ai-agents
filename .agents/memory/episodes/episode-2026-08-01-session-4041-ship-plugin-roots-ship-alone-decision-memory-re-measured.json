@@ -13,7 +13,9 @@
       "type": "milestone",
       "content": "Re-measure the memory's evidence block against a clean origin/main worktree",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e005"
+      ],
       "_source_session": "2026-08-01-session-4041-ship-plugin-roots-ship-alone-decision-memory-re-measured"
     },
     {
@@ -22,7 +24,9 @@
       "type": "milestone",
       "content": "Verify the draft's claim that no automated gate exists",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e005"
+      ],
       "_source_session": "2026-08-01-session-4041-ship-plugin-roots-ship-alone-decision-memory-re-measured"
     },
     {
@@ -31,7 +35,9 @@
       "type": "milestone",
       "content": "Verify whether the docs/agent-catalog.md references are ungated",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e005"
+      ],
       "_source_session": "2026-08-01-session-4041-ship-plugin-roots-ship-alone-decision-memory-re-measured"
     },
     {
@@ -40,27 +46,21 @@
       "type": "milestone",
       "content": "Measure whether any gate validates that a declared path exists",
       "caused_by": [],
-      "leads_to": [],
-      "_source_session": "2026-08-01-session-4041-ship-plugin-roots-ship-alone-decision-memory-re-measured"
-    },
-    {
-      "id": "e005",
-      "timestamp": "2026-08-01T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 7f25e3e11b",
-      "caused_by": [],
       "leads_to": [
-        "e006"
+        "e005"
       ],
       "_source_session": "2026-08-01-session-4041-ship-plugin-roots-ship-alone-decision-memory-re-measured"
     },
     {
-      "id": "e006",
-      "timestamp": "2026-08-01T00:00:00+00:00",
+      "id": "e005",
+      "timestamp": "2026-08-01T17:03:30+00:00",
       "type": "commit",
-      "content": "Commit: 70fe6483df",
+      "content": "Commit: 74be9dab99",
       "caused_by": [
-        "e005"
+        "e001",
+        "e002",
+        "e003",
+        "e004"
       ],
       "leads_to": [],
       "_source_session": "2026-08-01-session-4041-ship-plugin-roots-ship-alone-decision-memory-re-measured"
@@ -71,8 +71,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 3
+    "commits": 1,
+    "files_changed": 4
   },
   "lessons": []
 }
