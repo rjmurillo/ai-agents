@@ -61,8 +61,8 @@ skill:
 | `check_plugin_frontmatter_self_containment` | 0 |
 
 All five returned 0. Only `check_skill_md_portability` matched the body citation,
-then suppressed the declared file. The other four inspect Python, executable
-paths, or frontmatter, not body prose. None validates that the paths a
+then suppressed the declared file. The other four inspect skill scripts,
+Python, executable paths, or frontmatter, not body prose. None validates that the paths a
 declaration names *exist*. A
 declaration is therefore a claim the toolchain accepts without checking, which
 is the same category of trust failure the declarations were introduced to

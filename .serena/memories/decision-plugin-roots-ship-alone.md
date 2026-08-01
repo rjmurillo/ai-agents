@@ -102,18 +102,19 @@ Two consequences worth carrying:
 
 **Existing violations are grandfathered, not fixed.** The
 `docs/agent-catalog.md` references above sit outside all five matchers. The
-Markdown prose ratchet matches `.agents/`, `.claude/lib/`, and
-`.claude/review-axes/`, not `docs/`. The file-level `vendor-portability` marker
-documents intent but does not cause the green result. Issue #2050 tracks this
-declared debt.
+Markdown prose ratchet matches `.agents/`, `.claude/lib/`,
+`.claude/review-axes/`, `build/`, `scripts/`, `templates/agents/`, and
+`templates/platforms/`, not `docs/`. The file-level `vendor-portability`
+marker documents intent but does not cause the green result. Issue #2050 tracks
+this declared debt.
 
 **No gate checks that a declared path exists.** Measured 2026-07-31 by
 adding `.agents/this-path-does-not-exist.md` to both shipped copies of a skill
 with a file-level declaration: all five gates exited 0. The Markdown prose gate
 matched the path, then suppressed the declared file. The other four scan
-Python, executable paths, or frontmatter, not body prose. None resolves paths
-named by a declaration. Verify the path resolves before writing it into a
-declaration. See
+skill scripts, Python, executable paths, or frontmatter, not body prose. None
+resolves paths named by a declaration. Verify the path resolves before writing
+it into a declaration. See
 `.agents/retrospective/2026-07-31-backticking-is-not-repair.md`.
 
 ## Detection

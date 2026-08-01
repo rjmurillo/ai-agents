@@ -124,11 +124,11 @@
     },
     {
       "task": "Verify whether the docs/agent-catalog.md references are ungated",
-      "outcome": "They sit outside all five matchers. The Markdown prose ratchet matches .agents/, .claude/lib/, and .claude/review-axes/, not docs/. The file-level vendor-portability marker documents intent but does not cause the green result. Issue #2050 tracks the declared debt."
+      "outcome": "They sit outside all five matchers. The Markdown prose ratchet matches .agents/, .claude/lib/, .claude/review-axes/, build/, scripts/, templates/agents/, and templates/platforms/, not docs/. The file-level vendor-portability marker documents intent but does not cause the green result. Issue #2050 tracks the declared debt."
     },
     {
       "task": "Measure whether any gate validates that a declared path exists",
-      "outcome": "None does. Negative control: .agents/this-path-does-not-exist.md was added to both shipped copies of a declared skill and all five gates exited 0. check_skill_md_portability matched the path, then suppressed the declared file. The other four inspected Python, executable paths, or frontmatter, not body prose. Recorded in the memory and retrospective. After PR #4146 squash merged, the derived episode was grounded to merge commit 74be9dab99. Preservation mode restored stale event fields, so fresh regeneration staged all four session artifacts and preserved files_changed=4."
+      "outcome": "None does. Negative control: .agents/this-path-does-not-exist.md was added to both shipped copies of a declared skill and all five gates exited 0. check_skill_md_portability matched the path, then suppressed the declared file. The other four inspected skill scripts, Python, executable paths, or frontmatter, not body prose. Recorded in the memory and retrospective. After PR #4146 squash merged, the derived episode was grounded to merge commit 74be9dab99. Preservation mode restored stale event fields, so fresh regeneration staged all four session artifacts and preserved files_changed=4."
     }
   ],
   "endingCommit": "74be9dab99",
