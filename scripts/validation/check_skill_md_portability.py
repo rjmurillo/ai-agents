@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# taste-lint: ignore file-size, existing monolithic validator; split is outside this ratchet fix.
 """Markdown vendor-portability ratchet for skill instruction files (issue #2050).
 
 Companion to ``check_skill_portability.py``. That validator scopes to skill
