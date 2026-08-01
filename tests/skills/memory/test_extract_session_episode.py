@@ -2380,7 +2380,8 @@ class TestValidateModeRejectsUnusableEventIds:
 
     def test_the_committed_episode_store_is_clean(self):
         """Regression pin: the repaired file must not come back, and no new
-        episode may land with ids that tooling cannot index.
+        episode may land with ids that tooling cannot index or with a commit
+        chain that runs backwards in committer time (issue #3765).
         """
         store = Path(__file__).resolve().parents[3] / ".agents" / "memory" / "episodes"
         if not store.is_dir():
@@ -2391,6 +2392,231 @@ class TestValidateModeRejectsUnusableEventIds:
             for problem in extract_session_episode.validate_episode_file(path)
         ]
         assert problems == []
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
+class TestBackwardsCommitOrder:
+    """`--validate` rejects a commit chain that runs backwards, `--fix` repairs it.
+
+    Issue #3765: 17 commit-to-commit edges across 14 shipped episodes claimed a
+    commit caused the commit that preceded it. The pre-#3638 linker chained
+    commits by list position, and `_collect_shas` returned the session's last
+    commit first, so the chain came out reversed.
+
+    The repair restamps commit events from git before relinking. Relinking alone
+    is lossy on these files: every event carries session-date midnight, so a
+    commit and a same-day milestone are incomparable and the edge is dropped.
+    """
+
+    @staticmethod
+    def _repo(tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-q", "-b", "main")
+        _git(repo, "config", "user.email", "t@example.com")
+        _git(repo, "config", "user.name", "T")
+        return repo
+
+    @staticmethod
+    def _evt(eid, etype, content, leads_to=(), caused_by=()):
+        return {
+            "id": eid,
+            "timestamp": "2026-07-19T00:00:00+00:00",
+            "type": etype,
+            "content": content,
+            "caused_by": list(caused_by),
+            "leads_to": list(leads_to),
+        }
+
+    @staticmethod
+    def _write(path, events, **extra):
+        payload = {"session_id": "s1", "events": events}
+        payload.update(extra)
+        path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        return path
+
+    def _reversed_pair(self, tmp_path, monkeypatch):
+        """A repo plus an episode whose one commit edge points newest to oldest."""
+        repo = self._repo(tmp_path)
+        older = _commit(repo, "a.txt", "a", when="2026-07-19T10:00:00+00:00")
+        newer = _commit(repo, "b.txt", "b", when="2026-07-19T11:00:00+00:00")
+        monkeypatch.chdir(repo)
+        monkeypatch.setattr(extract_session_episode, "_repo_root", lambda: repo)
+        events = [
+            self._evt("e001", "milestone", "did the work", leads_to=["e002"]),
+            self._evt("e002", "commit", f"Commit: {newer}", caused_by=["e001"], leads_to=["e003"]),
+            self._evt("e003", "commit", f"Commit: {older}", caused_by=["e002"]),
+        ]
+        episodes = tmp_path / "episodes"
+        episodes.mkdir()
+        return repo, episodes, events, older, newer
+
+    def test_a_backwards_commit_edge_is_reported(self, tmp_path, monkeypatch):
+        _, episodes, events, _, _ = self._reversed_pair(tmp_path, monkeypatch)
+        target = self._write(episodes / "episode-bad.json", events)
+
+        problems = extract_session_episode.validate_episode_file(target)
+
+        assert any("commit edge e002 -> e003 runs backwards" in p for p in problems)
+
+    def test_a_backwards_commit_edge_exits_2(self, tmp_path, monkeypatch, capsys):
+        _, episodes, events, _, _ = self._reversed_pair(tmp_path, monkeypatch)
+        self._write(episodes / "episode-bad.json", events)
+
+        assert extract_session_episode.main([str(episodes), "--validate"]) == 2
+        assert "runs backwards" in capsys.readouterr().err
+
+    def test_a_forward_commit_edge_exits_0(self, tmp_path, monkeypatch):
+        _, episodes, _, older, newer = self._reversed_pair(tmp_path, monkeypatch)
+        forward = [
+            self._evt("e001", "commit", f"Commit: {older}", leads_to=["e002"]),
+            self._evt("e002", "commit", f"Commit: {newer}", caused_by=["e001"]),
+        ]
+        self._write(episodes / "episode-ok.json", forward)
+
+        assert extract_session_episode.main([str(episodes), "--validate"]) == 0
+
+    def test_an_edge_into_a_milestone_is_never_flagged(self, tmp_path, monkeypatch):
+        """Only commit-to-commit edges carry independent evidence of order.
+
+        The milestone quotes an older SHA on purpose: a work-log entry citing a
+        commit is not a claim about when the milestone happened, so reading a
+        committer date off it would invent order the episode never recorded.
+        """
+        _, episodes, _, older, newer = self._reversed_pair(tmp_path, monkeypatch)
+        mixed = [
+            self._evt("e001", "commit", f"Commit: {newer}", leads_to=["e002"]),
+            self._evt("e002", "milestone", f"Reviewed {older} before merging", caused_by=["e001"]),
+        ]
+        target = self._write(episodes / "episode-mixed.json", mixed)
+
+        assert extract_session_episode.validate_episode_file(target) == []
+
+    def test_an_unresolvable_sha_is_skipped_not_guessed(self, tmp_path, monkeypatch):
+        """Squash-merged branches take their SHAs away; absence is not evidence."""
+        _, episodes, _, _, newer = self._reversed_pair(tmp_path, monkeypatch)
+        ghost = [
+            self._evt("e001", "commit", f"Commit: {newer}", leads_to=["e002"]),
+            self._evt("e002", "commit", "Commit: deadbee", caused_by=["e001"]),
+        ]
+        target = self._write(episodes / "episode-ghost.json", ghost)
+
+        assert extract_session_episode.validate_episode_file(target) == []
+
+    def test_fix_repairs_the_chain_and_exits_0(self, tmp_path, monkeypatch, capsys):
+        _, episodes, events, older, newer = self._reversed_pair(tmp_path, monkeypatch)
+        target = self._write(episodes / "episode-bad.json", events)
+
+        assert extract_session_episode.main([str(episodes), "--validate", "--fix"]) == 0
+
+        assert '"Repaired": 1' in capsys.readouterr().err
+        repaired = json.loads(target.read_text(encoding="utf-8"))["events"]
+        by_content = {evt["content"]: evt for evt in repaired}
+        assert by_content[f"Commit: {older}"]["leads_to"] == [by_content[f"Commit: {newer}"]["id"]]
+        assert extract_session_episode.validate_commit_order(repaired) == []
+
+    def test_fix_restamps_commit_events_from_git(self, tmp_path, monkeypatch):
+        """Midnight is what made the chain unorderable; the repair removes it."""
+        _, episodes, events, _, _ = self._reversed_pair(tmp_path, monkeypatch)
+        target = self._write(episodes / "episode-bad.json", events)
+
+        extract_session_episode.main([str(episodes), "--validate", "--fix"])
+
+        repaired = json.loads(target.read_text(encoding="utf-8"))["events"]
+        stamps = {evt["type"]: evt["timestamp"] for evt in repaired}
+        assert stamps["commit"] != "2026-07-19T00:00:00+00:00"
+        assert stamps["milestone"] == "2026-07-19T00:00:00+00:00"
+
+    def test_fix_preserves_every_field_outside_events(self, tmp_path, monkeypatch):
+        _, episodes, events, _, _ = self._reversed_pair(tmp_path, monkeypatch)
+        extras = {
+            "task": "the real task",
+            "outcome": "success",
+            "metrics": {"commits": 2, "files_changed": 3},
+            "decisions": [{"id": "d001", "chosen": "keep it"}],
+            "lessons": ["one lesson"],
+            "timestamp": "2026-07-19T00:00:00+00:00",
+        }
+        target = self._write(episodes / "episode-bad.json", events, **extras)
+
+        extract_session_episode.main([str(episodes), "--validate", "--fix"])
+
+        after = json.loads(target.read_text(encoding="utf-8"))
+        for key, value in extras.items():
+            assert after[key] == value, key
+
+    def test_fix_is_idempotent(self, tmp_path, monkeypatch):
+        _, episodes, events, _, _ = self._reversed_pair(tmp_path, monkeypatch)
+        target = self._write(episodes / "episode-bad.json", events)
+
+        extract_session_episode.main([str(episodes), "--validate", "--fix"])
+        first = target.read_text(encoding="utf-8")
+        assert extract_session_episode.main([str(episodes), "--validate", "--fix"]) == 0
+
+        assert target.read_text(encoding="utf-8") == first
+
+    def test_fix_leaves_a_sound_episode_untouched(self, tmp_path, monkeypatch):
+        """No backwards edge means no repair, so no timestamp churn."""
+        _, episodes, _, older, newer = self._reversed_pair(tmp_path, monkeypatch)
+        forward = [
+            self._evt("e001", "commit", f"Commit: {older}", leads_to=["e002"]),
+            self._evt("e002", "commit", f"Commit: {newer}", caused_by=["e001"]),
+        ]
+        target = self._write(episodes / "episode-ok.json", forward)
+        before = target.read_text(encoding="utf-8")
+
+        assert extract_session_episode.main([str(episodes), "--validate", "--fix"]) == 0
+
+        assert target.read_text(encoding="utf-8") == before
+
+    def test_fix_refuses_a_repair_that_would_drop_edges(self, tmp_path, monkeypatch, capsys):
+        """The guard that separates a repair from a deletion.
+
+        A bare relink on a midnight-flattened episode drops every edge it cannot
+        order, which reads as success to a backwards-edge check because an
+        edgeless graph has no backwards edge. Here the on-disk graph carries a
+        redundant e001 -> e003 edge that transitive reduction removes, so the
+        rebuild loses one edge and the repair is refused rather than written.
+        """
+        repo = self._repo(tmp_path)
+        first = _commit(repo, "a.txt", "a", when="2026-07-19T10:00:00+00:00")
+        second = _commit(repo, "b.txt", "b", when="2026-07-19T11:00:00+00:00")
+        third = _commit(repo, "c.txt", "c", when="2026-07-19T12:00:00+00:00")
+        monkeypatch.chdir(repo)
+        monkeypatch.setattr(extract_session_episode, "_repo_root", lambda: repo)
+        redundant = [
+            self._evt("e001", "commit", f"Commit: {third}", leads_to=["e002", "e003"]),
+            self._evt("e002", "commit", f"Commit: {second}", caused_by=["e001"], leads_to=["e003"]),
+            self._evt("e003", "commit", f"Commit: {first}", caused_by=["e001", "e002"]),
+        ]
+        episodes = tmp_path / "episodes"
+        episodes.mkdir()
+        target = self._write(episodes / "episode-redundant.json", redundant)
+        before = target.read_text(encoding="utf-8")
+
+        assert extract_session_episode.main([str(episodes), "--validate", "--fix"]) == 2
+
+        assert "refused: relink would drop 1 of 3 edges" in capsys.readouterr().err
+        assert target.read_text(encoding="utf-8") == before
+
+    def test_repair_commit_order_refuses_when_no_sha_resolves(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        events = [
+            self._evt("e001", "commit", "Commit: deadbee", leads_to=["e002"]),
+            self._evt("e002", "commit", "Commit: cafebab", caused_by=["e001"]),
+        ]
+
+        refusal = extract_session_episode.repair_commit_order(events)
+
+        assert refusal == "no commit event resolves to a git commit in this checkout"
+        assert events[0]["leads_to"] == ["e002"]
+
+    def test_fix_without_validate_exits_2(self, tmp_path, capsys):
+        log = tmp_path / "session-1.json"
+        log.write_text("{}", encoding="utf-8")
+
+        assert extract_session_episode.main([str(log), "--fix"]) == 2
+        assert "--fix requires --validate" in capsys.readouterr().err
 
 
 class TestSourceSessionStamping:
