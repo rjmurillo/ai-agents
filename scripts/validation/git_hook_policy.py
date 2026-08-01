@@ -100,15 +100,39 @@ RUFF_COUNT_RATCHET = REPO_ROOT / "scripts" / "ci" / "ruff_count_ratchet.py"
 BANDIT_SUFFIXES = frozenset({".py", ".pyw"})
 TEXTUAL_DIFF_FLAGS = ("--no-ext-diff", "--no-textconv", "--text")
 EMPTY_TREE_SHA1 = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
-ACTIVE_GIT_OPERATION_FILES = (
-    ("MERGE_HEAD", "merge", "git commit to finish the merge or git merge --abort"),
-    ("REBASE_HEAD", "rebase", "git rebase --continue or git rebase --abort"),
+# Git deletes MERGE_HEAD and CHERRY_PICK_HEAD when those operations finish, so
+# their presence means the operation is still open. REBASE_HEAD is not usable
+# the same way: measured on git 2.43.0, it survives a conflicted rebase that has
+# already been continued to completion, so a gate keyed on it blocks every push
+# afterwards. Git's own code calls delete_ref on REBASE_HEAD (builtin/rebase.c
+# and sequencer.c in v2.43.0), so treat this as a cleanup gap rather than a
+# documented guarantee, and re-measure before relying on it in another version.
+# Rebase state lives in the rebase-merge and rebase-apply directories, which git
+# does remove on completion, so those are what this table tracks. The kind field
+# keeps a stray directory named MERGE_HEAD from reading as an open merge.
+ACTIVE_GIT_OPERATION_PATHS = (
+    (
+        "MERGE_HEAD",
+        "file",
+        "merge",
+        "git commit to finish the merge or git merge --abort",
+    ),
+    ("rebase-merge", "dir", "rebase", "git rebase --continue or git rebase --abort"),
+    ("rebase-apply", "dir", "rebase", "git rebase --continue or git rebase --abort"),
     (
         "CHERRY_PICK_HEAD",
+        "file",
         "cherry-pick",
         "git cherry-pick --continue or git cherry-pick --abort",
     ),
 )
+# git am and the apply-backend rebase both use the rebase-apply directory, and a
+# marker file inside it says which one is running. The remedies are not
+# interchangeable: git rebase --continue during a git am exits 128 with
+# "It looks like 'git am' is in progress. Cannot rebase."
+GIT_AM_MARKER = "applying"
+GIT_AM_OPERATION = "git am"
+GIT_AM_REMEDY = "git am --continue or git am --abort"
 SEMGREP_POWERSHELL_RULES = frozenset(
     {
         "yaml.github-actions.security.curl-eval.curl-eval",
@@ -1476,10 +1500,18 @@ def _git_path(repo_root: Path, path_name: str) -> Path | None:
 
 
 def _active_git_operation(repo_root: Path) -> tuple[str, str] | None:
-    for path_name, operation, remedy in ACTIVE_GIT_OPERATION_FILES:
+    for path_name, kind, operation, remedy in ACTIVE_GIT_OPERATION_PATHS:
         git_path = _git_path(repo_root, path_name)
-        if git_path is not None and git_path.is_file():
-            return operation, remedy
+        if git_path is None:
+            continue
+        if kind == "dir":
+            if not git_path.is_dir():
+                continue
+            if (git_path / GIT_AM_MARKER).is_file():
+                return GIT_AM_OPERATION, GIT_AM_REMEDY
+        elif not git_path.is_file():
+            continue
+        return operation, remedy
     return None
 
 

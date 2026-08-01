@@ -96,6 +96,11 @@ def _git(
     *args: str,
     check: bool = True,
 ) -> subprocess.CompletedProcess[str]:
+    # GIT_EDITOR and GIT_SEQUENCE_EDITOR outrank -c core.editor, so a developer
+    # who exports either one can make an editor-launching git command in a test
+    # fail before the assertion under test ever runs. Pin them to true so the
+    # suite does not depend on the invoking shell.
+    env = {**os.environ, "GIT_EDITOR": "true", "GIT_SEQUENCE_EDITOR": "true"}
     return subprocess.run(
         ["git", *args],
         cwd=repo,
@@ -104,6 +109,7 @@ def _git(
         errors="replace",
         capture_output=True,
         check=check,
+        env=env,
     )
 
 
@@ -4617,7 +4623,6 @@ def test_push_policy_blocks_resolved_uncommitted_merge(
 @pytest.mark.parametrize(
     ("head_file", "operation", "remedy"),
     [
-        ("REBASE_HEAD", "rebase", "git rebase --continue"),
         ("CHERRY_PICK_HEAD", "cherry-pick", "git cherry-pick --continue"),
     ],
 )
@@ -4642,6 +4647,171 @@ def test_push_policy_names_active_git_operation(
     error = capsys.readouterr().err
     assert f"{operation} in progress" in error
     assert remedy in error
+
+
+def test_push_policy_names_rebase_when_apply_dir_has_no_marker(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A marker-less rebase-apply is an apply-backend rebase, not a `git am`.
+
+    Negative counterpart to test_push_policy_reports_git_am_with_its_own_remedy,
+    which covers the marked case with a real `git am`. Nothing covered the other
+    side, so a marker check that widened to "any rebase-apply is a git am" would
+    have sent every apply-backend rebase to `git am --continue`, which fails.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked.txt", "base\n")
+    apply_dir = Path(_git(repo, "rev-parse", "--git-path", "rebase-apply").stdout.strip())
+    if not apply_dir.is_absolute():
+        apply_dir = repo / apply_dir
+    apply_dir.mkdir(parents=True, exist_ok=True)
+
+    result = policy.check_push_refs(io.StringIO(), repo)
+
+    assert result == 1
+    error = capsys.readouterr().err
+    assert "rebase in progress" in error
+    assert "git rebase --continue or git rebase --abort" in error
+    assert "git am --continue" not in error
+
+
+def _start_conflicted_rebase(repo: Path) -> None:
+    """Leave *repo* stopped mid-rebase on a conflict.
+
+    Both branches rewrite the same line, so replaying `topic` onto `other`
+    always conflicts and git halts with its rebase state directory in place.
+    """
+    _init_repo(repo)
+    _commit_file(repo, "tracked.txt", "base\n")
+    _git(repo, "checkout", "-q", "-b", "other")
+    _commit_file(repo, "tracked.txt", "other\n")
+    _git(repo, "checkout", "-q", "feature/test")
+    _commit_file(repo, "tracked.txt", "topic\n")
+    _git(repo, "rebase", "other", check=False)
+
+
+def test_push_policy_blocks_while_rebase_is_actually_in_progress(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = tmp_path / "repo"
+    _start_conflicted_rebase(repo)
+
+    result = policy.check_push_refs(io.StringIO(), repo)
+
+    assert result == 1
+    error = capsys.readouterr().err
+    assert "rebase in progress" in error
+    assert "git rebase --continue" in error
+
+
+def test_push_policy_allows_push_after_a_conflicted_rebase_completes(
+    tmp_path: Path,
+) -> None:
+    """A finished rebase must not block the push that follows it.
+
+    Measured on git 2.43.0: REBASE_HEAD survives a conflicted rebase that has
+    already been continued to completion. Git's own code calls delete_ref on it,
+    so this is a cleanup gap rather than a documented guarantee. Treating the
+    leftover pointer as live state blocked every push after a conflict
+    resolution, and the advice it printed ("git rebase --continue") failed with
+    "No rebase in progress?", leaving `git update-ref -d REBASE_HEAD` as the
+    only way out.
+    """
+    repo = tmp_path / "repo"
+    _start_conflicted_rebase(repo)
+    _write_file(repo, "tracked.txt", "resolved\n")
+    _git(repo, "add", "tracked.txt")
+    _git(repo, "-c", "core.editor=true", "rebase", "--continue")
+
+    rebase_head = Path(_git(repo, "rev-parse", "--git-path", "REBASE_HEAD").stdout.strip())
+    if not rebase_head.is_absolute():
+        rebase_head = repo / rebase_head
+    assert rebase_head.is_file(), "expected git to leave REBASE_HEAD behind"
+
+    assert policy.check_push_refs(io.StringIO(), repo) == 0
+
+
+def test_push_policy_reports_git_am_with_its_own_remedy(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A stopped `git am` must not be reported as a rebase.
+
+    git am and the apply-backend rebase share the rebase-apply directory, so a
+    gate that keys on the directory alone calls both "rebase". The remedies are
+    not interchangeable: `git rebase --continue` during an am exits 128 with
+    "It looks like 'git am' is in progress. Cannot rebase.", which is the same
+    dead-end this gate exists to stop printing.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked.txt", "base\n")
+    _git(repo, "checkout", "-q", "-b", "other")
+    _commit_file(repo, "tracked.txt", "other\n")
+    patch_dir = tmp_path / "patches"
+    _git(repo, "format-patch", "-1", "-q", "-o", str(patch_dir))
+    _git(repo, "checkout", "-q", "feature/test")
+    _commit_file(repo, "tracked.txt", "topic\n")
+    patches = sorted(patch_dir.glob("*.patch"))
+    assert patches, "expected format-patch to emit a patch"
+    _git(repo, "am", str(patches[0]), check=False)
+
+    rebase_apply = Path(_git(repo, "rev-parse", "--git-path", "rebase-apply").stdout.strip())
+    if not rebase_apply.is_absolute():
+        rebase_apply = repo / rebase_apply
+    assert (rebase_apply / "applying").exists(), "expected git am to leave its marker"
+
+    assert policy.check_push_refs(io.StringIO(), repo) == 1
+    error = capsys.readouterr().err
+    assert "git am in progress" in error
+    assert "git am --continue" in error
+    assert "git rebase --continue" not in error
+
+
+def test_push_policy_ignores_a_directory_named_like_a_pseudo_ref(tmp_path: Path) -> None:
+    """MERGE_HEAD is a file. A directory at that path is not an open merge."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked.txt", "base\n")
+    merge_head = Path(_git(repo, "rev-parse", "--git-path", "MERGE_HEAD").stdout.strip())
+    if not merge_head.is_absolute():
+        merge_head = repo / merge_head
+    merge_head.mkdir(parents=True)
+
+    assert policy.check_push_refs(io.StringIO(), repo) == 0
+
+
+def test_push_policy_ignores_a_directory_named_like_the_git_am_marker(
+    tmp_path: Path,
+) -> None:
+    """The git-am marker is a file. A directory there is not an open ``git am``.
+
+    ``rebase-apply`` is shared by ``git am`` and the apply-backend rebase, and
+    only the marker inside it tells them apart. Testing the marker with
+    ``exists()`` accepted a directory and reported ``git am`` for a rebase,
+    which hands back ``git am --continue``. That command exits 128 during a
+    rebase, so the wrong-kind marker reintroduces the dead-end remedy this
+    module exists to remove.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked.txt", "base\n")
+    rebase_apply = Path(
+        _git(repo, "rev-parse", "--git-path", "rebase-apply").stdout.strip()
+    )
+    if not rebase_apply.is_absolute():
+        rebase_apply = repo / rebase_apply
+    (rebase_apply / policy.GIT_AM_MARKER).mkdir(parents=True)
+
+    result = policy._active_git_operation(repo)
+
+    assert result is not None
+    operation, remedy = result
+    assert (operation, remedy) != (policy.GIT_AM_OPERATION, policy.GIT_AM_REMEDY)
+    assert operation == "rebase"
 
 
 def test_push_policy_allows_clean_tree_without_active_git_operation(tmp_path: Path) -> None:
