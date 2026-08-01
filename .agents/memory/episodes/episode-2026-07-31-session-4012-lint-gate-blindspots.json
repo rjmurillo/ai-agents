@@ -13,9 +13,7 @@
       "type": "milestone",
       "content": "Re-measure all four issue premises",
       "caused_by": [],
-      "leads_to": [
-        "e009"
-      ],
+      "leads_to": [],
       "_source_session": "2026-07-31-session-4012-lint-gate-blindspots"
     },
     {
@@ -24,9 +22,7 @@
       "type": "milestone",
       "content": "#3874 real bug: rescue 4 misplaced test methods",
       "caused_by": [],
-      "leads_to": [
-        "e009"
-      ],
+      "leads_to": [],
       "_source_session": "2026-07-31-session-4012-lint-gate-blindspots"
     },
     {
@@ -35,9 +31,7 @@
       "type": "milestone",
       "content": "#3941: remove dead S404/S603 noqa from eval-model-sweep.py",
       "caused_by": [],
-      "leads_to": [
-        "e009"
-      ],
+      "leads_to": [],
       "_source_session": "2026-07-31-session-4012-lint-gate-blindspots"
     },
     {
@@ -46,9 +40,7 @@
       "type": "milestone",
       "content": "#3792: enable RUF100, bulk auto-fix, update baseline 331->58",
       "caused_by": [],
-      "leads_to": [
-        "e009"
-      ],
+      "leads_to": [],
       "_source_session": "2026-07-31-session-4012-lint-gate-blindspots"
     },
     {
@@ -57,9 +49,7 @@
       "type": "milestone",
       "content": "#3874 gate: check_unreachable_after_terminator.py (33 tests)",
       "caused_by": [],
-      "leads_to": [
-        "e009"
-      ],
+      "leads_to": [],
       "_source_session": "2026-07-31-session-4012-lint-gate-blindspots"
     },
     {
@@ -68,9 +58,7 @@
       "type": "milestone",
       "content": "#4060 gate: test_no_duplicate_module_level_defs.py (11 tests)",
       "caused_by": [],
-      "leads_to": [
-        "e009"
-      ],
+      "leads_to": [],
       "_source_session": "2026-07-31-session-4012-lint-gate-blindspots"
     },
     {
@@ -79,9 +67,7 @@
       "type": "milestone",
       "content": "Fix mypy errors in embedder.py, guards.py, test_context_loader.py",
       "caused_by": [],
-      "leads_to": [
-        "e009"
-      ],
+      "leads_to": [],
       "_source_session": "2026-07-31-session-4012-lint-gate-blindspots"
     },
     {
@@ -90,26 +76,33 @@
       "type": "milestone",
       "content": "Mutation harness: 8/8 mutants killed",
       "caused_by": [],
-      "leads_to": [
-        "e009"
-      ],
+      "leads_to": [],
       "_source_session": "2026-07-31-session-4012-lint-gate-blindspots"
     },
     {
       "id": "e009",
-      "timestamp": "2026-07-31T23:56:13+00:00",
+      "timestamp": "2026-07-31T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: b3dc8ad9482fbbb69748d6cd7b7cc661b691c4be",
-      "caused_by": [
-        "e001",
-        "e002",
-        "e003",
-        "e004",
-        "e005",
-        "e006",
-        "e007",
-        "e008"
-      ],
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4012-lint-gate-blindspots"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 994b5e5b1e03f4682061a0fe208c2d13e36d7635",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4012-lint-gate-blindspots"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: f3786221e378064fbcf55ea11a14c9fbf55df49f",
+      "caused_by": [],
       "leads_to": [],
       "_source_session": "2026-07-31-session-4012-lint-gate-blindspots"
     }
@@ -119,7 +112,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 3,
     "files_changed": 6
   },
   "lessons": []

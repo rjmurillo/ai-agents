@@ -420,6 +420,7 @@ pre-push:
               - "src/copilot-cli/lib/**"
               - "src/copilot-cli/hooks/**"
               - "src/copilot-cli/skills/**"
+              - "tests/skills/**"
               - "docs/**"
               - "evals/**"
 
