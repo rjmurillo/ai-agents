@@ -111,7 +111,7 @@ declared debt.
 adding `.agents/this-path-does-not-exist.md` to both shipped copies of a skill
 with a file-level declaration: all five gates exited 0. The Markdown prose gate
 matched the path, then suppressed the declared file. The other four scan
-scripts, executable paths, or frontmatter, not body prose. None resolves paths
+Python, executable paths, or frontmatter, not body prose. None resolves paths
 named by a declaration. Verify the path resolves before writing it into a
 declaration. See
 `.agents/retrospective/2026-07-31-backticking-is-not-repair.md`.
