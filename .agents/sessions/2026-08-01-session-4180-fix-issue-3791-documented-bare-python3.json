@@ -133,12 +133,20 @@
     {
       "task": "Add scripts/validation/check_doc_interpreter_portability.py ratchet plus tests",
       "outcome": "32 tests pass. Load-bearing proven by reverting each fix and observing failure: docs revert gives guard exit 1 plus a failing regression test; ambiguity-fix revert returns the pytest false positive; module-level-walk revert returns the anthropic false positive."
+    },
+    {
+      "task": "Round 2, adversarial review rejection: fix every sibling instead of grandfathering them",
+      "outcome": "Review rejected round 1 for leaving the sibling class in a baseline. Migrated all 112 remaining invocations across 47 files (21 non-plugin docs, 22 .claude sources, 1 generator emitter, plus regenerated mirrors), emptied doc_interpreter_baseline.json, and added test_repository_has_no_documented_bare_interpreter_invocations. Five historical citations of what PR #2871 did were reworded to drop the interpreter token rather than rewritten, so the record stays true."
+    },
+    {
+      "task": "Fix the guard's own dot-path blind spot",
+      "outcome": "INVOCATION_PATTERN required the operand to start with a word character, so `python3 .claude/skills/adr-review/scripts/detect_adr_changes.py` (import yaml) and every `./scripts/<name>.py` form were invisible, and the `./` strip in find_offenses was dead code. Seven offenses across four files hid behind that character class. Fixed with a `\\.{0,2}/?` prefix; two new unit tests fail without it."
     }
   ],
   "endingCommit": "",
   "nextSteps": [
-    "Migrate the 44 files remaining in scripts/validation/doc_interpreter_baseline.json off bare python3.",
     "Issues #3806 and #4210 carry the same defect class in CI and workflow surfaces; both remain open.",
-    "CONTRIBUTING.md:466-474 documents an AUTO-GENERATED banner that exists in zero generated files and that no agent generator emits; stale block, not fixed here."
+    "CONTRIBUTING.md:466-474 documents an AUTO-GENERATED banner that exists in zero generated files and that no agent generator emits; stale block, not fixed here.",
+    "build/generate_agent_catalog.py:239 carries a pre-existing E501 and a ruff-format diff, both on a line this change did not touch; left alone to keep the diff minimal."
   ]
 }

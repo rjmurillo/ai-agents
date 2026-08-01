@@ -511,7 +511,7 @@ If you're contributing code or running tests locally:
 This project uses a **template-based generation system**. To modify agents:
 
 1. Edit templates in `templates/agents/*.shared.md`
-2. Run `python build/generate_agents.py` to regenerate
+2. Run `uv run python build/generate_agents.py` to regenerate
 3. Commit both template and generated files
 
 **Do not edit files in `src/vs-code-agents/` or `src/copilot-cli/` directly.** See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
