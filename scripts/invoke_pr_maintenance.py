@@ -184,7 +184,7 @@ query($owner: String!, $name: String!, $limit: Int!) {
                                     pageInfo { hasNextPage endCursor }
                                     nodes {
                                         ... on CheckRun { name conclusion startedAt completedAt }
-                                        ... on StatusContext { context state }
+                                        ... on StatusContext { context state createdAt }
                                     }
                                 }
                             }

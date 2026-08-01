@@ -38,6 +38,7 @@ query($owner: String!, $name: String!, $oid: GitObjectID!, $cursor: String!) {
                                 __typename
                                 context
                                 state
+                                createdAt
                             }
                         }
                     }

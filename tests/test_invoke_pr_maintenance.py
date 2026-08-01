@@ -208,8 +208,22 @@ class TestHasFailingChecks:
             ("SUCCESS", "FAILURE", True),
         ],
     )
-    def test_duplicate_check_name_uses_latest_timestamp(
-        self, first_conclusion, second_conclusion, expected
+    @pytest.mark.parametrize(
+        ("context_type", "name_field", "result_field", "timestamp_field"),
+        [
+            ("CheckRun", "name", "conclusion", "completedAt"),
+            ("StatusContext", "context", "state", "createdAt"),
+        ],
+    )
+    def test_duplicate_context_uses_latest_timestamp(
+        self,
+        first_conclusion,
+        second_conclusion,
+        expected,
+        context_type,
+        name_field,
+        result_field,
+        timestamp_field,
     ):
         pr = {
             "number": 78,
@@ -223,16 +237,16 @@ class TestHasFailingChecks:
                                     "totalCount": 2,
                                     "nodes": [
                                         {
-                                            "__typename": "CheckRun",
-                                            "name": "ci",
-                                            "conclusion": first_conclusion,
-                                            "completedAt": "2026-07-31T10:00:00Z",
+                                            "__typename": context_type,
+                                            name_field: "ci",
+                                            result_field: first_conclusion,
+                                            timestamp_field: "2026-07-31T10:00:00Z",
                                         },
                                         {
-                                            "__typename": "CheckRun",
-                                            "name": "ci",
-                                            "conclusion": second_conclusion,
-                                            "completedAt": "2026-07-31T10:05:00Z",
+                                            "__typename": context_type,
+                                            name_field: "ci",
+                                            result_field: second_conclusion,
+                                            timestamp_field: "2026-07-31T10:05:00Z",
                                         },
                                     ],
                                 },
