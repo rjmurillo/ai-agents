@@ -1,0 +1,120 @@
+{
+  "id": "episode-2026-08-01-session-4041-fix-merge-resolver-conflict-marker-check",
+  "session": "2026-08-01-session-4041-fix-merge-resolver-conflict-marker-check",
+  "timestamp": "2026-08-01T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix merge-resolver conflict marker check base ref issue 4058",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Make verify_no_conflict_markers.py merge-aware",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read MERGE_HEAD line by line instead of through git rev-parse",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Repoint the prose gates at the script",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Cover the fix with tests",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Set the plugin version slot",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-31T04:04:09+00:00",
+      "type": "commit",
+      "content": "Commit: acb40dbdb",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-31T04:04:18+00:00",
+      "type": "commit",
+      "content": "Commit: 8ad43b93a",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-31T04:04:31+00:00",
+      "type": "commit",
+      "content": "Commit: c2e1ab066",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-31T04:19:49+00:00",
+      "type": "commit",
+      "content": "Commit: bc8604466",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
+      ]
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 4,
+    "files_changed": 4
+  },
+  "lessons": []
+}
