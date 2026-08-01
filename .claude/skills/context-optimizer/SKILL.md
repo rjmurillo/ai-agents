@@ -20,7 +20,7 @@ Tooling suite for optimizing Claude Code context placement. Passive context (AGE
 - `compress markdown` - reduce token count for context files
 - `optimize context` - lower API costs and improve agent performance
 - `extract and index` - split markdown into detail files with compact index
-- `audit always-on rules` - eval-gated procedure for whether a rule earns its slot, and the doctrine behind it, in [rule-audit-procedure.md](references/rule-audit-procedure.md) and [model-context-doctrine.md](references/model-context-doctrine.md). Also the entry point when a new model ships
+- `audit always-on rules` - eval-gated procedure for whether a rule earns its slot, and the doctrine behind it, in [rule-audit-procedure.md](references/rule-audit-procedure.md) and [model-context-doctrine.md](references/model-context-doctrine.md). Also the entry point when a new model ships. **Requires a full rjmurillo/ai-agents checkout**: the procedure runs this repo's eval harness and rule generator, neither of which ships in a plugin install. The doctrine and the instrument write-ups are readable anywhere; only the commands need the checkout
 
 ## Process
 
@@ -116,7 +116,7 @@ The pass-rate table has no cost column. Passive context is paid on every request
 ## References
 
 - [model-context-doctrine.md](references/model-context-doctrine.md) - What the current doctrine is, why Vercel and Shihipar do not conflict, per-model levers, and how to update when a new model ships. **Read this before arguing about always-on content.**
-- [rule-audit-procedure.md](references/rule-audit-procedure.md) - Repeatable procedure for deciding whether an always-on rule earns its slot, including the eval commands and the decision table
+- [rule-audit-procedure.md](references/rule-audit-procedure.md) - Repeatable procedure for deciding whether an always-on rule earns its slot, including the eval commands and the decision table. Contributor-only: its commands invoke this repo's eval harness and rule generator
 - [rule-audit-instrument.md](references/rule-audit-instrument.md) - What the eval can and cannot resolve, the noise floor, and the known instrument gotchas. Read before believing any number the eval prints
 - [rule-audit-evidence.md](references/rule-audit-evidence.md) - Forensics behind the published table: which judge samples were lost, what recovering them changed, and what the loss does to the headline claim. Read before citing a cell
 - [rule-audit-parser-forensics.md](references/rule-audit-parser-forensics.md) - Repair history of the parser that produced the table: what more than twenty rounds of adversarial review found, and which fixes were themselves wrong. Read before writing a new instrument that parses judge output
