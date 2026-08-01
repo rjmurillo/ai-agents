@@ -54,7 +54,7 @@ def find_existing_comment(repo: str, number: str) -> int | None:
             ],
             capture_output=True,
             text=True,
-        encoding="utf-8",
+            encoding="utf-8",
         )
         if result.returncode != 0 or not result.stdout:
             break
@@ -93,7 +93,7 @@ def post_comment(repo: str, number: str, body: str, existing_id: int | None) -> 
             ],
             capture_output=True,
             text=True,
-        encoding="utf-8",
+            encoding="utf-8",
         )
         if result.returncode == 0:
             print(f"Updated existing velocity comment (id: {existing_id})")
