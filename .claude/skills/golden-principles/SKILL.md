@@ -12,8 +12,6 @@ Produces remediation instructions that agents can act on directly.
 
 <!-- vendor-portability: declared. This skill enforces GP-001 through GP-008 defined in .agents/governance/golden-principles.md and cites that document plus .claude/skills/ siblings. The governance file is the upstream rule source; a vendored install without it loses the canonical principle text, while the bundled scanner still applies its built-in GP-001 and GP-003 through GP-006 checks against the consumer's files (GP-002 is enforced elsewhere, not by this scanner). Issue #2050. -->
 
-
-
 Inspired by [OpenAI Harness Engineering](https://openai.com/index/harness-engineering/):
 
 > "We started encoding what we call 'golden principles' directly into the repository

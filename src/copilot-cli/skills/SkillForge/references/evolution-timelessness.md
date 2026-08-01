@@ -1,7 +1,8 @@
+# Evolution and Timelessness
 
 Every skill is evaluated through the evolution lens:
 
-### Temporal Projection
+## Temporal Projection
 
 | Timeframe | Key Question |
 |-----------|--------------|
@@ -10,7 +11,7 @@ Every skill is evaluated through the evolution lens:
 | 2 years | What new capabilities might obsolete this? |
 | 5 years | Is the core problem still relevant? |
 
-### Timelessness Scoring
+## Timelessness Scoring
 
 | Score | Description | Verdict |
 |-------|-------------|---------|
@@ -21,7 +22,7 @@ Every skill is evaluated through the evolution lens:
 
 **Requirement:** All skills must score ≥7.
 
-### Anti-Obsolescence Patterns
+## Anti-Obsolescence Patterns
 
 | Do | Don't |
 |----|-------|
