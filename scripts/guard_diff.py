@@ -33,8 +33,9 @@ GuardFn = Callable[[str], list[int]]
 def load_guard(guard_path: Path, attr: str = "unpinned_lines") -> GuardFn:
     """Load a guard callable from a Python source file by path.
 
-    Uses a unique module name per path so two calls with different paths do
-    not collide in ``sys.modules``.
+    Uses a unique name per path for ``spec_from_file_location``. The module
+    is not registered in ``sys.modules``, so the name only needs to be stable
+    within this process, not globally unique.
     """
     spec = importlib.util.spec_from_file_location(
         f"_guard_diff_rev_{abs(hash(str(guard_path.resolve())))}",
