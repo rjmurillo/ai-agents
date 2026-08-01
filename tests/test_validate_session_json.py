@@ -2011,10 +2011,11 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         ).read_text(encoding="utf-8")
         assert "--scope-from-git" in script
 
-    def test_the_workflow_does_not_shell_out_to_uv(self) -> None:
-        """The validate job installs no dependencies; uv is not on PATH there."""
-        workflow = Path(__file__).resolve().parents[1] / ".github/workflows/ai-session-protocol.yml"
-        assert "uv run" not in workflow.read_text(encoding="utf-8")
+    # Issue #3806 retired the whole-file `"uv run" not in workflow` assertion
+    # that used to sit here. The validate job now installs uv on purpose, and a
+    # substring over the whole file cannot tell that job from the three that
+    # still install nothing. The per-job successor lives in
+    # tests/ci/test_validate_session_protocol.py::TestEachJobInstallsWhatItsScriptsNeed.
 
     def test_the_shared_module_imports_no_third_party_package(self) -> None:
         """It runs under the workflow's bare python3, which has no PyYAML."""
