@@ -261,7 +261,7 @@
       "type": "error",
       "content": "Completed the PR #4037 autofix retrospective before rerunning exact-SHA review    Recorded three Five Whys, classified FM-4 and FM-9 failures, linked issues #4118, #4134, and #4135, and persisted four atomic learnings to Serena memory",
       "caused_by": [
-        "e026"
+        "e029"
       ],
       "leads_to": [],
       "_source_session": "2026-07-31-session-4041-finalize-4037-evidence-corrections-adr"
@@ -275,6 +275,41 @@
         "e022"
       ],
       "leads_to": [
+        "e028"
+      ],
+      "_source_session": "2026-07-31-session-4041-finalize-4037-evidence-corrections-adr"
+    },
+    {
+      "id": "e027",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved the final analyst evidence wording finding",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4041-finalize-4037-evidence-corrections-adr"
+    },
+    {
+      "id": "e028",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 66d1bd6ae",
+      "caused_by": [
+        "e026"
+      ],
+      "leads_to": [
+        "e029"
+      ],
+      "_source_session": "2026-07-31-session-4041-finalize-4037-evidence-corrections-adr"
+    },
+    {
+      "id": "e029",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 1b0e5f971ccc691cd057b4c706fa3d0936480d6b",
+      "caused_by": [
+        "e028"
+      ],
+      "leads_to": [
         "e025"
       ],
       "_source_session": "2026-07-31-session-4041-finalize-4037-evidence-corrections-adr"
@@ -285,7 +320,7 @@
     "tool_calls": 0,
     "errors": 9,
     "recoveries": 0,
-    "commits": 12,
+    "commits": 14,
     "files_changed": 7
   },
   "lessons": []
