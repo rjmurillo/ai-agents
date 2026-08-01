@@ -17,6 +17,7 @@ EXIT_REGRESSION = 1
 EXIT_CONFIG = 2
 
 DEFAULT_OVERHEAD_MINUTES = 5
+DEFAULT_AI_REVIEW_TIMEOUT_MINUTES = 5
 ATTEMPTS_PER_STEP = 3
 RETRY_DELAY_MINUTES = 1.5
 
@@ -54,7 +55,9 @@ def _uses_ai_review(step: Mapping[str, object]) -> bool:
 def _step_timeout(step: Mapping[str, object]) -> int | None:
     with_block = step.get("with")
     if not isinstance(with_block, Mapping):
-        return None
+        return DEFAULT_AI_REVIEW_TIMEOUT_MINUTES
+    if "timeout-minutes" not in with_block:
+        return DEFAULT_AI_REVIEW_TIMEOUT_MINUTES
     return _as_int(with_block.get("timeout-minutes"))
 
 

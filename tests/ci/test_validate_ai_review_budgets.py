@@ -36,6 +36,27 @@ jobs:
     assert "required=31" in captured.err
 
 
+def test_missing_step_timeout_uses_action_default(tmp_path, capsys):
+    _write_workflow(
+        tmp_path,
+        """
+name: AI
+jobs:
+  triage:
+    timeout-minutes: 21
+    steps:
+      - uses: ./.github/actions/ai-review
+        with:
+          agent: analyst
+""",
+    )
+    rc = budgets.main(["--repo-root", str(tmp_path)])
+    captured = capsys.readouterr()
+    assert rc == budgets.EXIT_REGRESSION
+    assert "required=22" in captured.err
+    assert "ai-review steps=[5]" in captured.err
+
+
 def test_sufficient_budget_workflow_passes(tmp_path, capsys):
     _write_workflow(
         tmp_path,

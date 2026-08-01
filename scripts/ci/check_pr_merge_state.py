@@ -8,7 +8,7 @@ import json
 import os
 import subprocess
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 EXIT_OK = 0
@@ -68,8 +68,14 @@ def load_open_prs(repo: str, head_ref: str) -> tuple[int, list[PullRequest]]:
     except json.JSONDecodeError as exc:
         print(f"error: gh emitted invalid JSON: {exc}", file=sys.stderr)
         return EXIT_EXTERNAL, []
+    if not isinstance(payload, list):
+        print("error: gh emitted JSON that was not a PR list", file=sys.stderr)
+        return EXIT_EXTERNAL, []
     prs: list[PullRequest] = []
     for item in payload:
+        if not isinstance(item, Mapping):
+            print("error: gh emitted a malformed PR item", file=sys.stderr)
+            return EXIT_EXTERNAL, []
         prs.append(
             PullRequest(
                 number=int(item["number"]),
