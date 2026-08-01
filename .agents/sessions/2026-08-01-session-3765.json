@@ -133,6 +133,11 @@
       "title": "Repaired episode batch 1 of 4",
       "outcome": "success",
       "evidence": "Sessions 3256, 3422, 3475, 3605. Edges 63 to 63, 46 to 48, 6 to 8, 16 to 16. No field outside events changed."
+    },
+    {
+      "title": "Repaired episode batch 2 of 4",
+      "outcome": "success",
+      "evidence": "Sessions 3499, 3584, 3585, 3617. Edges 5 to 5, 8 to 8, 10 to 10, 18 to 20."
     }
   ],
   "endingCommit": "7270f8762",
