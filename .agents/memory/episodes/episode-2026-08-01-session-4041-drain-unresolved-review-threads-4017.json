@@ -1,0 +1,19 @@
+{
+  "id": "episode-2026-08-01-session-4041-drain-unresolved-review-threads-4017",
+  "session": "2026-08-01-session-4041-drain-unresolved-review-threads-4017",
+  "timestamp": "2026-08-01T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Drain unresolved review threads on PR #4017 and PR #4101: fix p-value inconsistency in rule-audit-procedure.md, store raw provider response (not stripped text) in raw_judge_response, and update stale salvage comment. All threads resolved with fixes or measurement-based refutations.",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 3
+  },
+  "lessons": []
+}
