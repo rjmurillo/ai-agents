@@ -4,10 +4,21 @@ DESIGN-004 §5.4 (AnthropicAPIAdapter). Thin wrapper over `_anthropic_api`
 that adds retry policy, error categorization, and structured stderr logs.
 
 Retry policy (REQ-004 AC-3, DESIGN-004 §Failure Modes):
-- Transient categories (retried): 408, 429, 5xx, timeout
+- Transient (408, 429, 5xx, timeout) is retried only while the wall budget
+  allows. When the next attempt plus its backoff would reach
+  `total_timeout_seconds`, the call records `error_category=timeout_total`
+  instead. Transient describes the error, not a promise of a second call.
 - Non-transient 4xx (any other 4xx): record `outcome=error` immediately, no retry
-- Max 3 attempts, exponential backoff with jitter (base=1s, max=30s)
-- `temperature=0` enforced on every call
+- Max 3 attempts, exponential backoff with jitter (base=1s, max=30s). The wall
+  budget can end a sequence after one attempt, so 3 is a ceiling, not a count.
+- A status outranks a text hint when both are present, so a 4xx whose response
+  body mentions a timeout stays non-transient.
+- `temperature=0` is sent on every call, but not every transport honors it.
+  Anthropic paths and non-reasoning OpenAI models apply it. Reasoning models
+  (o-series and the gpt-5 family) reject a custom temperature, so `_providers`
+  omits it, and Copilot CLI exposes no sampling controls, so it is discarded.
+  A run on either is not temperature pinned, and the artifact records no
+  provider to tell you which it was (issue #3956).
 
 Logging:
 - Structured JSON to stderr per call: `fixture_id`, `variant`, `model_id`,
@@ -57,10 +68,10 @@ ERR_TOTAL_TIMEOUT = "timeout_total"
 class APICallResult:
     """Outcome of one (possibly-retried) API call. DESIGN-004 §5.4.
 
-    `tokens_estimated` is True when token counts are derived from a
-    text-length heuristic instead of a `usage` envelope returned by the
-    API. The eval pipeline propagates this flag into `runs.jsonl` and the
-    aggregated report so cost numbers are not presented as authoritative.
+    `tokens_estimated` is True whenever counts did not come from a `usage`
+    envelope: the success path's text-length heuristic, and the zeros an
+    error path reports without counting. It drives a downstream cost caveat,
+    so an absent measurement stays flagged instead of passing as a real zero.
     """
 
     outcome: OutcomeLiteral
@@ -93,14 +104,22 @@ def _categorize_error(exc: Exception) -> str:
     Subprocess-backed providers have no HTTP status at all, so their failures
     are read from text instead. Anything unrecognized falls back to the
     transient default, which retries rather than discarding a sample.
+
+    A status, when the message carries one, outranks any text hint. The HTTP
+    error shape appends the sanitized response body, so a 4xx whose body
+    happens to say "timed out" would otherwise be read as a timeout and
+    retried, contradicting the no-retry rule this module documents for
+    non-transient 4xx. Text hints are the fallback for the providers that
+    report no status at all, which is the only population they were chosen to
+    describe.
     """
     message = str(exc)
-    if _TIMEOUT_HINT in message:
-        return ERR_TIMEOUT
     match = _HTTP_STATUS_RE.search(message)
     if match is None:
         # No HTTP status. Check the text signals a subprocess provider can
         # give, then treat the rest as a transient network issue.
+        if _TIMEOUT_HINT in message:
+            return ERR_TIMEOUT
         if _RATE_LIMIT_HINT in message.lower():
             return ERR_RATE_LIMIT
         return ERR_SERVER_ERROR
@@ -325,13 +344,17 @@ class AnthropicAPIAdapter:
             # per-attempt timeouts.
             elapsed = self._clock() - start_total
             if attempt > 1 and elapsed >= self._total_timeout_seconds:
+                # This guard fires before the call, so `attempt` counts one
+                # that never happened. Log the completed count so the stderr
+                # stream and the returned `attempts` describe the same event.
+                completed = attempt - 1
                 _emit_log(
                     {
                         "fixture_id": fixture_id,
                         "variant": variant,
                         "run_index": run_index,
                         "model_id": model_id,
-                        "attempt": attempt,
+                        "attempt": completed,
                         "outcome": "error",
                         "latency_ms": round(elapsed * 1000.0, 2),
                         "tokens_in": 0,
@@ -346,14 +369,14 @@ class AnthropicAPIAdapter:
                     tokens_out=0,
                     latency_ms=round(elapsed * 1000.0, 2),
                     error_category=ERR_TOTAL_TIMEOUT,
-                    attempts=attempt - 1,
+                    attempts=completed,
                     tokens_estimated=True,
                     system_fingerprint=None,
                 )
             attempt_start = self._clock()
             try:
                 raw = transport(prompt, model_id, system)
-            except Exception as exc:  # broad on purpose — categorize then decide
+            except Exception as exc:  # broad on purpose: categorize then decide
                 category = _categorize_error(exc)
                 last_category = category
                 latency_ms = (self._clock() - attempt_start) * 1000.0
@@ -452,8 +475,8 @@ class AnthropicAPIAdapter:
                 system_fingerprint=getattr(transport, "system_fingerprint", None),
             )
 
-        # Exhausted retries on transient error without ever getting an
-        # exception inside the loop — defensive fallthrough; should not occur.
+        # Unreachable for positive `max_retries`; the loop returns on both exit
+        # paths. Only `max_retries <= 0` lands here, having called nothing.
         total_latency_ms = (self._clock() - start_total) * 1000.0
         return APICallResult(
             outcome="error",
