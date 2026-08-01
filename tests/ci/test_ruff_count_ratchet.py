@@ -32,9 +32,7 @@ def _fake_scan(
     def _run(cmd, **kwargs):  # noqa: ANN001, ANN003
         if cmd[0] == "git" and "show" in cmd:
             rc = 0 if base_baseline is not None else 128
-            return subprocess.CompletedProcess(
-                cmd, rc, stdout=(base_baseline or ""), stderr=""
-            )
+            return subprocess.CompletedProcess(cmd, rc, stdout=(base_baseline or ""), stderr="")
         if cmd[0] == "git":
             stdout = "\0".join(tracked) + ("\0" if tracked else "")
             return subprocess.CompletedProcess(cmd, git_returncode, stdout=stdout, stderr="")
@@ -68,32 +66,33 @@ def test_count_above_baseline_is_regression(tmp_path, monkeypatch):
     assert rc == ratchet.EXIT_REGRESSION
 
 
-def test_count_below_baseline_is_regression_without_updating(tmp_path, monkeypatch):
+def test_count_below_baseline_passes_without_update(tmp_path, monkeypatch):
+    # ADR-091: post-merge bot owns baseline lowering; a PR that improves the
+    # count should not be blocked waiting to self-edit the baseline file.
     baseline = _write_baseline(tmp_path, "408")
     monkeypatch.setattr(subprocess, "run", _fake_scan(1, 400))
     rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path)])
-    assert rc == ratchet.EXIT_REGRESSION
+    assert rc == ratchet.EXIT_OK
     assert baseline.read_text(encoding="utf-8").strip() == "408"
 
 
 def test_count_below_baseline_with_update_lowers_baseline(tmp_path, monkeypatch):
     baseline = _write_baseline(tmp_path, "408")
     monkeypatch.setattr(subprocess, "run", _fake_scan(0, 400))
-    rc = ratchet.main(
-        ["--baseline", str(baseline), "--repo-root", str(tmp_path), "--update"]
-    )
+    rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path), "--update"])
     assert rc == ratchet.EXIT_OK
     assert baseline.read_text(encoding="utf-8").strip() == "400"
 
 
-def test_count_below_baseline_prints_stale_message(tmp_path, monkeypatch, capsys):
+def test_count_below_baseline_prints_improvement_message(tmp_path, monkeypatch, capsys):
+    # ADR-091: count below baseline prints an improvement note, not a regression.
     baseline = _write_baseline(tmp_path, "408")
     monkeypatch.setattr(subprocess, "run", _fake_scan(1, 400))
     rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path)])
-    assert rc == ratchet.EXIT_REGRESSION
+    assert rc == ratchet.EXIT_OK
     captured = capsys.readouterr()
-    assert "BASELINE STALE" in captured.err
-    assert "--update" in captured.err
+    assert "improved" in captured.out
+    assert "post-merge bot" in captured.out
 
 
 def test_clean_tree_zero_count_passes(tmp_path, monkeypatch):
@@ -105,9 +104,7 @@ def test_clean_tree_zero_count_passes(tmp_path, monkeypatch):
 
 def test_missing_baseline_is_config_error(tmp_path, monkeypatch):
     monkeypatch.setattr(subprocess, "run", _fake_scan(1, 408))
-    rc = ratchet.main(
-        ["--baseline", str(tmp_path / "absent.txt"), "--repo-root", str(tmp_path)]
-    )
+    rc = ratchet.main(["--baseline", str(tmp_path / "absent.txt"), "--repo-root", str(tmp_path)])
     assert rc == ratchet.EXIT_CONFIG
 
 
