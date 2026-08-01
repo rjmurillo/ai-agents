@@ -5,10 +5,10 @@ Many artifacts in this repo live in multiple trees that the build pipeline does
 NOT auto-generate end-to-end. The shared-agent family is the canonical
 example: ``templates/agents/X.shared.md`` is the source of truth that the
 ``generate_agents`` script propagates to ``src/copilot-cli/agents/`` and
-``src/vs-code-agents/`` -- and to those two only, enforced by the
-``allowed_output_dirs`` allowlist at ``generate_agents.py:269-272``. Three
-copies are hand-maintained and are NOT touched by the generator: the Claude
-prompt source ``src/claude/X.md``, the Claude-Code self-host copy
+``src/vs-code-agents/``. Those two are the only generator outputs, enforced
+by the ``allowed_output_dirs`` allowlist at ``generate_agents.py:269-272``.
+Three copies are hand-maintained and are NOT touched by the generator: the
+Claude prompt source ``src/claude/X.md``, the Claude-Code self-host copy
 ``.claude/agents/X.md``, and the GitHub-Copilot self-host copy
 ``.github/agents/X.agent.md`` (REQ-003-010 forbids generators from writing
 under ``.claude/``).
