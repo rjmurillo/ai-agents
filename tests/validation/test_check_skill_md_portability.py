@@ -685,6 +685,10 @@ class TestPluginRootScan:
         self._skill_md(tmp_path, "src/copilot-cli", "a/SKILL.md", "Reads .agents/x\n")
         assert cmp.scan_plugin_roots(tmp_path) == {"src/copilot-cli/skills/a/SKILL.md": 1}
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Symlinks require privileges on Windows",
+    )
     def test_marker_scan_reports_broken_md_symlink(self, tmp_path: Path) -> None:
         """Marker drift scan must fail closed on the same partial-scan case."""
         skill = tmp_path / ".claude" / "skills" / "a"
