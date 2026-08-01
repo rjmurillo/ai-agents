@@ -1,0 +1,242 @@
+"""Run targeted mutation batteries without silent no-op results.
+
+Battery file format:
+
+```json
+{
+  "command": ["uv", "run", "pytest", "tests/test_example.py", "-x"],
+  "entries": [
+    {
+      "name": "example-guard",
+      "path": "scripts/example.py",
+      "old": "raise ValueError(message)",
+      "new": "return None"
+    }
+  ]
+}
+```
+
+Each entry may override ``command``. A mutation is ``CAUGHT`` when the command
+fails, because the test suite detected the mutant. It is ``MISSED`` when the
+command succeeds, because the mutant survived.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+from collections.abc import Sequence
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+EXIT_OK = 0
+EXIT_MUTATION_MISSED = 1
+EXIT_CONFIG_ERROR = 2
+EXIT_EXTERNAL_ERROR = 3
+EXIT_INTERRUPTED = 130
+
+
+class BatteryConfigError(ValueError):
+    """Raised when a battery can produce a false result."""
+
+
+@dataclass(frozen=True, slots=True)
+class MutationEntry:
+    """One targeted source edit and the command that must catch it."""
+
+    name: str
+    path: Path
+    old: str
+    new: str
+    command: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class MutationResult:
+    """Result for one mutation entry."""
+
+    entry: MutationEntry
+    returncode: int
+
+    @property
+    def caught(self) -> bool:
+        return self.returncode != 0
+
+
+@dataclass(frozen=True, slots=True)
+class ValidationProblem:
+    """Configuration problem found before the battery spends any runtime."""
+
+    entry: MutationEntry
+    message: str
+
+
+def load_battery(path: Path) -> list[MutationEntry]:
+    """Load mutation entries from a JSON battery file."""
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise BatteryConfigError("battery root must be a JSON object")
+
+    default_command = _read_command(raw.get("command"), "battery command")
+    raw_entries = raw.get("entries")
+    if not isinstance(raw_entries, list) or not raw_entries:
+        raise BatteryConfigError("battery must contain a non-empty entries list")
+
+    entries: list[MutationEntry] = []
+    for index, raw_entry in enumerate(raw_entries, start=1):
+        if not isinstance(raw_entry, dict):
+            raise BatteryConfigError(f"entry {index} must be a JSON object")
+        command = _read_command(raw_entry.get("command"), f"entry {index} command")
+        entries.append(
+            MutationEntry(
+                name=_read_string(raw_entry, "name", index),
+                path=_resolve_entry_path(path.parent, _read_string(raw_entry, "path", index)),
+                old=_read_string(raw_entry, "old", index),
+                new=_read_string(raw_entry, "new", index),
+                command=command or default_command,
+            )
+        )
+
+    missing_command = [entry.name for entry in entries if not entry.command]
+    if missing_command:
+        names = ", ".join(missing_command)
+        raise BatteryConfigError(f"entries missing command: {names}")
+
+    return entries
+
+
+def validate_battery(entries: Sequence[MutationEntry]) -> list[ValidationProblem]:
+    """Return every config problem that would make a mutation result untrusted."""
+    problems: list[ValidationProblem] = []
+    for entry in entries:
+        if entry.old == entry.new:
+            problems.append(
+                ValidationProblem(
+                    entry=entry,
+                    message="identity mutation: old and new are equal",
+                )
+            )
+            continue
+
+        try:
+            source = entry.path.read_text(encoding="utf-8")
+        except OSError as exc:
+            problems.append(ValidationProblem(entry=entry, message=f"cannot read source: {exc}"))
+            continue
+
+        count = source.count(entry.old)
+        if count != 1:
+            problems.append(
+                ValidationProblem(
+                    entry=entry,
+                    message=f"anchor occurrence count is {count}, expected exactly 1",
+                )
+            )
+
+    return problems
+
+
+class MutationRunner:
+    """Apply, run, and restore targeted mutation entries."""
+
+    def __init__(self, cwd: Path | None = None) -> None:
+        self.cwd = cwd or Path.cwd()
+
+    def run_all(self, entries: Sequence[MutationEntry]) -> list[MutationResult]:
+        problems = validate_battery(entries)
+        if problems:
+            raise BatteryConfigError(format_validation_problems(problems))
+
+        results: list[MutationResult] = []
+        for entry in entries:
+            result = self.run_entry(entry)
+            results.append(result)
+            state = "CAUGHT" if result.caught else "MISSED"
+            print(f"{state} {entry.name} returncode={result.returncode}", flush=True)
+        return results
+
+    def run_entry(self, entry: MutationEntry) -> MutationResult:
+        original = entry.path.read_text(encoding="utf-8")
+        mutated = original.replace(entry.old, entry.new, 1)
+
+        try:
+            _purge_pycache(entry.path.parent)
+            entry.path.write_text(mutated, encoding="utf-8")
+            completed = self._run_command(entry.command)
+            return MutationResult(entry=entry, returncode=completed.returncode)
+        finally:
+            entry.path.write_text(original, encoding="utf-8")
+            _purge_pycache(entry.path.parent)
+
+    def _run_command(self, command: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+        sys.stderr.flush()
+        sys.stdout.flush()
+        return subprocess.run(command, cwd=self.cwd, env=env, text=True, check=False)
+
+
+def format_validation_problems(problems: Sequence[ValidationProblem]) -> str:
+    lines = ["CONFIG_ERROR mutation battery refused before running commands"]
+    for problem in problems:
+        lines.append(f"{problem.entry.name}: {problem.entry.path}: {problem.message}")
+    return "\n".join(lines)
+
+
+def _purge_pycache(root: Path) -> None:
+    for pycache in sorted(root.rglob("__pycache__"), reverse=True):
+        if pycache.is_dir():
+            shutil.rmtree(pycache)
+
+
+def _resolve_entry_path(base: Path, raw_path: str) -> Path:
+    path = Path(raw_path)
+    if not path.is_absolute():
+        path = base / path
+    return path.resolve()
+
+
+def _read_string(raw_entry: dict[str, Any], key: str, index: int) -> str:
+    value = raw_entry.get(key)
+    if not isinstance(value, str) or not value:
+        raise BatteryConfigError(f"entry {index} field {key!r} must be a non-empty string")
+    return value
+
+
+def _read_command(raw_command: object, field_name: str) -> tuple[str, ...]:
+    if raw_command is None:
+        return ()
+    if not isinstance(raw_command, list) or not raw_command:
+        raise BatteryConfigError(f"{field_name} must be a non-empty string list")
+    if not all(isinstance(part, str) and part for part in raw_command):
+        raise BatteryConfigError(f"{field_name} must contain only non-empty strings")
+    return tuple(raw_command)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("battery", type=Path, help="JSON battery file")
+    args = parser.parse_args(argv)
+
+    try:
+        entries = load_battery(args.battery)
+        results = MutationRunner().run_all(entries)
+    except BatteryConfigError as exc:
+        print(str(exc), file=sys.stderr, flush=True)
+        return EXIT_CONFIG_ERROR
+    except KeyboardInterrupt:
+        print("INTERRUPTED mutation battery restored source", file=sys.stderr, flush=True)
+        return EXIT_INTERRUPTED
+    except OSError as exc:
+        print(f"EXTERNAL_ERROR {exc}", file=sys.stderr, flush=True)
+        return EXIT_EXTERNAL_ERROR
+
+    return EXIT_OK if all(result.caught for result in results) else EXIT_MUTATION_MISSED
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
