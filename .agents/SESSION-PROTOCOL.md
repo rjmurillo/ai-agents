@@ -720,7 +720,7 @@ The agent MUST run quality checks before ending.
    - Session objective explicitly includes "format all files"
    - Creating a dedicated formatting cleanup PR
 
-2. The agent SHOULD run validation scripts if available (e.g., `python3 scripts/validation/pre_pr.py`)
+2. The agent SHOULD run validation scripts if available (e.g., `uv run python scripts/validation/pre_pr.py`)
 3. The agent SHOULD check memory sizes if `.serena/memories/` files were created or modified:
 
    ```bash
@@ -958,7 +958,7 @@ python3 .claude/skills/session-init/scripts/new_session_log.py
 
 ```bash
 # Validation (structural schema + business rules)
-python3 scripts/validate_session_json.py [session].json
+uv run python scripts/validate_session_json.py [session].json
 ```
 
 For detailed schema structure, load `.agents/schemas/session-log.schema.json` when needed.
@@ -1108,7 +1108,7 @@ The `validate_session_json.py` script checks session protocol compliance:
 
 ```bash
 # Validate current session
-python3 scripts/validate_session_json.py .agents/sessions/2025-12-17-session-01.json
+uv run python scripts/validate_session_json.py .agents/sessions/2025-12-17-session-01.json
 ```
 
 ### What Validation Checks
@@ -1162,7 +1162,7 @@ These documents reference this protocol but MUST NOT duplicate it:
 
 ADRs define governance decisions that may introduce enforceable requirements
 (MUST, SHOULD, MAY per RFC 2119). This section lists ADRs with requirements
-that affect session protocol. Run `python3 scripts/sync_adr_protocol.py` to
+that affect session protocol. Run `uv run python scripts/sync_adr_protocol.py` to
 audit sync coverage.
 
 | ADR | Requirement Summary | Protocol Section |
