@@ -108,8 +108,8 @@
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": "Not invoked. This session shipped an already-written fix; no new failure pattern surfaced that a retro would capture."
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-08-01-session-4041-session-end-worktree-resolution.md records the session-end auto-detect resolving to the main checkout and rewriting an unrelated committed session log."
       }
     }
   },
