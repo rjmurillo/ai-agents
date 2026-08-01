@@ -2576,6 +2576,126 @@ def _staged_full_content_suppression_violations(
     return violations
 
 
+def _diff_notebook_suppression_violations(
+    base_ref: str,
+    paths: Sequence[str],
+    repo_root: Path,
+) -> list[str] | None:
+    violations: list[str] = []
+    for path in paths:
+        head_text = _commit_text_or_none("HEAD", path, repo_root)
+        if head_text is None:
+            return None
+        base_text = _commit_text_for_base(base_ref, path, repo_root)
+        if base_text is None:
+            return None
+        violations.extend(
+            _notebook_suppression_violations_for_text("HEAD", path, base_text, head_text)
+        )
+    return violations
+
+
+def _diff_full_content_suppression_violations(
+    paths: Sequence[str],
+    repo_root: Path,
+) -> list[str] | None:
+    violations: list[str] = []
+    for path in paths:
+        text = _commit_text_or_none("HEAD", path, repo_root)
+        if text is None:
+            return None
+        violations.extend(_full_content_suppression_violations("HEAD", path, text))
+    return violations
+
+
+def _added_suppression_violations_for_range(
+    range_spec: str,
+    base_ref: str,
+    scan_paths: Sequence[str],
+    repo_root: Path,
+) -> list[str] | None:
+    """Suppression-violation finder for a git range without a PushUpdate."""
+    if not scan_paths:
+        return []
+    renames = _suppression_renames(repo_root, range_spec)
+    if renames is None:
+        return None
+    promoted_paths = [path for path in scan_paths if path in renames.promoted_destinations]
+    scan_paths = [
+        path
+        for path in scan_paths
+        if path not in renames.pure_scanned_destinations
+        and path not in renames.promoted_destinations
+    ]
+    if not scan_paths and not promoted_paths:
+        return []
+    notebook_paths, diff_scan_paths = _partition_suppression_paths(scan_paths)
+    violations = _textual_suppression_violations(
+        repo_root,
+        range_spec=range_spec,
+        paths=diff_scan_paths,
+        head_label="HEAD",
+    )
+    if violations is None:
+        return None
+    notebook_violations = _diff_notebook_suppression_violations(base_ref, notebook_paths, repo_root)
+    if notebook_violations is None:
+        return None
+    violations.extend(notebook_violations)
+    promoted_violations = _diff_full_content_suppression_violations(promoted_paths, repo_root)
+    if promoted_violations is None:
+        return None
+    violations.extend(promoted_violations)
+    return violations
+
+
+def check_suppression_diff(base_ref: str, repo_root: Path) -> int:
+    """CI mirror of security-suppressions-push: compares HEAD against base_ref.
+
+    Returns:
+        0  no new security suppressions detected
+        1  new security suppressions found
+        3  git error (external failure)
+    """
+    range_spec = f"{base_ref}..HEAD"
+    result = _run_git(
+        repo_root,
+        [
+            "diff",
+            *TEXTUAL_DIFF_FLAGS,
+            "--name-only",
+            "--diff-filter=ACMRT",
+            "--no-renames",
+            "-z",
+            range_spec,
+        ],
+    )
+    if result.returncode != 0:
+        _print_process_output(result)
+        return 3
+    scan_paths: list[str] = []
+    for raw_path in result.stdout.split("\0"):
+        if not raw_path:
+            continue
+        path = _safe_relative_path(raw_path)
+        if path is None:
+            print(f"ERROR: unsafe path in diff range: {raw_path}", file=sys.stderr)
+            return 3
+        if Path(path).suffix.lower() in SECURITY_SUPPRESSION_SUFFIXES:
+            scan_paths.append(path)
+    violations = _added_suppression_violations_for_range(
+        range_spec, base_ref, scan_paths, repo_root
+    )
+    if violations is None:
+        return 3
+    if not violations:
+        return 0
+    print("ERROR: security suppression comments detected in diff range:", file=sys.stderr)
+    for violation in violations:
+        print(f"  {violation}", file=sys.stderr)
+    return 1
+
+
 def _notebook_suppression_violations(
     update: PushUpdate,
     paths: Sequence[str],
@@ -2661,6 +2781,22 @@ def _commit_text_or_none(head: str, path: str, repo_root: Path) -> str | None:
 def _commit_text_or_empty(head: str, path: str, repo_root: Path) -> str:
     result = _run_git(repo_root, ["show", f"{head}:{path}"])
     return result.stdout if result.returncode == 0 else ""
+
+
+def _commit_text_for_base(base_ref: str, path: str, repo_root: Path) -> str | None:
+    """Return the text of a file at ``base_ref``, or ``""`` when the file is
+    absent at that ref (new file), or ``None`` when ``base_ref`` itself is
+    invalid so the caller can propagate rc=3 rather than rc=1."""
+    result = _run_git(repo_root, ["show", f"{base_ref}:{path}"])
+    if result.returncode == 0:
+        return result.stdout
+    # Distinguish "file not in tree" (new file, treat as empty) from any
+    # other git failure (bad ref, corrupt repo, etc.) which is an external
+    # error that should surface as rc=3, not produce spurious violations.
+    if "does not exist in" in result.stderr or "exists on disk, but not in" in result.stderr:
+        return ""
+    _print_process_output(result)
+    return None
 
 
 def _notebook_code_lines(text: str) -> list[str]:
@@ -3056,6 +3192,70 @@ def _filesystem_collision_key(path: str) -> str | None:
     return "/".join(normalized_parts)
 
 
+class _SemgrepExecutableError(RuntimeError):
+    """Semgrep executable resolution failed before the scan ran."""
+
+
+@lru_cache(maxsize=1)
+def _semgrep_pinned_version(repo_root: Path = REPO_ROOT) -> str:
+    pyproject = repo_root / "pyproject.toml"
+    try:
+        pyproject_text = pyproject.read_text(encoding="utf-8")
+    except OSError as error:
+        raise _SemgrepExecutableError(
+            f"cannot read semgrep pin from {pyproject}: {error}\n"
+        ) from error
+    matches: list[str] = re.findall(
+        r'^\s*"semgrep==([^"]+)",\s*$',
+        pyproject_text,
+        re.MULTILINE,
+    )
+    versions = set(matches)
+    if len(versions) != 1:
+        raise _SemgrepExecutableError(
+            f"pyproject.toml must declare one semgrep pin, found: {sorted(versions)!r}\n"
+        )
+    return versions.pop()
+
+
+@lru_cache(maxsize=1)
+def _resolve_semgrep_executable(repo_root: Path = REPO_ROOT) -> str:
+    sibling_name = "semgrep.exe" if os.name == "nt" else "semgrep"
+    sibling = Path(sys.executable).parent / sibling_name
+    if sibling.is_file() and os.access(sibling, os.X_OK):
+        return str(sibling)
+
+    resolved = shutil.which("semgrep")
+    if resolved is None:
+        raise FileNotFoundError("semgrep")
+
+    version = _probe_semgrep_version(resolved, repo_root)
+    pinned = _semgrep_pinned_version(repo_root)
+    if version != pinned:
+        raise _SemgrepExecutableError(
+            f"semgrep version mismatch: pyproject.toml pins {pinned}, "
+            f"but {resolved} reports {version}\n"
+        )
+    return resolved
+
+
+def _probe_semgrep_version(executable: str, repo_root: Path) -> str:
+    result = _run_command(
+        [executable, "--version"],
+        repo_root,
+        timeout_seconds=SEMGREP_TIMEOUT_SECONDS,
+    )
+    if result.returncode != 0:
+        raise _SemgrepExecutableError(
+            f"semgrep version probe failed for {executable}: {result.stderr.strip()}\n"
+        )
+    version = result.stdout.strip().splitlines()[0] if result.stdout.strip() else ""
+    if not version:
+        raise _SemgrepExecutableError(
+            f"semgrep version probe returned no version for {executable}\n"
+        )
+    return version
+
 def _run_semgrep_tree(
     tree: Path,
     paths: Sequence[str],
@@ -3065,9 +3265,9 @@ def _run_semgrep_tree(
     finding: subprocess.CompletedProcess[str] | None = None
     last_result: subprocess.CompletedProcess[str] | None = None
     try:
-        for batch in _semgrep_target_batches(targets):
+        for batch in _semgrep_target_batches(targets, repo_root):
             result = _run_command(
-                _semgrep_command("auto", batch),
+                _semgrep_command("auto", batch, repo_root),
                 repo_root,
                 timeout_seconds=SEMGREP_TIMEOUT_SECONDS,
             )
@@ -3081,14 +3281,20 @@ def _run_semgrep_tree(
                 finding = verified
     except FileNotFoundError:
         return subprocess.CompletedProcess([], 2, "", "semgrep executable not found\n")
+    except _SemgrepExecutableError as error:
+        return subprocess.CompletedProcess([], 2, "", str(error))
     except OSError as error:
         return subprocess.CompletedProcess([], 2, "", f"cannot execute semgrep: {error}\n")
     return finding or last_result or subprocess.CompletedProcess([], 0, "", "")
 
 
-def _semgrep_command(config: str, targets: Sequence[str]) -> list[str]:
+def _semgrep_command(
+    config: str,
+    targets: Sequence[str],
+    repo_root: Path = REPO_ROOT,
+) -> list[str]:
     return [
-        "semgrep",
+        _resolve_semgrep_executable(repo_root),
         "scan",
         "--config",
         config,
@@ -3106,8 +3312,11 @@ def _semgrep_command(config: str, targets: Sequence[str]) -> list[str]:
     ]
 
 
-def _semgrep_target_batches(targets: Sequence[str]) -> list[list[str]]:
-    base_length = sum(len(argument) + 1 for argument in _semgrep_command("auto", []))
+def _semgrep_target_batches(
+    targets: Sequence[str],
+    repo_root: Path = REPO_ROOT,
+) -> list[list[str]]:
+    base_length = sum(len(argument) + 1 for argument in _semgrep_command("auto", [], repo_root))
     batches: list[list[str]] = []
     batch: list[str] = []
     batch_length = base_length
@@ -5546,6 +5755,10 @@ def _handle_staged_suppressions(args: argparse.Namespace) -> int:
     return check_staged_suppressions(_repo_root(args))
 
 
+def _handle_suppression_diff(args: argparse.Namespace) -> int:
+    return check_suppression_diff(args.base_ref, _repo_root(args))
+
+
 def _handle_stage_generated(args: argparse.Namespace) -> int:
     return stage_generated(args.kind, _repo_root(args))
 
@@ -5618,6 +5831,12 @@ def build_parser() -> argparse.ArgumentParser:
     generated = subparsers.add_parser("stage-generated")
     generated.add_argument("kind", choices=sorted(GENERATED_PATHS | GENERATED_GLOBS))
     generated.set_defaults(handler=_handle_stage_generated)
+    suppression_diff = subparsers.add_parser(
+        "security-suppressions-diff",
+        help="CI backstop: check HEAD..base_ref range for new security suppressions",
+    )
+    suppression_diff.add_argument("--base-ref", required=True, metavar="REF")
+    suppression_diff.set_defaults(handler=_handle_suppression_diff)
     return parser
 
 
