@@ -235,7 +235,7 @@ def _external_non_first_parent_shas(commits: list[Any]) -> set[str]:
         for parent in parents[1:]:
             if _is_external_parent(parent, own_shas):
                 # _is_external_parent guarantees parent["sha"] is a non-empty str.
-                shas.add(parent.get("sha"))  # type: ignore[arg-type]
+                shas.add(parent["sha"])
     return shas
 
 
