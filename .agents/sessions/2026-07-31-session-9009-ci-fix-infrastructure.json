@@ -1,0 +1,187 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 9009,
+    "date": "2026-07-31",
+    "branch": "fix/ci-infrastructure",
+    "startingCommit": "088292977f04ac0fa5b59b21e88d1e7df63c07bc",
+    "objective": "Fix false-green mypy gate (#3966), kill process group on gh-act timeout (#3948/#3949), detect dangling skill-relative scripts (#3916), remove yaml dependency (#3791), delete inverted heuristic (#3936), add permissions ratchet (#3964)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Running under Copilot CLI worktree; Serena MCP not available in this harness (demotion: Copilot CLI cannot reach MCP tools)"
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena not available in Copilot CLI harness"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md read at session start; 8 issues closed as unmerited with measurements"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md skill catalog reviewed"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md usage-mandatory reviewed"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/rules/* and PROJECT-CONSTRAINTS.md reviewed"
+      },
+      "memoriesLoaded": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena not available; direct code inspection and git log used for context"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/ci-infrastructure"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/ci-infrastructure"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status clean at start of session"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "088292977f04ac0fa5b59b21e88d1e7df63c07bc"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items complete"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena not available in Copilot CLI harness"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdown-autofix run on all staged .md files; pre-existing MD040/MD036 errors fixed in SkillForge reference docs"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "6 commits pushed to fix/ci-infrastructure; all hooks pass"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "971 tests pass; ruff and mypy clean; taste-count 612; type-ignore-count 55; all pre-push hooks green"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Fixed #3966, #3948, #3949, #3916, #3791, #3936, #3964; closed 8 issues as unmerited"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-07-31-fix-ci-infrastructure.md created"
+      },
+      "handoffUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md read-only per ADR-014; preservation verified (not modified)"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "issue": "#3966",
+      "action": "fix",
+      "description": "Added guard in run_mypy() to refuse bare invocation; returns exit 2",
+      "filesChanged": [
+        "scripts/validation/git_hook_policy.py",
+        "tests/test_lefthook_integration.py"
+      ]
+    },
+    {
+      "issue": "#3948,#3949",
+      "action": "fix",
+      "description": "Rewrote _run() with Popen+killpg, _posix guard, bytes decode, 300s timeout",
+      "filesChanged": [
+        "scripts/validation/run_workflow_local_test.py",
+        "tests/validation/test_run_workflow_local_test.py"
+      ]
+    },
+    {
+      "issue": "#3916",
+      "action": "fix",
+      "description": "Added _SKILL_REL_SCRIPT_PAT, find_skill_relative_scripts, scan_dangling_skill_relative_scripts to portability checker",
+      "filesChanged": [
+        "scripts/validation/check_skill_md_exec_portability.py",
+        "tests/validation/test_check_skill_md_exec_portability.py"
+      ]
+    },
+    {
+      "issue": "#3791",
+      "action": "fix",
+      "description": "Removed import yaml from sync_adr_protocol.py, replaced with stdlib regex",
+      "filesChanged": [
+        "scripts/sync_adr_protocol.py",
+        "tests/test_sync_adr_protocol.py"
+      ]
+    },
+    {
+      "issue": "#3936",
+      "action": "fix",
+      "description": "Removed inverted detect_always_needed_patterns() from context-optimizer",
+      "filesChanged": [
+        ".claude/skills/context-optimizer/scripts/analyze_skill_placement.py"
+      ]
+    },
+    {
+      "issue": "#3964",
+      "action": "fix",
+      "description": "Added test_workflow_job_permissions.py ratchet gate",
+      "filesChanged": [
+        "tests/workflows/test_workflow_job_permissions.py"
+      ]
+    },
+    {
+      "issue": "pre-push residues",
+      "action": "fix",
+      "description": "SkillForge vendor-portability-exec markers; PR #4091 spurious type: ignore removal",
+      "filesChanged": [
+        "scripts/validation/pr_commit_count.py",
+        ".claude/skills/SkillForge/references/degrees-of-freedom.md",
+        ".claude/skills/SkillForge/references/script-integration-framework.md"
+      ]
+    }
+  ],
+  "endingCommit": "b7f8faff3b5789916748565711348bcfae4efd44",
+  "nextSteps": []
+}
