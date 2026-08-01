@@ -28,7 +28,21 @@ def test_dirty_pr_fails_loud(capsys):
     captured = capsys.readouterr()
     assert rc == checker.EXIT_REGRESSION
     assert "mergeStateStatus=DIRTY" in captured.out
-    assert "workflows may be unreachable" in captured.out
+    assert "workflows are unreachable" in captured.out
+
+
+def test_blocked_pr_does_not_fail_reachability_detector(capsys):
+    rc = checker.check_prs([_pr("BLOCKED")])
+    captured = capsys.readouterr()
+    assert rc == checker.EXIT_OK
+    assert "merge state OK" in captured.out
+
+
+def test_behind_pr_does_not_fail_reachability_detector(capsys):
+    rc = checker.check_prs([_pr("BEHIND")])
+    captured = capsys.readouterr()
+    assert rc == checker.EXIT_OK
+    assert "merge state OK" in captured.out
 
 
 def test_unknown_pr_is_external_error(capsys):

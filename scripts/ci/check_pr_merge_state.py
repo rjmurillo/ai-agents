@@ -16,8 +16,8 @@ EXIT_REGRESSION = 1
 EXIT_CONFIG = 2
 EXIT_EXTERNAL = 3
 
-PASS_STATES = {"CLEAN", "HAS_HOOKS", "UNSTABLE"}
-FAIL_STATES = {"BEHIND", "BLOCKED", "DIRTY"}
+PASS_STATES = {"BEHIND", "BLOCKED", "CLEAN", "HAS_HOOKS", "UNSTABLE"}
+FAIL_STATES = {"DIRTY"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,7 +100,7 @@ def check_prs(prs: Sequence[PullRequest]) -> int:
         for pr in blocked:
             print(
                 f"::error::PR #{pr.number} mergeStateStatus={pr.merge_state_status}. "
-                "Pull request workflows may be unreachable while this state persists. "
+                "Pull request workflows are unreachable while this conflict persists. "
                 f"Merge or rebase {pr.head_ref_name} onto {pr.base_ref_name}."
             )
             print(f"::error::{pr.url}")
