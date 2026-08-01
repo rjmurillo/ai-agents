@@ -2988,6 +2988,38 @@ def test_semgrep_fallback_version_mismatch_blocks(
     policy._resolve_semgrep_executable.cache_clear()
 
 
+def test_semgrep_missing_pyproject_reports_pin_read_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    policy._resolve_semgrep_executable.cache_clear()
+    policy._semgrep_pinned_version.cache_clear()
+    bin_dir = tmp_path / "venv" / "bin"
+    bin_dir.mkdir(parents=True)
+    fallback = tmp_path / "path-semgrep"
+    monkeypatch.setattr(policy.sys, "executable", str(bin_dir / "python"))
+    monkeypatch.setattr(policy.shutil, "which", lambda command: str(fallback))
+    monkeypatch.setattr(
+        policy,
+        "_run_command",
+        lambda args, *_args, **_kwargs: subprocess.CompletedProcess(
+            args,
+            0,
+            "1.171.0\n",
+            "",
+        ),
+    )
+
+    result = policy._run_semgrep_tree(tmp_path, ["source.py"], tmp_path)
+
+    assert result.returncode == 2
+    assert "cannot read semgrep pin from" in result.stderr
+    assert "pyproject.toml" in result.stderr
+    assert "semgrep executable not found" not in result.stderr
+    policy._resolve_semgrep_executable.cache_clear()
+    policy._semgrep_pinned_version.cache_clear()
+
+
 def test_semgrep_pin_is_read_from_pyproject() -> None:
     policy._semgrep_pinned_version.cache_clear()
     pyproject = PROJECT_ROOT / "pyproject.toml"

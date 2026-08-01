@@ -3199,9 +3199,15 @@ class _SemgrepExecutableError(RuntimeError):
 @lru_cache(maxsize=1)
 def _semgrep_pinned_version(repo_root: Path = REPO_ROOT) -> str:
     pyproject = repo_root / "pyproject.toml"
+    try:
+        pyproject_text = pyproject.read_text(encoding="utf-8")
+    except OSError as error:
+        raise _SemgrepExecutableError(
+            f"cannot read semgrep pin from {pyproject}: {error}\n"
+        ) from error
     matches: list[str] = re.findall(
         r'^\s*"semgrep==([^"]+)",\s*$',
-        pyproject.read_text(),
+        pyproject_text,
         re.MULTILINE,
     )
     versions = set(matches)
