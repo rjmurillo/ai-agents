@@ -1,0 +1,256 @@
+{
+  "id": "episode-2026-07-30-session-3996-memory-enhancement-cli-docs",
+  "session": "2026-07-30-session-3996-memory-enhancement-cli-docs",
+  "timestamp": "2026-07-30T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Correct memory_enhancement CLI documentation to the measured command surface and install an executable guard",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Built an executable guard that parses every documented memory_enhancement invocation against the real argparse parser, with negative and positive controls.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "A self-written control caught the detector mistaking a global option value for a subcommand name; added _VALUE_TAKING_GLOBALS and a dedicated control.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read confidence.py, verification.py, health.py, and serena_integration.py to establish the measured formulas and citation source types.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Built probe repositories and captured real CLI output for every documented example instead of inventing output.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rewrote SKILL.md, confidence-scoring.md, examples.md, CITATION-SCHEMA.md, and the reflect Phase 4 section against measured behavior.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Proved citations parse inline but links are dropped unless they end their line, and that an unrecognized source type drops the citation while the memory still exits 0.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rewrote memory-citation-guide.md from 378 lines to 150, removing a duplicated and fabricated schema in favour of a pointer to CITATION-SCHEMA.md.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Confirmed via git history that the issue-998 memory was accurate when written and superseded by PR 1576; annotated rather than rewrote the record.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Widened the guard to bare subcommand fragments; the new controls exposed a pre-existing normalizer bug where the '>' closing a placeholder was treated as a shell redirect.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated the Copilot CLI skill mirrors with build/scripts/generate_skills.py and bumped both project-toolkit manifests to 0.6.5431.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran two adversarial review rounds on other model families; reproduced every finding by execution before acting, which downgraded two of seven from one reviewer and rejected one of three from the other.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed four scanner holes the reviews found: an int substitution swallowing the following flag, a line continuation hiding a flag, a redirect leaving a stray descriptor, and exempt roots deletable without detection.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rejected a fifth proposed widening after measuring corpus incidence: the single command substitution in the corpus is quoted and already parses, and the unquoted form fails loudly rather than silently.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Mutation-tested three new assertions by reverting each fix in turn and confirming the matching test fails; guard suite is 71 tests, up from 63.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Disproved my own correction: a probe showed a TypeScript file containing the comment '// def ts_func' verifies as PASS, so the citation check is a raw text search, not a definition check, and all three documents now say that.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "All three confirmed. Pinned utf-8 with errors=replace, normalized three module paths to memory_enhancement, and recorded the ending commit.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Single spelling of record across every document that describes the CLI.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Found a defect class the guard misses entirely: it validates flag syntax but never argument values.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Left examples.md alone. Changing it would have broken a deliberate teaching fixture.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "A hypothetical is unavoidable in CITATION-SCHEMA.md, so declared it in prose instead of inventing a fake id.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Guard 71 passed, 0 em or en dashes across all changed files, no .claude changes so no version bump or mirror regeneration required.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "test",
+      "content": "Guard 71 passed, 0 em or en dashes across all changed files, no .claude changes so no version bump or mirror regeneration required.",
+      "caused_by": [
+        "e023"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 7c64e26c23a9e1ee091de6495b82bff7099ffb35",
+      "caused_by": [],
+      "leads_to": [
+        "e022"
+      ]
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Two blockers confirmed, one downgraded to medium, one partly misread. All five still worth fixing; none accepted on the reviewer's word.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The claim was backwards. It is a silent false pass, and CITATION-SCHEMA.md already said the opposite, so the docs contradicted each other. Rewrote all three to say a line number is checked against length only and fails just on truncation.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "If line citations ever become content-aware the tests fail and name the three documents that must change with them.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e027",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Downgraded from blocker to medium and fixed anyway. Both declarations now name every path a vendored install loses.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e028",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replaced the fiction with six accurate lines read off .github/workflows/citation-verify.yml. SKILL.md dropped from 360 to 322 lines.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e029",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Version gate OK at 0.6.5432, build_all idempotent, 104 targeted tests pass, taste lints 0 errors, 0 em or en dashes across all 13 changed files.",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 6
+  },
+  "lessons": []
+}

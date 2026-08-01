@@ -185,8 +185,7 @@ memory, eval numbers, ADR (if governance), calibrated gate, monitoring hook.
 
 Retirement gets recorded, never silenced. The exemplar is issue #2230: a
 launcher-level fail-open wrapper was proposed, evaluated, and REJECTED as a
-silent-failure anti-pattern; the rejection is recorded with rationale in the
-#2205 retro decision table
+silent-failure anti-pattern; the rejection is recorded with rationale in the #2205 retro decision table
 (.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:411) and
 the binding principle lives in `.claude/rules/generated-artifacts.md`. Because
 the rejection was written down, nobody re-proposes it. An unrecorded rejection

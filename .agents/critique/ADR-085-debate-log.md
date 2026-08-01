@@ -16,6 +16,40 @@ initial review remains at
 the first decision kept test auto-approval. It is not rewritten to imply that
 the later runner-name trust finding existed during the initial review.
 
+## 2026-07-31 Issue #3217 and #3218 Closure Amendment
+
+### Scope
+
+Issue #3217 closed on 2026-07-28 after repository evidence showed
+`observation_sync` is absent from plugin registrations and vendored trees, while
+Git hooks and CI cannot observe its MCP event. Issue #3218 closed the same day
+after repository evidence showed its retirement premise was wrong. The
+amendment records both reviews as complete and requires a new architecture
+decision for future simplification.
+
+Sources:
+<https://github.com/rjmurillo/ai-agents/issues/3217> and
+<https://github.com/rjmurillo/ai-agents/issues/3218>.
+
+### Roles and Vote Record
+
+| Agent | Vote |
+|-------|------|
+| architect | Accept |
+| critic | Disagree-and-Commit |
+| independent-thinker | Accept |
+| security | Accept |
+| analyst | Accept |
+| high-level-advisor | Accept |
+
+### Resolution
+
+The amendment corrected stale issue state and ownership language, retained
+`implemented: true`, and preserved all prior owner decisions and security
+findings. The critic accepted the result while recording that `implemented`
+covers this ADR's terminal states, not future dispatcher simplification under a
+new decision. Existing debate history remains unchanged.
+
 ## Related Work
 
 | Item | State on 2026-07-20 | Relevance |
@@ -27,6 +61,9 @@ the later runner-name trust finding existed during the initial review.
 | PR #3259 | Merged | Replaced `.githooks` with Lefthook and triggered the D-A framework amendment |
 | PR #3293 | Merged | Selected and implemented D-A Retirement |
 | ADR-086 | Accepted | Records the Lefthook migration and makes custom-hook paths historical evidence |
+
+This table preserves the 2026-07-20 review snapshot. The 2026-07-31 amendment
+above records the current #3217 and #3218 states.
 
 ## Lefthook Framework Amendment Review
 
@@ -237,6 +274,24 @@ shims, and dedicated tests.
 | high-level-advisor | Accept | D-A and D-B are complete; #3218 still owns the remaining implementation state. |
 
 Final tally: **6 Accept, 0 Disagree-and-Commit, 0 Block**. No P0 or P1
+finding remained.
+
+## 2026-07-31 File-Size Suppression Review
+
+The six roles reviewed the narrow file-size suppression for this accepted,
+append-only ADR. Splitting the record would break review continuity. The critic
+requested an in-file rationale. The final comment now states that reason.
+
+| Agent | Vote | Remaining position |
+|-------|------|--------------------|
+| architect | Accept | The exception preserves the accepted record. |
+| critic | Disagree-and-Commit | The requested rationale was added. |
+| independent-thinker | Accept | The exception is narrow and file-local. |
+| security | Accept | No security gate or content check is bypassed. |
+| analyst | Accept | The audit-continuity rationale is verifiable. |
+| high-level-advisor | Accept | The critic finding is closed. |
+
+Final tally: **5 Accept, 1 Disagree-and-Commit, 0 Block**. No P0 or P1
 finding remained.
 
 ## 2026-07-22 PR #3292 Release Convergence
