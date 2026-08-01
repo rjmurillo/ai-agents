@@ -280,8 +280,8 @@ Before acting on this skill's claims, or after editing it:
       down before the measurement runs.
 - [ ] Everything you plan to cite as settled is Accepted or code-on-disk; all
       PROPOSED and UNVERIFIED labels preserved in your write-up.
-- [ ] Your work routes through `ai-agents-change-control` gates (plugin bump,
-      adr-review, drift checks) rather than around them.
+- [ ] Your work routes through `ai-agents-change-control` gates (plugin
+      version-field, adr-review, drift checks) rather than around them.
 
 ## Provenance and Maintenance
 
