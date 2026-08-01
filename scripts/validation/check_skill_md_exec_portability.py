@@ -97,41 +97,9 @@ SCAN_ROOTS: tuple[tuple[str, ...], ...] = (
     ("src", "copilot-cli", "skills"),
 )
 
-# An executable invocation of a bare .claude/skills, build/, or scripts/ path. The
-# negative lookbehind (?<![\w.]) keeps the lead-in a standalone token so that
-# the "sh" inside "bash"/"flash" does not match, while still allowing a
-# backtick, whitespace, line start, or shell operator immediately before it.
-#
-# Two execution lead-ins are recognized, both anchored to an execution context
-# so bare *prose* path mentions stay exempt (the sibling prose guard owns those):
-#   1. An interpreter token (python/python3/bash/sh) with optional short options
-#      (`python3 -u .claude/...`, `bash -x .claude/...`).
-#   2. A direct `./`-prefixed executable (`./.claude/skills/x/y.sh`).
-# Shell line continuations (`python3 \<newline>.claude/...`) are normalized to a
-# single line before matching so a split invocation is not missed (issue #2838).
-#
-# `build/` and `scripts/` are added alongside `.claude/skills/`: both trees
-# exist only in the upstream checkout and do not ship in either plugin root. A
-# skill instruction like `python3 scripts/validation/pre_pr.py` or
-# `python3 build/scripts/generate_rules.py` will fail silently in every consumer
-# install just as a bare .claude/skills/ path would. The path-prefix group is
-# anchored to require either tree at the start of the path argument.
-#
-# `./`-prefixed forms (`python3 ./scripts/x.py`, `uv run python ./scripts/x.py`)
-# ARE covered, but by the second lead-in alternative rather than the first: the
-# `\./` branch consumes the `./` and the path-prefix group then matches
-# `scripts/`. Do not "simplify" by deleting that branch as redundant with the
-# interpreter branch, and do not drop `scripts/` from the path-prefix group:
-# either edit alone silently un-covers every `./scripts/...` invocation. Both
-# mutations are pinned by TestDotSlashScriptsExecDetection (PR #4029 review).
-#
-# Alternative considered and rejected: fold `./` into the path-prefix group
-# (`(?:\.claude/skills/|\.?/?scripts/)`) so the interpreter branch matches
-# `./scripts/` directly and the coverage stops being split across two branches.
-# Rejected because it changes no observable output, and a redundant prefix
-# alternative invites the opposite mistake later (deleting the `\./` branch as
-# dead). If that branch is ever removed for another reason, make the prefix
-# group explicit at the same time and delete this note.
+# Bare .claude/skills, build, and scripts invocations fail in vendored installs.
+# The lead-in keeps prose mentions exempt; line continuations are normalized
+# before matching so split commands still count.
 EXEC_PATTERN = re.compile(
     r"(?<![\w.])(?:(?:python3?|bash|sh)[ \t]+(?:-\S+[ \t]+)*|\./)"
     r"[\"']?(?:\.claude/skills/|build/|scripts/)\S+\.(?:py|sh)(?!\.\w)[\"']?"

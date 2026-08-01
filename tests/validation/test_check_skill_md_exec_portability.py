@@ -415,24 +415,6 @@ class TestScriptsExecDetection:
 
 
 class TestDotSlashScriptsExecDetection:
-    """``./scripts/...`` invocations are detected (PR #4029 review).
-
-    A review raised that EXEC_PATTERN's path-prefix group only lists
-    ``scripts/`` with no optional ``./``, so ``python3 ./scripts/x.py`` would
-    slip past the gate. It does not: such text is matched by the *other*
-    lead-in alternative, the direct ``\\./`` executable branch, which consumes
-    ``./`` and leaves ``scripts/`` for the path-prefix group.
-
-    That makes the coverage real but *incidental*: it depends on two separate
-    regex branches lining up, and no test pinned it. These tests pin it. Each
-    one is killed by either mutation:
-      - drop ``scripts/`` from the path-prefix group -> the ``\\./`` branch has
-        nothing to match after ``./``, count becomes 0;
-      - drop the ``\\./`` lead-in alternative -> the interpreter branch cannot
-        match ``./scripts/`` (the group is anchored at ``scripts/``), count
-        becomes 0.
-    """
-
     def test_counts_dot_slash_scripts_python_invocation(self) -> None:
         """python3 ./scripts/... is counted despite the ./ prefix."""
         text = "python3 ./scripts/validation/check_vendor_portability.py --repo-root .\n"
