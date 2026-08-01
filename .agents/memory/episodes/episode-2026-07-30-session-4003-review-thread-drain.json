@@ -40,6 +40,15 @@
       "caused_by": [],
       "leads_to": [],
       "_source_session": "2026-07-30-session-4003-review-thread-drain"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: ae9959e02",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-30-session-4003-review-thread-drain"
     }
   ],
   "metrics": {
@@ -47,7 +56,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
+    "commits": 4,
     "files_changed": 9
   },
   "lessons": []
