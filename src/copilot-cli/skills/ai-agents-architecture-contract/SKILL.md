@@ -43,7 +43,7 @@ Source-of-truth table (verified against `.agents/governance/GENERATOR-FILES.md` 
 
 Direction rule: generators read canonical, write mirrors. They NEVER write `.claude/`. That invariant is enforced in code: `build/scripts/build_all.py:962` ("REQ-003-010: enforce .claude/ no-write invariant"); any generator write under `.claude/` prints `REQ-003-010 VIOLATION` and exits 2. When a drift check goes red, the output shows a difference, not a direction. Always answer "which side is canonical?" from the table above before editing either side. An agent once "fixed" drift by editing the source to match the generated tree (2025-12-15 incident, commit reverted); the archaeology lives in `ai-agents-failure-archaeology`.
 
-`src/claude/` semantic drift against templates is measured separately by `build/scripts/detect_agent_drift.py` (similarity floor, exit 1 on drift; `.github/workflows/agent-drift-detection.yml`).
+`build/scripts/detect_agent_drift.py` measures something else again, and NOT against templates: it scores `src/claude` against `src/vs-code-agents`, and `.claude/agents` against `.github/agents`, over an 18-section allowlist (similarity floor, exit 1 on drift; run by `.github/workflows/drift-detection.yml`, not by `agent-drift-detection.yml`, which runs `generate_agents.py --validate`). Template bodies are never a comparison input, and for four agents the allowlist matches nothing so the gate cannot fail. See `.claude/rules/claude-agents.md` for what its green does and does not prove.
 
 ### Phase 2: Load the load-bearing decisions
 
