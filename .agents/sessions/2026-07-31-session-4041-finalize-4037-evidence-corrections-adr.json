@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "ADR corrections, current-main merge, Markdown auto-fix safeguards, both count-ratchet trigger repairs, measured research claims, and structural ratchet tests are committed through 5ec1f90f6"
+        "Evidence": "ADR corrections, current-main merge, Markdown auto-fix safeguards, both count-ratchet trigger repairs, measured research claims, and parameterized structural ratchet tests are committed through 56c40fe28"
       },
       "validationPassed": {
         "level": "MUST",
@@ -148,14 +148,14 @@
     },
     {
       "action": "Closed both count-ratchet baseline-only trigger gaps found during final push validation",
-      "outcome": "Lowered the verified taste baseline to 609, added both baseline files to their pre-push globs, removed duplicated stale totals, added negative-control tests with structural job-block parsing, and corrected the ADR amendment review artifact to count all five ADR-085 locations"
+      "outcome": "Lowered the verified taste baseline to 609, added both baseline files to their pre-push globs, removed duplicated stale totals, added parameterized negative-control tests with structural job-block parsing, and corrected the ADR amendment review artifact to count all five ADR-085 locations"
     },
     {
       "action": "Replaced an unsupported research-frontier generalization with a measured rule-coverage claim",
       "outcome": "Verified 25 rule files and 12 one-rule scenario fixtures, recorded that 13 rules lack an activation baseline, regenerated the Copilot mirror, and advanced project-toolkit to 0.6.5488"
     }
   ],
-  "endingCommit": "5ec1f90f6c10d02e320308f01ffa4dc360d03ae0",
+  "endingCommit": "56c40fe2834eec2ada5af8bce21da245cd5bd08c",
   "nextSteps": [
     "Complete the fresh exact-SHA review, create a review marker, and push without force.",
     "Reply to and resolve all PR #4037 review threads, run completion gates, and merge ready PRs."
