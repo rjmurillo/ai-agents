@@ -2612,10 +2612,19 @@ class TestBackwardsCommitOrder:
         assert events[0]["leads_to"] == ["e002"]
 
     def test_fix_without_validate_exits_2(self, tmp_path, capsys):
+        """`--output-path` is pinned so a removed guard cannot write into the repo.
+
+        Without it, deleting the guard sends `main` down the extraction path,
+        whose default output is the tracked episode store. A falsification run
+        left a file there once; the test must not be able to do that.
+        """
         log = tmp_path / "session-1.json"
         log.write_text("{}", encoding="utf-8")
+        out = tmp_path / "out"
 
-        assert extract_session_episode.main([str(log), "--fix"]) == 2
+        rc = extract_session_episode.main([str(log), "--fix", "--output-path", str(out)])
+
+        assert rc == 2
         assert "--fix requires --validate" in capsys.readouterr().err
 
 
