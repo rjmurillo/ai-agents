@@ -255,7 +255,9 @@ def _load_history(path: Path) -> list[dict]:
             result = json.loads(path.read_text())
             if isinstance(result, list):
                 return result
-    except json.JSONDecodeError, OSError:
+    except OSError:
+        pass
+    except json.JSONDecodeError:
         pass
     return []
 

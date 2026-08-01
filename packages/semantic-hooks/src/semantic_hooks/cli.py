@@ -6,6 +6,7 @@ import shlex
 import shutil
 import sys
 from pathlib import Path
+from typing import cast
 
 CONFIG_DIR = Path.home() / ".semantic-hooks"
 CLAUDE_HOOKS_DIR = Path.home() / ".claude" / "hooks"
@@ -471,7 +472,7 @@ def main() -> int:
     config_parser.set_defaults(func=cmd_config)
 
     args = parser.parse_args()
-    return args.func(args)
+    return cast(int, args.func(args))
 
 
 if __name__ == "__main__":

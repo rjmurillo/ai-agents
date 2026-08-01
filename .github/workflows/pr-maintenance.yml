@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size
 name: PR Maintenance
 
 on:

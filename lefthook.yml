@@ -415,9 +415,13 @@ pre-push:
             glob: "**/*.py"
             exclude:
               - ".claude/lib/**"
+              - ".claude/hooks/**"
+              - ".claude/skills/**"
               - "src/copilot-cli/lib/**"
               - "src/copilot-cli/hooks/**"
               - "src/copilot-cli/skills/**"
+              - "docs/**"
+              - "evals/**"
 
           - name: infrastructure-advisory
             timeout: 5m
