@@ -302,7 +302,7 @@ This skill is the single owner of investigation-only QA eligibility checks. The 
 
 ## Vendored install
 
-<!-- vendor-portability: declared. This skill references protocol/ADR/artifact paths under .agents/ (sessions, architecture, SESSION-PROTOCOL.md, analysis, critique, memory, retrospective, security), specifically .agents/architecture/ADR-034-investigation-session-qa-exemption.md and .agents/SESSION-PROTOCOL.md, and scripts/validate_session_json.py. The eligibility script inspects staged git paths only; missing upstream artifact directories affect docs/reference links, not script I/O. Issue #2050. -->
+<!-- vendor-portability: declared. This skill references protocol/ADR/artifact paths under .agents/ (sessions, architecture, SESSION-PROTOCOL.md, analysis, critique, memory, retrospective, security), specifically .agents/architecture/ADR-034-investigation-session-qa-exemption.md and .agents/SESSION-PROTOCOL.md, and scripts/validate_session_json.py and scripts/modules/. The eligibility script inspects staged git paths only; missing upstream artifact directories affect docs/reference links, not script I/O. Issue #2050. -->
 
 This skill depends on upstream-only paths. In a vendored install (a consumer
 repo that is not `rjmurillo/ai-agents`) these paths do not exist:
