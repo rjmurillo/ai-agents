@@ -31,7 +31,6 @@ from __future__ import annotations
 import json
 import os
 import random
-import re
 import sys
 import time
 from collections.abc import Callable
@@ -39,29 +38,28 @@ from dataclasses import dataclass
 from typing import Literal, Protocol, cast
 
 # Sibling import; loaded under the same EVAL_DIR sys.path entry that the CLI uses.
+import _eval_api_adapter_constants as _constants
 from _anthropic_api import call_api, load_api_key
 
 OutcomeLiteral = Literal["success", "error"]
 
-# Error category taxonomy. Stable strings written into RunRecord.error_category.
-ERR_RATE_LIMIT = "rate_limit"
-ERR_SERVER_ERROR = "server_error"
-ERR_TIMEOUT = "timeout"
-ERR_CLIENT_ERROR = "client_error"
-ERR_AUTH = "auth"
-ERR_UNKNOWN = "unknown"
-
-# Bounded retry policy.
-DEFAULT_MAX_RETRIES = 3
-_BACKOFF_BASE_SEC = 1.0
-_BACKOFF_MAX_SEC = 30.0
-
-# Total wall-time budget across all attempts for one logical call.
-# `_anthropic_api.call_api` uses a 120s per-attempt timeout; with 3 retries
-# the worst case before this guard was 6 minutes per call. 180s caps the
-# guarantee at one slow attempt without forfeiting fast retries.
-DEFAULT_TOTAL_TIMEOUT_SEC = 180.0
-ERR_TOTAL_TIMEOUT = "timeout_total"
+ERR_RATE_LIMIT: str = _constants.ERR_RATE_LIMIT
+ERR_SERVER_ERROR: str = _constants.ERR_SERVER_ERROR
+ERR_TIMEOUT: str = _constants.ERR_TIMEOUT
+ERR_CLIENT_ERROR: str = _constants.ERR_CLIENT_ERROR
+ERR_AUTH: str = _constants.ERR_AUTH
+ERR_UNKNOWN: str = _constants.ERR_UNKNOWN
+ERR_TOTAL_TIMEOUT: str = _constants.ERR_TOTAL_TIMEOUT
+DEFAULT_MAX_RETRIES: int = _constants.DEFAULT_MAX_RETRIES
+DEFAULT_TOTAL_TIMEOUT_SEC: float = _constants.DEFAULT_TOTAL_TIMEOUT_SEC
+_BACKOFF_BASE_SEC: float = _constants.BACKOFF_BASE_SEC
+_BACKOFF_MAX_SEC: float = _constants.BACKOFF_MAX_SEC
+_HTTP_STATUS_RE = _constants.HTTP_STATUS_RE
+_TIMEOUT_HINT: str = _constants.TIMEOUT_HINT
+_RATE_LIMIT_HINT: str = _constants.RATE_LIMIT_HINT
+_AUTH_HINT_RE = _constants.AUTH_HINT_RE
+_ALLOWED_LOG_FIELDS: frozenset[str] = _constants.ALLOWED_LOG_FIELDS
+_BANNED_LOG_FIELDS: frozenset[str] = _constants.BANNED_LOG_FIELDS
 
 
 @dataclass(frozen=True)
@@ -83,17 +81,6 @@ class APICallResult:
     attempts: int
     tokens_estimated: bool = True
     system_fingerprint: str | None = None
-
-
-# Match the HTTP-status hint that `_anthropic_api.call_api` puts into its
-# RuntimeError message: "Anthropic API returned HTTP <code>: ...". Capture
-# the numeric code so the adapter can categorize without re-implementing the
-# request loop.
-_HTTP_STATUS_RE = re.compile(r"HTTP (\d{3})")
-_TIMEOUT_HINT = "timed out"
-# Subprocess-backed providers have no HTTP status to report. They surface a
-# rate limit as text on stderr, which the provider copies into the message.
-_RATE_LIMIT_HINT = "rate limit"
 
 
 def _categorize_error(exc: Exception) -> str:
@@ -122,6 +109,8 @@ def _categorize_error(exc: Exception) -> str:
             return ERR_TIMEOUT
         if _RATE_LIMIT_HINT in message.lower():
             return ERR_RATE_LIMIT
+        if _AUTH_HINT_RE.search(message):
+            return ERR_AUTH
         return ERR_SERVER_ERROR
     code = int(match.group(1))
     if code in (401, 403):
@@ -134,11 +123,11 @@ def _categorize_error(exc: Exception) -> str:
         return ERR_SERVER_ERROR
     if 400 <= code < 500:
         return ERR_CLIENT_ERROR
-    return ERR_UNKNOWN
+    return cast(str, ERR_UNKNOWN)
 
 
 # Retried = transient. Anything else is recorded once and not retried.
-_TRANSIENT = frozenset({ERR_RATE_LIMIT, ERR_SERVER_ERROR, ERR_TIMEOUT})
+_TRANSIENT: frozenset[str] = frozenset({ERR_RATE_LIMIT, ERR_SERVER_ERROR, ERR_TIMEOUT})
 
 
 def _is_transient(category: str) -> bool:
@@ -157,9 +146,17 @@ def _backoff_delay_seconds(attempt: int) -> float:
 def _emit_log(record: dict[str, object]) -> None:
     """Write a structured JSON log line to stderr.
 
-    Caller MUST NOT include API keys, request bodies, or raw error payloads.
-    Only the fields listed in DESIGN-004 §5.4 belong here.
+    The closed field schema enforces DESIGN-004 §5.4. Unknown keys are refused
+    before serialization so payload-shaped fields cannot enter stderr by
+    caller convention drift.
     """
+    unknown = record.keys() - _ALLOWED_LOG_FIELDS
+    if unknown:
+        banned = unknown & _BANNED_LOG_FIELDS
+        detail = f"_emit_log rejected unknown keys: {sorted(unknown)}"
+        if banned:
+            detail += f" including banned fields: {sorted(banned)}"
+        raise ValueError(detail)
     sys.stderr.write(json.dumps(record, sort_keys=True) + "\n")
     sys.stderr.flush()
 

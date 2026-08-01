@@ -355,6 +355,96 @@ class TestAStatusOutranksATextHint:
 
         assert _eval_api_adapter._categorize_error(exc) == "rate_limit"
 
+    def test_subprocess_auth_hint_is_narrow_and_status_still_wins(self) -> None:
+        exc = RuntimeError(
+            "Copilot CLI exited with code 1: authentication failed: token expired"
+        )
+
+        category = _eval_api_adapter._categorize_error(exc)
+
+        assert category == "auth"
+        assert not _eval_api_adapter._is_transient(category)
+        status_exc = RuntimeError("Anthropic API returned HTTP 500: authentication failed")
+        unrelated_exc = RuntimeError(
+            "Copilot CLI exited with code 1: authorization cache failed"
+        )
+        assert _eval_api_adapter._categorize_error(status_exc) == "server_error"
+        assert _eval_api_adapter._categorize_error(unrelated_exc) == "server_error"
+
+
+class TestSubprocessAuthFailureIsPermanent:
+    def test_call_model_does_not_retry_a_subprocess_auth_failure(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        attempts = 0
+        sleeps: list[float] = []
+
+        def _raise_auth(_prompt: str, _model_id: str, _system: str) -> str:
+            nonlocal attempts
+            attempts += 1
+            raise RuntimeError("Copilot CLI exited with code 1: authentication failed")
+
+        monkeypatch.setattr(
+            _eval_api_adapter, "_backoff_delay_seconds", lambda attempt: 0.0
+        )
+        adapter = _eval_api_adapter.AnthropicAPIAdapter(
+            transport=_raise_auth,
+            sleep=sleeps.append,
+        )
+
+        result = adapter.call_model("prompt", "model", "fixture", "variant", 0)
+
+        assert result.error_category == "auth"
+        assert result.attempts == 1
+        assert attempts == 1
+        assert sleeps == []
+
+
+class TestEvalLogSchema:
+    def test_emit_log_accepts_the_closed_schema_and_rejects_payload_fields(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        _eval_api_adapter._emit_log(
+            {
+                "fixture_id": "fx",
+                "variant": "baseline",
+                "run_index": 0,
+                "model_id": "model",
+                "attempt": 1,
+                "outcome": "success",
+                "latency_ms": 12.3,
+                "tokens_in": 4,
+                "tokens_out": 5,
+                "error_category": None,
+            }
+        )
+
+        logged = json.loads(capsys.readouterr().err)
+
+        assert logged["fixture_id"] == "fx"
+        assert set(logged) == _eval_api_adapter._ALLOWED_LOG_FIELDS
+        record = {
+            "fixture_id": "fx",
+            "variant": "baseline",
+            "run_index": 0,
+            "model_id": "model",
+            "attempt": 1,
+            "outcome": "error",
+            "latency_ms": 0.0,
+            "tokens_in": 0,
+            "tokens_out": 0,
+            "error_category": "server_error",
+            "payload": {"prompt": "secret"},
+        }
+
+        with pytest.raises(ValueError) as exc_info:
+            _eval_api_adapter._emit_log(record)
+
+        message = str(exc_info.value)
+        assert "payload" in message
+        assert "banned fields" in message
+        assert capsys.readouterr().err == ""
+
 
 def test_call_api_routes_to_resolve_provider_for_openai(
     monkeypatch: pytest.MonkeyPatch,
@@ -696,28 +786,39 @@ def test_strip_footer_returns_empty_when_output_is_only_a_footer() -> None:
     assert _providers._CopilotCLIProvider._strip_footer(raw) == ""
 
 
-@pytest.mark.parametrize(
-    ("raw", "kept"),
-    [
-        ("Model answer:\nTokens     42\n\nTokens     1.2k\n", "Model answer:"),
-        ("The count is:\nTokens     42\n", "The count is:"),
-    ],
-    ids=["footer-follows-the-lost-line", "no-footer-present-at-all"],
-)
-def test_strip_footer_truncates_an_answer_that_ends_in_a_stats_shaped_line(
-    raw: str, kept: str
-) -> None:
-    """Record the truncation this stripper cannot avoid. Refs #4125.
+class TestAmbiguousFooterIsRefused:
+    @pytest.mark.parametrize(
+        ("raw", "kept"),
+        [
+            (
+                "Model answer:\nTokens     42\n\nTokens     1.2k\n",
+                "Model answer:\nTokens     42",
+            ),
+            (
+                "The count is:\nTokens     42\n\nChanges    +0 -0\n",
+                "The count is:\nTokens     42",
+            ),
+        ],
+        ids=["footer-follows-the-stats-shaped-answer-line", "footer-follows-answer"],
+    )
+    def test_strip_footer_keeps_a_stats_shaped_answer_line_when_footer_is_separated(
+        self, raw: str, kept: str
+    ) -> None:
+        assert _providers._CopilotCLIProvider._strip_footer(raw) == kept
 
-    Both inputs end in a line the model wrote. The second carries no CLI
-    chrome at all, so nothing was there to strip. The stripper removes the
-    line anyway, because a short stats-shaped value is indistinguishable
-    from the chrome it imitates once it sits at the end of the output.
-
-    This pins the loss so a change in it is visible, not because the loss is
-    wanted. The issue holds the options for removing it.
-    """
-    assert _providers._CopilotCLIProvider._strip_footer(raw) == kept
+    @pytest.mark.parametrize(
+        "raw",
+        [
+            "The count is:\nTokens     42\n",
+            "Model answer:\nChanges    +0 -0\n",
+        ],
+        ids=["single-stats-shaped-line", "changes-shaped-line"],
+    )
+    def test_strip_footer_refuses_a_stats_shaped_answer_line_without_separator(
+        self, raw: str
+    ) -> None:
+        with pytest.raises(RuntimeError, match="stats-shaped line"):
+            _providers._CopilotCLIProvider._strip_footer(raw)
 
 
 class _FakeCompleted:
@@ -779,18 +880,20 @@ def test_copilot_complete_returns_stripped_answer(
     assert prompt == "be terse\n\nthe question"
 
 
-def test_copilot_complete_drops_roles_when_folding_a_conversation(
+def test_copilot_complete_refuses_ambiguous_footer_shaped_stdout(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Characterization, not endorsement. See #4128.
+    _allow_unverified_model(monkeypatch)
+    _capture_run(monkeypatch, _FakeCompleted(stdout="The count is:\nTokens     42\n"))
+    provider = _providers._CopilotCLIProvider()
 
-    The CLI has one prompt channel, so a conversation can only be folded flat.
-    Nothing in the fold records who spoke, so an assistant turn reaches the
-    model as user-authored instruction text. No caller sends one today: the
-    eval adapter builds a single user message, which is what the test above
-    covers. This pins the loss so whoever adds a role guard is told the
-    behaviour moved, instead of finding out from a changed eval score.
-    """
+    with pytest.raises(RuntimeError, match="stats-shaped line"):
+        provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
+
+
+def test_copilot_complete_folds_supported_roles_into_one_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     _allow_unverified_model(monkeypatch)
     seen = _capture_run(monkeypatch, _FakeCompleted(stdout="ok\n"))
     provider = _providers._CopilotCLIProvider()
@@ -798,14 +901,14 @@ def test_copilot_complete_drops_roles_when_folding_a_conversation(
     provider.complete(
         messages=[
             {"role": "user", "content": "Question"},
-            {"role": "assistant", "content": "Prior assistant answer"},
+            {"role": "system", "content": "Extra constraints"},
             {"role": "user", "content": "Follow-up"},
         ],
         model="m",
     )
 
     prompt = seen["argv"][seen["argv"].index("--prompt") + 1]
-    assert prompt == "Question\n\nPrior assistant answer\n\nFollow-up"
+    assert prompt == "Question\n\nExtra constraints\n\nFollow-up"
 
 
 def test_copilot_complete_isolates_cwd_and_disables_builtin_mcps(
@@ -853,6 +956,7 @@ def test_copilot_complete_raises_on_empty_prompt() -> None:
 def test_copilot_complete_allows_system_role_messages(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _allow_unverified_model(monkeypatch)
     seen = _capture_run(monkeypatch, _FakeCompleted(stdout="ok\n"))
     provider = _providers._CopilotCLIProvider()
 
