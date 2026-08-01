@@ -1,8 +1,9 @@
+# Phase 3: Generation Deep Dive
 
 **Context:** Fresh, clean (no analysis artifacts polluting)
 **Standard:** Zero errors, every section verified before proceeding
 
-### Generation Order
+## Generation Order
 
 ```
 1. Create directory structure
@@ -44,7 +45,7 @@
      then python3 "$SCRIPTS_DIR/script.py" (see docs/SKILL-AUTHORING.md)
 ```
 
-### Quality Checks During Generation
+## Quality Checks During Generation
 
 | Check | Requirement |
 |-------|-------------|

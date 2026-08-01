@@ -167,3 +167,35 @@ class TestRatchetWiringMainExitCodes:
         assert result.returncode == 1, (
             f"Expected exit 1 (job absent), got {result.returncode}."
         )
+
+
+class TestRatchetBaselineGlobWiring:
+    """Each ratchet job must re-run when only its own baseline file changes.
+
+    Ported from the ``origin/main`` rewrite of this module, which asserted the
+    baseline path appeared anywhere inside a text slice of the job. That form
+    also passes when the path only appears in ``run``, which does not control
+    whether lefthook selects the job. The trigger is ``glob``, so this asserts
+    on ``glob`` specifically: a baseline widened on its own must still be
+    caught by the 2-second pre-push gate rather than only by CI.
+    """
+
+    def test_taste_baseline_is_in_job_glob(self) -> None:
+        job = _get_pre_push_job("taste-count-ratchet")
+        assert job is not None, "taste-count-ratchet job is missing from pre-push."
+        assert "scripts/ci/taste_count_baseline.txt" in job.get("glob", []), (
+            "The taste-count-ratchet job must list "
+            "'scripts/ci/taste_count_baseline.txt' in its glob. Without it, a "
+            "commit that only widens the baseline does not select the job and "
+            "bypasses the fast pre-push gate."
+        )
+
+    def test_type_ignore_baseline_is_in_job_glob(self) -> None:
+        job = _get_pre_push_job("type-ignore-count-ratchet")
+        assert job is not None, "type-ignore-count-ratchet job is missing from pre-push."
+        assert "scripts/ci/type_ignore_count_baseline.txt" in job.get("glob", []), (
+            "The type-ignore-count-ratchet job must list "
+            "'scripts/ci/type_ignore_count_baseline.txt' in its glob. Without "
+            "it, a commit that only widens the baseline does not select the "
+            "job and bypasses the fast pre-push gate."
+        )

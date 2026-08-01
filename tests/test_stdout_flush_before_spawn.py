@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size
 """Every subprocess spawn that inherits stdout flushes the parent buffer first.
 
 Python block-buffers ``sys.stdout`` whenever it is not a tty. A child process
@@ -144,9 +145,7 @@ def _flushes_stdout(node: ast.stmt) -> bool:
         return ast.unparse(func).endswith("stdout.flush")
     if isinstance(func, ast.Name) and func.id == "print":
         return any(
-            kw.arg == "flush"
-            and isinstance(kw.value, ast.Constant)
-            and kw.value.value is True
+            kw.arg == "flush" and isinstance(kw.value, ast.Constant) and kw.value.value is True
             for kw in call.keywords
         )
     return False
@@ -192,6 +191,35 @@ def _preceded_by_flush(blocks: list[list[ast.stmt]], owner: ast.stmt) -> bool:
     return False
 
 
+def _earlier_flush_info(
+    blocks: list[list[ast.stmt]], owner: ast.stmt
+) -> tuple[int, list[int]] | None:
+    """Return (flush_line, intervening_lines) when a non-immediate flush precedes owner.
+
+    Scans backward through the block that contains *owner*. If a stdout flush
+    is found before the immediate predecessor, returns the flush's line number
+    and the line numbers of every statement between the flush and *owner*.
+    Returns ``None`` if no earlier flush exists or if the immediate predecessor
+    already flushes stdout (in which case the spawn would have been accepted).
+    """
+    for block in blocks:
+        for index, statement in enumerate(block):
+            if statement is not owner:
+                continue
+            if index == 0:
+                return None
+            # Skip if the immediate predecessor already flushes (not our case).
+            if _flushes_stdout(block[index - 1]):
+                return None
+            # Scan backward for a flush that is not the immediate predecessor.
+            for j in range(index - 2, -1, -1):
+                if _flushes_stdout(block[j]):
+                    intervening = [block[k].lineno for k in range(j + 1, index)]
+                    return (block[j].lineno, intervening)
+            return None
+    return None
+
+
 def unflushed_spawn_lines(source: str) -> list[int]:
     """Return line numbers of fd-inheriting spawns with no preceding flush."""
     tree = ast.parse(source)
@@ -207,6 +235,39 @@ def unflushed_spawn_lines(source: str) -> list[int]:
         if owner is None or not _preceded_by_flush(blocks, owner):
             offenders.append(call.lineno)
     return sorted(offenders)
+
+
+def unflushed_spawn_diagnostics(source: str) -> list[tuple[int, str]]:
+    """Return (line, message) pairs for every offending spawn.
+
+    When a stdout flush exists but is not the spawn's immediate predecessor,
+    the message names the flush line and every intervening statement so the
+    developer knows exactly what to move rather than hunting for the flush.
+    """
+    tree = ast.parse(source)
+    modules, functions = _subprocess_names(tree)
+    blocks = _statement_blocks(tree)
+    results: list[tuple[int, str]] = []
+    for call in ast.walk(tree):
+        if not isinstance(call, ast.Call) or not _is_spawn(call, modules, functions):
+            continue
+        if not _inherits_stdout(call):
+            continue
+        owner = _owning_statement(tree, call)
+        if owner is None or not _preceded_by_flush(blocks, owner):
+            hint = _earlier_flush_info(blocks, owner) if owner is not None else None
+            if hint is not None:
+                flush_line, between = hint
+                between_str = ", ".join(str(ln) for ln in between)
+                msg = (
+                    f"line {call.lineno}: flushes stdout at line {flush_line} but "
+                    f"line(s) {between_str} run between the flush and the spawn; "
+                    f"move sys.stdout.flush() to immediately before line {call.lineno}"
+                )
+            else:
+                msg = f"line {call.lineno}: no preceding sys.stdout.flush() found"
+            results.append((call.lineno, msg))
+    return sorted(results)
 
 
 def _scanned_files() -> list[Path]:
@@ -226,13 +287,13 @@ def test_every_inheriting_spawn_flushes_stdout_first() -> None:
     offenders: list[str] = []
     for path in _scanned_files():
         relative = path.relative_to(_REPO_ROOT).as_posix()
-        for line in unflushed_spawn_lines(path.read_text(encoding="utf-8")):
-            offenders.append(f"{relative}:{line}")
+        source = path.read_text(encoding="utf-8")
+        for _line, msg in unflushed_spawn_diagnostics(source):
+            offenders.append(f"{relative}: {msg}")
     assert offenders == [], (
-        "These spawns inherit stdout without flushing the parent buffer first, "
-        "so the child's output will appear ahead of the parent's in any piped "
-        "or redirected log. Add sys.stdout.flush() immediately before each:\n  "
-        + "\n  ".join(offenders)
+        "These spawns do not have sys.stdout.flush() immediately before them, "
+        "so the child's output may appear ahead of the parent's in any piped "
+        "or redirected log. Fix each:\n  " + "\n  ".join(offenders)
     )
 
 
@@ -255,9 +316,7 @@ def test_the_scan_reaches_the_files_it_claims_to_cover() -> None:
 @pytest.mark.parametrize(
     ("source", "expected"),
     [
-        pytest.param(
-            "import subprocess\nsubprocess.run(['x'])\n", [2], id="bare-inheriting-run"
-        ),
+        pytest.param("import subprocess\nsubprocess.run(['x'])\n", [2], id="bare-inheriting-run"),
         pytest.param(
             "import subprocess, sys\nsys.stdout.flush()\nsubprocess.run(['x'])\n",
             [],
@@ -318,15 +377,9 @@ def test_the_scan_reaches_the_files_it_claims_to_cover() -> None:
             [],
             id="stdout-redirects",
         ),
-        pytest.param(
-            "import subprocess as sp\nsp.run(['x'])\n", [2], id="aliased-module"
-        ),
-        pytest.param(
-            "from subprocess import run\nrun(['x'])\n", [2], id="direct-import"
-        ),
-        pytest.param(
-            "from subprocess import run as go\ngo(['x'])\n", [2], id="aliased-function"
-        ),
+        pytest.param("import subprocess as sp\nsp.run(['x'])\n", [2], id="aliased-module"),
+        pytest.param("from subprocess import run\nrun(['x'])\n", [2], id="direct-import"),
+        pytest.param("from subprocess import run as go\ngo(['x'])\n", [2], id="aliased-function"),
         pytest.param(
             "import subprocess, sys\nsys.stdout.flush()\nx = 1\nsubprocess.run(['y'])\n",
             [4],
@@ -344,8 +397,7 @@ def test_the_scan_reaches_the_files_it_claims_to_cover() -> None:
             id="assignment-target-inside-function",
         ),
         pytest.param(
-            "import subprocess, sys\n"
-            "if True:\n    sys.stdout.flush()\n    subprocess.run(['x'])\n",
+            "import subprocess, sys\nif True:\n    sys.stdout.flush()\n    subprocess.run(['x'])\n",
             [],
             id="inside-if-body",
         ),
@@ -385,6 +437,56 @@ def _run_ordering_probe(flush: bool) -> str:
         check=True,
     )
     return completed.stdout
+
+
+@pytest.mark.parametrize(
+    ("source", "spawn_line", "fragment"),
+    [
+        pytest.param(
+            # stdout flush exists but stderr flush is sandwiched between it and
+            # the spawn.  Issue 3937: message must name the flush line and the
+            # intervening statement.
+            "import subprocess, sys\n"
+            "sys.stdout.flush()\n"
+            "sys.stderr.flush()\n"
+            "subprocess.run(['x'])\n",
+            4,
+            "flushes stdout at line 2 but line(s) 3 run between the flush and the spawn",
+            id="stderr-flush-between-stdout-flush-and-spawn",
+        ),
+        pytest.param(
+            # A plain assignment sits between the flush and the spawn.
+            "import subprocess, sys\nsys.stdout.flush()\nx = 1\nsubprocess.run(['y'])\n",
+            4,
+            "flushes stdout at line 2 but line(s) 3 run between the flush and the spawn",
+            id="assignment-between-flush-and-spawn",
+        ),
+        pytest.param(
+            # No flush at all: message uses the fallback wording.
+            "import subprocess\nsubprocess.run(['x'])\n",
+            2,
+            "no preceding sys.stdout.flush() found",
+            id="no-flush-at-all",
+        ),
+    ],
+)
+def test_diagnostic_message_names_intervening_statements(
+    source: str, spawn_line: int, fragment: str
+) -> None:
+    """unflushed_spawn_diagnostics returns a message with actionable context.
+
+    The spawn line must be in the results and the message for that line must
+    contain the expected text fragment.  This is the acceptance criterion for
+    issue 3937: a flush that is not the spawn's immediate predecessor must not
+    produce a generic 'no flush found' message.
+    """
+    diagnostics = unflushed_spawn_diagnostics(textwrap.dedent(source))
+    lines = [ln for ln, _ in diagnostics]
+    assert spawn_line in lines, f"expected spawn at line {spawn_line}, got {lines}"
+    msgs = [msg for ln, msg in diagnostics if ln == spawn_line]
+    assert any(fragment in msg for msg in msgs), (
+        f"expected fragment {fragment!r} in diagnostic for line {spawn_line}; got {msgs}"
+    )
 
 
 def test_unflushed_spawn_reorders_output() -> None:
