@@ -4,7 +4,7 @@
   "timestamp": "2026-07-31T00:00:00+00:00",
   "causal_order_version": 2,
   "outcome": "success",
-  "task": "Fix issue #4080: post-merge bot owns parity plugin versions, eliminating the O(N^2) version-conflict class. Write ADR-091, implement bot script, update gate logic, fix count ratchet, add tests.",
+  "task": "Fix issue #4080: post-merge bot owns parity plugin versions, eliminating the O(N^2) version-conflict class. Write ADR-092, implement bot script, update gate logic, fix count ratchet, add tests.",
   "decisions": [],
   "events": [
     {
@@ -29,7 +29,7 @@
       "id": "e003",
       "timestamp": "2026-07-31T00:00:00+00:00",
       "type": "milestone",
-      "content": "adr-review skill: authored ADR-091 superseding ADR-079; 6-role review logged in .agents/analysis/ADR-091-debate-log.md",
+      "content": "adr-review skill: authored ADR-092 superseding ADR-079; 6-role review logged in .agents/analysis/ADR-092-debate-log.md",
       "caused_by": [],
       "leads_to": [],
       "_source_session": "2026-07-31-session-4080-post-merge-version-bot"
@@ -101,7 +101,7 @@
       "id": "e011",
       "timestamp": "2026-07-31T00:00:00+00:00",
       "type": "commit",
-      "content": "Commit: bc5365dde4b36805679a46f15eff1e587c53bbb1",
+      "content": "Commit: edecb8e8510241c24e26b9176010c391e1887028",
       "caused_by": [],
       "leads_to": [],
       "_source_session": "2026-07-31-session-4080-post-merge-version-bot"
@@ -113,7 +113,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 3,
-    "files_changed": 7
+    "files_changed": 54
   },
   "lessons": []
 }

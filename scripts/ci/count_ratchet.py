@@ -3,7 +3,7 @@
 A count ratchet freezes a repository-wide violation total in a baseline file.
 The measured count must not exceed the baseline. An improvement (count <
 baseline) passes; the post-merge bot commits the lower baseline after the PR
-lands (ADR-091). ``--update`` explicitly lowers the baseline (used by the bot).
+lands (ADR-092). ``--update`` explicitly lowers the baseline (used by the bot).
 A regression (count > baseline) blocks.
 
 Two gates use this: ``ruff_count_ratchet.py`` (issue #2993) and
@@ -279,13 +279,17 @@ def run(
                 f"{label}: improved {baseline} -> {count} (-{baseline - count}). Baseline lowered."
             )
             return EXIT_OK
-        # ADR-091: the post-merge bot owns the baseline update. PRs that reduce
-        # the count do not need to --update; the bot ratchets after merge.
+        # An improvement that is not recorded leaves slack: the next regression
+        # up to the stale baseline passes silently. The post-merge bot that
+        # briefly owned this write was removed with the plugin version field,
+        # so the author records it. Conflict cost tracked in issue #4171.
         print(
-            f"{label}: improved {baseline} -> {count} (-{baseline - count}). "
-            "Baseline update will be committed by the post-merge bot."
+            f"{label}: BASELINE STALE. {count} violations < baseline {baseline} "
+            f"(-{baseline - count}). Run with --update to lower the baseline and "
+            "close the slack.",
+            file=sys.stderr,
         )
-        return EXIT_OK
+        return EXIT_REGRESSION
 
     print(f"{label}: OK (count == baseline {baseline}).")
     return EXIT_OK

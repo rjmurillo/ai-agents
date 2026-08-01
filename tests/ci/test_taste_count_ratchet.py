@@ -96,13 +96,13 @@ def test_count_above_baseline_is_a_regression(tmp_path, monkeypatch):
     assert rc == ratchet.EXIT_REGRESSION
 
 
-def test_count_below_baseline_passes_without_update(tmp_path, monkeypatch):
-    # ADR-091: post-merge bot owns baseline lowering; a PR that improves the
-    # count should not be blocked waiting to self-edit the baseline file.
+def test_count_below_baseline_blocks_without_update(tmp_path, monkeypatch):
+    # ADR-092: the post-merge bot that owned this write was removed with the
+    # plugin version field, so an unrecorded improvement leaves slack and blocks.
     baseline = _write_baseline(tmp_path, "615")
     monkeypatch.setattr(subprocess, "run", _fake_scan(10, 600))
     rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path)])
-    assert rc == ratchet.EXIT_OK
+    assert rc == ratchet.EXIT_REGRESSION
     assert baseline.read_text(encoding="utf-8").strip() == "615"  # baseline unchanged
 
 
