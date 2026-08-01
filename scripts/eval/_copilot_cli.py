@@ -13,11 +13,21 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import subprocess
 import tempfile
 import time
 from pathlib import Path
+
+from _copilot_cli_constants import (
+    FOOTER_COLUMN,
+    FOOTER_LABEL_RE,
+    FOOTER_PROSE_ENDINGS,
+    FOOTER_VALUE_MAX_WORDS,
+    PROVIDER_LABEL,
+    SESSION_STATE_ENV,
+    TRACE_LINE_PREFIXES,
+    UNVERIFIED_MODEL_ENV,
+)
 
 __all__ = ["_CopilotCLIProvider"]
 
@@ -60,47 +70,14 @@ class _CopilotCLIProvider:
     HTTP-provider score.
     """
 
-    # The CLI prints a stats block after the answer, formatted as a fixed-width
-    # label column. Matching on "2+ spaces" is wrong: the widest label
-    # ("AI Credits") fills the column and leaves a single space before its
-    # value. Match the label, then require the padded prefix to reach the
-    # column width, which is what separates a stats line from prose that
-    # happens to open with the same word ("Tokens are the unit of billing").
-    _FOOTER_LABEL_RE = re.compile(
-        r"^(?:Changes|AI Credits|Tokens|Resume|Total duration|Wall time)( +)",
-    )
-    _FOOTER_COLUMN = 11
-
-    #: A stats value is a short token ("1m2s", "12,345", "$0.04"). Prose that
-    #: opens with a label longer than the column ("Total duration and latency
-    #: are ...") satisfies the column test vacuously, so the remainder is
-    #: checked too: real values are short and do not close a sentence.
-    _FOOTER_VALUE_MAX_WORDS = 5
-    _FOOTER_PROSE_ENDINGS = (".", "!", "?", ":", ",")
-
-    #: Where the CLI records structured per-session events. Overridable so the
-    #: tests can point at a fixture tree instead of the operator's real one.
-    _SESSION_STATE_ENV = "COPILOT_SESSION_STATE_DIR"
-
-    #: Opt-in to grade a reply whose model was never confirmed. Off by default:
-    #: every consumer of this transport publishes model-attributed results
-    #: ("4 of 4 on Opus"), and the CLI accepts `--model` without confirming it,
-    #: so an unverified reply is a number attached to an unknown population.
-    #: An operator whose CLI writes no session log can set this and accept that
-    #: loss knowingly, which is the difference between a disclosed limit and a
-    #: silent one.
-    _UNVERIFIED_MODEL_ENV = "EVAL_COPILOT_ALLOW_UNVERIFIED_MODEL"
-
-    #: The CLI opens a tool-call trace with a bullet and indents its body with
-    #: box-drawing bars. `_strip_footer` cannot remove them: it anchors at the
-    #: end of the output, and traces precede the answer. Matching is anchored at
-    #: the start of a line because a model answer may legitimately mention these
-    #: characters mid-sentence, while the CLI only ever emits them as a prefix.
-    _TRACE_LINE_PREFIXES = ("\u25cf", "\u2502", "\u251c", "\u2514")
-
-    #: Used by both instance messages and the classmethod that reads the
-    #: transcript, so it lives on the class rather than in ``__init__`` alone.
-    _PROVIDER_LABEL = "Copilot CLI"
+    _FOOTER_LABEL_RE = FOOTER_LABEL_RE
+    _FOOTER_COLUMN: int = FOOTER_COLUMN
+    _FOOTER_VALUE_MAX_WORDS: int = FOOTER_VALUE_MAX_WORDS
+    _FOOTER_PROSE_ENDINGS: tuple[str, ...] = FOOTER_PROSE_ENDINGS
+    _SESSION_STATE_ENV: str = SESSION_STATE_ENV
+    _UNVERIFIED_MODEL_ENV: str = UNVERIFIED_MODEL_ENV
+    _TRACE_LINE_PREFIXES: tuple[str, ...] = TRACE_LINE_PREFIXES
+    _PROVIDER_LABEL: str = PROVIDER_LABEL
 
     def __init__(self, *, executable: str = "copilot", timeout: float = 900.0) -> None:
         self.name = "copilot-cli"
@@ -303,21 +280,31 @@ class _CopilotCLIProvider:
     def _strip_footer(cls, text: str) -> str:
         """Remove the CLI's trailing stats block.
 
-        Walks backwards from the end, dropping blank lines and footer-shaped
-        lines, and stops at the first line that is neither. Anchoring at the
-        end keeps a stats-shaped line intact anywhere except the end. An
-        answer whose last line is stats-shaped is truncated, because nothing
-        on this path separates it from the chrome it imitates. See #4125.
+        Footer chrome must be separated from the answer by a blank line. When
+        stdout ends in footer-shaped lines without that separator, the fallback
+        path cannot tell chrome from model text, so it refuses the run instead
+        of silently truncating the answer. See #4125.
         """
         lines = text.splitlines()
         end = len(lines)
-        while end > 0:
-            candidate = lines[end - 1]
-            if not candidate.strip() or cls._is_footer_line(candidate):
-                end -= 1
-                continue
-            break
-        return "\n".join(lines[:end]).strip()
+        while end > 0 and not lines[end - 1].strip():
+            end -= 1
+        footer_start = end
+        while footer_start > 0 and cls._is_footer_line(lines[footer_start - 1]):
+            footer_start -= 1
+        if footer_start == end:
+            return "\n".join(lines[:end]).strip()
+        if footer_start > 0 and lines[footer_start - 1].strip():
+            raise RuntimeError(
+                f"{cls._PROVIDER_LABEL} stdout ends with a stats-shaped line, "
+                "but no blank line separates it from the answer. Nothing on "
+                "this fallback path can tell CLI stats from model text, so the "
+                "run is refused rather than truncated."
+            )
+        answer_end = footer_start
+        while answer_end > 0 and not lines[answer_end - 1].strip():
+            answer_end -= 1
+        return "\n".join(lines[:answer_end]).strip()
 
     @classmethod
     def _unverified_model_allowed(cls) -> bool:
