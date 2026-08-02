@@ -41,13 +41,40 @@ SCANNABLE_EXTENSIONS = {
     ".json",
 }
 
-# Path segments whose files are exempt from the file-size rule. These hold
-# append-only generated data (the episode-extraction hook appends a node to
-# .agents/memory/causality/causal-graph.json on every session-log commit). The
-# data has no module boundaries to split on, so a line ceiling is the wrong gate,
-# and JSON cannot carry a `# taste-lint: ignore` suppression comment. A path
-# exemption is the only mechanism. See issue #2785.
-FILE_SIZE_EXEMPT_SEGMENTS: tuple[tuple[str, ...], ...] = ((".agents", "memory"),)
+# Path segments holding captured or generated JSON that is exempt from the
+# file-size rule. A line ceiling is the wrong gate for these: the content has no
+# boundaries to split on, and JSON cannot carry a `# taste-lint: ignore`
+# suppression comment, so a path exemption is the only mechanism available.
+#
+# The exemption requires the `.json` suffix as well as the path. The rationale
+# above is about JSON specifically, and without the suffix condition the
+# exemption reached every authored file that happened to sit in one of these
+# directories: a 913-line markdown catalog and a 542-line XML spec under
+# `sessions/` were silently excused, and both have ordinary section boundaries
+# to split on.
+#
+#   memory/: the episode-extraction hook appends an episode record on every
+#   session-log commit (issue #2785).
+#
+#   analysis/eval-artifacts/: raw eval result files, archived so the numbers
+#   published in an analysis can be re-derived instead of taken on faith.
+#   Splitting one would break the provenance it exists to provide, and the
+#   file-size remediation text proposes extracting "helper functions" from a
+#   JSON dump, which is advice no author can act on (issue #3970).
+#
+#   sessions/: session logs, which SESSION-PROTOCOL.md requires to carry one
+#   workLog entry per step, so length tracks how much work a session did and
+#   nothing else. validate_session_json.py validates one file per session, so
+#   splitting one is not available either.
+_AGENT_STATE_DIR = ".agents"
+
+FILE_SIZE_EXEMPT_SUFFIX = ".json"
+
+FILE_SIZE_EXEMPT_SEGMENTS: tuple[tuple[str, ...], ...] = (
+    (_AGENT_STATE_DIR, "memory"),
+    (_AGENT_STATE_DIR, "analysis", "eval-artifacts"),
+    (_AGENT_STATE_DIR, "sessions"),
+)
 
 _GENERATED_PATH_SEGMENTS: tuple[tuple[str, ...], ...] = (
     ("src", "copilot-cli"),
@@ -288,16 +315,23 @@ def has_suppression(lines: list[str], rule: str) -> bool:
 
 
 def _is_file_size_exempt(filepath: str) -> bool:
-    """True when filepath lives under a generated-data dir exempt from file-size.
+    """True when filepath is captured JSON under a dir exempt from file-size.
 
-    The exempt segment must anchor at the START of the repository-relative path,
-    not match anywhere in it. Otherwise a checkout whose parent directories happen
-    to contain ``.agents/memory`` (for example a clone under
-    ``/home/me/.agents/memory/repo``) would leak the exemption to unrelated files.
+    Both conditions are required. The exempt segment must anchor at the START of
+    the repository-relative path, not match anywhere in it. Otherwise a checkout
+    whose parent directories happen to contain ``.agents/memory`` (for example a
+    clone under ``/home/me/.agents/memory/repo``) would leak the exemption to
+    unrelated files. The suffix must be ``.json``, because the reason these
+    directories are exempt at all is that JSON cannot carry a suppression
+    comment; an authored markdown or XML file sitting in one of them has
+    ordinary boundaries to split on and is not excused.
+
     Absolute paths are first made relative to the current working directory (the
     linter runs from the repo root); a path outside the repo is never exempt.
     """
     path = Path(filepath).expanduser()
+    if path.suffix.lower() != FILE_SIZE_EXEMPT_SUFFIX:
+        return False
     if path.is_absolute():
         try:
             parts = path.resolve().relative_to(Path.cwd().resolve()).parts
@@ -308,6 +342,13 @@ def _is_file_size_exempt(filepath: str) -> bool:
     return any(parts[: len(segment)] == segment for segment in FILE_SIZE_EXEMPT_SEGMENTS)
 
 
+# Extensions that hold structured data rather than authored source code. The
+# file-size rule still fires (oversized data files do affect context cost and
+# ratchet counts), but the remediation text for these files must not suggest
+# extracting helper functions or type definitions. Issue #3970.
+_DATA_EXTENSIONS: frozenset[str] = frozenset({".json", ".yaml", ".yml"})
+
+
 def check_file_size(filepath: str, lines: list[str]) -> list[Violation]:
     """Check file line count against thresholds."""
     if _is_file_size_exempt(filepath):
@@ -315,9 +356,27 @@ def check_file_size(filepath: str, lines: list[str]) -> list[Violation]:
     if has_suppression(lines, "file-size"):
         return []
     line_count = len(lines)
+    is_data_file = Path(filepath).suffix.lower() in _DATA_EXTENSIONS
     if line_count > 500:
-        bn = Path(filepath).stem
-        sx = Path(filepath).suffix
+        if is_data_file:
+            remediation = (
+                "AGENT_REMEDIATION: Data file exceeds 500 lines. Options:\n"
+                "  1. Shard by a natural key (e.g. date, id range, category)\n"
+                "  2. Exempt the path in FILE_SIZE_EXEMPT_SEGMENTS if the file\n"
+                "     is append-only generated data with no module boundary.\n"
+                "  Target: each shard under 500 lines or path-exempt the directory."
+            )
+        else:
+            bn = Path(filepath).stem
+            sx = Path(filepath).suffix
+            remediation = (
+                f"AGENT_REMEDIATION: Split this file into smaller modules. "
+                f"Consider extracting:\n"
+                f"  1. Helper functions -> {bn}_helpers{sx}\n"
+                f"  2. Type definitions -> {bn}_types{sx}\n"
+                f"  3. Constants -> {bn}_constants{sx}\n"
+                f"  Target: each module under 300 lines for good cohesion."
+            )
         return [
             Violation(
                 rule="file-size",
@@ -325,17 +384,25 @@ def check_file_size(filepath: str, lines: list[str]) -> list[Violation]:
                 file=filepath,
                 line=line_count,
                 message=f"File exceeds 500 lines ({line_count} lines)",
-                remediation=(
-                    f"AGENT_REMEDIATION: Split this file into smaller modules. "
-                    f"Consider extracting:\n"
-                    f"  1. Helper functions -> {bn}_helpers{sx}\n"
-                    f"  2. Type definitions -> {bn}_types{sx}\n"
-                    f"  3. Constants -> {bn}_constants{sx}\n"
-                    f"  Target: each module under 300 lines for good cohesion."
-                ),
+                remediation=remediation,
             )
         ]
     if line_count > 300:
+        if is_data_file:
+            remediation = (
+                "AGENT_REMEDIATION: Data file is growing large. If it is "
+                "append-only generated data, consider exempting the path in "
+                "FILE_SIZE_EXEMPT_SEGMENTS or sharding by a natural key before "
+                "it exceeds 500 lines."
+            )
+        else:
+            remediation = (
+                "AGENT_REMEDIATION: File is growing large. Plan extraction "
+                "before it exceeds 500 lines. Look for:\n"
+                "  1. Groups of related functions that form a cohesive module\n"
+                "  2. Data classes or constants that can be separated\n"
+                "  3. Test helpers that belong in a conftest or fixture file"
+            )
         return [
             Violation(
                 rule="file-size",
@@ -343,13 +410,7 @@ def check_file_size(filepath: str, lines: list[str]) -> list[Violation]:
                 file=filepath,
                 line=line_count,
                 message=f"File approaching size limit ({line_count}/500 lines)",
-                remediation=(
-                    "AGENT_REMEDIATION: File is growing large. Plan extraction "
-                    "before it exceeds 500 lines. Look for:\n"
-                    "  1. Groups of related functions that form a cohesive module\n"
-                    "  2. Data classes or constants that can be separated\n"
-                    "  3. Test helpers that belong in a conftest or fixture file"
-                ),
+                remediation=remediation,
             )
         ]
     return []

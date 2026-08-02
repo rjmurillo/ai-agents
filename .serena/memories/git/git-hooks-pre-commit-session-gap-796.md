@@ -29,7 +29,7 @@ fi
 ## Case Study: PR #795
 
 **Files Committed**:
-- `scripts/Sync-McpConfig.ps1`
+- `scripts/Sync-McpConfig.ps1` (since renamed to `scripts/sync_mcp_config.py`)
 - `.factory/mcp.json`
 
 **Session Protocol Violations**:

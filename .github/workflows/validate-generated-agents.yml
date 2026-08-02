@@ -4,7 +4,7 @@
 # Regenerates all agents from templates and fails if committed files differ.
 #
 # Local developers and AI agents can run the same validation using:
-#   python3 build/generate_agents.py --validate
+#   uv run python build/generate_agents.py --validate
 
 name: Validate Generated Agents
 
@@ -12,8 +12,6 @@ on:
   push:
     branches:
       - main
-      - 'feat/**'
-      - 'fix/**'
     # NO paths filter - use dorny/paths-filter internally to satisfy required checks
   pull_request:
     branches:
@@ -23,7 +21,7 @@ on:
 
 concurrency:
   group: validate-agents-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   # Check if relevant files changed using paths-filter
@@ -35,7 +33,7 @@ jobs:
       contents: read
     outputs:
       # For workflow_dispatch, always run validation; otherwise use paths-filter result
-      should-run-agents: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.determine.outputs.should-run-agents }}
+      should-run-agents: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.agents }}
 
     steps:
       - name: Checkout repository
@@ -54,16 +52,15 @@ jobs:
               - 'src/vs-code-agents/**'
               - 'src/copilot-cli/**'
               - 'src/claude/**'
+              - '.claude-plugin/marketplace.json'
+              - '.github/plugin/marketplace.json'
+              - '.claude/.claude-plugin/plugin.json'
               - 'build/generate_agents.py'
               - 'build/generate_agents_common.py'
               - 'build/generate_agent_catalog.py'
               - 'build/scripts/**'
               - 'scripts/validation/**'
-              - '.claude/agents/**'
-              - '.claude/skills/**'
-              - '.claude/hooks/**'
-              - '.claude/settings.json'
-              - '.claude/rules/**'
+              - '.claude/**'
               - 'lefthook.yml'
               - '.config/lefthook.yml'
               - '.githooks/**'
@@ -73,30 +70,7 @@ jobs:
               - '.github/prompts/**'
               - '.github/workflows/**'
               - 'tests/ci/test_validation_scripts_are_reachable.py'
-
-      - name: Determine if validation should run
-        id: determine
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          AGENTS_CHANGED: ${{ steps.filter.outputs.agents }}
-        run: |
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            echo "should-run-agents=true" >> "$GITHUB_OUTPUT"
-            echo "Decision: Run validation (manual trigger)"
-          else
-            AGENTS="$AGENTS_CHANGED"
-
-            echo "Agent files changed: $AGENTS"
-
-            # Run validation if agent files changed, skip otherwise
-            if [ "$AGENTS" = "true" ]; then
-              echo "should-run-agents=true" >> "$GITHUB_OUTPUT"
-              echo "Decision: Run validation (agent files changed)"
-            else
-              echo "should-run-agents=false" >> "$GITHUB_OUTPUT"
-              echo "Decision: Skip validation (no agent files changed)"
-            fi
-          fi
+              - 'tests/ci/test_frontmatter_gate_paths_filter.py'
 
   validate:
     name: Validate Generated Files
@@ -133,25 +107,36 @@ jobs:
         with:
           python-version: '3.14'
 
-      - name: Install validator dependencies
+      - name: Set up uv
         if: steps.should-run.outputs.skip != 'true'
-        # pytest is pinned to the project floor in pyproject.toml
-        # (pytest>=9.0.3). A review suggested aligning this down to the 8.3.3
-        # used by .github/actions/validate-plugin-manifests; that action is the
-        # stale one, and installing below the declared floor here would run the
-        # reachability suite on a pytest the project does not support.
-        # Refs #3377.
-        run: python3 -m pip install 'PyYAML==6.0.3' 'pytest==9.0.3'
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
 
       - name: Validate script reachability
         if: steps.should-run.outputs.skip != 'true'
-        run: python3 -m pytest -q tests/ci/test_validation_scripts_are_reachable.py
+        run: uv run python -m pytest -q tests/ci/test_validation_scripts_are_reachable.py
+
+      # This guard belongs here rather than only in the default pytest run.
+      # It asserts that this workflow's own paths filter still covers every
+      # tree the frontmatter gate scans, so the regression it catches is a
+      # YAML-only edit to the filter above. pytest.yml does run this file as
+      # part of the full suite, but its trigger list is Python-shaped and does
+      # not include this workflow, so a YAML-only narrowing would skip
+      # pytest.yml entirely and the guard would never fire on the one change
+      # it exists to catch. Running it here closes that hole, because this
+      # workflow triggers on .github/workflows/**.
+      - name: Validate frontmatter gate paths filter
+        if: steps.should-run.outputs.skip != 'true'
+        run: uv run python -m pytest -q tests/ci/test_frontmatter_gate_paths_filter.py
+
+      - name: Validate capability matrix references
+        if: steps.should-run.outputs.skip != 'true'
+        run: uv run python build/scripts/validate_agent_matrix_refs.py
 
       - name: Regenerate and validate agent files
         if: steps.should-run.outputs.skip != 'true'
         run: |
           echo "Running agent generation in validation mode..."
-          python3 build/generate_agents.py --validate
+          uv run python build/generate_agents.py --validate
 
       - name: Build-all staleness check (REQ-003-005)
         if: steps.should-run.outputs.skip != 'true'
@@ -160,11 +145,26 @@ jobs:
         # "forgot to regenerate skills/agents" class of error before merge.
         run: |
           echo "Running build_all.py --check..."
-          python3 build/scripts/build_all.py --check
+          uv run python build/scripts/build_all.py --check
 
       - name: Validate platform template schema (REQ-003-002)
         if: steps.should-run.outputs.skip != 'true'
-        run: python3 build/scripts/validate_templates_schema.py
+        run: uv run python build/scripts/validate_templates_schema.py
+
+      - name: "Validate plugin frontmatter self-containment (issue #3565)"
+        if: steps.should-run.outputs.skip != 'true'
+        # A shipped `description` loads into every consumer session, so a path
+        # into an upstream-only directory never resolves for them. The prose
+        # ratchet scans only .claude/skills and does not know `docs/`, which is
+        # how PR #3497 landed `docs/agent-metrics.md` two PRs after the rule
+        # shipped. See .claude/rules/plugin-self-containment.md.
+        run: uv run python scripts/validation/check_plugin_frontmatter_self_containment.py
+
+      - name: Validate agent capability matrix references
+        if: steps.should-run.outputs.skip != 'true'
+        # Matrix rows are model-routing contracts. A row that names an agent
+        # absent from its own install tree points the model at a dead route.
+        run: uv run python build/scripts/validate_agent_matrix_refs.py
 
       - name: Install-parity check (changed-together siblings)
         if: steps.should-run.outputs.skip != 'true'
@@ -183,7 +183,7 @@ jobs:
           PR_BASE_REF: ${{ github.event.pull_request.base.ref || 'main' }}
           PUSH_BEFORE_SHA: ${{ github.event_name == 'push' && github.event.before || '' }}
         run: |
-          python3 scripts/validation/run_install_parity_ci.py
+          uv run python scripts/validation/run_install_parity_ci.py
 
       - name: Plugin lib sync check (M7-T1)
         if: steps.should-run.outputs.skip != 'true'
@@ -196,27 +196,28 @@ jobs:
         # the lib copy would silently fall behind.
         run: |
           echo "Running sync_plugin_lib.py --check..."
-          python3 scripts/sync_plugin_lib.py --check
+          uv run python scripts/sync_plugin_lib.py --check
 
-      - name: Plugin manifest version parity check (Issue #2222)
+      - name: "Plugin manifest description count check (Issue #3651)"
         if: steps.should-run.outputs.skip != 'true'
-        # Both `.claude/.claude-plugin/plugin.json` and
-        # `src/copilot-cli/.claude-plugin/plugin.json` must declare
-        # identical `version` fields. Prevents the drift class where
-        # one manifest bumps version but the other is forgotten.
-        # Exits 1 on mismatch, 2 on malformed input, 0 on parity.
+        # One invariant: no description in either marketplace file or any plugin
+        # manifest may embed a component count, because nothing recomputes it and
+        # it goes stale on the next component change (PR #2187).
+        # The version-parity half (Issue #2222) was retired with ADR-092: the
+        # manifests carry no version, so there is nothing to hold in parity.
+        # Exits 1 on staleness, 2 on malformed input, 0 when it holds.
         run: |
           echo "Running check_plugin_manifest_parity.py..."
-          python3 build/scripts/check_plugin_manifest_parity.py
+          uv run python build/scripts/check_plugin_manifest_parity.py
 
       - name: Validate GitHub Actions SHA Pinning
         if: steps.should-run.outputs.skip != 'true'
         shell: bash
         run: |
           echo "Validating GitHub Actions SHA pinning..."
-          python3 scripts/validation/sha_pinning.py --ci
+          uv run python scripts/validation/sha_pinning.py --ci
 
-      - name: Validate Copilot agent frontmatter (issues #2491-#2497, #2500)
+      - name: "Validate Copilot agent frontmatter (issues #2491-#2497, #2500)"
         if: steps.should-run.outputs.skip != 'true'
         # Parse every .github/agents/*.agent.md frontmatter as a YAML loader
         # would. An unquoted plain-scalar description that embeds colon-bearing
@@ -224,37 +225,10 @@ jobs:
         # class in CI (not only the local pre_pr gate). Exit 1 on malformed.
         run: |
           echo "Validating Copilot agent frontmatter..."
-          python3 scripts/validation/validate_copilot_agent_frontmatter.py
-          python3 scripts/validation/validate_argument_hint.py
-          python3 scripts/validation/agent_registry.py
+          uv run python scripts/validation/validate_copilot_agent_frontmatter.py
+          uv run python scripts/validation/validate_argument_hint.py
+          uv run python scripts/validation/agent_registry.py
 
       - name: Show diff on failure
         if: failure() && steps.should-run.outputs.skip != 'true'
-        run: |
-          echo ""
-          echo "=== Files that differ from generated output ==="
-          echo ""
-
-          # Regenerate without validation to get the expected content
-          python3 build/generate_agents.py
-
-          # Show which files changed
-          CHANGED_FILES=$(git diff --name-only)
-
-          if [ -n "$CHANGED_FILES" ]; then
-            echo "The following generated files were manually edited:"
-            echo ""
-            echo "$CHANGED_FILES" | while read -r file; do
-              echo "  - $file"
-            done
-            echo ""
-            echo "To fix this issue:"
-            echo "  1. Edit the source template in templates/agents/*.shared.md"
-            echo "  2. Run: python3 build/generate_agents.py"
-            echo "  3. Commit the regenerated files"
-            echo ""
-            echo "=== Detailed diff ==="
-            git diff
-          else
-            echo "No differences detected in git diff (validation may have failed for other reasons)"
-          fi
+        run: uv run python scripts/ci/show_generated_agent_diff.py

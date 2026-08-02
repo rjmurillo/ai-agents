@@ -4,13 +4,18 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from ..scripts.extract_session_episode import (
+    _chronological,
+    _commit_datetime,
     _link_sequential_events,
+    _prose_sha_predates_session,
     extract_from_json,
     get_decision_type,
     get_session_id_from_path,
@@ -633,11 +638,13 @@ class TestCausalEventLinks:
     def test_pre_and_post_code_milestones_in_same_log_use_observed_order(self):
         bundle = extract_from_json(_json_log([
             {
+                "timestamp": "2026-05-30T23:00:00+00:00",
                 "phase": "Reproduce",
                 "actions": ["Filed the issue before code changed"],
                 "outcome": "Filed issue #3464 before writing code",
             },
             {
+                "timestamp": "2026-05-31T01:00:00+00:00",
                 "phase": "Review",
                 "actions": ["Reviewed the completed branch"],
                 "outcome": "PR review round complete",
@@ -648,10 +655,11 @@ class TestCausalEventLinks:
         commit = next(e for e in bundle["events"] if e["type"] == "commit")
         pre_code = next(e for e in bundle["events"] if "before writing code" in e["content"])
         post_code = next(e for e in bundle["events"] if "review round" in e["content"])
-        assert commit["caused_by"] == []
         assert pre_code["caused_by"] == []
-        assert pre_code["leads_to"] == [post_code["id"]]
-        assert post_code["caused_by"] == [pre_code["id"]]
+        assert pre_code["leads_to"] == [commit["id"]]
+        assert commit["caused_by"] == [pre_code["id"]]
+        assert commit["leads_to"] == [post_code["id"]]
+        assert post_code["caused_by"] == [commit["id"]]
 
     def test_rank_only_timestamp_ties_do_not_emit_causal_edges(self):
         events = [
@@ -683,8 +691,13 @@ class TestCausalEventLinks:
 
         _link_sequential_events(events)
 
-        assert all(e["caused_by"] == [] for e in events)
-        assert all(e["leads_to"] == [] for e in events)
+        by_id = {e["id"]: e for e in events}
+        assert by_id["e001"]["caused_by"] == []
+        assert by_id["e001"]["leads_to"] == []
+        assert by_id["e002"]["caused_by"] == []
+        assert by_id["e002"]["leads_to"] == ["e003"]
+        assert by_id["e003"]["caused_by"] == ["e002"]
+        assert by_id["e003"]["leads_to"] == []
 
     def test_cli_returns_zero_and_keeps_real_3459_pre_code_edge_sparse(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -752,3 +765,183 @@ class TestExtractFromJsonEndToEnd:
         episode = json.loads(capsys.readouterr().out)
         assert episode["outcome"] == "success"
         assert not any(e["type"] == "error" for e in episode["events"])
+
+
+# ---------------------------------------------------------------------------
+# Commit events follow committer date, not provenance rank (issue #3619)
+# ---------------------------------------------------------------------------
+
+
+def _git(repo: Path, *args: str, when: str | None = None) -> str:
+    """Run git in ``repo`` with a fixed identity and an optional pinned date."""
+    env = dict(os.environ)
+    for var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"):
+        env.pop(var, None)
+    env.update(
+        {
+            "GIT_AUTHOR_NAME": "T",
+            "GIT_AUTHOR_EMAIL": "t@example.invalid",
+            "GIT_COMMITTER_NAME": "T",
+            "GIT_COMMITTER_EMAIL": "t@example.invalid",
+        }
+    )
+    if when is not None:
+        env["GIT_AUTHOR_DATE"] = when
+        env["GIT_COMMITTER_DATE"] = when
+    result = subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        check=True,
+    )
+    return result.stdout.strip()
+
+
+def _repo_with_commits(tmp_path: Path, dates: list[str]) -> list[str]:
+    """A repository holding one commit per entry in ``dates``, oldest first.
+
+    Returns the full SHAs in the order the commits were made, so a test can
+    state the true chronology independently of anything under test.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "--quiet", "--initial-branch", "main")
+    shas: list[str] = []
+    for index, when in enumerate(dates):
+        (repo / f"f{index}.txt").write_text(str(index), encoding="utf-8")
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "--quiet", "--no-gpg-sign", "-m", f"c{index}", when=when)
+        shas.append(_git(repo, "rev-parse", "HEAD"))
+    return shas
+
+
+def _log_with_commits(ending: str, evidence_shas: list[str]) -> dict[str, Any]:
+    """A session log whose commit record spans ``endingCommit`` and evidence."""
+    return {
+        "session": {"date": "2026-07-29", "startingCommit": "0" * 40},
+        "workLog": [{"step": "did the work"}],
+        "protocolCompliance": {
+            "sessionEnd": {
+                "changesCommitted": {
+                    "complete": True,
+                    "evidence": "Committed " + ", ".join(evidence_shas),
+                }
+            }
+        },
+        "endingCommit": ending,
+    }
+
+
+@pytest.fixture(autouse=True)
+def _clear_commit_date_cache():
+    """Keep one test's temporary repository out of the next test's lookups."""
+    _commit_datetime.cache_clear()
+    yield
+    _commit_datetime.cache_clear()
+
+
+class TestCommitEventsFollowChronology:
+    def test_ending_commit_is_emitted_last_not_first(self, tmp_path, monkeypatch) -> None:
+        shas = _repo_with_commits(
+            tmp_path,
+            [
+                "2026-07-01T10:00:00+00:00",
+                "2026-07-02T10:00:00+00:00",
+                "2026-07-03T10:00:00+00:00",
+            ],
+        )
+        monkeypatch.chdir(tmp_path / "repo")
+        # endingCommit is the newest commit and is ranked first by _collect_shas.
+        log = _log_with_commits(shas[2], [shas[0], shas[1]])
+        events = json_events(log, "2026-07-29T00:00:00Z")
+        commits = [e["content"] for e in events if e["type"] == "commit"]
+        assert commits == [f"Commit: {sha}" for sha in shas]
+
+    def test_the_chain_no_longer_claims_the_newest_commit_caused_the_oldest(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        shas = _repo_with_commits(
+            tmp_path,
+            ["2026-07-01T10:00:00+00:00", "2026-07-02T10:00:00+00:00"],
+        )
+        monkeypatch.chdir(tmp_path / "repo")
+        events = json_events(_log_with_commits(shas[1], [shas[0]]), "2026-07-29T00:00:00Z")
+        _link_sequential_events(events)
+        by_sha = {e["content"].removeprefix("Commit: "): e for e in events if e["type"] == "commit"}
+        older, newer = by_sha[shas[0]], by_sha[shas[1]]
+        assert newer["id"] not in older["caused_by"]
+        if older["leads_to"] or newer["caused_by"]:
+            assert newer["id"] in older["leads_to"]
+            assert older["id"] in newer["caused_by"]
+
+    def test_a_single_commit_episode_is_untouched(self, tmp_path, monkeypatch) -> None:
+        shas = _repo_with_commits(tmp_path, ["2026-07-01T10:00:00+00:00"])
+        monkeypatch.chdir(tmp_path / "repo")
+        log = _log_with_commits(shas[0], [])
+        events = json_events(log, "2026-07-29T00:00:00Z")
+        commits = [e["content"] for e in events if e["type"] == "commit"]
+        assert commits == [f"Commit: {shas[0]}"]
+
+
+class TestOrderingRefusesToGuess:
+    def test_an_unresolvable_sha_leaves_the_whole_order_untouched(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        shas = _repo_with_commits(
+            tmp_path,
+            ["2026-07-01T10:00:00+00:00", "2026-07-02T10:00:00+00:00"],
+        )
+        monkeypatch.chdir(tmp_path / "repo")
+        absent = "abcdef1234567890abcdef1234567890abcdef12"
+        given = [shas[1], absent, shas[0]]
+        assert _chronological(given) == given
+
+    def test_outside_a_checkout_the_order_is_preserved(self, tmp_path, monkeypatch) -> None:
+        shas = _repo_with_commits(
+            tmp_path,
+            ["2026-07-01T10:00:00+00:00", "2026-07-02T10:00:00+00:00"],
+        )
+        outside = tmp_path / "not-a-repo"
+        outside.mkdir()
+        monkeypatch.chdir(outside)
+        reversed_order = [shas[1], shas[0]]
+        assert _chronological(reversed_order) == reversed_order
+
+    def test_commits_sharing_a_second_keep_their_provenance_order(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        shas = _repo_with_commits(
+            tmp_path,
+            ["2026-07-01T10:00:00+00:00", "2026-07-01T10:00:00+00:00"],
+        )
+        monkeypatch.chdir(tmp_path / "repo")
+        # Asserted in both directions on purpose. A tiebreak that fell through
+        # to the SHA text would satisfy one direction by luck; it cannot
+        # satisfy both.
+        assert _chronological([shas[1], shas[0]]) == [shas[1], shas[0]]
+        _commit_datetime.cache_clear()
+        assert _chronological([shas[0], shas[1]]) == [shas[0], shas[1]]
+
+    def test_an_empty_set_is_not_an_error(self) -> None:
+        assert _chronological([]) == []
+
+
+class TestTheSharedLookupStillGatesProseShas:
+    def test_a_commit_predating_the_session_is_still_rejected(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        shas = _repo_with_commits(tmp_path, ["2020-01-01T10:00:00+00:00"])
+        monkeypatch.chdir(tmp_path / "repo")
+        assert _prose_sha_predates_session(shas[0], "2026-07-29") is True
+
+    def test_a_commit_inside_the_window_is_kept(self, tmp_path, monkeypatch) -> None:
+        shas = _repo_with_commits(tmp_path, ["2026-07-29T10:00:00+00:00"])
+        monkeypatch.chdir(tmp_path / "repo")
+        assert _prose_sha_predates_session(shas[0], "2026-07-29") is False
+
+    def test_an_unresolvable_sha_fails_open(self, tmp_path, monkeypatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        assert _prose_sha_predates_session("a" * 40, "2026-07-29") is False

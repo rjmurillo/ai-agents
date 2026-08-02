@@ -1,0 +1,129 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3653,
+    "date": "2026-07-29",
+    "branch": "fix/3653-force-with-lease-pinned",
+    "startingCommit": "232ab6557",
+    "objective": "Issue #3653: agent-facing force-push instructions use bare --force-with-lease, which a concurrent git fetch defeats, letting one agent destroy another's commits. Pin the lease to the observed head.sha and add a regression guard."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git checkout -b fix/3653-force-with-lease-pinned origin/main; git branch --show-current confirmed"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Working branch is fix/3653-force-with-lease-pinned"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Read issues #3653 and #3413 in full, plus ADR-076, ADR-090, and the ADR-076 debate log"
+      },
+      "serenaActivated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP unavailable this session; used git grep and direct reads"
+      },
+      "serenaInstructions": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP unavailable this session"
+      }
+    },
+    "sessionEnd": {
+      "logCompleted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file, with endingCommit recorded in a follow-up commit"
+      },
+      "qaSkipDocumented": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Full QA ran. 12 new tests plus a two-sided corpus control against origin/main content."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Scoped markdownlint on the two changed markdown files"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "uv run ruff check clean; uv run pytest tests/test_pr_autofix_force_push_lease.py 12 passed"
+      },
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Docs, generated mirror, regression guard, and both plugin manifests all updated"
+      },
+      "serenaMemoryUpdated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP unavailable this session"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md untouched"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Two commits on fix/3653-force-with-lease-pinned"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Read #3653 and #3413. Both describe the same failure: a second agent force-pushes a PR branch and removes the first agent's commits. #3653 names the fix directly, an atomic compare-and-swap on push."
+    },
+    {
+      "step": "Searched the corpus for force-push call sites. Found .github/scripts/safe_push_pr_branch.py already refuses --force-with-lease unless --expected-remote-sha is supplied, building --force-with-lease=<dest>:<sha>. The correct contract already exists in this repository."
+    },
+    {
+      "step": "Found three agent-facing documents handing out the unsafe bare form on a SHA refspec: .claude/commands/pr-autofix.md, docs/autonomous-pr-monitor.md, and the generated src/copilot-cli/skills/pr-autofix/SKILL.md."
+    },
+    {
+      "step": "Checked ADR-076 (accepted, implemented false) and confirmed .claude/skills/github/scripts/pr/pr_autofix_lease.py already exists, so #3413's coordination lease is largely built. The unfixed gap is the transport-layer guard #3653 asks for."
+    },
+    {
+      "step": "Proved the defect empirically in two throwaway clones rather than arguing from documentation. Agent A pushed commit Y; agent B fetched (the documented defeat condition) then force-pushed with the bare form. The push SUCCEEDED and Y was destroyed."
+    },
+    {
+      "step": "Ran the isolating control on the same repo state: restored Y, then retried the identical push with --force-with-lease=main:<the SHA B last observed>. Git rejected it with 'stale info' and Y survived. Only the lease form differed, so the explicit SHA is individually load-bearing."
+    },
+    {
+      "step": "Pinned the lease in both canonical documents to the head.sha the agent already reads from get_pr_context.py, and recorded why the preceding rev-parse check cannot substitute: it is a separate read, so it leaves a check-to-push window that only the lease closes atomically."
+    },
+    {
+      "step": "Regenerated the Copilot mirror with build/scripts/generate_commands.py rather than hand-editing it (14 commands processed, 14 skills written)."
+    },
+    {
+      "step": "Added tests/test_pr_autofix_force_push_lease.py: six unit tests over the detector itself including two-sided controls for the shell line-continuation handling, plus a per-document corpus guard and a vacuity guard asserting each guarded document still contains a refspec push at all."
+    },
+    {
+      "step": "Verified the guard is not retrospective theatre by running the detector against git show origin/main content for all three files. Pre-fix: all three flagged. Post-fix: all three clean."
+    },
+    {
+      "step": "Left the bare --force-with-lease examples in git-advanced-workflows out of scope. They teach an ordinary single-branch rebase flow rather than the concurrent-agent refspec path, so this guard deliberately stays silent on them; flagged in the PR body instead of widened into this change."
+    },
+    {
+      "step": "Turned the throwaway reproduction into a real two-sided concurrency regression, satisfying #3413's last acceptance criterion. A first draft pushed to a filesystem path rather than the remote name, which has no tracking ref, so bare --force-with-lease failed for an unrelated reason and the hazard control passed vacuously in the wrong direction. Corrected to push to origin."
+    }
+  ],
+  "endingCommit": "e674b19ea",
+  "nextSteps": [
+    "Consider whether .claude/skills/git-advanced-workflows/SKILL.md should stop teaching bare --force-with-lease as sufficient, given the measured defeat.",
+    "ADR-076 still records implemented: false while pr_autofix_lease.py ships; reconcile the flag."
+  ]
+}

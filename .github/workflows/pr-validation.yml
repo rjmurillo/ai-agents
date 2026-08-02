@@ -72,6 +72,19 @@ jobs:
       - name: Checkout repository
         if: steps.should-run.outputs.skip != 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # `Check PR commit count` reads origin/main's first-parent trunk to
+          # decide the 20 vs 40 commit ceiling (issue #3997). A default checkout
+          # is shallow and creates only refs/remotes/pull/<n>/merge, so
+          # `git rev-list --first-parent origin/main` fails, the predicate fails
+          # closed, and a branch that really does merge main is held to 20 here
+          # while the pre-push hook allows it 40. That is the exact divergence
+          # issue #3997 exists to remove, so the ref has to be present.
+          # Cost: an unshallow fetch of ~165 MiB against a 10-minute job budget,
+          # which is what 20+ workflows in this repo already pay. A shallower
+          # option would answer wrongly rather than fail closed, because a
+          # truncated trunk still reads as a trunk.
+          fetch-depth: 0
 
       - name: Setup PowerShell
         if: steps.should-run.outputs.skip != 'true'
@@ -84,24 +97,9 @@ jobs:
       - name: Validate PR Description vs Diff
         if: steps.should-run.outputs.skip != 'true'
         id: validate-description
-        shell: bash
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          echo "Validating PR description..."
-          set +e
-          python3 scripts/validation/pr_description.py --pr-number "$PR_NUMBER" --ci
-          rc=$?
-          set -e
-          # Map ADR-035 exit codes to workflow validation_result so a config
-          # error (exit 2: missing dependency, gh failure, RuntimeError in
-          # fetch_pr_data) is not misreported as a content-validation FAIL.
-          case "$rc" in
-            0) echo "validation_result=PASS" >> "$GITHUB_OUTPUT" ;;
-            1) echo "validation_result=FAIL" >> "$GITHUB_OUTPUT" ;;
-            2) echo "validation_result=ERROR" >> "$GITHUB_OUTPUT" ;;
-            *) echo "validation_result=ERROR" >> "$GITHUB_OUTPUT" ;;
-          esac
+        run: python3 scripts/ci/map_pr_description_result.py
 
       - name: Validate PR Description Standards
         if: steps.should-run.outputs.skip != 'true'
@@ -114,51 +112,13 @@ jobs:
       - name: Check QA Report Exists
         if: steps.should-run.outputs.skip != 'true'
         id: check-qa
-        shell: pwsh
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          Write-Host "Checking for QA report..."
-
-          # Get changed files in PR using files API (no line limit, unlike gh pr diff)
-          # See issue #468: gh pr diff fails with HTTP 406 when diff exceeds 20,000 lines
-          $changedFiles = gh api "repos/$env:GITHUB_REPOSITORY/pulls/$env:PR_NUMBER/files" --paginate --jq '.[].filename' | Out-String
-          
-          # Check if code files changed (not just docs)
-          $codeExtensions = @('.ps1', '.cs', '.ts', '.js', '.py', '.yml', '.yaml', '.json')
-          $hasCodeChanges = $false
-          
-          foreach ($line in ($changedFiles -split "`n")) {
-            $ext = [IO.Path]::GetExtension($line.Trim())
-            if ($ext -in $codeExtensions -and $line -notmatch '^\.agents/') {
-              $hasCodeChanges = $true
-              break
-            }
-          }
-          
-          "has_code_changes=$hasCodeChanges" >> $env:GITHUB_OUTPUT
-          
-          if ($hasCodeChanges) {
-            # Check for QA report in .agents/qa/
-            $qaReports = Get-ChildItem -Path ".agents/qa/" -Filter "*pr-$env:PR_NUMBER*.md" -ErrorAction SilentlyContinue
-            
-            if ($qaReports.Count -gt 0) {
-              "qa_report_exists=true" >> $env:GITHUB_OUTPUT
-              "qa_report=$($qaReports[0].Name)" >> $env:GITHUB_OUTPUT
-              Write-Host "✓ QA report found: $($qaReports[0].Name)"
-            } else {
-              "qa_report_exists=false" >> $env:GITHUB_OUTPUT
-              Write-Warning "No QA report found for code changes"
-            }
-          } else {
-            "qa_report_exists=N/A" >> $env:GITHUB_OUTPUT
-            Write-Host "No code changes, QA report not required"
-          }
+        run: python3 scripts/ci/check_pr_qa_report.py
 
       - name: Generate Validation Report
         if: steps.should-run.outputs.skip != 'true'
         id: report
-        shell: pwsh
         env:
           DESCRIPTION_RESULT: ${{ steps.validate-description.outputs.validation_result }}
           BYPASS_USED: ${{ steps.validate-description.outputs.bypass_used }}
@@ -171,113 +131,7 @@ jobs:
           TEMPLATE_STATUS: ${{ steps.validate-standards.outputs.template_status }}
           TEMPLATE_MESSAGE: ${{ steps.validate-standards.outputs.template_message }}
           STANDARDS_WARNINGS: ${{ steps.validate-standards.outputs.standards_warnings }}
-        run: |
-          $overallStatus = "PASS"
-          $blockingIssues = @()
-          $warnings = @()
-
-          # Treat an empty DESCRIPTION_RESULT as ERROR. The validate-description
-          # step writes PASS/FAIL only on its two explicit branches; if the
-          # runner is interrupted (timeout, OOM, signal) between the python
-          # call and the bash echo, the output is empty. Without this guard,
-          # downstream BYPASS_USED checks could render BYPASSED for a PR that
-          # never actually completed validation.
-          if ([string]::IsNullOrEmpty($env:DESCRIPTION_RESULT)) {
-            $env:DESCRIPTION_RESULT = "ERROR"
-          }
-
-          # Check description validation
-          if ($env:DESCRIPTION_RESULT -eq "FAIL") {
-            $overallStatus = "FAIL"
-            $blockingIssues += "PR description does not match actual changes"
-          } elseif ($env:DESCRIPTION_RESULT -eq "ERROR") {
-            $overallStatus = "ERROR"
-            $blockingIssues += "Description validation error"
-          } elseif ($env:BYPASS_USED -eq "true") {
-            # Description validation found CRITICAL mismatches but the bypass
-            # label suppressed the failing exit. Surface this as BYPASSED so
-            # reviewers see the override in the PR comment, not a clean PASS.
-            $overallStatus = "BYPASSED"
-            $warnings += "Description validation BYPASSED via '$env:BYPASS_LABEL' label ($env:BYPASS_COUNT CRITICAL files suppressed). See job summary for details."
-          }
-          
-          # Check PR standards (issue keywords + template compliance)
-          if ($env:KEYWORDS_STATUS -eq "WARN") {
-            $warnings += "No GitHub issue linking keywords found (Closes, Fixes, Resolves #N)"
-          }
-          if ($env:TEMPLATE_STATUS -eq "WARN" -and $env:TEMPLATE_MESSAGE) {
-            $warnings += $env:TEMPLATE_MESSAGE
-          }
-
-          # Check QA report
-          if ($env:HAS_CODE_CHANGES -eq "true" -and $env:QA_EXISTS -eq "false") {
-            $warnings += "QA report not found for code changes (recommended before merge)"
-          }
-          
-          # Build report
-          $alertType = if ($overallStatus -eq "FAIL") { "CAUTION" }
-                      elseif ($overallStatus -eq "ERROR") { "WARNING" }
-                      elseif ($overallStatus -eq "BYPASSED") { "WARNING" }
-                      elseif ($warnings.Count -gt 0) { "NOTE" }
-                      else { "TIP" }
-
-          $emoji = if ($overallStatus -eq "PASS") { "✅" }
-                   elseif ($overallStatus -eq "BYPASSED") { "⚠️" }
-                   else { "❌" }
-          
-          $report = @"
-          <!-- PR-VALIDATION -->
-          
-          ## PR Validation Report
-          
-          > [!$alertType]
-          > $emoji **Status: $overallStatus**
-          
-          ### Description Validation
-
-          | Check | Status |
-          |:------|:-------|
-          | Description matches diff | $(if ($env:BYPASS_USED -eq 'true' -and $env:DESCRIPTION_RESULT -ne 'ERROR') { 'BYPASSED (label override)' } else { $env:DESCRIPTION_RESULT }) |
-
-          ### PR Standards
-
-          | Check | Status |
-          |:------|:-------|
-          | Issue linking keywords | $env:KEYWORDS_STATUS |
-          | Template compliance | $env:TEMPLATE_STATUS |
-
-          ### QA Validation
-          
-          | Check | Status |
-          |:------|:-------|
-          | Code changes detected | $env:HAS_CODE_CHANGES |
-          | QA report exists | $env:QA_EXISTS |
-          "@
-          
-          if ($env:QA_REPORT) {
-            $report += "`n| QA report | ``.agents/qa/$env:QA_REPORT`` |"
-          }
-          
-          if ($blockingIssues.Count -gt 0) {
-            $report += "`n`n### ⚠️ Blocking Issues`n`n"
-            foreach ($issue in $blockingIssues) {
-              $report += "- $issue`n"
-            }
-          }
-          
-          if ($warnings.Count -gt 0) {
-            $report += "`n`n### ⚡ Warnings`n`n"
-            foreach ($warning in $warnings) {
-              $report += "- $warning`n"
-            }
-          }
-          
-          $report += "`n`n---`n`n"
-          $report += "<sub>Powered by [PR Validation](https://github.com/$env:GITHUB_REPOSITORY) workflow</sub>`n"
-          
-          # Save report
-          $report | Set-Content "pr-validation-report.md" -Encoding UTF8
-          "overall_status=$overallStatus" >> $env:GITHUB_OUTPUT
+        run: python3 scripts/ci/build_pr_validation_report.py
 
       - name: Post PR Comment
         if: steps.should-run.outputs.skip != 'true'
@@ -315,109 +169,35 @@ jobs:
 
       - name: Apply needs-split label
         # Fixes #2557: this step is ADVISORY and must never fail the job.
-        # The real 20-commit cap is enforced in `Enforce Blocking Issues`.
+        # The real cap is enforced in `Enforce Blocking Issues`. The ceiling is
+        # 20, or 40 when the branch merges main (main-merge relief, issue #3596);
+        # both numbers live in scripts/validation/pr_commit_count.py.
         # `continue-on-error` is the belt; warnings (not throws) in the body
         # are the suspenders, so a label API outage shows as an annotation
         # rather than a red step outline.
         if: steps.commit-check.outputs.status == 'WARNING' || steps.commit-check.outputs.status == 'ALERT' || steps.commit-check.outputs.status == 'BLOCKED'
         continue-on-error: true
-        shell: pwsh
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          # Read existing labels through the REST issues endpoint. Stderr stays
-          # visible so HTTP status and response messages remain in the job log.
-          $existingLabels = gh api "repos/$env:GITHUB_REPOSITORY/issues/$env:PR_NUMBER/labels" --jq '.[].name'
-          if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Could not fetch PR labels (exit code: $LASTEXITCODE); skipping advisory 'needs-split' label."
-            exit 0
-          }
-
-          if ($existingLabels -contains 'needs-split') {
-            Write-Host "PR #$env:PR_NUMBER already has 'needs-split' label"
-            exit 0
-          }
-
-          # Add the label via the REST issues/labels endpoint. The previous
-          # `gh pr edit --add-label` call routed through GraphQL, which
-          # returns HTTP 401 for installation/fine-grained tokens that the
-          # REST reads above accept (see #2557, run 27280632030).
-          $payload = '{"labels":["needs-split"]}'
-          $payload | gh api `
-            -X POST `
-            -H "Accept: application/vnd.github+json" `
-            "repos/$env:GITHUB_REPOSITORY/issues/$env:PR_NUMBER/labels" `
-            --input -
-          if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Failed to add advisory 'needs-split' label (exit code: $LASTEXITCODE). Cosmetic only; the 20-commit cap is still enforced by 'Enforce Blocking Issues'."
-            exit 0
-          }
-          Write-Host "Added 'needs-split' label to PR #$env:PR_NUMBER"
+        run: python3 scripts/ci/update_needs_split_label.py --mode add
 
       - name: Remove needs-split label when below threshold
         # Fixes #2557: same advisory-only contract as the add step.
         if: steps.commit-check.outputs.status == 'OK'
         continue-on-error: true
-        shell: pwsh
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          # Read existing labels through the REST issues endpoint. Stderr stays
-          # visible so HTTP status and response messages remain in the job log.
-          $existingLabels = gh api "repos/$env:GITHUB_REPOSITORY/issues/$env:PR_NUMBER/labels" --jq '.[].name'
-          if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Could not fetch PR labels (exit code: $LASTEXITCODE); skipping advisory 'needs-split' cleanup."
-            exit 0
-          }
-
-          if ($existingLabels -notcontains 'needs-split') {
-            exit 0
-          }
-
-          # Delete the label via REST. The previous `gh pr edit --remove-label`
-          # call routed through GraphQL and returned HTTP 401 for installation
-          # tokens (see #2557). REST DELETE on issues/{N}/labels/{name} accepts
-          # the same token used for the REST read above.
-          gh api `
-            -X DELETE `
-            -H "Accept: application/vnd.github+json" `
-            "repos/$env:GITHUB_REPOSITORY/issues/$env:PR_NUMBER/labels/needs-split"
-          if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Failed to remove advisory 'needs-split' label (exit code: $LASTEXITCODE). Cosmetic only; the gate logic is unchanged."
-            exit 0
-          }
-          Write-Host "Removed 'needs-split' label from PR #$env:PR_NUMBER"
+        run: python3 scripts/ci/update_needs_split_label.py --mode remove
 
       - name: Enforce Blocking Issues
         if: steps.should-run.outputs.skip != 'true'
-        shell: pwsh
         env:
           OVERALL_STATUS: ${{ steps.report.outputs.overall_status }}
           COMMIT_STATUS: ${{ steps.commit-check.outputs.status }}
           COMMIT_COUNT: ${{ steps.commit-check.outputs.commit_count }}
+          COMMIT_LIMIT: ${{ steps.commit-check.outputs.commit_limit }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          if ($env:OVERALL_STATUS -eq "FAIL" -or $env:OVERALL_STATUS -eq "ERROR") {
-            Write-Error "PR validation failed: $env:OVERALL_STATUS"
-            exit 1
-          }
-
-          # Block if commit count exceeds limit (requires human override via bypass label)
-          if ($env:COMMIT_STATUS -eq "BLOCKED") {
-            # Check for bypass label through REST. This is a fail-closed gate:
-            # auth/API errors must stay visible and fail validation.
-            $labels = gh api "repos/$env:GITHUB_REPOSITORY/issues/$env:PR_NUMBER/labels" --jq '.[].name'
-            if ($LASTEXITCODE -ne 0) { throw "Failed to fetch PR labels (exit code: $LASTEXITCODE)" }
-
-            if ($labels -contains 'commit-limit-bypass') {
-              Write-Host "::warning::Commit limit bypassed via 'commit-limit-bypass' label"
-            } else {
-              Write-Error "PR has $env:COMMIT_COUNT commits (limit: 20). Add 'commit-limit-bypass' label to override or split this PR."
-              exit 1
-            }
-          }
-
-          Write-Host "✓ PR validation passed"
+        run: python3 scripts/ci/enforce_pr_validation.py
 
       # Issue #2967: ADR-006 forbids business logic in workflow `run:` blocks.
       # The burn-down count (93 at audit time, 87 today) had no gate, so it could
@@ -427,7 +207,7 @@ jobs:
       # (which hosts the ruff ratchets) only runs when Python files change.
       - name: Run ADR-006 run-block ratchet
         if: steps.should-run.outputs.skip != 'true'
-        run: python3 scripts/ci/adr006_run_block_scanner.py --max 80
+        run: python3 scripts/ci/adr006_run_block_scanner.py --max 58
 
       # Issue #3330: workflow *schema* validation had no required CI gate. YAML
       # Lint (yaml-lint.yml) does run on `**/*.yml` for PRs, but it runs yamllint,
@@ -464,3 +244,82 @@ jobs:
 
       - name: Validate workflow YAML
         run: uv run --frozen python3 scripts/validate_workflows.py
+
+      # Issue #3779: taste-lints emits severity="error" and nothing could fail
+      # because of one. The linter itself is correct (it exits 10 on an error),
+      # but `run_taste_advisory` in scripts/validation/git_hook_policy.py read
+      # that exit code, printed "advisory", and returned 0; no workflow called
+      # the linter at all. So the `error` severity was decorative, and every
+      # commit touching a large file printed an error the author correctly
+      # learned to ignore, which is the same training signal that teaches people
+      # to ignore the naming and complexity rules in the same output.
+      #
+      # Existing debt is recorded in scripts/ci/taste_count_baseline.txt.
+      # The committed baseline must match the current total exactly.
+      # Record a lower count after cleanup with
+      # `python scripts/ci/taste_count_ratchet.py --update`.
+      #
+      # This job hosts it for the same reason it hosts the workflow-YAML and
+      # model-pin gates: taste-lints scans Markdown, YAML, JSON, shell, and
+      # PowerShell as well as Python, so a Python-paths-filtered workflow
+      # (pytest.yml, where the ruff ratchets live) would miss most of its scope.
+      #
+      # --base-ref makes the ratchet one-directional. Without it a PR could
+      # raise the baseline in the same commit that adds the violations, and the
+      # gate would pass while the debt grew.
+      - name: Run taste-lint error-count ratchet
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --depth=1 origin "$BASE_REF"
+          uv run --frozen python3 scripts/ci/taste_count_ratchet.py --base-ref FETCH_HEAD
+      # Issue #4039: type: ignore suppressions bypass the mypy ratchet by inflating
+      # allowed violations without the ratchet noticing. Counting them separately
+      # ensures net-new suppressions are visible and blocked on a regression.
+      - name: Run type-ignore count ratchet
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --depth=1 origin "$BASE_REF"
+          uv run --frozen python3 scripts/ci/type_ignore_count_ratchet.py --base-ref FETCH_HEAD
+      # Issue #3770: `conflict-marker-policy` runs only at pre-commit over the
+      # index. Every route that skips local hooks reached the remote unchecked:
+      # a server-side merge from the "Update branch" button, `--no-verify`, a
+      # clone where `lefthook install` was never run, a bot push.
+      #
+      # It already happened. Commit b71580c23 landed two unresolved hunks in
+      # tests/test_lefthook_integration.py while neither parent carried any,
+      # then survived four further merges. What caught it was the Python syntax
+      # check in pytest.yml, which is incidental coverage: it exists to enforce
+      # the 3.10 syntax floor, it only reads Python, and a marker in Markdown or
+      # YAML has no equivalent backstop anywhere in the repository.
+      #
+      # This job is the right host for the same reason the two gates above are
+      # here: it is a required check that reports on every PR regardless of
+      # which paths changed, and a marker can arrive in any file type.
+      #
+      # The scan walks the whole tracked tree rather than the PR diff so that a
+      # marker is caught by the PR carrying it no matter which route introduced
+      # it. That costs about one second across 7,530 tracked files, and the tree
+      # is clean today, so this is a ratchet at zero with no allowlist.
+      - name: Check for conflict markers
+        run: uv run --frozen python3 scripts/validation/git_hook_policy.py tracked-conflict-markers
+
+      # Issue #2840: ADR-080 requires an unjustified `model:` pin to fail CI.
+      # `check_model_pins.py --mode enforce` exits 1 on a new or changed pin
+      # that lacks a model-rationale field, and `checks_spec.validate_model_pins`
+      # documents that "enforcement stays in CI" -- but nothing under .github/
+      # ever invoked it. The pre-PR runner wraps only `--mode warn`, which
+      # prints `VIOLATION` and exits 0 by design, so until now a new unjustified
+      # pin was detected, reported, and merged anyway.
+      #
+      # Hosted in this job for the same reason as the workflow-YAML step above:
+      # a `model:` pin can land in any skill, agent, or command file, so the
+      # gate has to fire on every PR regardless of touched paths, and this is
+      # the only required check that always reports status.
+      #
+      # Enforce mode grandfathers the existing backlog through
+      # scripts/validation/model_pin_baseline.json and fails only on new or
+      # changed pins, so it passes clean on today's tree.
+      - name: Enforce model pin policy
+        run: uv run --frozen python3 scripts/validation/check_model_pins.py --mode enforce

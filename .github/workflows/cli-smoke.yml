@@ -27,8 +27,6 @@ on:
   push:
     branches:
       - main
-      - 'feat/**'
-      - 'fix/**'
   pull_request:
     branches:
       - main
@@ -36,7 +34,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   check-paths:
@@ -124,72 +122,65 @@ jobs:
 
       - name: Install tarball and run init
         id: init
-        shell: pwsh
+        shell: bash
         env:
           TARBALL: ${{ steps.pack.outputs.tarball }}
-        run: |
-          $work = Join-Path ([System.IO.Path]::GetTempPath()) ("smoke-" + [guid]::NewGuid())
-          New-Item -ItemType Directory -Path $work | Out-Null
-          Push-Location $work
-          npm init -y | Out-Null
-          if ($LASTEXITCODE -ne 0) { throw "npm init exited $LASTEXITCODE" }
-          npm install --silent "$env:TARBALL" | Out-Null
-          if ($LASTEXITCODE -ne 0) { throw "npm install exited $LASTEXITCODE" }
-          New-Item -ItemType Directory -Path demo | Out-Null
-          npm exec --yes --package "$env:TARBALL" -- ai-agents init demo --yes
-          if ($LASTEXITCODE -ne 0) { throw "ai-agents init exited $LASTEXITCODE" }
-          "demo=$(Join-Path $work 'demo')" >> $env:GITHUB_OUTPUT
-          Pop-Location
+        run: python "$GITHUB_WORKSPACE/scripts/ci/smoke_install_tarball.py"
 
       - name: Assert vendored tree
-        shell: pwsh
+        shell: bash
         env:
           DEMO: ${{ steps.init.outputs.demo }}
-        run: |
-          $expected = @(
-            @{ Path = (Join-Path $env:DEMO ".claude" "agents"); Type = "Container" },
-            @{ Path = (Join-Path $env:DEMO ".claude" "commands"); Type = "Container" },
-            @{ Path = (Join-Path $env:DEMO ".claude" "skills"); Type = "Container" },
-            @{ Path = (Join-Path $env:DEMO "CLAUDE.md"); Type = "Leaf" },
-            @{ Path = (Join-Path $env:DEMO "AGENTS.md"); Type = "Leaf" },
-            @{ Path = (Join-Path $env:DEMO ".claude" ".ai-agents-version.json"); Type = "Leaf" }
-          )
-          $missing = $expected | Where-Object {
-            -not (Test-Path $_.Path -PathType $_.Type)
-          }
-          if ($missing) {
-            $missing | ForEach-Object {
-              Write-Host "::error::missing $($_.Type.ToLower()) $($_.Path)"
-            }
-            exit 1
-          }
-          Write-Host "Vendored tree OK ($($expected.Count) paths present)"
+        run: python "$GITHUB_WORKSPACE/scripts/ci/smoke_assert_vendored_tree.py"
 
       - name: First-turn verification (lint-only, REQ-4.4 / T7.3 fallback)
-        shell: pwsh
+        shell: bash
         env:
           DEMO: ${{ steps.init.outputs.demo }}
-        run: |
-          # Excluded trees would emit unresolved .agents/-class path errors on a
-          # first turn. Their presence in the vendored kit is the lint-time
-          # proxy for the runtime grep the live step cannot run without OAuth.
-          $claudeDir = Join-Path $env:DEMO ".claude"
-          $banned = @(
-            (Join-Path $claudeDir "hooks"),
-            (Join-Path $claudeDir "lib"),
-            (Join-Path $claudeDir "settings.json"),
-            (Join-Path $claudeDir "skills" "github")
-          )
-          $present = $banned | Where-Object { Test-Path $_ }
-          if ($present) {
-            $present | ForEach-Object { Write-Host "::error::excluded path vendored: $_" }
-            exit 1
-          }
-          Write-Host "First-turn lint OK (no excluded trees vendored)"
+        run: python "$GITHUB_WORKSPACE/scripts/ci/smoke_first_turn_verify.py"
+
+  verify:
+    name: Typecheck and Unit Tests
+    needs: check-paths
+    if: needs.check-paths.outputs.cli-changed == 'true'
+    # Typechecking and unit tests are platform independent, so they run once on
+    # the cheap ARM runner (ADR-025) rather than in the 6-way OS/Node matrix.
+    # The matrix above proves the packed tarball installs and vendors correctly;
+    # neither `bun build` (a bundler) nor `npm pack` typechecks or runs tests,
+    # so without this job both are unenforced. Refs #3865.
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: packages/ai-agents-cli
+    steps:
+      - name: Harden Runner
+        # yamllint disable-line rule:line-length
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920  # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Setup Bun
+        # yamllint disable-line rule:line-length
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6  # v2.2.0
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Unit tests
+        run: bun test
 
   smoke-result:
     name: Smoke Result
-    needs: [check-paths, smoke]
+    needs: [check-paths, smoke, verify]
     # Pass-through so the required check stays green when no CLI files changed.
     # GitHub branch protection requires SUCCESS, not SKIPPED (Issue #1168).
     if: always()
@@ -197,23 +188,16 @@ jobs:
     permissions:
       contents: read
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          sparse-checkout: scripts/ci
+          sparse-checkout-cone-mode: false
+
       - name: Report
         shell: bash
         env:
           CHECK_PATHS_RESULT: ${{ needs.check-paths.result }}
           CLI_CHANGED: ${{ needs.check-paths.outputs.cli-changed }}
           SMOKE_RESULT: ${{ needs.smoke.result }}
-        run: |
-          if [ "$CHECK_PATHS_RESULT" != "success" ]; then
-            echo "::error::Check changed paths result: $CHECK_PATHS_RESULT"
-            exit 1
-          fi
-          if [ "$CLI_CHANGED" != "true" ]; then
-            echo "No CLI files changed - smoke matrix skipped."
-            exit 0
-          fi
-          if [ "$SMOKE_RESULT" != "success" ]; then
-            echo "::error::Smoke matrix result: $SMOKE_RESULT"
-            exit 1
-          fi
-          echo "Smoke matrix passed on all 6 jobs."
+          VERIFY_RESULT: ${{ needs.verify.result }}
+        run: python3 scripts/ci/smoke_report_result.py

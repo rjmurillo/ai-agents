@@ -75,7 +75,7 @@ class TestCheckFileSize:
     def test_memory_data_file_exempt_despite_size(self) -> None:
         # .agents/memory/ holds append-only generated data (issue #2785).
         lines = ["{}\n"] * 9000
-        result = check_file_size(".agents/memory/causality/causal-graph.json", lines)
+        result = check_file_size(".agents/memory/episodes/episode-batch.json", lines)
         assert result == []
 
     def test_memory_data_absolute_path_under_cwd_exempt(self, tmp_path: Path) -> None:
@@ -125,6 +125,40 @@ class TestCheckFileSize:
         result = check_file_size("src/.agents/memory/x.json", lines)
         assert len(result) == 1
         assert result[0].severity == "error"
+
+    def test_json_error_remediation_mentions_sharding_not_helper_functions(self) -> None:
+        # JSON data files cannot have helper functions. Remediation must name
+        # sharding or path exemption instead of module extraction. Issue #3970.
+        lines = ["{}\n"] * 600
+        result = check_file_size("data.json", lines)
+        assert len(result) == 1
+        assert result[0].severity == "error"
+        assert "helper" not in result[0].remediation.lower()
+        assert "type definitions" not in result[0].remediation.lower()
+        assert "shard" in result[0].remediation.lower()
+
+    def test_json_warning_remediation_mentions_exemption_not_helper_functions(self) -> None:
+        # Warning-range JSON files also get the data-file remediation. Issue #3970.
+        lines = ["{}\n"] * 400
+        result = check_file_size("metrics.json", lines)
+        assert len(result) == 1
+        assert result[0].severity == "warning"
+        assert "helper" not in result[0].remediation.lower()
+        assert "exempt" in result[0].remediation.lower()
+
+    def test_yaml_error_remediation_is_data_file_advice(self) -> None:
+        # .yml data files get the same data-file remediation. Issue #3970.
+        lines = ["key: val\n"] * 600
+        result = check_file_size("config.yml", lines)
+        assert len(result) == 1
+        assert "shard" in result[0].remediation.lower()
+
+    def test_python_error_remediation_still_names_helpers(self) -> None:
+        # Non-data files retain the existing module-extraction advice.
+        lines = ["x = 1\n"] * 600
+        result = check_file_size("src/big_module.py", lines)
+        assert len(result) == 1
+        assert "big_module_helpers.py" in result[0].remediation
 
 
 class TestCheckNaming:

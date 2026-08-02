@@ -17,6 +17,11 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CLAUDE_MARKETPLACE = REPO_ROOT / ".claude-plugin" / "marketplace.json"
 COPILOT_MARKETPLACE = REPO_ROOT / ".github" / "plugin" / "marketplace.json"
+CLAUDE_AGENTS_PLUGIN = REPO_ROOT / "src" / "claude" / ".claude-plugin" / "plugin.json"
+CLAUDE_TOOLKIT_PLUGIN = REPO_ROOT / ".claude" / ".claude-plugin" / "plugin.json"
+COPILOT_TOOLKIT_PLUGIN = (
+    REPO_ROOT / "src" / "copilot-cli" / ".claude-plugin" / "plugin.json"
+)
 
 CLAUDE_PLUGIN_NAMES = {"claude-agents", "project-toolkit"}
 COPILOT_PLUGIN_NAMES = {"project-toolkit"}
@@ -88,6 +93,34 @@ class TestMarketplaceShape:
         data = _load_marketplace(CLAUDE_MARKETPLACE)
         names = {p["name"] for p in data["plugins"]}
         assert names.isdisjoint(CLAUDE_REJECTED_PLUGIN_NAMES)
+
+
+class TestMarketplaceSourceManifestParity:
+    """Descriptions stay aligned for the three published plugin roots.
+
+    This guards the #4158 regression where the Copilot CLI manifest copied the
+    Claude Code description while its marketplace entry stayed correct. It is
+    not a general name or manifest parity policy.
+    """
+
+    @pytest.mark.parametrize(
+        ("marketplace_path", "plugin_name", "manifest_path"),
+        [
+            (CLAUDE_MARKETPLACE, "claude-agents", CLAUDE_AGENTS_PLUGIN),
+            (CLAUDE_MARKETPLACE, "project-toolkit", CLAUDE_TOOLKIT_PLUGIN),
+            (COPILOT_MARKETPLACE, "project-toolkit", COPILOT_TOOLKIT_PLUGIN),
+        ],
+    )
+    def test_description_matches_source_manifest(
+        self, marketplace_path: Path, plugin_name: str, manifest_path: Path
+    ) -> None:
+        marketplace = _load_marketplace(marketplace_path)
+        plugin_manifest = _load_marketplace(manifest_path)
+        entry = next(
+            plugin for plugin in marketplace["plugins"] if plugin["name"] == plugin_name
+        )
+
+        assert entry["description"] == plugin_manifest["description"]
 
 
 class TestSourceDirsExist:

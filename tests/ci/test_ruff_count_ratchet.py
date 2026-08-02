@@ -32,9 +32,7 @@ def _fake_scan(
     def _run(cmd, **kwargs):  # noqa: ANN001, ANN003
         if cmd[0] == "git" and "show" in cmd:
             rc = 0 if base_baseline is not None else 128
-            return subprocess.CompletedProcess(
-                cmd, rc, stdout=(base_baseline or ""), stderr=""
-            )
+            return subprocess.CompletedProcess(cmd, rc, stdout=(base_baseline or ""), stderr="")
         if cmd[0] == "git":
             stdout = "\0".join(tracked) + ("\0" if tracked else "")
             return subprocess.CompletedProcess(cmd, git_returncode, stdout=stdout, stderr="")
@@ -68,22 +66,34 @@ def test_count_above_baseline_is_regression(tmp_path, monkeypatch):
     assert rc == ratchet.EXIT_REGRESSION
 
 
-def test_count_below_baseline_passes_without_updating(tmp_path, monkeypatch):
+def test_count_below_baseline_blocks_without_update(tmp_path, monkeypatch):
+    # ADR-092: the post-merge bot that owned this write was removed with the
+    # plugin version field, so an unrecorded improvement leaves slack and blocks.
     baseline = _write_baseline(tmp_path, "408")
     monkeypatch.setattr(subprocess, "run", _fake_scan(1, 400))
     rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path)])
-    assert rc == ratchet.EXIT_OK
+    assert rc == ratchet.EXIT_REGRESSION
     assert baseline.read_text(encoding="utf-8").strip() == "408"
 
 
 def test_count_below_baseline_with_update_lowers_baseline(tmp_path, monkeypatch):
     baseline = _write_baseline(tmp_path, "408")
     monkeypatch.setattr(subprocess, "run", _fake_scan(0, 400))
-    rc = ratchet.main(
-        ["--baseline", str(baseline), "--repo-root", str(tmp_path), "--update"]
-    )
+    rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path), "--update"])
     assert rc == ratchet.EXIT_OK
     assert baseline.read_text(encoding="utf-8").strip() == "400"
+
+
+def test_count_below_baseline_names_the_remedy(tmp_path, monkeypatch, capsys):
+    # ADR-092: the message must name --update, not a bot that no longer exists.
+    baseline = _write_baseline(tmp_path, "408")
+    monkeypatch.setattr(subprocess, "run", _fake_scan(1, 400))
+    rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path)])
+    assert rc == ratchet.EXIT_REGRESSION
+    captured = capsys.readouterr()
+    assert "BASELINE STALE" in captured.err
+    assert "--update" in captured.err
+    assert "post-merge bot" not in captured.err
 
 
 def test_clean_tree_zero_count_passes(tmp_path, monkeypatch):
@@ -95,9 +105,7 @@ def test_clean_tree_zero_count_passes(tmp_path, monkeypatch):
 
 def test_missing_baseline_is_config_error(tmp_path, monkeypatch):
     monkeypatch.setattr(subprocess, "run", _fake_scan(1, 408))
-    rc = ratchet.main(
-        ["--baseline", str(tmp_path / "absent.txt"), "--repo-root", str(tmp_path)]
-    )
+    rc = ratchet.main(["--baseline", str(tmp_path / "absent.txt"), "--repo-root", str(tmp_path)])
     assert rc == ratchet.EXIT_CONFIG
 
 
@@ -136,35 +144,6 @@ def test_chunked_batches_sum_instead_of_overwrite(tmp_path, monkeypatch):
     long_b = "b" * 20000 + ".py"
     monkeypatch.setattr(subprocess, "run", _fake_scan(1, 5, tracked=(long_a, long_b)))
     assert ratchet.current_count(tmp_path) == 10
-
-
-def test_chunk_respects_argv_budget():
-    paths = [f"{'x' * 99}{index}.py" for index in range(500)]
-    batches = ratchet._chunk(paths, budget=1000)
-    assert sum(len(batch) for batch in batches) == len(paths)
-    assert all(sum(len(p.encode("utf-8")) + 1 for p in batch) <= 1000 for batch in batches)
-    assert all(batch for batch in batches)
-
-
-def test_chunk_measures_bytes_not_characters():
-    # A non-ASCII path costs more argv than it has characters. Measuring
-    # characters would pack batches over the ceiling the budget exists to
-    # respect. Each name here is 13 characters but 22 UTF-8 bytes.
-    stem = "\u00e9" * 9
-    paths = [f"{stem}{index}.py" for index in range(10)]
-    assert len(paths[0]) == 13
-    assert len(paths[0].encode("utf-8")) == 22
-    batches = ratchet._chunk(paths, budget=46)
-    assert sum(len(batch) for batch in batches) == len(paths)
-    assert all(sum(len(p.encode("utf-8")) + 1 for p in batch) <= 46 for batch in batches)
-    # Two per batch fits the byte budget; a character measure would pack three.
-    assert max(len(batch) for batch in batches) == 2
-
-
-def test_single_path_longer_than_budget_still_scanned():
-    # A path larger than the whole budget must not be silently dropped.
-    oversized = "y" * 5000 + ".py"
-    assert ratchet._chunk([oversized], budget=100) == [[oversized]]
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git not on PATH")
@@ -210,7 +189,7 @@ def test_scan_scope_includes_every_extension_ruff_lints(tmp_path, monkeypatch):
         return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
     monkeypatch.setattr(subprocess, "run", _run)
-    ratchet.tracked_python_files(tmp_path)
+    ratchet.current_count(tmp_path)
     assert seen[0][seen[0].index("--") + 1 :] == ["*.py", "*.pyi", "*.ipynb"]
 
 

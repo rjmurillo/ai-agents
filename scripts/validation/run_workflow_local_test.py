@@ -128,9 +128,7 @@ def _shellcheck_env() -> dict[str, str]:
     env = dict(os.environ)
     existing = env.get("SHELLCHECK_OPTS", "").strip()
     env["SHELLCHECK_OPTS"] = (
-        f"{existing} {_SHELLCHECK_SEVERITY}".strip()
-        if existing
-        else _SHELLCHECK_SEVERITY
+        f"{existing} {_SHELLCHECK_SEVERITY}".strip() if existing else _SHELLCHECK_SEVERITY
     )
     return env
 
@@ -214,6 +212,8 @@ def _run(
             env=env,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
             timeout=timeout,
         )
@@ -393,16 +393,13 @@ def _referenced_secrets(path: Path) -> set[str]:
 
 def _missing_secrets(path: Path, available: set[str]) -> list[str]:
     """Secrets ``path`` references that are absent from ``available`` (sorted)."""
-    return sorted(
-        name for name in _referenced_secrets(path) if name not in available
-    )
+    return sorted(name for name in _referenced_secrets(path) if name not in available)
 
 
 def _secret_gap_detail(secret_blocked: Sequence[tuple[str, Sequence[str]]]) -> str:
     """Return an operator-safe summary without logging secret names."""
     return "; ".join(
-        f"{rel} needs {len(missing)} locally absent secret(s)"
-        for rel, missing in secret_blocked
+        f"{rel} needs {len(missing)} locally absent secret(s)" for rel, missing in secret_blocked
     )
 
 
@@ -504,6 +501,17 @@ _ACT_PATHS_FILTER_BASE_PATTERN = re.compile(
     r"to be set in the event payload"
 )
 
+# act stages a cached action into the container at /var/run/act/actions/<ref>/
+# and copies it with `docker cp`. Recent dockerd rejects that destination with
+# "path escapes from parent" before the action's own code runs, so the step
+# fails on transport, not on anything the workflow does. Reproduced on an
+# unmodified main against .github/workflows/validate-plugin-version-bump.yml,
+# so it is independent of any branch. GitHub does not stage actions this way.
+_ACT_ACTION_CACHE_COPY_PATTERN = re.compile(
+    r"failed to copy content to container: Error response from daemon: "
+    r"statat .*?/?var/run/act/actions/.*?: path escapes from parent"
+)
+
 _ACT_PR_CONTEXT_MISSING_PATTERN = re.compile(
     r"Cannot read properties of undefined \(reading "
     r"'(?:number|head|base|title|body|labels|draft|merged|user|html_url|state|id"
@@ -525,6 +533,44 @@ _ACT_PR_CONTEXT_MISSING_PATTERN = re.compile(
 _ACT_PR_CONTEXT_EMPTY_ENV_PATTERN = re.compile(
     r"PR_TITLE environment variable is required"
     r"|invalid literal for int\(\) with base 10: ''"
+    r"|argument --[A-Za-z0-9-]+: invalid int value: ''"
+)
+
+# run_with_retry.py wraps a called script and translates its exit code into an
+# ADR-035 annotation. That annotation is derived, not a cause: when the wrapped
+# script failed for an attributed act limitation, the wrapper annotation
+# describes the same limitation one layer up. Attributing it unconditionally
+# would excuse every genuine configuration error, so it is only excused for a
+# run that already carries an attributed limitation.
+_ACT_WRAPPER_ANNOTATION_PATTERN = re.compile(r"::error::Configuration error \(ADR-035 exit 2\)")
+
+_ACT_SERVER_PORT_BIND_PATTERN = re.compile(r"listen tcp [0-9.]+:\d+: bind: address already in use")
+
+# act embeds its own artifact server, which lags the protobuf schema the current
+# actions/upload-artifact client sends. act rejects the body ("unknown field
+# mime_type"), the client reads the rejection as malformed JSON, retries, and
+# aborts. GitHub's real artifact service accepts the field, so this is
+# unreachable in CI.
+#
+# Anchored on the retry-exhaustion suffix, not on the artifact verb: that suffix
+# comes from the @actions/artifact transport retry helper and is emitted only
+# when the HTTP conversation itself fails. Artifact *defects* carry different
+# text ("No files were found with the provided path", "artifact name is not
+# valid") and keep blocking, which is the point of scoping it this way. See
+# issue #3690.
+_ACT_ARTIFACT_SERVICE_PATTERN = re.compile(
+    r"Failed to \w+: Failed to make request after \d+ attempts:"
+)
+
+# Workflows that call ``gh api`` or Python scripts that auto-detect the
+# repository via ``gh repo view`` (e.g. scripts/github_core/api.py
+# resolve_repo_params) fail in act because no GH_TOKEN with real repo context
+# is available in the container. In real CI ``github.token`` is always
+# populated and the repository is resolvable. The exact message comes from
+# scripts/github_core/api.py:resolve_repo_params when every auto-detection
+# path is exhausted. See issue #3981.
+_ACT_NO_REPO_CONTEXT_PATTERN = (
+    "Could not infer repository info. Please provide -Owner and -Repo parameters."
 )
 
 # Known act-only limitation signatures. A nonzero act exit whose combined output
@@ -552,6 +598,28 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
         "populates it, so this fails only in local act, not in CI.",
     ),
     (
+        None,
+        lambda text: bool(_ACT_SERVER_PORT_BIND_PATTERN.search(text)),
+        "act's local reusable-workflow server port is already bound by another "
+        "local act process. GitHub does not bind this local server in CI.",
+    ),
+    (
+        None,
+        lambda text: bool(_ACT_ARTIFACT_SERVICE_PATTERN.search(text)),
+        "act's embedded artifact server rejects the request body the current "
+        "actions/upload-artifact client sends, so artifact transport fails only "
+        "in local act, not in CI. Artifact defects (no files matched, invalid "
+        "name) carry different text and still block.",
+    ),
+    (
+        None,
+        lambda text: bool(_ACT_ACTION_CACHE_COPY_PATTERN.search(text)),
+        "act could not copy its cached action into the container because dockerd "
+        "rejects the /var/run/act/actions staging path, so the step fails on "
+        "local transport before the action runs. CI does not stage actions this "
+        "way, so this fails only in local act.",
+    ),
+    (
         "pull_request",
         lambda text: bool(_ACT_PR_CONTEXT_MISSING_PATTERN.search(text)),
         "act does not populate the pull_request event context on a local run, so "
@@ -565,6 +633,14 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
         "PR_TITLE) empty on a local run, so validation scripts fail only in local "
         "act, not in CI.",
     ),
+    (
+        None,
+        lambda text: _ACT_NO_REPO_CONTEXT_PATTERN in text,
+        "act container cannot authenticate or resolve the repository context "
+        "that gh needs for API calls; workflows that call gh api or Python "
+        "scripts that auto-detect the repository via gh repo view fail only "
+        "in local act, not in CI where GH_TOKEN and repo info are available.",
+    ),
 )
 
 # act forwards GitHub workflow commands verbatim, so an action that aborts with
@@ -572,16 +648,80 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
 # failure signal this module can attribute to a specific cause.
 _ACT_ERROR_ANNOTATION = "::error::"
 
+# Required-check aggregator jobs commonly echo ``::<error>::<upstream> result:
+# failure`` from ``needs.<job>.result`` so branch protection sees FAILURE instead
+# of SKIPPED. When that upstream job has an act-only limitation already
+# explained, the aggregator annotation is a cascade symptom (#3869).
+_ACT_LOG_SCOPE = re.compile(r"^\[(?P<scope>[^\]]+)\]")
+_ACT_AGGREGATOR_RESULT_ANNOTATION = re.compile(
+    r"::error::(?P<upstream>[^\n:]+?)\s+result: "
+    r"(?:failure|cancelled|skipped|timed_out)\b",
+    re.IGNORECASE,
+)
 
-def _unexplained_error_annotations(combined: str, event: str | None) -> list[str]:
+
+def _normalized_act_label(value: str) -> str:
+    """Return a case-insensitive label suitable for act job/step matching."""
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", value.lower()).split())
+
+
+def _act_scope_label(line: str) -> str | None:
+    """Return the rightmost act log scope label from ``[workflow/job]``."""
+    match = _ACT_LOG_SCOPE.match(line.strip())
+    if match is None:
+        return None
+    label = match.group("scope").rsplit("/", 1)[-1]
+    normalized = _normalized_act_label(label)
+    return normalized or None
+
+
+def _explained_act_limitation_labels(combined: str, event: str | None) -> set[str]:
+    """Act log scope labels whose own output matches a known limitation."""
+    labels: set[str] = set()
+    for line in combined.splitlines():
+        if any(
+            (scope is None or scope == event) and matches(line)
+            for scope, matches, _ in _ACT_LIMITATION_RULES
+        ):
+            label = _act_scope_label(line)
+            if label is not None:
+                labels.add(label)
+    return labels
+
+
+def _is_aggregator_cascade_annotation(
+    line: str,
+    explained_limitation_labels: set[str],
+) -> bool:
+    """True when an aggregator reports an already-explained upstream job."""
+    match = _ACT_AGGREGATOR_RESULT_ANNOTATION.search(line)
+    if match is None:
+        return False
+    upstream = _normalized_act_label(match.group("upstream"))
+    return upstream in explained_limitation_labels
+
+
+def _unexplained_error_annotations(
+    combined: str,
+    event: str | None,
+    *,
+    explained_limitation_labels: set[str] | None = None,
+) -> list[str]:
     """``::error::`` lines that no known act limitation explains.
 
     Without this the downgrade is output-wide: one limitation anywhere in a
     workflow's act run would excuse every other failure in the same run. Scoping
     the match to individual annotation lines means a genuine action failure
-    alongside a limitation still blocks.
+    alongside a limitation still blocks. Aggregator ``needs.*.result``
+    annotations are ignored only when their named upstream job has matched a
+    known act-only limitation; otherwise, they remain unexplained.
     """
+    labels = explained_limitation_labels or set()
     unexplained = []
+    run_is_attributed = any(
+        (scope is None or scope == event) and matches(combined)
+        for scope, matches, _ in _ACT_LIMITATION_RULES
+    )
     for line in combined.splitlines():
         if _ACT_ERROR_ANNOTATION not in line:
             continue
@@ -589,6 +729,10 @@ def _unexplained_error_annotations(combined: str, event: str | None) -> list[str
             (scope is None or scope == event) and matches(line)
             for scope, matches, _ in _ACT_LIMITATION_RULES
         ):
+            continue
+        if run_is_attributed and _ACT_WRAPPER_ANNOTATION_PATTERN.search(line):
+            continue
+        if labels and _is_aggregator_cascade_annotation(line, labels):
             continue
         unexplained.append(line.strip())
     return unexplained
@@ -617,7 +761,11 @@ def _act_limitation_hint(combined: str, event: str | None = None) -> str | None:
     )
     if hint is None:
         return None
-    unexplained = _unexplained_error_annotations(combined, event)
+    unexplained = _unexplained_error_annotations(
+        combined,
+        event,
+        explained_limitation_labels=_explained_act_limitation_labels(combined, event),
+    )
     if unexplained:
         return None
     return hint
@@ -653,24 +801,18 @@ def _run_act_stage(
             combined = (out + err).strip()
             hint = _act_limitation_hint(combined, event)
             if hint is not None:
-                warnings.append(
-                    f"[WARN] {wf}: {hint} Set {_BYPASS_ENV}=true to silence."
-                )
+                warnings.append(f"[WARN] {wf}: {hint} Set {_BYPASS_ENV}=true to silence.")
                 continue
             return StageResult(stage, False, f"{wf}:\n{combined[:4000]}")
     return StageResult(stage, True, "\n".join(warnings))
 
 
 def _act_dryrun_stage(files: Sequence[str], repo_root: Path) -> StageResult:
-    return _run_act_stage(
-        "gh act -n", ["gh", "act", "-n"], _ACT_DRYRUN_TIMEOUT, files, repo_root
-    )
+    return _run_act_stage("gh act -n", ["gh", "act", "-n"], _ACT_DRYRUN_TIMEOUT, files, repo_root)
 
 
 def _act_full_stage(files: Sequence[str], repo_root: Path) -> StageResult:
-    return _run_act_stage(
-        "gh act (full)", ["gh", "act"], _ACT_FULL_TIMEOUT, files, repo_root
-    )
+    return _run_act_stage("gh act (full)", ["gh", "act"], _ACT_FULL_TIMEOUT, files, repo_root)
 
 
 # --- Orchestration -------------------------------------------------------
@@ -855,8 +997,7 @@ def run_local_test(
         report.secret_skipped = True
         report.missing_secret_names = missing_secret_names
         skip_note = (
-            f"skipped (secrets absent locally): {detail}. CI runs these with "
-            "the real secrets."
+            f"skipped (secrets absent locally): {detail}. CI runs these with the real secrets."
         )
         report.note = f"{report.note} {skip_note}".strip() if report.note else skip_note
 
@@ -909,9 +1050,7 @@ def _format_json(report: Report) -> str:
             "secret_skipped": report.secret_skipped,
             "missing_secret_names": report.missing_secret_names,
             "note": report.note,
-            "stages": [
-                {"stage": s.stage, "ok": s.ok, "detail": s.detail} for s in report.stages
-            ],
+            "stages": [{"stage": s.stage, "ok": s.ok, "detail": s.detail} for s in report.stages],
         },
         indent=2,
         sort_keys=True,

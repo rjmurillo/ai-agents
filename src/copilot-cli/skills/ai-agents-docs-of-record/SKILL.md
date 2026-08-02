@@ -121,8 +121,7 @@ artifact (timeline, Five Whys, learning matrix) in `.agents/retrospective/`.
 
 Retrospectives are written on demand: `/retro` here, plus the Post-PR
 Retrospective workflow in CI. Until #3349 a Stop hook also wrote a skeleton
-at session end stamped `<!-- RETRO-STATE: skeleton-pending-fill -->` (Issue
-#2079); that hook is deleted, but skeletons it already wrote are still
+at session end stamped `<!-- RETRO-STATE: skeleton-pending-fill -->` (Issue #2079); that hook is deleted, but skeletons it already wrote are still
 placeholders rather than records, so fill them with `/retro fill YYYY-MM-DD`.
 
 `INDEX.md` was auto-appended by that hook (Issue #1703) and is incomplete: 5
@@ -256,19 +255,19 @@ relying on them:
 | Fact | Source | Re-verify |
 |------|--------|-----------|
 | Session log MUSTs, blocking phases | `.agents/SESSION-PROTOCOL.md` (Phases 0-5, 2.5) | `grep -n "MUST NOT defer" .agents/SESSION-PROTOCOL.md` |
-| Required session fields, branch regex | `scripts/validate_session_json.py:34-40` | `grep -n "REQUIRED_SESSION_FIELDS" scripts/validate_session_json.py` |
-| Schema required keys | `.agents/schemas/session-log.schema.json` | `python3 -c "import json;print(json.load(open('.agents/schemas/session-log.schema.json'))['required'])"` |
+| Branch naming pattern | `scripts/validate_session_json.py` (`BRANCH_PATTERN`) | `grep -n "^BRANCH_PATTERN = re.compile" scripts/validate_session_json.py` |
+| Schema required keys, top level and nested session | `.agents/schemas/session-log.schema.json` | `python3 -c "import json;s=json.load(open('.agents/schemas/session-log.schema.json'));print(s['required'], s['properties']['session']['required'])"` |
 | ADR collision history, next-number helper | `scripts/validation/check_adr_uniqueness.py` docstring | `python3 scripts/validation/check_adr_uniqueness.py --print-next` |
 | ADR-073 lifecycle fields | `.agents/architecture/ADR-073-adr-lifecycle-frontmatter.md:1-9` | `head -10 .agents/architecture/ADR-073-adr-lifecycle-frontmatter.md` |
 | adr-review fires on ADR/protocol edits | `AGENTS.md` "ADR Review" | `grep -n "adr-review" AGENTS.md` |
 | Auto-retro skeleton + marker + /retro fill | `.claude/commands/retro.md:1-15` | `grep -n "RETRO-STATE" .claude/commands/retro.md` |
-| Retro count 95, index rows 5 | `.agents/retrospective/` | `ls .agents/retrospective/ \| wc -l` |
+| Retro corpus size vs INDEX.md coverage | `.agents/retrospective/` | `python3 -c "import pathlib;d=pathlib.Path('.agents/retrospective');f={p.name for p in d.glob('*.md')}-{'INDEX.md'};t=(d/'INDEX.md').read_text();print(len(f),'retro files,',sum(n in t for n in f),'indexed')"` |
 | Memory naming + index-row hazard | `.claude/skills/memory/SKILL.md` "Serena Write Conventions" | `grep -n "Serena Write Conventions" .claude/skills/memory/SKILL.md` |
-| Memory/skill separate-PR rule | `.claude/rules/claude-agents.md:32` | `grep -n "same PR" .claude/rules/claude-agents.md` |
+| Memory/skill separate-PR rule | `.claude/rules/claude-agents.md` MUST NOT item 2 | `grep -n "same PR" .claude/rules/claude-agents.md` |
 | Handoff tiers, HANDOFF.md 5K cap | `.agents/sessions/handoffs/README.md` tier table; ADR-014 | `grep -n "5K hard cap" .agents/sessions/handoffs/README.md` |
 | FM-9 verbatim-quote rule | `.agents/governance/FAILURE-MODES.md:284-307` | `grep -n "character-for-character" .agents/governance/FAILURE-MODES.md` |
 | PR #908 lint scope story | `.agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md:281-296` | `grep -n "markdownlint" .agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md` |
-| CONTRIBUTING.md pre-PR #2871 staleness example | PR #2871 repointed `CONTRIBUTING.md:155` to `python3 build/generate_agents.py` | `grep -n "Generate-Agents.ps1" CONTRIBUTING.md` |
+| CONTRIBUTING.md pre-PR #2871 staleness example | PR #2871 repointed `CONTRIBUTING.md` to `python3 build/generate_agents.py` | `git show b320f4ac1 -- CONTRIBUTING.md` |
 | Serena canonical, Forgetful supplementary | `.agents/architecture/ADR-007-memory-first-architecture.md:83-102` | `grep -n "Canonical" .agents/architecture/ADR-007-memory-first-architecture.md` |
 
 Maintenance: when a validator, template path, or protocol phase changes, update

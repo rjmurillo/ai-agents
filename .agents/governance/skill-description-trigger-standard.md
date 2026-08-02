@@ -69,7 +69,9 @@ description: Research external topics, create comprehensive analysis, determine
 
 ### SKIP Clause for Sibling Families
 
-When a skill shares a naming family with a sibling (skills whose names share a prefix or theme, such as `memory*`, `context*`, `session*`, `security*`, `adr-*`), its description **MUST** include a SKIP clause that names the sibling and routes away from it.
+A sibling family is the set of skills whose directory names share the same leading hyphen-delimited token. Examples: `memory-*`, `context-*`, `session-*`, `security-*`, `adr-*`, and `ai-agents-*`. Theme-only groupings do not create an enforceable family unless this standard names them explicitly.
+
+When a skill is in a sibling family with two or more members, its description **MUST** include a SKIP clause that names at least one real sibling skill and routes away from it.
 
 A positive trigger alone over-triggers across the family: the router matches the shared keyword and cannot deterministically pick the right member. The remediation is a negative trigger. This is the Over-triggering remediation from the wiki `Skill Triggering Failure Modes` page: "Add negative triggers: 'Do NOT use for X (use Y skill instead).'"
 
@@ -81,8 +83,9 @@ Do NOT use for [sibling's job]; use [sibling-name] instead.
 
 **Rules**:
 
-- Name a real sibling artifact that exists in the repo.
-- Make clauses reciprocal: if A points to B, B points back to A (or to the chaining parent, when one sibling orchestrates the others).
+- Name at least one real sibling skill that exists in the repo.
+- Use one of the validator-recognized route forms: `(use sibling-skill)`, `(use sibling-a or sibling-b)`, `use sibling-skill instead`, or `; use sibling-skill`.
+- Keep the sibling family's routing graph connected when edges are read without direction. Pairwise reciprocity is not required; it does not fit large families under the description budget.
 - Keep the description under 1024 chars and free of angle brackets (AIP-02).
 
 **Example** (`context-gather` vs `context-optimizer`, which both match "context" but do opposite jobs):
@@ -260,6 +263,71 @@ Before marking skill complete:
 - [ ] Deep content moved to references/
 - [ ] No changelog section in body
 - [ ] No version/date metadata in body
+
+### Independent-Distribution Validation
+
+Every check above scores a phrase the author wrote against a rule the author
+wrote. That is a closed loop, and a closed loop cannot tell you whether anyone
+would ever type the phrase.
+
+**Measured.** Trigger phrases were matched against real user prompts mined from
+local Claude Code transcripts, on word boundaries, excluding slash commands and
+single words.
+
+| Corpus | Phrase set | Ever said | Share |
+|---|---|---|---|
+| 640 prompts, 480 transcripts (issue #3509) | documented in a `## Triggers` table | 22 of 212 | 10.4% |
+| 640 prompts, 480 transcripts (issue #3509) | promoted into a description | 8 of 140 | 5.7% |
+| 524 prompts, 1713 transcripts (2026-07-29) | documented in a `## Triggers` table | 5 of 211 | 2.4% |
+| 524 prompts, 1713 transcripts (2026-07-29) | promoted into a description | 7 of 280 | 2.5% |
+
+Two independent corpora agree on direction. Most documented trigger phrases have
+never been typed by a real user. The phrases that do occur are short and
+conversational: `do it`, `your call`, `security review`, `create a PR`,
+`create session log`, `compare models`.
+
+**What this claims.** This is evidence about provenance, not about the router.
+The router is a model doing semantic matching, so a phrase nobody typed verbatim
+can still route correctly. What the number establishes is that the phrases were
+authored rather than observed.
+
+**Why provenance matters.** A practitioner's skill-activation classifier scored
+93 percent precision and recall on 40 prompts he wrote, then 27 percent
+precision on 86 prompts mined from his own transcripts. Same classifier, same
+author. The only variable was who wrote the prompts.
+
+**Two authoring rules.**
+
+1. Prefer an observed phrase to an invented one. The best example in this
+   document already follows the rule: `session-log-fixer` quotes the exact CI
+   error strings a user will paste, not phrasings its author imagined.
+2. Never benchmark trigger phrases on prompts you wrote. A score against your
+   own prompts measures your consistency, not the phrase.
+
+**Two matching rules that are load-bearing** when you measure this yourself.
+
+- Anchor on word boundaries. A bare substring test counted `analyze` 60 times in
+  one corpus, every occurrence inside ordinary prose.
+- Exclude slash commands and single words. A slash command is dispatched by name
+  and never consults a description, so counting it measures the dispatcher.
+
+**Reproducing the measurement.** No CI gate enforces this, and none should. The
+transcript store is local to a developer machine and absent on a runner, so a CI
+arm would be silently inert. Run it on demand instead. Collect user turns from
+`~/.claude/projects/**/*.jsonl` where `type` is `user`, `isSidechain` is falsy,
+and `message.content` is a string. Match each phrase with `\b<phrase>\b`,
+case-insensitively, after dropping slash commands and single words.
+
+**A caution on the corpus.** In the 2026-07-29 run only 59 of 524 prompts
+carried `promptSource: typed`. The rest were `sdk`, `system`, or unlabelled,
+meaning much of the corpus is agent-injected rather than human-typed. Report the
+`promptSource` split alongside any realism figure.
+
+**What this does not license.** Do not bulk-promote table phrases into
+descriptions to raise a coverage score. That optimizes the closed loop and adds
+permanent context cost for phrases with a 2 to 10 percent chance of ever being
+typed. Promote a phrase when it names a capability the description omits, not to
+make a table and a description agree.
 
 ---
 

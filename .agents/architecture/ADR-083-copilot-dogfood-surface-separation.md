@@ -386,11 +386,18 @@ any `marketplace.json`.
 - CI asserts both shipped security hooks (`invoke_security_gate`,
   `invoke_security_commit_gate`) are present in the base and classified
   `surface: ship`; the run fails if either is missing or reclassified `internal`.
-- The copy dogfood install makes `copilot` load the repo `HEAD` version in an
-  interactive session, verified by the loaded `plugin.json` version matching `HEAD`
-  rather than 0.5.248.
-- If the overlay gate fires, the parity gate stays green (two-way) and the
-  version-bump gate flags an unbumped overlay content change.
+- The copy dogfood install makes `copilot` load the repo `HEAD` content in an
+  interactive session. Restated by ADR-092 (2026-08-01), which deleted the
+  manifest `version` this criterion originally read: the observable is now the
+  content fingerprint, so `scripts/dev/dogfood_copilot_plugin.py --check` exits 0
+  against an install taken from `HEAD` and exits 1 after any edit under
+  `src/copilot-cli/`.
+- If the overlay gate fires, the parity gate stays green (description component
+  counts, its version half retired by ADR-092) and the version-field gate flags a
+  manifest or marketplace entry that carries a `version`. The original wording,
+  "flags an unbumped overlay content change", described the superseded ADR-079
+  rule; unbumped-content staleness is now caught by the dogfood content
+  fingerprint above, not by that gate.
 
 ## Review Date
 

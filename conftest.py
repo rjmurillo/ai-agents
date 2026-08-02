@@ -15,9 +15,18 @@ from pathlib import Path
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parent
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    basetemp = getattr(config.option, "basetemp", None)
+    if basetemp:
+        os.environ["_PYTEST_BASETEMP"] = str(Path(os.fspath(basetemp)).resolve())
+
+
 _GIT_ENV_OVERRIDES = {"GIT_COMMON_DIR", "GIT_DIR", "GIT_INDEX_FILE", "GIT_WORK_TREE"}
-_TRACE_FILE_ENV_NAMES = ("GIT_TRACE2_EVENT", "GIT_TRACE_REFS", "GIT_TRACE_SETUP")
-_TRACE_ENV_NAMES = ("GIT_REFLOG_ACTION", *_TRACE_FILE_ENV_NAMES)
+_TRACE_FILE_ENV_NAMES = ("GIT_TRACE2_EVENT", "GIT_TRACE_SETUP")
+_TRACE_BLOCKED_ENV_NAMES = ("GIT_TRACE_REFS",)
+_TRACE_ENV_NAMES = ("GIT_REFLOG_ACTION", *_TRACE_FILE_ENV_NAMES, *_TRACE_BLOCKED_ENV_NAMES)
 _TRACE_LINE_PATTERN = re.compile(r"^\d{2}:\d{2}:\d{2}\.\d{6}\s+\S+:\d+\s+(?P<message>.*)$")
 _HEAD_TRANSACTION_PATTERN = re.compile(r"^\d+:\s+HEAD\s+[0-9a-f]+\s+->\s+[0-9a-f]+\b")
 _HEAD_SYMREF_PATTERN = re.compile(r'^create_symref:\s+HEAD\s+->\s+\S+\s+".*":\s+0$')
@@ -356,6 +365,8 @@ def _guard_real_repo_head() -> Iterator[None]:
     os.environ["GIT_REFLOG_ACTION"] = reflog_action
     for name in _TRACE_FILE_ENV_NAMES:
         os.environ[name] = str(trace_path)
+    for name in _TRACE_BLOCKED_ENV_NAMES:
+        os.environ.pop(name, None)
     try:
         yield
     finally:

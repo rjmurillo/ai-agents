@@ -22,6 +22,7 @@ tiers (roles == "probe") are observed, never gating.
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -136,6 +137,8 @@ def parse_panel(
         threshold = float(threshold)
     except (TypeError, ValueError) as exc:
         raise PanelConfigError("drop_threshold must be a number") from exc
+    if not math.isfinite(threshold) or threshold < 0:
+        raise PanelConfigError("drop_threshold must be finite and non-negative")
     return Panel(tiers=tuple(tiers), drop_threshold=threshold)
 
 
@@ -169,12 +172,41 @@ class UnitVerdict:
 
 def cell_from_report(unit: str, tier: str, report: dict[str, Any]) -> CellResult:
     """Extract the effect size from a harness report.json mapping."""
+    error_count = report.get("error_count")
+    if (
+        not isinstance(error_count, int)
+        or isinstance(error_count, bool)
+        or error_count != 0
+    ):
+        return CellResult(unit, tier, error="report error_count must be exactly 0")
     delta = report.get("recall_delta")
-    ci = report.get("bootstrap_ci_95") or [None, None]
-    if not isinstance(delta, (int, float)):
-        return CellResult(unit, tier, error="report has no numeric recall_delta")
-    low = ci[0] if isinstance(ci, list) and len(ci) == 2 else None
-    high = ci[1] if isinstance(ci, list) and len(ci) == 2 else None
+    ci = report.get("bootstrap_ci_95")
+    if (
+        not isinstance(delta, (int, float))
+        or isinstance(delta, bool)
+        or not math.isfinite(delta)
+        or not -1.0 <= float(delta) <= 1.0
+    ):
+        return CellResult(
+            unit, tier, error="report recall_delta must be finite and in [-1, 1]"
+        )
+    if not isinstance(ci, list) or len(ci) != 2:
+        return CellResult(unit, tier, error="report bootstrap_ci_95 must be a pair")
+    low, high = ci
+    if (
+        not isinstance(low, (int, float))
+        or isinstance(low, bool)
+        or not isinstance(high, (int, float))
+        or isinstance(high, bool)
+        or not math.isfinite(low)
+        or not math.isfinite(high)
+        or not -1.0 <= float(low) <= 1.0
+        or not -1.0 <= float(high) <= 1.0
+        or float(low) > float(high)
+    ):
+        return CellResult(
+            unit, tier, error="report bootstrap_ci_95 must be finite and bounded"
+        )
     return CellResult(
         unit=unit,
         tier=tier,

@@ -49,4 +49,4 @@ jobs:
         with:
           name: coalescing-metrics
           path: .agents/metrics/workflow-coalescing.md
-          retention-days: 90
+          retention-days: 7

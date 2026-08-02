@@ -8,16 +8,18 @@ commit-msg:
       timeout: 30s
       run: uv run --frozen python scripts/validation/git_hook_policy.py commit-message "{1}"
 
+pre-merge-commit:
+  jobs:
+    - name: security-suppressions-staged
+      timeout: 2m
+      run: uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-staged
+
 pre-commit:
   piped: true
   jobs:
     - name: repair-packed-refs
       timeout: 1m
       run: uv run --frozen python scripts/maintenance/repair_packed_refs.py
-
-    - name: install-merge-drivers
-      timeout: 1m
-      run: uv run --frozen python scripts/maintenance/install_merge_drivers.py
 
     - name: branch-policy
       timeout: 2m
@@ -32,7 +34,7 @@ pre-commit:
         jobs:
           - name: markdown-autofix
             timeout: 5m
-            run: npx markdownlint-cli2@0.23.1 --fix --no-globs -- {staged_files}
+            run: uv run --frozen python scripts/validation/pre_pr.py --markdown-lint-only -- {staged_files}
             glob: "**/*.md"
             stage_fixed: true
             skip:
@@ -41,7 +43,9 @@ pre-commit:
 
           - name: markdown-check
             timeout: 5m
-            run: npx markdownlint-cli2@0.23.1 --no-globs -- {staged_files}
+            run: uv run --frozen python scripts/validation/pre_pr.py --markdown-lint-only -- {staged_files}
+            env:
+              SKIP_AUTOFIX: "1"
             glob: "**/*.md"
             skip:
               - merge
@@ -80,6 +84,13 @@ pre-commit:
               - ".github/workflows/*.{yml,yaml}"
               - ".github/actions/**/*.{yml,yaml}"
 
+          # Issue #3671: nothing stopped a conflict marker reaching a commit.
+          - name: conflict-marker-policy
+            timeout: 2m
+            run: uv run --frozen python scripts/validation/git_hook_policy.py staged-conflict-markers {staged_files}
+            exclude:
+              - "tests/hooks/fixtures/**"
+
           - name: python-autofix
             timeout: 5m
             run: uv run --frozen --extra dev ruff check --fix --exit-zero -- {staged_files}
@@ -103,7 +114,17 @@ pre-commit:
 
           - name: actionlint
             timeout: 5m
-            run: actionlint {staged_files}
+            # Issue #2374: shellcheck's `info` and `style` tiers (SC2086
+            # quoting advice, SC2129 grouped redirects) are advisory here, and
+            # the workflow tree carries them on baseline. Raise the floor to
+            # `warning` so this hook enforces the same policy as
+            # `scripts/validation/checks_tooling.py:validate_workflow_yaml` and
+            # `scripts/validation/run_workflow_local_test.py`, which already
+            # do. Without it this hook blocks any commit touching one of the
+            # six workflow files that carry baseline advisory findings.
+            run: >-
+              SHELLCHECK_OPTS="${SHELLCHECK_OPTS:+$SHELLCHECK_OPTS }--severity=warning"
+              actionlint {staged_files}
             glob: ".github/workflows/**/*.{yml,yaml}"
             skip:
               - run: >-
@@ -152,6 +173,21 @@ pre-commit:
             timeout: 5m
             run: uv run --frozen python scripts/validation/git_hook_policy.py taste {staged_files}
             glob: "**/*.{py,ps1,psm1,sh,bash,yml,yaml,md,json}"
+
+          - name: security-suppressions-staged
+            timeout: 2m
+            run: uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-staged
+            glob:
+              - "**/*.py"
+              - "**/*.pyi"
+              - "**/*.pyw"
+              - "**/*.js"
+              - "**/*.ts"
+              - "**/*.ps1"
+              - "**/*.psm1"
+              - "**/*.yaml"
+              - "**/*.yml"
+              - "**/*.ipynb"
 
     - group:
         piped: true
@@ -231,6 +267,8 @@ pre-commit:
             timeout: 5m
             run: uv run --frozen python scripts/validation/git_hook_policy.py memory-size
             glob: ".serena/memories/**/*.md"
+            skip:
+              - merge
 
           - name: memory-index
             timeout: 5m
@@ -277,13 +315,6 @@ pre-commit:
       timeout: 10m
       run: uv run --frozen python scripts/validation/git_hook_policy.py extract-episodes {staged_files}
       glob: ".agents/sessions/*.json"
-      skip:
-        - merge
-        - run: test "$SKIP_AUTOFIX" = "1"
-
-    - name: update-causal-graph
-      timeout: 10m
-      run: uv run --frozen python scripts/validation/git_hook_policy.py update-causal-graph
       skip:
         - merge
         - run: test "$SKIP_AUTOFIX" = "1"
@@ -349,6 +380,27 @@ pre-push:
             run: uv run --frozen --extra dev ruff check --exit-zero -- {push_files}
             glob: "**/*.py"
 
+          - name: python-lint-ratchet
+            timeout: 5m
+            run: uv run --frozen --extra dev python scripts/ci/ruff_ratchet.py
+            env:
+              RUFF_RATCHET_BASE_REF: origin/main
+            glob: "**/*.py"
+
+          - name: python-lint-count-ratchet
+            timeout: 5m
+            run: uv run --frozen --extra dev python scripts/ci/ruff_count_ratchet.py --base-ref origin/main
+            glob:
+              - "**/*.py"
+              - "scripts/ci/ruff_count_baseline.txt"
+          - name: taste-count-ratchet
+            timeout: 5m
+            run: uv run --frozen python scripts/ci/taste_count_ratchet.py --base-ref origin/main
+            glob: ["**/*.{py,md,yml,yaml,json,ps1,psm1,sh}", "scripts/ci/taste_count_baseline.txt"]
+          - name: type-ignore-count-ratchet
+            timeout: 5m
+            run: uv run --frozen python scripts/ci/type_ignore_count_ratchet.py --base-ref origin/main
+            glob: ["**/*.py", "scripts/ci/type_ignore_count_baseline.txt"]
           - name: python-type-check
             timeout: 15m
             run: uv run --frozen --extra dev python scripts/validation/git_hook_policy.py mypy {push_files}
