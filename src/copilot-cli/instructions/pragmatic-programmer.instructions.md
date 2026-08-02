@@ -329,18 +329,4 @@ These principles bind across agent and tool boundaries in this repository, not j
 | Automation             | Repeated manual checks (lint, validation, session protocol gates) belong in hooks and CI, not in prose instructions repeated across files.                     |
 | Feedback loops         | Prefer cheap early signals (pre-commit hooks, fast unit tests, local lint) over late expensive surprises in CI or production.                                  |
 
-When you discover an instance where this rule is being violated, prefer a small focused fix on the path you are already touching over a broad cleanup. Note the deviation in the PR description so future readers see your reasoning.
-
----
-
-## Final Instruction
-
-When uncertain, choose the option that:
-
-1. removes duplicated knowledge
-2. keeps concerns orthogonal
-3. shortens feedback loops
-4. improves automation
-5. leaves the codebase easier to change tomorrow
-
-Be pragmatic, and make the right thing the easy thing.
+When you discover a violation, prefer a small fix on the path you already touch over a broad cleanup. Note the deviation in the PR description.
