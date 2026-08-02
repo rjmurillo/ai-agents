@@ -142,7 +142,7 @@ RUNTIME_PATH = ".claude/skills/runtime"
         self._skill_script(tmp_path, "gamma", "Path('.agents/architecture')\n")
         original_read_text = Path.read_text
 
-        def read_text(path: Path, *args: object, **kwargs: object) -> str:
+        def read_text(path: Path, *args: str | None, **kwargs: str | None) -> str:
             if path.name == "run.py":
                 raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "bad byte")
             return original_read_text(path, *args, **kwargs)
@@ -255,7 +255,7 @@ class TestRepoRatchet:
         baseline.write_text('{"files": {}}\n', encoding="utf-8")
         original_read_text = Path.read_text
 
-        def read_text(path: Path, *args: object, **kwargs: object) -> str:
+        def read_text(path: Path, *args: str | None, **kwargs: str | None) -> str:
             if path.name == "run.py":
                 raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "bad byte")
             return original_read_text(path, *args, **kwargs)
