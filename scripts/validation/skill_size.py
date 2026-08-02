@@ -513,10 +513,15 @@ def get_skill_files(
     the scan covers every tree in ``_SKILL_TREE_PREFIXES``.
     """
     if changed_files:
-        skill_files = [f for f in changed_files if _SKILL_MD_RE.match(f)]
+        # Normalize to forward slashes before matching: on Windows, str(Path(...))
+        # yields backslashes but _SKILL_MD_RE and _SKILL_TREE_PREFIXES use
+        # forward slashes exclusively. Path.as_posix() is the right normalizer
+        # but changed_files are plain strings here, so replace explicitly.
+        skill_files = [f for f in changed_files if _SKILL_MD_RE.match(f.replace("\\", "/"))]
         if not skill_files:
             return []
-        return [Path(f) for f in skill_files if Path(f).exists()]
+        normalized = [f.replace("\\", "/") for f in skill_files]
+        return [Path(f) for f in normalized if Path(f).exists()]
 
     if staged_only:
         return get_staged_skill_files()

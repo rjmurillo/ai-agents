@@ -448,3 +448,13 @@ jobs:
         env:
           UV_PYTHON: '3.14'
         run: uv run pytest tests/eval/test_optimize_artifact_durability.py -v
+
+      # Issue #4299: get_skill_files used str() path matching which yields
+      # backslashes on Windows. _SKILL_MD_RE is forward-slash-anchored, so the
+      # regex never matched and the Windows skill-size check was a silent no-op.
+      # This step exercises that path-shape surface on the Windows leg.
+      - name: Run skill-size validation path-shape tests
+        shell: pwsh
+        env:
+          UV_PYTHON: '3.14'
+        run: uv run pytest tests/test_validation_skill_size.py -q -k "WindowsPath or default_path"
