@@ -31,10 +31,15 @@ def _load_tests_conftest() -> types.ModuleType:
     return module
 
 
-def _get_fixture_fn(module: types.ModuleType) -> object:
+from collections.abc import Callable
+from typing import cast
+
+
+def _get_fixture_fn(module: types.ModuleType) -> Callable[..., None]:
     """Return the unwrapped function behind the isolation fixture."""
     fixture = module._isolate_tmp_path_from_parent_git_repo
-    return getattr(fixture, "__wrapped__", fixture)
+    unwrapped = getattr(fixture, "__wrapped__", fixture)
+    return cast("Callable[..., None]", unwrapped)
 
 
 class TestHostileGitDirIsUnsettledByFixture:
