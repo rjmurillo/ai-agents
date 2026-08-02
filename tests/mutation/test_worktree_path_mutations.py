@@ -23,7 +23,14 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _run(cmd: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(cmd, capture_output=True, text=True, cwd=cwd or REPO_ROOT)
+    return subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        cwd=cwd or REPO_ROOT,
+    )
 
 
 def _count_occurrences(path: Path, needle: str) -> int:
