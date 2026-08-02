@@ -235,6 +235,9 @@ jobs:
       - name: Validate workflow YAML
         run: uv run --frozen python3 scripts/validate_workflows.py
 
+      - name: Check bare-python3 documentation entrypoints
+        run: uv run --frozen python3 scripts/validation/check_python3_entrypoints.py
+
       # Issue #2967: ADR-006 forbids business logic in workflow `run:` blocks.
       # The burn-down count started at 93 at audit time. This freezes the
       # current ratchet ceiling at 58: the scanner exits 1 when the count
