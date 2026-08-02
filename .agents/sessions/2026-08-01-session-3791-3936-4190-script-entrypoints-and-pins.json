@@ -125,7 +125,7 @@
     "evidence": "Change is a documentation correction (python3 -> uv run python) in a code block. No ADR-level architectural decision. The uv run python rule is already established in PROJECT-CONSTRAINTS.md and ADR-042.",
     "decision": "No new ADR required. Change aligns with existing ADR-042 (Python migration strategy) and the documented uv run convention."
   },
-  "endingCommit": "2e20f4a80",
+  "endingCommit": "24794063e",
   "nextSteps": [
     "Push branch and create PR"
   ],
@@ -133,5 +133,6 @@
     "trigger": "SESSION-PROTOCOL.md modified (fixes python3 entrypoint documentation)",
     "evidence": "ADR Review Protocol: Change is a documentation correction only. The uv run python convention is established in PROJECT-CONSTRAINTS.md and ADR-042. No architectural decision is changing; a wrong command is being corrected to match existing documented convention. adr-review skill not invoked because this is a documentation typo fix, not an ADR-level decision.",
     "decision": "No new ADR required. Aligns with ADR-042."
-  }
+  },
+  "notes": ""
 }
