@@ -2,21 +2,15 @@
 """Interpreter-portability ratchet for documented script invocations (issue #3791).
 
 A document that tells a contributor to run
-
 doc-interpreter-portability: the defect this guard finds, quoted so it can be named
     python3 scripts/sync_adr_protocol.py
-
 is only correct on a machine whose *system* interpreter already has the script's
 third-party dependencies. ``scripts/sync_adr_protocol.py:24`` is ``import yaml``
 and PyYAML is a declared project dependency (``pyproject.toml``), not a stdlib
 module, so on a clean checkout the documented command dies with::
-
     ModuleNotFoundError: No module named 'yaml'
-
 The portable form names the project environment::
-
     uv run python scripts/sync_adr_protocol.py
-
 Why a docs guard and not a code fix:
   PR #3793 tried to delete the ``import yaml`` by hand-rolling a scalar reader.
   It was closed unmerged after review measured six behavioral divergences from
@@ -29,7 +23,6 @@ What it counts:
   (``python3 -u ...``), of a **tracked** ``.py`` file whose module-level import
   closure reaches a module that is neither stdlib
   (``sys.stdlib_module_names``) nor another tracked module in this repository.
-
   Module-level is the operative word. ``scripts/eval/eval-suite.py`` imports
   ``_anthropic_api``, which imports ``anthropic`` inside a function body. That
   import does not run on the documented ``--dry-run`` path, and
@@ -37,7 +30,6 @@ What it counts:
   would be a false positive. Only imports that execute at import time count:
   the module body, plus ``if``/``try``/``with``/``for`` and class bodies nested
   in it, never a function body.
-
   An invocation already prefixed with ``uv run`` does NOT match; that is the
   fixed form. ``#!/usr/bin/env python3`` shebangs do not match (no ``.py``
   operand). Hook registrations such as
@@ -47,14 +39,12 @@ What it counts:
 
 Scope:
   Tracked Markdown **and Python**, minus three exclusions.
-
   Python is in scope because a usage block in a module docstring, and a
   remediation string a script prints to a contributor's terminal, hand over the
   same unrunnable command a Markdown instruction does.
   ``build/generate_agents.py`` printed a "To fix: Run ..." line naming the bare
   interpreter on every drift failure, which is the exact command that dies on a
   clean checkout.
-
   * **Historical roots** (``.agents/sessions/``, ``.agents/retrospective/``,
     ``.agents/architecture/``, and siblings). These are records of what was
     decided or done, not instructions to follow. Rewriting a session log or an
@@ -66,7 +56,6 @@ Scope:
     ``src/vs-code-agents/``, ``generate_rules.py`` writes
     ``.github/instructions/``. The fix belongs in the canonical source and
     arrives here by regeneration.
-
     ``src/claude/`` is deliberately NOT on that list. It looks like a mirror and
     is not one. GENERATOR-FILES.md:35 says so in as many words: "``src/claude/``
     is a hand-maintained copy, not a generator output. It was misclassified as a
@@ -78,7 +67,6 @@ Scope:
   * **``tests/``**. Test files construct offending invocations on purpose, as
     fixtures for this guard and for its siblings. Same carve-out shape as the
     ``tests/hooks/fixtures/`` exemption in ``.claude/rules/universal.md``.
-
 Declaring a single line:
   A line carrying ``doc-interpreter-portability:`` plus a reason, on the offense
   itself or on the line directly above it, is skipped. Two live cases, both
@@ -87,7 +75,6 @@ Declaring a single line:
   there and rewording the quote would falsify the citation). Line-scoped on
   purpose: a whole-file opt-out is what this guard's own ``src/claude/``
   exclusion was, and it hid five real offenses.
-
 Baseline ratchet:
   ``doc_interpreter_baseline.json`` grandfathers per-file counts, and it is
   **empty**. Every in-scope file was migrated in the same change that added this
@@ -113,6 +100,8 @@ import subprocess
 import sys
 from collections.abc import Iterator
 from pathlib import Path
+
+from scripts.validation.doc_interpreter_subprocess import python_subprocess_targets
 
 _DEFAULT_BASELINE_NAME = "doc_interpreter_baseline.json"
 
@@ -319,6 +308,8 @@ def third_party_imports(
             continue
         for target in local:
             found |= third_party_imports(target, repo_root, tracked_py, seen)
+    for target in python_subprocess_targets(tree, tracked_py):
+        found |= third_party_imports(target, repo_root, tracked_py, seen)
     return found
 
 
@@ -339,7 +330,7 @@ def find_offenses(line: str, repo_root: Path, tracked_py: set[str]) -> list[tupl
     return offenses
 
 
-def scan(repo_root: Path) -> dict[str, int]:
+def scan(repo_root: Path, details: dict[str, list[str]] | None = None) -> dict[str, int]:
     """Return {file path: undeclared unportable invocation count} for in-scope files."""
     tracked_py = set(tracked_files(repo_root, "*.py"))
     counts: dict[str, int] = {}
@@ -353,11 +344,17 @@ def scan(repo_root: Path) -> dict[str, int]:
             lines = path.read_text(encoding="utf-8").splitlines()
         except (OSError, UnicodeDecodeError):
             continue
-        total = sum(
-            len(find_offenses(line, repo_root, tracked_py))
-            for index, line in enumerate(lines)
-            if not is_declared(lines, index)
-        )
+        total = 0
+        for index, line in enumerate(lines):
+            if is_declared(lines, index):
+                continue
+            offenses = find_offenses(line, repo_root, tracked_py)
+            total += len(offenses)
+            if details is not None:
+                details.setdefault(rel, []).extend(
+                    f"{rel}:{index + 1}: {script} imports {', '.join(modules)}"
+                    for script, modules in offenses
+                )
         if total:
             counts[rel] = total
     return counts
@@ -383,7 +380,9 @@ def load_baseline(path: Path) -> dict[str, int]:
 
 
 def diff_against_baseline(
-    current: dict[str, int], baseline: dict[str, int]
+    current: dict[str, int],
+    baseline: dict[str, int],
+    details: dict[str, list[str]] | None = None,
 ) -> tuple[list[str], list[str]]:
     """Return (regressions, improvements) comparing current counts to baseline."""
     regressions = [
@@ -391,6 +390,7 @@ def diff_against_baseline(
         f"third-party imports (baseline {baseline.get(rel, 0)}). Use "
         f"'uv run python <script>' so the project environment supplies the "
         f"dependencies (issue #3791)."
+        + (f" Offenses: {'; '.join(details.get(rel, []))}" if details else "")
         for rel, count in sorted(current.items())
         if count > baseline.get(rel, 0)
     ]
@@ -426,22 +426,51 @@ def _resolve_roots(args: argparse.Namespace) -> tuple[Path, Path]:
     return repo_root, baseline
 
 
+def _update_baseline(
+    current: dict[str, int],
+    baseline_path: Path,
+    details: dict[str, list[str]],
+) -> int:
+    if baseline_path.is_file():
+        try:
+            previous = load_baseline(baseline_path)
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            print(f"check-doc-interpreter-portability: {exc}", file=sys.stderr)
+            return 2
+        regressions, _ = diff_against_baseline(current, previous, details)
+        if regressions:
+            for line in regressions:
+                print(f"DRIFT {line}", file=sys.stderr)
+            print(
+                "check-doc-interpreter-portability: refusing to raise baseline",
+                file=sys.stderr,
+            )
+            return 1
+
+    payload = json.dumps({"files": dict(sorted(current.items()))}, indent=2) + "\n"
+    try:
+        baseline_path.write_text(payload, encoding="utf-8")
+    except OSError as exc:
+        print(f"check-doc-interpreter-portability: {exc}", file=sys.stderr)
+        return 2
+    print(f"check-doc-interpreter-portability: wrote {baseline_path} ({len(current)} files)")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the ratchet."""
     args = build_parser().parse_args(argv)
     repo_root, baseline_path = _resolve_roots(args)
 
     try:
-        current = scan(repo_root)
+        details: dict[str, list[str]] = {}
+        current = scan(repo_root, details)
     except (OSError, subprocess.CalledProcessError) as exc:
         print(f"check-doc-interpreter-portability: {exc}", file=sys.stderr)
         return 2
 
     if args.update_baseline:
-        payload = json.dumps({"files": dict(sorted(current.items()))}, indent=2) + "\n"
-        baseline_path.write_text(payload, encoding="utf-8")
-        print(f"check-doc-interpreter-portability: wrote {baseline_path} ({len(current)} files)")
-        return 0
+        return _update_baseline(current, baseline_path, details)
 
     try:
         baseline = load_baseline(baseline_path)
@@ -449,7 +478,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"check-doc-interpreter-portability: {exc}", file=sys.stderr)
         return 2
 
-    regressions, improvements = diff_against_baseline(current, baseline)
+    regressions, improvements = diff_against_baseline(current, baseline, details)
     for line in improvements:
         print(f"IMPROVED {line}")
     for line in regressions:
