@@ -13,7 +13,7 @@
       "content": "Corrected the working tree. It started in detached HEAD at c81f17bb5, a commit that predates PR #3668, so grep found the retired POWERSHELL_SHELL_RE instead of the live NON_BASH_SHELL_RE. Any analysis performed before the reset would have been against dead code. Reverted the Serena-rewritten .serena/project.yml, stashed an abandoned parse_skill_reference feature in scripts/eval that was never wired to a caller, parked ten untracked files, and branched from origin/main.",
       "caused_by": [],
       "leads_to": [
-        "e002"
+        "e009"
       ]
     },
     {
@@ -21,11 +21,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Fixed #3683. The non-Bash shell test was a blocklist of interpreter names, and the blocklist was defeatable in at least eight shapes. The GitHub Actions runner names a step's temporary script by looking the first token of shell: up in a six-key extension table; a miss writes the file with no extension, and PowerShell's call operator then hands an extensionless file to the OS, which honours a #!/bin/bash first line. So pwsh.exe declared PowerShell and ran Bash. cmd.exe accepts a glued /c<command>, so cmd /cbash {0} hid the word from a word-boundary match. perl execs the interpreter named in a foreign shebang per perlrun. Replaced the blocklist with a structural allowlist: shlex-split the value, require the first token to be an exact pwsh, powershell, python, or python3, and require every later token to be a flag, the {0} placeholder, or a PowerShell call-operator form. Unbalanced quoting raises ValueError and fails closed. Only four distinct shell values exist repository-wide, so the tight allowlist breaks nothing real.",
-      "caused_by": [
-        "e001"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e003"
+        "e009"
       ]
     },
     {
@@ -33,11 +31,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Fixed both #3673 defects. The snippet arrived stripped while the run body did not, so a |+ block scalar's trailing blank lines inflated the body's line count and the real step failed to match its own snippet, leaving only a decoy in the tolerated list and flipping block to allow. Stripped both sides. Separately, non-ASCII characters in the expected line act as wildcards because semgrep re-encodes them, so a line made entirely of non-ASCII was all wildcard and matched any observed line. Added an ASCII-anchor requirement.",
-      "caused_by": [
-        "e002"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e004"
+        "e009"
       ]
     },
     {
@@ -45,11 +41,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Fixed #3672. Semgrep reports start and end offsets in bytes while PyYAML exposes start_mark.index as a character index, so span containment read the wrong region on any file holding multibyte content. Read the target as bytes and convert offsets to character indexes; an offset landing mid-character returns None and the span is dropped, which empties the match list and blocks the push. The defect was latent rather than exploitable because line containment is ANDed with offset containment and line numbers are unambiguous, but the fix removes the dependency on an unrelated check compensating.",
-      "caused_by": [
-        "e003"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e005"
+        "e009"
       ]
     },
     {
@@ -57,11 +51,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Inverted the now-incorrect test parametrizations and added regression coverage. Moved PowerShell.exe, powershell.exe, pwsh.exe -NoProfile, node, ruby, perl, cmd /C, and cmd /S /C from the non-Bash lists to the Bash lists, since every one of them reaches Bash. Added a sixteen-case parametrized test covering each #3683 bypass shape, block-scalar leading and trailing blank-line cases plus a negative control for #3673 defect 1, all-non-ASCII decoy cases plus a one-ASCII-anchor positive control for defect 2, and byte-to-character offset conversion including mid-character and out-of-range inputs for #3672. 447 tests pass.",
-      "caused_by": [
-        "e004"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e006"
+        "e009"
       ]
     },
     {
@@ -69,11 +61,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Triaged the open backlog with five parallel read-only agents partitioned by issue family, each returning a per-issue verdict with file and line evidence. Closed 21 issues that were already fixed, superseded, duplicated, or built on a false premise, each with a written justification citing the commit or file that settles it. Notable: #3218 asked to delete machinery that is live and called from two generators; #3639 proposed a rewrite that would corrupt intentional canonical-path documentation; #3644 targets a file ADR-089 already deleted.",
-      "caused_by": [
-        "e005"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e007"
+        "e009"
       ]
     },
     {
@@ -81,30 +71,38 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Found and fixed a tooling defect that blocks every contributor. The path-normalization pre-push job walks the working tree with rglob and filters against a five-name exclude list, so it scanned git-ignored trees and failed on a .pytest_cache fixture whose deliberate /home/runner string exists to prove the audit detects a leaked runner path. The exclude list is a blocklist and .pytest_cache is one of 290 ignored paths in a normal tree. Replaced it with a batch git check-ignore --stdin call that fails open outside a repository or when git is unavailable, preserving prior behavior for non-repo inputs. Filed as #3686 with seven regression tests.",
-      "caused_by": [
-        "e006"
-      ],
-      "leads_to": []
-    },
-    {
-      "id": "e008",
-      "timestamp": "2026-07-28T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 4674a805876ec5b51d526ba730f6091da141a59b",
       "caused_by": [],
       "leads_to": [
         "e009"
       ]
     },
     {
+      "id": "e008",
+      "timestamp": "2026-07-29T02:58:00+00:00",
+      "type": "commit",
+      "content": "Commit: 4674a805876ec5b51d526ba730f6091da141a59b",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": []
+    },
+    {
       "id": "e009",
-      "timestamp": "2026-07-28T00:00:00+00:00",
+      "timestamp": "2026-07-28T15:22:38+00:00",
       "type": "commit",
       "content": "Commit: 5d380d8f6",
       "caused_by": [
-        "e008"
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     }
   ],
   "metrics": {

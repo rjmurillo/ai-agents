@@ -11,7 +11,7 @@ These rules apply to every change in this repository.
 1. **Branch discipline**. MUST NOT push or commit directly to `main` or `master`. Create a feature branch first.
 2. **Issue linkage**. Every PR MUST reference an issue with `Fixes #<n>` or `Refs #<n>` in the description.
 3. **Conventional commits**. Commit messages MUST follow `<type>(<scope>): <desc>` and include a `Co-Authored-By:` trailer when authored with an AI agent.
-4. **Atomic commits**. Each commit MUST touch five or fewer files (see `AGENTS.md` boundaries).
+4. **Atomic commits**. Each commit MUST touch five or fewer authored files (see `AGENTS.md` boundaries). Hook-generated companions (session episodes, MCP config, agent catalog, memory index) are exempt and do not count toward the limit.
 5. **No secrets**. MUST NOT commit credentials, tokens, or API keys. Secrets live in environment variables or the secrets manager.
 6. **Pin Actions to SHA**. New GitHub Actions references MUST pin to a commit SHA, never a floating tag.
 7. **Session log**. Long-running work MUST have a session log under `.agents/sessions/` per `.agents/SESSION-PROTOCOL.md`.
@@ -26,7 +26,19 @@ These rules apply to every change in this repository.
 ## MUST NOT
 
 1. MUST NOT force-push shared branches.
-2. MUST NOT skip hooks (`--no-verify`) or bypass signing.
+2. MUST NOT skip hooks or bypass signing. ADR-086 lines 95 to 98 enumerate five
+   local bypasses and state that policy forbids using them to skip required
+   checks: `git --no-verify`, `LEFTHOOK=0`, an overridden `LEFTHOOK_BIN`, a
+   lefthook configuration override, and a direct edit to an installed hook.
+   This rule adds a sixth the ADR does not name, `LEFTHOOK_EXCLUDE`, which
+   disables selected jobs rather than the whole run. Policy forbids all six
+   equally. Naming only
+   `--no-verify` invites the reading that a different mechanism is sanctioned;
+   it is not, and no repository document describes any of them as a supported
+   skip. Protected CI is a backstop, not a substitute: a bypassed push shifts
+   a 10 minute local failure into a slower remote one and can leave the branch
+   red for other agents. When a hook blocks you for a reason unrelated to your
+   diff, hand the branch back with the measurement instead of bypassing.
 3. MUST NOT edit `.agents/HANDOFF.md` (read-only per ADR-014).
 4. MUST NOT put logic in YAML workflows (ADR-006).
 5. MUST NOT use em-dashes (U+2014) or en-dashes (U+2013) in any authored text:
@@ -41,13 +53,10 @@ These rules apply to every change in this repository.
    `tests/hooks/fixtures/` are exempt because they intentionally carry the
    prohibited bytes to exercise detection logic; the dash-guard hook and the
    `validate_dash_prohibition` validator both skip that prefix. Refs Issue #1923.
-   **Quotations**: the ban still applies inside a quotation of an external
-   source, and substituting a comma there is a misquote, not a fix. When a
-   quoted span or a published title carries a prohibited dash, end the quoted
-   span before it, elide it with a bracketed ellipsis, or split the quotation
-   into two spans and carry the dash's job in your own words outside the
-   quotation marks. Never silently rewrite text a reader will check against
-   the cited source. Refs Issue #4079.
+   **Quotations**: the ban still applies inside external quotes. If a quoted
+   span or title has a prohibited dash, do not rewrite it. End the quote before
+   it, use `[...]`, or split the quote and explain the dash's job in your prose.
+   Refs Issue #4079.
 6. MUST NOT add auto-generated headers, generation timestamps, or "do not edit"
    comments to any file (agent prompts, documentation, code, template outputs).
    Generated output must be indistinguishable from hand-written content:

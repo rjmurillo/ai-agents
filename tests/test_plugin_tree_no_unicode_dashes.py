@@ -67,6 +67,7 @@ def _tracked_paths() -> list[str]:
         cwd=_REPO_ROOT,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=True,
     )
     return [p for p in completed.stdout.split("\0") if p and is_scanned(p)]

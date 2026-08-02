@@ -2,45 +2,53 @@
 
 ## Basic Operators
 
-| Operator | Purpose | Example |
-|----------|---------|---------|
-| `.field` | Access field | `.name` |
-| `.[]` | Iterate array | `.[].id` |
-| `.[n]` | Index array | `.[0]` |
-| `\|` | Pipe | `.[] \| .name` |
-| `,` | Multiple outputs | `.name, .id` |
+Examples are shown in fenced blocks, not table cells, so the `|` characters
+are the real jq pipe operator. A markdown table cell cannot hold a bare `|`,
+and the escaped `\|` a table would need is a jq syntax error. Running `jq '.count \| tonumber'` exits 3 with `syntax error, unexpected INVALID_CHARACTER`.
+
+```text
+Operator  Purpose           Example
+.field    Access field      .name
+.[]       Iterate array     .[].id
+.[n]      Index array       .[0]
+|         Pipe              .[] | .name
+,         Multiple outputs  .name, .id
+```
 
 ## Filters
 
-| Function | Purpose | Example |
-|----------|---------|---------|
-| `select()` | Filter | `select(.state == "open")` |
-| `map()` | Transform | `map(.name)` |
-| `sort_by()` | Sort | `sort_by(.date)` |
-| `group_by()` | Group | `group_by(.author)` |
-| `unique` | Dedupe | `unique` |
-| `flatten` | Flatten arrays | `flatten` |
+```text
+Function    Purpose         Example
+select()    Filter          select(.state == "open")
+map()       Transform       map(.name)
+sort_by()   Sort            sort_by(.date)
+group_by()  Group           group_by(.author)
+unique      Dedupe          unique
+flatten     Flatten arrays  flatten
+```
 
 ## String Functions
 
-| Function | Purpose | Example |
-|----------|---------|---------|
-| `contains()` | Substring match | `select(.name \| contains("api"))` |
-| `startswith()` | Prefix match | `select(.name \| startswith("test"))` |
-| `split()` | Split string | `split(",")` |
-| `join()` | Join array | `join(", ")` |
-| `@csv` | CSV format | `[.a, .b] \| @csv` |
-| `@tsv` | TSV format | `[.a, .b] \| @tsv` |
+```text
+Function      Purpose          Example
+contains()    Substring match  select(.name | contains("api"))
+startswith()  Prefix match     select(.name | startswith("test"))
+split()       Split string     split(",")
+join()        Join array       join(", ")
+@csv          CSV format       [.a, .b] | @csv
+@tsv          TSV format       [.a, .b] | @tsv
+```
 
 ## Type Functions
 
-| Function | Purpose | Example |
-|----------|---------|---------|
-| `type` | Get type | `type` |
-| `tonumber` | To number | `.count \| tonumber` |
-| `tostring` | To string | `.id \| tostring` |
-| `length` | Array/string length | `length` |
-| `keys` | Object keys | `keys` |
+```text
+Function  Purpose              Example
+type      Get type             type
+tonumber  To number            .count | tonumber
+tostring  To string            .id | tostring
+length    Array/string length  length
+keys      Object keys          keys
+```
 
 ## References
 

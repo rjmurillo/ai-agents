@@ -1651,8 +1651,11 @@ class TestCausalCommitOrdering:
 class TestIssue3464RealEpisode:
     def test_real_3459_log_marks_v2_and_does_not_link_issue_to_commit(self, tmp_path):
         repo_root = Path(__file__).resolve().parents[3]
-        session_log = repo_root / ".agents" / "sessions" / (
-            "2026-07-27-session-3459-templates-portability.json"
+        session_log = (
+            repo_root
+            / ".agents"
+            / "sessions"
+            / ("2026-07-27-session-3459-templates-portability.json")
         )
         out = tmp_path / "episodes"
         out.mkdir()
@@ -1667,8 +1670,7 @@ class TestIssue3464RealEpisode:
         )
         assert episode["causal_order_version"] == extract_session_episode.CAUSAL_ORDER_VERSION
         issue_event = next(
-            event for event in episode["events"]
-            if "Filed issue #3459" in event["content"]
+            event for event in episode["events"] if "Filed issue #3459" in event["content"]
         )
         assert issue_event["caused_by"] == []
 
@@ -2065,9 +2067,7 @@ class TestOneCommitCountsOnceAcrossAbbreviations:
         assert shas == [self._FULL, other]
 
     def test_a_prose_fallback_sha_matching_a_structured_one_is_not_added_twice(self):
-        log = _json_log(
-            [{"phase": "implementation", "summary": f"Committed {self._SHORT}."}]
-        )
+        log = _json_log([{"phase": "implementation", "summary": f"Committed {self._SHORT}."}])
         log["endingCommit"] = self._FULL
         shas = extract_session_episode._collect_shas(log)
         assert shas == [self._FULL]
@@ -2221,16 +2221,12 @@ class TestDecisionRecordsCarryIndependentSignal:
         assert got[0]["context"] == ""
 
     def test_a_title_and_a_distinct_selection_populate_both_fields(self):
-        got = self._decision(
-            {"task": "Chose a gate strategy", "outcome": "Fail-closed (Option 2)"}
-        )
+        got = self._decision({"task": "Chose a gate strategy", "outcome": "Fail-closed (Option 2)"})
         assert got[0]["context"] == "Chose a gate strategy"
         assert got[0]["chosen"] == "Fail-closed (Option 2)"
 
     def test_a_bare_status_word_is_not_treated_as_a_selection(self):
-        got = self._decision(
-            {"task": "Chose a gate strategy", "outcome": "success"}
-        )
+        got = self._decision({"task": "Chose a gate strategy", "outcome": "success"})
         assert got[0]["chosen"] == "Chose a gate strategy"
         assert got[0]["context"] == ""
 
@@ -2362,9 +2358,7 @@ class TestValidateModeRejectsUnusableEventIds:
 
     def test_a_non_object_entry_is_rejected(self, tmp_path):
         self._episode(tmp_path / "episode-str.json", [{"id": "e001"}, "nope"])
-        problems = extract_session_episode.validate_episode_file(
-            tmp_path / "episode-str.json"
-        )
+        problems = extract_session_episode.validate_episode_file(tmp_path / "episode-str.json")
         assert any("event 2 is not an object" in p for p in problems)
 
     def test_unparseable_json_is_reported_not_raised(self, tmp_path):
@@ -2386,7 +2380,8 @@ class TestValidateModeRejectsUnusableEventIds:
 
     def test_the_committed_episode_store_is_clean(self):
         """Regression pin: the repaired file must not come back, and no new
-        episode may land with ids that tooling cannot index.
+        episode may land with ids that tooling cannot index or with a commit
+        chain that runs backwards in committer time (issue #3765).
         """
         store = Path(__file__).resolve().parents[3] / ".agents" / "memory" / "episodes"
         if not store.is_dir():
@@ -2397,3 +2392,670 @@ class TestValidateModeRejectsUnusableEventIds:
             for problem in extract_session_episode.validate_episode_file(path)
         ]
         assert problems == []
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
+class TestBackwardsCommitOrder:
+    """`--validate` rejects a commit chain that runs backwards, `--fix` repairs it.
+
+    Issue #3765: 17 commit-to-commit edges across 14 shipped episodes claimed a
+    commit caused the commit that preceded it. The pre-#3638 linker chained
+    commits by list position, and `_collect_shas` returned the session's last
+    commit first, so the chain came out reversed.
+
+    The repair restamps commit events from git before relinking. Relinking alone
+    is lossy on these files: every event carries session-date midnight, so a
+    commit and a same-day milestone are incomparable and the edge is dropped.
+    """
+
+    @staticmethod
+    def _repo(tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-q", "-b", "main")
+        _git(repo, "config", "user.email", "t@example.com")
+        _git(repo, "config", "user.name", "T")
+        return repo
+
+    @staticmethod
+    def _evt(eid, etype, content, leads_to=(), caused_by=()):
+        return {
+            "id": eid,
+            "timestamp": "2026-07-19T00:00:00+00:00",
+            "type": etype,
+            "content": content,
+            "caused_by": list(caused_by),
+            "leads_to": list(leads_to),
+        }
+
+    @staticmethod
+    def _write(path, events, **extra):
+        payload = {"session_id": "s1", "events": events}
+        payload.update(extra)
+        path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        return path
+
+    def _reversed_pair(self, tmp_path, monkeypatch):
+        """A repo plus an episode whose one commit edge points newest to oldest."""
+        repo = self._repo(tmp_path)
+        older = _commit(repo, "a.txt", "a", when="2026-07-19T10:00:00+00:00")
+        newer = _commit(repo, "b.txt", "b", when="2026-07-19T11:00:00+00:00")
+        monkeypatch.chdir(repo)
+        monkeypatch.setattr(extract_session_episode, "_repo_root", lambda: repo)
+        events = [
+            self._evt("e001", "milestone", "did the work", leads_to=["e002"]),
+            self._evt("e002", "commit", f"Commit: {newer}", caused_by=["e001"], leads_to=["e003"]),
+            self._evt("e003", "commit", f"Commit: {older}", caused_by=["e002"]),
+        ]
+        episodes = tmp_path / "episodes"
+        episodes.mkdir()
+        return repo, episodes, events, older, newer
+
+    def test_a_backwards_commit_edge_is_reported(self, tmp_path, monkeypatch):
+        _, episodes, events, _, _ = self._reversed_pair(tmp_path, monkeypatch)
+        target = self._write(episodes / "episode-bad.json", events)
+
+        problems = extract_session_episode.validate_episode_file(target)
+
+        assert any("commit edge e002 -> e003 runs backwards" in p for p in problems)
+
+    def test_a_backwards_commit_edge_exits_2(self, tmp_path, monkeypatch, capsys):
+        _, episodes, events, _, _ = self._reversed_pair(tmp_path, monkeypatch)
+        self._write(episodes / "episode-bad.json", events)
+
+        assert extract_session_episode.main([str(episodes), "--validate"]) == 2
+        assert "runs backwards" in capsys.readouterr().err
+
+    def test_a_forward_commit_edge_exits_0(self, tmp_path, monkeypatch):
+        _, episodes, _, older, newer = self._reversed_pair(tmp_path, monkeypatch)
+        forward = [
+            self._evt("e001", "commit", f"Commit: {older}", leads_to=["e002"]),
+            self._evt("e002", "commit", f"Commit: {newer}", caused_by=["e001"]),
+        ]
+        self._write(episodes / "episode-ok.json", forward)
+
+        assert extract_session_episode.main([str(episodes), "--validate"]) == 0
+
+    def test_an_edge_into_a_milestone_is_never_flagged(self, tmp_path, monkeypatch):
+        """Only commit-to-commit edges carry independent evidence of order.
+
+        The milestone quotes an older SHA on purpose: a work-log entry citing a
+        commit is not a claim about when the milestone happened, so reading a
+        committer date off it would invent order the episode never recorded.
+        """
+        _, episodes, _, older, newer = self._reversed_pair(tmp_path, monkeypatch)
+        mixed = [
+            self._evt("e001", "commit", f"Commit: {newer}", leads_to=["e002"]),
+            self._evt("e002", "milestone", f"Reviewed {older} before merging", caused_by=["e001"]),
+        ]
+        target = self._write(episodes / "episode-mixed.json", mixed)
+
+        assert extract_session_episode.validate_episode_file(target) == []
+
+    def test_an_unresolvable_sha_is_skipped_not_guessed(self, tmp_path, monkeypatch):
+        """Squash-merged branches take their SHAs away; absence is not evidence."""
+        _, episodes, _, _, newer = self._reversed_pair(tmp_path, monkeypatch)
+        ghost = [
+            self._evt("e001", "commit", f"Commit: {newer}", leads_to=["e002"]),
+            self._evt("e002", "commit", "Commit: deadbee", caused_by=["e001"]),
+        ]
+        target = self._write(episodes / "episode-ghost.json", ghost)
+
+        assert extract_session_episode.validate_episode_file(target) == []
+
+    def test_fix_repairs_the_chain_and_exits_0(self, tmp_path, monkeypatch, capsys):
+        _, episodes, events, older, newer = self._reversed_pair(tmp_path, monkeypatch)
+        target = self._write(episodes / "episode-bad.json", events)
+
+        assert extract_session_episode.main([str(episodes), "--validate", "--fix"]) == 0
+
+        assert '"Repaired": 1' in capsys.readouterr().err
+        repaired = json.loads(target.read_text(encoding="utf-8"))["events"]
+        by_content = {evt["content"]: evt for evt in repaired}
+        assert by_content[f"Commit: {older}"]["leads_to"] == [by_content[f"Commit: {newer}"]["id"]]
+        assert extract_session_episode.validate_commit_order(repaired) == []
+
+    def test_fix_restamps_every_commit_event_from_git(self, tmp_path, monkeypatch):
+        """Midnight is what made the chain unorderable; the repair removes it.
+
+        Keyed by content, one assertion per event. Keying by ``type`` collapses
+        both commits onto whichever one comes last, so a repair that restamped
+        one of the two and left the other at midnight still passed.
+        """
+        _, episodes, events, older, newer = self._reversed_pair(tmp_path, monkeypatch)
+        target = self._write(episodes / "episode-bad.json", events)
+
+        extract_session_episode.main([str(episodes), "--validate", "--fix"])
+
+        repaired = json.loads(target.read_text(encoding="utf-8"))["events"]
+        stamps = {evt["content"]: evt["timestamp"] for evt in repaired}
+        assert stamps[f"Commit: {older}"] == "2026-07-19T10:00:00+00:00"
+        assert stamps[f"Commit: {newer}"] == "2026-07-19T11:00:00+00:00"
+        assert stamps["did the work"] == "2026-07-19T00:00:00+00:00"
+
+    def test_fix_preserves_every_field_outside_events(self, tmp_path, monkeypatch):
+        _, episodes, events, _, _ = self._reversed_pair(tmp_path, monkeypatch)
+        extras = {
+            "task": "the real task",
+            "outcome": "success",
+            "metrics": {"commits": 2, "files_changed": 3},
+            "decisions": [{"id": "d001", "chosen": "keep it"}],
+            "lessons": ["one lesson"],
+            "timestamp": "2026-07-19T00:00:00+00:00",
+        }
+        target = self._write(episodes / "episode-bad.json", events, **extras)
+
+        extract_session_episode.main([str(episodes), "--validate", "--fix"])
+
+        after = json.loads(target.read_text(encoding="utf-8"))
+        for key, value in extras.items():
+            assert after[key] == value, key
+
+    def test_fix_is_idempotent(self, tmp_path, monkeypatch):
+        _, episodes, events, _, _ = self._reversed_pair(tmp_path, monkeypatch)
+        target = self._write(episodes / "episode-bad.json", events)
+
+        extract_session_episode.main([str(episodes), "--validate", "--fix"])
+        first = target.read_text(encoding="utf-8")
+        assert extract_session_episode.main([str(episodes), "--validate", "--fix"]) == 0
+
+        assert target.read_text(encoding="utf-8") == first
+
+    def test_fix_leaves_a_sound_episode_untouched(self, tmp_path, monkeypatch):
+        """No backwards edge means no repair, so no timestamp churn."""
+        _, episodes, _, older, newer = self._reversed_pair(tmp_path, monkeypatch)
+        forward = [
+            self._evt("e001", "commit", f"Commit: {older}", leads_to=["e002"]),
+            self._evt("e002", "commit", f"Commit: {newer}", caused_by=["e001"]),
+        ]
+        target = self._write(episodes / "episode-ok.json", forward)
+        before = target.read_text(encoding="utf-8")
+
+        assert extract_session_episode.main([str(episodes), "--validate", "--fix"]) == 0
+
+        assert target.read_text(encoding="utf-8") == before
+
+    def test_fix_refuses_a_repair_that_would_drop_edges(self, tmp_path, monkeypatch, capsys):
+        """The guard that separates a repair from a deletion.
+
+        A bare relink on a midnight-flattened episode drops every edge it cannot
+        order, which reads as success to a backwards-edge check because an
+        edgeless graph has no backwards edge. Here the on-disk graph carries a
+        redundant e001 -> e003 edge that transitive reduction removes, so the
+        rebuild loses one edge and the repair is refused rather than written.
+        """
+        repo = self._repo(tmp_path)
+        first = _commit(repo, "a.txt", "a", when="2026-07-19T10:00:00+00:00")
+        second = _commit(repo, "b.txt", "b", when="2026-07-19T11:00:00+00:00")
+        third = _commit(repo, "c.txt", "c", when="2026-07-19T12:00:00+00:00")
+        monkeypatch.chdir(repo)
+        monkeypatch.setattr(extract_session_episode, "_repo_root", lambda: repo)
+        redundant = [
+            self._evt("e001", "commit", f"Commit: {third}", leads_to=["e002", "e003"]),
+            self._evt("e002", "commit", f"Commit: {second}", caused_by=["e001"], leads_to=["e003"]),
+            self._evt("e003", "commit", f"Commit: {first}", caused_by=["e001", "e002"]),
+        ]
+        episodes = tmp_path / "episodes"
+        episodes.mkdir()
+        target = self._write(episodes / "episode-redundant.json", redundant)
+        before = target.read_text(encoding="utf-8")
+
+        assert extract_session_episode.main([str(episodes), "--validate", "--fix"]) == 2
+
+        assert "refused: relink would drop 1 of 3 edges" in capsys.readouterr().err
+        assert target.read_text(encoding="utf-8") == before
+
+    def test_repair_commit_order_refuses_when_no_sha_resolves(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        events = [
+            self._evt("e001", "commit", "Commit: deadbee", leads_to=["e002"]),
+            self._evt("e002", "commit", "Commit: cafebab", caused_by=["e001"]),
+        ]
+
+        refusal = extract_session_episode.repair_commit_order(events)
+
+        assert refusal == "no commit event resolves to a git commit in this checkout"
+        assert events[0]["leads_to"] == ["e002"]
+
+    def test_fix_without_validate_exits_2(self, tmp_path, capsys):
+        """`--output-path` is pinned so a removed guard cannot write into the repo.
+
+        Without it, deleting the guard sends `main` down the extraction path,
+        whose default output is the tracked episode store. A falsification run
+        left a file there once; the test must not be able to do that.
+        """
+        log = tmp_path / "session-1.json"
+        log.write_text("{}", encoding="utf-8")
+        out = tmp_path / "out"
+
+        rc = extract_session_episode.main([str(log), "--fix", "--output-path", str(out)])
+
+        assert rc == 2
+        assert "--fix requires --validate" in capsys.readouterr().err
+
+
+class TestUnreadableEpisodeReportedOnce:
+    """`--fix` runs repair then validation, and both read the file the same way.
+
+    Reporting the read failure from both printed the identical line twice for
+    every unusable episode, so a directory of them doubled the noise a reader
+    has to scan without naming one extra defect.
+    """
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        ("body", "fragment"),
+        [
+            ("not json", "unreadable:"),
+            ("[1, 2]", "top level must be an object"),
+        ],
+        ids=["invalid-json", "top-level-not-an-object"],
+    )
+    def test_a_read_failure_prints_one_line_under_fix(tmp_path, capsys, body, fragment):
+        episodes = tmp_path / "episodes"
+        episodes.mkdir()
+        (episodes / "broken.json").write_text(body, encoding="utf-8")
+
+        rc = extract_session_episode.run_validate(episodes, fix=True)
+
+        err = capsys.readouterr().err
+        assert rc == 2
+        assert err.count(fragment) == 1
+        assert '"Violations": 1' in err
+
+
+class TestSourceSessionStamping:
+    """Events emitted by json_events carry _source_session; _dedupe_events evicts
+    cross-session events on --preserve (issue #4024).
+    """
+
+    SESSION_A = "2026-01-08-session-807"
+    SESSION_B = "2026-01-09-session-808"
+    NOW = "2026-01-08T00:00:00+00:00"
+
+    def _event(self, content: str, source: str = "") -> dict:
+        e: dict = {
+            "id": "e001",
+            "timestamp": self.NOW,
+            "type": "milestone",
+            "content": content,
+            "caused_by": [],
+            "leads_to": [],
+        }
+        if source:
+            e["_source_session"] = source
+        return e
+
+    # -------------------------------------------------------------------------
+    # Stamping
+    # -------------------------------------------------------------------------
+
+    def test_events_carry_source_session_when_session_id_supplied(self):
+        """json_events stamps _source_session when session_id is given."""
+        data = {
+            "workLog": [{"title": "did the thing", "outcome": "success"}],
+            "session": {"date": "2026-01-08"},
+        }
+        events = extract_session_episode.json_events(data, self.NOW, session_id=self.SESSION_A)
+        assert all(e.get("_source_session") == self.SESSION_A for e in events)
+
+    def test_events_have_no_stamp_when_session_id_omitted(self):
+        """json_events omits _source_session when no session_id is given (backward compat)."""
+        data = {
+            "workLog": [{"title": "did the thing", "outcome": "success"}],
+            "session": {"date": "2026-01-08"},
+        }
+        events = extract_session_episode.json_events(data, self.NOW)
+        assert all("_source_session" not in e for e in events)
+
+    # -------------------------------------------------------------------------
+    # _dedupe_events filtering
+    # -------------------------------------------------------------------------
+
+    def test_same_session_event_is_kept(self):
+        """Existing event stamped with the current session is kept."""
+        existing = [self._event("same session work", source=self.SESSION_A)]
+        result = extract_session_episode._dedupe_events(
+            existing, [], None, session_id=self.SESSION_A
+        )
+        assert len(result) == 1
+        assert result[0]["content"] == "same session work"
+
+    def test_cross_session_event_is_dropped(self):
+        """Existing event stamped with a DIFFERENT session is evicted."""
+        existing = [self._event("other session work", source=self.SESSION_B)]
+        result = extract_session_episode._dedupe_events(
+            existing, [], None, session_id=self.SESSION_A
+        )
+        assert result == []
+
+    def test_unstamped_event_is_kept_for_backward_compat(self):
+        """Existing event with no _source_session is kept (legacy episodes)."""
+        existing = [self._event("legacy work")]
+        result = extract_session_episode._dedupe_events(
+            existing, [], None, session_id=self.SESSION_A
+        )
+        assert len(result) == 1
+
+    def test_no_session_id_keeps_all_existing(self):
+        """When session_id is empty, eviction is disabled; all existing events survive."""
+        existing = [
+            self._event("from A", source=self.SESSION_A),
+            self._event("from B", source=self.SESSION_B),
+            self._event("unstamped"),
+        ]
+        result = extract_session_episode._dedupe_events(existing, [], None, session_id="")
+        assert len(result) == 3
+
+    # -------------------------------------------------------------------------
+    # merge_preserving integration
+    # -------------------------------------------------------------------------
+
+    def test_preserve_evicts_cross_session_events(self):
+        """merge_preserving drops existing events stamped with a different session."""
+        existing = {
+            "timestamp": self.NOW,
+            "outcome": "success",
+            "task": "session A work",
+            "decisions": [],
+            "events": [self._event("event from session A", source=self.SESSION_A)],
+            "metrics": {
+                "commits": 0,
+                "files_changed": 0,
+                "errors": 0,
+                "recoveries": 0,
+                "tool_calls": 0,
+                "duration_minutes": 0,
+            },
+            "lessons": [],
+        }
+        new = {
+            "timestamp": self.NOW,
+            "outcome": "success",
+            "task": "session B work",
+            "decisions": [],
+            "events": [self._event("event from session B", source=self.SESSION_B)],
+            "metrics": {
+                "commits": 0,
+                "files_changed": 0,
+                "errors": 0,
+                "recoveries": 0,
+                "tool_calls": 0,
+                "duration_minutes": 0,
+            },
+            "lessons": [],
+        }
+        merged = extract_session_episode.merge_preserving(new, existing, session_id=self.SESSION_B)
+        contents = [e["content"] for e in merged["events"]]
+        assert "event from session B" in contents
+        assert "event from session A" not in contents
+
+    def test_preserve_keeps_same_session_events(self):
+        """merge_preserving keeps accumulated events from the same session."""
+        accumulated = self._event("accumulated commit event", source=self.SESSION_A)
+        existing = {
+            "timestamp": self.NOW,
+            "outcome": "success",
+            "task": "session A work",
+            "decisions": [],
+            "events": [accumulated],
+            "metrics": {
+                "commits": 0,
+                "files_changed": 0,
+                "errors": 0,
+                "recoveries": 0,
+                "tool_calls": 0,
+                "duration_minutes": 0,
+            },
+            "lessons": [],
+        }
+        new = {
+            "timestamp": self.NOW,
+            "outcome": "success",
+            "task": "session A fresh",
+            "decisions": [],
+            "events": [],
+            "metrics": {
+                "commits": 0,
+                "files_changed": 0,
+                "errors": 0,
+                "recoveries": 0,
+                "tool_calls": 0,
+                "duration_minutes": 0,
+            },
+            "lessons": [],
+        }
+        merged = extract_session_episode.merge_preserving(new, existing, session_id=self.SESSION_A)
+        contents = [e["content"] for e in merged["events"]]
+        assert "accumulated commit event" in contents
+
+    def test_preserve_keeps_unstamped_legacy_events(self):
+        """merge_preserving keeps existing events with no stamp (backward compat)."""
+        legacy = self._event("legacy unstamped event")
+        existing = {
+            "timestamp": self.NOW,
+            "outcome": "success",
+            "task": "old work",
+            "decisions": [],
+            "events": [legacy],
+            "metrics": {
+                "commits": 0,
+                "files_changed": 0,
+                "errors": 0,
+                "recoveries": 0,
+                "tool_calls": 0,
+                "duration_minutes": 0,
+            },
+            "lessons": [],
+        }
+        new = {
+            "timestamp": self.NOW,
+            "outcome": "success",
+            "task": "new work",
+            "decisions": [],
+            "events": [],
+            "metrics": {
+                "commits": 0,
+                "files_changed": 0,
+                "errors": 0,
+                "recoveries": 0,
+                "tool_calls": 0,
+                "duration_minutes": 0,
+            },
+            "lessons": [],
+        }
+        merged = extract_session_episode.merge_preserving(new, existing, session_id=self.SESSION_A)
+        contents = [e["content"] for e in merged["events"]]
+        assert "legacy unstamped event" in contents
+
+
+class TestSourceSessionEndToEnd:
+    """End-to-end: write wrong episode, correct source, re-extract, confirm wrong
+    event is gone rather than unioned in (issue #4024 discriminating reproduction).
+    """
+
+    SESSION = "2026-07-30-session-9999-test-session"
+    OTHER_SESSION = "2026-07-30-session-8888-other-session"
+
+    def _make_log(self, tmp_path: "Path", title: str) -> "Path":
+        log = tmp_path / f"{self.SESSION}.json"
+        log.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": "1.0",
+                    "session": {
+                        "number": 9999,
+                        "date": "2026-07-30",
+                        "branch": "fix/test",
+                        "startingCommit": "abcdef1",
+                        "objective": "test session",
+                    },
+                    "protocolCompliance": {
+                        "startPhase": {},
+                        "endPhase": {},
+                    },
+                    "workLog": [{"task": title, "outcome": "success"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        return log
+
+    def test_wrong_event_gone_after_correction(self, tmp_path):
+        """The discriminating reproduction from #4024: inject wrong event, correct,
+        re-extract with --preserve, confirm wrong event is NOT present.
+        """
+        import time
+
+        output_dir = tmp_path / "episodes"
+        output_dir.mkdir()
+
+        # Step 1: extract with WRONG content (first run, no existing episode)
+        wrong_log = self._make_log(tmp_path, "wrong event content")
+        rc = extract_session_episode.main(
+            [
+                str(wrong_log),
+                "--output-path",
+                str(output_dir),
+            ]
+        )
+        assert rc == 0
+
+        episode_file = output_dir / f"episode-{self.SESSION}.json"
+        episode = json.loads(episode_file.read_text(encoding="utf-8"))
+        wrong_contents = [e["content"] for e in episode["events"]]
+        assert any("wrong event content" in c for c in wrong_contents), wrong_contents
+
+        time.sleep(1.1)  # ensure mtime differs
+
+        # Step 2: re-extract with CORRECTED content using --force (replaces episode)
+        # --force is the correct mechanism for same-session correction; --preserve would union
+        correct_log = self._make_log(tmp_path, "correct event content")
+        rc = extract_session_episode.main(
+            [
+                str(correct_log),
+                "--output-path",
+                str(output_dir),
+                "--force",
+            ]
+        )
+        assert rc == 0
+
+        corrected = json.loads(episode_file.read_text(encoding="utf-8"))
+        corrected_contents = [e["content"] for e in corrected["events"]]
+        assert any("correct event content" in c for c in corrected_contents), corrected_contents
+        assert not any("wrong event content" in c for c in corrected_contents), corrected_contents
+
+    def test_cross_session_event_evicted_by_preserve(self, tmp_path):
+        """An event injected from another session is evicted on --preserve re-extraction."""
+        import time
+
+        output_dir = tmp_path / "episodes"
+        output_dir.mkdir()
+
+        # Write a pre-contaminated episode with an event from a different session
+        contaminated_episode = output_dir / f"episode-{self.SESSION}.json"
+        contaminated = {
+            "id": f"episode-{self.SESSION}",
+            "session": self.SESSION,
+            "timestamp": "2026-07-30T00:00:00+00:00",
+            "outcome": "success",
+            "task": "test session",
+            "decisions": [],
+            "events": [
+                {
+                    "id": "e001",
+                    "timestamp": "2026-07-30T00:00:00+00:00",
+                    "type": "milestone",
+                    "content": "fabricated event from other session",
+                    "_source_session": self.OTHER_SESSION,
+                    "caused_by": [],
+                    "leads_to": [],
+                }
+            ],
+            "metrics": {
+                "commits": 0,
+                "files_changed": 0,
+                "errors": 0,
+                "recoveries": 0,
+                "tool_calls": 0,
+                "duration_minutes": 0,
+            },
+            "lessons": [],
+        }
+        contaminated_episode.write_text(json.dumps(contaminated), encoding="utf-8")
+
+        time.sleep(1.1)
+
+        log = self._make_log(tmp_path, "real work for this session")
+        rc = extract_session_episode.main(
+            [
+                str(log),
+                "--output-path",
+                str(output_dir),
+                "--preserve",
+            ]
+        )
+        assert rc == 0
+
+        result = json.loads(contaminated_episode.read_text(encoding="utf-8"))
+        contents = [e["content"] for e in result["events"]]
+        assert "fabricated event from other session" not in contents
+        assert any("real work for this session" in c for c in contents), contents
+
+    def test_same_session_accumulated_events_survive_preserve(self, tmp_path):
+        """Accumulated same-session events (e.g. commit events) are NOT evicted."""
+        import time
+
+        output_dir = tmp_path / "episodes"
+        output_dir.mkdir()
+
+        # Start with an episode that has an accumulated same-session event
+        episode_file = output_dir / f"episode-{self.SESSION}.json"
+        initial = {
+            "id": f"episode-{self.SESSION}",
+            "session": self.SESSION,
+            "timestamp": "2026-07-30T00:00:00+00:00",
+            "outcome": "success",
+            "task": "test session",
+            "decisions": [],
+            "events": [
+                {
+                    "id": "e001",
+                    "timestamp": "2026-07-30T00:00:00+00:00",
+                    "type": "commit",
+                    "content": "Commit: abc1234",
+                    "_source_session": self.SESSION,
+                    "caused_by": [],
+                    "leads_to": [],
+                }
+            ],
+            "metrics": {
+                "commits": 1,
+                "files_changed": 0,
+                "errors": 0,
+                "recoveries": 0,
+                "tool_calls": 0,
+                "duration_minutes": 0,
+            },
+            "lessons": [],
+        }
+        episode_file.write_text(json.dumps(initial), encoding="utf-8")
+
+        time.sleep(1.1)
+
+        log = self._make_log(tmp_path, "continued work")
+        rc = extract_session_episode.main(
+            [
+                str(log),
+                "--output-path",
+                str(output_dir),
+                "--preserve",
+            ]
+        )
+        assert rc == 0
+
+        result = json.loads(episode_file.read_text(encoding="utf-8"))
+        contents = [e["content"] for e in result["events"]]
+        # The accumulated commit from the same session must survive
+        assert any("Commit: abc1234" in c for c in contents), contents

@@ -106,7 +106,7 @@ A: Let's think step by step.
 
 **Why this works**: Decoder-only LLMs use unidirectional attention: each token only sees previous tokens. Later words like "How many..." clarify earlier words, but standard encoding misses this. Re-reading lets the second pass benefit from the full first-pass context.
 
-**Critical: Instruction vs. Repetition**
+### Critical: Instruction vs. Repetition
 
 Per the paper's Table 7, the explicit metacognitive instruction significantly outperforms simple repetition:
 

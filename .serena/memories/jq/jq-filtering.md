@@ -14,8 +14,8 @@ gh issue list --json number,labels \
   --jq '.[] | select(.labels | any(.name == "bug"))'
 
 # Multiple conditions
-gh pr list --json number,draft,mergeable \
-  --jq '.[] | select(.draft == false and .mergeable == "MERGEABLE")'
+gh pr list --json number,isDraft,mergeable \
+  --jq '.[] | select(.isDraft == false and .mergeable == "MERGEABLE")'
 
 # Numeric comparison
 gh run list --json databaseId,createdAt \

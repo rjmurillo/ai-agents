@@ -1,6 +1,6 @@
 # Skill Output Structure and Packaging
 
-### Frontmatter Requirements
+## Frontmatter Requirements
 
 Skills must use only these allowed frontmatter properties:
 
@@ -161,7 +161,7 @@ Do not interpolate untrusted tool payloads directly into shell command strings.
 | Security gate | PreToolUse | Block dangerous bash commands |
 | Cleanup temp files | Stop | Remove intermediate artifacts |
 
-**Example: Script Validation Hook**
+### Example: Script Validation Hook
 
 For skills with scripts, add input validation:
 

@@ -153,7 +153,7 @@ python3 .claude/skills/slo-designer/scripts/calculate_error_budget.py \
 Generate a complete SLO document from configuration:
 
 ```bash
-python3 .claude/skills/slo-designer/scripts/generate_slo_document.py \
+uv run python .claude/skills/slo-designer/scripts/generate_slo_document.py \
   --config path/to/slo-config.yaml \
   --output docs/slo-document.md
 ```

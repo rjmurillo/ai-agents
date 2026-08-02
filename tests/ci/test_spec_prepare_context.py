@@ -1,0 +1,109 @@
+"""Tests for scripts/ci/spec_prepare_context.py."""
+
+from __future__ import annotations
+
+import os
+import re
+import sys
+from pathlib import Path
+from unittest.mock import patch
+
+import pytest
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from scripts.ci.spec_prepare_context import _write_multiline_output, main, run
+
+
+class TestWriteMultilineOutput:
+    def test_uses_random_not_static_delimiter(self, tmp_path: Path) -> None:
+        out = tmp_path / "out.txt"
+        _write_multiline_output("key", "value", str(out))
+        content = out.read_text()
+        assert "EOF_SPEC" not in content  # must NOT use the static original
+
+    def test_delimiter_is_hex(self, tmp_path: Path) -> None:
+        out = tmp_path / "out.txt"
+        _write_multiline_output("key", "some value", str(out))
+        content = out.read_text()
+        # Delimiter format: EOF_<32 hex chars>
+        assert re.search(r"EOF_[0-9a-f]{32}", content)
+
+    def test_value_is_in_output(self, tmp_path: Path) -> None:
+        out = tmp_path / "out.txt"
+        _write_multiline_output("ctx", "my spec content", str(out))
+        assert "my spec content" in out.read_text()
+
+    def test_key_in_output(self, tmp_path: Path) -> None:
+        out = tmp_path / "out.txt"
+        _write_multiline_output("spec_context", "val", str(out))
+        assert "spec_context<<" in out.read_text()
+
+
+class TestRun:
+    def test_writes_spec_content_from_file(self, tmp_path: Path) -> None:
+        spec_file = tmp_path / "spec.md"
+        spec_file.write_text("# Spec\nRequirement text")
+        out_file = tmp_path / "out.txt"
+        env = {
+            "SPEC_FILE": str(spec_file),
+            "INCREMENTAL_SCOPE": "",
+            "GITHUB_OUTPUT": str(out_file),
+        }
+        with patch.dict(os.environ, env):
+            rc = run()
+        assert rc == 0
+        out = out_file.read_text()
+        assert "Requirement text" in out
+
+    def test_includes_incremental_scope_block(self, tmp_path: Path) -> None:
+        spec_file = tmp_path / "spec.md"
+        spec_file.write_text("content")
+        out_file = tmp_path / "out.txt"
+        env = {
+            "SPEC_FILE": str(spec_file),
+            "INCREMENTAL_SCOPE": "phase-1",
+            "GITHUB_OUTPUT": str(out_file),
+        }
+        with patch.dict(os.environ, env):
+            run()
+        out = out_file.read_text()
+        assert "phase-1" in out
+        assert "Incremental Scope" in out
+
+    def test_fallback_when_no_spec_file(self, tmp_path: Path) -> None:
+        out_file = tmp_path / "out.txt"
+        env = {
+            "SPEC_FILE": "",
+            "INCREMENTAL_SCOPE": "",
+            "GITHUB_OUTPUT": str(out_file),
+        }
+        with patch.dict(os.environ, env):
+            rc = run()
+        assert rc == 0
+        assert "No spec content loaded" in out_file.read_text()
+
+    def test_fallback_when_spec_file_missing(self, tmp_path: Path) -> None:
+        out_file = tmp_path / "out.txt"
+        env = {
+            "SPEC_FILE": str(tmp_path / "nonexistent.md"),
+            "INCREMENTAL_SCOPE": "",
+            "GITHUB_OUTPUT": str(out_file),
+        }
+        with patch.dict(os.environ, env):
+            rc = run()
+        assert rc == 0
+        assert "No spec content loaded" in out_file.read_text()
+
+    def test_stdout_when_no_github_output(self, capsys: pytest.CaptureFixture[str]) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            for k in ["SPEC_FILE", "INCREMENTAL_SCOPE", "GITHUB_OUTPUT"]:
+                os.environ.pop(k, None)
+            run()
+        out = capsys.readouterr().out
+        assert "spec_context=" in out
+
+
+class TestMain:
+    def test_main_delegates(self) -> None:
+        with patch("scripts.ci.spec_prepare_context.run", return_value=0):
+            assert main() == 0

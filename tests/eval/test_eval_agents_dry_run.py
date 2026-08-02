@@ -102,7 +102,7 @@ def _git(args: list[str], cwd: Path) -> None:
         ["git", *args],
         cwd=str(cwd),
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=True,
         timeout=60,
         env=_clean_subprocess_env(),

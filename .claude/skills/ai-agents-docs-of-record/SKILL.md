@@ -121,8 +121,7 @@ artifact (timeline, Five Whys, learning matrix) in `.agents/retrospective/`.
 
 Retrospectives are written on demand: `/retro` here, plus the Post-PR
 Retrospective workflow in CI. Until #3349 a Stop hook also wrote a skeleton
-at session end stamped `<!-- RETRO-STATE: skeleton-pending-fill -->` (Issue
-#2079); that hook is deleted, but skeletons it already wrote are still
+at session end stamped `<!-- RETRO-STATE: skeleton-pending-fill -->` (Issue #2079); that hook is deleted, but skeletons it already wrote are still
 placeholders rather than records, so fill them with `/retro fill YYYY-MM-DD`.
 
 `INDEX.md` was auto-appended by that hook (Issue #1703) and is incomplete: 5
@@ -216,7 +215,7 @@ on confident-incorrectness claims.
 
 Fix stale docs on contact. Worked example from before PR #2871:
 `CONTRIBUTING.md` line 155 said `build/Generate-Agents.ps1` PowerShell invocation until PR #2871
-repointed it to `python3 build/generate_agents.py`. Zero `.ps1` build scripts
+repointed it to `build/generate_agents.py`. Zero `.ps1` build scripts
 exist (ADR-042 Python migration). When you touch a stale doc: fix the lines on
 your path, quote the canonical source per FM-9, and flag (do not silently expand
 into) the rest. Behavioral claims in docs are verified with `doc-accuracy`.
@@ -268,7 +267,7 @@ relying on them:
 | Handoff tiers, HANDOFF.md 5K cap | `.agents/sessions/handoffs/README.md` tier table; ADR-014 | `grep -n "5K hard cap" .agents/sessions/handoffs/README.md` |
 | FM-9 verbatim-quote rule | `.agents/governance/FAILURE-MODES.md:284-307` | `grep -n "character-for-character" .agents/governance/FAILURE-MODES.md` |
 | PR #908 lint scope story | `.agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md:281-296` | `grep -n "markdownlint" .agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md` |
-| CONTRIBUTING.md pre-PR #2871 staleness example | PR #2871 repointed `CONTRIBUTING.md` to `python3 build/generate_agents.py` | `git show b320f4ac1 -- CONTRIBUTING.md` |
+| CONTRIBUTING.md pre-PR #2871 staleness example | PR #2871 repointed `CONTRIBUTING.md` to `build/generate_agents.py` | `git show b320f4ac1 -- CONTRIBUTING.md` |
 | Serena canonical, Forgetful supplementary | `.agents/architecture/ADR-007-memory-first-architecture.md:83-102` | `grep -n "Canonical" .agents/architecture/ADR-007-memory-first-architecture.md` |
 
 Maintenance: when a validator, template path, or protocol phase changes, update

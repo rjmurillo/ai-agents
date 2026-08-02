@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size, hook config is one executable contract and splitting would hide stage order.
 min_version: 2.1.10
 lefthook: uv run --frozen lefthook
 glob_matcher: doublestar
@@ -319,6 +320,12 @@ pre-commit:
         - merge
         - run: test "$SKIP_AUTOFIX" = "1"
 
+    - name: commit-file-count
+      timeout: 2m
+      run: uv run --frozen python scripts/validation/git_hook_policy.py atomic-commit
+      skip:
+        - merge
+
     - name: github-bash-policy
       timeout: 2m
       run: uv run --frozen python scripts/validation/git_hook_policy.py github-bash {staged_files}
@@ -371,6 +378,10 @@ pre-push:
             env:
               SKIP_AUTOFIX: "1"
 
+          - name: worktree-gc-report
+            timeout: 2m
+            run: uv run --frozen python scripts/maintenance/gc_worktrees.py
+
           - name: python-tests
             timeout: 30m
             run: uv run --frozen python scripts/validation/git_hook_policy.py pytest
@@ -393,7 +404,14 @@ pre-push:
             glob:
               - "**/*.py"
               - "scripts/ci/ruff_count_baseline.txt"
-
+          - name: taste-count-ratchet
+            timeout: 5m
+            run: uv run --frozen python scripts/ci/taste_count_ratchet.py --base-ref origin/main
+            glob: ["**/*.{py,md,yml,yaml,json,ps1,psm1,sh}", "scripts/ci/taste_count_baseline.txt"]
+          - name: type-ignore-count-ratchet
+            timeout: 5m
+            run: uv run --frozen python scripts/ci/type_ignore_count_ratchet.py --base-ref origin/main
+            glob: ["**/*.py", "scripts/ci/type_ignore_count_baseline.txt"]
           - name: python-type-check
             timeout: 15m
             run: uv run --frozen --extra dev python scripts/validation/git_hook_policy.py mypy {push_files}
