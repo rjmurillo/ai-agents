@@ -67,7 +67,7 @@ def _import_generate_experiment_with_env(env: dict[str, str]) -> subprocess.Comp
     return subprocess.run(
         [sys.executable, "-c", code],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         env=env,
         check=False,
     )
@@ -928,7 +928,7 @@ class TestGenerateExperimentCLI:
         result = subprocess.run(
             [sys.executable, str(script_path), "--help"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -942,7 +942,7 @@ class TestGenerateExperimentCLI:
         result = subprocess.run(
             [sys.executable, str(script_path)],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -960,7 +960,7 @@ class TestGenerateExperimentCLI:
                 "--dry-run",
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -981,7 +981,7 @@ class TestGenerateExperimentCLI:
                 "--json",
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -1006,7 +1006,7 @@ class TestGenerateExperimentCLI:
                 str(tmp_path),
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -1036,7 +1036,7 @@ class TestGenerateExperimentCLI:
         result = subprocess.run(
             [sys.executable, str(script_path), "--name", "Default Routed"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
             env=env,
         )
@@ -1130,7 +1130,7 @@ Only a title, missing all required sections.
         result = subprocess.run(
             [sys.executable, str(script_path), "--help"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -1144,7 +1144,7 @@ Only a title, missing all required sections.
         result = subprocess.run(
             [sys.executable, str(script_path), str(valid_experiment)],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -1158,7 +1158,7 @@ Only a title, missing all required sections.
         result = subprocess.run(
             [sys.executable, str(script_path), str(invalid_experiment)],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -1170,7 +1170,7 @@ Only a title, missing all required sections.
         result = subprocess.run(
             [sys.executable, str(script_path), str(tmp_path / "missing.md")],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -1183,7 +1183,7 @@ Only a title, missing all required sections.
         result = subprocess.run(
             [sys.executable, str(script_path), str(valid_experiment), "--json"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -1224,7 +1224,7 @@ TBD
         result = subprocess.run(
             [sys.executable, str(script_path), str(doc_path), "--strict"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 

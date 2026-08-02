@@ -285,7 +285,7 @@ Write the populated template to this file.
 Run validation script:
 
 ```bash
-python3 scripts/validate_session_json.py ".agents/sessions/YYYY-MM-DD-session-NN.json"
+uv run python scripts/validate_session_json.py ".agents/sessions/YYYY-MM-DD-session-NN.json"
 ```
 
 Check exit code:
@@ -349,7 +349,7 @@ Session log created but validation FAILED
   Errors:
     - Missing Session End checklist header
 
-Run: python3 scripts/validate_session_json.py ".agents/sessions/2026-01-05-session-375.json" 
+Run: uv run python scripts/validate_session_json.py ".agents/sessions/2026-01-05-session-375.json" 
 
 Fix the issues and re-validate.
 ```

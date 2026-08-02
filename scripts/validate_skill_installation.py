@@ -5,9 +5,9 @@ Checks that skills in .claude/skills/ are properly structured and
 accessible at expected installation paths.
 
 Usage:
-    python3 scripts/validate_skill_installation.py
-    python3 scripts/validate_skill_installation.py --check-global
-    python3 scripts/validate_skill_installation.py --verbose
+    uv run python scripts/validate_skill_installation.py
+    uv run python scripts/validate_skill_installation.py --check-global
+    uv run python scripts/validate_skill_installation.py --verbose
 
 Exit Codes:
     0: All skills valid (or installed correctly with --check-global)

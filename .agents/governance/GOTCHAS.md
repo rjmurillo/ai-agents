@@ -106,7 +106,7 @@ you try. Refs #3904.
 to every child check, and two of them fail with `ModuleNotFoundError:
 markdown_it` because the dependency lives in the project venv.
 
-Symptom: `python3 scripts/validation/pre_pr.py` reports failures that have
+Symptom: `uv run python scripts/validation/pre_pr.py` reports failures that have
 nothing to do with your change. Refs #3938.
 
 ## Instruction-budget ceilings ratchet to measured size
