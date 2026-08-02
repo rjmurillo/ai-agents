@@ -175,7 +175,12 @@ DECLARATION = "doc-interpreter-portability:"
 # code. Seven offenses across four files hid behind that one character class.
 INVOCATION_PATTERN = re.compile(
     r"(?<![\w./-])"
-    r"(?P<uv>uv[ \t]+run[ \t]+(?:--?[\w-]+(?:[ \t]+|=)\S*[ \t]*)*)?"
+    # Each iteration must start with whitespace then a dash, and a flag value may
+    # not start with one, so at any position the next token is unambiguously a flag
+    # or a value. The previous form allowed \S* to swallow the following flag, which
+    # gave the outer star exponentially many parses of input like `uv run --=--=--=`
+    # (CodeQL: inefficient regular expression).
+    r"(?P<uv>uv[ \t]+run(?:[ \t]+--?[\w-]+(?:[ \t]+(?!python3?\b)[\w.][\w./-]*)?)*[ \t]+)?"
     r"python3?"
     r"(?:[ \t]+-[\w-]+)*"
     r"[ \t]+"

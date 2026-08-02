@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from scripts.validation.check_doc_interpreter_portability import (
+    INVOCATION_PATTERN,
     is_in_scope,
     main,
     scan,
@@ -125,6 +126,43 @@ def test_class_body_import_runs_at_import_time_and_is_flagged(tmp_path: Path) ->
 
 
 # --- negative: correct usage is not flagged ---------------------------------
+
+
+def test_the_uv_flag_group_does_not_backtrack_exponentially() -> None:
+    """CodeQL flagged the uv flag group for exponential backtracking.
+
+    The old form let `\\S*` swallow the following flag, so `uv run --=--=--=...`
+    had exponentially many parses. Measured on the old pattern: 12 repetitions
+    took 1.1 ms, 16 took 16.8 ms, 20 took 272 ms. This bound is generous by three
+    orders of magnitude against that curve, so it fails loudly on a regression
+    without being flaky on a slow machine.
+    """
+    import time
+
+    hostile = "uv run " + "--=" * 4000 + "!"
+    started = time.perf_counter()
+    INVOCATION_PATTERN.search(hostile)
+    elapsed = time.perf_counter() - started
+
+    assert elapsed < 1.0, f"pattern took {elapsed:.3f}s on hostile input; it backtracks"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "uv run python scripts/x.py",
+        "uv run --frozen python scripts/x.py",
+        "uv run --frozen --extra dev python scripts/x.py",
+        "uv run --with pyyaml python3 scripts/x.py",
+    ],
+)
+def test_every_uv_form_in_the_corpus_still_matches(command: str) -> None:
+    """The rewrite must not narrow what it recognises.
+
+    These four are the only `uv run ... python` shapes present in the tree, by
+    frequency: bare, --frozen, --frozen --extra dev, and --with pyyaml.
+    """
+    assert INVOCATION_PATTERN.search(command) is not None
 
 
 def test_uv_run_prefix_is_not_flagged(tmp_path: Path) -> None:
