@@ -26,7 +26,7 @@ _WORKFLOW = _REPO_ROOT / ".github" / "workflows" / "ai-spec-validation.yml"
 
 
 @lru_cache(maxsize=1)
-def _load() -> dict[str, Any]:
+def _load() -> dict[Any, Any]:
     doc = yaml.safe_load(_WORKFLOW.read_text(encoding="utf-8"))
     assert isinstance(doc, dict), f"expected mapping, got {type(doc).__name__}"
     return doc
@@ -35,7 +35,9 @@ def _load() -> dict[str, Any]:
 def _on_block() -> dict[str, Any]:
     # PyYAML parses the bare 'on:' key as the boolean True.
     doc = _load()
-    return doc.get("on") or doc[True]  # type: ignore[index]
+    result = doc.get("on") or doc.get(True)
+    assert isinstance(result, dict), f"expected mapping under 'on', got {type(result).__name__}"
+    return result
 
 
 def test_edited_trigger_present() -> None:

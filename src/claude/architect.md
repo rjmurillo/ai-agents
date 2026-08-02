@@ -4,6 +4,8 @@ description: Technical authority on system design who guards architectural coher
 model: opus
 metadata:
   tier: expert
+# Requires fresh context and separate tool state to make architecture decisions without inherited assumptions.
+isolation_required: true
 argument-hint: Describe the design decision, review request, or ADR topic
 ---
 # Architect Agent
