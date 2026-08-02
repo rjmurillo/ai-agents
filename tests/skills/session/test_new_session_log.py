@@ -373,7 +373,7 @@ def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
         ["git", *args],
         cwd=str(cwd),
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         timeout=30,
         check=True,
     )
@@ -384,7 +384,7 @@ def _git_available() -> bool:
         result = subprocess.run(
             ["git", "--version"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=10,
             check=False,
         )

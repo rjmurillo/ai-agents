@@ -178,7 +178,7 @@ code templates/agents/analyst.shared.md
 Run the generation script:
 
 ```bash
-python3 build/generate_agents.py
+uv run python build/generate_agents.py
 ```
 
 ### Step 3: Verify the Changes
@@ -187,10 +187,10 @@ Check that generated files look correct:
 
 ```bash
 # Preview what would be generated without writing
-python3 build/generate_agents.py --what-if
+uv run python build/generate_agents.py --what-if
 
 # Verify generated files match templates
-python3 build/generate_agents.py --validate
+uv run python build/generate_agents.py --validate
 ```
 
 ### Step 4: Commit Both Files
@@ -288,10 +288,10 @@ tools_copilot:
 
 ```bash
 # Generate all agents
-python3 build/generate_agents.py
+uv run python build/generate_agents.py
 
 # Verify outputs
-python3 build/generate_agents.py --validate
+uv run python build/generate_agents.py --validate
 ```
 
 ### Step 5: Update Documentation
@@ -322,7 +322,7 @@ The shipped pattern:
    and #3295. Retrieve behavioral guidance through static rules and skills.
    Push-time policy belongs in Lefthook and CI.
 
-5. **Run the platform regen after adding the hook.** `python3 build/scripts/build_all.py --platform copilot-cli` (and any other downstream platform) so the regenerated copy under `src/<provider>/hooks/` stays in sync.
+5. **Run the platform regen after adding the hook.** `uv run python build/scripts/build_all.py --platform copilot-cli` (and any other downstream platform) so the regenerated copy under `src/<provider>/hooks/` stays in sync.
 
 6. **Before pushing, run the relevant tests.** `uv run pytest tests/test_plugin_path_resolution.py tests/test_bootstrap.py tests/hooks/ -q` is the minimum.
 
@@ -356,13 +356,13 @@ python3 scripts/eval/eval-suite.py --dry-run   # Preview what would run
 python3 scripts/eval/eval-suite.py              # Full run (requires ANTHROPIC_API_KEY)
 
 # Evaluate a specific prompt change (before/after comparison):
-python3 scripts/eval/eval-prompt-change.py \
+uv run python scripts/eval/eval-prompt-change.py \
   --prompt .claude/commands/research.md \
   --scenarios tests/evals/research-scenarios.json \
   --base-ref main
 
 # Security-critical prompts (5 runs, 100% pass required):
-python3 scripts/eval/eval-prompt-change.py \
+uv run python scripts/eval/eval-prompt-change.py \
   --prompt .agents/security/prompts/security-review.md \
   --scenarios tests/evals/security-review-scenarios.json \
   --base-ref main --security-critical
@@ -469,7 +469,7 @@ These files are auto-generated and include a header comment:
 ```markdown
 <!-- AUTO-GENERATED FILE - DO NOT EDIT DIRECTLY
      Generated from: templates/agents/[name].shared.md
-     To modify this file, edit the source and run: python3 build/generate_agents.py
+     To modify this file, edit the source and run: uv run python build/generate_agents.py
 -->
 ```
 
@@ -479,16 +479,16 @@ These files are auto-generated and include a header comment:
 
 ```bash
 # Generate all agent files from templates
-python3 build/generate_agents.py
+uv run python build/generate_agents.py
 
 # Verify generated files match templates (used in CI)
-python3 build/generate_agents.py --validate
+uv run python build/generate_agents.py --validate
 
 # Preview what would be generated without writing files
-python3 build/generate_agents.py --what-if
+uv run python build/generate_agents.py --what-if
 
 # Generate with verbose logging
-python3 build/generate_agents.py
+uv run python build/generate_agents.py
 ```
 
 ## CI Drift Detection
@@ -515,7 +515,7 @@ Whitespace-only differences (line endings, trailing spaces) are ignored during c
 code templates/agents/<agent-name>.shared.md
 
 # 2. Regenerate
-python3 build/generate_agents.py
+uv run python build/generate_agents.py
 
 # 3. Commit the regenerated files
 git add src/vs-code-agents/ src/copilot-cli/
@@ -826,7 +826,7 @@ When you create or update an Architecture Decision Record (ADR) that introduces 
 Run the sync audit script to detect ADRs with MUST requirements not referenced in SESSION-PROTOCOL.md:
 
 ```bash
-python3 scripts/sync_adr_protocol.py
+uv run python scripts/sync_adr_protocol.py
 ```
 
 The script parses all ADR files, extracts RFC 2119 requirements, and reports coverage gaps. See [ADR-050](.agents/architecture/ADR-050-adr-protocol-sync.md) for the full process.
@@ -835,7 +835,7 @@ The script parses all ADR files, extracts RFC 2119 requirements, and reports cov
 
 1. **Spec references**: Feature PRs (`feat:`) require spec references (issue, REQ-*, or `.agents/planning/` files)
 2. **Template changes**: Always include both template and generated files
-3. **Validation**: Run `python3 build/generate_agents.py --validate` before submitting
+3. **Validation**: Run `uv run python build/generate_agents.py --validate` before submitting
 4. **Tests**: Ensure all tests pass
 5. **Documentation**: Update relevant docs if adding new agents
 6. **Commit messages**: Use conventional commit format (e.g., `feat(agent):`, `fix(template):`)
