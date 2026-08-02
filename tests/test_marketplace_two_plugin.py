@@ -155,7 +155,7 @@ class TestManifestValidatorGreen:
                 str(REPO_ROOT / "build" / "scripts" / "validate_plugin_manifests.py"),
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
             cwd=REPO_ROOT,
         )
