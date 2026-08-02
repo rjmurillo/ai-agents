@@ -64,7 +64,7 @@ Special case, generated trees. `src/vs-code-agents/` and `src/copilot-cli/agents
 | Hook | Anchoring validator; runtime-contract tests (`tests/build_scripts/test_generate_hooks_runtime_contract.py`); keep `.claude/settings.json` and `.claude/hooks/hooks.json` in sync by hand |
 | Workflow | SHA-pin validation; yamllint style; local workflow run gate in pre-push (`SKIP_WORKFLOW_LOCAL_TEST` escape exists for unrunnable workflows; semantics in `ai-agents-config-catalog`) |
 | ADR / governance | `adr-review` debate to consensus; blocking `git_hook_policy.py adr-review` Lefthook job |
-| Any canonical-source edit | Drift gates: `python3 build/generate_agents.py --validate` and `python3 build/scripts/build_all.py --check`; CI mirrors in `agent-drift-detection.yml` and `drift-detection.yml` |
+| Any canonical-source edit | Drift gates: `uv run python build/generate_agents.py --validate` and `uv run python build/scripts/build_all.py --check`; CI mirrors in `agent-drift-detection.yml` and `drift-detection.yml` |
 
 Drift-gate bypass exists but is not free. `[skip-drift-check]` anywhere in a commit message on the PR skips agent drift detection (`.github/workflows/agent-drift-detection.yml:17`). Using it demands a stated reason and human approval; an unexplained bypass marker reads as the session 1187 escape-hatch abuse pattern (told in `references/incident-history.md`) and will be challenged in review.
 
@@ -119,7 +119,7 @@ Before you push, confirm:
 - [ ] `uv run python scripts/validation/pre_pr.py` exits 0
 - [ ] `uv run --frozen lefthook check-install` exits 0
 - [ ] Touched `.claude/`, `src/claude/`, or `src/copilot-cli/`? The matching `plugin.json` still carries no `version` field (`python3 build/scripts/validate_plugin_version_bump.py` exits 0)
-- [ ] Touched a canonical generation source? `python3 build/scripts/build_all.py --check` and `python3 build/generate_agents.py --validate` both pass
+- [ ] Touched a canonical generation source? `uv run python build/scripts/build_all.py --check` and `uv run python build/generate_agents.py --validate` both pass
 - [ ] Commit count under 20 (`git rev-list --count HEAD ^origin/main`), each commit 5 files or fewer
 - [ ] Created or edited an ADR or SESSION-PROTOCOL.md? `adr-review` gate acknowledged
 - [ ] No em or en dashes in changed files: `python3 -c "import sys; b=open(sys.argv[1],'rb').read(); print(b.count(chr(0x2014).encode())+b.count(chr(0x2013).encode()))" FILE` prints 0
@@ -128,4 +128,4 @@ Before you push, confirm:
 
 Authored 2026-07-03, facts re-verified against the working tree on 2026-07-30. A selected index of the drift-prone cited source lines, each paired with its re-verify command, is in `references/provenance.md`. Consult and update it when you edit this skill or any reference it points to.
 
-Maintenance rule: any edit to a cited source line number or ADR status invalidates the matching row. Re-run the re-verify command and update the row in the same commit. This file is plugin content, so regenerate the Copilot mirror (`python3 build/scripts/build_all.py`) in the same commit. No manifest bump: the manifests carry no version (ADR-092).
+Maintenance rule: any edit to a cited source line number or ADR status invalidates the matching row. Re-run the re-verify command and update the row in the same commit. This file is plugin content, so regenerate the Copilot mirror (`uv run python build/scripts/build_all.py`) in the same commit. No manifest bump: the manifests carry no version (ADR-092).
