@@ -45,6 +45,16 @@ hooks:
 
 ## Reference Implementations
 
+The following scripts are implemented and tested but are **not currently
+registered** in `.claude/settings.json`. They are available for manual
+invocation or future registration. Until they are wired, the memory system
+has no automatic ingestion, recall, or reinforcement path. All memories
+must be created through explicit commands.
+
 - `scripts/memory_enhancement/hooks/user_prompt_submit_memory.py` (auto-recall)
 - `scripts/memory_enhancement/hooks/post_tool_call_memory.py` (fact capture)
 - `scripts/memory_enhancement/hooks/session_end_memory.py` (reflection)
+
+To activate automatic memory pipelines, register each script under the
+appropriate Claude Code hook event (`UserPromptSubmit`, `PostToolUse`,
+and `Stop` respectively) in `.claude/settings.json`.

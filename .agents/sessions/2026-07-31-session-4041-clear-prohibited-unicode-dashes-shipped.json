@@ -1,0 +1,147 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4041,
+    "date": "2026-07-31",
+    "branch": "fix/plugin-tree-unicode-dashes",
+    "startingCommit": "cc828e820",
+    "objective": "Clear prohibited Unicode dashes from the shipped plugin trees and pin the result with a regression test"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions returned the Serena Instructions Manual; project already active for this worktree"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions output in transcript"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md (116 lines, read-only per ADR-014); no open handoff under .agents/sessions/handoffs for issue 4079"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file, created by .claude/skills/session-init/scripts/new_session_log.py"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/session-init/scripts/ and .claude/skills/session-end/scripts/ and .claude/skills/github/scripts/pr/ in transcript"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__read_memory usage-mandatory returned the skill-first incident log; content in context"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md language and skill-usage constraint sections"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__list_memories on topic 'unicode dashes plugin trees' returned no match; read usage-mandatory memory"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/plugin-tree-unicode-dashes"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/plugin-tree-unicode-dashes"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short clean at session start; only the two plugin manifests and this log modified during the session"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "cc828e820"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Every item in this section carries evidence"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read but untouched; git diff main...HEAD --stat does not list it"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote .serena/memories/unicode-dash-guard-scope-gap.md recording the markdown-only guard scope, the quotation procedure, and the worktree defect in complete_session_log.py"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 on the new memory reported 'Summary: 0 issues in 0 files' because .serena/** and .claude/skills/** are both in the config ignore list, so every markdown file this branch touches is out of its scope. Recorded as a no-op, not a pass. The check that does cover this content is the Em/en-dash Prohibition validator in pre_pr.py, which passed"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "18 commits on fix/plugin-tree-unicode-dashes, each five files or fewer, each carrying the Co-Authored-By trailer"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run python scripts/validation/pre_pr.py reports 'RESULT: All validations passed'; uv run pytest tests/evals/test_no_unicode_dashes.py tests/hooks/test_dash_guard.py tests/test_plugin_tree_no_unicode_dashes.py -q reports '43 passed in 0.63s'"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Ship task tracked by the orchestrating workflow, not by a repo task file"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not invoked: this session shipped an already-reviewed branch rather than producing new design decisions"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Remove U+2014 and U+2013 from the three shipped plugin roots and from .serena/memories",
+      "outcome": "22 source files edited sentence by sentence, 9 src/copilot-cli mirrors regenerated with build/scripts/build_all.py. 43 files changed across 16 commits.",
+      "evidence": "git diff main...HEAD --stat reports 43 files, 597 insertions, 379 deletions"
+    },
+    {
+      "task": "Preserve quotation fidelity where a dash sat inside quoted external text",
+      "outcome": "Zimmermann article titles and the three prompt-engineering paper quotations were re-cut rather than reworded, so no citation now misquotes its source.",
+      "evidence": "Commits dbc751247 and aea4fe1b6"
+    },
+    {
+      "task": "Settle the vendored-quotation policy the sweep exposed",
+      "outcome": "Added a Quotations clause to .claude/rules/universal.md MUST NOT item 5 and regenerated both instruction mirrors.",
+      "evidence": "Commit cc828e820; uv run python build/scripts/generate_rules.py reports no drift"
+    },
+    {
+      "task": "Pin the cleared state so the .py surface cannot regress",
+      "outcome": "Added tests/test_plugin_tree_no_unicode_dashes.py covering every file type under .claude, src/claude, and src/copilot-cli, not just markdown.",
+      "evidence": "uv run pytest tests/test_plugin_tree_no_unicode_dashes.py -q reports 30 passed in 0.54s"
+    },
+    {
+      "task": "Bump the parity manifests to the reserved slot",
+      "outcome": "Both .claude/.claude-plugin/plugin.json and src/copilot-cli/.claude-plugin/plugin.json set to 0.6.5479.",
+      "evidence": "uv run python build/scripts/validate_plugin_version_bump.py --base origin/main reports plugin-version-bump: OK"
+    }
+  ],
+  "endingCommit": "d82b847882b359fbfc84fc01efe7fd277b7c5fc1",
+  "nextSteps": [
+    "Widen the lefthook staged-dashes glob and scripts/validation/checks_dash.py past *.md so the .py surface is guarded at commit time, not only by the new pytest."
+  ]
+}

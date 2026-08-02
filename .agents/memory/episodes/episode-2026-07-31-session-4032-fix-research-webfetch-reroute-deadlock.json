@@ -1,0 +1,106 @@
+{
+  "id": "episode-2026-07-31-session-4032-fix-research-webfetch-reroute-deadlock",
+  "session": "2026-07-31-session-4032-fix-research-webfetch-reroute-deadlock",
+  "timestamp": "2026-07-31T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix /research WebFetch reroute deadlock by widening the command tool contract and adding a control-plane carve-out",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Widened .claude/commands/research.md allowed-tools so /research keeps a source path and can write its documented outputs when WebFetch is denied",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added two Fallback Rules to .claude/commands/research.md: route github.com through the github skill scripts, and treat a harness permission denial as a capability signal",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added a control-plane carve-out to .claude/skills/research-and-incorporate/SKILL.md and its references/workflow.md",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replaced the raw gh issue create block in references/workflow.md Phase 5 with the github skill new_issue.py script and a --body-file write",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added tests/commands/test_research_command_contract.py covering both the Claude source and the Copilot mirror",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Derived the SkillForge mirror skip in scripts/validation/git_hook_policy.py from .claude/commands instead of a hardcoded name list, and removed the duplicate list from lefthook.yml",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bumped .claude/.claude-plugin/plugin.json and src/copilot-cli/.claude-plugin/plugin.json to 0.6.5477",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-31T13:57:38+00:00",
+      "type": "commit",
+      "content": "Commit: 90c6dafca99864020ab7bb4a19b01162ae3c2fcd",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}

@@ -143,12 +143,20 @@ pre-commit:
             glob: "**/SKILL.md"
             exclude:
               - "evals/**"
-              - "src/copilot-cli/skills/{spec,plan,build,test,ship,checkpoint,pr-review,retro,sync}/SKILL.md"
+              # The generated command mirrors under src/copilot-cli/skills/ are
+              # skipped by _skip_skillforge_path in git_hook_policy.py, which
+              # derives them from .claude/commands/. Do not enumerate them here:
+              # a second copy of that list is what drifts.
 
           - name: skill-size
             timeout: 5m
             run: uv run --frozen python scripts/validation/skill_size.py --staged-only --ci
             glob: "**/SKILL.md"
+
+          - name: command-size
+            timeout: 5m
+            run: uv run --frozen python scripts/validation/command_size.py --changed-files {staged_files} --ci
+            glob: ".claude/commands/*.md"
 
           - name: planning-advisory
             timeout: 5m
