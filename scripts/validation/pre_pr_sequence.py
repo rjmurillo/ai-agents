@@ -9,7 +9,7 @@
 # ``pre_pr.py`` for the same ceiling, which reset the count without reducing
 # anything. A second extraction would do the same. The real fix is a
 # table-driven registry (issue #4285), which is out of scope for the change
-# that crossed the line. The file crossed the 500 line ceiling at 509 lines.
+# that crossed the line.
 """Ordered pre-PR validation sequence (extracted from ``pre_pr.py``, Issue #3073).
 
 Holds ``run_all_validations``: the ordered list of ``run_validation`` calls that
