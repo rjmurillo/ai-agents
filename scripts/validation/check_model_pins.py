@@ -552,7 +552,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _vet_baseline(repo_root: Path, baseline: Path) -> bool:
     """Return True if baseline fails any integrity guard (caller should return 2)."""
-    return (
+    return bool(
         refuse_symlinked_baseline(repo_root, baseline)
         or refuse_undiffable_baseline(repo_root, baseline)
         or refuse_oversized_baseline(baseline)
