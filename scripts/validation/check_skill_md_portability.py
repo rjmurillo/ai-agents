@@ -616,7 +616,7 @@ def _resolve_root(repo_root: Path | None) -> Path:
     return _common_resolve_root(repo_root, Path(__file__).resolve(), require_repo_marker=False)
 
 
-def _resolve_baseline_path(root: Path, baseline: Path | None) -> Path:
+def _resolve_baseline_path(root: Path, baseline: Path | None) -> Path | None:
     return _common_resolve_baseline_path(
         root, baseline, _DEFAULT_BASELINE_NAME, reject_outside_root=True
     )
@@ -757,7 +757,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Required skills dir not found under {root}: {absent}", file=sys.stderr)
         return 2
     baseline_path = _resolve_baseline_path(root, args.baseline)
-    if baseline_path == Path(""):
+    if baseline_path is None:
         print(
             f"--baseline path is outside the repository root, rejecting: {args.baseline}",
             file=sys.stderr,

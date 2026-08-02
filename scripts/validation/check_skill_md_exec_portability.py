@@ -190,54 +190,56 @@ def _iter_skill_files(root: Path) -> list[Path]:
     return sorted(dict.fromkeys(paths))
 
 
-def scan_skill_execs(repo_root: Path) -> dict[str, int]:
-    """Return {relative_posix_path: count} for skill Markdown with >0 invocations.
+def scan_all(repo_root: Path) -> tuple[dict[str, int], dict[str, int], dict[str, int]]:
+    """Scan all skill Markdown files in one traversal.
 
-    Paths are relative to the repo root and POSIX-normalized for cross-OS
-    stability. Files that self-declare via the marker contribute 0 and are
-    omitted. Scan roots that do not exist are skipped.
+    Returns (exec_counts, marker_counts, files_by_root). A single walk ensures
+    the coverage decision and the baseline contents come from the same snapshot,
+    so a concurrent tree mutation cannot produce a short baseline that passes the
+    coverage check.
     """
-    counts: dict[str, int] = {}
+    exec_counts: dict[str, int] = {}
+    marker_counts: dict[str, int] = {}
+    files_by_root: dict[str, int] = {}
     for parts in SCAN_ROOTS:
+        root_name = "/".join(parts)
         root = repo_root.joinpath(*parts)
         if not root.is_dir():
+            files_by_root[root_name] = 0
             continue
-        for path in _iter_skill_files(root):
+        files = _iter_skill_files(root)
+        files_by_root[root_name] = len(files)
+        for path in files:
             try:
                 text = path.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError) as exc:
                 raise OSError(f"Failed to read skill file {path}: {exc}") from exc
+            rel = path.relative_to(repo_root).as_posix()
             n = count_file_invocations(text)
             if n > 0:
-                counts[path.relative_to(repo_root).as_posix()] = n
-    return counts
+                exec_counts[rel] = n
+            m = count_marker_suppressed_invocations(text)
+            if m > 0:
+                marker_counts[rel] = m
+    return exec_counts, marker_counts, files_by_root
+
+
+def scan_skill_execs(repo_root: Path) -> dict[str, int]:
+    """Return {relative_posix_path: count} for skill Markdown with >0 invocations."""
+    exec_counts, _, _ = scan_all(repo_root)
+    return exec_counts
 
 
 def scanned_files_by_root(repo_root: Path) -> dict[str, int]:
-    """Return per-root skill-file counts, absent roots as zero.
-
-    A sum hides one starved root behind a positive total.
-    """
-    dirs = {"/".join(p): repo_root.joinpath(*p) for p in SCAN_ROOTS}
-    return {n: len(_iter_skill_files(d)) if d.is_dir() else 0 for n, d in dirs.items()}
+    """Return per-root skill-file counts, absent roots as zero."""
+    _, _, files_by_root = scan_all(repo_root)
+    return files_by_root
 
 
 def scan_marker_suppressions(repo_root: Path) -> dict[str, int]:
     """Return marker-suppressed invocation counts across every scan root."""
-    counts: dict[str, int] = {}
-    for parts in SCAN_ROOTS:
-        root = repo_root.joinpath(*parts)
-        if not root.is_dir():
-            continue
-        for path in _iter_skill_files(root):
-            try:
-                text = path.read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError) as exc:
-                raise OSError(f"Failed to read skill file {path}: {exc}") from exc
-            n = count_marker_suppressed_invocations(text)
-            if n > 0:
-                counts[path.relative_to(repo_root).as_posix()] = n
-    return counts
+    _, marker_counts, _ = scan_all(repo_root)
+    return marker_counts
 
 
 def _load_baseline(path: Path) -> dict[str, int]:
@@ -456,9 +458,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        current = scan_skill_execs(root)
-        marker_current = scan_marker_suppressions(root)
-        scanned_by_root = scanned_files_by_root(root)
+        current, marker_current, scanned_by_root = scan_all(root)
     except OSError as exc:
         print(f"Could not scan skill files under {root}: {exc}", file=sys.stderr)
         return 2
