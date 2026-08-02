@@ -1,0 +1,124 @@
+{
+  "id": "episode-2026-07-30-session-3991-dedupe-copilot-gotchas",
+  "session": "2026-07-30-session-3991-dedupe-copilot-gotchas",
+  "timestamp": "2026-07-30T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Move the Copilot inline gotchas into .agents/governance/GOTCHAS.md so the three always-on entry points cite one source",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Establish that .github/copilot-instructions.md is always-on and unmeasured",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Confirm the duplication before moving anything",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Move the three unique entries into GOTCHAS.md",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replace the inline section with a pointer",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 0d610bc2f7d43f531d8a9fa9c03854fbca7a6b4e",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The PR description gate failed on this very PR for three paths that were references rather than change claims, which is the trap the entry I had just written was supposed to prevent.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The entry was missing the two load-bearing constraints: the citation cue must sit immediately before the path, and the backtick span must end at the extension, so a span carrying trailing flags is not suppressible.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added the offline reproduction recipe instead of only the rule. extract_mentioned_files imports and runs against a candidate body, which turns a round trip through CI into a one-second check.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bot review flagged the taste-lints gotcha as implying directories are unsupported. Verified against the argparse block: --directory / -d exists, along with --git-staged and --diff-scope. The bot is right and my entry was imprecise.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced both behaviours before rewriting. A positional directory prints '0 files scanned, no violations found' and exits 0; --directory on the same path scans 4 files and reports the warning. The trap is the positional form specifically, not directories.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rewrote the entry to name the trap and the supported remedy, and to point at the file count in the output line as the only thing distinguishing a real pass from the no-op.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added two gotchas learned while running negative controls on the eval parser. First: git checkout on a source file to revert a sabotage discards every other uncommitted change in that file, which destroyed two in-progress fixes in one run. Copy the file aside instead.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Second: the pre-push hook hard-fails above 20 commits ahead of origin/main and only runs at push time, so a long branch finds the ceiling after the work is committed. Recorded the mid-session check and why squashing is often the wrong repair, since the five-file atomic rule then makes the collapsed commit a different violation.",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 4
+  },
+  "lessons": []
+}

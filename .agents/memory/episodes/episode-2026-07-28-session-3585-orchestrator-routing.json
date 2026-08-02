@@ -1,0 +1,152 @@
+{
+  "id": "episode-2026-07-28-session-3585-orchestrator-routing",
+  "session": "2026-07-28-session-3585-orchestrator-routing",
+  "timestamp": "2026-07-28T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Decide which unrouted agents earn orchestrator matrix rows and implement only the justified routes.",
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "test",
+      "context": "Selected 5 agents for rows: backlog-generator, debug, dependency-auditor, pr-test-analyzer, silent-failure-hunter. Excluded 7 candidate agents because they are skill-first routes, subsets of existing routed agents, or outside engineering orchestration.",
+      "chosen": "Selected 5 agents for rows: backlog-generator, debug, dependency-auditor, pr-test-analyzer, silent-failure-hunter. Excluded 7 candidate agents because they are skill-first routes, subsets of existing routed agents, or outside engineering orchestration.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured current main: 29 shared agent templates, 18 orchestrator rows, 13 template agents absent from the matrix. Excluding orchestrator itself leaves 12 candidates.",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "No live model proof was available because ANTHROPIC_API_KEY was unset. Static evidence uses realistic request phrases against the committed routing matrix and installed prompt files.",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Selected 5 agents for rows: backlog-generator, debug, dependency-auditor, pr-test-analyzer, silent-failure-hunter. Excluded 7 candidate agents because they are skill-first routes, subsets of existing routed agents, or outside engineering orchestration.",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added src/claude/backlog-generator.md because adding a row without the Claude source prompt made src/claude/orchestrator route to a missing agent.",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured always-on orchestrator prompt growth: each orchestrator surface grew by 451 bytes, for 2706 bytes across six committed surfaces.",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Revert check in sibling worktree ai-agents-3585-revert restored orchestrator surfaces to origin/main while keeping tests. Result: all 30 tests failed.",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-28T02:54:42+00:00",
+      "type": "commit",
+      "content": "Commit: 66104786",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-28T02:46:32+00:00",
+      "type": "commit",
+      "content": "Commit: a0a72acf",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e011"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-28T02:50:29+00:00",
+      "type": "commit",
+      "content": "Commit: 9d72ccbd",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-28T02:53:10+00:00",
+      "type": "commit",
+      "content": "Commit: 55a4c25e",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Learnings captured: routing rows must be sparse and request-shaped. A row earns its bytes only when a realistic request maps to a distinct installed agent and no cheaper skill-first path owns it.",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ]
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 4,
+    "files_changed": 2
+  },
+  "lessons": []
+}

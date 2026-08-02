@@ -177,7 +177,7 @@ class TestRealRepoArtifacts:
 
 class TestMain:
     def test_exit_0_when_clean(self, capsys):
-        agents_dir = _PROJECT_ROOT / ".pytest-tmp" / "frontmatter-clean"
+        agents_dir = _PROJECT_ROOT / ".pytest_tmp" / "frontmatter-clean"
         agents_dir.mkdir(parents=True, exist_ok=True)
         for path in agents_dir.glob("*.agent.md"):
             path.unlink()
@@ -189,7 +189,7 @@ class TestMain:
             shutil.rmtree(agents_dir, ignore_errors=True)
 
     def test_exit_1_when_malformed(self, capsys):
-        agents_dir = _PROJECT_ROOT / ".pytest-tmp" / "frontmatter-malformed"
+        agents_dir = _PROJECT_ROOT / ".pytest_tmp" / "frontmatter-malformed"
         agents_dir.mkdir(parents=True, exist_ok=True)
         for path in agents_dir.glob("*.agent.md"):
             path.unlink()

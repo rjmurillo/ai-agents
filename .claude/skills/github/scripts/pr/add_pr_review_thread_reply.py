@@ -22,9 +22,9 @@ import sys
 import warnings
 from pathlib import Path
 
-_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
-if _plugin_root:
+if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
     _lib_dir = os.path.join(_plugin_root, "lib")
 elif _workspace:
     _lib_dir = os.path.join(_workspace, ".claude", "lib")
@@ -44,6 +44,7 @@ from github_core.api import (  # noqa: E402
     error_and_exit,
     gh_graphql,
 )
+from github_core.validation import inline_body_error
 
 _REPLY_MUTATION = """\
 mutation($threadId: ID!, $body: String!) {
@@ -106,8 +107,9 @@ def main(argv: list[str] | None = None) -> int:
         error_and_exit("Invalid ThreadId format. Expected PRRT_... format.", 2)
 
     body = _resolve_body(args)
-    if not body or not body.strip():
-        error_and_exit("Body cannot be empty.", 2)
+    body_error = inline_body_error(body)
+    if body_error:
+        error_and_exit(body_error, 2)
 
     assert_gh_authenticated()
 

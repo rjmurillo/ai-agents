@@ -7,6 +7,7 @@ output formatting, path validation, and CLI behavior.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -96,6 +97,30 @@ class TestParseYamlFrontMatter:
         assert len(spec.related) == 2
         assert "REQ-001" in spec.related
         assert "REQ-002" in spec.related
+
+    def test_inline_related_array(self, tmp_path: Path) -> None:
+        f = tmp_path / "TASK-009.md"
+        f.write_text(
+            "---\ntype: task\nid: TASK-009\nrelated: [REQ-009, DESIGN-009]\n---\n",
+            encoding="utf-8",
+        )
+
+        spec = parse_yaml_front_matter(f)
+
+        assert spec is not None
+        assert spec.related == ["REQ-009", "DESIGN-009"]
+
+    def test_lowercase_id_suffixes(self, tmp_path: Path) -> None:
+        f = _create_spec_file(
+            tmp_path, "TASK-a02.md", "task", "TASK-a02",
+            related=["DESIGN-a02"],
+        )
+
+        spec = parse_yaml_front_matter(f)
+
+        assert spec is not None
+        assert spec.spec_id == "TASK-a02"
+        assert spec.related == ["DESIGN-a02"]
 
     def test_no_related_field(self, tmp_path: Path) -> None:
         f = tmp_path / "simple.md"
@@ -420,6 +445,48 @@ class TestMain:
         result = main(["--specs-path", str(tmp_path)])
         assert result == 0
 
+    def test_inline_related_chain_returns_zero(self, tmp_path: Path) -> None:
+        req_dir = tmp_path / "requirements"
+        req_dir.mkdir()
+        design_dir = tmp_path / "design"
+        design_dir.mkdir()
+        task_dir = tmp_path / "tasks"
+        task_dir.mkdir()
+        _create_spec_file(req_dir, "REQ-009.md", "requirement", "REQ-009")
+        (design_dir / "DESIGN-009.md").write_text(
+            "---\ntype: design\nid: DESIGN-009\nrelated: [REQ-009]\n---\n",
+            encoding="utf-8",
+        )
+        (task_dir / "TASK-009.md").write_text(
+            "---\ntype: task\nid: TASK-009\nrelated: [REQ-009, DESIGN-009]\n---\n",
+            encoding="utf-8",
+        )
+
+        result = main(["--specs-path", str(tmp_path), "--ci"])
+
+        assert result == 0
+
+    def test_lowercase_suffix_chain_returns_zero(self, tmp_path: Path) -> None:
+        req_dir = tmp_path / "requirements"
+        req_dir.mkdir()
+        design_dir = tmp_path / "design"
+        design_dir.mkdir()
+        task_dir = tmp_path / "tasks"
+        task_dir.mkdir()
+        _create_spec_file(req_dir, "REQ-a02.md", "requirement", "REQ-a02")
+        _create_spec_file(
+            design_dir, "DESIGN-a02.md", "design", "DESIGN-a02",
+            related=["REQ-a02"],
+        )
+        _create_spec_file(
+            task_dir, "TASK-a02.md", "task", "TASK-a02",
+            related=["DESIGN-a02"],
+        )
+
+        result = main(["--specs-path", str(tmp_path), "--ci"])
+
+        assert result == 0
+
     def test_errors_return_one(self, tmp_path: Path) -> None:
         task_dir = tmp_path / "tasks"
         task_dir.mkdir()
@@ -466,3 +533,37 @@ class TestMain:
         with pytest.raises(SystemExit) as exc_info:
             main(["--specs-path", "/nonexistent/path/xyz"])
         assert exc_info.value.code == 2
+
+
+# ---------------------------------------------------------------------------
+# Issue #3657: `pre_pr.py` runs this script by file path via `sys.executable`.
+# Under a bare `python3` the repo root is not on `sys.path`, so the module-level
+# `from scripts.github_core.repo import ...` raised ModuleNotFoundError and every
+# contributor saw a false `[FAIL] Traceability` on every run.
+# ---------------------------------------------------------------------------
+
+
+def test_the_script_imports_when_run_by_path_from_an_unrelated_cwd(
+    tmp_path: Path,
+) -> None:
+    import subprocess
+    import sys as _sys
+
+    script = Path(__file__).resolve().parents[1] / "scripts" / "validation" / "traceability.py"
+    result = subprocess.run(
+        # -S skips site processing, so the venv's editable-install .pth does not
+        # put the repo root on sys.path. That is what a contributor's bare
+        # `python3` looks like, and it is what `sys.executable` gave pre_pr.py.
+        [_sys.executable, "-S", str(script), "--specs-path", str(tmp_path / "absent")],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        # Windows CI defaults to cp1252 here, which can crash the reader thread
+        # on UTF-8 output. Pin the codec the way the rest of the suite does.
+        encoding="utf-8",
+        errors="replace",
+        env={"PATH": os.environ.get("PATH", ""), "HOME": str(tmp_path)},
+    )
+    combined = result.stdout + result.stderr
+    assert "ModuleNotFoundError" not in combined, combined
+    assert "No module named 'scripts'" not in combined, combined

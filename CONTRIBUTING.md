@@ -848,13 +848,16 @@ PRs with many commits often indicate scope creep or should be split into smaller
 |--------------|--------|---------------|
 | 10 commits | Warning notice in PR | `needs-split` |
 | 15 commits | Alert warning in PR | `needs-split` |
-| 20 commits | PR blocked from merge | `needs-split` |
+| Above active limit | PR blocked from merge | `needs-split` |
 
 #### What This Means
 
 - **10 commits**: The workflow adds a notice. Consider whether the PR should be split.
 - **15 commits**: The workflow adds an alert. Splitting is strongly recommended.
-- **20 commits**: The workflow blocks the PR. You MUST either split the PR or add the `commit-limit-bypass` label.
+- **Above active limit**: The workflow blocks the PR. You MUST either split the PR or add the `commit-limit-bypass` label.
+
+The active limit is 20 by default. Validation may raise it to 40 after detecting
+a qualifying base merge. Exactly 20 or 40 commits remains an alert, not a block.
 
 #### Handling `needs-split` Labels
 
@@ -875,7 +878,7 @@ When encountering a PR with the `needs-split` label:
 
 #### Bypassing the Limit
 
-To bypass the 20-commit block:
+To bypass the active commit limit:
 
 1. A human maintainer MUST add the `commit-limit-bypass` label
 2. The bypass is visible in the PR labels and auditable

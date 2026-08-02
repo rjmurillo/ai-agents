@@ -1219,7 +1219,7 @@ EXIT_CODE=$?
 # Handle timeout (exit code 7)
 if [ "$EXIT_CODE" -eq 7 ]; then
   echo "[BLOCKED] Timeout waiting for CI checks to complete"
-  echo "  Pending: $(echo "$CHECKS" | jq '.PendingCount') check(s) still running"
+  echo "  Pending: $(echo "$CHECKS" | jq '.Data.PendingCount') check(s) still running"
   exit 1
 fi
 
@@ -1229,16 +1229,29 @@ if [ "$(echo "$CHECKS" | jq -r '.Success')" != "true" ]; then
   exit 1
 fi
 
+# Handle merge refs GitHub could not build. In that state most workflows may
+# not have run, so a small green check set is not evidence.
+if [ "$(echo "$CHECKS" | jq -r '.Data.MergeRefUsable')" = "false" ]; then
+  echo "[BLOCKED] PR merge ref cannot be built, so CI status is incomplete"
+  exit 1
+fi
+
 # Check for failures
-FAILED_COUNT=$(echo "$CHECKS" | jq '.FailedCount')
+ALL_PASSING=$(echo "$CHECKS" | jq -r '.Data.AllPassing')
+FAILED_COUNT=$(echo "$CHECKS" | jq '.Data.FailedCount')
 if [ "$FAILED_COUNT" -gt 0 ]; then
   echo "[BLOCKED] $FAILED_COUNT CI check(s) not passing:"
-  echo "$CHECKS" | jq -r '.Checks[] | select(.Conclusion != "SUCCESS" and .Conclusion != "NEUTRAL" and .Conclusion != "SKIPPED") | "  - \(.Name): \(.Conclusion)\n    Details: \(.DetailsUrl)"'
+  echo "$CHECKS" | jq -r '.Data.Checks[] | select(.Conclusion != "SUCCESS" and .Conclusion != "NEUTRAL" and .Conclusion != "SKIPPED") | "  - \(.Name): \(.Conclusion)\n    Details: \(.DetailsUrl)"'
+  # Do NOT claim completion - return to Phase 6 for fixes
+  exit 1
+fi
+if [ "$ALL_PASSING" != "true" ]; then
+  echo "[BLOCKED] CI checks are not all passing"
   # Do NOT claim completion - return to Phase 6 for fixes
   exit 1
 fi
 
-PASSED_COUNT=$(echo "$CHECKS" | jq '.PassedCount')
+PASSED_COUNT=$(echo "$CHECKS" | jq '.Data.PassedCount')
 echo "[PASS] All CI checks passing ($PASSED_COUNT checks)"
 ```
 
@@ -1260,7 +1273,7 @@ echo "[PASS] All CI checks passing ($PASSED_COUNT checks)"
 |-----------|-------|--------|
 | All comments resolved | `grep -c -e "^\*\*Status\*\*: \[COMPLETE\]" -e "^\*\*Status\*\*: \[WONTFIX\]"` equals total | [ ] |
 | No new comments | Re-check returned 0 new | [ ] |
-| CI checks pass | `get_pr_checks.py --pull-request [number]` AllPassing = true | [ ] |
+| CI checks pass | `get_pr_checks.py --pull-request [number]` MergeRefUsable = true and AllPassing = true | [ ] |
 | No unresolved threads | `gh pr view --json reviewThreads` all resolved | [ ] |
 | Commits pushed | `git status` shows "up to date with origin" | [ ] |
 

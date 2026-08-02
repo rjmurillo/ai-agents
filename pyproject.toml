@@ -66,6 +66,7 @@ addopts = "-v --tb=short --import-mode=importlib"
 markers = [
     "unit: Unit tests",
     "integration: Integration tests",
+    "safe_push_transport: Safe-push tests that touch a non-local transport and are excluded from pre-push.",
     "security: Security-focused tests",
     "smoke: Real-CLI smoke tests (need auth/credits; nightly only). The smoke gate asserts these were not skipped (issue #2231 item 4).",
 ]
@@ -106,9 +107,13 @@ ignore = []
 "scripts/eval/eval-knowledge-integration.py" = ["E501"]
 # sys.path manipulation required before imports for plugin-context path resolution
 ".claude/skills/github/scripts/**/*.py" = ["E402"]
+# Validation runners use sys.path.insert() before importing sibling modules
+"scripts/validation/pre_pr.py" = ["E402", "F401"]
+"scripts/validation/pre_pr_sequence.py" = ["E402"]
 # Test files use sys.path.insert() before importing modules under test
 "tests/hooks/**/*.py" = ["E402"]
 "tests/skills/**/*.py" = ["E402"]
+"tests/validation/**/*.py" = ["E402"]
 # ANN suppression for test files (annotations not required in tests)
 "tests/**/*.py" = ["ANN"]
 "**/tests/**/*.py" = ["ANN"]

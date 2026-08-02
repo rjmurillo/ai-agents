@@ -20,6 +20,11 @@
       "format": "date-time",
       "description": "Episode creation timestamp"
     },
+    "causal_order_version": {
+      "type": "integer",
+      "minimum": 2,
+      "description": "Version of the rule that generated caused_by and leads_to event links."
+    },
     "outcome": {
       "type": "string",
       "enum": ["success", "partial", "failure"],
@@ -102,6 +107,10 @@
             "type": "array",
             "items": { "type": "string" },
             "description": "IDs of decisions/events this leads to"
+          },
+          "_source_session": {
+            "type": "string",
+            "description": "Session ID that produced this event; used by --preserve to evict cross-session contamination (issue #4024)"
           }
         }
       }

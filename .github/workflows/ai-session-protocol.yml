@@ -87,70 +87,7 @@ jobs:
           # Issue #215: Session End checklist requirement introduced 2025-12-21
           # Historical sessions before this date are exempt from validation
           CUTOFF_DATE: "2025-12-21"
-        run: |
-          # Use files API instead of gh pr diff (no line limit - fixes issue #468)
-          # Include both .md (legacy) and .json (new format).
-          # Pattern requires YYYY-MM-DD-session-NN prefix to exclude tally
-          # files like STEP-0-METRICS.md that live alongside session logs.
-          ALL_CHANGED=$(gh api "repos/$GH_REPO/pulls/$PR_NUMBER/files" --paginate --jq '.[].filename' | grep -E '^\.agents/sessions/[0-9]{4}-[0-9]{2}-[0-9]{2}-session-[0-9]+.*\.(md|json)$' || true)
-
-          if [ -z "$ALL_CHANGED" ]; then
-            echo "No session files changed"
-            echo "has_sessions=false" >> "$GITHUB_OUTPUT"
-            echo "session_files=[]" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          echo "All changed session files:"
-          echo "$ALL_CHANGED"
-
-          # Filter out historical sessions (issue #215)
-          # Session filename pattern: YYYY-MM-DD-session-NN.md or YYYY-MM-DD-session-NN-description.md
-          CHANGED_FILES=""
-          SKIPPED_FILES=""
-          while IFS= read -r file; do
-            # Extract date from filename (first 10 characters after path)
-            filename=$(basename "$file")
-            file_date="${filename:0:10}"
-
-            # Validate date format (YYYY-MM-DD)
-            if [[ "$file_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
-              if [[ "$file_date" < "$CUTOFF_DATE" ]]; then
-                SKIPPED_FILES="${SKIPPED_FILES}${file}"$'\n'
-              else
-                CHANGED_FILES="${CHANGED_FILES}${file}"$'\n'
-              fi
-            else
-              # Non-standard filename, include for validation
-              CHANGED_FILES="${CHANGED_FILES}${file}"$'\n'
-            fi
-          done <<< "$ALL_CHANGED"
-
-          # Remove trailing newlines
-          CHANGED_FILES=$(echo "$CHANGED_FILES" | sed '/^$/d')
-          SKIPPED_FILES=$(echo "$SKIPPED_FILES" | sed '/^$/d')
-
-          if [ -n "$SKIPPED_FILES" ]; then
-            echo ""
-            echo "Skipped historical sessions (before $CUTOFF_DATE):"
-            echo "$SKIPPED_FILES"
-          fi
-
-          if [ -z "$CHANGED_FILES" ]; then
-            echo ""
-            echo "No validatable session files (all historical)"
-            echo "has_sessions=false" >> "$GITHUB_OUTPUT"
-            echo "session_files=[]" >> "$GITHUB_OUTPUT"
-          else
-            echo ""
-            echo "Session files to validate:"
-            echo "$CHANGED_FILES"
-            echo "has_sessions=true" >> "$GITHUB_OUTPUT"
-
-            # Convert to JSON array for matrix
-            JSON_ARRAY=$(echo "$CHANGED_FILES" | jq -R -s -c 'split("\n") | map(select(length > 0))')
-            echo "session_files=$JSON_ARRAY" >> "$GITHUB_OUTPUT"
-          fi
+        run: python3 scripts/ci/detect_session_logs.py
 
 # Validate each session file in parallel using matrix strategy
 
@@ -177,118 +114,20 @@ jobs:
           # The three-dot diff syntax (origin/main...HEAD) needs merge-base
           git fetch origin main --unshallow || git fetch origin main
 
+      # Issue #3806: this job spawns scripts/validate_session_json.py, which
+      # imports jsonschema at module level. Bare python3 resolved it only
+      # because the runner image happened to carry the package; jsonschema
+      # appears nowhere in the ubuntu-24.04-arm manifest, so an image re-roll
+      # would turn the verdict into a ModuleNotFoundError traceback. uv
+      # installs the version already locked in uv.lock.
+      - name: Setup uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+
       - name: Validate Session Protocol
         id: validate
-        shell: pwsh
         env:
           SESSION_FILE: ${{ matrix.session_file }}
-        run: |
-          $sessionFile = $env:SESSION_FILE
-
-          # Check if file exists (may have been deleted in a later commit)
-          if (-not (Test-Path $sessionFile)) {
-            Write-Host "File $sessionFile was deleted - skipping validation"
-            $mdResult = "# Session Validation: $sessionFile`n`nResult: SKIPPED (file deleted)`n"
-            $mdResult | Out-File -FilePath "validation-result.md" -Encoding UTF8
-
-            # Create verdict files for reporting
-            New-Item -Path "validation-results" -ItemType Directory -Force | Out-Null
-            $baseName = [System.IO.Path]::GetFileNameWithoutExtension($sessionFile)
-            "SKIPPED" | Out-File -FilePath "validation-results/$baseName-verdict.txt" -Encoding UTF8
-            "0" | Out-File -FilePath "validation-results/$baseName-must-failures.txt" -Encoding UTF8
-
-            exit 0
-          }
-
-          $extension = [System.IO.Path]::GetExtension($sessionFile)
-
-          # Use appropriate validator based on file type
-          if ($extension -eq '.json') {
-            # JSON format - simple schema validation
-            # --json-output leaves stdout human-readable and writes a
-            # machine-readable summary the MUST counter below can trust.
-            # --scope-from-git: a log already in the merge base is being
-            # edited, not claimed. No edit can make "markdownlint ran" true
-            # for a session that already ended, so it is validated as a
-            # record (issue #3385). The rule lives in
-            # scripts/validation/session_scope.py, shared with the git hook,
-            # so the two cannot disagree (ADR-006: no logic in YAML).
-            $result = & python3 ./scripts/validate_session_json.py $sessionFile --scope-from-git --json-output validation-summary.json 2>&1
-            $exitCode = $LASTEXITCODE
-            $format = 'JSON'
-          } else {
-            # Markdown session logs are no longer supported. The session-migration
-            # skill and its PowerShell converter wrapper were sunset in PR #2359
-            # (refs #1946); session-init now emits JSON at creation. Fail fast with
-            # an actionable message instead of running a phantom converter (issue #2384).
-            $result = @(
-              "Markdown session logs are no longer supported.",
-              "session-init now emits JSON; convert this file to JSON or remove it from the PR.",
-              "See PR #2359 and issue #2384 for context."
-            )
-            $exitCode = 1
-            $format = 'Markdown (unsupported)'
-          }
-          
-          $fileName = Split-Path $sessionFile -Leaf
-          $status = if ($exitCode -eq 0) { 'PASS' } else { 'FAIL' }
-
-          # Echo the findings into the job log. This is a blocking gate, so a
-          # contributor opening a red check has to be able to read why it failed
-          # without downloading an artifact (issue #3364).
-          if ($exitCode -ne 0) {
-            Write-Host "::group::Session validation findings for $fileName"
-            $result | ForEach-Object { Write-Host $_ }
-            Write-Host "::endgroup::"
-          }
-
-          # Save output for the artifact
-          $result | Out-File -FilePath "validation-result.md" -Encoding UTF8
-          
-          # Create simplified results directory
-          New-Item -ItemType Directory -Force -Path "validation-results" | Out-Null
-
-          # Include parent directory to prevent collisions (e.g., sessions vs archive)
-          $fileInfo = Get-Item $env:SESSION_FILE
-          $parentDir = $fileInfo.Directory.Name
-          $baseName = [System.IO.Path]::GetFileNameWithoutExtension($fileInfo.Name)
-          $fileName = "${parentDir}-${baseName}"
-
-          # Set output for artifact naming
-          "artifact-name=$fileName" >> $env:GITHUB_OUTPUT
-          
-          # Determine verdict based on exit code
-          $verdict = if ($exitCode -eq 0) { "COMPLIANT" } else { "NON_COMPLIANT" }
-          $verdict | Out-File -FilePath "validation-results/${fileName}-verdict.txt" -Encoding UTF8
-          
-          # Save markdown output
-          $result | Out-File -FilePath "validation-results/${fileName}-findings.txt" -Encoding UTF8
-          
-          # Read the MUST failure count from the validator's own summary.
-          # The previous regex looked for a markdown table this validator has
-          # never emitted, so the count was structurally pinned at 0 and the
-          # "Enforce MUST Requirements" step below was decorative (issue #3365).
-          $mustFailCount = 0
-          if (Test-Path "validation-summary.json") {
-            $summary = Get-Content "validation-summary.json" -Raw | ConvertFrom-Json
-            $mustFailCount = [int]$summary.must_failures
-          } elseif ($exitCode -ne 0) {
-            # No summary means the validator died before writing one (unsupported
-            # format, crash). Fail closed with 1 rather than report a confident 0:
-            # the "Enforce MUST Requirements" step tests `-gt 0`, so any sentinel
-            # at or below zero would read as "nothing to enforce".
-            Write-Host "::warning::No validation summary produced; assuming a MUST failure"
-            $mustFailCount = 1
-          }
-          $mustFailCount | Out-File -FilePath "validation-results/${fileName}-must-failures.txt" -Encoding UTF8
-          
-          Write-Host "Validation complete for $env:SESSION_FILE"
-          Write-Host "  Verdict: $verdict"
-          Write-Host "  MUST failures: $mustFailCount"
-          Write-Host "  Exit code: $exitCode"
-          
-          # Exit with same code as validation script
-          exit $exitCode
+        run: uv run --frozen python3 scripts/ci/validate_session_protocol.py
 
       - name: Upload validation results
         if: always()

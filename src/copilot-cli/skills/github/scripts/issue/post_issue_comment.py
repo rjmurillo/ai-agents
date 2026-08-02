@@ -24,9 +24,9 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
-if _plugin_root:
+if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
     _lib_dir = os.path.join(_plugin_root, "lib")
 elif _workspace:
     _lib_dir = os.path.join(_workspace, ".claude", "lib")
@@ -51,6 +51,7 @@ from github_core.output import (  # noqa: E402
     get_output_format,
     write_skill_output,
 )
+from github_core.validation import inline_body_error
 
 _SCRIPT_NAME = "post_issue_comment.py"
 
@@ -183,8 +184,9 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
             error_and_exit(f"Body file not found: {args.body_file}", 2)
         body = body_path.read_text(encoding="utf-8")
 
-    if not body or not body.strip():
-        error_and_exit("Body cannot be empty.", 2)
+    body_error = inline_body_error(body)
+    if body_error:
+        error_and_exit(body_error, 2)
 
     # Marker / idempotency check
     if args.marker:

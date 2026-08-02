@@ -223,6 +223,10 @@ output requirements.
 | Over-engineering | Complexity without value | Start simple |
 | Missing WHY | Cannot evolve | Document rationale |
 | Invalid frontmatter | Cannot package | Use allowed properties only |
+| Restating pre-trained knowledge | The model already knows SOLID, Clean Code, and the refactoring catalog. Restating it adds tokens and buys no behavior change. | Write only what the model cannot know: repo gotchas, local conventions, post-cutoff APIs |
+| Body loaded when the description would do | The description is always visible; the body is not. If the body only elaborates the description, it is never the reason the skill worked. | Put the decision rule in the description, the depth in `references/` |
+| Adding to always-on context | Passive context is billed on every request forever, whether or not the task needs it | Progressive disclosure by default; measure with `scripts/validation/instruction_budget.py` before proposing always-on text. The reasoning, the admission test, and the measured evidence are in `context-optimizer/references/model-context-doctrine.md` |
+| Negative rule pileup | Long "never do X" lists cause overconstraint; the model optimizes for the prohibitions over the task | State the goal and the one costly failure to avoid; keep hard rules for genuinely expensive mistakes |
 
 ---
 
@@ -240,6 +244,8 @@ After creation:
 - [ ] No bare `.claude/skills/...` exec path in the generated `SKILL.md`; script invocations use the portable `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/...` form (see `docs/SKILL-AUTHORING.md`, "Portable Script Invocations")
 - [ ] Reference links resolve
 - [ ] Scripts self-verify when scripts are present
+- [ ] Every claim in the body is something the model could not already know. Generic engineering knowledge moved to `references/` or deleted
+- [ ] Body earns its length: if the description alone would produce the same behavior, cut the body down to what it adds
 
 ---
 

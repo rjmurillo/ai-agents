@@ -36,7 +36,7 @@ jobs:
             memories:
               - '.serena/memories/**'
             code:
-              - '.claude/skills/memory-enhancement/src/memory_enhancement/**'
+              - 'scripts/memory_enhancement/**'
               - 'scripts/**/*.py'
               - 'pyproject.toml'
               - 'uv.lock'
@@ -131,29 +131,12 @@ jobs:
         if: steps.should-run.outputs.skip != 'true'
         id: parse
         run: |
-          # Issue #2808: use -s (exists AND non-empty) so a truncated results
-          # file from a crashed verify-all falls into the error branch instead
-          # of a silent Pass.
-          if [ -s memory-validation-results.json ]; then
-            total=$(jq 'length' memory-validation-results.json)
-            stale=$(jq '[.[] | select(.valid == false)] | length' memory-validation-results.json)
-            valid=$((total - stale))
-
-            echo "total=$total" >> $GITHUB_OUTPUT
-            echo "valid=$valid" >> $GITHUB_OUTPUT
-            echo "stale=$stale" >> $GITHUB_OUTPUT
-
-            if [ "$stale" -gt 0 ]; then
-              echo "has_stale=true" >> $GITHUB_OUTPUT
-            else
-              echo "has_stale=false" >> $GITHUB_OUTPUT
-            fi
-          else
-            # Missing/empty results means verify-all crashed. Fail the job
-            # instead of posting the green Pass banner on a broken run.
-            echo "::error::memory-validation-results.json missing or empty (verify-all likely crashed)"
-            exit 1
-          fi
+          # Issue #2808: a missing or empty results file means verify-all
+          # crashed. The counting and that error branch live in a tested
+          # script (ADR-006: no logic in YAML) so a broken run cannot post the
+          # green Pass banner.
+          python3 scripts/ci/parse_memory_validation_results.py \
+            --input memory-validation-results.json
 
       - name: Post PR comment
         if: steps.should-run.outputs.skip != 'true' && github.event_name == 'pull_request'

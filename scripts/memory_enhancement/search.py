@@ -145,6 +145,8 @@ def _search_with_ripgrep(query: str, memories_dir: Path) -> list[Path] | None:
             cmd,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=_SEARCH_TIMEOUT,
         )
     except (subprocess.TimeoutExpired, OSError):
@@ -179,6 +181,8 @@ def _search_with_grep(query: str, memories_dir: Path) -> list[Path] | None:
             cmd,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=_SEARCH_TIMEOUT,
         )
     except (subprocess.TimeoutExpired, OSError):

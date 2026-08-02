@@ -91,6 +91,7 @@ def main(argv: list[str] | None = None) -> int:
         print("   Scope: ALL projects")
     print(f"   Output: {output_path}")
 
+    sys.stdout.flush()
     subprocess.run(plugin_args)
 
     if not output_path.exists():
@@ -119,18 +120,23 @@ def main(argv: list[str] | None = None) -> int:
         if args.project:
             print("   Try without --project to check other projects")
 
-    # Security review
-    security_script = _SCRIPT_DIR.parent.parent / "scripts" / "review_memory_export_security.py"
-    if security_script.exists():
-        print("\nRunning security review...")
-        result = subprocess.run(
-            [sys.executable, str(security_script), "--export-file", str(output_path)]
-        )
-        if result.returncode != 0:
-            print("ERROR: Security review FAILED.", file=sys.stderr)
-            return 1
-        print("Security review PASSED")
+    return _run_security_review(output_path)
 
+
+def _run_security_review(output_path: Path) -> int:
+    """Run the memory export security review script if present."""
+    security_script = _SCRIPT_DIR.parent.parent / "scripts" / "review_memory_export_security.py"
+    if not security_script.exists():
+        return 0
+    print("\nRunning security review...")
+    sys.stdout.flush()
+    result = subprocess.run(
+        [sys.executable, str(security_script), "--export-file", str(output_path)]
+    )
+    if result.returncode != 0:
+        print("ERROR: Security review FAILED.", file=sys.stderr)
+        return 1
+    print("Security review PASSED")
     return 0
 
 

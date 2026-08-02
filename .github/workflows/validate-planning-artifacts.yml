@@ -17,9 +17,6 @@ on:
   push:
     branches:
       - main
-      - 'feat/**'
-      - 'fix/**'
-      - 'copilot/**'
     # NO paths: filter here - dorny/paths-filter handles filtering
   pull_request:
     branches:

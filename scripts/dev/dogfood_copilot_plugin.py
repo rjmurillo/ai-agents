@@ -25,6 +25,7 @@ installed dogfood copy out of sync with the working tree, 2 configuration error.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -48,6 +49,13 @@ _COPY_IGNORE = shutil.ignore_patterns(
     ".mypy_cache",
 )
 
+# Directories and files the copy never carries, so the drift fingerprint must
+# skip them on both sides. The dogfood marker only exists in the target.
+_FINGERPRINT_SKIP_DIRS = frozenset(
+    {"__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache"}
+)
+_FINGERPRINT_SKIP_SUFFIXES = (".pyc", ".pyo")
+
 
 def _repo_root() -> Path:
     """Return the git top-level for the directory holding this script."""
@@ -56,6 +64,8 @@ def _repo_root() -> Path:
         ["git", "-C", str(here.parent), "rev-parse", "--show-toplevel"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=True,
     )
     return Path(result.stdout.strip())
@@ -89,13 +99,42 @@ def _read_manifest(root: Path) -> dict[str, object] | None:
     return data if isinstance(data, dict) else None
 
 
-def _plugin_version(root: Path) -> str | None:
-    """Return the version string from a plugin root, or None if absent."""
-    manifest = _read_manifest(root)
-    if manifest is None:
-        return None
-    version = manifest.get("version")
-    return str(version) if version is not None else None
+def _shipped_files(root: Path) -> list[tuple[str, Path]]:
+    """Return (relative posix path, path) for every file the copy ships.
+
+    Skips the caches ``_COPY_IGNORE`` drops and the dogfood marker, so the
+    same tree fingerprints identically before and after an install.
+    """
+    found: list[tuple[str, Path]] = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = sorted(d for d in dirnames if d not in _FINGERPRINT_SKIP_DIRS)
+        current = Path(dirpath)
+        for name in sorted(filenames):
+            if name == _DOGFOOD_MARKER or name.endswith(_FINGERPRINT_SKIP_SUFFIXES):
+                continue
+            path = current / name
+            found.append((path.relative_to(root).as_posix(), path))
+    return found
+
+
+def _content_fingerprint(root: Path) -> str:
+    """Return a digest of a plugin tree's shipped file names and bytes.
+
+    Content is the only honest drift signal now that the manifests carry no
+    version (ADR-092). A digest catches every edit under the tree, which is
+    strictly more than the old version comparison caught: an unbumped hook
+    edit used to slip past it.
+    """
+    digest = hashlib.sha256()
+    for relative, path in _shipped_files(root):
+        digest.update(relative.encode("utf-8"))
+        digest.update(b"\0")
+        try:
+            digest.update(path.read_bytes())
+        except OSError:
+            digest.update(b"<unreadable>")
+        digest.update(b"\0")
+    return digest.hexdigest()
 
 
 def _is_plugin_root(root: Path) -> bool:
@@ -190,13 +229,13 @@ def _is_dogfood_copy(target: Path) -> bool:
 def _is_stale(source: Path, target: Path) -> bool:
     """Return True when an installed dogfood copy is out of sync with the tree.
 
-    Any version mismatch counts, in either direction. Dogfooding demands the
-    installed copy exactly match the working tree, so a copy that is newer
-    than ``HEAD`` (a developer on an older branch) is just as wrong as one
-    that is older; both mislead local hook behavior. Ordering is deliberately
-    not used. Only a real installed directory can be stale: a live symlink
-    always tracks the working tree, and a missing target means nothing was
-    dogfooded, so both are reported as not stale (no advisory warranted).
+    Any content difference counts, in either direction. Dogfooding demands the
+    installed copy exactly match the working tree, so a copy that carries
+    changes the tree does not (a developer on an older branch) is just as
+    wrong as one that misses tree changes; both mislead local hook behavior.
+    Only a real installed directory can be stale: a live symlink always tracks
+    the working tree, and a missing target means nothing was dogfooded, so
+    both are reported as not stale (no advisory warranted).
 
     Dogfooding is opt-in (ADR-083): a directory is only considered a dogfood
     copy when the dogfood marker (``.dogfood``) exists inside the target,
@@ -208,7 +247,12 @@ def _is_stale(source: Path, target: Path) -> bool:
         return False
     if not _is_dogfood_copy(target):
         return False
-    return _plugin_version(target) != _plugin_version(source)
+    return _content_fingerprint(target) != _content_fingerprint(source)
+
+
+def _short_fingerprint(root: Path) -> str:
+    """Return the first 12 hex characters of a tree's content digest."""
+    return _content_fingerprint(root)[:12]
 
 
 def dogfood_status(source: Path, target: Path) -> str:
@@ -216,16 +260,16 @@ def dogfood_status(source: Path, target: Path) -> str:
     if target.is_symlink():
         return f"symlinked -> {os.readlink(target)}"
     if target.is_dir():
-        installed = _plugin_version(target)
         if not _is_dogfood_copy(target):
-            return (
-                f"marketplace copy at {target} [v{installed}] (no .dogfood marker; not dogfooded)"
-            )
+            return f"marketplace copy at {target} (no .dogfood marker; not dogfooded)"
+        installed = _short_fingerprint(target)
         hint = ""
         if _is_stale(source, target):
-            shipped = _plugin_version(source)
-            hint = f" (working tree ships v{shipped}; re-run --install to refresh)"
-        return f"dogfood copy at {target} [v{installed}]{hint}"
+            hint = (
+                f" (working tree content is {_short_fingerprint(source)}; "
+                "re-run --install to refresh)"
+            )
+        return f"dogfood copy at {target} [content {installed}]{hint}"
     return f"not installed at {target}"
 
 
@@ -239,12 +283,11 @@ def dogfood_check(source: Path, target: Path) -> tuple[bool, str]:
     not-installed, and current states so manual ``--check`` output is honest.
     """
     if _is_stale(source, target):
-        installed = _plugin_version(target)
-        shipped = _plugin_version(source)
         message = (
-            f"dogfood copy at {target} is v{installed}; working tree ships "
-            f"v{shipped}. Re-run 'python3 scripts/dev/dogfood_copilot_plugin.py "
-            f"--install' to refresh before trusting local hook behavior."
+            f"dogfood copy at {target} has content {_short_fingerprint(target)}; "
+            f"working tree ships {_short_fingerprint(source)}. Re-run "
+            "'python3 scripts/dev/dogfood_copilot_plugin.py --install' to "
+            "refresh before trusting local hook behavior."
         )
         return True, message
     if target.is_symlink():

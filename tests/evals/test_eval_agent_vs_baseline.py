@@ -86,6 +86,7 @@ ERR_SERVER_ERROR = adapter_mod.ERR_SERVER_ERROR
 ERR_TIMEOUT = adapter_mod.ERR_TIMEOUT
 ERR_CLIENT_ERROR = adapter_mod.ERR_CLIENT_ERROR
 ERR_AUTH = adapter_mod.ERR_AUTH
+ERR_UNKNOWN = adapter_mod.ERR_UNKNOWN
 ERR_TOTAL_TIMEOUT = adapter_mod.ERR_TOTAL_TIMEOUT
 
 RunPersistence = persistence_mod.RunPersistence
@@ -434,6 +435,24 @@ class TestPlanRunner:
                 model_id="model-without-pricing",
             )
 
+    def test_opus_5_costs_the_published_per_mtok_rate(self):
+        # Issue #3905: claude-opus-5 had no pricing row, so every plan naming
+        # it raised UnsupportedModelError. The expected value is derived from
+        # the published $5/$25 per MTok rather than copied from the table, so
+        # an order-of-magnitude typo in the row fails here. Do not also assert
+        # a fixed dollar total: that reds on any EST_TOKENS_PER_CALL or 70/30
+        # split refinement, which _plan_runner.py says to expect.
+        plan = PlanRunner.build_plan(
+            fixtures=_make_fixtures(1),
+            model_id="claude-opus-5",
+            n_runs=1,
+        )
+
+        expected_usd = (
+            plan.estimated_tokens_in * 5.0 + plan.estimated_tokens_out * 25.0
+        ) / 1_000_000
+        assert plan.estimated_cost_usd == pytest.approx(expected_usd)
+
     def test_cost_line_format(self):
         plan = PlanRunner.build_plan(
             fixtures=_make_fixtures(1),
@@ -570,6 +589,50 @@ class TestCliExitCodes:
         assert "planned_calls=6" in captured.out
         assert "cost_estimate_usd=" in captured.out
         assert "rate_as_of=" in captured.out
+
+    def test_panel_model_opus_5_plans_and_exits_zero(self, tmp_path, capsys):
+        # The exact command that failed in issue #3905. claude-opus-5 is the
+        # reference tier in scripts/eval/panels/owner-copilot-cli.json, and
+        # eval-model-panel.py shells this child with --model.
+        fixtures_dir = tmp_path / "fixtures"
+        fixtures_dir.mkdir()
+        _write_fixture(fixtures_dir, "F001.json", _valid_fixture_payload())
+
+        rc = cli_main([
+            "--dry-run",
+            "--agent",
+            "security",
+            "--fixtures",
+            str(fixtures_dir),
+            "--model",
+            "claude-opus-5",
+        ])
+
+        assert rc == 0
+        captured = capsys.readouterr()
+        assert "cost_estimate_usd=" in captured.out
+        assert "No pricing rate" not in captured.err
+
+    def test_unpriced_model_still_exits_two(self, tmp_path, capsys):
+        # The fail-closed guard #2858 added must survive the #3905 fix: an id
+        # with no rate must not silently plan at a fabricated cost.
+        fixtures_dir = tmp_path / "fixtures"
+        fixtures_dir.mkdir()
+        _write_fixture(fixtures_dir, "F001.json", _valid_fixture_payload())
+
+        rc = cli_main([
+            "--dry-run",
+            "--agent",
+            "security",
+            "--fixtures",
+            str(fixtures_dir),
+            "--model",
+            "claude-opus-99",
+        ])
+
+        assert rc == 2
+        captured = capsys.readouterr()
+        assert "No pricing rate for model_id='claude-opus-99'" in captured.err
 
 
 # ===========================================================================
@@ -790,6 +853,125 @@ class TestAnthropicAPIAdapterLogging:
             assert "attempt" in payload
             assert "outcome" in payload
 
+    # The module docstring promises three things are never logged: API keys,
+    # request bodies, and full error payloads. The sibling test above covers
+    # only the first, and only when the key arrives via the environment.
+    # These three cover the other two, one per path that emits a category.
+    #
+    # `_anthropic_api` builds its message as
+    # `f"Anthropic API returned HTTP {code}: {sanitized}"`, appending the
+    # response body. So the body reaches the adapter inside an exception
+    # message and `_categorize_error` reads that text. Nothing in `_emit_log`
+    # enforces the promise; it holds because every `_categorize_error` branch
+    # returns a constant from a closed set. These tests pin that.
+    _BODY = "RESPONSEBODYCANARYZZZ"
+    _KEY = "sk-ant-INLINE-CANARY-ZZZZ"
+
+    @staticmethod
+    def _provider_message(status: int) -> str:
+        return (
+            f"Anthropic API returned HTTP {status}: "
+            '{"error": "internal", "echo": "'
+            + TestAnthropicAPIAdapterLogging._BODY
+            + '", "authorization": "'
+            + TestAnthropicAPIAdapterLogging._KEY
+            + '"}'
+        )
+
+    @staticmethod
+    def _assert_records_carry_no_provider_text(captured, expected_lines: int) -> None:
+        body = TestAnthropicAPIAdapterLogging._BODY
+        key = TestAnthropicAPIAdapterLogging._KEY
+        assert body not in captured.err
+        assert body not in captured.out
+        assert key not in captured.err
+        assert key not in captured.out
+        # A closed taxonomy is what makes the promise hold. A call site that
+        # forwarded the message would have to put it in some field, so assert
+        # every emitted value is one the code chose, not one it copied.
+        allowed = {
+            ERR_RATE_LIMIT,
+            ERR_SERVER_ERROR,
+            ERR_TIMEOUT,
+            ERR_CLIENT_ERROR,
+            ERR_AUTH,
+            ERR_UNKNOWN,
+            ERR_TOTAL_TIMEOUT,
+            None,
+        }
+        log_lines = [ln for ln in captured.err.splitlines() if ln.startswith("{")]
+        assert len(log_lines) == expected_lines
+        for line in log_lines:
+            payload = json.loads(line)
+            assert payload["error_category"] in allowed
+            for value in payload.values():
+                assert body not in str(value)
+                assert key not in str(value)
+
+    def test_a_retried_error_logs_no_provider_text(self, capsys):
+        """HTTP 500 is transient, so this drives the retry log path."""
+        message = self._provider_message(500)
+        transport = _FakeTransport(
+            script=[
+                lambda: (_ for _ in ()).throw(RuntimeError(message)),
+                "scored response",
+            ]
+        )
+        adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
+        adapter.call_model(
+            prompt="user prompt",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F008",
+            variant="agent",
+            run_index=0,
+            system="system prompt",
+        )
+        self._assert_records_carry_no_provider_text(capsys.readouterr(), 2)
+
+    def test_an_unclassifiable_status_logs_no_provider_text(self, capsys):
+        """HTTP 302 parses as a status but matches no category branch, so it
+        reaches the `ERR_UNKNOWN` fallthrough. That branch is unreachable for
+        any 4xx or 5xx, so the retry test above cannot cover it."""
+        message = self._provider_message(302)
+        transport = _FakeTransport(
+            script=[lambda: (_ for _ in ()).throw(RuntimeError(message))]
+        )
+        adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
+        result = adapter.call_model(
+            prompt="user prompt",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F009",
+            variant="agent",
+            run_index=0,
+            system="system prompt",
+        )
+        assert result.error_category == ERR_UNKNOWN
+        # Not transient, so one attempt and one record.
+        self._assert_records_carry_no_provider_text(capsys.readouterr(), 1)
+
+    def test_a_transport_resolve_failure_logs_no_provider_text(
+        self, monkeypatch, capsys
+    ):
+        """Transport construction fails before any attempt, which is a
+        separate `_emit_log` call site the two tests above never reach."""
+        message = self._provider_message(500)
+
+        def _boom(**_kwargs):
+            raise RuntimeError(message)
+
+        monkeypatch.setattr(adapter_mod, "_default_transport_factory", _boom)
+        adapter = AnthropicAPIAdapter(transport=None, sleep=lambda _s: None)
+        result = adapter.call_model(
+            prompt="user prompt",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F010",
+            variant="agent",
+            run_index=0,
+            system="system prompt",
+        )
+        assert result.attempts == 0
+        self._assert_records_carry_no_provider_text(capsys.readouterr(), 1)
+
 
 # ===========================================================================
 # T4-2: RunPersistence
@@ -932,7 +1114,7 @@ class TestRunPersistenceJsonlRoundTrip:
         assert len(records) == 1
         assert records[0].schema_version == 1
         assert records[0].system_fingerprint is None
-        assert records[0].seed is None
+        assert records[0].seed == 0
 
 
 class TestRunPersistenceSchemaGuard:
@@ -1000,6 +1182,52 @@ class TestRunPersistenceMalformedJsonl:
         with pytest.raises(MalformedRunRecordError, match=expected_msg):
             RunPersistence(run_dir, resume=True)
 
+    @pytest.mark.parametrize(
+        "mutate, expected_msg",
+        [
+            (
+                lambda payload: payload.pop("assertions"),
+                r"missing required field\(s\): assertions",
+            ),
+            (
+                lambda payload: payload.update({"assertions": []}),
+                "successful record must include non-empty assertions",
+            ),
+            (
+                lambda payload: payload["assertions"][0].update({"passed": "false"}),
+                "assertion 0 field 'passed'.*expected bool",
+            ),
+            (
+                lambda payload: payload.update({"schemaVersion": True}),
+                "schemaVersion=True",
+            ),
+            (
+                lambda payload: payload.update({"seed": False}),
+                "field 'seed'.*expected int or null",
+            ),
+            (
+                lambda payload: payload.update({"tokens_estimated": "false"}),
+                "field 'tokens_estimated'.*expected bool",
+            ),
+        ],
+    )
+    def test_persisted_records_are_strictly_validated(
+        self, tmp_path, mutate, expected_msg
+    ):
+        payload = json.loads(_record_json_for_test(_make_record(seed=0)))
+        mutate(payload)
+        run_dir = self._seed(tmp_path, json.dumps(payload) + "\n")
+
+        with pytest.raises((MalformedRunRecordError, SchemaVersionError), match=expected_msg):
+            RunPersistence(run_dir, resume=True, seed=0)
+
+    def test_duplicate_persisted_identity_raises_malformed(self, tmp_path):
+        payload = _record_json_for_test(_make_record(seed=0))
+        run_dir = self._seed(tmp_path, payload + "\n" + payload + "\n")
+
+        with pytest.raises(MalformedRunRecordError, match="duplicates identity"):
+            RunPersistence(run_dir, resume=True, seed=0)
+
     def test_malformed_is_distinct_from_duplicate_run_error(self):
         # Sanity: the new exception is its own class, so a CLI catch on
         # `DuplicateRunError` cannot accidentally absorb on-disk
@@ -1028,7 +1256,14 @@ class TestRunPersistenceMalformedJsonl:
                 "prompt_ref": "<test>",
                 "fixture_sha": "f" * 64,
                 "raw_response": "ok",
-                "assertions": [],
+                "assertions": [
+                    {
+                        "kind": "verdict",
+                        "expected_value": "IDENTIFY",
+                        "passed": True,
+                        "extracted": "IDENTIFY",
+                    }
+                ],
                 "outcome": "success",
                 "latency_ms": 1.0,
                 "tokens_in": 1,
@@ -1047,6 +1282,203 @@ class TestRunPersistenceMalformedJsonl:
         )
         with pytest.raises(MalformedRunRecordError, match=r"line 2 is not valid JSON"):
             list(persistence.iter_records())
+
+    def test_resume_accepts_error_record_with_null_raw_response(self, tmp_path):
+        # `RunRecord.raw_response` is `str | None`; error-path records are
+        # written with `raw_response=None` (see `_eval_api_adapter.py`).
+        # Resume must not fail closed on a legitimate error record just
+        # because the field is null.
+        payload = json.loads(
+            _record_json_for_test(
+                _make_record(outcome="error", seed=0)
+            )
+        )
+        payload["raw_response"] = None
+        payload["assertions"] = []
+        run_dir = self._seed(tmp_path, json.dumps(payload) + "\n")
+
+        persistence = RunPersistence(run_dir, resume=True, seed=0)
+
+        assert not persistence.is_completed("F001", "agent", 0)
+
+    def test_non_object_json_line_raises_malformed(self, tmp_path):
+        # A line that parses as valid JSON but is not an object (e.g. a
+        # bare array) must surface as `MalformedRunRecordError`, not an
+        # unhandled `AttributeError` from calling `.get()` on a list.
+        run_dir = self._seed(tmp_path, "[]\n")
+        with pytest.raises(MalformedRunRecordError, match="not a JSON object"):
+            RunPersistence(run_dir, resume=True)
+
+
+class TestParseRecordShapeGuard:
+    """A line that is valid JSON but is not a record must still map to
+    EXIT_CONFIG (2).
+
+    `_parse_record` rehydrates untrusted on-disk data. Before the guard,
+    seven distinct corrupt shapes escaped as bare `ValueError`, `KeyError`,
+    or `TypeError`, none of which the CLI catches, so each surfaced as an
+    unhandled traceback instead of the documented operator-repair exit.
+    """
+
+    def _payload(self, **overrides):
+        payload = {
+            "fixture_id": "F001",
+            "variant": "agent",
+            "run_index": 0,
+            "model_id": "claude-sonnet-4-6",
+            "prompt_sha": "p" * 64,
+            "prompt_ref": "<test>",
+            "fixture_sha": "f" * 64,
+            "raw_response": "ok",
+            "assertions": [
+                {
+                    "kind": "verdict",
+                    "expected_value": "IDENTIFY",
+                    "passed": True,
+                    "extracted": "IDENTIFY",
+                }
+            ],
+            "outcome": "success",
+            "latency_ms": 1.0,
+            "tokens_in": 1,
+            "tokens_out": 1,
+            "error_category": None,
+            "attempts": 1,
+            "tokens_estimated": True,
+            "schemaVersion": 1,
+        }
+        payload.update(overrides)
+        return payload
+
+    @pytest.mark.parametrize("kind", ["verdict", "regex"])
+    def test_every_declared_assertion_kind_still_parses(self, kind):
+        """Control: the guard must reject only shapes outside the contract.
+
+        A guard that rejected everything would still pass the cases below.
+        """
+        payload = self._payload()
+        payload["assertions"][0]["kind"] = kind
+
+        record = persistence_mod._parse_record(json.dumps(payload))
+
+        assert record.assertions[0].kind.value == kind
+
+    def test_an_error_record_with_no_assertions_still_parses(self):
+        """Control: error records can carry no measured assertions."""
+        record = persistence_mod._parse_record(
+            json.dumps(self._payload(assertions=[], outcome="error", raw_response=None))
+        )
+
+        assert record.assertions == []
+
+    def test_a_blank_line_is_still_skipped(self):
+        """Control: the early return must survive the added guard."""
+        assert persistence_mod._parse_record("   \n") is None
+
+    @pytest.mark.parametrize("line", ["[]", '"x"', "1", "null", "true"])
+    def test_a_non_object_top_level_raises_malformed(self, line):
+        """Valid JSON that is not an object is a corrupt record, not a crash.
+
+        Before the guard, `payload.pop` raised a bare `AttributeError` that
+        bypassed the EXIT_CONFIG mapping.
+        """
+        with pytest.raises(MalformedRunRecordError):
+            persistence_mod._parse_record(line)
+
+    @pytest.mark.parametrize(
+        "mutate, expected_msg, cause_name",
+        [
+            (
+                lambda p: p["assertions"][0].update({"kind": "nope"}),
+                "ValueError",
+                "ValueError",
+            ),
+            # Edge: an unhashable value cannot be looked up in the enum's
+            # value map at all, yet still raises `ValueError` on 3.14.
+            (
+                lambda p: p["assertions"][0].update({"kind": ["regex"]}),
+                "ValueError",
+                "ValueError",
+            ),
+            (
+                lambda p: p["assertions"][0].update({"kind": {"a": 1}}),
+                "ValueError",
+                "ValueError",
+            ),
+            (lambda p: p["assertions"][0].pop("kind"), "missing field: kind", None),
+            (
+                lambda p: p.update({"assertions": {"a": 1}}),
+                "expected list, got dict",
+                None,
+            ),
+            (
+                lambda p: p.update({"assertions": ["not-a-dict"]}),
+                "expected object, got str",
+                None,
+            ),
+            # Falsy non-list shapes: `or []` used to coerce these to zero
+            # assertions silently instead of naming the corrupt shape.
+            (
+                lambda p: p.update({"assertions": ""}),
+                "expected list, got str",
+                None,
+            ),
+            (
+                lambda p: p.update({"assertions": {}}),
+                "expected list, got dict",
+                None,
+            ),
+            (
+                lambda p: p.update({"assertions": 0}),
+                "expected list, got int",
+                None,
+            ),
+            (
+                lambda p: p.update({"assertions": False}),
+                "expected list, got bool",
+                None,
+            ),
+            (
+                lambda p: p.update({"assertions": None}),
+                "expected list, got NoneType",
+                None,
+            ),
+            (lambda p: p.update({"surprise": 1}), "TypeError", "TypeError"),
+            (lambda p: p.pop("fixture_id"), "missing required field", None),
+        ],
+    )
+    def test_a_corrupt_shape_raises_malformed_not_a_bare_builtin(
+        self, mutate, expected_msg, cause_name
+    ):
+        payload = self._payload()
+        mutate(payload)
+
+        with pytest.raises(MalformedRunRecordError, match=expected_msg) as excinfo:
+            persistence_mod._parse_record(json.dumps(payload))
+
+        if cause_name is None:
+            assert excinfo.value.__cause__ is None
+        else:
+            assert type(excinfo.value.__cause__).__name__ == cause_name
+
+    def test_a_corrupt_shape_does_not_echo_an_unbounded_value(self):
+        """A corrupt record is attacker-influenced input to the operator log."""
+        payload = self._payload()
+        payload["assertions"][0]["kind"] = "x" * 9000
+
+        with pytest.raises(MalformedRunRecordError) as excinfo:
+            persistence_mod._parse_record(json.dumps(payload))
+
+        assert len(str(excinfo.value)) < 400
+
+    def test_an_unsupported_schema_version_keeps_its_own_error(self):
+        """Control: the guard must not absorb the sibling schema check.
+
+        `SchemaVersionError` is raised before the guarded block and carries
+        a different operator remedy, so it has to stay distinguishable.
+        """
+        with pytest.raises(SchemaVersionError):
+            persistence_mod._parse_record(json.dumps(self._payload(schemaVersion=99)))
 
 
 # ===========================================================================
@@ -1256,6 +1688,15 @@ class TestRunnerLiveLoop:
         ])
         assert rc2 == 0
         assert adapter2.call_count == 0
+        report_json = (
+            tmp_path
+            / "evals"
+            / "security-spike"
+            / "reports"
+            / run_id
+            / "report.json"
+        )
+        assert json.loads(report_json.read_text(encoding="utf-8"))["seed"] == 0
 
     def test_error_rate_above_10pct_exits_one(self, tmp_path, monkeypatch, capsys):
         self._setup(tmp_path, monkeypatch)
@@ -1717,7 +2158,11 @@ class TestReportAggregatorCost:
         # 6 records × tokens_in=100, tokens_out=50.
         # cost = (600 * 0.003 + 300 * 0.015) / 1000 = (1.8 + 4.5)/1000 = 0.0063
         assert result.cost_estimate_usd == pytest.approx(0.0063)
-        assert result.pricing_rate_as_of == "2026-07-08"
+        # DESIGN-004 §5.3a: the aggregator and the plan runner both read the
+        # date from _eval_common rather than minting one. Asserted against the
+        # constant, not a literal, so a verified rate refresh (issue #3905)
+        # does not require editing a test that is about threading, not dates.
+        assert result.pricing_rate_as_of == plan_mod.PRICING_RATE_AS_OF
 
 
 # ===========================================================================
@@ -2188,6 +2633,60 @@ class TestTokensEstimatedFlag:
         ).aggregate()
         assert result.tokens_estimated is False
 
+    def test_an_error_result_reports_uncounted_zeros_as_estimated(self):
+        """An error path counts nothing, so its zeros are neither a heuristic
+        estimate nor a measured `usage` value. It still reports the flag as
+        True, because the flag drives a cost caveat downstream and an absent
+        measurement must not read as an authoritative zero.
+
+        Setting this to False would be locally more literal and globally
+        wrong: `ReportAggregator` takes `any()` over the records, so a run
+        where every call failed would clear the flag and publish a zero cost
+        with no caveat.
+        """
+        message = "Anthropic API returned HTTP 404: missing"
+        transport = _FakeTransport(
+            script=[lambda: (_ for _ in ()).throw(RuntimeError(message))]
+        )
+        adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
+        result = adapter.call_model(
+            prompt="user prompt",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F011",
+            variant="agent",
+            run_index=0,
+        )
+        assert result.outcome == "error"
+        assert result.tokens_in == 0
+        assert result.tokens_out == 0
+        assert result.tokens_estimated is True
+
+    def test_a_run_of_only_estimated_records_keeps_the_cost_caveat(self):
+        """Pins the consequence the test above protects: the caveat is what
+        stops a zero cost from reading as a measured one."""
+        records = _build_records(
+            ["F001"], agent_passed=False, baseline_passed=False
+        )
+        for record in records:
+            record.tokens_estimated = True
+        aggregate = ReportAggregator(
+            records, model_id="claude-sonnet-4-6"
+        ).aggregate()
+        assert aggregate.tokens_estimated is True
+        rendered = writer_mod._render_cost_section(aggregate, 1.0)
+        assert "estimated from a text-length heuristic" in rendered
+
+        # Not vacuous: the caveat is absent when nothing was estimated.
+        for record in records:
+            record.tokens_estimated = False
+        measured = ReportAggregator(
+            records, model_id="claude-sonnet-4-6"
+        ).aggregate()
+        assert measured.tokens_estimated is False
+        assert "estimated from a text-length heuristic" not in (
+            writer_mod._render_cost_section(measured, 1.0)
+        )
+
     def test_report_json_includes_tokens_estimated(self, tmp_path):
         writer = ReportWriter(tmp_path / "reports")
         aggregate = AggregateResult(
@@ -2307,6 +2806,94 @@ class TestAdapterTotalWallBudget:
         # 2 calls land; the budget guard prevents a 3rd attempt.
         assert slow.calls == 2
 
+    def test_wall_budget_can_deny_a_transient_error_its_first_retry(self):
+        # The retry-policy docstring calls 5xx transient. Transient names the
+        # error, not a promise that a second call happens: when the very first
+        # attempt burns more than the budget, no retry occurs and the recorded
+        # category is the budget's, not the transport's. Without this case the
+        # class only proves the guard stops a 3rd attempt, which leaves
+        # "transient is retried" looking unconditional.
+        #
+        # Two independent guards can produce this outcome, the projection check
+        # after the error and the elapsed check at the top of the next
+        # iteration, and they return the same category and the same attempt
+        # count here. This test pins the documented behaviour, not which guard
+        # delivered it; neutering the budget itself is what makes it fail.
+        clock_state = [0.0]
+
+        def clock() -> float:
+            return clock_state[0]
+
+        slow = _SlowTransport(clock_state, seconds_per_call=200.0)
+        adapter = AnthropicAPIAdapter(
+            transport=slow,
+            sleep=lambda _s: None,
+            clock=clock,
+            total_timeout_seconds=180.0,
+        )
+        result = adapter.call_model(
+            prompt="x",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F-WB0",
+            variant="agent",
+            run_index=0,
+        )
+        assert result.outcome == "error"
+        assert result.error_category == ERR_TOTAL_TIMEOUT
+        assert result.attempts == 1
+        # The transport was called once and never retried.
+        assert slow.calls == 1
+
+    def test_a_guard_that_fires_before_a_call_does_not_count_it(self, capsys):
+        # The pre-attempt guard is reachable only when the sleep overshoots the
+        # backoff the projection guard budgeted for, which a loaded or
+        # suspended host does. Here attempt 1 burns 100s of a 180s budget, the
+        # projection allows a retry, then the sleep overshoots to 200s and the
+        # top-of-loop guard stops the run before the second call.
+        #
+        # It fires before the call, so the attempt it is standing at never
+        # happened. The stderr log and the returned result describe the same
+        # event and must report the same count.
+        clock_state = [0.0]
+
+        def clock() -> float:
+            return clock_state[0]
+
+        def oversleeping_sleep(_seconds: float) -> None:
+            clock_state[0] += 100.0
+
+        slow = _SlowTransport(clock_state, seconds_per_call=100.0)
+        adapter = AnthropicAPIAdapter(
+            transport=slow,
+            sleep=oversleeping_sleep,
+            clock=clock,
+            total_timeout_seconds=180.0,
+        )
+        result = adapter.call_model(
+            prompt="x",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F-WB1",
+            variant="agent",
+            run_index=0,
+        )
+
+        assert result.error_category == ERR_TOTAL_TIMEOUT
+        assert slow.calls == 1
+        assert result.attempts == 1
+
+        budget_lines = [
+            json.loads(line)
+            for line in capsys.readouterr().err.splitlines()
+            if line.strip().startswith("{")
+        ]
+        aborted = [
+            record
+            for record in budget_lines
+            if record.get("error_category") == ERR_TOTAL_TIMEOUT
+        ]
+        assert len(aborted) == 1
+        assert aborted[0]["attempt"] == result.attempts
+
     def test_wall_budget_does_not_fire_on_fast_calls(self):
         # Each call is fast; budget never trips, normal retry exhaustion
         # path runs to completion and returns server_error.
@@ -2333,6 +2920,42 @@ class TestAdapterTotalWallBudget:
         assert result.outcome == "error"
         assert result.error_category == ERR_SERVER_ERROR
         assert fast.calls == 3
+
+
+class TestAdapterNonPositiveMaxRetries:
+    """`max_retries <= 0` skips the loop and lands on the fallthrough return.
+
+    Pinned because the record it produces is indistinguishable from a real
+    provider failure: `outcome="error"` carrying `ERR_UNKNOWN`. A caller
+    configuration mistake is reported in the provider's vocabulary, and no
+    attempt log is emitted to say otherwise. Refs #4121.
+    """
+
+    @pytest.mark.parametrize("max_retries", [0, -1, False])
+    def test_non_positive_max_retries_calls_no_transport(
+        self, max_retries: int, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        calls: list[str] = []
+
+        def transport(prompt: str, model_id: str, system: str) -> str:
+            calls.append(model_id)
+            raise AssertionError("transport must not be called")
+
+        adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
+        result = adapter.call_model(
+            prompt="x",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F-MR",
+            variant="agent",
+            run_index=0,
+            max_retries=max_retries,
+        )
+        assert calls == []
+        assert result.outcome == "error"
+        assert result.error_category == ERR_UNKNOWN
+        assert result.attempts == 0
+        # Nothing was attempted, so no attempt log is written.
+        assert capsys.readouterr().err == ""
 
 
 # ---------------------------------------------------------------------------
@@ -2975,6 +3598,78 @@ class TestReportWriterRecommendationPassThrough:
         )
         assert "halted at AC-10" not in ci_section
         assert "flaky fixtures are excluded" not in ci_section
+
+
+class TestTheHeaderCountNamesTheInventoryNotTheMeasurement:
+    """`fixture_ids` is the plan's roster, so the header cannot claim it ran.
+
+    `eval-agent-vs-baseline.py` fills `fixture_ids` from `plan.fixtures`
+    before a single fixture is dispatched, and the degraded write happens
+    inside the `except (EmptyRunError, ValueError)` arm, where aggregation
+    already failed. A header reading "Fixtures measured: 3" on that report
+    states a measurement that was never taken, which is the exact false
+    value this PR refuses everywhere else.
+    """
+
+    def _agg(self) -> AggregateResult:
+        return AggregateResult(
+            agent_recall=0.5,
+            baseline_recall=0.5,
+            recall_delta=0.0,
+            bootstrap_ci_95=(0.0, 0.0),
+            recall_with_errors=0.5,
+            recall_excluding_errors=0.5,
+            per_fixture_pass_rates={"F001": {"agent": [1.0], "baseline": [0.0]}},
+            flakiness=False,
+            flaky_fixtures_detected=[],
+            flaky_fixtures_excluded=[],
+            halt_due_to_flakiness=False,
+            total_tokens_in=1,
+            total_tokens_out=1,
+            cost_estimate_usd=0.0,
+            tokens_estimated=True,
+            error_count=0,
+            pricing_rate_as_of="2026-05-03",
+        )
+
+    def _render(self, tmp_path, **extra) -> str:
+        writer = ReportWriter(tmp_path / "reports")
+        _, md_path = writer.write(
+            aggregate=self._agg(),
+            run_id="rid",
+            model_id="claude-sonnet-4-6",
+            agent_prompt_sha="a" * 64,
+            baseline_prompt_sha="b" * 64,
+            fixture_set_sha="c" * 64,
+            wall_clock_seconds=1.0,
+            **extra,
+        )
+        return md_path.read_text(encoding="utf-8")
+
+    def test_a_degraded_report_does_not_claim_a_measurement(self, tmp_path):
+        md = self._render(
+            tmp_path,
+            fixture_ids=["F001", "F002", "F003"],
+            recommendation="form-factor-invalid",
+        )
+        assert "Fixtures measured" not in md
+        assert "Fixture inventory: 3" in md
+
+    def test_a_healthy_report_uses_the_same_label(self, tmp_path):
+        """One roster, one name, whatever the verdict."""
+        md = self._render(tmp_path, fixture_ids=["F001"])
+        assert "Fixtures measured" not in md
+        assert "Fixture inventory: 1" in md
+
+    def test_an_empty_roster_counts_zero(self, tmp_path):
+        md = self._render(tmp_path, fixture_ids=[])
+        assert "Fixture inventory: 0" in md
+
+    def test_the_other_header_rows_are_untouched(self, tmp_path):
+        """Negative control: the rename moves one row, not the header."""
+        md = self._render(tmp_path, fixture_ids=["F001"])
+        assert "- Model: `claude-sonnet-4-6`" in md
+        assert f"- Fixture set SHA: `{'c' * 16}...`" in md
 
 
 class TestCliInputValidators:

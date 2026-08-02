@@ -1,0 +1,602 @@
+{
+  "rules": {
+    "unified-software-engineering": {
+      "target_path": ".claude/rules/unified-software-engineering.md",
+      "summary": {
+        "per_mechanism": {
+          "baseline": {
+            "avg_score": 3.67,
+            "scenario_count": 3,
+            "graded_count": 3,
+            "judge_failures": 2
+          },
+          "description": {
+            "avg_score": 3.89,
+            "scenario_count": 3,
+            "graded_count": 3,
+            "judge_failures": 3
+          },
+          "full": {
+            "avg_score": 4.78,
+            "scenario_count": 3,
+            "graded_count": 3,
+            "judge_failures": 1
+          }
+        },
+        "negative_case_per_mechanism": {
+          "baseline": {
+            "avg_score": 5.0,
+            "scenario_count": 1,
+            "graded_count": 1,
+            "judge_failures": 0
+          },
+          "description": {
+            "avg_score": 5.0,
+            "scenario_count": 1,
+            "graded_count": 1,
+            "judge_failures": 0
+          },
+          "full": {
+            "avg_score": 5.0,
+            "scenario_count": 1,
+            "graded_count": 1,
+            "judge_failures": 0
+          }
+        },
+        "best_mechanism": "full",
+        "best_avg_score": 4.78,
+        "baseline_avg": 3.67,
+        "delta_full_vs_baseline": 1.11,
+        "delta_description_vs_baseline": 0.22,
+        "total_judge_failures": 6,
+        "verdict": "FAIL_JUDGE_ERRORS"
+      },
+      "scenarios": [
+        {
+          "id": "S1",
+          "desc": "DRY vs premature abstraction conflict",
+          "negative_case": false,
+          "mechanisms": {
+            "baseline": {
+              "response_preview": "No code in this directory to inspect, so this is on your description, not your call sites.\n\n**Verdict: no. Don't extract yet.**\n\n- **Three similar shapes is not three duplicate shapes.** The 1-2 divergent fields usually encode a real distinction (public API vs internal vs admin). A shared serializer erases the distinction, then you re-add it as `include_email=True`, `for_admin=True` flags. That is...",
+              "scores": {
+                "activation_score": 5.0,
+                "citation_score": 4.0,
+                "behavior_score": 5.0,
+                "judge_failed": false,
+                "graded": true,
+                "score_reducer": "median",
+                "sample_count": 3,
+                "graded_sample_count": 3,
+                "failed_sample_count": 0
+              },
+              "score_samples": [
+                {
+                  "activation_score": 5,
+                  "citation_score": 4,
+                  "behavior_score": 5,
+                  "reasoning": "The response directly applies the DRY-targets-duplicated-knowledge rule by refusing to merge coincidentally similar serializers, naming the flag-parameter god-function failure mode and the real distinction the divergent fields encode; it uses the concepts (wait/revisit, coincidental vs real similari",
+                  "judge_failed": false,
+                  "sample_index": 0
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 4,
+                  "behavior_score": 5,
+                  "reasoning": "The response fully activates the DRY-vs-premature-abstraction rule by refusing the merge, explaining that the divergent fields encode a real distinction rather than coincidental duplication, and gating extraction on the precondition that drift would be a correctness bug (with a wait-for-a-fourth tri",
+                  "judge_failed": false,
+                  "sample_index": 1
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 4,
+                  "behavior_score": 5,
+                  "reasoning": "The response squarely applies the DRY-targets-duplicated-knowledge rule by refusing the extraction, distinguishing coincidental 80% similarity from real shared knowledge, and gating extraction on a correctness precondition (must-stay-in-sync fields, or a fourth exact-duplicate), though it paraphrase",
+                  "judge_failed": false,
+                  "sample_index": 2
+                }
+              ],
+              "judge_repeats": 3,
+              "score_reducer": "median",
+              "system_prompt_chars": 0
+            },
+            "description": {
+              "response_preview": "No files in the working directory, so this is judgment on the pattern, not on your actual code.\n\n**Recommendation: no shared serializer. Extract only the common core if the divergence is purely additive.**\n\n- **Check the divergence type first.** If each site outputs the same 80% *plus* extras, one `user_base_dict(user) -> dict` helper works, each caller spreads it and adds its own keys. If any sit...",
+              "scores": {
+                "activation_score": 5.0,
+                "citation_score": 4.0,
+                "behavior_score": 5.0,
+                "judge_failed": true,
+                "graded": true,
+                "score_reducer": "median",
+                "sample_count": 3,
+                "graded_sample_count": 2,
+                "failed_sample_count": 1
+              },
+              "score_samples": [
+                {
+                  "activation_score": 5,
+                  "citation_score": 4,
+                  "behavior_score": 5,
+                  "reasoning": "The response directly applies the DRY-vs-premature-abstraction rule by recommending against a shared serializer, uses the key concept of coincidental similarity explicitly ('the 80% overlap is coincidence') and the naming test as a proxy for duplicated knowledge, though it never says 'duplicated kno",
+                  "judge_failed": false,
+                  "sample_index": 0
+                },
+                {
+                  "activation_score": 0,
+                  "citation_score": 0,
+                  "behavior_score": 0,
+                  "reasoning": "judge parse error: {\"activation_score\": 5, \"citation_score\": 4, \"behavior_score\": 5, \"reasoning\": \"The response directly applies the DRY-vs-premature-abstraction rule by refusing to merge coincidentally similar serializ",
+                  "judge_failed": true,
+                  "sample_index": 1
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 4,
+                  "behavior_score": 5,
+                  "reasoning": "The response applied the DRY-vs-premature-abstraction rule directly, refusing to merge coincidentally similar shapes, gating extraction on whether divergence is purely additive and whether the shared thing can be named as a real concept, and explicitly used 'coincidence'/'duplication is cheaper than",
+                  "judge_failed": false,
+                  "sample_index": 2
+                }
+              ],
+              "judge_repeats": 3,
+              "score_reducer": "median",
+              "system_prompt_chars": 473
+            },
+            "full": {
+              "response_preview": "Empty working directory, so no code to trace. Answering from the shapes you described.\n\n**No. Not yet.**\n\n- Three shapes with 1-2 divergent fields each are three contracts, not one. The 80% overlap is text duplication; the divergence is the actual knowledge. A shared serializer with `include_email=True, include_roles=False` flags is worse than the duplication.\n- Extract the *field-level* rules ins...",
+              "scores": {
+                "activation_score": 5.0,
+                "citation_score": 4.0,
+                "behavior_score": 5.0,
+                "judge_failed": false,
+                "graded": true,
+                "score_reducer": "median",
+                "sample_count": 3,
+                "graded_sample_count": 3,
+                "failed_sample_count": 0
+              },
+              "score_samples": [
+                {
+                  "activation_score": 5,
+                  "citation_score": 4,
+                  "behavior_score": 5,
+                  "reasoning": "The response directly applies the DRY-targets-duplicated-knowledge rule by distinguishing the 80% text overlap from the divergent fields as the real knowledge, refuses the merge of coincidentally similar shapes, and names a concrete wait-condition (a fourth case with no new fields, or a meaning chan",
+                  "judge_failed": false,
+                  "sample_index": 0
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 4,
+                  "behavior_score": 5,
+                  "reasoning": "The response directly applies the DRY-vs-premature-abstraction rule by distinguishing text duplication from real duplicated knowledge, refuses the merge of coincidentally similar shapes, names the flag-farm failure mode, and defers with an explicit revisit trigger; it uses 'duplication', 'knowledge'",
+                  "judge_failed": false,
+                  "sample_index": 1
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 5,
+                  "behavior_score": 5,
+                  "reasoning": "The response directly applies the DRY-targets-duplicated-knowledge rule, distinguishing text duplication from real shared knowledge, uses the prescribed vocabulary (duplicated knowledge, coincidental drift, wait/revisit signal), and correctly gates on not merging coincidentally similar shapes while ",
+                  "judge_failed": false,
+                  "sample_index": 2
+                }
+              ],
+              "judge_repeats": 3,
+              "score_reducer": "median",
+              "system_prompt_chars": 7727
+            }
+          }
+        },
+        {
+          "id": "S2",
+          "desc": "Strong consistency vs eventual consistency choice",
+          "negative_case": false,
+          "mechanisms": {
+            "baseline": {
+              "response_preview": "**One transaction, until they live in separate databases.**\n\n- Same DB \u2192 wrap create-Order + decrement-Inventory in one transaction. Purity says one aggregate per transaction; that rule buys you a saga, a message bus, and a compensation path you don't need yet.\n- Decrement with a conditional write, not read-then-write: `UPDATE inventory SET qty = qty - :n WHERE sku = :sku AND qty >= :n`, 0 rows af...",
+              "scores": {
+                "activation_score": 2.0,
+                "citation_score": 2.0,
+                "behavior_score": 1.0,
+                "judge_failed": true,
+                "graded": true,
+                "score_reducer": "median",
+                "sample_count": 3,
+                "graded_sample_count": 2,
+                "failed_sample_count": 1
+              },
+              "score_samples": [
+                {
+                  "activation_score": 2,
+                  "citation_score": 2,
+                  "behavior_score": 1,
+                  "reasoning": "The response explicitly overrides the one-aggregate-per-transaction rule in favor of a single cross-aggregate transaction, mentions the rule only to dismiss it as 'purity,' uses 'aggregate' and 'eventual' loosely while omitting consistency boundary and domain event as design drivers, and defers the ",
+                  "judge_failed": false,
+                  "sample_index": 0
+                },
+                {
+                  "activation_score": 0,
+                  "citation_score": 0,
+                  "behavior_score": 0,
+                  "reasoning": "judge parse error: {\"activation_score\": 2, \"citation_score\": 2, \"behavior_score\": 1, \"reasoning\": \"The response explicitly rejects the one-aggregate-per-transaction rule as premature purity and recommends a single cross",
+                  "judge_failed": true,
+                  "sample_index": 1
+                },
+                {
+                  "activation_score": 2,
+                  "citation_score": 2,
+                  "behavior_score": 1,
+                  "reasoning": "The response explicitly names the one-aggregate-per-transaction rule only to override it in favor of a single cross-aggregate transaction, mentions aggregates and eventual consistency in passing but never uses consistency boundary or domain event framing, and inverts the expected gate by treating ag",
+                  "judge_failed": false,
+                  "sample_index": 2
+                }
+              ],
+              "judge_repeats": 3,
+              "score_reducer": "median",
+              "system_prompt_chars": 0
+            },
+            "description": {
+              "response_preview": "Empty repo, so this is a pure design call.\n\n- **Same database? One transaction.** Aggregate boundaries are consistency boundaries, not transaction-manager boundaries. Two aggregates in one ACID commit is a rule violation, not a bug. A saga across a single Postgres is complexity you'll debug at 3am.\n- **Make the decrement the guard**: `UPDATE inventory SET qty = qty - :n WHERE sku = :sku AND qty >=...",
+              "scores": {
+                "activation_score": 2.0,
+                "citation_score": 3.0,
+                "behavior_score": 2.0,
+                "judge_failed": true,
+                "graded": true,
+                "score_reducer": "median",
+                "sample_count": 3,
+                "graded_sample_count": 2,
+                "failed_sample_count": 1
+              },
+              "score_samples": [
+                {
+                  "activation_score": 2,
+                  "citation_score": 3,
+                  "behavior_score": 2,
+                  "reasoning": "The response explicitly rejects the rule's mandate by recommending a single ACID transaction spanning Cart, Order, and Inventory aggregates while acknowledging it is 'a rule violation, not a bug', and although it names consistency boundary, aggregate, saga, outbox, and eventual consistency, it never",
+                  "judge_failed": false,
+                  "sample_index": 0
+                },
+                {
+                  "activation_score": 2,
+                  "citation_score": 3,
+                  "behavior_score": 2,
+                  "reasoning": "The response explicitly rejects the rule's mandate by recommending one ACID transaction spanning Cart, Order, and Inventory aggregates, and although it names 'consistency boundaries' and 'eventual'/'saga/outbox' vocabulary, it never invokes domain events as the cross-aggregate mechanism and gates ev",
+                  "judge_failed": false,
+                  "sample_index": 1
+                },
+                {
+                  "activation_score": 0,
+                  "citation_score": 0,
+                  "behavior_score": 0,
+                  "reasoning": "judge parse error: {\"activation_score\": 2, \"citation_score\": 3, \"behavior_score\": 1, \"reasoning\": \"The response explicitly recommends a single ACID transaction across Cart, Order, and Inventory aggregates, acknowledging",
+                  "judge_failed": true,
+                  "sample_index": 2
+                }
+              ],
+              "judge_repeats": 3,
+              "score_reducer": "median",
+              "system_prompt_chars": 473
+            },
+            "full": {
+              "response_preview": "**Eventual, with a reservation step. Not one distributed transaction.**\n\n- **Order is the atomic unit.** One local transaction writes the Order and an outbox row. Inventory decrements in its own transaction, keyed idempotently on order id so retries and redelivery are safe.\n- **The real requirement is oversell tolerance, not consistency.** If you cannot ship negative stock, reserve at checkout sta...",
+              "scores": {
+                "activation_score": 5.0,
+                "citation_score": 4.0,
+                "behavior_score": 5.0,
+                "judge_failed": false,
+                "graded": true,
+                "score_reducer": "median",
+                "sample_count": 3,
+                "graded_sample_count": 3,
+                "failed_sample_count": 0
+              },
+              "score_samples": [
+                {
+                  "activation_score": 5,
+                  "citation_score": 4,
+                  "behavior_score": 5,
+                  "reasoning": "The response applies the one-aggregate-per-transaction rule directly (Order + outbox in one local transaction, Inventory decrement in its own, idempotent by order id, compensation instead of rollback) and names staleness/reservation TTL explicitly; it uses aggregate, eventual, outbox, compensation a",
+                  "judge_failed": false,
+                  "sample_index": 0
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 4,
+                  "behavior_score": 5,
+                  "reasoning": "The response applies the one-aggregate-per-local-transaction rule directly (Order + outbox in one local transaction, Inventory in its own, idempotent by order id, compensation instead of rollback) and uses most of the prescribed vocabulary (aggregate, eventual, staleness window, outbox/publish event",
+                  "judge_failed": false,
+                  "sample_index": 1
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 4,
+                  "behavior_score": 5,
+                  "reasoning": "The response directly applies the one-aggregate-per-transaction rule (Order + outbox in one local transaction, Inventory in its own, idempotent by order id, compensation instead of rollback) and names the staleness window explicitly; it uses aggregate, eventual, outbox/publish-event, reservation, an",
+                  "judge_failed": false,
+                  "sample_index": 2
+                }
+              ],
+              "judge_repeats": 3,
+              "score_reducer": "median",
+              "system_prompt_chars": 7727
+            }
+          }
+        },
+        {
+          "id": "S3",
+          "desc": "Adding shallow pass-through layer",
+          "negative_case": false,
+          "mechanisms": {
+            "baseline": {
+              "response_preview": "Empty directory, so no existing code to ground against. Plan:\n\n- **Skip it.** A Service that only forwards calls to Repository is a rename, not a layer. Call the Repository directly from the caller.\n- If the goal is a seam for testing, the Repository interface already is that seam. Mock/fake it there.\n- Add the Service the first time a method does something a repo call doesn't: a transaction spann...",
+              "scores": {
+                "activation_score": 5.0,
+                "citation_score": 4.0,
+                "behavior_score": 5.0,
+                "judge_failed": true,
+                "graded": true,
+                "score_reducer": "median",
+                "sample_count": 3,
+                "graded_sample_count": 1,
+                "failed_sample_count": 2
+              },
+              "score_samples": [
+                {
+                  "activation_score": 0,
+                  "citation_score": 0,
+                  "behavior_score": 0,
+                  "reasoning": "judge parse error: {\"activation_score\": 5, \"citation_score\": 4, \"behavior_score\": 5, \"reasoning\": \"The response applied the ladder's rung-1 YAGNI reflex directly to the shallow pass-through layer, rejecting it as \"a ren",
+                  "judge_failed": true,
+                  "sample_index": 0
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 4,
+                  "behavior_score": 5,
+                  "reasoning": "The response applied the ladder's rung-1 YAGNI/shallow-layer rejection directly, naming the class as a rename rather than a layer with no added value and specifying the concrete conditions (transaction, business rule, cache, event) under which to add it later, though it used paraphrases like 'only f",
+                  "judge_failed": false,
+                  "sample_index": 1
+                },
+                {
+                  "activation_score": 0,
+                  "citation_score": 0,
+                  "behavior_score": 0,
+                  "reasoning": "judge parse error: {\"activation_score\": 5, \"citation_score\": 4, \"behavior_score\": 5, \"reasoning\": \"The response squarely applies the ladder's rung-1 YAGNI/shallow-layer rejection (\"a rename, not a layer\", pure forwardin",
+                  "judge_failed": true,
+                  "sample_index": 2
+                }
+              ],
+              "judge_repeats": 3,
+              "score_reducer": "median",
+              "system_prompt_chars": 0
+            },
+            "description": {
+              "response_preview": "Empty repo, so this is a greenfield design call.\n\n**Plan:**\n\n- **Skip it.** A Service whose methods are `return repo.method(args)` is indirection with no behavior. Callers can use the Repository directly.\n- **Rung 1 check (YAGNI):** the reasons usually given (future business logic, future swap of persistence, testability) are all speculative. Repository is already the seam for mocking.\n- **Add the...",
+              "scores": {
+                "activation_score": 5.0,
+                "citation_score": 4.0,
+                "behavior_score": 5.0,
+                "judge_failed": true,
+                "graded": true,
+                "score_reducer": "median",
+                "sample_count": 3,
+                "graded_sample_count": 2,
+                "failed_sample_count": 1
+              },
+              "score_samples": [
+                {
+                  "activation_score": 0,
+                  "citation_score": 0,
+                  "behavior_score": 0,
+                  "reasoning": "judge parse error: {\"activation_score\": 5, \"citation_score\": 4, \"behavior_score\": 5, \"reasoning\": \"The response squarely applies the ladder's rung-1 YAGNI rule to reject the shallow pass-through Service, names the deleg",
+                  "judge_failed": true,
+                  "sample_index": 0
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 4,
+                  "behavior_score": 5,
+                  "reasoning": "The response squarely applied the ponytail ladder (rung 1 YAGNI) to reject the shallow pass-through Service, naming delegation-only methods as indirection with no behavior and specifying the exact preconditions (transactions, permissions, invariants, caching, events) that would justify it, plus a re",
+                  "judge_failed": false,
+                  "sample_index": 1
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 4,
+                  "behavior_score": 5,
+                  "reasoning": "The response directly applied the ladder's rung-1 YAGNI check to reject the shallow delegating Service, named the pass-through nature ('methods are return repo.method(args)', 'indirection with no behavior', 'not a forward') and the conditions under which the layer would earn its existence, honoring ",
+                  "judge_failed": false,
+                  "sample_index": 2
+                }
+              ],
+              "judge_repeats": 3,
+              "score_reducer": "median",
+              "system_prompt_chars": 473
+            },
+            "full": {
+              "response_preview": "No files in cwd, so this is a greenfield design call.\n\n**Plan**\n\n- Skip it. A Service whose every method forwards to a Repository is a shallow pass-through layer, one of the forbidden patterns. Callers can take the Repository directly.\n- Confirm the delegation is total: if even one method already holds a rule (validation, transaction scope, cross-repo orchestration, event emit), that method is the...",
+              "scores": {
+                "activation_score": 5.0,
+                "citation_score": 5.0,
+                "behavior_score": 5.0,
+                "judge_failed": true,
+                "graded": true,
+                "score_reducer": "median",
+                "sample_count": 3,
+                "graded_sample_count": 1,
+                "failed_sample_count": 2
+              },
+              "score_samples": [
+                {
+                  "activation_score": 0,
+                  "citation_score": 0,
+                  "behavior_score": 0,
+                  "reasoning": "judge parse error: {\"activation_score\": 5, \"citation_score\": 5, \"behavior_score\": 5, \"reasoning\": \"The response directly applied the anti-shallow-layer rule, used the prescribed vocabulary (\"shallow pass-through layer\",",
+                  "judge_failed": true,
+                  "sample_index": 0
+                },
+                {
+                  "activation_score": 0,
+                  "citation_score": 0,
+                  "behavior_score": 0,
+                  "reasoning": "judge parse error: {\"activation_score\": 5, \"citation_score\": 5, \"behavior_score\": 5, \"reasoning\": \"The response directly applied the anti-shallow-layer rule by refusing to create the pass-through Service, used the presc",
+                  "judge_failed": true,
+                  "sample_index": 1
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 5,
+                  "behavior_score": 5,
+                  "reasoning": "The response directly applies the ladder's rung-1 YAGNI/no-unrequested-abstraction rule, names the layer as a shallow pass-through with no value and recommends removal, and gates the class on the precondition that a method carries real behavior (transactions, authorization, domain events) rather tha",
+                  "judge_failed": false,
+                  "sample_index": 2
+                }
+              ],
+              "judge_repeats": 3,
+              "score_reducer": "median",
+              "system_prompt_chars": 7727
+            }
+          }
+        },
+        {
+          "id": "S4",
+          "desc": "Pure CSS styling question (negative case)",
+          "negative_case": true,
+          "mechanisms": {
+            "baseline": {
+              "response_preview": "```css\n.parent { display: flex; align-items: center; justify-content: center; }\n```\n\n- Parent gets `display: flex`. Child needs nothing.\n- `justify-content: center` centers on the main axis (horizontal by default).\n- `align-items: center` centers on the cross axis (vertical).\n- Parent needs a real height or it collapses to the child: `min-height: 100vh` for full viewport, or a fixed `height`.\n- Sh...",
+              "scores": {
+                "activation_score": 5.0,
+                "citation_score": 5.0,
+                "behavior_score": 5.0,
+                "judge_failed": false,
+                "graded": true,
+                "score_reducer": "median",
+                "sample_count": 3,
+                "graded_sample_count": 3,
+                "failed_sample_count": 0
+              },
+              "score_samples": [
+                {
+                  "activation_score": 5,
+                  "citation_score": 5,
+                  "behavior_score": 5,
+                  "reasoning": "The response stayed on pure CSS mechanics with no invocation of software-engineering-principle vocabulary (DRY, aggregates, layer design) and imposed no unnecessary gates, correctly treating the flexbox question as outside the rule's scope while still honoring the ponytail brevity/skip-note style.",
+                  "judge_failed": false,
+                  "sample_index": 0
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 5,
+                  "behavior_score": 5,
+                  "reasoning": "The response correctly treated this as a plain CSS question, gave the minimal flexbox answer with a practical height caveat, and invoked no software-design vocabulary (DRY, aggregates, layers) or unnecessary process gates.",
+                  "judge_failed": false,
+                  "sample_index": 1
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 5,
+                  "behavior_score": 5,
+                  "reasoning": "The response stayed on pure CSS centering guidance with no invocation of DRY, aggregates, layer design, or other software-engineering-principle vocabulary, and it answered directly without imposing any irrelevant gate.",
+                  "judge_failed": false,
+                  "sample_index": 2
+                }
+              ],
+              "judge_repeats": 3,
+              "score_reducer": "median",
+              "system_prompt_chars": 0
+            },
+            "description": {
+              "response_preview": "```css\n.parent { display: flex; justify-content: center; align-items: center; }\n```\n\n- Parent gets `display: flex` \u2014 the child needs nothing.\n- `justify-content: center` centers on the main axis (horizontal by default).\n- `align-items: center` centers on the cross axis (vertical).\n- Parent needs a real height or vertical centering has no room: `min-height: 100vh` for full-screen, otherwise whateve...",
+              "scores": {
+                "activation_score": 5.0,
+                "citation_score": 5.0,
+                "behavior_score": 5.0,
+                "judge_failed": false,
+                "graded": true,
+                "score_reducer": "median",
+                "sample_count": 3,
+                "graded_sample_count": 3,
+                "failed_sample_count": 0
+              },
+              "score_samples": [
+                {
+                  "activation_score": 5,
+                  "citation_score": 5,
+                  "behavior_score": 5,
+                  "reasoning": "The response stayed on the CSS question with a direct flexbox answer and no software-engineering-principle vocabulary (DRY, aggregates, layer design), correctly not activating the rule and not imposing any unnecessary gate.",
+                  "judge_failed": false,
+                  "sample_index": 0
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 5,
+                  "behavior_score": 5,
+                  "reasoning": "The response stayed entirely on CSS mechanics with no invocation of DRY, aggregates, layer design, or other engineering-principle vocabulary, and it answered directly in 5 bullets without imposing any irrelevant gate.",
+                  "judge_failed": false,
+                  "sample_index": 1
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 5,
+                  "behavior_score": 5,
+                  "reasoning": "The response gave a direct CSS flexbox answer with no invocation of software-engineering-principle vocabulary (DRY, aggregates, layer design) and no unnecessary gating, correctly treating this as a plain styling question.",
+                  "judge_failed": false,
+                  "sample_index": 2
+                }
+              ],
+              "judge_repeats": 3,
+              "score_reducer": "median",
+              "system_prompt_chars": 473
+            },
+            "full": {
+              "response_preview": "```css\n.parent { display: flex; justify-content: center; align-items: center; height: 100vh; }\n```\n\n- Parent gets `display: flex`, `justify-content: center` (horizontal), `align-items: center` (vertical). Three declarations, done.\n- Parent needs a real height or the vertical centering has nothing to center in. `height: 100vh`, `min-height`, or an inherited height all work.\n- Shorter variant: `.par...",
+              "scores": {
+                "activation_score": 5.0,
+                "citation_score": 5.0,
+                "behavior_score": 5.0,
+                "judge_failed": false,
+                "graded": true,
+                "score_reducer": "median",
+                "sample_count": 3,
+                "graded_sample_count": 3,
+                "failed_sample_count": 0
+              },
+              "score_samples": [
+                {
+                  "activation_score": 5,
+                  "citation_score": 5,
+                  "behavior_score": 5,
+                  "reasoning": "The response stayed on pure CSS centering with concrete declarations and no software-engineering-principle vocabulary (DRY, aggregates, layer design), correctly treating the rule as not applicable and answering directly without imposing any irrelevant gate.",
+                  "judge_failed": false,
+                  "sample_index": 0
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 5,
+                  "behavior_score": 5,
+                  "reasoning": "The response correctly stayed on pure CSS guidance without invoking DRY, aggregates, layer design, or any software-engineering rule vocabulary, and answered directly without imposing an irrelevant gate.",
+                  "judge_failed": false,
+                  "sample_index": 1
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 5,
+                  "behavior_score": 5,
+                  "reasoning": "The response stayed entirely within CSS domain guidance (flexbox, grid, auto margins) without invoking DRY, aggregates, layer design, or any software-architecture vocabulary, and it answered directly without imposing an irrelevant gate.",
+                  "judge_failed": false,
+                  "sample_index": 2
+                }
+              ],
+              "judge_repeats": 3,
+              "score_reducer": "median",
+              "system_prompt_chars": 7727
+            }
+          }
+        }
+      ]
+    }
+  }
+}

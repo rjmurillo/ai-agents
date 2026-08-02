@@ -1,6 +1,6 @@
 ---
 name: ai-agents-research-frontier
-description: "Three ranked open research programs for this repo, each with honest current-state evidence, first concrete steps, and a falsifiable milestone. Verified governance (ADR-069, proposed), cross-harness abstraction (ADR-072 and ADR-068, proposed), and the self-improving loop (issue #1345). Use when you say `research frontier`, `open problems`, `what should we research next`. Do NOT use for how to run an experiment here (use `ai-agents-research-methodology`)."
+description: "Three ranked open research programs for this repo, each with honest current-state evidence, first concrete steps, and a falsifiable milestone. Verified governance (ADR-069, proposed), cross-harness abstraction (ADR-072 proposed, ADR-068 accepted), and the self-improving loop (issue #1345). Use when you say `research frontier`, `open problems`, `what should we research next`. Do NOT use for how to run an experiment here (use `ai-agents-research-methodology`)."
 version: 1.0.0
 license: MIT
 ---
@@ -15,7 +15,7 @@ what "done" would look like. It does not teach experiment discipline (that is
 (that is `ai-agents-portability-campaign`).
 
 Honesty contract for this document: every asset claim below was re-verified
-against the working tree on 2026-07-03. Anything labeled PROPOSED is not policy.
+against the working tree on 2026-07-30. Anything labeled PROPOSED is not policy.
 Anything labeled UNVERIFIED could not be confirmed and must be checked before you
 build on it.
 
@@ -28,11 +28,11 @@ build on it.
 
 ## The Three Programs at a Glance
 
-| Rank | Program | Anchor artifacts | Status (as of 2026-07-03) | Falsifiable milestone (short form) |
+| Rank | Program | Anchor artifacts | Status (as of 2026-07-30) | Falsifiable milestone (short form) |
 |------|---------|------------------|---------------------------|-------------------------------------|
-| 1 | Verified governance | ADR-069, `scripts/eval/eval-rule-activation.py` | ADR-069 is PROPOSED; eval tool exists, 7 rule scenario fixtures exist | Controlled eval shows gated-corpus sessions beat ungated on N scenarios with defensible stats |
-| 2 | Cross-harness abstraction | ADR-072, ADR-068, `build/generate_agents.py`, `tests/build_scripts/test_generate_hooks_runtime_contract.py` | Both ADRs PROPOSED; generators and contract tests exist and run | New harness target added with zero hand-edits to generated trees, contract suite green |
-| 3 | Self-improving loop | issue #1345 hooks, `guard-maturity` tiers, `EVENT=` telemetry | Apply-step hook live; end-to-end consumer pipeline UNVERIFIED | A correction observed once auto-proposes a guard that survives calibration |
+| 1 | Verified governance | ADR-069, `scripts/eval/eval-rule-activation.py` | ADR-069 is PROPOSED; eval tool exists, 12 rule scenario fixtures exist | Controlled eval shows gated-corpus sessions beat ungated on N scenarios with defensible stats |
+| 2 | Cross-harness abstraction | ADR-072, ADR-068, `build/generate_agents.py`, `tests/build_scripts/test_generate_hooks_runtime_contract.py` | ADR-072 PROPOSED, ADR-068 ACCEPTED as of 2026-07-30; generators and contract tests exist and run | New harness target added with zero hand-edits to generated trees, contract suite green |
+| 3 | Self-improving loop | issue #1345 hooks, `guard-maturity` tiers, `EVENT=` telemetry | Apply-step hooks unregistered; end-to-end consumer pipeline UNVERIFIED | A correction observed once auto-proposes a guard that survives calibration |
 
 ## Process
 
@@ -45,12 +45,12 @@ issue, or write-up. All commands run from the repo root.
 |-------|-------------------|
 | ADR-069 status is proposed | `head -5 .agents/architecture/ADR-069-context-corpus-is-the-product.md` |
 | ADR-072 status is Proposed with approval conditions | `sed -n '1,15p' .agents/architecture/ADR-072-jtbd-plugin-architecture.md` |
-| ADR-068 status is Proposed | `sed -n '1,10p' .agents/architecture/ADR-068-consolidated-hook-dispatcher.md` |
+| ADR-068 status is Accepted as of 2026-07-30 | `sed -n '1,10p' .agents/architecture/ADR-068-consolidated-hook-dispatcher.md` |
 | Rule-activation eval exists with a no-spend path | `python3 scripts/eval/eval-rule-activation.py --help` |
-| 7 rule scenario fixtures | `ls tests/evals/rule-scenarios/` |
-| Corpus size (92 skills, 30 rules, 95 retros, 122 memories) | `ls -d .claude/skills/*/ \| wc -l; ls .claude/rules/*.md \| wc -l; ls .agents/retrospective/ \| wc -l; ls .serena/memories/ \| wc -l` |
+| 12 rule scenario fixtures as of 2026-07-30 | `set -- tests/evals/rule-scenarios/*; echo $#` |
+| Corpus size (98 skill directories, 25 rule files, 121 retrospective corpus files, 879 Markdown memory files as of 2026-07-30) | `set -- .claude/skills/*/; echo $#; set -- .claude/rules/*.md; echo $#; python3 -c "from pathlib import Path; print(sum(1 for p in Path('.agents/retrospective').glob('*.md') if p.is_file())); print(sum(1 for p in Path('.serena/memories').rglob('*.md') if p.is_file()))"` |
 | Runtime contract tests pass | `uv run pytest tests/build_scripts/test_generate_hooks_runtime_contract.py -q` |
-| Apply-step hooks unregistered | `uv run pytest -q tests/build_scripts/test_copilot_dispatcher_artifact.py::test_only_advisory_pretooluse_registrations_are_absent` |
+| Apply-step hooks unregistered | `uv run pytest -q "tests/build_scripts/test_copilot_dispatcher_artifact.py::TestDispatcherArtifacts::test_retired_hooks_are_absent_and_keepers_are_plugin_only"` |
 
 ### Phase 2: Pick a program
 
@@ -89,18 +89,19 @@ durable competitive surface and everything else is plumbing.
 
 - Prompt engineering is folklore: rules ship because they sound right, and
   almost nobody measures whether a rule changes model behavior at all.
-- Rules are unmeasured even here: this repo has 30 rule files under
-  `.claude/rules/` but only 7 scenario fixtures under
-  `tests/evals/rule-scenarios/` (as of 2026-07-03). Most rules have never had
-  an activation baseline.
+- Rules are unmeasured even here: this repo has 25 rule files under
+  `.claude/rules/` but only 12 scenario fixtures under
+  `tests/evals/rule-scenarios/` (as of 2026-07-30). Those fixtures name 12
+  distinct rules, so 13 of 25 rules have no activation baseline.
 - Weight tuning is unavailable to a repository: you cannot fine-tune the vendor
   model, so context curation is the only lever, and the field has no shared
   methodology for verifying it.
 
 ### This repo's asset
 
-- 92 skill directories, 30 rules, 95 retrospectives, 122 Serena memories
-  (counts as of 2026-07-03).
+- 98 skill directories, 25 rule files, 121 retrospective corpus files,
+  879 Serena Markdown memory files
+  (counts as of 2026-07-30; re-verify with the Phase 1 corpus-size command).
 - Gates that produce inspectable artifacts (verification-based governance,
   SESSION-PROTOCOL.md): every rule violation leaves evidence, so compliance is
   measurable after the fact.
@@ -167,8 +168,8 @@ that would falsify the strong form of ADR-069.
   measured Python cold start per shim on Windows with 40 PreToolUse shims.
 
 Label honestly: ADR-072 is PROPOSED with an explicit "APPROVE WITH CHANGES"
-review and five conditions to reach Accepted; ADR-068 is PROPOSED. No code moves
-on either ADR alone. Nothing in this program may route around
+review and five conditions to reach Accepted; ADR-068 reached ACCEPTED on
+2026-07-19. No code moves on ADR-072 alone. Nothing in this program may route around
 `ai-agents-change-control`.
 
 ### First three steps
@@ -218,8 +219,8 @@ generated output or a contract row that cannot be expressed in the spec.
 - A maturity model with numeric thresholds: the `guard-maturity` skill
   classifies guards as Budding, Growing, Mature, Proficient, Inert, or Harmful
   from age, intercept count, and fitness, with explicit prune/promote actions.
-- A reflexion write path: `memory-reflexion` (ADR-063) extracts episodes and
-  updates the causal graph.
+- A reflexion write path: `memory-reflexion` (ADR-063) extracts episodes.
+  Its derived causal graph was removed by ADR-089 for having no reader.
 
 What is NOT yet built (state this in any pitch):
 
@@ -262,7 +263,7 @@ guards for corrections that a human already hand-coded.
 
 | Anti-pattern | Why it fails here | Do instead |
 |--------------|-------------------|------------|
-| Citing ADR-069/ADR-072/ADR-068 as accepted policy | All three are PROPOSED (as of 2026-07-03); ADR-072 has five unmet conditions to reach Accepted | Quote the status line; treat them as research direction, not mandate |
+| Citing ADR-069/ADR-072 as accepted policy | Both are PROPOSED (as of 2026-07-30); ADR-072 has five unmet conditions to reach Accepted. ADR-068 did reach Accepted, so it is policy | Quote the status line before citing; treat the Proposed pair as research direction, not mandate |
 | Shipping a detector or guard without replaying it on real history | #1989 M4 threshold could never fire; #1887 guards prevented 0/35 of their own fixes | Calibrate against roughly the last 5 real PRs first |
 | Trusting vendor docs for harness behavior | Docs were wrong by omission in #2205 and #2290 | Empirical probe with pinned version and negative control (`ai-agents-empirical-probe-toolkit`) |
 | Claiming corpus counts or eval coverage from this file | Counts decay; this file is a snapshot | Re-run the Phase 1 verification commands |
@@ -284,24 +285,26 @@ Before acting on this skill's claims, or after editing it:
 
 ## Provenance and Maintenance
 
-Authored 2026-07-03. All facts verified against the working tree on that date.
-Full local history is present (~1471 commits as of 2026-07-03), but retro-cited
-short SHAs (for example ddb76e0, 01e76615a) may not resolve; use
-`.agents/retrospective/` and `.serena/memories/` for archaeology, not `git log`.
+Authored 2026-07-03, facts re-verified against the working tree on 2026-07-30.
+Retro-cited SHAs `ddb76e0` and `01e76615a` exist in this clone but are not
+reachable from `main`. Clone refs determine whether those objects exist, so
+verify ancestry before using `git log`. Prefer `.agents/retrospective/` and
+`.serena/memories/` for the reasoning behind a change, which commit messages
+rarely carry.
 
 Sources and re-verification:
 
 - ADR-069 thesis and status: `.agents/architecture/ADR-069-context-corpus-is-the-product.md:2` (status: proposed), title at line 9. Re-verify: `head -12 .agents/architecture/ADR-069-context-corpus-is-the-product.md`.
-- ADR-072 status, review verdict, five conditions, harness list: `.agents/architecture/ADR-072-jtbd-plugin-architecture.md:3-19`. Re-verify: `sed -n '1,25p' .agents/architecture/ADR-072-jtbd-plugin-architecture.md`.
-- ADR-068 status and #2295 measurements (3/197 kills, ~246 ms cold start, 40 shims): `.agents/architecture/ADR-068-consolidated-hook-dispatcher.md`. Re-verify: `grep -n "197\|246" .agents/architecture/ADR-068-consolidated-hook-dispatcher.md`.
+- ADR-072 status, review verdict, five conditions, harness list: `.agents/architecture/ADR-072-jtbd-plugin-architecture.md:3-20,119-131`. Re-verify: `sed -n '1,25p;119,131p' .agents/architecture/ADR-072-jtbd-plugin-architecture.md`.
+- ADR-068 status and #2295 measurements (3/197 kills, ~246 ms cold start, 40 shims): `.agents/architecture/ADR-068-consolidated-hook-dispatcher.md`. Re-verify: `sed -n '1,10p' .agents/architecture/ADR-068-consolidated-hook-dispatcher.md; grep -n -A1 -e "Three of" -e "246" -e "N=40" .agents/architecture/ADR-068-consolidated-hook-dispatcher.md`.
 - Rule-activation eval mechanisms, judge dimensions, exit codes: `scripts/eval/eval-rule-activation.py:1-40` docstring. Re-verify: `sed -n '1,40p' scripts/eval/eval-rule-activation.py`.
 - FM-1 95.8% evidence: `.agents/governance/FAILURE-MODES.md:44`. Re-verify: `grep -n "95.8" .agents/governance/FAILURE-MODES.md`.
 - Detect-Log-Graduate and explicit retrieval: the `reflect` skill, `.claude/skills/memory/SKILL.md`, and `.claude/skills/memory-search/SKILL.md`. Re-verify the deleted advisory hooks' absence with the Phase 1 test command.
 - EVENT telemetry emitter: `.claude/hooks/PreToolUse/push_guard_base.py:19`. Re-verify: `grep -n "EVENT=" .claude/hooks/PreToolUse/push_guard_base.py`.
-- Guard tiers and thresholds: `.claude/skills/guard-maturity/SKILL.md:46-57`. Re-verify: `grep -n "Harmful\|Proficient\|Inert" .claude/skills/guard-maturity/SKILL.md`.
-- Runtime contract test and anchoring validator: `tests/build_scripts/test_generate_hooks_runtime_contract.py`, `scripts/validation/validate_hook_anchoring.py`. Re-verify: `ls` both paths.
-- Env-anchor decision memory: `.serena/memories/decision-copilot-cli-hook-plugin-root-contract.md`. Re-verify: `ls` the path.
-- Counts (92 skill dirs, 30 rules, 95 retros, 122 memories, 7 scenario fixtures): Phase 1 command. Volatile; re-run before quoting.
+- Guard tiers and thresholds: `.claude/skills/guard-maturity/SKILL.md:52-59`. Re-verify: `sed -n '52,59p' .claude/skills/guard-maturity/SKILL.md`.
+- Runtime contract test and anchoring validator: `tests/build_scripts/test_generate_hooks_runtime_contract.py`, `scripts/validation/validate_hook_anchoring.py`. Re-verify: `ls tests/build_scripts/test_generate_hooks_runtime_contract.py scripts/validation/validate_hook_anchoring.py`.
+- Env-anchor decision memory: `.serena/memories/decision-copilot-cli-hook-plugin-root-contract.md`. Re-verify: `ls .serena/memories/decision-copilot-cli-hook-plugin-root-contract.md`.
+- Counts (skill dirs, rules, retros, memories, scenario fixtures): Phase 1 command. Volatile; re-run before quoting rather than copying a snapshot from here.
 - Incident claims (#2205, #2290, #1887, #1989, #2230): see `ai-agents-failure-archaeology` for evidence paths; do not re-litigate settled battles.
 
 Unverified in this document (flagged inline): per-rule traffic data, automated

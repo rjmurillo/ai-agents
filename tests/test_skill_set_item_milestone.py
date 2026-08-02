@@ -54,6 +54,31 @@ def test_assign_auto_detected(mock_run, capsys):
 
 
 @patch("subprocess.run")
+def test_assign_auto_detected_v_prefixed(mock_run, capsys):
+    item_data = json.dumps({"milestone": None})
+    milestones = json.dumps(
+        [
+            {"title": "v0.6.x close-out", "number": 10},
+            {"title": "v0.7.0", "number": 11},
+            {"title": "v0.6.0", "number": 12},
+        ]
+    )
+
+    mock_run.side_effect = [
+        _completed(rc=0),  # auth
+        _completed(stdout="https://github.com/o/r\n"),  # remote
+        _completed(stdout=item_data),  # get item
+        _completed(stdout=milestones),  # list milestones
+        _completed(rc=0),  # assign milestone
+    ]
+
+    rc = main(["--item-type", "pr", "--item-number", "42"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "v0.7.0" in out
+
+
+@patch("subprocess.run")
 def test_skip_existing_milestone(mock_run, capsys):
     item_data = json.dumps({"milestone": {"title": "0.2.0"}})
 

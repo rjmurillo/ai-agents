@@ -19,9 +19,9 @@ import os
 import re
 import sys
 
-_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
-if _plugin_root:
+if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
     _lib_dir = os.path.join(_plugin_root, "lib")
 elif _workspace:
     _lib_dir = os.path.join(_workspace, ".claude", "lib")
@@ -47,12 +47,14 @@ from github_core.output import (  # noqa: E402
     write_skill_output,
 )
 
-_SEMVER_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
+# Optional v prefix matches the repository tag and milestone convention
+# (every milestone since 0.3.0 is v-prefixed; see issue #3945).
+_SEMVER_PATTERN = re.compile(r"^v?\d+\.\d+\.\d+$")
 
 
 def _parse_semver_tuple(version: str) -> tuple[int, ...]:
     """Parse 'X.Y.Z' into (X, Y, Z) for proper numeric sorting."""
-    return tuple(int(part) for part in version.split("."))
+    return tuple(int(part) for part in version.removeprefix("v").split("."))
 
 
 def _write_github_output(outputs: dict[str, str]) -> None:

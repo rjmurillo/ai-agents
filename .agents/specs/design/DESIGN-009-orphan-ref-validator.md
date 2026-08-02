@@ -38,7 +38,8 @@ The skill is fail-closed: any unrecognized configuration error returns exit `2`,
 | Target expansion | `scan.py:_expand_target` | Resolve literal files, directories, and glob patterns against repo root |
 | File walk | `walking.py:walk_targets`, `_iter_dir_pruned`, `is_safe_subdirectory` | Recursive iterdir with directory-name pruning for `EXCLUDE_DIR_NAMES`; secret denylist; 5 MB cap; symlink-directory containment at recursion entry |
 | Reference detection | `patterns.py:extract_skill_refs`, `extract_script_refs`, `extract_count_claims` | Line-oriented regex extraction with file-scope and line-scope ignore directive support; consumed by `scan.py` via re-export |
-| Filters | `filters.py:is_known_kebab_word` | Curated denylist of kebab tokens that match `SKILL_REF_RE` but are not skill references (model IDs, frontmatter fields, third-party Action names, bot identifiers, eval verdict literals) |
+| Filters | `filters.py:is_known_kebab_word` | Rejects tokens that cannot name a skill: no hyphen, or a model identifier such as `claude-opus-5`. The curated non-skill denylist was deleted in issue #3726 once the type-claim rule made it dead |
+| Filters | `filters.py:foreign_skill_catalog` | Names skills owned by another repository's catalog, which are correct references rather than orphans (issue #3728) |
 | Source-of-truth enumeration | `counts.py:enumerate_skills`, `enumerate_count`, `_count_md_agents`, `_count_md_recursive`, `_count_py_recursive` | Mirror canonical strategies from `build/scripts/validate_marketplace_counts.py` for working-tree counts <!-- orphan-ref-ignore --> |
 | Output rendering | `envelope.py:Finding`, `ScanResult`, `render_envelope`, `render_error_envelope` | ADR-056 envelope shape and verdict line; `render_error_envelope` covers the exit-2 path |
 | Containment | `scan.py:scan` | Repo-root containment recheck on every walked file (post symlink resolution); `skill_catalog_present` flag thread for warn-vs-critical disambiguation |
@@ -62,10 +63,10 @@ The skill is fail-closed: any unrecognized configuration error returns exit `2`,
 
 ## Testing Strategy
 
-- **Unit tests**: `tests/test_scan.py` covers each AC positively and negatively, ADR-056 envelope shape (including the `Success: false` exit-2 envelope), ADR-035 exit codes, vendored-install scenarios (skill catalog absent, empty, or pointing at a regular file), ignore directives at both scopes, glob target expansion, walk-prune behavior, symlink containment for both file and directory targets, in-repo symlink-cycle guard, max-findings cap, and edge cases (empty file, secret denylist, oversized files, mixed living-and-dead refs, CWD-not-in-git fallback).
+- **Unit tests**: `.claude/skills/orphan-ref-validator/tests/test_scan.py` covers each AC positively and negatively, ADR-056 envelope shape (including the `Success: false` exit-2 envelope), ADR-035 exit codes, vendored-install scenarios (skill catalog absent, empty, or pointing at a regular file), ignore directives at both scopes, glob target expansion, walk-prune behavior, symlink containment for both file and directory targets, in-repo symlink-cycle guard, max-findings cap, and edge cases (empty file, secret denylist, oversized files, mixed living-and-dead refs, CWD-not-in-git fallback).
 - **Self-test (TASK-009-07)**: scan the source repo with default scope; iterate filters and ignore directives until VERDICT: PASS; document remaining preexisting orphans surfaced by `--include-adrs` and `--include-skill-descriptions` as out-of-scope follow-up work.
 - **Coverage gate**: `pytest --cov=scripts.scan --cov-fail-under=80`. Achieved coverage on `scan.py` exceeds the 80% floor.
-- **Integration with canonical**: `tests/test_validate_marketplace_counts.py` continues to enforce manifest counts; orphan-ref-validator does not duplicate that path. The two test suites do not overlap.
+- **Integration with canonical**: `tests/test_validate_marketplace_counts.py` continues to enforce manifest counts; orphan-ref-validator does not duplicate that path. The two test suites do not overlap. <!-- orphan-ref-ignore -->
 
 ## Architecture
 
@@ -157,15 +158,15 @@ Body sections:
 - Examples
 - References (REQ-009, ADR-035, ADR-056, ADR-042)
 
-### `tests/test_scan.py` (pytest)
+### `.claude/skills/orphan-ref-validator/tests/test_scan.py` (pytest)
 
 Test cases:
 
 | Case | Setup | Expected |
 |---|---|---|
-| AC2 positive | tmp file mentions `doc-sync`; `.claude/skills/doc-sync/` absent | Finding(kind=skill_name, severity=critical) | <!-- orphan-ref-ignore -->
+| AC2 positive | tmp file mentions `doc-sync`; `.claude/skills/doc-sync/` absent | Finding(kind=skill_name, severity=critical) <!-- orphan-ref-ignore --> |
 | AC2 negative | tmp file mentions only living skill names | 0 findings |
-| AC3 positive | tmp file references `build/scripts/nonexistent.py` | Finding(kind=script_path, severity=critical) | <!-- orphan-ref-ignore -->
+| AC3 positive | tmp file references `build/scripts/nonexistent.py` | Finding(kind=script_path, severity=critical) <!-- orphan-ref-ignore --> |
 | AC3 negative | tmp file references existing scripts | 0 findings |
 | AC4 positive | manifest claims `100 skills` with 67 actual | Finding(kind=count_claim, severity=critical) |
 | AC4 negative | manifest count matches actual | 0 findings |

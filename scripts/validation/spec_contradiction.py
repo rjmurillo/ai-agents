@@ -129,14 +129,11 @@ def fetch_current_pr_body(owner: str, repo: str) -> str | None:
     """
     try:
         result = subprocess.run(
-            [
-                "gh", "pr", "view",
-                "--json", "body",
-                "-q", ".body",
-                "--repo", f"{owner}/{repo}",
-            ],
+            ["gh", "pr", "view", "--json", "body", "-q", ".body", "--repo", f"{owner}/{repo}"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=15,
         )
     except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -152,13 +149,21 @@ def fetch_issue_body(issue_number: int, owner: str, repo: str) -> str | None:
     try:
         result = subprocess.run(
             [
-                "gh", "issue", "view", str(issue_number),
-                "--json", "body",
-                "-q", ".body",
-                "--repo", f"{owner}/{repo}",
+                "gh",
+                "issue",
+                "view",
+                str(issue_number),
+                "--json",
+                "body",
+                "-q",
+                ".body",
+                "--repo",
+                f"{owner}/{repo}",
             ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=15,
         )
     except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -309,11 +314,18 @@ def _changed_agent_files(repo_root: Path, base_ref: str) -> dict[str, str]:
     """
     diff = subprocess.run(
         [
-            "git", "-C", str(repo_root), "diff",
-            "--name-only", "--diff-filter=ACMR", f"{base_ref}...HEAD",
+            "git",
+            "-C",
+            str(repo_root),
+            "diff",
+            "--name-only",
+            "--diff-filter=ACMR",
+            f"{base_ref}...HEAD",
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
     )
     if diff.returncode != 0:
@@ -326,6 +338,8 @@ def _changed_agent_files(repo_root: Path, base_ref: str) -> dict[str, str]:
             ["git", "-C", str(repo_root), "show", f"HEAD:{relpath}"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
         )
         if show.returncode != 0:
@@ -342,6 +356,8 @@ def _resolve_base_ref(repo_root: Path) -> str | None:
             ["git", "-C", str(repo_root), "rev-parse", "--verify", "--quiet", ref],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
         )
         if result.returncode == 0:
@@ -375,17 +391,13 @@ def collect_contradictions(
         return []
 
     contradictions: list[Contradiction] = []
-    contradictions.extend(
-        find_contradictions(pr_body, "PR description", frontmatter_files)
-    )
+    contradictions.extend(find_contradictions(pr_body, "PR description", frontmatter_files))
     for issue_number in extract_linked_issues(pr_body):
         issue_body = fetch_issue_body(issue_number, owner, repo)
         if issue_body is None:
             continue
         contradictions.extend(
-            find_contradictions(
-                issue_body, f"issue #{issue_number}", frontmatter_files
-            )
+            find_contradictions(issue_body, f"issue #{issue_number}", frontmatter_files)
         )
     return contradictions
 
@@ -436,8 +448,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--advisory",
         action="store_true",
-        default=os.environ.get("SPEC_CONTRADICTION_ADVISORY", "").lower()
-        in ("1", "true"),
+        default=os.environ.get("SPEC_CONTRADICTION_ADVISORY", "").lower() in ("1", "true"),
         help=(
             "Advisory mode: print findings but always exit 0 "
             "(env: SPEC_CONTRADICTION_ADVISORY). Used by pre_pr.py."
@@ -471,9 +482,7 @@ def main(argv: list[str] | None = None) -> int:
     owner = info.owner
     repo = info.repo
 
-    contradictions = collect_contradictions(
-        repo_root, owner, repo, base_ref=args.base
-    )
+    contradictions = collect_contradictions(repo_root, owner, repo, base_ref=args.base)
     print(format_report(contradictions))
 
     if contradictions and not args.advisory:

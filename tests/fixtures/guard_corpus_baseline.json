@@ -1,0 +1,205 @@
+{
+  "version": 1,
+  "corpus_root": ".claude/skills",
+  "description": "Pinned findings for the differential gate. Edit only when removing a detection deliberately; explain why in the commit message.",
+  "findings": {
+    "adr-review/scripts/detect_adr_changes.py": [
+      84
+    ],
+    "analysis-provenance/scripts/check_provenance.py": [
+      246
+    ],
+    "chestertons-fence/scripts/investigate.py": [
+      86,
+      155
+    ],
+    "code-qualities-assessment/scripts/assess.py": [
+      414
+    ],
+    "codeql-scan/scripts/invoke_codeql_scan.py": [
+      59
+    ],
+    "codeql-scan/scripts/invoke_codeql_scan_skill.py": [
+      36
+    ],
+    "context-optimizer/scripts/path_validation.py": [
+      28,
+      49
+    ],
+    "doc-accuracy/scripts/doc_accuracy.py": [
+      328
+    ],
+    "github/scripts/issue/edit_issue_body.py": [
+      129
+    ],
+    "github/scripts/issue/list_issues.py": [
+      176
+    ],
+    "github/scripts/issue/set_issue_assignee.py": [
+      82
+    ],
+    "github/scripts/notifications/get_actionable_items.py": [
+      84,
+      100,
+      126,
+      159,
+      192
+    ],
+    "github/scripts/pr/close_pr.py": [
+      76,
+      104,
+      112
+    ],
+    "github/scripts/pr/detect_copilot_followup_pr.py": [
+      79,
+      101,
+      116,
+      155,
+      278
+    ],
+    "github/scripts/pr/get_pr_check_logs.py": [
+      292,
+      302,
+      312
+    ],
+    "github/scripts/pr/get_pr_comments_by_reviewer.py": [
+      69
+    ],
+    "github/scripts/pr/get_pr_context.py": [
+      96,
+      145,
+      152
+    ],
+    "github/scripts/pr/get_pr_review_comments.py": [
+      136,
+      160,
+      207
+    ],
+    "github/scripts/pr/get_pr_reviewers.py": [
+      94
+    ],
+    "github/scripts/pr/get_pull_requests.py": [
+      150
+    ],
+    "github/scripts/pr/get_thread_conversation_history.py": [
+      108
+    ],
+    "github/scripts/pr/invoke_pr_comment_processing.py": [
+      126,
+      141,
+      172
+    ],
+    "github/scripts/pr/post_pr_comment_reply.py": [
+      96
+    ],
+    "github/scripts/pr/resolve_pr_review_thread.py": [
+      102
+    ],
+    "github/scripts/pr/run_completion_gate.py": [
+      655
+    ],
+    "github/scripts/pr/unresolve_pr_review_thread.py": [
+      105
+    ],
+    "github/scripts/pr/wait_for_unresolved_zero.py": [
+      154
+    ],
+    "github/scripts/test_workflow_locally.py": [
+      52,
+      146,
+      365,
+      380,
+      481
+    ],
+    "guard-maturity/scripts/run_report.py": [
+      134,
+      146
+    ],
+    "memory/memory_core/schema_validation.py": [
+      77
+    ],
+    "memory/scripts/convert_index_table_links.py": [
+      27
+    ],
+    "memory/scripts/convert_memory_references.py": [
+      28
+    ],
+    "memory/scripts/improve_memory_graph_density.py": [
+      33
+    ],
+    "merge-resolver/scripts/verify_no_conflict_markers.py": [
+      64
+    ],
+    "metrics/collect_metrics.py": [
+      65,
+      101
+    ],
+    "orphan-ref-validator/scripts/scan.py": [
+      593
+    ],
+    "orphan-ref-validator/tests/test_scan.py": [
+      2307,
+      2314
+    ],
+    "pr-comment-responder/tests/test_cluster_threads.py": [
+      322
+    ],
+    "retrospective/scripts/extract_evidence.py": [
+      289
+    ],
+    "retrospective/tests/test_extract_evidence.py": [
+      476
+    ],
+    "retrospective/tests/test_run_retrospective.py": [
+      311
+    ],
+    "retrospective/tests/test_score_atomicity.py": [
+      213
+    ],
+    "review/scripts/validate_findings_scope.py": [
+      90
+    ],
+    "security-detection/detect_infrastructure.py": [
+      83
+    ],
+    "security-scan/scripts/scan_vulnerabilities.py": [
+      166
+    ],
+    "session/scripts/test_investigation_eligibility.py": [
+      56
+    ],
+    "session-end/scripts/complete_session_log.py": [
+      79,
+      122,
+      136,
+      154,
+      170,
+      177,
+      197,
+      214
+    ],
+    "session-end/scripts/rework_warning.py": [
+      82
+    ],
+    "session-init/scripts/new_session_log.py": [
+      121,
+      184
+    ],
+    "session-init/scripts/new_session_log_json.py": [
+      94,
+      107,
+      125
+    ],
+    "session-init/session_init/git_helpers.py": [
+      21
+    ],
+    "session-log-fixer/scripts/get_validation_errors.py": [
+      39,
+      50,
+      133
+    ],
+    "style-enforcement/scripts/check_style.py": [
+      476
+    ]
+  }
+}

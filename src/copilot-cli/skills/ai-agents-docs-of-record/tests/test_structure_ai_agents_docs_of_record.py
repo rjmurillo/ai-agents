@@ -39,3 +39,49 @@ def test_no_em_or_en_dashes():
 
 def test_size_cap():
     assert len(_text().splitlines()) <= 500
+
+
+def _provenance_rows() -> list[str]:
+    """Data rows of the Fact / Source / Re-verify table."""
+    rows: list[str] = []
+    in_table = False
+    for line in _text().splitlines():
+        if line.startswith("| Fact | Source | Re-verify |"):
+            in_table = True
+            continue
+        if in_table:
+            if not line.startswith("|"):
+                break
+            if line.startswith("|---"):
+                continue
+            rows.append(line)
+    return rows
+
+
+def test_provenance_table_is_populated():
+    assert len(_provenance_rows()) >= 15
+
+
+def test_branch_pattern_reverify_anchors_on_the_definition():
+    """Regression guard for the PR #4025 review finding.
+
+    A bare ``grep -n "BRANCH_PATTERN"`` exits 0 when the symbol survives only in
+    a comment or a call site, so the row passed without proving the constant it
+    names as the source still exists. Deleting the assignment left the command
+    green. The command must anchor to the assignment itself.
+    """
+    row = next(r for r in _provenance_rows() if r.startswith("| Branch naming pattern |"))
+    assert '"^BRANCH_PATTERN = re.compile"' in row, (
+        "re-verify command must anchor to the constant assignment, not a bare symbol mention"
+    )
+
+
+def test_provenance_table_has_no_escaped_pipes():
+    """An escaped pipe is valid Markdown but reaches a raw reader intact.
+
+    In the row that carried one, the escape let a second shell statement mask
+    the first statement's failure.
+    """
+    for row in _provenance_rows():
+        assert "\\|" not in row, f"escaped pipe in provenance row: {row[:60]}"
+

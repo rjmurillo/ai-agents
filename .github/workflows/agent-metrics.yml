@@ -53,36 +53,30 @@ jobs:
         with:
           python-version: '3.14'
 
+      # ADR-006: source selection is a GitHub expression (configuration), and
+      # validation lives in scripts/workflows/resolve_dispatch_input.py. Two
+      # deliberate behaviour changes: the `||` fallback now supplies the
+      # declared default when the input is blank (the old `case` failed the
+      # step instead), and `days=0` is now rejected (the old digit glob let it
+      # through even though its own error message said "positive integer").
       - name: Determine analysis period
         id: period
+        env:
+          DAYS_RAW: ${{ (github.event_name == 'workflow_dispatch' && inputs.days) || '7' }}
+          FORMAT_RAW: ${{ (github.event_name == 'workflow_dispatch' && inputs.output_format) || 'markdown' }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "days=${{ inputs.days }}" >> $GITHUB_OUTPUT
-            echo "format=${{ inputs.output_format }}" >> $GITHUB_OUTPUT
-          else
-            echo "days=7" >> $GITHUB_OUTPUT
-            echo "format=markdown" >> $GITHUB_OUTPUT
-          fi
+          OUTPUT_NAME=days INPUT_VALUE="$DAYS_RAW" VALUE_KIND=integer \
+            python scripts/workflows/resolve_dispatch_input.py
+          OUTPUT_NAME=format INPUT_VALUE="$FORMAT_RAW" VALUE_KIND=choice \
+            ALLOWED_CHOICES=summary,markdown,json \
+            python scripts/workflows/resolve_dispatch_input.py
 
       - name: Collect metrics
         id: metrics
-        run: |
-          python .claude/skills/metrics/collect_metrics.py \
-            --since ${{ steps.period.outputs.days }} \
-            --output ${{ steps.period.outputs.format }} \
-            > metrics-report.txt
-
-          # Capture summary for job output
-          echo "## Agent Metrics Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          if [ "${{ steps.period.outputs.format }}" = "json" ]; then
-            echo '```json' >> $GITHUB_STEP_SUMMARY
-            cat metrics-report.txt >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-          else
-            cat metrics-report.txt >> $GITHUB_STEP_SUMMARY
-          fi
+        env:
+          PERIOD_DAYS: ${{ steps.period.outputs.days }}
+          PERIOD_FORMAT: ${{ steps.period.outputs.format }}
+        run: python scripts/ci/collect_metrics_and_report.py
 
       - name: Display metrics
         run: cat metrics-report.txt
@@ -92,8 +86,7 @@ jobs:
         with:
           name: agent-metrics-${{ github.run_number }}
           path: metrics-report.txt
-          # Optimized retention per .agents/devops/artifact-retention-policy.md
-          retention-days: 30
+          retention-days: 7
 
   # Optional: Create issue if metrics are below targets
   check-thresholds:
@@ -115,56 +108,10 @@ jobs:
 
       - name: Check thresholds
         id: check
-        run: |
-          # Collect metrics as JSON for parsing
-          python .claude/skills/metrics/collect_metrics.py \
-            --since 7 \
-            --output json > metrics.json
-
-          # Parse and check thresholds
-          COVERAGE=$(python -c "import json; m=json.load(open('metrics.json')); print(m['metric_2_coverage']['coverage_rate'])")
-          INFRA_RATE=$(python -c "import json; m=json.load(open('metrics.json')); print(m['metric_4_infrastructure_review']['review_rate'])")
-
-          echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
-          echo "infra_rate=$INFRA_RATE" >> $GITHUB_OUTPUT
-
-          # Check if any threshold is breached
-          ALERT=false
-
-          # Coverage target: 50%
-          if (( $(echo "$COVERAGE < 50" | bc -l) )); then
-            echo "::warning::Agent coverage ($COVERAGE%) is below target (50%)"
-            ALERT=true
-          fi
-
-          # Infrastructure review target: 100%
-          # Only alert if there were infrastructure commits
-          INFRA_COMMITS=$(python -c "import json; m=json.load(open('metrics.json')); print(m['metric_4_infrastructure_review']['infrastructure_commits'])")
-          if [ "$INFRA_COMMITS" != "0" ] && (( $(echo "$INFRA_RATE < 100" | bc -l) )); then
-            echo "::warning::Infrastructure review rate ($INFRA_RATE%) is below target (100%)"
-            ALERT=true
-          fi
-
-          echo "alert=$ALERT" >> $GITHUB_OUTPUT
+        run: python scripts/ci/check_metrics_thresholds.py
 
       - name: Summary
-        run: |
-          echo "## Threshold Check Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Metric | Current | Target | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|--------|---------|--------|--------|" >> $GITHUB_STEP_SUMMARY
-
-          COVERAGE="${{ steps.check.outputs.coverage }}"
-          INFRA_RATE="${{ steps.check.outputs.infra_rate }}"
-
-          if (( $(echo "$COVERAGE >= 50" | bc -l) )); then
-            echo "| Agent Coverage | ${COVERAGE}% | 50% | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| Agent Coverage | ${COVERAGE}% | 50% | :x: |" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          if (( $(echo "$INFRA_RATE >= 100" | bc -l) )); then
-            echo "| Infrastructure Review | ${INFRA_RATE}% | 100% | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| Infrastructure Review | ${INFRA_RATE}% | 100% | :warning: |" >> $GITHUB_STEP_SUMMARY
-          fi
+        env:
+          CHECK_COVERAGE: ${{ steps.check.outputs.coverage }}
+          CHECK_INFRA_RATE: ${{ steps.check.outputs.infra_rate }}
+        run: python scripts/ci/write_metrics_threshold_summary.py

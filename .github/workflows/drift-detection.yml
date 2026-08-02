@@ -30,20 +30,7 @@ jobs:
 
       - name: Run drift detection
         id: drift
-        run: |
-          echo "Running agent drift detection..."
-          python3 build/scripts/detect_agent_drift.py --output-format text --fail-on-install-drift || EXIT_CODE=$?
-
-          if [ "${EXIT_CODE:-0}" = "1" ]; then
-            echo "drift_detected=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          elif [ "${EXIT_CODE:-0}" = "0" ]; then
-            echo "drift_detected=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          else
-            echo "drift_detected=false" >> "$GITHUB_OUTPUT"
-            exit "${EXIT_CODE:-0}"
-          fi
+        run: python3 scripts/ci/drift_run_detection.py
 
       # K2 (REQ-008-09): record a generator-regression kill-criteria event
       # when template drift is detected. The emitter owns the JSONL schema;
@@ -89,32 +76,7 @@ jobs:
       - name: Collect drift details
         id: details
         if: steps.drift.outputs.drift_detected == 'true'
-        run: |
-          # Re-run to get JSON output for issue body. Issue #2808: the old
-          # `2>/dev/null || true` swallowed stderr and every exit code, so a
-          # crashed re-run fed empty JSON to parse_drift_results.py. This step
-          # only runs when drift was already detected, so rc=1 is expected.
-          # Only rc>=2 is a real failure. Capture the code, keep stderr, and
-          # require non-empty JSON so a crash cannot feed empty data to the parser.
-          set +e
-          python3 build/scripts/detect_agent_drift.py --output-format json > "drift-results.json"
-          rc=$?
-          set -e
-          if [ "$rc" -ge 2 ]; then
-            echo "::error::drift detection crashed on re-run (exit $rc)"
-            exit "$rc"
-          fi
-          test -s drift-results.json
-
-          # Parse JSON into the issue body and agent count (ADR-006: no logic in YAML).
-          python3 scripts/ci/parse_drift_results.py \
-            --input drift-results.json \
-            --details-out drift-details.md \
-            --count-out drift-count.txt
-
-          # Set output for agents_count
-          AGENTS_COUNT="$(cat drift-count.txt)"
-          echo "agents_count=$AGENTS_COUNT" >> "$GITHUB_OUTPUT"
+        run: python3 scripts/ci/drift_collect_details.py
 
       - name: Check for existing drift issue
         id: check-issue
@@ -130,53 +92,10 @@ jobs:
         if: steps.drift.outputs.drift_detected == 'true' && steps.check-issue.outputs.existing_issues == '0'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Create issue body (unquoted EOF allows variable expansion)
-          cat << EOF > "issue-body.md"
-          ## Agent Drift Detected
-
-          **Detection Date**: $(date -u +"%Y-%m-%d %H:%M UTC")
-          **Workflow Run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-          ### Agents with Drift
-
-          EOF
-
-          cat "drift-details.md" >> "issue-body.md"
-
-          cat << 'EOF' >> "issue-body.md"
-
-          ### Recommended Actions
-
-          1. Review the differences listed above
-          2. Determine if drift is intentional or accidental
-          3. Either:
-             - Update Claude agents to match shared content
-             - Update shared templates to include Claude improvements
-             - Document the intentional difference
-
-          ### Related Files
-
-          - Claude agents: `src/claude/`
-          - Shared templates: `templates/agents/`
-          - VS Code agents: `src/vs-code-agents/`
-
-          ### Commands
-
-          ```bash
-          # Run drift detection locally
-          python3 build/scripts/detect_agent_drift.py
-
-          # See detailed JSON output
-          python3 build/scripts/detect_agent_drift.py --output-format json
-          ```
-          EOF
-
-          # Create the issue
-          gh issue create \
-            --title "Agent Drift Detected - $(date -u +"%Y-%m-%d")" \
-            --body-file issue-body.md \
-            --label "drift-detected,automated"
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: python3 scripts/ci/drift_create_alert_issue.py
 
       - name: Update existing drift issue
         if: steps.drift.outputs.drift_detected == 'true' && steps.check-issue.outputs.existing_issues != '0'
@@ -187,20 +106,20 @@ jobs:
           ISSUE_NUMBER="$(gh issue list --label "drift-detected" --state open --json number --jq '.[0].number')"
 
           # Add a comment to the existing issue
-          cat << EOF > "comment-body.md"
+          cat << EOF > "${RUNNER_TEMP:-.}/comment-body.md"
           ## Updated Drift Detection - $(date -u +"%Y-%m-%d %H:%M UTC")
 
           **Workflow Run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
           ### Current Status
 
-          $(cat drift-details.md)
+          $(cat "${RUNNER_TEMP:-.}/drift-details.md")
 
           ---
           *This comment was automatically added by the weekly drift detection workflow.*
           EOF
 
-          gh issue comment "$ISSUE_NUMBER" --body-file comment-body.md
+          gh issue comment "$ISSUE_NUMBER" --body-file "${RUNNER_TEMP:-.}/comment-body.md"
 
       - name: Fail when drift was detected
         if: steps.drift.outputs.drift_detected == 'true'
@@ -210,21 +129,6 @@ jobs:
 
       - name: Summary
         if: always()
-        run: |
-          {
-            echo "## Drift Detection Summary"
-            echo ""
-
-            if [ "${{ steps.drift.outputs.drift_detected }}" == "true" ]; then
-              echo ":warning: **Drift detected** in Claude agents"
-              echo ""
-              echo "See the created/updated GitHub issue for details."
-            else
-              echo ":white_check_mark: **No drift detected** - All Claude agents are in sync with templates"
-            fi
-
-            echo ""
-            echo "### Files Checked"
-            echo "- Claude agents: \`src/claude/\`"
-            echo "- Shared templates: \`templates/agents/\`"
-          } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          DRIFT_DETECTED: ${{ steps.drift.outputs.drift_detected }}
+        run: python3 scripts/ci/drift_write_summary.py
