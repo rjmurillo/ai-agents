@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size
 """Fail CI when a vendor-shipped script hard-codes an upstream-only path.
 
 Issue #2050: skills in a vendored plugin install hard-code paths
@@ -22,16 +23,27 @@ What it flags:
 
 What it does NOT flag (Issue #2510, false-positive guards):
   * Raw-string regex patterns. A literal like ``r"\\.agents/"`` carries the
-    raw-string prefix (``r``/``R``/``rb``/``Rb``...) and a backslash-escaped
-    dot (``\\.``); together those signals are overwhelmingly a regex pattern
-    that *matches* paths, not a path the script reads or writes. The literal
-    has no I/O semantics and cannot be migrated through ``paths.py``.
+    raw-string prefix (``r``/``R``/``rb``/``Rb``...) and at least one regex
+    metacharacter (``^ $ [ ] ( ) | * + ?`` or a backslash-dot escape
+    ``\\.``); together those signals are overwhelmingly a
+    regex pattern that *matches* paths, not a path the script reads or writes.
+    The literal has no I/O semantics and cannot be migrated through ``paths.py``.
+    Using any metachar as the signal (not only ``\\.``) covers prefixes that
+    contain no dot, such as ``scripts/`` (Issue #4046).
+  * Prose strings. CLI descriptions, diagnostic calls, multi-line template
+    text, and sentence-like literals may mention a path prefix as a concept.
+    Spaces alone are not enough: shell commands also contain spaces and must
+    remain visible to the gate (Issue #4046).
   * CLI prose. A literal that lives inside a keyword argument named
     ``help``, ``description``, ``epilog``, ``metavar``, or ``usage`` (the
     argparse / Click / Typer conventions) is rendered to stderr by the CLI
     parser and never opened as a file. The skip is scoped to the line range
     of the keyword's value expression, so a real path elsewhere in the same
     file is still flagged.
+  * Test files. Files under a ``tests/`` subdirectory within a skill root are
+    excluded from the scan. Tests run only in the development checkout where
+    all upstream paths are present; a hard-coded path in a test fixture cannot
+    fail a consumer install (Issue #4046).
 
 Baseline ratchet:
   131 files across 30+ skills already hard-code these paths (Issue #2050).
@@ -104,6 +116,9 @@ _HELPER_FUNCTIONS: frozenset[str] = frozenset(
 # be migrated through the portability helper and must not be flagged.
 # Issue #2510.
 _PROSE_KWARGS: frozenset[str] = frozenset({"help", "description", "epilog", "metavar", "usage"})
+_PROSE_CALLS: frozenset[str] = frozenset(
+    {"check", "debug", "error", "exception", "info", "print", "warning"}
+)
 
 # Directories scanned for vendor-shipped scripts.
 _SCAN_ROOTS: tuple[str, ...] = (".claude/skills",)
@@ -206,8 +221,26 @@ def _docstring_lines(content: str) -> set[int]:
     return lines
 
 
+def _call_name(node: ast.Call) -> str | None:
+    """Return the direct or attribute name of an AST call."""
+    if isinstance(node.func, ast.Name):
+        return node.func.id
+    if isinstance(node.func, ast.Attribute):
+        return node.func.attr
+    return None
+
+
+def _node_lines(node: ast.AST) -> range:
+    """Return the inclusive source-line range occupied by an AST node."""
+    start = getattr(node, "lineno", None)
+    if start is None:
+        return range(0)
+    end = getattr(node, "end_lineno", start) or start
+    return range(start, end + 1)
+
+
 def _prose_lines(content: str) -> set[int]:
-    """Return line numbers occupied by CLI prose keyword-arg values.
+    """Return line numbers occupied by known prose expression contexts.
 
     Walks the AST for every ``ast.Call`` and records the line range of any
     keyword whose name is in ``_PROSE_KWARGS`` (``help``, ``description``,
@@ -221,6 +254,10 @@ def _prose_lines(content: str) -> set[int]:
     ``parser.add_argument("--out", help="...")`` are the primary motivators;
     Click ``@click.option(..., help=...)`` and Typer follow the same
     convention and are exempted by the same rule.
+
+    Positional arguments to diagnostic calls such as ``print()``,
+    ``logger.warning()``, and validator ``check()`` methods are also prose.
+    Command execution APIs are intentionally absent from ``_PROSE_CALLS``.
     """
     try:
         tree = ast.parse(content)
@@ -231,25 +268,36 @@ def _prose_lines(content: str) -> set[int]:
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
+        if _call_name(node) in _PROSE_CALLS:
+            for arg in node.args:
+                lines.update(_node_lines(arg))
         for kw in node.keywords:
             if kw.arg is None or kw.arg not in _PROSE_KWARGS:
                 continue
-            start = getattr(kw.value, "lineno", None)
-            end = getattr(kw.value, "end_lineno", start)
-            if start is None:
-                continue
-            lines.update(range(start, (end or start) + 1))
+            lines.update(_node_lines(kw.value))
     return lines
 
 
 # Recognised string-literal prefixes that mark a raw string.
 # A raw string disables Python's own backslash interpretation, so any
-# ``\.`` inside one is the regex escape for a literal dot. Combined with a
-# banned path it is overwhelmingly a regex pattern matching paths, not a
-# real path the script writes. Issue #2510. The ``f`` letters cover raw
-# f-string prefixes (``rf``/``fr``/``Rf``...), which tokenize as a single
-# STRING token on Python < 3.12.
+# regex metachar inside one is the regex escape. Combined with a banned path
+# it is overwhelmingly a regex pattern matching paths, not a real path the
+# script writes. Issue #2510. The ``f`` letters cover raw f-string prefixes
+# (``rf``/``fr``/``Rf``...), which tokenize as a single STRING token on
+# Python < 3.12.
 _RAW_STRING_PREFIX = re.compile(r"^[bBuUfF]*[rR][bBuUfF]*")
+
+# Any regex metacharacter in the raw-string body is a reliable signal that
+# the string is a regex pattern, not a file-system path.  The original check
+# used only ``\.`` as the proxy, which held for ``.agents/`` and
+# ``.claude/lib/`` (both start with a dot the regex must escape).  It fails
+# for ``scripts/`` (no dot, so ``r"^scripts/"`` has ``^`` but not ``\.``).
+# Issue #4046: add the anchor/quantifier/grouping metacharacters so the
+# whole prefix class is handled.  We deliberately do NOT use ``\\.`` (match
+# any backslash-escape) to avoid misclassifying Windows-style raw paths like
+# ``r'.\scripts\validation\pre_pr.py'`` (``\s`` there is a path segment
+# ``\scripts``, not a regex whitespace class).
+_REGEX_METACHAR = re.compile(r"""[\^$\[\]()|*+?]|\\[.]""")
 
 
 def _is_raw_string_regex(
@@ -257,7 +305,7 @@ def _is_raw_string_regex(
     is_fstring_middle: bool = False,
     is_raw_fstring: bool = False,
 ) -> bool:
-    """True when ``token_text`` is raw-string text containing ``\\.``.
+    """True when ``token_text`` is a raw string containing a regex metacharacter.
 
     For a ``tokenize.STRING`` token, ``token_text`` is the raw source slice
     (prefix + quotes + body) and the raw-ness is read from the prefix. For a
@@ -265,9 +313,14 @@ def _is_raw_string_regex(
     FSTRING_START/MIDDLE/END), the text carries no prefix, so the caller
     passes ``is_raw_fstring`` derived from the enclosing FSTRING_START token.
 
-    We require both the raw-string signal and a literal backslash-escaped
-    dot in the body. Real path strings never escape the dot; matching
-    ``r".agents/x"`` (no backslash) is rare and intentionally still flagged
+    A raw string is treated as a regex when its body contains any of the
+    metacharacters ``^ $ [ ] ( ) | * + ?`` or a backslash-dot escape
+    (``\\.``).  This broader metacharacter check
+    replaces the original ``\\.``-only proxy so that prefixes that contain
+    no dot, such as ``scripts/``, are also handled correctly.  Issue #4046.
+
+    Real path strings never contain these characters; matching
+    ``r".agents/x"`` (no metachar) is rare and intentionally still flagged
     so a missing-escape regex does not become a silent bypass.
     """
     if is_fstring_middle:
@@ -275,7 +328,28 @@ def _is_raw_string_regex(
             return False
     elif not _RAW_STRING_PREFIX.match(token_text):
         return False
-    return "\\." in token_text
+    return bool(_REGEX_METACHAR.search(token_text))
+
+
+def _is_prose_string(token_text: str) -> bool:
+    """True for multi-line templates and sentence-like string literals.
+
+    A string like ``"Extract procedural logic to scripts/ subdirectory."``
+    or a multi-line README template names a structural concept, not a target
+    the program opens. Shell commands also contain spaces, so whitespace alone
+    cannot distinguish prose from executable input.
+
+    The check strips the string prefix and outer quotes before testing for a
+    newline or sentence-ending punctuation. Issue #4046.
+    """
+    body = token_text.lstrip("ruRUbBfF")
+    for q in ('"""', "'''", '"', "'"):
+        if body.startswith(q):
+            body = body[len(q) :]
+            if body.endswith(q):
+                body = body[: -len(q)]
+            break
+    return "\n" in body or body.rstrip().endswith((".", "!", "?"))
 
 
 def _first_banned_line(content: str) -> tuple[int, str] | None:
@@ -305,6 +379,8 @@ def _first_banned_line(content: str) -> tuple[int, str] | None:
                 is_raw_fstring=is_raw_fstring,
             ):
                 continue
+            if _is_prose_string(token.string):
+                continue
             return token.start[0], token.line.strip()
     except tokenize.TokenError:
         return None
@@ -322,7 +398,14 @@ def collect_offenders(repo_root: Path) -> list[Offender]:
     offenders: list[Offender] = []
     for root in scan_roots(repo_root):
         for py_file in sorted(root.rglob("*.py")):
-            if "__pycache__" in py_file.parts:
+            relative_path = py_file.relative_to(repo_root)
+            if "__pycache__" in relative_path.parts:
+                continue
+            if "tests" in relative_path.parts:
+                # Test files run only in the development checkout where all
+                # upstream paths exist.  A hard-coded path in a test fixture
+                # cannot fail a consumer install, so these are excluded from
+                # the scan.  Issue #4046.
                 continue
             try:
                 content = py_file.read_text(encoding="utf-8")
@@ -334,8 +417,7 @@ def collect_offenders(repo_root: Path) -> list[Offender]:
             if hit is None:
                 continue
             line_no, excerpt = hit
-            relpath = py_file.relative_to(repo_root).as_posix()
-            offenders.append(Offender(relpath, line_no, excerpt))
+            offenders.append(Offender(relative_path.as_posix(), line_no, excerpt))
     return offenders
 
 

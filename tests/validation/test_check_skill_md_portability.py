@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -27,6 +28,16 @@ _VALIDATION = Path(__file__).resolve().parents[2] / "scripts" / "validation"
 sys.path.insert(0, str(_VALIDATION))
 
 import check_skill_md_portability as cmp  # noqa: E402
+
+
+def _seed_git_tree(root: Path) -> None:
+    """Make the fixture a repository: an unverifiable tree refuses the write."""
+    for args in (
+        ("init", "-q", "-b", "main"),
+        ("add", "-A"),
+        ("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "s"),
+    ):
+        subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
 
 
 class TestCountUpstreamRefs:
@@ -925,6 +936,13 @@ class TestMainCli:
         (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
             "Writes .agents/x\n", encoding="utf-8"
         )
+        # Every shipped root must hold a readable file or the scan-coverage guard
+        # refuses the write, because one starved root is a partial checkout.
+        (tmp_path / "src" / "copilot-cli" / "skills" / "a").mkdir(parents=True)
+        (tmp_path / "src" / "copilot-cli" / "skills" / "a" / "SKILL.md").write_text(
+            "Nothing upstream.\n", encoding="utf-8"
+        )
+        _seed_git_tree(tmp_path)
         baseline = tmp_path / "baseline.json"
         rc = cmp.main(
             ["--repo-root", str(tmp_path), "--baseline", str(baseline), "--update-baseline"]
