@@ -1,0 +1,101 @@
+{
+  "id": "episode-2026-08-02-session-4233-portability-git-hardening",
+  "session": "2026-08-02-session-4233-portability-git-hardening",
+  "timestamp": "2026-08-02T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Close five verified fail-open holes in the portability floor's git reads, found by adversarial review, and repair the two episode files whose backwards commit chains blocked the push.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran the full suite to find what failed the earlier push",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4233-portability-git-hardening"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "test",
+      "content": "Ran the full suite to find what failed the earlier push   1   1 failed, 21324 passed. tests/skills/memory/test_extract_session_episode.py::test_the_committed_episode_store_is_clean, on data this branch never touched.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4233-portability-git-hardening"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "error",
+      "content": "Ran the full suite to find what failed the earlier push   1   1 failed, 21324 passed. tests/skills/memory/test_extract_session_episode.py::test_the_committed_episode_store_is_clean, on data this branch never touched.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4233-portability-git-hardening"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Checked whether the failure came from this branch",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4233-portability-git-hardening"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reconciled that against CI, which is green on main",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4233-portability-git-hardening"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Filed the blind spot and repaired the data",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4233-portability-git-hardening"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Split portability_floor.py into a JSON half and a git half",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4233-portability-git-hardening"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the five holes: ls-tree prefix on any tree-ish, refs/replace substitution, refs deleted but commits in the object database, a committed symlink read as a file, and lossy tree-name decoding",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4233-portability-git-hardening"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Pinned each fix and proved the pins can fail",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4233-portability-git-hardening"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 1,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 4
+  },
+  "lessons": []
+}
