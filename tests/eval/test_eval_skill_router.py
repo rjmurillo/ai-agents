@@ -23,7 +23,7 @@ _EVAL_DIR = Path(__file__).resolve().parents[2] / "scripts" / "eval"
 if str(_EVAL_DIR) not in sys.path:
     sys.path.insert(0, str(_EVAL_DIR))
 
-import eval_skill_router as router
+import eval_skill_router as router  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # BEFORE_REF is a fixed SHA (not a branch name)
@@ -188,7 +188,9 @@ class TestMainIdenticalArmsExits1:
 
         assert rc == 0, f"Expected exit 0 (arms differ, dry-run), got {rc}"
 
-    def test_partial_identical_does_not_abort(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_partial_identical_does_not_abort(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         """Partial identical arms emit a warning but do not exit 1."""
         repo = tmp_path / "repo"
         repo.mkdir()
