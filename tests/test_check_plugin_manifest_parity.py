@@ -1,9 +1,12 @@
 """Tests for build/scripts/check_plugin_manifest_parity.py.
 
-Covers both invariants the script gates:
+Covers the one invariant the script still gates:
 
-* version parity across the two project-toolkit manifests (fix #2222)
 * no component count embedded in any published description (#2187, #3651)
+
+The version-parity half was retired with ADR-092: the manifests carry no
+``version`` field, so there is no value left to hold equal. That the field stays
+absent is gated by ``build/scripts/validate_plugin_version_bump.py``.
 """
 
 from __future__ import annotations
@@ -52,53 +55,6 @@ def _marketplace(tmp_path: Path, entries: list[dict[str, object]], name: str = "
     target = tmp_path / name
     target.write_text(json.dumps({"plugins": entries}), encoding="utf-8")
     return target
-
-
-# --- Version parity ---------------------------------------------------------
-
-
-def test_version_parity_matching_returns_ok(parity: Any, tmp_path: Path) -> None:
-    a = tmp_path / "a.json"
-    b = tmp_path / "b.json"
-    a.write_text(json.dumps({"version": "1.0.0"}), encoding="utf-8")
-    b.write_text(json.dumps({"version": "1.0.0"}), encoding="utf-8")
-    assert parity.check_version_parity((a, b)) == 0
-
-
-def test_version_parity_mismatch_returns_staleness(parity: Any, tmp_path: Path) -> None:
-    a = tmp_path / "a.json"
-    b = tmp_path / "b.json"
-    a.write_text(json.dumps({"version": "1.0.1"}), encoding="utf-8")
-    b.write_text(json.dumps({"version": "1.0.0"}), encoding="utf-8")
-    assert parity.check_version_parity((a, b)) == 1
-
-
-def test_version_parity_missing_file_returns_config_error(
-    parity: Any, tmp_path: Path
-) -> None:
-    a = tmp_path / "a.json"
-    a.write_text(json.dumps({"version": "1.0.0"}), encoding="utf-8")
-    assert parity.check_version_parity((a, tmp_path / "absent.json")) == 2
-
-
-def test_version_parity_blank_version_returns_config_error(
-    parity: Any, tmp_path: Path
-) -> None:
-    a = tmp_path / "a.json"
-    b = tmp_path / "b.json"
-    a.write_text(json.dumps({"version": "   "}), encoding="utf-8")
-    b.write_text(json.dumps({"version": "1.0.0"}), encoding="utf-8")
-    assert parity.check_version_parity((a, b)) == 2
-
-
-def test_version_parity_unparseable_returns_config_error(
-    parity: Any, tmp_path: Path
-) -> None:
-    a = tmp_path / "a.json"
-    b = tmp_path / "b.json"
-    a.write_text("{not json", encoding="utf-8")
-    b.write_text(json.dumps({"version": "1.0.0"}), encoding="utf-8")
-    assert parity.check_version_parity((a, b)) == 2
 
 
 # --- Description counts: the regression this gate exists for ----------------
@@ -404,7 +360,7 @@ def test_cli_passes_on_the_checked_in_repository() -> None:
     assert result.returncode == 0, result.stderr
 
 
-def test_cli_reports_both_checks() -> None:
+def test_cli_reports_the_description_check() -> None:
     result = subprocess.run(
         [sys.executable, str(SCRIPT)],
         capture_output=True,
@@ -412,8 +368,9 @@ def test_cli_reports_both_checks() -> None:
         cwd=REPO_ROOT,
         timeout=_SUBPROCESS_TIMEOUT,
     )
-    assert "versions match" in result.stdout
     assert "No component counts" in result.stdout
+    # The retired half must not come back: nothing reports a version here.
+    assert "versions match" not in result.stdout
 
 
 def test_cli_scans_every_configured_description() -> None:

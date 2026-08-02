@@ -24,7 +24,7 @@
       "content": "Confirmed the issue's central claim still holds. git grep for get_episodes, get_episode, and get_decision_sequence outside memory_core and the test tree returns nothing, against 301 committed episodes totalling 1.7 MB. The store is written on every session-log commit and read by nobody.",
       "caused_by": [],
       "leads_to": [
-        "e002"
+        "e017"
       ]
     },
     {
@@ -32,11 +32,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Chose option 1 of the three resolutions the issue lists, wiring a real reader, over documenting the store as write-only or deleting it. Option 1 is additive and reversible, it forecloses neither of the others, and ADR-089 rejected two drafts that falsely claimed search_memory.py already read episodes. Implementing the reader converts that rejected claim into a true one.",
-      "caused_by": [
-        "e001"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e003"
+        "e017"
       ]
     },
     {
@@ -44,11 +42,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Measured the corpus before designing the matcher. Only 13 of 301 episodes carry lessons, 299 carry a non-empty task, and 110 of 301 filenames carry no descriptive slug at all. So name-only matching, which is what search_serena does, would miss a third of the store.",
-      "caused_by": [
-        "e002"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e004"
+        "e017"
       ]
     },
     {
@@ -56,11 +52,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "A/B tested a naive port of search_serena against the real corpus and rejected it. Because every filename opens with episode- and usually contains session-, the query 'episode extractor' matched all 301 records and 'session log' matched 297. A direct port would have shipped a search that returns the whole store for common words.",
-      "caused_by": [
-        "e003"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e005"
+        "e017"
       ]
     },
     {
@@ -68,11 +62,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Added EPISODE_NAME_PREFIX to strip the structural episode-<date>-session-<n>- prefix before matching, leaving only the descriptive slug. Measured the effect on the real corpus: the noise query 'session' drops from 121 hits to 31, while semgrep push gate stays at 51, memory router at 17, workflow quoting at 15, ruff baseline at 8, and plugin version bump at 33. The narrowing rejects noise and zero real matches.",
-      "caused_by": [
-        "e004"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e006"
+        "e017"
       ]
     },
     {
@@ -80,11 +72,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Set the haystack to the stripped slug plus task plus lessons, and verified on the real corpus that adding lessons narrowed no query, so it is strictly additive. Scoring is the fraction of query keywords matched, the same contract search_serena already uses, so the merged result list sorts coherently across both sources.",
-      "caused_by": [
-        "e005"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e007"
+        "e017"
       ]
     },
     {
@@ -92,11 +82,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Added a recency tie-break. Ties are common because scoring is a keyword fraction: 'semgrep push gate' produced 6 records tied at the top score. The date sits at a fixed position in the filename, so a stable descending name sort orders a score tier newest first, which is the useful default for a memory store.",
-      "caused_by": [
-        "e006"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e008"
+        "e017"
       ]
     },
     {
@@ -104,11 +92,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Wired search_episodes into main() on the lexical path next to search_serena, merged and re-sorted by score, and capped at max_results. Added --episodes-path with the same traversal guard --serena-path already carries, extended get_memory_router_status with an Episodes entry, and corrected the --lexical-only source label from Serena to Lexical because that path is no longer Serena alone.",
-      "caused_by": [
-        "e007"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e009"
+        "e017"
       ]
     },
     {
@@ -116,11 +102,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Found and fixed test pollution while adding coverage. Two pre-existing main() tests isolated the Serena path to tmp_path but had no episode path to isolate, so once episodes were wired they silently read the real repository store; test_empty_results would have matched four real records. Both now pass --episodes-path.",
-      "caused_by": [
-        "e008"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e010"
+        "e017"
       ]
     },
     {
@@ -128,11 +112,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Added nineteen tests across both suites covering positive, negative, and edge cases: slug match, task match, lessons match, structural tokens matching nothing, keyword-fraction scoring, recency tie-break, no match, missing directory, malformed JSON, non-object JSON, max_results, non-episode files ignored, both router-status branches, cross-source merge, and the traversal rejection.",
-      "caused_by": [
-        "e009"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e011"
+        "e017"
       ]
     },
     {
@@ -140,11 +122,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Ran the negative control by swapping in the 95da12691 script. All 7 new tests in the repo suite failed and all 13 pre-existing tests still passed, which is the correct shape: every new test is load-bearing and none of the existing behavior regressed. The skill-local suite failed at import because search_episodes did not exist.",
-      "caused_by": [
-        "e010"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e012"
+        "e017"
       ]
     },
     {
@@ -152,11 +132,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Smoke-ran the CLI against the real store. The router reports Episodes available with MemoryCount 301, EpisodesQueried and EpisodesSucceeded both true, and returns ranked episode records. Regenerated the copilot mirror byte-identical and bumped both parity manifests to 0.6.173.",
-      "caused_by": [
-        "e011"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e013"
+        "e017"
       ]
     },
     {
@@ -164,11 +142,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "The full suite caught a real portability defect the targeted suites did not. check_skill_portability flagged the new default episode path as a hard-coded upstream reference, which breaks a vendored install where the skill does not own that directory (issue #2050). Recorded it in both portability baselines rather than evading the scanner, matching how the two peer scripts that touch the same store are already handled, because a reader must default to the directory the producer writes to and --episodes-path gives vendored installs the override. Added only the one entry by hand; the scanner also reported four unrelated improvements whose baselines this branch deliberately leaves alone.",
-      "caused_by": [
-        "e012"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e014"
+        "e017"
       ]
     },
     {
@@ -176,10 +152,10 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Re-ran the whole repository suite after the baseline entries: 16858 passed, 26 skipped, no failures.",
-      "caused_by": [
-        "e013"
-      ],
-      "leads_to": []
+      "caused_by": [],
+      "leads_to": [
+        "e017"
+      ]
     },
     {
       "id": "e015",
@@ -187,25 +163,41 @@
       "type": "test",
       "content": "Re-ran the whole repository suite after the baseline entries: 16858 passed, 26 skipped, no failures.  14",
       "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e016",
-      "timestamp": "2026-07-28T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 3fefdcb6a",
-      "caused_by": [],
       "leads_to": [
         "e017"
       ]
     },
     {
+      "id": "e016",
+      "timestamp": "2026-07-28T23:13:26+00:00",
+      "type": "commit",
+      "content": "Commit: 3fefdcb6a",
+      "caused_by": [
+        "e020"
+      ],
+      "leads_to": []
+    },
+    {
       "id": "e017",
-      "timestamp": "2026-07-28T00:00:00+00:00",
+      "timestamp": "2026-07-28T20:48:06+00:00",
       "type": "commit",
       "content": "Commit: 0ef4dabc3",
       "caused_by": [
-        "e016"
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010",
+        "e011",
+        "e012",
+        "e013",
+        "e014",
+        "e015"
       ],
       "leads_to": [
         "e018"
@@ -213,7 +205,7 @@
     },
     {
       "id": "e018",
-      "timestamp": "2026-07-28T00:00:00+00:00",
+      "timestamp": "2026-07-28T20:48:36+00:00",
       "type": "commit",
       "content": "Commit: 88418b9d9",
       "caused_by": [
@@ -225,7 +217,7 @@
     },
     {
       "id": "e019",
-      "timestamp": "2026-07-28T00:00:00+00:00",
+      "timestamp": "2026-07-28T20:48:52+00:00",
       "type": "commit",
       "content": "Commit: 0c7508b56",
       "caused_by": [
@@ -237,13 +229,15 @@
     },
     {
       "id": "e020",
-      "timestamp": "2026-07-28T00:00:00+00:00",
+      "timestamp": "2026-07-28T20:58:26+00:00",
       "type": "commit",
       "content": "Commit: 1dc5caefa",
       "caused_by": [
         "e019"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e016"
+      ]
     }
   ],
   "metrics": {
