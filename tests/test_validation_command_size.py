@@ -162,7 +162,10 @@ class TestMain:
         result = main(["--path", str(tmp_path), "--ci"])
         assert result == 1
 
-    def test_over_limit_no_ci_exits_0(self, tmp_path: Path) -> None:
+    def test_over_limit_no_ci_exits_0(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("CI", raising=False)
         f = tmp_path / "big.md"
         f.write_text(_GOOD_FRONTMATTER + _body(COMMAND_SIZE_LIMIT + 50))
         result = main(["--path", str(tmp_path)])
