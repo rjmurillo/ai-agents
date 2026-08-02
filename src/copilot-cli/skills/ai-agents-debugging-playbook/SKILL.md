@@ -133,7 +133,7 @@ Verified against the working tree on 2026-07-03. Retro-cited short SHAs do not r
 | Fact | Source | Re-verify with |
 |------|--------|----------------|
 | EVENT= stderr telemetry schema | `.claude/hooks/PreToolUse/push_guard_base.py:19,49-53,421` | `grep -n "EVENT=" .claude/hooks/PreToolUse/push_guard_base.py` |
-| 4 drift surfaces run in CI | `.github/workflows/validate-generated-agents.yml:165-225` | `grep -n "run_install_parity\|sync_plugin_lib\|build_all\|generate_agents" .github/workflows/validate-generated-agents.yml` |
+| 4 drift surfaces run in CI | `.github/workflows/validate-generated-agents.yml:165-225` | `grep -n -e "run_install_parity" -e "sync_plugin_lib" -e "build_all" -e "generate_agents" .github/workflows/validate-generated-agents.yml` |
 | `[skip-drift-check]` bypass marker | `.github/workflows/agent-drift-detection.yml:17,65-69` | `grep -n "skip-drift-check" .github/workflows/agent-drift-detection.yml` |
 | Version-field prohibition | `build/scripts/validate_plugin_version_bump.py` docstring, section RULE | `grep -n "MUST NOT carry" build/scripts/validate_plugin_version_bump.py` |
 | No version in any manifest or marketplace entry | three `.claude-plugin/plugin.json` files, both `marketplace.json` files | `python3 build/scripts/validate_plugin_version_bump.py` |
