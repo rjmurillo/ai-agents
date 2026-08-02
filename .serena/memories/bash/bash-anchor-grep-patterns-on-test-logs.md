@@ -167,3 +167,24 @@ log it returned three lines, the `remote rejected` line, the `error:` line, and
 `REAL_EXIT=1`, which turned out to be the concurrent-push race above. A
 `git rev-parse HEAD origin/<branch>` then showed the two SHAs equal: the work
 had landed and only the duplicate push had failed.
+
+## The SHA in a push log is not necessarily the SHA that landed
+
+`git push origin <branch>` resolves the ref at transfer time, not at invocation
+time. The pre-push hook runs first and is slow here: a full run is roughly 11
+minutes, and one measured `python-tests` step alone took 1030 seconds. Any
+commit made to that branch while the hook is running is included in the transfer
+that follows.
+
+So a background push whose log reads `de60979fb..4ef4bfb80` can leave the remote
+at a third SHA entirely, with no error and no second push. That was observed on
+2026-08-02 and recorded as unexplained at the time. It is not a race and not a
+bug; it is the ordering of hook execution against ref resolution.
+
+Two consequences:
+
+- Do not verify a push by reading the SHA range in its log. Verify with
+  `git ls-remote origin <branch>` and compare against `git rev-parse HEAD`.
+- A push launched during active work on the same branch is not a snapshot of
+  what you had when you launched it. If you need a specific commit pushed and
+  nothing after it, stop committing until the transfer completes.
