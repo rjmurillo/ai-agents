@@ -1,4 +1,4 @@
-"""Regression guard for issue #4168: no workflow may push directly to main.
+"""Regression guard for issue #4168: no workflow may bare-push.
 
 ADR-091 shipped a post-merge bot that committed parity manifest versions and
 pushed directly to ``main``. Ruleset 11104075 rejects that push
@@ -15,8 +15,8 @@ This file guards against regression:
 
 - ``post-merge-version-bump.yml`` must not exist. Recreating it with the
   same ``git push`` step recreates the GH013 failure.
-- No push-triggered workflow may contain a bare ``git push`` targeting
-  ``main`` from a ``github-actions[bot]`` context. The pattern
+- No workflow may contain a bare ``git push`` from a ``github-actions[bot]``
+  context when it has write access to repository contents. The pattern
   ``git push`` in a ``run:`` block under ``permissions: contents: write``
   is the exact shape that failed.
 """
@@ -34,12 +34,12 @@ WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
 
 _DELETED_WORKFLOW = WORKFLOW_DIR / "post-merge-version-bump.yml"
 
-# Pattern that matches a bare "git push" in a run block (with or without
-# flags that do not specify a different remote or branch).  The push that
-# broke production was: ``git push`` with no arguments on a checkout of
-# ``main``, so the refspec defaulted to ``main -> main``.
+# Pattern that matches a bare "git push" command in a run block, including
+# trailing comments and shell chains. The push that broke production was:
+# ``git push`` with no arguments on a checkout of ``main``, so the refspec
+# defaulted to ``main -> main``.
 _BARE_GIT_PUSH = re.compile(
-    r"^\s*git\s+push\s*(?:--follow-tags\s*|--tags\s*)?$",
+    r"^\s*git\s+push(?:\s+(?:--follow-tags|--tags))*\s*(?:(?:#.*)?|(?:&&|\|\||;).*)$",
     re.MULTILINE,
 )
 
@@ -54,23 +54,6 @@ def _load_workflow(path: Path) -> dict[Any, Any] | None:
     except yaml.YAMLError:
         return None
     return loaded if isinstance(loaded, dict) else None
-
-
-def _triggers_main_push(workflow: dict[Any, Any]) -> bool:
-    on = workflow.get(True, workflow.get("on"))
-    if isinstance(on, str):
-        return on == "push"
-    if isinstance(on, list):
-        return "push" in on
-    if not isinstance(on, dict) or "push" not in on:
-        return False
-    push = on["push"]
-    if not isinstance(push, dict):
-        return True
-    branches = push.get("branches")
-    if branches is None:
-        return True
-    return isinstance(branches, list) and "main" in branches
 
 
 def _perms_write_contents(perms: Any) -> bool:
@@ -132,21 +115,102 @@ class TestDeletedWorkflowAbsent:
         )
 
 
-class TestNoBareGitPushOnMainPushTrigger:
-    """No push-to-main workflow may bare-push back to main.
+class TestNoBareGitPushWithWriteContents:
+    """No workflow with contents write may bare-push.
 
-    The GH013 failure occurs when a workflow triggered by a push to main
-    runs a bare ``git push``. Because ``github-actions[bot]`` is not a
-    bypass actor on ruleset 11104075, the push is always rejected. The
-    workflow is then red exactly when it has work to do and green when it
-    is idle, which hides the breakage.
+    The GH013 failure occurs when a workflow with ``contents: write`` runs a
+    bare ``git push`` from a main checkout. Because ``github-actions[bot]`` is
+    not a bypass actor on ruleset 11104075, the push is always rejected. The
+    workflow is then red exactly when it has work to do and green when it is
+    idle, which hides the breakage.
     """
 
     def test_no_push_bot_pattern(self) -> None:
         violations: list[str] = []
         for path in _workflow_files():
             wf = _load_workflow(path)
-            if wf is None or not _triggers_main_push(wf):
+            if wf is None:
                 continue
             violations.extend(_bare_push_violations_in_workflow(path, wf))
         assert not violations, "\n".join(violations)
+
+
+def test_bare_push_guard_rejects_comment_and_shell_chain_forms() -> None:
+    workflow = {
+        "permissions": {"contents": "write"},
+        "jobs": {
+            "commented": {"steps": [{"run": "git push  # direct main push"}]},
+            "chained": {"steps": [{"run": "git push || echo failed"}]},
+        },
+    }
+
+    violations = _bare_push_violations_in_workflow(Path("bad.yml"), workflow)
+
+    assert len(violations) == 2
+    assert "commented" in violations[0]
+    assert "chained" in violations[1]
+
+
+def test_bare_push_guard_accepts_explicit_non_bare_push() -> None:
+    workflow = {
+        "permissions": {"contents": "write"},
+        "jobs": {
+            "safe": {"steps": [{"run": "git push origin HEAD:refs/heads/bot/update"}]}
+        },
+    }
+
+    assert _bare_push_violations_in_workflow(Path("safe.yml"), workflow) == []
+
+
+def test_no_push_bot_entrypoint_is_wired_to_reject_scheduled_bare_push(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    workflow = tmp_path / "scheduled.yml"
+    workflow.write_text(
+        """
+on:
+  schedule:
+    - cron: "0 0 * * *"
+permissions:
+  contents: write
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - run: git push || echo failed
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("tests.ci.test_no_push_bot.WORKFLOW_DIR", tmp_path)
+
+    try:
+        TestNoBareGitPushWithWriteContents().test_no_push_bot_pattern()
+    except AssertionError as exc:
+        assert "scheduled.yml" in str(exc)
+        assert "bump" in str(exc)
+    else:
+        raise AssertionError("entrypoint accepted a scheduled bare git push")
+
+
+def test_no_push_bot_entrypoint_accepts_safe_workflow(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    workflow = tmp_path / "safe.yml"
+    workflow.write_text(
+        """
+on:
+  schedule:
+    - cron: "0 0 * * *"
+permissions:
+  contents: write
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - run: git push origin HEAD:refs/heads/bot/update
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("tests.ci.test_no_push_bot.WORKFLOW_DIR", tmp_path)
+
+    TestNoBareGitPushWithWriteContents().test_no_push_bot_pattern()
