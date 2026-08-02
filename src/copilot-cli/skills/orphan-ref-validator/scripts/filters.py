@@ -52,7 +52,6 @@ KNOWN_RETIRED_KEBAB_SKILLS: frozenset[str] = frozenset({
     "doc-coverage",
     "doc-sync",
     "github-pr-reply",
-    "merge-resolver",  # moved to .claude/agents; removed from copilot-cli plugin root
     "session-migration",
     "session-qa-eligibility",
 })

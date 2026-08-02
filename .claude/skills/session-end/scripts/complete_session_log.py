@@ -118,7 +118,8 @@ def _read_log_branch(full: str) -> str | None:
         branch = session.get("branch")
         if branch is not None:
             return branch
-    return data.get("branch")
+    branch = data.get("branch")
+    return branch if isinstance(branch, str) else None
 
 
 def _match_log_for_branch(
