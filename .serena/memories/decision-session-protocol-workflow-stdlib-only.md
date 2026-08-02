@@ -46,7 +46,7 @@ imports only `subprocess`, `collections.abc.Iterable`, and `pathlib.Path`.
 `tests/test_validate_session_json.py::test_the_shared_module_imports_no_third_party_package`
 pins that import list literally.
 
-`tests/ci/test_validate_session_protocol.py::TestEachJobInstallsWhatItsScriptsNeed`
+`tests/ci/test_validate_session_protocol_wiring.py::TestEachJobInstallsWhatItsScriptsNeed`
 enforces the per-job rule. It parses the workflow, pairs each job's
 install status with the scripts that job runs, and walks the transitive closure
 of both imports and subprocess-spawned script paths. No hand-kept script list

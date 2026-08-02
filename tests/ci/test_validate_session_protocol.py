@@ -15,21 +15,11 @@ The port fixes four defects the PowerShell original carried, each covered here:
 from __future__ import annotations
 
 import json
-import re
 import subprocess
-import sys
-from pathlib import Path
 
 import pytest
 
 from scripts.ci import validate_session_protocol as mod
-
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-_WORKFLOW = _REPO_ROOT / ".github/workflows/ai-session-protocol.yml"
-_STDLIB = frozenset(sys.stdlib_module_names) | {"__future__"}
-_SETUP_UV = "astral-sh/setup-uv"
-_INSTALLERS = (_SETUP_UV, "actions/setup-python")
-_PY_ENTRYPOINT = re.compile(r"python3?\s+(\S+\.py)")
 
 
 @pytest.fixture(autouse=True)

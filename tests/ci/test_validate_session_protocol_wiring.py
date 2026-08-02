@@ -6,7 +6,6 @@ These are the graph tests: which jobs run the script, and whether each job
 installs what its entrypoints import.
 """
 
-
 from __future__ import annotations
 
 import ast
@@ -20,7 +19,6 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 _WORKFLOW = _REPO_ROOT / ".github/workflows/ai-session-protocol.yml"
 _STDLIB = frozenset(sys.stdlib_module_names) | {"__future__"}
 _SETUP_UV = "astral-sh/setup-uv"
-_INSTALLERS = (_SETUP_UV, "actions/setup-python")
 _PY_ENTRYPOINT = re.compile(r"python3?\s+(\S+\.py)")
 
 
@@ -29,8 +27,15 @@ def _jobs() -> dict[str, dict]:
 
 
 def _installs_dependencies(job: dict) -> bool:
+    """Does this job put third-party packages on the interpreter it runs?
+
+    ``actions/setup-python`` deliberately does not count. It installs an
+    interpreter, not the packages a script imports, so crediting it would exempt
+    a job that sets up Python and forgets ``pip install``, which is the exact
+    shape of the issue #3806 failure this guard exists to catch.
+    """
     for step in job.get("steps", []):
-        if str(step.get("uses", "")).startswith(_INSTALLERS):
+        if str(step.get("uses", "")).startswith(_SETUP_UV):
             return True
         if "pip install" in str(step.get("run") or ""):
             return True
@@ -104,6 +109,28 @@ def _closure(entry: Path) -> tuple[set[Path], set[str]]:
             if spawned is not None:
                 pending.append(spawned)
     return files, third_party
+
+
+class TestInstallsDependencies:
+    """The exemption this predicate grants is what the guard below skips, so a
+    step that installs no packages must not earn it."""
+
+    def test_setup_python_alone_does_not_install_dependencies(self) -> None:
+        """It lays down an interpreter. ``jsonschema`` is still not there."""
+        assert not _installs_dependencies({"steps": [{"uses": "actions/setup-python@v6"}]})
+
+    def test_setup_python_plus_a_pip_install_does(self) -> None:
+        job = {"steps": [{"uses": "actions/setup-python@v6"}, {"run": "pip install jsonschema"}]}
+        assert _installs_dependencies(job)
+
+    def test_setup_uv_does(self) -> None:
+        assert _installs_dependencies({"steps": [{"uses": f"{_SETUP_UV}@" + "0" * 40}]})
+
+    def test_a_bare_pip_install_does(self) -> None:
+        assert _installs_dependencies({"steps": [{"run": "python3 -m pip install jsonschema"}]})
+
+    def test_a_job_with_no_steps_does_not(self) -> None:
+        assert not _installs_dependencies({})
 
 
 class TestWorkflowWiring:

@@ -2015,7 +2015,7 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
     # that used to sit here. The validate job now installs uv on purpose, and a
     # substring over the whole file cannot tell that job from the three that
     # still install nothing. The per-job successor lives in
-    # tests/ci/test_validate_session_protocol.py::TestEachJobInstallsWhatItsScriptsNeed.
+    # tests/ci/test_validate_session_protocol_wiring.py::TestEachJobInstallsWhatItsScriptsNeed.
 
     def test_the_shared_module_imports_no_third_party_package(self) -> None:
         """It runs under the workflow's bare python3, which has no PyYAML."""
