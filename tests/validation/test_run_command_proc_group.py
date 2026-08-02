@@ -218,7 +218,8 @@ def test_run_command_passes_start_new_session_to_popen(tmp_path: Path) -> None:
         popen_calls.append({"start_new_session": kwargs.get("start_new_session")})
         return real_popen(*args, **kwargs)
 
-    with mock.patch("scripts.validation.git_hook_policy.subprocess.Popen", side_effect=recording_popen):
+    target = "scripts.validation.git_hook_policy.subprocess.Popen"
+    with mock.patch(target, side_effect=recording_popen):
         policy._run_command(
             [sys.executable, "-c", "print('hi')"],
             tmp_path,
