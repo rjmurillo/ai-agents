@@ -1,0 +1,119 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4257,
+    "date": "2026-08-02",
+    "branch": "fix/mutation-harness-utf8",
+    "startingCommit": "4ca67ad60",
+    "objective": "unblock red main by pinning utf-8 on the mutation harness pytest call"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__activate_project on the repo root; project ai-agents active"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions read this session"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md auto-loaded by the context-loader hook"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ls .claude/skills/ -> 99 skills; github/scripts/pr enumerated"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory usage-mandatory read; GitHub work routed through .claude/skills/github/scripts/"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "usage-mandatory, ci/ci-count-ratchet-never-names-the-offending-file, ci/measure-main-before-blaming-the-pr"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/mutation-harness-utf8"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/mutation-harness-utf8"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status checked before commit"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "4ca67ad60"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ci/measure-main-before-blaming-the-pr written this session"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [],
+  "endingCommit": "",
+  "nextSteps": []
+}
