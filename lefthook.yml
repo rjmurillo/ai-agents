@@ -320,6 +320,12 @@ pre-commit:
         - merge
         - run: test "$SKIP_AUTOFIX" = "1"
 
+    - name: commit-file-count
+      timeout: 2m
+      run: uv run --frozen python scripts/validation/git_hook_policy.py atomic-commit
+      skip:
+        - merge
+
     - name: github-bash-policy
       timeout: 2m
       run: uv run --frozen python scripts/validation/git_hook_policy.py github-bash {staged_files}

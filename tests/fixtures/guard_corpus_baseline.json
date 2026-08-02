@@ -128,7 +128,7 @@
       33
     ],
     "merge-resolver/scripts/verify_no_conflict_markers.py": [
-      63
+      64
     ],
     "metrics/collect_metrics.py": [
       65,
