@@ -556,7 +556,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _project_root() -> Path:
+def _project_root():
     import os
     from pathlib import Path
 

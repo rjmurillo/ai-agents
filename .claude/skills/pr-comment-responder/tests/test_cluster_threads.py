@@ -594,7 +594,7 @@ class TestResolveLibDir:
             / "cluster_threads.py"
         )
         spec = ilu.spec_from_file_location("_ct_fresh", script_path)
-        fresh_mod = ilu.module_from_spec(spec)
+        _unused_mod = ilu.module_from_spec(spec)
         expected = os.path.abspath(
             os.path.join(str(script_path.parent), "..", "..", "..", "lib")
         )
