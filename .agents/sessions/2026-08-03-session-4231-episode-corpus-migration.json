@@ -112,7 +112,7 @@
   "nextSteps": [
     "Push branch and open PR. 113 unversioned files remain until PR #4163 merges."
   ],
-  "endingCommit": "033e2bfb3",
+  "endingCommit": "bd79c35c7",
   "issues": [
     "#3598"
   ],

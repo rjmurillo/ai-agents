@@ -69,6 +69,15 @@
       "caused_by": [],
       "leads_to": [],
       "_source_session": "2026-08-03-session-4231-episode-corpus-migration"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: bd79c35c7",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4231-episode-corpus-migration"
     }
   ],
   "metrics": {
@@ -76,7 +85,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 209
   },
   "lessons": []
