@@ -1,4 +1,4 @@
-"""Canonical: scripts/ai_review_common/issue_triage.py. Sync via scripts/sync_plugin_lib.py."""
+"""Markdown formatting, display helpers, and logging for AI review outputs."""
 
 from __future__ import annotations
 

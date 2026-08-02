@@ -18,8 +18,8 @@ These are corrections that MUST be followed:
 
 These are preferences that SHOULD be followed:
 
-- **For non-gstack projects, skip gstack-specific steps pragmatically.** The skill is designed for repos instrumented with `bin/test-lane`, VERSION 4-digit bumps, CHANGELOG.md at root, TODOS.md, and deploy platforms. On repos without that infrastructure (e.g., ai-agents), skip Step 3 (`bin/test-lane`), Step 4 (VERSION bump), most of Step 5.5 (TODOS auto-update), and Step 6 (deploy platform detection). The core value — merge + review gate + revert escape hatch — still applies. Note the skipped steps in the final report. (Session 2026-04-13, PR #1633)
-- **For docs-only PRs, skip the deploy verification chain entirely.** Per the skill's own Step 5 decision tree, when `SCOPE_DOCS` is the only true scope, go directly from Step 4 (merge) to Step 9 (deploy report) with verdict `DEPLOYED (DOCS ONLY — NO SITE TO VERIFY)`. Don't ask about production URLs, don't poll deploy workflows, don't run canary. (Session 2026-04-13, PR #1633)
+- **For non-gstack projects, skip gstack-specific steps pragmatically.** The skill is designed for repos instrumented with `bin/test-lane`, VERSION 4-digit bumps, CHANGELOG.md at root, TODOS.md, and deploy platforms. On repos without that infrastructure (e.g., ai-agents), skip Step 3 (`bin/test-lane`), Step 4 (VERSION bump), most of Step 5.5 (TODOS auto-update), and Step 6 (deploy platform detection). The core value (merge, review gate, revert escape hatch) still applies. Note the skipped steps in the final report. (Session 2026-04-13, PR #1633)
+- **For docs-only PRs, skip the deploy verification chain entirely.** Per the skill's own Step 5 decision tree, when `SCOPE_DOCS` is the only true scope, go directly from Step 4 (merge) to Step 9 (deploy report) with verdict `DEPLOYED (DOCS ONLY, NO SITE TO VERIFY)`. Don't ask about production URLs, don't poll deploy workflows, don't run canary. (Session 2026-04-13, PR #1633)
 - **For long async CI queues (agent reviews), use `ScheduleWakeup` between polls instead of sleep loops.** A single `/land-and-deploy` run may need 3-5 polling cycles with 3-5 min waits each when the repo dispatches LLM-based agent reviews (Security/QA/Analyst/Architect/DevOps/Roadmap). Each wakeup cycle re-checks state via GitHub API and resumes at the right step. (Session 2026-04-13, PR #1633)
   - Evidence: PR #1633 needed 4 wakeup cycles over ~15 minutes to wait for 16 required checks across 4 commits to converge.
 
@@ -28,7 +28,7 @@ These are preferences that SHOULD be followed:
 These are scenarios to handle:
 
 - **`mergeStateStatus: BLOCKED` despite 16/16 required checks green** indicates unresolved review threads per `required_review_thread_resolution` ruleset. Fetch ALL review threads via GraphQL, filter `not isResolved` (NOT `not isResolved and not isOutdated`), and explicitly call `resolveReviewThread` mutation on each. Outdated ≠ resolved. (Session 2026-04-13, PR #1633)
-  - Evidence: My initial thread sweep used `not isResolved and not isOutdated` filter and returned 0 matches. User reported "Merging is blocked — A conversation must be resolved." Full sweep found 9 outdated-but-not-resolved threads. After explicit resolve of all 9, mergeStateStatus flipped to CLEAN.
+  - Evidence: My initial thread sweep used `not isResolved and not isOutdated` filter and returned 0 matches. User reported "Merging is blocked. A conversation must be resolved." Full sweep found 9 outdated-but-not-resolved threads. After explicit resolve of all 9, mergeStateStatus flipped to CLEAN.
 - **Repo rulesets can enforce checks that don't show as "branch protection".** `gh api repos/.../branches/main/protection` returns 404 "Branch not protected" even when `gh api repos/.../rulesets/{id}` contains `required_status_checks`, `required_review_thread_resolution`, etc. Always check both protection AND rulesets when diagnosing BLOCKED merge state. (Session 2026-04-13)
 - **Merge via raw `gh pr merge` is blocked by the invoke-skill-first guard hook.** Must use `.claude/skills/github/scripts/pr/merge_pr.py` via `uv run --with pyyaml python ...` (the script imports `yaml` and the scripts package lives at `scripts.github_core` requiring `PYTHONPATH=.`). Arg name is `--pull-request` not `--pr`, and `--strategy squash` not `--method squash`. (Session 2026-04-13, PR #1633)
 - **The skill's `gh sub-issue` and similar sub-commands use different flag conventions than parent `gh` commands.** Sub-issue extension uses `--body STRING` not `--body-file FILE`. Test CLI extensions before batching operations. (Session 2026-04-13)
@@ -57,6 +57,6 @@ These are observations that may become patterns:
 
 ## Related
 
-- [github-observations](../github/github-observations.md) — GitHub API patterns, closing-keyword gotcha
-- [pr-review-observations](../pr-review/pr-review-observations.md) — review thread resolution, bot reviewer behavior
-- [session-protocol-observations](../session/session-protocol-observations.md) — wakeup scheduling patterns
+- [github-observations](../github/github-observations.md): GitHub API patterns, closing-keyword gotcha
+- [pr-review-observations](../pr-review/pr-review-observations.md): review thread resolution, bot reviewer behavior
+- [session-protocol-observations](../session/session-protocol-observations.md): wakeup scheduling patterns
