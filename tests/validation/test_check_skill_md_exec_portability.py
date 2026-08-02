@@ -139,6 +139,18 @@ class TestExecMarker:
         assert cep.has_portability_marker(text) is False
         assert cep.count_file_invocations(text) == 1
 
+    def test_marker_suppressed_count_tracks_hidden_invocations(self) -> None:
+        text = (
+            "<!-- vendor-portability-exec: declared -->\n"
+            "python3 .claude/skills/a/x.py\n"
+            "python3 build/scripts/generate_rules.py\n"
+        )
+        assert cep.count_marker_suppressed_invocations(text) == 2
+
+    def test_marker_suppressed_count_is_zero_without_marker(self) -> None:
+        text = "python3 .claude/skills/a/x.py\n"
+        assert cep.count_marker_suppressed_invocations(text) == 0
+
 
 class TestScan:
     def _skill_md(self, root: Path, parts: tuple[str, ...], rel: str, body: str) -> None:
@@ -285,6 +297,20 @@ class TestMainCli:
         rc = cep.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
         assert rc == 1
 
+    def test_marker_stale_count_returns_exit_1(self, tmp_path: Path) -> None:
+        self._make_skill(
+            tmp_path,
+            "<!-- vendor-portability-exec: declared -->\n"
+            "The declaration stayed but the invocation moved away.\n",
+        )
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(
+            json.dumps({"files": {}, "marker_files": {".claude/skills/a/SKILL.md": 1}}),
+            encoding="utf-8",
+        )
+        rc = cep.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+        assert rc == 1
+
     def test_clean_repo_returns_zero(self, tmp_path: Path) -> None:
         self._make_skill(tmp_path, 'python3 "$SCRIPTS_DIR/x.py"\n')
         baseline = tmp_path / "baseline.json"
@@ -382,35 +408,13 @@ class TestScriptsExecDetection:
         text = "See `scripts/validation/pre_pr.py` for details.\n"
         assert cep.count_exec_invocations(text) == 0
 
-    def test_ignores_build_scripts_nested_path(self) -> None:
-        """python3 build/scripts/... is not counted; scripts is not at root.
-
-        The EXEC_PATTERN requires the path argument to start with scripts/
-        (or .claude/skills/), so a path like build/scripts/x.py does not match.
-        """
+    def test_counts_build_scripts_python_invocation(self) -> None:
+        """python3 build/scripts/... is counted as an upstream-only invocation."""
         text = "python3 build/scripts/generate_rules.py\n"
-        assert cep.count_exec_invocations(text) == 0
+        assert cep.count_exec_invocations(text) == 1
 
 
 class TestDotSlashScriptsExecDetection:
-    """``./scripts/...`` invocations are detected (PR #4029 review).
-
-    A review raised that EXEC_PATTERN's path-prefix group only lists
-    ``scripts/`` with no optional ``./``, so ``python3 ./scripts/x.py`` would
-    slip past the gate. It does not: such text is matched by the *other*
-    lead-in alternative, the direct ``\\./`` executable branch, which consumes
-    ``./`` and leaves ``scripts/`` for the path-prefix group.
-
-    That makes the coverage real but *incidental*: it depends on two separate
-    regex branches lining up, and no test pinned it. These tests pin it. Each
-    one is killed by either mutation:
-      - drop ``scripts/`` from the path-prefix group -> the ``\\./`` branch has
-        nothing to match after ``./``, count becomes 0;
-      - drop the ``\\./`` lead-in alternative -> the interpreter branch cannot
-        match ``./scripts/`` (the group is anchored at ``scripts/``), count
-        becomes 0.
-    """
-
     def test_counts_dot_slash_scripts_python_invocation(self) -> None:
         """python3 ./scripts/... is counted despite the ./ prefix."""
         text = "python3 ./scripts/validation/check_vendor_portability.py --repo-root .\n"
@@ -435,15 +439,10 @@ class TestDotSlashScriptsExecDetection:
         text = "./scripts/bootstrap-vm.sh --dev\n"
         assert cep.count_exec_invocations(text) == 1
 
-    def test_ignores_dot_slash_nested_scripts_path(self) -> None:
-        """./build/scripts/... is not counted; scripts is not at the path root.
-
-        Negative control for the ./ branch: the path-prefix group stays
-        anchored, so prefixing a nested path with ./ does not launder it into
-        a match.
-        """
+    def test_counts_dot_slash_build_scripts_invocation(self) -> None:
+        """./build/scripts/... is counted when executed directly."""
         text = "./build/scripts/generate_rules.py\n"
-        assert cep.count_exec_invocations(text) == 0
+        assert cep.count_exec_invocations(text) == 1
 
     def test_ignores_parent_relative_scripts_path(self) -> None:
         """python3 ../scripts/... is not counted.
@@ -454,3 +453,21 @@ class TestDotSlashScriptsExecDetection:
         """
         text = "python3 ../scripts/x.py\n"
         assert cep.count_exec_invocations(text) == 0
+
+
+class TestMarkerDiff:
+    def test_marker_count_increase_is_regression(self) -> None:
+        regressions, improvements = cep.diff_marker_baseline(
+            {".claude/skills/a/SKILL.md": 2},
+            {".claude/skills/a/SKILL.md": 1},
+        )
+        assert regressions and ".claude/skills/a/SKILL.md" in regressions[0]
+        assert improvements == []
+
+    def test_marker_count_decrease_is_regression(self) -> None:
+        regressions, improvements = cep.diff_marker_baseline(
+            {".claude/skills/a/SKILL.md": 0},
+            {".claude/skills/a/SKILL.md": 1},
+        )
+        assert regressions and "baseline 1" in regressions[0]
+        assert improvements == []
