@@ -413,7 +413,8 @@ def test_a_git_that_cannot_be_launched_is_not_bootstrap(tmp_path, monkeypatch):
             raise FileNotFoundError("git: not found")
         if cmd[0] == "git" and "rev-parse" in cmd:
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
-        return real_run(cmd, **kwargs)
+        kwargs.pop("encoding", None)
+        return real_run(cmd, encoding="utf-8", **kwargs)
 
     monkeypatch.setattr(subprocess, "run", _run)
     baseline = tmp_path / "baseline.txt"
