@@ -13,7 +13,7 @@ Verified 2026-07-03 against the working tree.
 | Payload casing contract, CLI 1.0.58 | `.agents/retrospective/2026-06-02-issue-2290-copilot-hook-payload-format.md:33,47,71` | `grep -n "toolArgs" .agents/retrospective/2026-06-02-issue-2290-copilot-hook-payload-format.md` |
 | M4 threshold 6 vs max 4; last-5-PRs rule | `.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:70-73,153` | `grep -n "Threshold = 6" .agents/retrospective/2026-05-10-pr-1989-recursive-failure.md` |
 | #1887 Phase-6 audit 0/35 | `.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md:199,230` | `grep -n "Total preventable" .agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md` |
-| Eval commands and flags | `scripts/eval/eval-prompt-change.py:1-60`, `scripts/eval/eval-agent-vs-baseline.py:447-475` | `python3 scripts/eval/eval-prompt-change.py --help` |
+| Eval commands and flags | `scripts/eval/eval-prompt-change.py:1-60`, `scripts/eval/eval-agent-vs-baseline.py:447-475` | `uv run python scripts/eval/eval-prompt-change.py --help` |
 | Scenario/fixture locations | `tests/evals/`, `evals/` | `ls tests/evals/ evals/` |
 | Verbatim-quote rule (7 fix commits) | `.claude/rules/canonical-source-mirror.md` | `sed -n '1,30p' .claude/rules/canonical-source-mirror.md` |
 | CONTRIBUTING pwsh commands are dead | `CONTRIBUTING.md:155`; no `.ps1` outside `.venv` | `find . -name '*.ps1' -not -path './.venv/*'` |

@@ -14,6 +14,7 @@ from scripts.validation.portability_baseline import (
     read_previous_sections,
     refuse_dropped_entries,
     refuse_symlinked_baseline,
+    refuse_undiffable_baseline,
     write_baseline_json,
 )
 
@@ -33,11 +34,12 @@ def load_baseline(path: Path) -> dict[str, int]:
 
     baseline: dict[str, int] = {}
     for key, value in files.items():
-        if not isinstance(value, int) or isinstance(value, bool):
-            raise ValueError(
-                f"Baseline count for {key!r} must be a JSON integer, got {type(value).__name__}"
-            )
-        baseline[str(key)] = value
+        if value is None:
+            raise ValueError(f"Baseline count for {key!r} is null")
+        try:
+            baseline[str(key)] = int(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Baseline count for {key!r} is not an integer") from exc
     return baseline
 
 
@@ -119,13 +121,14 @@ def resolve_baseline_path(
     baseline: Path | None,
     default_baseline_name: str,
     reject_outside_root: bool,
-) -> Path | None:
+) -> Path:
     """Resolve the baseline path, optionally rejecting root escapes.
 
-    Returns None when reject_outside_root is True and the candidate lies
-    outside the repository root. Returns the resolved path otherwise.
-    Not all callers delegate here; check_vendor_portability.py has its own
-    resolver.
+    The single home for this reasoning. Every checker that accepts `--baseline`
+    delegates here rather than keeping a copy, because the copies drifted into
+    the same defect independently once already: both resolved the path before
+    handing it on, which erased the symlink the guard downstream exists to
+    refuse. Returns `Path("")` when the candidate escapes the root.
     """
     if baseline is None:
         return root / "scripts" / "validation" / default_baseline_name
@@ -133,12 +136,61 @@ def resolve_baseline_path(
         return baseline if baseline.is_absolute() else root / baseline
 
     root_resolved = root.resolve()
-    resolved = (
-        baseline.expanduser().resolve()
-        if baseline.is_absolute()
-        else (root / baseline).expanduser().resolve()
+    candidate = baseline.expanduser()
+    if not candidate.is_absolute():
+        candidate = root / candidate
+    if not candidate.expanduser().resolve().is_relative_to(root_resolved):
+        return Path("")
+    # Return the candidate exactly as written, neither resolved nor textually
+    # normalised. `resolve()` follows every symlink, which erases the evidence
+    # the symlink guard exists to find. Collapsing `..` textually looks safer
+    # but is not: `link/../victim.json` is containment-tested as the directory
+    # the link points into and then collapses to a sibling of the link, so the
+    # guard vets one file and hands back another, with no symlink left in the
+    # result for the downstream check to catch. Kept whole, that same path
+    # still names the link, and the link is refused.
+    return candidate
+
+
+def resolve_checked_baseline(
+    root: Path,
+    baseline: Path | None,
+    default_baseline_name: str,
+) -> Path | None:
+    """Resolve the baseline and vet it, or explain on stderr and return None.
+
+    Every checker that accepts `--baseline` needs the same two answers before
+    it may trust the file: the path must stay inside the repository, and git
+    must still show a reader when a count inside it goes down. Both were
+    written out per checker once, and `resolve_baseline_path` above records
+    what that cost: the copies drifted into the same defect independently.
+
+    So this is the single gate rather than a third copy of the pair. Returning
+    `None` for either refusal keeps the sentinel uniform too; the checkers had
+    split into `None` and `Path("")` for the same condition, which is the same
+    drift starting again in the return type.
+
+    The symlink refusal belongs here and not only on the write path. The diff
+    attribute is read from the pathname handed in, while `read_text()` follows
+    the link, so a committed symlink lets the vetted name and the consumed file
+    be two different files. Hiding the target rather than the name then lands
+    every later lowering unseen, which is the attribute finding one indirection
+    deeper. Refusing the link closes both, and it runs first because a link is
+    the more basic objection: the target need not be inside the tree at all.
+    """
+    resolved = resolve_baseline_path(
+        root, baseline, default_baseline_name, reject_outside_root=True
     )
-    if not resolved.is_relative_to(root_resolved):
+    if resolved == Path(""):
+        print(
+            f"Refusing a --baseline outside the repository root: {baseline}. "
+            "The ratchet only owns the artifact git tracks.",
+            file=sys.stderr,
+        )
+        return None
+    if refuse_symlinked_baseline(root, resolved):
+        return None
+    if refuse_undiffable_baseline(root, resolved):
         return None
     return resolved
 
@@ -148,14 +200,23 @@ def write_baseline(
     current: dict[str, int],
     comment: str,
     label: str,
-    repo_root: Path | None = None,
-    allow_shrink: bool = False,
+    *,
+    repo_root: Path,
+    allow_shrink: bool,
 ) -> int:
-    """Write a sorted portability baseline and print a standard summary."""
+    """Write a sorted portability baseline and print a standard summary.
+
+    `repo_root` and `allow_shrink` are required and keyword-only on purpose.
+    Both were optional once, and a checker that forgot them got a guard which
+    looked for the committed baseline in the wrong directory and an escape
+    hatch its own `--allow-baseline-shrink` flag could not reach. Nothing
+    failed; the protection just quietly was not there. Required arguments turn
+    the same omission into a TypeError at the call site.
+    """
     total = sum(current.values())
     entries = dict(sorted(current.items()))
     rc = write_baseline_json(
-        repo_root or baseline_path.parent,
+        repo_root,
         baseline_path,
         {"_comment": comment, "files": entries},
         {"files": entries},
@@ -349,7 +410,7 @@ def refuse_unsafe_baseline_write(
     """
     if refuse_uncovered_scan(root, scanned_by_root, unit):
         return True
-    if refuse_symlinked_baseline(baseline_path):
+    if refuse_symlinked_baseline(root, baseline_path):
         return True
     previous, problem = read_previous_sections(root, baseline_path)
     return refuse_dropped_entries(previous, current, unit, allow_shrink, problem)

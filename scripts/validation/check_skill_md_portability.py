@@ -81,7 +81,7 @@ from scripts.validation.portability_common import (
     load_baseline as _load_baseline,
 )
 from scripts.validation.portability_common import (
-    resolve_baseline_path as _common_resolve_baseline_path,
+    resolve_checked_baseline as _resolve_checked_baseline,
 )
 from scripts.validation.portability_common import (
     resolve_root as _common_resolve_root,
@@ -617,9 +617,7 @@ def _resolve_root(repo_root: Path | None) -> Path:
 
 
 def _resolve_baseline_path(root: Path, baseline: Path | None) -> Path | None:
-    return _common_resolve_baseline_path(
-        root, baseline, _DEFAULT_BASELINE_NAME, reject_outside_root=True
-    )
+    return _resolve_checked_baseline(root, baseline, _DEFAULT_BASELINE_NAME)
 
 
 def _load_marker_baseline(path: Path) -> dict[str, int]:
@@ -758,10 +756,6 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     baseline_path = _resolve_baseline_path(root, args.baseline)
     if baseline_path is None:
-        print(
-            f"--baseline path is outside the repository root, rejecting: {args.baseline}",
-            file=sys.stderr,
-        )
         return 2
 
     counts = _scan_current_counts(root)

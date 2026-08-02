@@ -11,11 +11,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Measure all four guards the issue proposes across every committed log before writing any",
-      "caused_by": [
-        "e011"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e002"
+        "e011"
       ]
     },
     {
@@ -23,11 +21,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Test guard 3, that startingCommit must resolve in the repo",
-      "caused_by": [
-        "e001"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e003"
+        "e011"
       ]
     },
     {
@@ -35,11 +31,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Decide which tier the agreement checks belong to",
-      "caused_by": [
-        "e002"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e004"
+        "e011"
       ]
     },
     {
@@ -47,11 +41,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Attempt to adjudicate the 10 contradictions with git so they could be corrected",
-      "caused_by": [
-        "e003"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e005"
+        "e011"
       ]
     },
     {
@@ -59,11 +51,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Implement the three shippable checks with one function owning cross-field agreement",
-      "caused_by": [
-        "e004"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e006"
+        "e011"
       ]
     },
     {
@@ -71,11 +61,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Fix the crash a robustness case surfaced next door",
-      "caused_by": [
-        "e005"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e007"
+        "e011"
       ]
     },
     {
@@ -83,11 +71,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Calibrate the branch check against the corpus instead of trusting a four-row sample",
-      "caused_by": [
-        "e006"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e008"
+        "e011"
       ]
     },
     {
@@ -95,11 +81,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Prove the checks bite",
-      "caused_by": [
-        "e007"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e009"
+        "e011"
       ]
     },
     {
@@ -107,31 +91,39 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Reland after PR #3401 merged mid-flight",
-      "caused_by": [
-        "e008"
-      ],
-      "leads_to": []
-    },
-    {
-      "id": "e010",
-      "timestamp": "2026-07-26T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 740890409fd1e15f8e9aa63adb37d2d17b740ea2",
       "caused_by": [],
       "leads_to": [
         "e011"
       ]
     },
     {
+      "id": "e010",
+      "timestamp": "2026-07-26T22:06:36+00:00",
+      "type": "commit",
+      "content": "Commit: 740890409fd1e15f8e9aa63adb37d2d17b740ea2",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": []
+    },
+    {
       "id": "e011",
-      "timestamp": "2026-07-26T00:00:00+00:00",
+      "timestamp": "2026-07-26T22:02:25+00:00",
       "type": "commit",
       "content": "Commit: 668afae6b9",
       "caused_by": [
-        "e010"
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009"
       ],
       "leads_to": [
-        "e001"
+        "e010"
       ]
     }
   ],

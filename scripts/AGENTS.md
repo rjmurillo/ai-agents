@@ -262,10 +262,10 @@ python3 scripts/check_skill_exists.py --list-available
 
 ```bash
 # Validate specific session
-python3 scripts/validate_session_json.py .agents/sessions/2025-12-18-session-24.json
+uv run python scripts/validate_session_json.py .agents/sessions/2025-12-18-session-24.json
 
 # Pre-commit mode
-python3 scripts/validate_session_json.py .agents/sessions/2025-12-18-session-24.json --pre-commit
+uv run python scripts/validate_session_json.py .agents/sessions/2025-12-18-session-24.json --pre-commit
 ```
 
 ---

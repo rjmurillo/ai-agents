@@ -353,7 +353,7 @@ def test_cli_passes_on_the_checked_in_repository() -> None:
     result = subprocess.run(
         [sys.executable, str(SCRIPT)],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         cwd=REPO_ROOT,
         timeout=_SUBPROCESS_TIMEOUT,
     )
@@ -364,7 +364,7 @@ def test_cli_reports_the_description_check() -> None:
     result = subprocess.run(
         [sys.executable, str(SCRIPT)],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         cwd=REPO_ROOT,
         timeout=_SUBPROCESS_TIMEOUT,
     )
@@ -384,7 +384,7 @@ def test_cli_scans_every_configured_description() -> None:
     result = subprocess.run(
         [sys.executable, str(SCRIPT)],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         cwd=REPO_ROOT,
         timeout=_SUBPROCESS_TIMEOUT,
     )
@@ -403,7 +403,7 @@ def test_configuration_covers_every_manifest_in_the_repository() -> None:
     tracked = subprocess.run(
         ["git", "ls-files", "-z", "*plugin.json", "*marketplace.json"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         cwd=REPO_ROOT,
         check=True,
         timeout=_SUBPROCESS_TIMEOUT,

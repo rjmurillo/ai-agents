@@ -10,13 +10,16 @@ about the world, which is unbounded, so it can always be lied to by a tree
 nobody thought of. The artifact comparison reasons about one file whose
 contents are already known, so its blind spots are enumerable. Keeping them
 apart makes the second one auditable.
+
+Reading the predecessor is its own concern and lives in `portability_floor`.
+It is the half an attacker can reach, so it is worth auditing without the
+write path in the way.
 """
 
 from __future__ import annotations
 
 import json
 import os
-import subprocess
 import sys
 import tempfile
 import time
@@ -25,120 +28,22 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-Sections = dict[str, dict[str, int]]
+from scripts.validation.portability_floor import (
+    COUNTED_SECTIONS,
+    Sections,
+    read_previous_sections,
+)
+from scripts.validation.portability_git import run_git
 
-COUNTED_SECTIONS = ("files", "marker_files")
-"""Every baseline section that records a count somebody can regress.
-
-`files` counts violations, where lower is better. `marker_files` counts
-suppressed references, where the value must stay exact. Both are debt records,
-so both need the same protection; guarding only the first leaves a writable
-hole in the same artifact.
-"""
-
-
-def _run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes] | None:
-    env = {
-        key: value for key, value in os.environ.items() if not key.upper().startswith("GIT_")
-    }
-    try:
-        return subprocess.run(
-            ["git", "-C", str(repo_root), *args],
-            capture_output=True,
-            env=env,
-            check=False,
-        )
-    except OSError:
-        return None
-
-
-def _was_recorded(repo_root: Path, path: Path) -> bool | None:
-    """Report whether branch history has the baseline, None when git cannot answer."""
-    try:
-        rel = path.resolve().relative_to(repo_root.resolve())
-    except (OSError, ValueError):
-        return False
-
-    proc = _run_git(repo_root, "log", "-1", "--format=%H", "HEAD", "--", str(rel))
-    if proc is None:
-        return None
-    if proc.returncode == 0:
-        return bool(proc.stdout.strip())
-
-    refs = _run_git(repo_root, "show-ref", "--head")
-    if refs is None:
-        return None
-    if refs.returncode == 1 and not refs.stdout:
-        return False
-    return None
-
-
-def _coerce_counts(section: object, name: str) -> tuple[dict[str, int] | None, str | None]:
-    """Convert one baseline section to counts, reporting why it is unusable."""
-    if not isinstance(section, dict):
-        return None, f"section {name!r} is not a JSON object"
-    counts: dict[str, int] = {}
-    for key, value in section.items():
-        try:
-            counts[str(key)] = int(value)
-        except (TypeError, ValueError):
-            return None, f"the count for {key!r} in {name!r} is not an integer"
-    return counts, None
-
-
-def read_previous_sections(
-    repo_root: Path, path: Path
-) -> tuple[Sections | None, str | None]:
-    """Read every counted section of the baseline being replaced.
-
-    Returns `(sections, problem)`. A problem is a reason to refuse the write.
-    `(None, None)` means there is genuinely nothing to protect, which is true
-    for exactly one case: a baseline that is neither on disk nor in git, so no
-    debt has ever been recorded.
-
-    Every other unreadable state fails closed. An absent-but-tracked baseline
-    has been deleted, a corrupt one may be mid-merge, and an unreadable one is
-    a mystery. Treating any of them as "no predecessor" would let the guard be
-    disabled by damaging the very file it protects, which inverts it into a
-    tool for laundering a wipe.
-    """
-    try:
-        raw = path.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        recorded = _was_recorded(repo_root, path)
-        if recorded is None:
-            return None, "git could not determine whether branch history recorded the baseline"
-        if recorded:
-            return None, "git history records the baseline but it is absent from disk"
-        return None, None
-    except OSError as exc:
-        return None, f"the baseline could not be read ({exc.strerror or exc})"
-
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        return None, f"the baseline is not valid JSON ({exc.msg}, line {exc.lineno})"
-    if not isinstance(data, dict):
-        return None, "the baseline is not a JSON object"
-
-    if "files" not in data:
-        # The legacy flat schema is a bare path-to-count object. It is still
-        # readable, so it is compared rather than refused; refusing would block
-        # an honest contributor whose checkout predates the nested schema.
-        counts, problem = _coerce_counts(data, "files")
-        if problem:
-            return None, problem
-        return {"files": counts or {}}, None
-
-    sections: Sections = {}
-    for name in COUNTED_SECTIONS:
-        if name not in data:
-            continue
-        counts, problem = _coerce_counts(data[name], name)
-        if problem:
-            return None, problem
-        sections[name] = counts or {}
-    return sections, None
+__all__ = [
+    "COUNTED_SECTIONS",
+    "Sections",
+    "read_previous_sections",
+    "refuse_dropped_entries",
+    "refuse_symlinked_baseline",
+    "refuse_undiffable_baseline",
+    "write_baseline_json",
+]
 
 
 def _regressions(previous: Mapping[str, int], current: Mapping[str, int]) -> list[str]:
@@ -208,22 +113,160 @@ def refuse_dropped_entries(
     return False
 
 
-def refuse_symlinked_baseline(baseline_path: Path) -> bool:
-    """Refuse to write through a symlink at the baseline path.
+def _resolved(path: Path) -> Path | None:
+    """Resolve a path without raising, None when the filesystem will not say."""
+    try:
+        return path.resolve()
+    except OSError:
+        return None
 
-    Following one writes outside the path git tracks. The target is not the
-    ratchet's to overwrite, and a checkout that produced a symlink here is not
-    a checkout whose scan can be trusted.
+
+def _linked_component(baseline_path: Path, repo_root: Path) -> Path | None:
+    """Return the first symlink between the repository root and the baseline.
+
+    Checking only the leaf misses the cheaper attack. A symlinked *directory*
+    anywhere on the way down redirects the write just as effectively, and it
+    leaves the leaf looking like an ordinary file.
     """
-    if not baseline_path.is_symlink():
+    root = _resolved(repo_root)
+    current = baseline_path
+    for _ in range(64):
+        if current.is_symlink():
+            return current
+        parent = current.parent
+        if parent == current:
+            return None
+        if root is not None and _resolved(parent) == root:
+            # Arriving at the root ends the walk, but the component that got us
+            # here has not been tested yet. A link named `scripts` pointing at
+            # the root resolves to the root and would end the walk clean, while
+            # still sending the write to a path git does not track under that
+            # name. Test it before stopping.
+            return parent if parent.is_symlink() else None
+        current = parent
+    return None
+
+
+def _escaping_parent(baseline_path: Path, repo_root: Path) -> Path | None:
+    """Return the resolved destination when it lands outside the repository.
+
+    A path can leave the tree without a symlink anywhere on it, by climbing
+    with `..`. The symlink walk cannot see that, so the destination is checked
+    on its own terms as well.
+    """
+    root = _resolved(repo_root)
+    target = _resolved(baseline_path.parent)
+    if root is None or target is None:
+        return None
+    if target == root or root in target.parents:
+        return None
+    return target
+
+
+def refuse_symlinked_baseline(repo_root: Path, baseline_path: Path) -> bool:
+    """Refuse to use a baseline anywhere but the real path git tracks.
+
+    Following a symlink writes outside the path git tracks. The target is not
+    the ratchet's to overwrite, and a checkout that produced a symlink here is
+    not a checkout whose scan can be trusted. The whole chain from the baseline
+    up to the repository root is checked, not just the final component, and a
+    destination that escapes the repository is refused even when nothing on the
+    way to it is a link.
+
+    Readers refuse for a second reason. Every other check runs against the
+    pathname it is handed, while reading the file follows the link, so a link
+    lets the vetted name and the consumed file be two different files. The
+    wording below stays neutral because both callers reach it.
+    """
+    linked = _linked_component(baseline_path, repo_root)
+    if linked is not None:
+        print(
+            f"Refusing a baseline reached through a symlink: {linked}. "
+            "Following it leaves the path git tracks, so the file vetted here "
+            "and the file used are not guaranteed to be the same one.",
+            file=sys.stderr,
+        )
+        return True
+
+    escaped = _escaping_parent(baseline_path, repo_root)
+    if escaped is not None:
+        print(
+            f"Refusing to write a baseline outside the repository: {escaped}. "
+            "The ratchet only owns the artifact git tracks, and a path that "
+            "leaves the tree is not that artifact.",
+            file=sys.stderr,
+        )
+        return True
+
+    return False
+
+
+def refuse_undiffable_baseline(repo_root: Path, baseline_path: Path) -> bool:
+    """Refuse when git has been told not to produce a diff for the baseline.
+
+    Everything else in this guard rests on one claim, written down in
+    `portability_floor`: the committed copy cannot change without a commit, and
+    a commit is reviewable. One line in `.gitattributes` retires the second
+    half. `-diff`, or the `binary` macro that expands to it, makes git and the
+    forges built on it render the file as binary. The bytes are untouched, so
+    this checker still parses the lowered count and agrees with it, while review
+    is shown `Binary files differ` and never sees the number move.
+
+    That is worth refusing rather than trusting review to catch, because the
+    attack is two commits and only the first one shows anything. The attribute
+    lands once, worded as diff-noise housekeeping, and every later lowering is
+    invisible with nothing further to notice.
+
+    Only `unset` is refused. An absent attribute reports `unspecified`, an
+    explicit one reports `set`, and a named driver reports its own name; all
+    three still render a textual diff. Git failing to answer is refused too,
+    because a guard that cannot read the attribute cannot promise the diff.
+
+    Outside a git repository the answer is neither, and the honest verdict is
+    to allow. The asset here is a diff somebody reviews; where there is no
+    repository there is no diff to suppress and no branch to land a number on,
+    so refusing would block vendored copies, unpacked tarballs, and fixtures
+    while protecting nothing. Every path that can carry the attack, CI above
+    all, runs inside a checkout where this resolves and the guard is live.
+    """
+    toplevel = run_git(repo_root, "rev-parse", "--show-toplevel")
+    if toplevel is None or toplevel.returncode != 0:
         return False
-    print(
-        f"Refusing to write a baseline through a symlink: {baseline_path}. "
-        "Following it would write outside the path git tracks, and the file it "
-        "points at is not the ratchet's to overwrite.",
-        file=sys.stderr,
-    )
-    return True
+
+    proc = run_git(repo_root, "check-attr", "-z", "diff", "--", str(baseline_path))
+    if proc is None or proc.returncode != 0:
+        print(
+            f"Refusing to trust the baseline {baseline_path}: git could not report "
+            "whether it is diffable. The ratchet's only guarantee is that a lowered "
+            "count shows up in review, and that cannot be confirmed here.",
+            file=sys.stderr,
+        )
+        return True
+
+    # `-z` emits NUL-separated (path, attribute, value) triples, so a path
+    # containing a colon cannot be misread as the separator the plain format
+    # uses. The value is the third field.
+    fields = proc.stdout.split(b"\0")
+    if len(fields) < 3:
+        print(
+            f"Refusing to trust the baseline {baseline_path}: git reported no diff "
+            "attribute for it, so whether a lowered count would appear in review "
+            "cannot be confirmed.",
+            file=sys.stderr,
+        )
+        return True
+
+    if fields[2] == b"unset":
+        print(
+            f"Refusing to use a baseline git has been told not to diff: {baseline_path}. "
+            "A `-diff` or `binary` attribute renders it as binary in review, so a "
+            "lowered count would land unseen while this checker still reads it. "
+            "Remove the attribute, or record the debt somewhere reviewable.",
+            file=sys.stderr,
+        )
+        return True
+
+    return False
 
 
 def _diff_attribute(repo_root: Path, path: Path) -> str | None:
@@ -376,7 +419,7 @@ def write_baseline_json(
     lock_path = baseline_path.with_name(f".{baseline_path.name}.write-lock")
     try:
         with _baseline_write_lock(lock_path):
-            if refuse_symlinked_baseline(baseline_path):
+            if refuse_symlinked_baseline(repo_root, baseline_path):
                 return 2
 
             if refuse_diff_suppressed_baseline(repo_root, baseline_path):
