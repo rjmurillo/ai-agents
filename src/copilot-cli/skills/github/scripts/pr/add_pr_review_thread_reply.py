@@ -116,6 +116,20 @@ def query_thread_state(thread_id: str) -> dict | None:
     return node if isinstance(node, dict) else None
 
 
+def _thread_is_actionable(thread_id: str) -> bool:
+    try:
+        thread = query_thread_state(thread_id)
+    except RuntimeError as exc:
+        error_and_exit(f"Failed to query thread state: {exc}", 3)
+    if thread is None:
+        print(json.dumps({"action": "SKIP", "reason": "not_found"}, indent=2))
+        return False
+    if thread.get("isResolved"):
+        print(json.dumps({"action": "SKIP", "reason": "thread_resolved"}, indent=2))
+        return False
+    return True
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
@@ -129,15 +143,7 @@ def main(argv: list[str] | None = None) -> int:
 
     assert_gh_authenticated()
 
-    try:
-        thread = query_thread_state(args.thread_id)
-    except RuntimeError as exc:
-        error_and_exit(f"Failed to query thread state: {exc}", 3)
-    if thread is None:
-        print(json.dumps({"action": "SKIP", "reason": "not_found"}, indent=2))
-        return 0
-    if thread.get("isResolved"):
-        print(json.dumps({"action": "SKIP", "reason": "thread_resolved"}, indent=2))
+    if not _thread_is_actionable(args.thread_id):
         return 0
 
     try:

@@ -145,6 +145,21 @@ def query_thread_state(thread_id: str) -> dict | None:
     return node if isinstance(node, dict) else None
 
 
+def _single_thread_skip_code(thread_id: str) -> int | None:
+    try:
+        thread = query_thread_state(thread_id)
+    except RuntimeError as exc:
+        print(f"Error: failed to query thread state: {exc}", file=sys.stderr)
+        return 3
+    if thread is None:
+        print(json.dumps({"action": "SKIP", "reason": "not_found"}, indent=2))
+        return 0
+    if thread.get("isResolved"):
+        print(json.dumps({"action": "SKIP", "reason": "already_resolved"}, indent=2))
+        return 0
+    return None
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -177,17 +192,9 @@ def main(argv: list[str] | None = None) -> int:
     assert_gh_authenticated()
 
     if args.thread_id:
-        try:
-            thread = query_thread_state(args.thread_id)
-        except RuntimeError as exc:
-            print(f"Error: failed to query thread state: {exc}", file=sys.stderr)
-            return 3
-        if thread is None:
-            print(json.dumps({"action": "SKIP", "reason": "not_found"}, indent=2))
-            return 0
-        if thread.get("isResolved"):
-            print(json.dumps({"action": "SKIP", "reason": "already_resolved"}, indent=2))
-            return 0
+        skip_code = _single_thread_skip_code(args.thread_id)
+        if skip_code is not None:
+            return skip_code
         success = resolve_review_thread(args.thread_id)
         print(
             json.dumps(
