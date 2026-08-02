@@ -53,6 +53,8 @@ _ALLOWED = frozenset(
     [
         # The rule itself -- prohibition text, not a recipe.
         ".claude/rules/universal.md",
+        # Generated mirror of the same prohibition text, not a recipe.
+        ".github/instructions/universal.instructions.md",
         # Lists the prohibition correctly; the mention is the rule text.
         ".claude/skills/ai-agents-change-control/SKILL.md",
         # This test file itself.
