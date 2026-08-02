@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import json
 import subprocess
 from pathlib import Path
@@ -76,3 +77,164 @@ def test_git_lines_strips_git_overrides_case_insensitively(
     assert "git_index_file" not in captured_env
     assert "Git_Dir" not in captured_env
     assert captured_env["PORTABILITY_TEST_SENTINEL"] == "kept"
+
+
+class TestTheGuardCannotBeSkippedByForgettingAnArgument:
+    """`write_baseline` used to default its way out of its own protection.
+
+    `repo_root` defaulted to None and was then read as `baseline_path.parent`,
+    which is the directory the baseline sits in rather than the repository. The
+    committed copy is looked up by a repository-relative path, so that default
+    silently found nothing and the guard lost its floor. `allow_shrink`
+    defaulted to False, which meant a checker that forgot to forward its own
+    `--allow-baseline-shrink` flag left contributors with no way through.
+
+    Neither failure announced itself. The signature is the fix: both arguments
+    are required and keyword-only, so the same omission is a TypeError at the
+    call site instead of a guard that quietly stops guarding.
+    """
+
+    @pytest.mark.parametrize("name", ["repo_root", "allow_shrink"])
+    def test_the_argument_is_required(self, name: str) -> None:
+        parameter = inspect.signature(common.write_baseline).parameters[name]
+
+        assert parameter.default is inspect.Parameter.empty
+
+    @pytest.mark.parametrize("name", ["repo_root", "allow_shrink"])
+    def test_the_argument_cannot_be_passed_positionally(self, name: str) -> None:
+        """Positional passing is how the required-ness gets refactored away.
+
+        The signature is asserted rather than a TypeError caught, because a
+        call written to raise is a call a type checker is right to reject, and
+        silencing it there would hide the same class of mistake elsewhere.
+        """
+        parameter = inspect.signature(common.write_baseline).parameters[name]
+
+        assert parameter.kind is inspect.Parameter.KEYWORD_ONLY
+
+    def test_the_repository_root_actually_reaches_the_committed_lookup(
+        self, tmp_path: Path
+    ) -> None:
+        """Forwarding the root is what gives the write its committed floor.
+
+        Passing the baseline's own directory, which is what the old default
+        computed, must not be enough to satisfy the guard: the shrink below is
+        only visible to a lookup rooted at the repository.
+        """
+        root = tmp_path / "repo"
+        (root / "scripts" / "validation").mkdir(parents=True)
+        for args in (
+            ["init", "-q"],
+            ["config", "user.email", "t@example.com"],
+            ["config", "user.name", "t"],
+        ):
+            subprocess.run(
+                ["git", "-C", str(root), *args], check=True, capture_output=True
+            )
+        path = root / "scripts" / "validation" / "b.json"
+        path.write_text(json.dumps({"files": {"a.py": 4, "b.py": 2}}), encoding="utf-8")
+        subprocess.run(
+            ["git", "-C", str(root), "add", "-A"], check=True, capture_output=True
+        )
+        subprocess.run(
+            ["git", "-C", str(root), "commit", "-qm", "seed"],
+            check=True,
+            capture_output=True,
+        )
+        path.write_text("{}", encoding="utf-8")
+
+        rc = common.write_baseline(
+            path, {"a.py": 1}, "c", "refs", repo_root=root, allow_shrink=False
+        )
+
+        assert rc == 2
+        assert path.read_text(encoding="utf-8") == "{}"
+
+
+class TestAnOverrideKeepsTheEvidenceTheSymlinkGuardNeeds:
+    """`resolve()` follows links, so resolving before the guard runs blinds it.
+
+    The containment test needs the resolved form. The guard needs the lexical
+    one. Returning the resolved path satisfies the first and silently defeats
+    the second, which is how an in-repository symlink passes as a baseline.
+    """
+
+    def test_a_symlinked_override_is_returned_unresolved(self, tmp_path: Path) -> None:
+        root = tmp_path / "repo"
+        (root / "scripts" / "validation").mkdir(parents=True)
+        target = root / "scripts" / "validation" / "other.json"
+        target.write_text("{}", encoding="utf-8")
+        link = root / "scripts" / "validation" / "link.json"
+        link.symlink_to(target)
+
+        resolved = common.resolve_baseline_path(
+            root, Path("scripts/validation/link.json"), "d.json", reject_outside_root=True
+        )
+
+        assert resolved.name == "link.json"
+        assert resolved.is_symlink()
+
+    def test_an_override_outside_the_root_is_still_rejected(
+        self, tmp_path: Path
+    ) -> None:
+        """Keeping the lexical path must not weaken the containment test."""
+        root = tmp_path / "repo"
+        (root / "scripts" / "validation").mkdir(parents=True)
+        outside = tmp_path / "outside.json"
+        outside.write_text("{}", encoding="utf-8")
+
+        resolved = common.resolve_baseline_path(
+            root, outside, "d.json", reject_outside_root=True
+        )
+
+        assert resolved == Path("")
+
+    def test_a_link_pointing_out_of_the_root_is_rejected(self, tmp_path: Path) -> None:
+        root = tmp_path / "repo"
+        (root / "scripts" / "validation").mkdir(parents=True)
+        outside = tmp_path / "outside.json"
+        outside.write_text("{}", encoding="utf-8")
+        link = root / "scripts" / "validation" / "escape.json"
+        link.symlink_to(outside)
+
+        resolved = common.resolve_baseline_path(
+            root, link, "d.json", reject_outside_root=True
+        )
+
+        assert resolved == Path("")
+
+    def test_a_plain_override_still_resolves(self, tmp_path: Path) -> None:
+        """The refusals above are only correct if this stays permitted."""
+        root = tmp_path / "repo"
+        (root / "scripts" / "validation").mkdir(parents=True)
+
+        resolved = common.resolve_baseline_path(
+            root, Path("scripts/validation/b.json"), "d.json", reject_outside_root=True
+        )
+
+        assert resolved == root / "scripts" / "validation" / "b.json"
+
+    def test_a_link_followed_by_a_parent_step_names_the_file_it_was_checked_as(
+        self, tmp_path: Path
+    ) -> None:
+        """Collapsing `..` textually looked like the safe half of not resolving.
+
+        It is not. `link/../victim.json` is containment-tested as a sibling of
+        whatever the link points into, then collapses to a sibling of the link
+        itself, so the guard vets one file and hands back another. Worse, the
+        collapse consumes the link, leaving nothing for the symlink refusal to
+        catch. The path has to survive whole.
+        """
+        root = tmp_path / "repo"
+        (root / "target" / "a" / "b").mkdir(parents=True)
+        (root / "victim.json").write_text("{}", encoding="utf-8")
+        (root / "target" / "a" / "victim.json").write_text("{}", encoding="utf-8")
+        (root / "link").symlink_to(root / "target" / "a" / "b")
+        override = Path("link/../victim.json")
+
+        resolved = common.resolve_baseline_path(
+            root, override, "d.json", reject_outside_root=True
+        )
+
+        assert resolved.resolve() == (root / override).resolve()
+        assert "link" in resolved.parts

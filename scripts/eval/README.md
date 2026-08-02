@@ -9,7 +9,7 @@ Behavioral evaluation tools for prompt, skill, and agent changes. Implements ADR
 python3 scripts/eval/eval-suite.py --dry-run
 
 # Evaluate a specific prompt change (before/after comparison):
-python3 scripts/eval/eval-prompt-change.py \
+uv run python scripts/eval/eval-prompt-change.py \
   --prompt .claude/commands/research.md \
   --scenarios tests/evals/research-scenarios.json \
   --base-ref main \
@@ -49,6 +49,7 @@ repository's owner works in. The confirmed panel is
 
 ```bash
 python3 scripts/eval/eval-model-panel.py \
+  --agents orchestrator \
   --panel-config scripts/eval/panels/owner-copilot-cli.json
 ```
 

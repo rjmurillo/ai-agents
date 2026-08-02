@@ -42,6 +42,7 @@ piped (``sys.stderr.line_buffering`` is ``True`` while ``sys.stdout``'s is
 from __future__ import annotations
 
 import ast
+import os
 import subprocess
 import sys
 import textwrap
@@ -419,6 +420,13 @@ def test_detector_recognises_each_shape(source: str, expected: list[int]) -> Non
     assert unflushed_spawn_lines(textwrap.dedent(source)) == expected
 
 
+def _buffered_python_env() -> dict[str, str]:
+    """Return an env where child Python uses ordinary stdio buffering."""
+    env = os.environ.copy()
+    env.pop("PYTHONUNBUFFERED", None)
+    return env
+
+
 def _run_ordering_probe(flush: bool) -> str:
     """Run a parent that prints then spawns, with stdout piped, and return it."""
     guard = "sys.stdout.flush()\n" if flush else ""
@@ -433,6 +441,7 @@ def _run_ordering_probe(flush: bool) -> str:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        env=_buffered_python_env(),
         timeout=60,
         check=True,
     )
@@ -515,6 +524,7 @@ def test_stdout_is_the_only_stream_that_needs_flushing() -> None:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        env=_buffered_python_env(),
         timeout=60,
         check=True,
     )

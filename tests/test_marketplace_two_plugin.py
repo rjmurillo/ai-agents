@@ -155,7 +155,7 @@ class TestManifestValidatorGreen:
                 str(REPO_ROOT / "build" / "scripts" / "validate_plugin_manifests.py"),
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
             cwd=REPO_ROOT,
         )
@@ -169,14 +169,11 @@ class TestUniquenessAssertionDetectsCollision:
     """Verify the uniqueness check actually catches duplicates (test the test)."""
 
     def test_duplicate_name_detected_in_synthetic_fixture(self) -> None:
-        synthetic = {
-            "name": "ai-agents",
-            "plugins": [
-                {"name": "project-toolkit", "source": "./.claude"},
-                {"name": "project-toolkit", "source": "./other"},
-            ],
-        }
-        names = [p["name"] for p in synthetic["plugins"]]
+        plugins: list[dict[str, str]] = [
+            {"name": "project-toolkit", "source": "./.claude"},
+            {"name": "project-toolkit", "source": "./other"},
+        ]
+        names = [p["name"] for p in plugins]
         assert len(names) != len(set(names)), (
             "Test fixture must trigger the uniqueness assertion"
         )

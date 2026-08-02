@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- git diff-line helpers added for #4007 pushed
+# this file from 440 to 513 lines. They cannot be extracted without circular
+# imports: they depend on _git_root, _GIT_TIMEOUT_SECONDS, is_safe_path, and
+# subprocess, all defined here. A further split is tracked separately.
 """Core types, utilities, and git helpers for the golden-principles scanner.
 
 Split from ``scan_principles.py`` (issue #4028). Rule checkers and the CLI
@@ -143,7 +147,7 @@ def _has_path_parts(filepath: str, marker: tuple[str, ...]) -> bool:
     """Return True when marker appears as contiguous path components."""
     parts = _path_parts(filepath)
     width = len(marker)
-    return any(parts[index:index + width] == marker for index in range(len(parts) - width + 1))
+    return any(parts[index : index + width] == marker for index in range(len(parts) - width + 1))
 
 
 def read_file_lines(filepath: str) -> list[str]:
@@ -169,8 +173,7 @@ def get_repo_files(directory: str) -> list[str]:
     files = []
     for root, dirs, filenames in os.walk(directory):
         dirs[:] = [
-            d for d in dirs
-            if not d.startswith(".") or d in (".claude", ".agents", ".github")
+            d for d in dirs if not d.startswith(".") or d in (".claude", ".agents", ".github")
         ]
         for filename in filenames:
             filepath = os.path.join(root, filename)
@@ -202,9 +205,7 @@ def _git_root() -> str:
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError("git rev-parse --show-toplevel timed out") from exc
     except subprocess.CalledProcessError as exc:
-        raise RuntimeError(
-            f"git rev-parse --show-toplevel failed (exit {exc.returncode})"
-        ) from exc
+        raise RuntimeError(f"git rev-parse --show-toplevel failed (exit {exc.returncode})") from exc
     return result.stdout.strip()
 
 
@@ -240,11 +241,90 @@ def get_diff_files(base: str) -> list[str]:
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError(f"git diff timed out for base {base!r}") from exc
     except subprocess.CalledProcessError as exc:
-        raise RuntimeError(
-            f"git diff failed for base {base!r} (exit {exc.returncode})"
-        ) from exc
+        raise RuntimeError(f"git diff failed for base {base!r} (exit {exc.returncode})") from exc
     files = [f for f in result.stdout.splitlines() if f]
     return sorted(os.path.join(root, f) for f in files if is_safe_path(f))
+
+
+def _parse_hunk_header(header: str) -> tuple[int, int]:
+    """Parse a unified-diff hunk header and return (start_line, line_count).
+
+    The header format is ``@@ -a,b +c,d @@`` where ``c`` is the starting line
+    in the new file and ``d`` is the number of lines in the hunk.  A missing
+    comma means the hunk is exactly one line (implicit count of 1).
+    """
+    match = re.search(r"\+(\d+)(?:,(\d+))?", header)
+    if not match:
+        return 0, 0
+    start = int(match.group(1))
+    count = int(match.group(2)) if match.group(2) is not None else 1
+    return start, count
+
+
+def _run_git_diff(base: str) -> str:
+    """Return the unified-diff output for *base*...HEAD.
+
+    Raises ``RuntimeError`` on git failure so callers can treat an error as
+    non-empty (fail safe: report violations rather than silently skip them).
+    """
+    if not base or base.startswith("-"):
+        raise ValueError(f"invalid --diff-scope base: {base!r}")
+    root = _git_root()
+    try:
+        result = subprocess.run(
+            ["git", "diff", "-U0", f"{base}...HEAD"],
+            capture_output=True,
+            check=True,
+            cwd=root,
+            encoding="utf-8",
+            errors="ignore",
+            timeout=_GIT_TIMEOUT_SECONDS,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError("git is not available to compute diff lines") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"git diff timed out for base {base!r}") from exc
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(f"git diff failed for base {base!r} (exit {exc.returncode})") from exc
+    return result.stdout
+
+
+def get_diff_line_numbers(base: str) -> dict[str, set[int]]:
+    """Return a mapping of absolute file path to changed line numbers.
+
+    Each value is the set of *new-file* line numbers that appear in a unified
+    diff hunk for that file against ``base...HEAD``.  Only added or context
+    lines are counted; removed lines (prefixed with ``-``) are not in the new
+    file and are excluded.
+
+    When ``base`` is empty or ``None`` the function returns an empty dict so
+    callers treat every line as changed (no filtering).
+    """
+    if not base:
+        return {}
+    raw = _run_git_diff(base)
+    result: dict[str, set[int]] = {}
+    current_file: str | None = None
+    current_line = 0
+    root = _git_root()
+    for line in raw.splitlines():
+        if line.startswith("+++ "):
+            path = line[4:].strip()
+            if path.startswith("b/"):
+                path = path[2:]
+            abs_path = os.path.join(root, path)
+            current_file = abs_path if is_safe_path(path) else None
+            current_line = 0
+        elif line.startswith("@@ "):
+            start, _ = _parse_hunk_header(line)
+            current_line = start
+        elif current_file is not None and line.startswith("-"):
+            pass  # removed line; no position in new file
+        elif current_file is not None:
+            if current_line > 0:
+                result.setdefault(current_file, set()).add(current_line)
+            current_line += 1
+    return result
 
 
 # Re-export path-marker helpers for use by checkers in scan_principles.py.
@@ -276,8 +356,6 @@ def check_script_language(filepath: str, lines: list[str]) -> list[Violation]:
             ),
         )
     ]
-
-
 
 
 def _check_skill_model_adr080(filepath: str, frontmatter: str) -> list[Violation]:
@@ -376,7 +454,6 @@ def _check_skill_model_adr080(filepath: str, frontmatter: str) -> list[Violation
             )
         ]
     return []
-
 
 
 def check_agent_definition(filepath: str, lines: list[str]) -> list[Violation]:
