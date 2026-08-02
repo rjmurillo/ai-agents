@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import time
@@ -34,6 +35,11 @@ from scripts.validation.portability_floor import (
     read_previous_sections,
 )
 from scripts.validation.portability_git import run_git
+
+
+def _run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes] | None:
+    """Private alias of run_git kept for internal use and test mocking."""
+    return run_git(repo_root, *args)
 
 __all__ = [
     "COUNTED_SECTIONS",

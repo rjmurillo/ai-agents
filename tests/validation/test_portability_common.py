@@ -211,7 +211,7 @@ class TestAnOverrideKeepsTheEvidenceTheSymlinkGuardNeeds:
             root, outside, "d.json", reject_outside_root=True
         )
 
-        assert resolved == Path("")
+        assert resolved is None
 
     def test_a_link_pointing_out_of_the_root_is_rejected(self, tmp_path: Path) -> None:
         root = tmp_path / "repo"
@@ -225,7 +225,7 @@ class TestAnOverrideKeepsTheEvidenceTheSymlinkGuardNeeds:
             root, link, "d.json", reject_outside_root=True
         )
 
-        assert resolved == Path("")
+        assert resolved is None
 
     def test_a_plain_override_still_resolves(self, tmp_path: Path) -> None:
         """The refusals above are only correct if this stays permitted."""
