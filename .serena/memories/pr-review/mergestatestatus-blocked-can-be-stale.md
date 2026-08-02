@@ -175,3 +175,41 @@ that SHA. Dispatching the AI quality gate for PR #4003 produced run
 `30767761170` with `headSha` equal to `origin/main`, not the PR head. Check runs
 on main cannot satisfy a requirement evaluated against the PR's head commit. The
 event that re-runs a workflow against a PR head is a push to the PR branch.
+
+## The merge call is the authoritative test, and it is safe to make
+
+The instinct is to establish mergeability first and merge second. For this field
+that instinct is backwards, and acting on it is what strands PRs.
+
+`mergeStateStatus` is a cached advisory value. The merge endpoint is not: it
+evaluates the ruleset server-side at the moment of the call and returns 405 with
+the specific unmet requirement when one exists. Protection cannot be bypassed by
+attempting a merge, so an attempt costs one API call and either succeeds or
+tells you the real reason it cannot.
+
+That makes the attempt strictly more informative than the field it replaces.
+
+Confirmed on 2026-08-02. Four PRs read `BLOCKED` with no failing check. After
+the paginated measurement on #4003 showed all 17 required contexts green and 0
+unresolved threads, all four were merged on the first attempt with no
+intervention:
+
+| PR | squash commit |
+|---|---|
+| #4003 | `dcf10ea275c9` |
+| #3984 | `e452ba71e432` |
+| #4260 | `80ca5e383451` |
+| #4296 | `13a9a1d4600f` |
+
+Four for four. `BLOCKED` was stale in every case.
+
+This does not soften the boundary recorded above. A merge that succeeds still
+does not prove the PR was mergeable at some earlier moment, because GitHub
+recomputes on the call. The two statements answer different questions. "Was it
+mergeable an hour ago" is not answerable from the outcome. "Is it mergeable now"
+is answerable only by making the call.
+
+So the rule is: do not treat `BLOCKED` as a stop. Measure the required contexts
+with pagination, check for unresolved threads, and if both come back clean,
+attempt the merge and read the refusal if one comes. Skipping the attempt on the
+strength of a cached field is how a green, fully reviewed PR sits open for days.
