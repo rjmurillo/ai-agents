@@ -1,0 +1,66 @@
+{
+  "id": "episode-2026-07-31-session-4168-fix-parity-torn-main",
+  "session": "2026-07-31-session-4168-fix-parity-torn-main",
+  "timestamp": "2026-07-31T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix issues #4168 (P0: Auto-Bump Plugin Version workflow bare-pushes to main, rejected by ruleset), #4171 (count baseline conflict surface), #4193 (gc_worktrees.py zero callers). #4171 and #4193 already closed by PR #4214. #4168 root fix done by PR #4179. Add regression guard.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Investigated state of all three issues",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-07-31-session-4168-fix-parity-torn-main"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created tests/ci/test_no_push_bot.py with 2 test classes and mutation harness",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-07-31-session-4168-fix-parity-torn-main"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Repaired episode-2026-07-26-session-3423-archive-stale-execution-plans.json",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-07-31-session-4168-fix-parity-torn-main"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-02T06:05:26+00:00",
+      "type": "commit",
+      "content": "Commit: 23f044d47fc0f9d5d2b59eaec49a97c47f62b9fb",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4168-fix-parity-torn-main"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}
