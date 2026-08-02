@@ -119,3 +119,52 @@ checking. The rule is to measure `main`, not to pick a default.
 
 - `ci-count-ratchet-never-names-the-offending-file.md` (locating the offender once you own the failure)
 - `ci-file-size-ratchet-line-numbers-shift.md` (why violation identities move)
+
+## Corollary: a red `main` blocks pushes, not just PR checks
+
+The framing above is about CI. The same defect also blocks you locally, earlier,
+and with no check name to read. The pre-push hook runs the same suite, so a
+broken `main` fails your push after a full 16 minute hook run and reports it as
+your test failure.
+
+Measured 2026-08-02: `tests/test_pytest_marker_skill_docs.py` computes expected
+line numbers from `pyproject.toml` at run time and asserts skill docs quote them.
+A line added above the pytest section shifted every citation by one, five tests
+went red on `main`, and every push in the repo failed until it was fixed.
+
+So when a push fails on tests you did not touch, check `main` before debugging
+your diff. Confirm it against a clean upstream extract, which costs seconds:
+
+```bash
+git archive origin/main | tar -x -C "$(mktemp -d)"   # then run the failing test there
+```
+
+If it fails on the clean extract, the fault is upstream and nothing in your
+branch will fix it.
+
+## Trap: scope the query to the workflow, not just the branch
+
+The recipe above uses `--workflow`. Use it. The unscoped form looks equivalent
+and is not:
+
+```bash
+gh api "repos/OWNER/REPO/actions/runs?branch=main&per_page=30"   # WRONG for this question
+```
+
+On a busy repo that window fills with comment-triggered and issue-triggered
+workflows that also carry `head_branch: main`. Measured 2026-08-02: the 30 most
+recent were five such workflows and contained no test run at all, which reads as
+"the test workflow never runs on `main`." It does. Querying the workflow's own
+endpoint showed the truth immediately:
+
+```bash
+gh api "repos/OWNER/REPO/actions/workflows/pytest.yml/runs?branch=main&per_page=8"
+```
+
+`HEAD` was `failure`. An absent workflow in a branch-filtered run list is
+evidence about your query window, not about the workflow.
+
+Same measurement also showed 44 of the last 100 such runs were `cancelled`
+because every push to `main` shares one concurrency group, so a burst of merges
+supersedes its own verification (#4350). Absence of a `failure` is therefore not
+evidence of health either; check the conclusion of the specific SHA.
