@@ -36,7 +36,9 @@
       "type": "commit",
       "content": "Commit: 042a217de",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e005",
@@ -51,7 +53,12 @@
       "timestamp": "2026-06-20T00:00:00+00:00",
       "type": "test",
       "content": "165 passed",
-      "caused_by": [],
+      "caused_by": [
+        "e004",
+        "e008",
+        "e010",
+        "e012"
+      ],
       "leads_to": []
     },
     {
@@ -68,7 +75,9 @@
       "type": "commit",
       "content": "Commit: 545069640",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e009",
@@ -84,7 +93,9 @@
       "type": "commit",
       "content": "Commit: 680cd81d4",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e011",
@@ -100,7 +111,9 @@
       "type": "commit",
       "content": "Commit: 48a1a8ed2",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     }
   ],
   "metrics": {
@@ -111,5 +124,7 @@
     "commits": 3,
     "files_changed": 6
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 4"
 }
