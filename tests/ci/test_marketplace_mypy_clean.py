@@ -31,13 +31,16 @@ def test_marketplace_test_passes_mypy() -> None:
         cwd=_REPO_ROOT,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
+    combined = "\n".join(filter(None, [result.stdout, result.stderr]))
     errors = [
-        line for line in result.stdout.splitlines()
+        line for line in combined.splitlines()
         if "error:" in line and str(_TARGET.name) in line
     ]
     assert result.returncode == 0 and not errors, (
         f"mypy found errors in {_TARGET.relative_to(_REPO_ROOT)}:\n"
-        + "\n".join(errors or result.stdout.splitlines())
+        + "\n".join(errors or combined.splitlines())
     )
 
