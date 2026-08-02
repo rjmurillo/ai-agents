@@ -245,6 +245,9 @@ jobs:
       - name: Validate workflow YAML
         run: uv run --frozen python3 scripts/validate_workflows.py
 
+      - name: Check bare-python3 documentation entrypoints
+        run: uv run --frozen python3 scripts/validation/check_python3_entrypoints.py
+
       # Issue #3779: taste-lints emits severity="error" and nothing could fail
       # because of one. The linter itself is correct (it exits 10 on an error),
       # but `run_taste_advisory` in scripts/validation/git_hook_policy.py read
