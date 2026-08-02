@@ -30,7 +30,9 @@ def test_build_summary_drift_true_contains_alert_text() -> None:
 
 def test_build_summary_drift_false_contains_clean_text() -> None:
     s = build_summary("false")
-    assert "no drift" in s.lower() or "clean" in s.lower() or "ok" in s.lower()
+    assert ":white_check_mark:" in s
+    assert "No new drift" in s
+    assert ":warning:" not in s
 
 
 def test_build_summary_returns_string() -> None:
@@ -86,8 +88,11 @@ def test_run_env_var_case_insensitive_false(
     rc = run()
     assert rc == 0
     content = summary_file.read_text()
-    # "FALSE" != "true" so no-drift branch is taken
-    assert "no drift" in content.lower() or "in sync" in content.lower() or len(content) > 0
+    # "FALSE" != "true" so no-drift branch is taken. Assert the branch marker
+    # directly; a disjunction ending in `len(content) > 0` passes either way.
+    assert ":white_check_mark:" in content
+    assert "No new drift" in content
+    assert ":warning:" not in content
 
 
 # ---------------------------------------------------------------------------

@@ -207,6 +207,8 @@ class TestCLI:
             [sys.executable, str(script), "-c", SKILL_CONTENT],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         )
         assert result.returncode == 0
 
@@ -217,6 +219,8 @@ class TestCLI:
             [sys.executable, str(script), "-p", "/nonexistent/path"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         )
         assert result.returncode == 1
 
@@ -227,6 +231,8 @@ class TestCLI:
             [sys.executable, str(script), "-c", SKILL_CONTENT],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         )
         assert result.returncode == 0
         data = json.loads(result.stdout)
