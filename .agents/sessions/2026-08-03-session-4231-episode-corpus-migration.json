@@ -1,0 +1,122 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4231,
+    "date": "2026-08-02",
+    "branch": "fix/episode-corpus-migration",
+    "startingCommit": "d82b5e37e",
+    "objective": "Ship fix for #3598: stamp causal_order_version=2 on legacy episode files. #3765 already closed by PR #4219."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "complete": false,
+        "evidence": "Serena MCP tools not available in this agent context."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "complete": false,
+        "evidence": "No Serena MCP tools available; used repository docs instead."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "This file."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "fix/episode-corpus-migration, not main."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Branch is fix/episode-corpus-migration, not main or master."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Read HANDOFF.md at session start."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Read AGENTS.md, SESSION-PROTOCOL.md, PROJECT-CONSTRAINTS.md."
+      }
+    },
+    "sessionEnd": {
+      "logCompleted": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Session log completed with this commit."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "HANDOFF.md not modified."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "3 commits: script, tests/schema, data migration."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "22 tests passing, ruff 326 < 331 baseline, pre_pr.py passed."
+      },
+      "checklistComplete": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "All migration work complete. Script, tests, schema, data all committed."
+      },
+      "markdownLintRun": {
+        "level": "SHOULD",
+        "complete": true,
+        "evidence": "lefthook markdown-check passed on SKILL.md files in commit 1."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "complete": false,
+        "evidence": "No Serena MCP tools available."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Re-measured corpus",
+      "result": "381 files total; 31 already v2; 130 with unversioned edges (2846 edges); 2 backwards-chain episodes vs 9 at filing of #3765"
+    },
+    {
+      "action": "Verified #3765 closed by PR #4219 (merged 2026-08-02T04:52Z)",
+      "result": "All named backwards-chain episodes repaired. Episode-3423 had new backwards edges from post-merge sessions, repaired with --validate --fix."
+    },
+    {
+      "action": "Wrote migrate_causal_version.py",
+      "result": "Stamps causal_order_version=2 on legacy episodes. stamp_only: topology matches. relinked: v2 adds edges without loss. skipped: rebuild drops edges (midnight timestamps, blocked on #4163)."
+    },
+    {
+      "action": "Ran migration on 381 files",
+      "result": "206 files stamped: stamp_only=151 relinked=55. no_events=31. skipped=113. To re-derive: uv run --frozen python .claude/skills/memory/scripts/migrate_causal_version.py .agents/memory/episodes --dry-run"
+    },
+    {
+      "action": "Tests and mutation harness",
+      "result": "22 tests passing. 4 mutants all DEAD. 0 SURVIVED. 0 DID-NOT-APPLY."
+    },
+    {
+      "action": "Updated schema and SKILL.md in both .claude and src/copilot-cli trees",
+      "result": "Documented causal_order_version contract. Added migration_note property. Schema absent-means-legacy contract documented."
+    }
+  ],
+  "nextSteps": [
+    "Push branch and open PR. 113 unversioned files remain until PR #4163 merges."
+  ],
+  "endingCommit": "bd79c35c7",
+  "issues": [
+    "#3598"
+  ],
+  "closedIssues": [
+    "#3765"
+  ]
+}

@@ -27,7 +27,9 @@
       "timestamp": "2026-06-03T00:00:00+00:00",
       "type": "test",
       "content": "uv run pytest tests/test_get_pr_check_logs.py: 19 passed (3 new regression tests)",
-      "caused_by": [],
+      "caused_by": [
+        "e010"
+      ],
       "leads_to": []
     },
     {
@@ -51,7 +53,9 @@
       "timestamp": "2026-06-03T00:00:00+00:00",
       "type": "test",
       "content": "uv run pytest tests/test_auto_retrospective.py: 25 passed (1 new regression test)",
-      "caused_by": [],
+      "caused_by": [
+        "e010"
+      ],
       "leads_to": []
     },
     {
@@ -75,7 +79,9 @@
       "timestamp": "2026-06-03T00:00:00+00:00",
       "type": "test",
       "content": "uv run pytest tests/test_get_pr_check_logs.py tests/test_get_pr_checks.py tests/test_auto_retrospective.py: 89 passed",
-      "caused_by": [],
+      "caused_by": [
+        "e010"
+      ],
       "leads_to": []
     },
     {
@@ -84,7 +90,13 @@
       "type": "commit",
       "content": "Commit: eaa4654131463bf8697a7b33f1a8dd58088ac492",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e003",
+        "e006",
+        "e009",
+        "e012",
+        "e014"
+      ]
     },
     {
       "id": "e011",
@@ -99,7 +111,9 @@
       "timestamp": "2026-06-03T00:00:00+00:00",
       "type": "test",
       "content": "uv run pytest tests/test_get_pr_checks.py: 48 passed (3 new); fixed in PR #2305",
-      "caused_by": [],
+      "caused_by": [
+        "e010"
+      ],
       "leads_to": []
     },
     {
@@ -115,7 +129,9 @@
       "timestamp": "2026-06-03T00:00:00+00:00",
       "type": "test",
       "content": "uv run pytest tests/test_hook_dispatch.py tests/build_scripts/test_generate_dispatcher.py: 17 passed; cutover gated per ADR-068",
-      "caused_by": [],
+      "caused_by": [
+        "e010"
+      ],
       "leads_to": []
     },
     {
@@ -143,5 +159,7 @@
     "commits": 1,
     "files_changed": 0
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 5"
 }

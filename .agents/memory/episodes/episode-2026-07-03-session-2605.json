@@ -43,7 +43,9 @@
       "timestamp": "2026-07-03T00:00:00+00:00",
       "type": "test",
       "content": "Added 8 regression tests (5 aggregate: infra-failure, all-pass, code-quality-failure, no-verdicts, nonsecurity-infra; 3 report: caution-present, caution-absent, nonsecurity-infra). uv run pytest: 42 passed across both suites",
-      "caused_by": [],
+      "caused_by": [
+        "e006"
+      ],
       "leads_to": []
     },
     {
@@ -52,7 +54,9 @@
       "type": "commit",
       "content": "Commit: e5392ba",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e005"
+      ]
     }
   ],
   "metrics": {
@@ -63,5 +67,7 @@
     "commits": 3,
     "files_changed": 6
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 1"
 }
