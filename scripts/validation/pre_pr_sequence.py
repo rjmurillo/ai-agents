@@ -24,7 +24,7 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 from active_plan_closeout import validate_active_plan_closeout
-from check_doc_interpreter_portability import (  # noqa: E402
+from check_doc_interpreter_portability import (
     validate_doc_interpreter_portability,
 )
 from check_duplicate_test_helpers import validate_duplicate_test_helpers
@@ -44,7 +44,7 @@ from checks_plugin import (
     validate_shipped_skill_routes,
     validate_workflow_local_run,
 )
-from checks_ratchet import validate_count_ratchets  # noqa: E402
+from checks_ratchet import validate_count_ratchets
 from checks_spec import (
     validate_agent_catalog,
     validate_build_gates,
