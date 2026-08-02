@@ -73,6 +73,32 @@ other, and the guard silently stops guarding while still looking present in
 every command line. A partially adopted lock is worse than no lock, because it
 reads as protection.
 
+Observed live on 2026-08-02, not reasoned. Two processes were pushing the same
+branch at the same time under two lock paths that cannot see each other:
+
+```
+PID 761266  cwd ai-agents3-rebase-wt/pr4095
+            flock /tmp/aiagents-push-2.lock
+            git push --force-with-lease origin HEAD:fix/escaped-pipes-claude-skills
+
+PID 3919969 cwd wt-4095
+            flock ~/src/scratch/confc/push-lock-fix-escaped-pipes-claude-skills.lock
+            git push origin fix/escaped-pipes-claude-skills
+```
+
+Both alive, both targeting the same remote ref, from two worktrees whose
+contents were not identical. Whichever landed last decided the branch. Four
+distinct schemes were in flight in that same `ps` listing: the 4 slot hash under
+`/tmp`, the same 4 slot hash under `$HOME`, per branch locks under
+`~/src/scratch/confc/`, and the canonical path below. A per branch lock in a
+private directory is not safer than a global one, it is invisible.
+
+One caution from the same listing. `flock X git push ...` spawns `git push` as a
+child, so `ps` shows two entries per push with different elapsed times, because
+`flock` starts when it begins waiting and the child starts when the lock is
+acquired. That pair is not a double push. Check `ppid` before concluding one:
+two of the three suspicious pairs there were parent and child.
+
 So the path above is not a suggestion. Any agent or script that pushes in this
 repo uses exactly `/tmp/push-lock-<branch-with-slashes-replaced-by-dashes>.lock`
 and nothing else. If you find another form in a prompt, a skill, or a memory,
