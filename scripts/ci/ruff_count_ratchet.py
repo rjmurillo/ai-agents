@@ -4,9 +4,9 @@
 Issue #2993, regression guard option C. This complements the diff-scoped
 ``scripts/ci/ruff_ratchet.py`` (which lints only the changed files and so lets a
 contributor inherit latent debt the moment they touch a shared file). This gate
-freezes the whole-repo violation total in ``ruff_count_baseline.txt``. The count
-must match exactly unless ``--update`` records a decrease, so an unrecorded
-improvement cannot leave slack for later regressions.
+freezes the whole-repo violation ceiling in ``ruff_count_baseline.txt``. The
+count must not exceed that ceiling. Unrecorded improvements pass so parallel
+cleanup PRs do not all rewrite the same baseline line.
 
 Scope is git-TRACKED Python files, not a directory walk. ``ruff check .`` also
 walks untracked scratch, nested git worktrees, and vendored caches that a
@@ -19,8 +19,8 @@ Stdlib only: this runs by path in CI (``python scripts/ci/ruff_count_ratchet.py`
 and must not depend on the project's import graph.
 
 Exit codes (AGENTS.md contract):
-    0 - ok (count == baseline, or --update records a decrease)
-    1 - regression (count != baseline, or baseline raised vs --base-ref)
+    0 - ok (count <= baseline, or --update records a decrease)
+    1 - regression (count > baseline, or baseline raised vs --base-ref)
     2 - config error (baseline missing or malformed, bad args)
     3 - external error (ruff could not run)
 """
