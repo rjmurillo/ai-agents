@@ -1,3 +1,4 @@
+# SkillForge Configuration
 
 ```yaml
 SKILLCREATOR_CONFIG:

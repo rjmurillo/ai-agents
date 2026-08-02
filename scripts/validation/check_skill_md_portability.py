@@ -58,6 +58,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import NamedTuple
@@ -70,7 +71,8 @@ from scripts.utils.markdown_parser import (
 )
 from scripts.validation.portability_common import (
     build_portability_parser,
-    write_baseline,
+    refuse_unsafe_baseline_write,
+    write_baseline_json,
 )
 from scripts.validation.portability_common import (
     diff_against_baseline as _diff_against_baseline,
@@ -90,8 +92,8 @@ from scripts.validation.portability_common import (
 # pattern is excluded here: in prose a bare reference to a sibling skill by
 # ``.claude/skills/`` resolves through the install root, so it is not an
 # upstream-only dependency. ``.agents/``, ``.claude/lib/``,
-# ``.claude/review-axes/``, ``templates/agents/``, and ``templates/platforms/``
-# have no consumer-side analogue.
+# ``.claude/review-axes/``, ``build/``, ``templates/agents/``, and
+# ``templates/platforms/`` have no consumer-side analogue.
 #
 # ``templates/agents/`` and ``templates/platforms/`` hold the agent sources and
 # platform manifests the generators read. Neither ships in the plugin, so a
@@ -201,6 +203,10 @@ UPSTREAM_PATTERNS: tuple[re.Pattern[str], ...] = (
         _BOUNDARY + r"\.claude[\\/]+review-axes" + _TERMINATOR,
         re.IGNORECASE,
     ),
+    # `build/` exists only in the upstream checkout. Match the root directory
+    # only, with the same separator requirement as scripts/, so prose words
+    # such as "build" do not count.
+    re.compile(_BOUNDARY + r"build[\\/]", re.IGNORECASE),
     re.compile(
         _BOUNDARY + r"templates[\\/]+agents" + _TERMINATOR,
         re.IGNORECASE,
@@ -302,6 +308,20 @@ def count_file_refs(text: str) -> int:
         return 0
     prose = _strip_code(text)
     return sum(len(pat.findall(prose)) for pat in UPSTREAM_PATTERNS)
+
+
+def count_marker_suppressed_refs(text: str) -> int:
+    """Count refs hidden by a ``vendor-portability`` marker.
+
+    A marked file used to suppress every finding without leaving any checkable
+    value behind. This count becomes a second baseline: if a declaration stays
+    behind while the referenced prose moves away, the marker count changes and
+    the guard fails until the declaration or baseline is updated.
+    """
+    if not has_portability_marker(text):
+        return 0
+    text_without_markers = _MARKER_PATTERN.sub("", text)
+    return count_upstream_refs(text_without_markers)
 
 
 class MarkdownScan(NamedTuple):
@@ -406,6 +426,48 @@ def scan_plugin_roots(root: Path) -> dict[str, int]:
     return counts
 
 
+def scanned_markdown_by_root(root: Path) -> dict[str, int]:
+    """Return how many skill ``.md`` files were read under each shipped root.
+
+    A sum cannot answer coverage: one empty root stays invisible in a total
+    another root keeps positive, so a partial checkout would write a baseline
+    dropping every file the unread root owned.
+    """
+    return {
+        skills_dir.relative_to(root).as_posix(): scan_skill_markdown(skills_dir).scanned
+        for skills_dir in skills_dirs(root)
+    }
+
+
+def scan_marker_suppressions(root: Path) -> dict[str, int]:
+    """Return marker-suppressed reference counts across every plugin root."""
+    counts: dict[str, int] = {}
+    for skills_dir in skills_dirs(root):
+        base = skills_dir.parent
+        for dirpath, dirnames, filenames in os.walk(skills_dir, onerror=_reraise_os_error):
+            dirnames[:] = sorted(name for name in dirnames if name != "__pycache__")
+            directory = Path(dirpath)
+            for name in sorted(filenames):
+                path = directory / name
+                if path.suffix != MARKDOWN_SUFFIX:
+                    continue
+                if path.is_symlink() and not path.exists():
+                    raise OSError(f"Broken .md symlink (configuration error): {path}")
+                try:
+                    text = path.read_text(encoding="utf-8")
+                except (OSError, UnicodeDecodeError) as exc:
+                    raise OSError(f"Failed to read skill markdown {path}: {exc}") from exc
+                n = count_marker_suppressed_refs(text)
+                if n > 0:
+                    rel = skills_dir.parent.relative_to(root) / path.relative_to(base)
+                    counts[rel.as_posix()] = n
+    return counts
+
+
+def _reraise_os_error(error: OSError) -> None:
+    raise error
+
+
 def _markdown_regression_message(rel: str, count: int, allowed: int) -> str:
     return (
         f"{rel}: {count} upstream-path refs in prose (baseline {allowed}). "
@@ -430,7 +492,124 @@ def diff_against_baseline(
 
 
 def build_parser() -> argparse.ArgumentParser:
-    return build_portability_parser(__doc__, _DEFAULT_BASELINE_NAME)
+    parser = build_portability_parser(__doc__, _DEFAULT_BASELINE_NAME)
+    parser.add_argument(
+        "--base-ref",
+        default=None,
+        help=(
+            "Git ref to diff the working tree against for the semantic "
+            "baseline-conflict guard (issue #4195). Omit to skip the guard."
+        ),
+    )
+    return parser
+
+
+# Scanner source files whose edits can change what a stored baseline count
+# means, even when no .md file changes. A baseline generated against the old
+# scanner semantics is not valid once the scanner itself moves (issue #4195).
+_MEASURED_SCANNER_FILES: frozenset[str] = frozenset(
+    {
+        "scripts/validation/check_skill_md_portability.py",
+        "scripts/validation/portability_common.py",
+        "scripts/utils/markdown_parser.py",
+    }
+)
+
+
+def _is_measured_input(rel_path: str) -> bool:
+    """Return whether a repo-relative path feeds this scanner's counts."""
+    if rel_path in _MEASURED_SCANNER_FILES:
+        return True
+    return rel_path.endswith(".md") and any(
+        rel_path.startswith(f"{root}/skills/") for root in PLUGIN_ROOTS
+    )
+
+
+def _changed_files_against_base(root: Path, base_ref: str) -> list[str] | None:
+    """List files changed in the working tree relative to ``base_ref``.
+
+    ``None`` means git could not answer. The caller must fail closed because a
+    supplied ``--base-ref`` is the evidence source for the semantic-conflict
+    guard; silently skipping it would recreate issue #4195.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--name-only", base_ref],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            errors="replace",
+            encoding="utf-8",
+            check=False,
+        )
+    except OSError as exc:
+        print(f"Could not compare against --base-ref {base_ref}: {exc}", file=sys.stderr)
+        return None
+    if result.returncode != 0:
+        stderr = result.stderr.strip() or "git diff failed"
+        print(f"Could not compare against --base-ref {base_ref}: {stderr}", file=sys.stderr)
+        return None
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def check_semantic_baseline_conflict(
+    root: Path, base_ref: str, baseline_path: Path
+) -> list[str] | None:
+    """Return measured inputs that changed alongside the baseline (issue #4195).
+
+    A checked-in baseline is only valid against the tree it was generated
+    from. If the baseline file differs from ``base_ref`` *and* a file the
+    scanner measures (a skill .md, or the scanner code itself) also differs,
+    the baseline on disk was regenerated against a tree the merged branch
+    will not actually have; the two changes must be re-validated together
+    instead of trusted independently. Returns an empty list when there is no
+    such conflict (including baseline-only changes, which remain allowed).
+    """
+    changed = _changed_files_against_base(root, base_ref)
+    if changed is None:
+        return None
+    if not changed:
+        return []
+    try:
+        baseline_rel = baseline_path.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        return []
+    if baseline_rel not in changed:
+        return []
+    return [rel for rel in changed if rel != baseline_rel and _is_measured_input(rel)]
+
+
+def _report_semantic_conflict(
+    baseline_path: Path, root: Path, measured_changed: list[str]
+) -> None:
+    baseline_rel = baseline_path.resolve().relative_to(root.resolve()).as_posix()
+    print(
+        f"Semantic baseline conflict (issue #4195): {baseline_rel} changed "
+        "alongside measured input(s) below. A baseline is only valid for the "
+        "tree it was generated from; regenerate and re-validate together."
+    )
+    for rel in measured_changed:
+        print(f"  changed measured input: {rel}")
+
+
+def _scan_current_counts(
+    root: Path,
+) -> tuple[dict[str, int], dict[str, int], dict[str, int]] | None:
+    """Return current counts and scan coverage, or None after reporting a scan error."""
+    try:
+        current = scan_plugin_roots(root)
+        marker_current = scan_marker_suppressions(root)
+        scanned_by_root = scanned_markdown_by_root(root)
+    except (OSError, MarkdownNestingError) as exc:
+        print(f"Could not scan skills dirs under {root}: {exc}", file=sys.stderr)
+        return None
+    except Exception as exc:
+        print(
+            f"Unexpected scan error under {root}: {type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
+        return None
+    return current, marker_current, scanned_by_root
 
 
 def _resolve_root(repo_root: Path | None) -> Path:
@@ -443,20 +622,82 @@ def _resolve_baseline_path(root: Path, baseline: Path | None) -> Path:
     )
 
 
-def _write_baseline(baseline_path: Path, current: dict[str, int]) -> int:
-    return write_baseline(
+def _load_marker_baseline(path: Path) -> dict[str, int]:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError("Baseline must be a JSON object")
+    marker_files = data.get("marker_files", {})
+    if not isinstance(marker_files, dict):
+        raise ValueError("Baseline 'marker_files' must be a JSON object")
+    baseline: dict[str, int] = {}
+    for key, value in marker_files.items():
+        try:
+            baseline[str(key)] = int(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Marker baseline count for {key!r} is not an integer") from exc
+    return baseline
+
+
+def diff_marker_baseline(
+    current: dict[str, int], baseline: dict[str, int]
+) -> tuple[list[str], list[str]]:
+    """Return exact-count marker drift.
+
+    Marker counts are not an ordinary debt ratchet. A lower count can mean the
+    declaration is stale after prose moved away, so both increases and decreases
+    are regressions.
+    """
+    regressions: list[str] = []
+    for rel in sorted(set(current) | set(baseline)):
+        count = current.get(rel, 0)
+        allowed = baseline.get(rel, 0)
+        if count != allowed:
+            regressions.append(
+                f"{rel}: vendor-portability marker suppresses {count} refs "
+                f"(baseline {allowed}). Update the marker or regenerate the marker baseline."
+            )
+    return regressions, []
+
+
+def _write_baseline(
+    root: Path,
+    baseline_path: Path,
+    current: dict[str, int],
+    marker_current: dict[str, int],
+    allow_shrink: bool,
+) -> int:
+    total = sum(current.values())
+    marker_total = sum(marker_current.values())
+    entries = dict(sorted(current.items()))
+    marker_entries = dict(sorted(marker_current.items()))
+    rc = write_baseline_json(
+        root,
         baseline_path,
-        current,
-        (
-            "Vendor-portability ratchet baseline for skill Markdown "
-            "(issue #2050). Counts of upstream-only path references per "
-            ".md file (fenced code stripped; inline paths counted; files with a "
-            "'<!-- vendor-portability: ... -->' marker excluded). "
-            "Generated by check_skill_md_portability.py --update-baseline. "
-            "Lower is better; review count increases before committing."
-        ),
-        "refs",
+        {
+            "_comment": (
+                    "Vendor-portability ratchet baseline for skill Markdown "
+                    "(issue #2050). The files object counts undeclared "
+                    "upstream-only path references per Markdown file. The "
+                    "marker_files object records refs suppressed by "
+                    "'<!-- vendor-portability: ... -->' markers so stale "
+                    "declarations do not stay green forever. Generated by "
+                    "check_skill_md_portability.py --update-baseline. Lower "
+                    "values in files are better; marker_files values must stay exact."
+                ),
+            "files": entries,
+            "marker_files": marker_entries,
+        },
+        {"files": entries, "marker_files": marker_entries},
+        "skill .md files",
+        allow_shrink,
     )
+    if rc:
+        return rc
+    print(
+        f"Baseline written: {len(current)} files, {total} refs; "
+        f"{len(marker_current)} marker files, {marker_total} suppressed refs."
+    )
+    return 0
 
 
 def _report(
@@ -523,28 +764,48 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
-    try:
-        current = scan_plugin_roots(root)
-    except (OSError, MarkdownNestingError) as exc:
-        print(f"Could not scan skills dirs under {root}: {exc}", file=sys.stderr)
+    counts = _scan_current_counts(root)
+    if counts is None:
         return 2
-    except Exception as exc:
-        print(
-            f"Unexpected scan error under {root}: {type(exc).__name__}: {exc}",
-            file=sys.stderr,
-        )
-        return 2
+    current, marker_current, scanned_by_root = counts
 
     if args.update_baseline:
-        return _write_baseline(baseline_path, current)
+        if refuse_unsafe_baseline_write(
+            root,
+            scanned_by_root,
+            baseline_path,
+            {"files": current, "marker_files": marker_current},
+            "skill .md files",
+            args.allow_baseline_shrink,
+        ):
+            return 2
+        return _write_baseline(
+            root, baseline_path, current, marker_current, args.allow_baseline_shrink
+        )
+
+    if args.base_ref:
+        conflicting_inputs = check_semantic_baseline_conflict(
+            root, args.base_ref, baseline_path
+        )
+        if conflicting_inputs is None:
+            return 2
+        if conflicting_inputs:
+            _report_semantic_conflict(baseline_path, root, conflicting_inputs)
+            return 1
 
     try:
         baseline = _load_baseline(baseline_path)
+        marker_baseline = _load_marker_baseline(baseline_path)
     except (OSError, ValueError) as exc:
         print(f"Could not read baseline {baseline_path}: {exc}", file=sys.stderr)
         return 2
 
     regressions, improvements = diff_against_baseline(current, baseline)
+    marker_regressions, marker_improvements = diff_marker_baseline(
+        marker_current, marker_baseline
+    )
+    regressions.extend(marker_regressions)
+    improvements.extend(marker_improvements)
     _report(
         regressions=regressions,
         improvements=improvements,

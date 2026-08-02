@@ -39,15 +39,12 @@ Comprehensive catalog of pipeline failure patterns, diagnosis rules, and automat
 
 **Discovery:**
 
+```powershell
 Get-ChildItem -Recurse -Filter "*.csproj" | Select-String -Pattern "TreatWarningsAsErrors" -SimpleMatch
 
 # Find in Directory.Build.props
-
 Select-String -Path "Directory.Build.props" -Pattern "TreatWarningsAsErrors" -SimpleMatch
-
 ```
-
-
 
 **Common new warnings in .NET 10:**
 
@@ -90,8 +87,6 @@ Select-String -Path "Directory.Build.props" -Pattern "TreatWarningsAsErrors" -Si
 **Match:** `File not found`, `not a valid path`, `does not exist`, `Could not find file`
 
 **Diagnosis:** A YAML pipeline, config, or code file references a path that doesn't exist.
-
-
 
 1. Identify the referenced file from the error message
 
@@ -137,42 +132,42 @@ Get-ChildItem -Recurse -Filter "*StageMap*" | Select-Object FullName
 
 ---
 
-    │
+```
+│
 
-    ├─ Error contains "error CS" or "Build FAILED"?
+├─ Error contains "error CS" or "Build FAILED"?
 
-    │   └─ YES → Pattern 1: Build Compilation Error
-    │   └─ YES → Pattern 2: TreatWarningsAsErrors
+│   └─ YES → Pattern 1: Build Compilation Error
+│   └─ YES → Pattern 2: TreatWarningsAsErrors
 
-    │
-    ├─ Error contains "NU" (NuGet error)?
-    │   └─ YES → Pattern 3: NuGet Package Error
-    │
-    ├─ Error contains "not found" or "does not exist"?
-    │   └─ YES → Pattern 4: File Not Found
-    │
-    ├─ Error contains "Test Run Failed" or "Failed!"?
-    │   └─ YES → Pattern 6: Test Failure
-    │
-    ├─ Error contains "subscription" or "backfill"?
-    │   └─ YES → Pattern 7: Subscription Key Conflict
-    │
-    ├─ Error contains "YAML" or "pipeline is not valid"?
-    │   └─ YES → Pattern 8: YAML Syntax Error
-    │
-    ├─ Error contains "403" or "permission" or "denied"?
-    │   └─ YES → Pattern 9: Permission Error (STOP)
-    │
-    ├─ Error contains "timeout" or "503" or "agent was lost"?
-    │   └─ YES → Pattern 10: Transient Error (retry)
-    │
-    ├─ Error contains "helm" or "chart"?
-    │   └─ YES → Pattern 11: Helm Error
-    │
-    ├─ Error contains "docker" or "Dockerfile"?
-    │   └─ YES → Pattern 12: Docker Error
-    │
-    └─ None of the above?
-        └─ Report full error to user for manual diagnosis
-
+│
+├─ Error contains "NU" (NuGet error)?
+│   └─ YES → Pattern 3: NuGet Package Error
+│
+├─ Error contains "not found" or "does not exist"?
+│   └─ YES → Pattern 4: File Not Found
+│
+├─ Error contains "Test Run Failed" or "Failed!"?
+│   └─ YES → Pattern 6: Test Failure
+│
+├─ Error contains "subscription" or "backfill"?
+│   └─ YES → Pattern 7: Subscription Key Conflict
+│
+├─ Error contains "YAML" or "pipeline is not valid"?
+│   └─ YES → Pattern 8: YAML Syntax Error
+│
+├─ Error contains "403" or "permission" or "denied"?
+│   └─ YES → Pattern 9: Permission Error (STOP)
+│
+├─ Error contains "timeout" or "503" or "agent was lost"?
+│   └─ YES → Pattern 10: Transient Error (retry)
+│
+├─ Error contains "helm" or "chart"?
+│   └─ YES → Pattern 11: Helm Error
+│
+├─ Error contains "docker" or "Dockerfile"?
+│   └─ YES → Pattern 12: Docker Error
+│
+└─ None of the above?
+    └─ Report full error to user for manual diagnosis
 ```
