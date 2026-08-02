@@ -531,7 +531,7 @@ class TestPathValidationHardening:
         result = subprocess.run(
             [sys.executable, str(_VALIDATOR), "config\r.yaml"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             cwd=str(_REPO_ROOT),
         )
         assert result.returncode == 2
@@ -550,7 +550,7 @@ class TestCliPathSafety:
         return subprocess.run(
             [sys.executable, str(_VALIDATOR), *argv],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             cwd=str(_REPO_ROOT),
         )
 

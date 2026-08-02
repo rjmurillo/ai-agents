@@ -55,7 +55,7 @@ def build_summary(
             "\n"
             "### Fix\n"
             "1. Edit the source template in `templates/agents/*.shared.md`\n"
-            "2. Run: `python3 build/generate_agents.py`\n"
+            "2. Run: `uv run python build/generate_agents.py`\n"
             "3. Commit the regenerated files"
         )
 
