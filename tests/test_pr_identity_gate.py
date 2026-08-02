@@ -1,0 +1,124 @@
+"""Analyst agent must enforce PR identity gate and GitHub URL routing.
+
+Two related defects corrected by issue #4221 and #4229:
+
+- #4221: the research subagent substituted local branch content for a
+  requested PR, reported findings as if they came from the PR, and the
+  output was indistinguishable from a real review. The identity gate
+  requirement stops this: the agent must reconcile API identity against
+  local checkout before reporting, and stop on any mismatch.
+
+- #4229: web_fetch on GitHub URLs is blocked by a pre-tool hook that
+  redirects to context-mode tools that are not in the subagent's manifest.
+  The routing rule must forbid web_fetch on GitHub URLs and name the
+  supported alternative. If no supported path exists, the agent must stop
+  with [BLOCKED], not fall back to priors.
+
+These are structural tests against the agent definition file. They are not
+behavioral tests (the agent is not invoked). The property being asserted is
+that the instruction text is present and specific enough to close each defect:
+a weaker instruction regresses the defect, so the tests measure the presence
+of the specific guard language.
+"""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+ANALYST_AGENT = REPO_ROOT / ".claude" / "agents" / "analyst.md"
+
+
+def _analyst_text() -> str:
+    assert ANALYST_AGENT.is_file(), f"{ANALYST_AGENT} is missing"
+    return ANALYST_AGENT.read_text(encoding="utf-8")
+
+
+class TestGitHubURLRoutingRule:
+    """The analyst agent must forbid web_fetch on GitHub URLs (#4229)."""
+
+    def test_no_web_fetch_on_github_urls_stated(self) -> None:
+        text = _analyst_text()
+        # The specific prohibition must appear: "Never call web_fetch on GitHub URLs"
+        # (backtick-quoted or plain)
+        assert re.search(
+            r"[Nn]ever\s+call\s+`?web_fetch`?\s+on\s+GitHub\s+URL", text
+        ), (
+            "analyst.md must contain 'Never call web_fetch on GitHub URLs' "
+            "(issue #4229: the hook blocks web_fetch and redirects to tools "
+            "not in the agent manifest, causing silent stall with no findings)"
+        )
+
+    def test_github_url_intercept_skill_named(self) -> None:
+        text = _analyst_text()
+        assert "github-url-intercept" in text, (
+            "analyst.md must name the github-url-intercept skill as the "
+            "routing mechanism for GitHub URLs (issue #4229)"
+        )
+
+    def test_hook_redirect_consequence_documented(self) -> None:
+        text = _analyst_text()
+        # The instruction must state that the hook redirects to unavailable tools.
+        assert re.search(r"hook\b.*redirect|redirect.*agent", text, re.IGNORECASE), (
+            "analyst.md must document that the pre-tool hook redirects "
+            "web_fetch on GitHub URLs to tools not in the agent manifest "
+            "(issue #4229: agents that hit this are blocked silently)"
+        )
+
+    def test_blocked_fallback_for_github_urls(self) -> None:
+        text = _analyst_text()
+        # When all GitHub API paths fail, the agent must return [BLOCKED], not
+        # substitute local content.
+        assert "BLOCKED" in text, (
+            "analyst.md must specify [BLOCKED] as the response when GitHub "
+            "API is unreachable (issues #4221, #4229)"
+        )
+
+
+class TestPRIdentityGate:
+    """The analyst agent must reconcile API identity before reporting PR findings (#4221)."""
+
+    def test_identity_gate_section_present(self) -> None:
+        text = _analyst_text()
+        assert re.search(r"identity\s+gate", text, re.IGNORECASE), (
+            "analyst.md must contain a PR identity gate section (issue #4221: "
+            "the agent reported findings attributed to the wrong PR)"
+        )
+
+    def test_head_sha_reconciliation_required(self) -> None:
+        text = _analyst_text()
+        assert "head_sha" in text or "headRefOid" in text, (
+            "analyst.md must name the head SHA field that must be reconciled "
+            "against the local checkout (issue #4221)"
+        )
+
+    def test_mismatch_stops_report(self) -> None:
+        text = _analyst_text()
+        # The instruction must say to stop on mismatch, not continue.
+        assert re.search(r"[Ss]top\b.*(mismatch|differ|diverge)", text) or re.search(
+            r"(mismatch|differ|diverge).*(stop|error|blocked)", text, re.IGNORECASE
+        ), (
+            "analyst.md must instruct the agent to stop on identity mismatch "
+            "rather than mixing evidence from different work items (issue #4221)"
+        )
+
+    def test_no_substitution_instruction(self) -> None:
+        text = _analyst_text()
+        # The fix instruction must explicitly prohibit substituting local content.
+        assert re.search(
+            r"[Dd]o not substitute\s+local", text
+        ), (
+            "analyst.md must explicitly forbid substituting local checkout "
+            "content for the requested PR (issue #4221)"
+        )
+
+    def test_merge_commit_reconciliation_required(self) -> None:
+        text = _analyst_text()
+        assert "merge" in text.lower() and (
+            "mergeCommit" in text or "merge_commit" in text or "mergeCommit.oid" in text
+        ), (
+            "analyst.md must require reconciling a claimed merge commit "
+            "against the API's merge commit field (issue #4221: the agent "
+            "cited a merge commit that belonged to a different PR)"
+        )
