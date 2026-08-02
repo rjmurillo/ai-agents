@@ -87,6 +87,38 @@ def _has_write_contents(workflow: dict[Any, Any], job: dict[str, Any]) -> bool:
     )
 
 
+def _bare_push_violations_in_job(
+    path_name: str, job_id: str, job: dict[str, Any]
+) -> list[str]:
+    violations = []
+    for step in job.get("steps", []):
+        if not isinstance(step, dict):
+            continue
+        run = step.get("run", "")
+        if isinstance(run, str) and _BARE_GIT_PUSH.search(run):
+            violations.append(
+                f"{path_name}: job '{job_id}' bare-pushes to main. "
+                "This will be rejected by ruleset 11104075 because "
+                "github-actions[bot] is not a bypass actor. "
+                "Open a PR instead of pushing directly."
+            )
+    return violations
+
+
+def _bare_push_violations_in_workflow(path: Path, wf: dict[str, Any]) -> list[str]:
+    violations = []
+    jobs = wf.get("jobs", {})
+    if not isinstance(jobs, dict):
+        return violations
+    for job_id, job in jobs.items():
+        if not isinstance(job, dict):
+            continue
+        if not _has_write_contents(wf, job):
+            continue
+        violations.extend(_bare_push_violations_in_job(path.name, job_id, job))
+    return violations
+
+
 class TestDeletedWorkflowAbsent:
     """post-merge-version-bump.yml must not be present."""
 
@@ -114,27 +146,7 @@ class TestNoBareGitPushOnMainPushTrigger:
         violations: list[str] = []
         for path in _workflow_files():
             wf = _load_workflow(path)
-            if wf is None:
+            if wf is None or not _triggers_main_push(wf):
                 continue
-            if not _triggers_main_push(wf):
-                continue
-            jobs = wf.get("jobs", {})
-            if not isinstance(jobs, dict):
-                continue
-            for job_id, job in jobs.items():
-                if not isinstance(job, dict):
-                    continue
-                if not _has_write_contents(wf, job):
-                    continue
-                for step in job.get("steps", []):
-                    if not isinstance(step, dict):
-                        continue
-                    run = step.get("run", "")
-                    if isinstance(run, str) and _BARE_GIT_PUSH.search(run):
-                        violations.append(
-                            f"{path.name}: job '{job_id}' bare-pushes to main. "
-                            "This will be rejected by ruleset 11104075 because "
-                            "github-actions[bot] is not a bypass actor. "
-                            "Open a PR instead of pushing directly."
-                        )
+            violations.extend(_bare_push_violations_in_workflow(path, wf))
         assert not violations, "\n".join(violations)
