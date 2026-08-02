@@ -125,8 +125,8 @@ def _read_log_branch(full: str) -> str | None:
 def _match_log_for_branch(
     candidates: list[tuple[float, str, str]], branch: str
 ) -> str | None:
-    """Return the path of the first candidate whose branch field matches."""
-    for _, full, _ in sorted(candidates, key=lambda x: x[2]):
+    """Return the newest candidate whose branch field matches."""
+    for _, full, _ in sorted(candidates, key=lambda x: (x[0], x[2]), reverse=True):
         if _read_log_branch(full) == branch:
             return full
     return None

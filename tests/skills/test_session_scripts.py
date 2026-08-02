@@ -555,6 +555,28 @@ class TestCompleteSessionLogBranchAware:
             f"Expected branch-matching log {mine.name}, got {result}"
         )
 
+    def test_newest_branch_match_wins_when_branch_has_multiple_logs(self, tmp_path):
+        """Returns the newest matching branch log, not the first filename."""
+        mod = self._import()
+        from datetime import UTC, datetime
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        import os
+
+        older = tmp_path / f"{today}-session-1.json"
+        older.write_text(json.dumps(self._make_session("feature/x")))
+        os.utime(older, (1_000_000_000.0, 1_000_000_000.0))
+
+        newer = tmp_path / f"{today}-session-2.json"
+        newer.write_text(json.dumps(self._make_session("feature/x")))
+        os.utime(newer, (2_000_000_000.0, 2_000_000_000.0))
+
+        with patch.object(mod, "_get_current_branch", return_value="feature/x"):
+            result = mod._find_current_session_log(str(tmp_path))
+
+        assert result == str(newer), (
+            f"Expected newest branch-matching log {newer.name}, got {result}"
+        )
+
     def test_fallback_to_mtime_when_no_branch_log(self, tmp_path):
         """Falls back to mtime ordering when no log matches the current branch."""
         mod = self._import()

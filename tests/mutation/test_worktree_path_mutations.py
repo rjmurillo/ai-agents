@@ -7,12 +7,13 @@ Reports three outcomes per mutation:
   DID-NOT-APPLY - the target literal was absent; file was not mutated
 
 A DID-NOT-APPLY exits nonzero and aborts the run. A SURVIVED also exits
-nonzero. The harness additionally uses cmp -s to detect byte-identical files
-and fails if a "mutated" file is unchanged.
+nonzero. The harness also detects byte-identical files and fails if a "mutated" file
+is unchanged.
 """
 
 from __future__ import annotations
 
+import filecmp
 import shutil
 import subprocess
 import sys
@@ -42,9 +43,7 @@ def _apply_mutation(path: Path, original: str, mutant: str, backup: Path) -> boo
     shutil.copy2(path, backup)
     mutated = text.replace(original, mutant, 1)
     path.write_text(mutated, encoding="utf-8")
-    # cmp -s: exit 0 means files are identical (mutation did not change bytes)
-    result = subprocess.run(["cmp", "-s", str(path), str(backup)], capture_output=True)
-    if result.returncode == 0:
+    if filecmp.cmp(path, backup, shallow=False):
         shutil.copy2(backup, path)
         return False  # byte-identical: DID-NOT-APPLY
     return True
@@ -52,8 +51,7 @@ def _apply_mutation(path: Path, original: str, mutant: str, backup: Path) -> boo
 
 def _restore(path: Path, backup: Path) -> None:
     shutil.copy2(backup, path)
-    restored = subprocess.run(["cmp", "-s", str(path), str(backup)], capture_output=True)
-    assert restored.returncode == 0, (
+    assert filecmp.cmp(path, backup, shallow=False), (
         f"FATAL: restore of {path} is not byte-identical to backup"
     )
 
@@ -167,6 +165,17 @@ def main() -> int:
             / ".claude/skills/session-end/scripts/complete_session_log.py",
             "if _read_log_branch(full) == branch:",
             "if _read_log_branch(full) != branch:  # mutant: invert branch match",
+            [
+                "tests/skills/test_session_scripts.py",
+            ],
+        ),
+        # Issue #4161: newest matching branch log wins when branch has multiple logs
+        (
+            "#4161 newest-branch-match",
+            REPO_ROOT
+            / ".claude/skills/session-end/scripts/complete_session_log.py",
+            "sorted(candidates, key=lambda x: (x[0], x[2]), reverse=True)",
+            "sorted(candidates, key=lambda x: x[2])",
             [
                 "tests/skills/test_session_scripts.py",
             ],

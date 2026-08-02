@@ -154,7 +154,7 @@ class TestAdrPolicyUsesBranchLog:
     def test_uses_current_branch_log_not_mtime_winner(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Gate passes when branch log has ADR evidence, even if newer mtime log does not."""
+        """Gate reaches branch log evidence, then fails on missing debate log evidence."""
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
         monkeypatch.setattr(policy, "_merge_in_progress", lambda root: False)
 
@@ -181,7 +181,7 @@ class TestAdrPolicyUsesBranchLog:
         other_log.write_text(json.dumps({"session": {"branch": "feature/other"}}))
         os.utime(other_log, (2_000_000_000.0, 2_000_000_000.0))
 
-        # Stub out debate log requirement
+        # Stub out ADR evidence and force the branch log selection
         monkeypatch.setattr(policy, "_session_has_adr_review", lambda log: log == branch_log)
         monkeypatch.setattr(
             policy,
@@ -193,8 +193,8 @@ class TestAdrPolicyUsesBranchLog:
             [".agents/architecture/ADR-099-test.md"], tmp_path
         )
 
-        # Should pass (branch log has evidence) even though mtime winner does not
-        # Still need the debate log; patch that too to isolate the session-log selection
+        # Branch log has evidence even though mtime winner does not.
+        # Debate log evidence is still missing, so the full gate fails.
         assert result == 1  # debate log check will fail since no .agents/analysis/ dir
 
     def test_fails_when_no_session_log_for_branch(
