@@ -69,7 +69,7 @@ def _prime_cache(module_path: Path) -> None:
     result = subprocess.run(
         [sys.executable, "-c", probe],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=True,
     )
     assert result.returncode == 0, result.stderr
@@ -87,7 +87,7 @@ def _read_identity(module_path: Path, env: dict[str, str] | None = None) -> str:
     result = subprocess.run(
         [sys.executable, "-c", probe],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         env=merged_env,
     )
     assert result.returncode == 0, f"stderr: {result.stderr}"

@@ -31,7 +31,7 @@ def _count(src: bytes, pattern: bytes) -> int:
 
 def _run_tests() -> subprocess.CompletedProcess:
     cmd = [sys.executable, "-m", "pytest", "--tb=no", "-q", *TESTS]
-    return subprocess.run(cmd, cwd=str(REPO_ROOT), capture_output=True, text=True)
+    return subprocess.run(cmd, cwd=str(REPO_ROOT), capture_output=True, text=True, encoding="utf-8")
 
 
 def _apply_mutant_and_assert_detected(
