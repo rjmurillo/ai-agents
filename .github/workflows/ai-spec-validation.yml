@@ -123,67 +123,7 @@ jobs:
         env:
           PR_TITLE_INPUT: ${{ github.event.pull_request.title }}
           PR_BODY_INPUT: ${{ github.event.pull_request.body }}
-        run: |
-          # PR context passed via env vars to avoid shell injection from
-          # backticks and other special characters in PR title/body
-          if [ -z "$PR_TITLE_INPUT" ] && [ -z "$PR_BODY_INPUT" ]; then
-            PR_TITLE_INPUT=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json title -q .title 2>/dev/null || true)
-            PR_BODY_INPUT=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json body -q .body 2>/dev/null || true)
-          fi
-
-          # Save PR context to files safely (avoids shell expansion)
-          printf '%s\n' "$PR_TITLE_INPUT" > /tmp/pr-title.txt
-          printf '%s\n' "$PR_BODY_INPUT" > /tmp/pr-body.txt
-
-          # Read from files (now safe from injection)
-          PR_TITLE=$(cat /tmp/pr-title.txt)
-          PR_BODY=$(cat /tmp/pr-body.txt)
-
-          # Look for spec references in PR body and title
-          # Patterns: REQ-NNN, DESIGN-NNN, TASK-NNN, .agents/specs/..., #issue
-          COMBINED="$PR_BODY $PR_TITLE"
-          SPEC_REFS=""
-
-          # Check for requirement IDs (use grep -E for POSIX portability)
-          REQ_IDS=$(echo "$COMBINED" | grep -oE '(REQ|DESIGN|TASK)-[0-9]+' | sort -u | tr '\n' ' ' || true)
-          if [ -n "$REQ_IDS" ]; then
-            SPEC_REFS="$REQ_IDS"
-          fi
-
-          # Check for spec file paths (use grep -E for POSIX portability)
-          # Supports both .agents/specs/ and .agents/planning/ directories
-          SPEC_PATHS=$(echo "$COMBINED" | grep -oE '\.agents/(specs|planning)/[^[:space:]]+\.md' | sort -u | tr '\n' ' ' || true)
-          if [ -n "$SPEC_PATHS" ]; then
-            SPEC_REFS="$SPEC_REFS $SPEC_PATHS"
-          fi
-
-          # Check for linked issues (use grep -E for POSIX portability)
-          # Matches both simple (#123) and cross-repo (owner/repo#123) issue references
-          # Preserves full format for cross-repo refs (needed by gh issue view)
-          # Note: Requires space after keyword (GitHub standard format: "Fixes #123")
-          ISSUE_REFS=$(echo "$COMBINED" | grep -oE '(Closes|Fixes|Resolves|Implements)[[:space:]]+([[:alnum:]_-]+/[[:alnum:]_-]+)?#[0-9]+' | sed -E 's/^(Closes|Fixes|Resolves|Implements)[[:space:]]+//; s/^#//' | sort -u | tr '\n' ' ' || true)
-
-          # Detect explicit incremental PR markers (fix #2255).
-          # Parsing lives in a tested script per ADR-006.
-          INCREMENTAL_SCOPE=$(python3 .github/scripts/extract_incremental_scope.py "$PR_TITLE")
-
-          {
-            echo "spec_refs=$SPEC_REFS"
-            echo "issue_refs=$ISSUE_REFS"
-            echo "incremental_scope=$INCREMENTAL_SCOPE"
-          } >> "$GITHUB_OUTPUT"
-
-          if [ -z "$SPEC_REFS" ] && [ -z "$ISSUE_REFS" ]; then
-            echo "No spec references found in PR"
-            echo "has_specs=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "Found spec references: $SPEC_REFS"
-            echo "Found issue references: $ISSUE_REFS"
-            echo "has_specs=true" >> "$GITHUB_OUTPUT"
-          fi
-
-          # Cleanup temp files
-          rm -f /tmp/pr-title.txt /tmp/pr-body.txt
+        run: python3 scripts/ci/spec_extract_refs.py
 
       - name: Load Spec Content
         if: steps.should-run.outputs.skip != 'true' && steps.spec-ref.outputs.has_specs == 'true'
@@ -191,88 +131,15 @@ jobs:
         env:
           SPEC_REFS: ${{ steps.spec-ref.outputs.spec_refs }}
           ISSUE_REFS: ${{ steps.spec-ref.outputs.issue_refs }}
-        run: |
-          SPEC_CONTENT=""
-
-          # Load from spec files
-          # shellcheck disable=SC2086 # SPEC_REFS is a space-delimited ref list.
-          for ref in $SPEC_REFS; do
-            # If it's a path, load directly
-            if [[ "$ref" == *.md ]]; then
-              if [ -f "$ref" ]; then
-                SPEC_CONTENT="$SPEC_CONTENT"$'\n\n'"## Spec: $ref"$'\n\n'"$(cat "$ref")"
-              fi
-            else
-              # Search for spec file by ID
-              SPEC_FILE=$(find .agents/specs -name "*${ref}*" -type f 2>/dev/null | head -1 || true)
-              if [ -n "$SPEC_FILE" ] && [ -f "$SPEC_FILE" ]; then
-                SPEC_CONTENT="$SPEC_CONTENT"$'\n\n'"## Spec: $SPEC_FILE"$'\n\n'"$(cat "$SPEC_FILE")"
-              fi
-            fi
-          done
-
-          # Load from linked issues
-          # shellcheck disable=SC2086 # ISSUE_REFS is a space-delimited ref list.
-          for issue in $ISSUE_REFS; do
-            # Parse cross-repo format (owner/repo#123) vs simple format (123)
-            if [[ "$issue" == *"/"* ]]; then
-              # Cross-repo: extract owner/repo and issue number
-              REPO=$(echo "$issue" | sed -E 's|^([^#]+)#.*|\1|')
-              ISSUE_NUM=$(echo "$issue" | sed -E 's|^[^#]+#([0-9]+)|\1|')
-              ISSUE_BODY=$(gh issue view "$ISSUE_NUM" --repo "$REPO" --json title,body -q '.title + "\n\n" + .body' 2>/dev/null || true)
-              ISSUE_REF="$issue"  # Already has # in format
-            else
-              # Simple ref: use default repo
-              ISSUE_BODY=$(gh issue view "$issue" --json title,body -q '.title + "\n\n" + .body' 2>/dev/null || true)
-              ISSUE_REF="#$issue"  # Add # for display
-            fi
-
-            if [ -n "$ISSUE_BODY" ]; then
-              SPEC_CONTENT="$SPEC_CONTENT"$'\n\n'"## Issue $ISSUE_REF"$'\n\n'"$ISSUE_BODY"
-            fi
-          done
-
-          if [ -z "$SPEC_CONTENT" ]; then
-            echo "Warning: Could not load any spec content"
-            SPEC_CONTENT="No spec content found for references: $SPEC_REFS $ISSUE_REFS"
-          fi
-
-          # Save to file for later steps
-          echo "$SPEC_CONTENT" > /tmp/spec-content.md
-          echo "spec_file=/tmp/spec-content.md" >> "$GITHUB_OUTPUT"
+        run: python3 scripts/ci/spec_load_content.py
 
       - name: Prepare Spec Context
         if: steps.should-run.outputs.skip != 'true' && steps.spec-ref.outputs.has_specs == 'true'
         id: prepare-context
         env:
+          SPEC_FILE: ${{ steps.load-spec.outputs.spec_file }}
           INCREMENTAL_SCOPE: ${{ steps.spec-ref.outputs.incremental_scope }}
-        run: |
-          # Create spec context string for additional-context input.
-          # When the PR title declares an incremental scope (e.g. "Phase 2
-          # of #1799"), inject that declaration so the AI agents evaluate
-          # only the claimed slice, not the full parent issue (fix #2255).
-          if [ -f /tmp/spec-content.md ]; then
-            SPEC_CONTENT=$(cat /tmp/spec-content.md)
-            {
-              echo "spec_context<<EOF_SPEC"
-              echo "## Specification Content"
-              echo ""
-              echo "$SPEC_CONTENT"
-              if [ -n "$INCREMENTAL_SCOPE" ]; then
-                echo ""
-                echo "## Incremental Scope Declaration"
-                echo ""
-                echo "This PR explicitly declares it implements: $INCREMENTAL_SCOPE"
-                echo "Evaluate coverage ONLY against the acceptance criteria"
-                echo "relevant to this declared scope. Criteria belonging to"
-                echo "other phases or future PRs are NOT expected to be covered"
-                echo "and must be treated as N/A for this evaluation."
-              fi
-              echo "EOF_SPEC"
-            } >> "$GITHUB_OUTPUT"
-          else
-            echo "spec_context=No spec content loaded" >> "$GITHUB_OUTPUT"
-          fi
+        run: python3 scripts/ci/spec_prepare_context.py
 
       - name: 🔗 Requirements Traceability Check (Analyst Agent)
         if: steps.should-run.outputs.skip != 'true' && steps.spec-ref.outputs.has_specs == 'true'
@@ -321,34 +188,7 @@ jobs:
           PR_BODY: ${{ github.event.pull_request.body }}
           TRACE_VERDICT: ${{ steps.trace.outputs.verdict }}
           COMPLETENESS_VERDICT: ${{ steps.completeness.outputs.verdict }}
-        run: |
-          # PR body passed via env and written to a file to avoid shell
-          # injection from special characters; the adapter reads PR_BODY_FILE.
-          # On workflow_dispatch the event body is empty, so fall back to the
-          # body fetched via gh (mirrors the Extract Spec References step).
-          if [ -z "$PR_BODY" ] && [ -n "$PR_NUMBER" ]; then
-            PR_BODY=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json body -q .body 2>/dev/null || true)
-          fi
-          body_file="${RUNNER_TEMP:-.}/pr-body-signal-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.md"
-          summary_file="${RUNNER_TEMP:-.}/external-gate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
-          printf '%s' "$PR_BODY" > "$body_file"
-          # Capture the observe verdict and surface it in the job summary, so a
-          # run records the externally-grounded signal whether or not it blocks.
-          set +e
-          PR_BODY_FILE="$body_file" \
-            python3 scripts/quality_gate/spec_external_signal_gate.py \
-            | tee "$summary_file"
-          gate_rc=${PIPESTATUS[0]}
-          set -e
-          {
-            echo "### External-signal gate (observe)"
-            echo ""
-            echo '```json'
-            cat "$summary_file" 2>/dev/null || echo "(no output)"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-          rm -f "$body_file" "$summary_file"
-          exit "$gate_rc"
+        run: python3 scripts/ci/spec_external_signal_wrapper.py
 
       - name: Generate Validation Report
         if: steps.should-run.outputs.skip != 'true'

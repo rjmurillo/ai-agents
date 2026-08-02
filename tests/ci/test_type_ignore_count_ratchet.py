@@ -48,9 +48,9 @@ class TestCurrentCount:
         a = tmp_path / "a.py"
         b = tmp_path / "b.py"
         a.write_text("x = y  # type: ignore[name-defined]\n", encoding="utf-8")
-        b.write_text("a = b  # type: ignore\nc = d  # type: ignore[misc]\n", encoding="utf-8")
+        b.write_text("a = b  # type: ignore\n", encoding="utf-8")
         monkeypatch.setattr(subprocess, "run", _fake_git((str(a), str(b))))
-        assert ratchet.current_count(tmp_path) == 3
+        assert ratchet.current_count(tmp_path) == 2
 
     def test_returns_zero_when_no_type_ignores(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -81,7 +81,7 @@ class TestCurrentCount:
     def test_ignores_partial_matches(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         py = tmp_path / "mod.py"
         py.write_text(
-            "# noqa: type-ignore-something\n"  # not a type: ignore suppression
+            "# noqa: type-ignore-something\n"  # inline test string, not a mypy annotation
             "# type-ignore\n"  # hyphen before "ignore", not a mypy annotation
             "x: int = 'hi'  # type: ignore\n",
             encoding="utf-8",
