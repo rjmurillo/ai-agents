@@ -75,9 +75,10 @@ Ext     Files     Bytes   Ceiling    Usage   Free
 
 A rule whose `applyTo` is `**` counts against all four languages at once, so the
 binding constraint is the smallest headroom. **The largest always-on rule that
-can be added today is 397 bytes**, which is smaller than the frontmatter plus
-heading of an empty rule file. The next always-on rule addition breaks the
-build.
+can be added today is 397 bytes.** That is not zero: a file carrying frontmatter,
+a heading, and one MUST sentence measures 58 bytes and passes at 99.6%. What it
+rules out is a rule of ordinary size. Every existing always-on rule is far larger
+than 397 bytes, so in practice the next real one fails unless it is scoped.
 
 The earlier revision of this memory recorded the `.md` figure as 1378 bytes.
 Headroom has since fallen to 397, and the `.md` ceiling is 83000 while the other
@@ -92,18 +93,45 @@ The instinct on a budget failure is to compress the rule or raise
 only universally scoped files, so a rule moved to a narrower `applyTo` costs
 zero bytes rather than fewer bytes.
 
-Worked example, `.agents/**` session-log mechanics:
+Worked example, `.agents/**` session-log mechanics. The same material was first
+written into `universal.md`, then moved to its own scoped rule:
 
 | Placement | Always-on cost | Gate |
 |---|---|---|
-| `universal.md`, `applyTo: **` | +855 bytes against 397 free | FAIL at 100.8% |
+| appended to `universal.md`, `applyTo: **` | +855 bytes against 397 free | FAIL at 100.6% |
 | `session-logs.md`, `applyTo: .agents/**` | 0 bytes, 82603 before and after | PASS |
 
-Identical prose, identical mirrors, identical enforcement. The only change was
-the frontmatter glob. Before compressing anything, ask whether the rule was ever
-universal: a rule that describes what happens when a change touches one tree
-never was. Raising a ceiling to clear a violation you introduced is forbidden
-regardless, since it converts a real signal into a silent one.
+The 855 figure is the text removed from `universal.instructions.md` when the
+material was pulled back out, measured at commit `4dff685ba` (5185 before, 4330
+after). It is not the size of the rule that replaced it. The standalone scoped
+file is 1754 bytes, so writing the same rule universally today would land at
+101.6%. The prose is not identical either; a standalone rule needs its own
+frontmatter and heading. What is identical is the enforcement: the scoped rule
+fires on exactly the paths the universal text described.
+
+Before compressing anything, ask whether the rule was ever universal: a rule that
+describes what happens when a change touches one tree never was. Raising a
+ceiling to clear a violation you introduced is forbidden regardless, since it
+converts a real signal into a silent one.
+
+### Free at the gate is not free downstream
+
+Verified 2026-08-02, and the reason this section says "free at the gate" rather
+than "free". `instruction_budget_constants.py:5` sets
+`INSTRUCTIONS_SUBDIR = ".github/instructions"`, so the gate never reads
+`src/copilot-cli/instructions/`. `build/scripts/generate_rules.py:321-337` strips
+internal-only globs from the plugin artifact, and when that leaves the scope
+empty it synthesizes `**` so the rule still ships.
+
+So a rule scoped entirely to internal paths becomes universal in the plugin. Of
+26 canonical rules, three are in that state: `governance`, `secret-redaction`,
+and `session-logs`. The first two are on `main` today. The gate reports zero
+added bytes while the shipped plugin gains an always-on rule about a directory
+its consumers do not have.
+
+Scoping is still the right move, and the gate result is still honest about what
+the gate measures. Do not read it as a claim about total context cost. Tracked as
+issue #4317.
 
 That is also why this note is a memory and not a rule. Documenting the budget in
 an always-on rule file would consume the budget it documents, and there is not
