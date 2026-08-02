@@ -251,12 +251,16 @@ def format_bar(count: int, threshold: int) -> str:
     return f"[{bar}] {count}/{BLOCK_THRESHOLD} files"
 
 
-def report(result: ScopeResult, quiet: bool = False) -> int:
+def report(result: ScopeResult, quiet: bool = False, is_push: bool = False) -> int:
     """Report scope status and return exit code.
 
     Args:
         result: Detection result.
         quiet: Suppress non-error output.
+        is_push: True when invoked from the pre-push hook (--base-branch set).
+            Changes the bypass hint from ``git commit`` to ``git push``, and
+            rewrites the remediation steps so they apply at push time rather
+            than at commit time.
 
     Returns:
         Exit code: 0 for pass/warn, 1 for block.
@@ -279,25 +283,36 @@ def report(result: ScopeResult, quiet: bool = False) -> int:
         print(f"  Branch: {result.current_branch}")
         print(f"  {count} files changed since diverging from main.")
         print("  Strongly consider splitting this into smaller PRs.")
-        print("  Remediation:")
-        print("    1. Commit current work")
-        print("    2. Create a PR for the current scope")
-        print("    3. Start a new branch for remaining work")
+        if is_push:
+            print("  Remediation:")
+            print("    1. Open a PR for the current branch scope")
+            print("    2. Start a new branch for remaining work")
+        else:
+            print("  Remediation:")
+            print("    1. Commit current work")
+            print("    2. Create a PR for the current scope")
+            print("    3. Start a new branch for remaining work")
         return 0
 
     # Block: count exceeds the hard limit (50 is allowed; 51+ blocks).
+    git_verb = "git push" if is_push else "git commit"
     print(f"BLOCKED: PR scope explosion detected. {format_bar(count, BLOCK_THRESHOLD)}")
     print(f"  Branch: {result.current_branch}")
     print(f"  {count} files changed (over the {BLOCK_THRESHOLD}-file hard limit).")
     print("  This PR is too large to review effectively.")
     print("")
-    print("  Remediation:")
-    print("    1. Split into smaller, focused PRs")
-    print("    2. Use 'git stash' to save uncommitted work")
-    print("    3. Create a PR for the current scope, then continue")
+    if is_push:
+        print("  Remediation:")
+        print("    1. Split into smaller, focused PRs")
+        print("    2. Open a PR for the current branch scope, then continue on a new branch")
+    else:
+        print("  Remediation:")
+        print("    1. Split into smaller, focused PRs")
+        print("    2. Use 'git stash' to save uncommitted work")
+        print("    3. Create a PR for the current scope, then continue")
     print("")
     print("  Bypass (justified large PRs only):")
-    print("    SKIP_SCOPE_CHECK=1 git commit ...")
+    print(f"    SKIP_SCOPE_CHECK=1 {git_verb} ...")
     return 1
 
 
@@ -313,8 +328,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--base-branch",
-        default="main",
-        help="Base branch to compare against (default: main)",
+        default=None,
+        help="Base branch to compare against (default: main). Passing this flag signals"
+        " that the script is running in the pre-push hook, which changes the bypass hint"
+        " from 'git commit' to 'git push'.",
     )
     parser.add_argument(
         "--quiet",
@@ -338,12 +355,16 @@ def main() -> int:
             print("Scope check bypassed (SKIP_SCOPE_CHECK=1)")
             return 0
 
-        result = detect_scope(args.base_branch)
+        # --base-branch is only passed by the pre-push hook (lefthook.yml line 457).
+        # Use its presence to distinguish push context from commit context.
+        is_push = args.base_branch is not None
+        base_branch = args.base_branch or "main"
+        result = detect_scope(base_branch)
         if result is None:
             # Not on a feature branch or no merge base found
             return 0
 
-        return report(result, args.quiet)
+        return report(result, args.quiet, is_push=is_push)
 
     except subprocess.TimeoutExpired:
         print("ERROR: Git command timed out during scope detection", file=sys.stderr)

@@ -561,3 +561,4 @@ class TestMain:
         ), patch("sys.argv", ["detect_scope_explosion.py"]):
             exit_code = main()
             assert exit_code == 1
+
