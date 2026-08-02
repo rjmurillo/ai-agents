@@ -45,6 +45,10 @@ def _analyst_text(path: Path = ANALYST_AGENT) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _agent_label(path: Path) -> str:
+    return str(path.relative_to(REPO_ROOT))
+
+
 class TestGitHubURLRoutingRule:
     """The analyst agent must forbid web_fetch on GitHub URLs (#4229)."""
 
@@ -92,48 +96,54 @@ class TestPRIdentityGate:
     @pytest.mark.parametrize("agent_path", ANALYST_AGENT_PATHS)
     def test_identity_gate_section_present(self, agent_path: Path) -> None:
         text = _analyst_text(agent_path)
+        label = _agent_label(agent_path)
         assert re.search(r"identity\s+gate", text, re.IGNORECASE), (
-            f"{agent_path.relative_to(REPO_ROOT)} must contain a PR identity gate section (issue #4221: "
+            f"{label} must contain a PR identity gate section "
+            "(issue #4221: "
             "the agent reported findings attributed to the wrong PR)"
         )
 
     @pytest.mark.parametrize("agent_path", ANALYST_AGENT_PATHS)
     def test_head_sha_reconciliation_required(self, agent_path: Path) -> None:
         text = _analyst_text(agent_path)
+        label = _agent_label(agent_path)
         assert "head_sha" in text or "headRefOid" in text, (
-            f"{agent_path.relative_to(REPO_ROOT)} must name the head SHA field that must be reconciled "
+            f"{label} must name the head SHA field that must be reconciled "
             "against the local checkout (issue #4221)"
         )
 
     @pytest.mark.parametrize("agent_path", ANALYST_AGENT_PATHS)
     def test_mismatch_stops_report(self, agent_path: Path) -> None:
         text = _analyst_text(agent_path)
+        label = _agent_label(agent_path)
         # The instruction must say to stop on mismatch, not continue.
         assert re.search(r"[Ss]top\b.*(mismatch|differ|diverge)", text) or re.search(
             r"(mismatch|differ|diverge).*(stop|error|blocked)", text, re.IGNORECASE
         ), (
-            f"{agent_path.relative_to(REPO_ROOT)} must instruct the agent to stop on identity mismatch "
+            f"{label} must instruct the agent to stop on identity mismatch "
             "rather than mixing evidence from different work items (issue #4221)"
         )
 
     @pytest.mark.parametrize("agent_path", ANALYST_AGENT_PATHS)
     def test_no_substitution_instruction(self, agent_path: Path) -> None:
         text = _analyst_text(agent_path)
+        label = _agent_label(agent_path)
         # The fix instruction must explicitly prohibit substituting local content.
         assert re.search(
             r"[Dd]o not substitute\s+local", text
         ), (
-            f"{agent_path.relative_to(REPO_ROOT)} must explicitly forbid substituting local checkout "
+            f"{label} must explicitly forbid substituting local checkout "
             "content for the requested PR (issue #4221)"
         )
 
     @pytest.mark.parametrize("agent_path", ANALYST_AGENT_PATHS)
     def test_merge_commit_reconciliation_required(self, agent_path: Path) -> None:
         text = _analyst_text(agent_path)
+        label = _agent_label(agent_path)
         assert "merge" in text.lower() and (
             "mergeCommit" in text or "merge_commit" in text or "mergeCommit.oid" in text
         ), (
-            f"{agent_path.relative_to(REPO_ROOT)} must require reconciling a claimed merge commit "
+            f"{label} must require reconciling a claimed merge commit "
             "against the API's merge commit field (issue #4221: the agent "
             "cited a merge commit that belonged to a different PR)"
         )
