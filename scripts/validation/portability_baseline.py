@@ -135,7 +135,12 @@ def _linked_component(baseline_path: Path, repo_root: Path) -> Path | None:
         if parent == current:
             return None
         if root is not None and _resolved(parent) == root:
-            return None
+            # Arriving at the root ends the walk, but the component that got us
+            # here has not been tested yet. A link named `scripts` pointing at
+            # the root resolves to the root and would end the walk clean, while
+            # still sending the write to a path git does not track under that
+            # name. Test it before stopping.
+            return parent if parent.is_symlink() else None
         current = parent
     return None
 

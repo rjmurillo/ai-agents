@@ -323,6 +323,70 @@ class TestTheWriteCannotBeRedirectedOffThePathGitTracks:
 
         assert not refuse_symlinked_baseline(root, root / "b.json")
 
+    def test_a_link_to_the_root_is_still_a_link(self, tmp_path: Path) -> None:
+        """Reaching the root ends the walk. It does not excuse the step that got
+        there.
+
+        A directory named `scripts` pointing at the repository root resolves to
+        the root, so the walk used to stop clean without ever asking whether
+        that component was a symlink. The write still lands somewhere other
+        than the path git tracks under that name.
+        """
+        root = tmp_path / "repo"
+        root.mkdir()
+        _git(root, "init", "-q")
+        (root / "validation").mkdir()
+        (root / "scripts").symlink_to(root, target_is_directory=True)
+        path = root / "scripts" / "validation" / "b.json"
+
+        assert path.resolve() != (root / "scripts" / "validation" / "b.json")
+        assert refuse_symlinked_baseline(root, path)
+
+    def test_a_real_directory_that_sits_directly_under_the_root_is_allowed(
+        self, tmp_path: Path
+    ) -> None:
+        """The control for the case above: the same shape without the link.
+
+        Without this, a refusal that fired on every path whose parent chain
+        reaches the root would pass the test above for the wrong reason.
+        """
+        root = tmp_path / "repo"
+        root.mkdir()
+        _git(root, "init", "-q")
+        (root / "scripts" / "validation").mkdir(parents=True)
+        path = root / "scripts" / "validation" / "b.json"
+
+        assert not refuse_symlinked_baseline(root, path)
+
+    def test_a_link_to_the_root_does_not_get_written_through(
+        self, tmp_path: Path
+    ) -> None:
+        """The victim is valid, matching JSON on purpose.
+
+        Corrupt bytes there would make the floor read refuse and the write stop
+        for a reason that has nothing to do with the link, leaving this test
+        passing whether or not the link is caught.
+        """
+        root = tmp_path / "repo"
+        root.mkdir()
+        _git(root, "init", "-q")
+        (root / "validation").mkdir()
+        victim = root / "validation" / "b.json"
+        victim.write_text(
+            json.dumps({"_comment": "not the ratchet's file", "files": {"a.md": 1}}),
+            encoding="utf-8",
+        )
+        original = victim.read_text(encoding="utf-8")
+        (root / "scripts").symlink_to(root, target_is_directory=True)
+        path = root / "scripts" / "validation" / "b.json"
+
+        rc = write_baseline_json(
+            root, path, {"files": {"a.md": 1}}, {"files": {"a.md": 1}}, UNIT, False
+        )
+
+        assert rc == 2
+        assert victim.read_text(encoding="utf-8") == original
+
 
 @pytest.mark.parametrize("allow_shrink", [False, True])
 def test_a_healthy_rewrite_is_unaffected_by_any_of_it(

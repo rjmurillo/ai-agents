@@ -192,3 +192,73 @@ class TestCaseIsResolvedAgainstTheTreeRatherThanAPathspec:
 
         assert blob is None
         assert problem is None
+
+
+class TestAFloorIsBuiltOnlyFromJsonIntegers:
+    """`int()` reads shapes that are not integers, and reads them downward.
+
+    Every one of these arrives as committed JSON, so the attacker's cost is a
+    diff that changes punctuation rather than a number. `false` reads as a floor
+    of nothing, and `4.9` reads as one less than it says. Both are refusals now.
+    """
+
+    @staticmethod
+    def _floor(root: Path, payload: object) -> tuple[object, object]:
+        path = root / "scripts" / "validation" / "b.json"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        _git(root, "add", "-A")
+        _git(root, "commit", "-qm", "seed")
+        return read_previous_sections(root, path)
+
+    def test_a_boolean_count_is_refused(self, tmp_path: Path) -> None:
+        root = _repo(tmp_path)
+
+        sections, problem = self._floor(root, {"files": {"a.md": False}})
+
+        assert sections is None
+        assert problem is not None and "not an integer" in problem
+
+    def test_a_fractional_count_is_refused_rather_than_truncated(
+        self, tmp_path: Path
+    ) -> None:
+        root = _repo(tmp_path)
+
+        sections, problem = self._floor(root, {"files": {"a.md": 4.9}})
+
+        assert sections is None
+        assert problem is not None and "not an integer" in problem
+
+    def test_a_numeric_string_is_refused(self, tmp_path: Path) -> None:
+        root = _repo(tmp_path)
+
+        sections, problem = self._floor(root, {"files": {"a.md": "3"}})
+
+        assert sections is None
+        assert problem is not None and "not an integer" in problem
+
+    def test_a_negative_count_is_refused(self, tmp_path: Path) -> None:
+        """No scan can produce one, so it is corruption or an attempt."""
+        root = _repo(tmp_path)
+
+        sections, problem = self._floor(root, {"files": {"a.md": -1}})
+
+        assert sections is None
+        assert problem is not None and "negative" in problem
+
+    def test_a_genuine_integer_still_reads_as_the_floor(self, tmp_path: Path) -> None:
+        """The control. Without it the refusals above could be unconditional."""
+        root = _repo(tmp_path)
+
+        sections, problem = self._floor(root, {"files": {"a.md": 4}})
+
+        assert problem is None
+        assert sections == {"files": {"a.md": 4}}
+
+    def test_zero_is_a_floor_and_not_an_absence(self, tmp_path: Path) -> None:
+        """Zero is falsy, so a truthiness test here would read it as missing."""
+        root = _repo(tmp_path)
+
+        sections, problem = self._floor(root, {"files": {"a.md": 0}})
+
+        assert problem is None
+        assert sections == {"files": {"a.md": 0}}

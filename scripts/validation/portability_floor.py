@@ -75,10 +75,15 @@ def _coerce_counts(section: object, name: str) -> tuple[dict[str, int] | None, s
         return None, f"section {name!r} is not a JSON object"
     counts: dict[str, int] = {}
     for key, value in section.items():
-        try:
-            counts[str(key)] = int(value)
-        except (TypeError, ValueError):
+        # `int()` is too generous to be a floor. It reads `false` as 0, which
+        # permits everything, and truncates `4.9` to 4, which lowers the bar by
+        # one without looking like a number changed. A floor may only be built
+        # from a JSON integer, so anything else is a refusal.
+        if isinstance(value, bool) or not isinstance(value, int):
             return None, f"the count for {key!r} in {name!r} is not an integer"
+        if value < 0:
+            return None, f"the count for {key!r} in {name!r} is negative"
+        counts[str(key)] = value
     return counts, None
 
 
