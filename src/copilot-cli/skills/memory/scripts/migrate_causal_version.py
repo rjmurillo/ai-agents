@@ -40,6 +40,7 @@ import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 _SCRIPT_DIR = Path(__file__).parent
 sys.path.insert(0, str(_SCRIPT_DIR))
@@ -50,7 +51,7 @@ _MIGRATION_SCRIPT = "migrate_causal_version.py"
 _CAUSAL_ORDER_VERSION = _ex.CAUSAL_ORDER_VERSION
 
 
-def _edge_set(events: list) -> set[tuple[str, str]]:
+def _edge_set(events: list[dict[str, Any]]) -> set[tuple[str, str]]:
     """Return the set of (source_id, target_id) leads_to pairs."""
     result: set[tuple[str, str]] = set()
     for evt in events:
@@ -63,7 +64,7 @@ def _edge_set(events: list) -> set[tuple[str, str]]:
     return result
 
 
-def _rebuild_edges(events: list) -> tuple[list | None, str]:
+def _rebuild_edges(events: list[dict[str, Any]]) -> tuple[list[dict[str, Any]] | None, str]:
     """Return a deep-copied, renumbered, relinked event list and a reason string.
 
     Returns (None, reason) on any failure. Returns (rebuilt, "") on success.
@@ -77,8 +78,75 @@ def _rebuild_edges(events: list) -> tuple[list | None, str]:
     return rebuilt, ""
 
 
-def _edge_count(events: list) -> int:
+def _edge_count(events: list[dict[str, Any]]) -> int:
     return sum(len(e.get("leads_to") or []) for e in events if isinstance(e, dict))
+
+
+def _apply_migration(
+    path: Path,
+    data: dict[str, Any],
+    events: list[dict[str, Any]],
+    rebuilt: list[dict[str, Any]],
+    orig_edges: set[tuple[str, str]],
+    orig_count: int,
+    rebuilt_count: int,
+    stamp_date: str,
+) -> tuple[str, str]:
+    """Write stamp-only or relink migration; return (outcome, reason)."""
+    if _edge_set(rebuilt) == orig_edges:
+        data["causal_order_version"] = _CAUSAL_ORDER_VERSION
+        data["migration_note"] = (
+            f"stamp_only by {_MIGRATION_SCRIPT} on {stamp_date}: "
+            f"v2 edge rebuild agrees with stored edges"
+        )
+        try:
+            path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        except OSError as exc:
+            return "skipped", f"write failed: {exc}"
+        return "stamp_only", f"edges_unchanged={orig_count}"
+
+    if rebuilt_count < orig_count:
+        return "skipped", (
+            f"refused: v2 rebuild would drop {orig_count - rebuilt_count} "
+            f"of {orig_count} edges"
+        )
+
+    data["events"] = rebuilt
+    data["causal_order_version"] = _CAUSAL_ORDER_VERSION
+    data["migration_note"] = (
+        f"relinked by {_MIGRATION_SCRIPT} on {stamp_date}: "
+        f"edges {orig_count} -> {rebuilt_count}"
+    )
+    try:
+        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    except OSError as exc:
+        return "skipped", f"write failed: {exc}"
+    return "relinked", f"edges {orig_count} -> {rebuilt_count}"
+
+
+def _dry_run_classify(path: Path) -> str:
+    """Classify an episode for dry-run reporting without writing."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return "skipped"
+    if not isinstance(data, dict):
+        return "skipped"
+    if data.get("causal_order_version") == _CAUSAL_ORDER_VERSION:
+        return "already_v2"
+    events = data.get("events")
+    if not isinstance(events, list) or not events:
+        return "no_events"
+    if _ex.validate_event_ids(events):
+        return "invalid_ids"
+    rebuilt, _ = _rebuild_edges(events)
+    if rebuilt is None:
+        return "skipped"
+    if _edge_set(events) == _edge_set(rebuilt):
+        return "stamp_only"
+    if _edge_count(rebuilt) >= _edge_count(events):
+        return "relinked"
+    return "skipped"
 
 
 def migrate_episode_file(path: Path, *, stamp_date: str) -> tuple[str, str]:
@@ -117,41 +185,10 @@ def migrate_episode_file(path: Path, *, stamp_date: str) -> tuple[str, str]:
         return "skipped", reason
 
     orig_edges = _edge_set(events)
-    rebuilt_edges = _edge_set(rebuilt)
     orig_count = _edge_count(events)
     rebuilt_count = _edge_count(rebuilt)
 
-    if rebuilt_edges == orig_edges:
-        # Stamp-only: edges are already v2-equivalent.
-        data["causal_order_version"] = _CAUSAL_ORDER_VERSION
-        data["migration_note"] = (
-            f"stamp_only by {_MIGRATION_SCRIPT} on {stamp_date}: "
-            f"v2 edge rebuild agrees with stored edges"
-        )
-        try:
-            path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-        except OSError as exc:
-            return "skipped", f"write failed: {exc}"
-        return "stamp_only", f"edges_unchanged={orig_count}"
-
-    if rebuilt_count < orig_count:
-        return "skipped", (
-            f"refused: v2 rebuild would drop {orig_count - rebuilt_count} "
-            f"of {orig_count} edges"
-        )
-
-    # Relink: replace events list with the rebuilt one and stamp.
-    data["events"] = rebuilt
-    data["causal_order_version"] = _CAUSAL_ORDER_VERSION
-    data["migration_note"] = (
-        f"relinked by {_MIGRATION_SCRIPT} on {stamp_date}: "
-        f"edges {orig_count} -> {rebuilt_count}"
-    )
-    try:
-        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-    except OSError as exc:
-        return "skipped", f"write failed: {exc}"
-    return "relinked", f"edges {orig_count} -> {rebuilt_count}"
+    return _apply_migration(path, data, events, rebuilt, orig_edges, orig_count, rebuilt_count, stamp_date)
 
 
 def _episode_paths(target: Path) -> list[Path]:
@@ -185,38 +222,10 @@ def run_migrate(target: Path, *, dry_run: bool = False) -> int:
 
     for path in paths:
         if dry_run:
-            # Read and classify without writing.
-            try:
-                data = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
-                counts["skipped"] += 1
-                continue
-            if not isinstance(data, dict):
-                counts["skipped"] += 1
-                continue
-            if data.get("causal_order_version") == _CAUSAL_ORDER_VERSION:
-                counts["already_v2"] += 1
-                continue
-            events = data.get("events")
-            if not isinstance(events, list) or not events:
-                counts["no_events"] += 1
-                continue
-            if _ex.validate_event_ids(events):
-                counts["invalid_ids"] += 1
-                continue
-            rebuilt, reason = _rebuild_edges(events)
-            if rebuilt is None:
-                counts["skipped"] += 1
-                continue
-            if _edge_set(events) == _edge_set(rebuilt):
-                counts["stamp_only"] += 1
-            elif _edge_count(rebuilt) >= _edge_count(events):
-                counts["relinked"] += 1
-            else:
-                counts["skipped"] += 1
+            outcome = _dry_run_classify(path)
         else:
             outcome, _reason = migrate_episode_file(path, stamp_date=stamp_date)
-            counts[outcome] = counts.get(outcome, 0) + 1
+        counts[outcome] = counts.get(outcome, 0) + 1
 
     summary = dict(counts)
     summary["total"] = len(paths)
