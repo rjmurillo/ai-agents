@@ -110,27 +110,30 @@ def parse_link_block(text: str) -> list[MemoryLink]:
     return links
 
 
-def _derive_memory_id(file_path: Path, memories_dir: Path | None) -> str:
-    """Derive a memory id from a file path.
+def memory_id_from_path(file_path: Path, memories_dir: Path | None = None) -> str:
+    """Return the canonical memory ID for a file path.
 
-    With memories_dir the id is the path relative to it, without the suffix,
-    so a memory in a subdirectory keeps its qualifier ("workflows/foo").
-    That is the id every command that loads a whole directory already uses,
-    so search and verify agree on it (issue #4010). Without memories_dir the
-    id falls back to the bare stem, preserving the single-file callers.
+    When ``memories_dir`` is provided the ID is path-qualified relative to that
+    directory (e.g. ``workflows/pr-review-batching-strategy``), which is the
+    form ``verify --memory-id`` expects.  When ``memories_dir`` is absent the
+    bare stem is returned (backward-compatible fallback for callers that do not
+    know the root directory).
+
+    This is the single source of truth for ID generation.  Both ``load_memory``
+    and ``load_memories`` delegate here so the emitter (search) and verifier
+    always agree.
     """
-    if memories_dir is None:
-        return file_path.stem
-    try:
-        relative = file_path.resolve().relative_to(memories_dir.resolve())
-    except (ValueError, OSError):
-        return file_path.stem
-    return str(relative.with_suffix(""))
+    if memories_dir is not None:
+        try:
+            return str(
+                Path(file_path).resolve().relative_to(Path(memories_dir).resolve()).with_suffix("")
+            )
+        except ValueError:
+            pass
+    return Path(file_path).stem
 
 
-def load_memory(
-    file_path: Path, memories_dir: Path | None = None
-) -> MemoryWithCitations | None:
+def load_memory(file_path: Path, memories_dir: Path | None = None) -> MemoryWithCitations | None:
     """Load a single memory file and parse its content.
 
     Supports two formats:
@@ -139,8 +142,10 @@ def load_memory(
 
     Args:
         file_path: Path to a .md memory file.
-        memories_dir: Root the memory id is derived against. None keeps the
-            bare-stem id for callers that load a file in isolation.
+        memories_dir: Root memories directory.  When provided the returned
+            ``memory_id`` is path-qualified (e.g. ``workflows/foo``) so it
+            matches the form ``verify --memory-id`` expects.  When absent the
+            bare stem is used (backward-compatible default).
 
     Returns:
         Parsed MemoryWithCitations, or None if the file cannot be parsed.
@@ -153,13 +158,11 @@ def load_memory(
     except OSError as exc:
         print(f"Warning: cannot read {file_path}: {exc}", file=sys.stderr)
         return None
-    memory_id = _derive_memory_id(file_path, memories_dir)
+    memory_id = memory_id_from_path(file_path, memories_dir)
 
-    title, created_at, updated_at, tags, confidence, content = _extract_metadata(
-        raw_text
-    )
+    title, created_at, updated_at, tags, confidence, content = _extract_metadata(raw_text)
     if title is None:
-        title = memory_id
+        title = Path(file_path).stem
 
     citations = parse_citation_block(content)
     links = parse_link_block(content)
@@ -206,8 +209,6 @@ def load_memories(memories_dir: Path) -> list[MemoryWithCitations]:
     for md_file in sorted(memories_dir.rglob("*.md")):
         if md_file.name in skip_names:
             continue
-        # memories_dir keeps the subdirectory qualifier in memory_id so
-        # save_memory writes back to the correct location (not flattened).
         memory = load_memory(md_file, memories_dir)
         if memory is not None:
             memories.append(memory)

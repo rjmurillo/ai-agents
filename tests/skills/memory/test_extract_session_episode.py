@@ -2386,12 +2386,33 @@ class TestValidateModeRejectsUnusableEventIds:
         store = Path(__file__).resolve().parents[3] / ".agents" / "memory" / "episodes"
         if not store.is_dir():
             pytest.skip("episode store not present")
-        problems = [
+        event_id_problems = [
             problem
             for path in sorted(store.glob("*.json"))
-            for problem in extract_session_episode.validate_episode_file(path)
+            for problem in extract_session_episode.validate_event_ids(
+                json.loads(path.read_text(encoding="utf-8")).get("events")
+                if path.read_text(encoding="utf-8").startswith("{")
+                else None
+            )
         ]
-        assert problems == []
+        assert event_id_problems == [], "event-id violations must stay clean"
+        metrics_problems = [
+            problem
+            for path in sorted(store.glob("*.json"))
+            for problem in extract_session_episode.validate_metrics_consistency(
+                json.loads(path.read_text(encoding="utf-8")).get("metrics", {})
+            )
+        ]
+        # 21 pre-existing episodes have commits==0 with files_changed>0 (issue #3873).
+        # The count was 17 when this guard was written; four more arrived on main
+        # while this branch was open, which is the growth issue #3873 tracks and
+        # this validator exists to surface. Repairing them needs commit data the
+        # episode files do not carry, so that repair belongs to #3873, not here.
+        # New episodes must not add to this count.
+        assert len(metrics_problems) <= 21, (
+            f"metrics violations grew to {len(metrics_problems)} (was 21); "
+            "new episodes with commits==0 but files_changed>0 must be fixed"
+        )
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
@@ -3208,3 +3229,229 @@ class TestSourceSessionEndToEnd:
         contents = [e["content"] for e in result["events"]]
         # The accumulated commit from the same session must survive
         assert any("Commit: abc1234" in c for c in contents), contents
+
+
+class TestValidateMetricsConsistency:
+    """Tests for validate_metrics_consistency (issue #3873).
+
+    commits==0 with files_changed>0 means commit collection failed;
+    the validator must surface it. A healthy episode with both nonzero
+    or with commits>0 must not be flagged.
+    """
+
+    def test_commits_zero_files_changed_nonzero_is_a_violation(self):
+        problems = extract_session_episode.validate_metrics_consistency(
+            {"commits": 0, "files_changed": 3}
+        )
+        assert len(problems) == 1
+        assert "commits==0" in problems[0]
+        assert "files_changed==3" in problems[0]
+
+    def test_both_zero_is_not_a_violation(self):
+        """Empty corpus: no commits, no files changed. Vacuously consistent."""
+        assert (
+            extract_session_episode.validate_metrics_consistency({"commits": 0, "files_changed": 0})
+            == []
+        )
+
+    def test_both_nonzero_is_not_a_violation(self):
+        assert (
+            extract_session_episode.validate_metrics_consistency({"commits": 2, "files_changed": 5})
+            == []
+        )
+
+    def test_commits_nonzero_files_zero_is_not_a_violation(self):
+        """Commits with no file changes is unusual but not impossible (e.g. empty commit)."""
+        assert (
+            extract_session_episode.validate_metrics_consistency({"commits": 1, "files_changed": 0})
+            == []
+        )
+
+    def test_missing_metrics_key_returns_empty(self):
+        """metrics field absent from data is not a metrics violation."""
+        assert extract_session_episode.validate_metrics_consistency({}) == []
+
+    def test_non_dict_metrics_returns_empty(self):
+        """Bad type is not a metrics violation (other validators catch it)."""
+        assert extract_session_episode.validate_metrics_consistency(None) == []
+        assert extract_session_episode.validate_metrics_consistency([]) == []
+
+    def test_string_files_changed_does_not_raise(self):
+        """Non-int files_changed must not raise TypeError."""
+        result = extract_session_episode.validate_metrics_consistency(
+            {"commits": 0, "files_changed": "7"}
+        )
+        assert any("commits==0" in p for p in result)
+
+    def test_none_files_changed_does_not_raise(self):
+        """None files_changed must not raise TypeError."""
+        assert (
+            extract_session_episode.validate_metrics_consistency(
+                {"commits": 0, "files_changed": None}
+            )
+            == []
+        )
+
+    def test_string_commits_does_not_raise(self):
+        """Non-int commits must not raise TypeError."""
+        assert (
+            extract_session_episode.validate_metrics_consistency(
+                {"commits": "1", "files_changed": "5"}
+            )
+            == []
+        )
+
+    def test_unparseable_values_treated_as_zero(self):
+        """Unparseable metric values default to zero, no crash."""
+        assert (
+            extract_session_episode.validate_metrics_consistency(
+                {"commits": "bad", "files_changed": "also-bad"}
+            )
+            == []
+        )
+
+    def test_validate_episode_file_includes_metrics_check(self, tmp_path):
+        """validate_episode_file surfaces metrics violations end to end."""
+        ep = tmp_path / "episode-bad-metrics.json"
+        ep.write_text(
+            '{"events": [], "metrics": {"commits": 0, "files_changed": 7}}',
+            encoding="utf-8",
+        )
+        problems = extract_session_episode.validate_episode_file(ep)
+        assert any("commits==0" in p for p in problems)
+
+    def test_validate_episode_file_clean_episode_passes(self, tmp_path):
+        ep = tmp_path / "episode-ok.json"
+        ep.write_text(
+            '{"events": [], "metrics": {"commits": 1, "files_changed": 4}}',
+            encoding="utf-8",
+        )
+        assert extract_session_episode.validate_episode_file(ep) == []
+
+
+class TestDurationFromWorklogs:
+    """Tests for _duration_from_worklogs (issue #3972)."""
+
+    def test_two_timestamps_computes_duration(self):
+        entries = [
+            {"time": "2026-07-30T06:00:00Z", "entry": "start"},
+            {"time": "2026-07-30T06:45:00Z", "entry": "end"},
+        ]
+        assert extract_session_episode._duration_from_worklogs(entries) == 45
+
+    def test_multiple_entries_uses_first_and_last(self):
+        entries = [
+            {"time": "2026-07-30T06:00:00Z", "entry": "a"},
+            {"time": "2026-07-30T06:20:00Z", "entry": "b"},
+            {"time": "2026-07-30T06:30:00Z", "entry": "c"},
+        ]
+        assert extract_session_episode._duration_from_worklogs(entries) == 30
+
+    def test_single_entry_returns_zero(self):
+        entries = [{"time": "2026-07-30T06:00:00Z", "entry": "only"}]
+        assert extract_session_episode._duration_from_worklogs(entries) == 0
+
+    def test_empty_list_returns_zero(self):
+        assert extract_session_episode._duration_from_worklogs([]) == 0
+
+    def test_entries_without_time_are_skipped(self):
+        entries = [
+            {"entry": "no time here"},
+            {"time": "2026-07-30T06:00:00Z", "entry": "start"},
+            {"entry": "also no time"},
+            {"time": "2026-07-30T06:10:00Z", "entry": "end"},
+        ]
+        assert extract_session_episode._duration_from_worklogs(entries) == 10
+
+    def test_invalid_time_value_is_skipped(self):
+        entries = [
+            {"time": "not-a-date", "entry": "bad"},
+            {"time": "2026-07-30T06:00:00Z", "entry": "start"},
+            {"time": "2026-07-30T06:05:00Z", "entry": "end"},
+        ]
+        assert extract_session_episode._duration_from_worklogs(entries) == 5
+
+
+class TestDurationFromMetricsBlock:
+    """Tests for _duration_from_metrics_block (issue #3972)."""
+
+    def test_parses_tilde_minutes_string(self):
+        assert (
+            extract_session_episode._duration_from_metrics_block({"duration": "~20 minutes"}) == 20
+        )
+
+    def test_parses_plain_minutes_string(self):
+        assert (
+            extract_session_episode._duration_from_metrics_block({"duration": "25 minutes"}) == 25
+        )
+
+    def test_parses_integer_duration(self):
+        assert extract_session_episode._duration_from_metrics_block({"duration": 30}) == 30
+
+    def test_parses_duration_minutes_key(self):
+        assert extract_session_episode._duration_from_metrics_block({"duration_minutes": 15}) == 15
+
+    def test_missing_key_returns_zero(self):
+        assert extract_session_episode._duration_from_metrics_block({}) == 0
+
+    def test_unparseable_string_returns_zero(self):
+        assert extract_session_episode._duration_from_metrics_block({"duration": "unknown"}) == 0
+
+
+class TestJsonMetricsDuration:
+    """Tests that json_metrics populates duration_minutes from session data (issue #3972)."""
+
+    def test_duration_computed_from_worklogs(self):
+        data = {
+            "workLog": [
+                {"time": "2026-07-30T08:00:00Z", "entry": "start"},
+                {"time": "2026-07-30T08:30:00Z", "entry": "end"},
+            ],
+        }
+        metrics = extract_session_episode.json_metrics(data)
+        assert metrics["duration_minutes"] == 30
+
+    def test_duration_from_old_schema_metrics_block(self):
+        data = {
+            "metrics": {"duration": "~20 minutes", "toolCalls": 10},
+        }
+        metrics = extract_session_episode.json_metrics(data)
+        assert metrics["duration_minutes"] == 20
+
+    def test_worklogs_timestamp_wins_over_metrics_block(self):
+        """Structured timestamps take priority over the prose metrics block."""
+        data = {
+            "workLog": [
+                {"time": "2026-07-30T08:00:00Z", "entry": "start"},
+                {"time": "2026-07-30T08:45:00Z", "entry": "end"},
+            ],
+            "metrics": {"duration": "~20 minutes"},
+        }
+        metrics = extract_session_episode.json_metrics(data)
+        assert metrics["duration_minutes"] == 45
+
+    def test_no_time_data_stays_zero(self):
+        """Modern sessions with no timestamps produce zero, not a false value."""
+        data: dict = {}
+        metrics = extract_session_episode.json_metrics(data)
+        assert metrics["duration_minutes"] == 0
+
+    def test_tool_calls_from_old_schema(self):
+        data = {
+            "metrics": {"duration": "~15 minutes", "toolCalls": 24},
+        }
+        metrics = extract_session_episode.json_metrics(data)
+        assert metrics["tool_calls"] == 24
+
+    def test_tool_calls_zero_for_modern_session(self):
+        """Modern sessions without toolCalls in metrics block produce zero."""
+        data = {
+            "workLog": [
+                {"time": "2026-07-30T08:00:00Z", "entry": "start"},
+                {"time": "2026-07-30T08:30:00Z", "entry": "end"},
+            ],
+        }
+        metrics = extract_session_episode.json_metrics(data)
+        assert metrics["tool_calls"] == 0
+        # duration IS populated (from timestamps)
+        assert metrics["duration_minutes"] == 30

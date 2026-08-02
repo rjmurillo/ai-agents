@@ -71,7 +71,7 @@ def search_memories(
     if paths is None:
         return []
 
-    return rank_results(paths, effective_root, max_results, memories_dir)
+    return rank_results(paths, effective_root, max_results, memories_dir=memories_dir)
 
 
 def rank_results(
@@ -86,8 +86,8 @@ def rank_results(
         paths: File paths matching the search query.
         repo_root: Repository root for citation verification.
         max_results: Maximum results to return.
-        memories_dir: Memory root the emitted memory_id is derived against.
-            Passing it keeps the id in the shape `verify --memory-id` accepts.
+        memories_dir: Root memories directory.  When provided, each result's
+            ``memory_id`` is path-qualified so it matches ``verify --memory-id``.
 
     Returns:
         Sorted list of SearchResult by confidence descending.

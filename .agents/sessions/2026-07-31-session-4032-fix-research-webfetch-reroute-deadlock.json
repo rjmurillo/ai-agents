@@ -1,0 +1,151 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4032,
+    "date": "2026-07-31",
+    "branch": "fix/agent-webfetch-reroute-deadlock",
+    "startingCommit": "bc7bd6c82",
+    "objective": "Fix /research WebFetch reroute deadlock by widening the command tool contract and adding a control-plane carve-out"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions returned the Serena Instructions Manual for this worktree"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read the Serena Instructions Manual returned by mcp__serena__initial_instructions"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md; it is read-only per ADR-014 and directs session context to .agents/sessions/"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github/scripts/pr/; new_pr.py is the PR creation entry point"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md gates and boundaries plus .claude/rules/universal.md"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md retrieval-led reasoning section"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__list_memories returned the full memory index; no memory covers /research allowed-tools"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/agent-webfetch-reroute-deadlock"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/agent-webfetch-reroute-deadlock"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short showed only the two plugin.json bumps and the new session log"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "bc7bd6c82"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ruff, pytest, markdownlint-cli2 and validate_session_json.py all run and recorded below"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md unchanged; git diff main...HEAD --name-only does not list it"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__list_memories was read at session start and no memory covers the /research allowed-tools contract. Nothing net-new to persist: the contract now lives where it binds, in .claude/commands/research.md frontmatter and in tests/commands/test_research_command_contract.py, so a Serena entry would duplicate a tested fact"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 over the 6 changed markdown files reported 'Summary: 0 issues in 0 files'; the config excludes .claude/skills and src/copilot-cli/skills, so 1 file was actually linted"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "6 commits on fix/agent-webfetch-reroute-deadlock, head 90c6dafca. endingCommit is recorded here and the session log lands in a follow-up commit rather than an amend, which would orphan the SHA (issue #3618)"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "1013 passed in 36.26s from 'uv run pytest tests/validation/test_git_hook_policy_causal_restore.py tests/validation/test_skillforge_frontmatter_exemption.py tests/validation/test_check_shipped_skill_routes_markdown.py tests/build_scripts/test_generate_skills.py tests/commands/test_research_command_contract.py tests/test_lefthook_integration.py -q'; ruff clean on the 3 changed Python files"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue 4032 closes on merge via the Fixes trailer in the PR body"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Widened .claude/commands/research.md allowed-tools so /research keeps a source path and can write its documented outputs when WebFetch is denied",
+      "result": "allowed-tools now grants Read, Write, Glob, Grep, and Bash scoped to the github skill script directory"
+    },
+    {
+      "action": "Added two Fallback Rules to .claude/commands/research.md: route github.com through the github skill scripts, and treat a harness permission denial as a capability signal",
+      "result": "The command no longer halts when a PreToolUse hook denies WebFetch"
+    },
+    {
+      "action": "Added a control-plane carve-out to .claude/skills/research-and-incorporate/SKILL.md and its references/workflow.md",
+      "result": "A hook denial reason is a routing fact, not ingested content the agent must refuse; the carve-out grants no authority to change task, destination, or scope"
+    },
+    {
+      "action": "Replaced the raw gh issue create block in references/workflow.md Phase 5 with the github skill new_issue.py script and a --body-file write",
+      "result": "Phase 5 is reachable under the new allowlist and carries no shell heredoc quoting"
+    },
+    {
+      "action": "Added tests/commands/test_research_command_contract.py covering both the Claude source and the Copilot mirror",
+      "result": "Positive, negative, and edge cases pin the tool contract so the two trees cannot drift"
+    },
+    {
+      "action": "Derived the SkillForge mirror skip in scripts/validation/git_hook_policy.py from .claude/commands instead of a hardcoded name list, and removed the duplicate list from lefthook.yml",
+      "result": "The generated research mirror is exempt without a second copy of the name list to drift"
+    },
+    {
+      "action": "Bumped .claude/.claude-plugin/plugin.json and src/copilot-cli/.claude-plugin/plugin.json to 0.6.5477",
+      "result": "Parity gate holds; both manifests carry the same strictly greater version"
+    }
+  ],
+  "endingCommit": "90c6dafca99864020ab7bb4a19b01162ae3c2fcd",
+  "nextSteps": [
+    "Upstream: context-mode's PreToolUse hook names tools the caller may not hold. File that at the context-mode project, not here.",
+    "Watch whether the Bash(python3:*/skills/github/scripts/*) prefix pattern draws a security review thread; push-pr.md uses a per-script form."
+  ]
+}

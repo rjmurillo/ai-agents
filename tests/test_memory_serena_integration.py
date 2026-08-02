@@ -16,6 +16,7 @@ from memory_enhancement.models import (
 from memory_enhancement.serena_integration import (
     load_memories,
     load_memory,
+    memory_id_from_path,
     parse_citation_block,
     parse_link_block,
     save_memory,
@@ -232,18 +233,14 @@ class TestSaveMemory:
     @pytest.mark.unit
     def test_save_creates_directory(self, tmp_path):
         target_dir = tmp_path / "new" / "dir"
-        memory = MemoryWithCitations(
-            memory_id="nested", title="Nested", content="Body"
-        )
+        memory = MemoryWithCitations(memory_id="nested", title="Nested", content="Body")
         path = save_memory(memory, target_dir)
         assert path.is_file()
 
     @pytest.mark.unit
     def test_save_path_traversal_blocked(self, tmp_path):
         """CWE-22: memory_id with traversal path must be rejected."""
-        memory = MemoryWithCitations(
-            memory_id="../escape", title="Escape", content="Body"
-        )
+        memory = MemoryWithCitations(memory_id="../escape", title="Escape", content="Body")
         with pytest.raises(ValueError, match="traversal"):
             save_memory(memory, tmp_path)
 
@@ -292,8 +289,7 @@ class TestDateFallback:
     def test_missing_created_at_uses_updated_at(self, tmp_path):
         md = tmp_path / "no-created.md"
         md.write_text(
-            "---\ntitle: NoCreated\n"
-            "updated_at: '2026-06-15T12:00:00+00:00'\n---\nBody.\n"
+            "---\ntitle: NoCreated\nupdated_at: '2026-06-15T12:00:00+00:00'\n---\nBody.\n"
         )
         result = load_memory(md)
         assert result is not None
@@ -304,8 +300,7 @@ class TestDateFallback:
     def test_missing_updated_at_uses_created_at(self, tmp_path):
         md = tmp_path / "no-updated.md"
         md.write_text(
-            "---\ntitle: NoUpdated\n"
-            "created_at: '2026-03-10T08:00:00+00:00'\n---\nBody.\n"
+            "---\ntitle: NoUpdated\ncreated_at: '2026-03-10T08:00:00+00:00'\n---\nBody.\n"
         )
         result = load_memory(md)
         assert result is not None
@@ -313,41 +308,149 @@ class TestDateFallback:
         assert result.updated_at.day == 10
 
 
-class TestDeriveMemoryId:
-    """load_memory id derivation (issue #4010)."""
+class TestMemoryIdFromPath:
+    """Unit tests for the canonical memory ID function."""
 
     @pytest.mark.unit
-    def test_subdirectory_id_is_relative_to_memories_dir(self, tmp_path):
-        sub = tmp_path / "workflows"
-        sub.mkdir()
-        md = sub / "target.md"
-        md.write_text("# Target (2026-01-01)\n\nBody.\n")
-
-        result = load_memory(md, tmp_path)
-
-        assert result is not None
-        assert result.memory_id == "workflows/target"
+    def test_root_level_with_memories_dir(self, tmp_path):
+        md = tmp_path / "my-memory.md"
+        md.write_text("# Test\n")
+        assert memory_id_from_path(md, tmp_path) == "my-memory"
 
     @pytest.mark.unit
-    def test_without_memories_dir_id_stays_bare_stem(self, tmp_path):
+    def test_subdir_with_memories_dir(self, tmp_path):
         sub = tmp_path / "workflows"
         sub.mkdir()
-        md = sub / "target.md"
-        md.write_text("# Target (2026-01-01)\n\nBody.\n")
+        md = sub / "pr-review.md"
+        md.write_text("# PR Review\n")
+        assert memory_id_from_path(md, tmp_path) == "workflows/pr-review"
 
-        result = load_memory(md)
+    @pytest.mark.unit
+    def test_deep_subdir_with_memories_dir(self, tmp_path):
+        deep = tmp_path / "a" / "b"
+        deep.mkdir(parents=True)
+        md = deep / "nested.md"
+        md.write_text("# Nested\n")
+        assert memory_id_from_path(md, tmp_path) == "a/b/nested"
 
-        assert result is not None
-        assert result.memory_id == "target"
+    @pytest.mark.unit
+    def test_without_memories_dir_returns_bare_stem(self, tmp_path):
+        md = tmp_path / "sub" / "my-memory.md"
+        md.parent.mkdir(parents=True)
+        md.write_text("# Test\n")
+        assert memory_id_from_path(md) == "my-memory"
 
     @pytest.mark.unit
     def test_file_outside_memories_dir_falls_back_to_stem(self, tmp_path):
-        elsewhere = tmp_path / "elsewhere"
-        elsewhere.mkdir()
-        md = tmp_path / "stray.md"
-        md.write_text("# Stray (2026-01-01)\n\nBody.\n")
+        other = tmp_path / "other"
+        other.mkdir()
+        md = other / "outsider.md"
+        md.write_text("# Test\n")
+        mem_dir = tmp_path / "memories"
+        mem_dir.mkdir()
+        assert memory_id_from_path(md, mem_dir) == "outsider"
 
-        result = load_memory(md, elsewhere)
+    @pytest.mark.unit
+    def test_none_memories_dir_returns_bare_stem(self, tmp_path):
+        md = tmp_path / "bare.md"
+        md.write_text("# Test\n")
+        assert memory_id_from_path(md, None) == "bare"
 
+
+class TestLoadMemoryWithMemoriesDir:
+    """Tests for load_memory() with the memories_dir parameter."""
+
+    @pytest.mark.unit
+    def test_root_level_bare_stem_without_memories_dir(self, tmp_path):
+        md = tmp_path / "root-mem.md"
+        md.write_text("# Root Memory (2026-01-01)\n\nContent.\n")
+        result = load_memory(md)
         assert result is not None
-        assert result.memory_id == "stray"
+        assert result.memory_id == "root-mem"
+
+    @pytest.mark.unit
+    def test_root_level_path_qualified_with_memories_dir(self, tmp_path):
+        md = tmp_path / "root-mem.md"
+        md.write_text("# Root Memory (2026-01-01)\n\nContent.\n")
+        result = load_memory(md, tmp_path)
+        assert result is not None
+        assert result.memory_id == "root-mem"
+
+    @pytest.mark.unit
+    def test_subdir_path_qualified_with_memories_dir(self, tmp_path):
+        sub = tmp_path / "adr"
+        sub.mkdir()
+        md = sub / "adr-001.md"
+        md.write_text("# ADR 001 (2026-01-01)\n\nContent.\n")
+        result = load_memory(md, tmp_path)
+        assert result is not None
+        assert result.memory_id == "adr/adr-001"
+
+    @pytest.mark.unit
+    def test_subdir_bare_stem_without_memories_dir(self, tmp_path):
+        sub = tmp_path / "adr"
+        sub.mkdir()
+        md = sub / "adr-001.md"
+        md.write_text("# ADR 001 (2026-01-01)\n\nContent.\n")
+        result = load_memory(md)
+        assert result is not None
+        assert result.memory_id == "adr-001"
+
+    @pytest.mark.unit
+    def test_no_title_fallback_uses_bare_stem_not_path(self, tmp_path):
+        sub = tmp_path / "sub"
+        sub.mkdir()
+        md = sub / "untitled.md"
+        md.write_text("Just content, no header.\n")
+        result = load_memory(md, tmp_path)
+        assert result is not None
+        assert result.memory_id == "sub/untitled"
+        assert result.title == "untitled"
+
+
+class TestLoadMemoriesPathQualified:
+    """Tests for load_memories() producing path-qualified IDs."""
+
+    @pytest.mark.unit
+    def test_root_level_memory_id_is_bare_stem(self, tmp_path):
+        (tmp_path / "root.md").write_text("# Root (2026-01-01)\n\nContent.\n")
+        result = load_memories(tmp_path)
+        assert len(result) == 1
+        assert result[0].memory_id == "root"
+
+    @pytest.mark.unit
+    def test_subdir_memory_id_is_path_qualified(self, tmp_path):
+        sub = tmp_path / "category"
+        sub.mkdir()
+        (sub / "entry.md").write_text("# Entry (2026-01-01)\n\nContent.\n")
+        result = load_memories(tmp_path)
+        assert len(result) == 1
+        assert result[0].memory_id == "category/entry"
+
+    @pytest.mark.unit
+    def test_deep_subdir_memory_id_includes_all_segments(self, tmp_path):
+        deep = tmp_path / "a" / "b"
+        deep.mkdir(parents=True)
+        (deep / "c.md").write_text("# C (2026-01-01)\n\nContent.\n")
+        result = load_memories(tmp_path)
+        assert len(result) == 1
+        assert result[0].memory_id == "a/b/c"
+
+    @pytest.mark.unit
+    def test_ids_are_stable_across_calls(self, tmp_path):
+        sub = tmp_path / "sub"
+        sub.mkdir()
+        (sub / "mem.md").write_text("# Mem (2026-01-01)\n\nContent.\n")
+        r1 = load_memories(tmp_path)
+        r2 = load_memories(tmp_path)
+        assert r1[0].memory_id == r2[0].memory_id
+
+    @pytest.mark.unit
+    def test_title_fallback_uses_stem_not_qualified_id(self, tmp_path):
+        sub = tmp_path / "cat"
+        sub.mkdir()
+        (sub / "no-header.md").write_text("Just content.\n")
+        result = load_memories(tmp_path)
+        assert len(result) == 1
+        assert result[0].memory_id == "cat/no-header"
+        assert result[0].title == "no-header"

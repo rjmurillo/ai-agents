@@ -83,9 +83,7 @@ class TestSearchWithRipgrep:
     @patch("memory_enhancement.search.shutil.which", return_value="/usr/bin/rg")
     def test_rg_returns_paths(self, mock_which, mock_run, tmp_path: Path):
         f1 = _write_memory(tmp_path, "one")
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout=f"{f1}\n"
-        )
+        mock_run.return_value = MagicMock(returncode=0, stdout=f"{f1}\n")
         result = _search_with_ripgrep("test", tmp_path)
         assert result == [f1]
 
@@ -248,43 +246,88 @@ class TestDetermineCitationStatus:
         assert _determine_citation_status(results) == "broken"
 
 
-class TestMemoryIdShape:
-    """Emitted memory_id must match what verify --memory-id accepts (issue #4010)."""
+class TestSearchPathQualifiedIds:
+    """Bidirectional test: search emits IDs that verify accepts."""
 
     @pytest.mark.unit
-    def test_subdirectory_memory_id_is_path_qualified(self, tmp_path):
-        sub = tmp_path / "workflows"
+    @patch("memory_enhancement.search._search_with_ripgrep")
+    def test_subdir_memory_id_matches_load_memories(self, mock_rg, tmp_path: Path):
+        """IDs from search must appear in load_memories output (bidirectional)."""
+        from memory_enhancement.serena_integration import load_memories
+
+        sub = tmp_path / "category"
         sub.mkdir()
-        _write_memory(sub, "batching", "citation batching notes")
+        md = sub / "my-entry.md"
+        md.write_text("# My Entry (2026-01-01)\n\nrelevant content here\n")
+        mock_rg.return_value = [md]
 
-        results = search_memories("batching", tmp_path, repo_root=tmp_path)
+        results = search_memories("relevant", tmp_path, repo_root=tmp_path)
+        assert len(results) == 1
+        search_id = results[0].memory_id
 
-        assert [r.memory_id for r in results] == ["workflows/batching"]
-
-    @pytest.mark.unit
-    def test_root_memory_id_stays_bare(self, tmp_path):
-        _write_memory(tmp_path, "toplevel", "citation batching notes")
-
-        results = search_memories("batching", tmp_path, repo_root=tmp_path)
-
-        assert [r.memory_id for r in results] == ["toplevel"]
-
-    @pytest.mark.unit
-    def test_rank_results_without_memories_dir_falls_back_to_stem(self, tmp_path):
-        outside = tmp_path / "outside"
-        outside.mkdir()
-        path = _write_memory(outside, "loose")
-
-        results = rank_results([path], tmp_path)
-
-        assert [r.memory_id for r in results] == ["loose"]
+        all_memories = load_memories(tmp_path)
+        all_ids = {m.memory_id for m in all_memories}
+        assert search_id in all_ids, (
+            f"search emitted id={search_id!r} but load_memories produced {all_ids}"
+        )
 
     @pytest.mark.unit
-    def test_rank_results_with_unrelated_memories_dir_falls_back_to_stem(self, tmp_path):
-        elsewhere = tmp_path / "elsewhere"
-        elsewhere.mkdir()
-        path = _write_memory(tmp_path, "orphan")
+    @patch("memory_enhancement.search._search_with_ripgrep")
+    def test_root_level_memory_id_matches_load_memories(self, mock_rg, tmp_path: Path):
+        """Root-level search IDs must match load_memories (no path prefix)."""
+        from memory_enhancement.serena_integration import load_memories
 
-        results = rank_results([path], tmp_path, memories_dir=elsewhere)
+        md = tmp_path / "root-mem.md"
+        md.write_text("# Root Mem (2026-01-01)\n\ntest content\n")
+        mock_rg.return_value = [md]
 
-        assert [r.memory_id for r in results] == ["orphan"]
+        results = search_memories("test", tmp_path, repo_root=tmp_path)
+        assert len(results) == 1
+        search_id = results[0].memory_id
+
+        all_memories = load_memories(tmp_path)
+        all_ids = {m.memory_id for m in all_memories}
+        assert search_id in all_ids
+
+    @pytest.mark.unit
+    @patch("memory_enhancement.search._search_with_ripgrep")
+    def test_absent_id_still_rejected(self, mock_rg, tmp_path: Path):
+        """An ID not in load_memories must not match any real memory."""
+        from memory_enhancement.serena_integration import load_memories
+
+        md = tmp_path / "actual.md"
+        md.write_text("# Actual (2026-01-01)\n\nsome content\n")
+        mock_rg.return_value = [md]
+
+        all_memories = load_memories(tmp_path)
+        all_ids = {m.memory_id for m in all_memories}
+
+        fabricated_id = "nonexistent/ghost-memory"
+        assert fabricated_id not in all_ids, (
+            "Negative control failed: fabricated id should not match real memories"
+        )
+
+    @pytest.mark.unit
+    @patch("memory_enhancement.search._search_with_ripgrep")
+    def test_multiple_subdir_memories_all_ids_accepted(self, mock_rg, tmp_path: Path):
+        """All search result IDs must be accepted (no ID left behind)."""
+        from memory_enhancement.serena_integration import load_memories
+
+        paths = []
+        for cat in ("alpha", "beta"):
+            sub = tmp_path / cat
+            sub.mkdir()
+            md = sub / f"{cat}-mem.md"
+            md.write_text(f"# {cat} (2026-01-01)\n\nquery content\n")
+            paths.append(md)
+        mock_rg.return_value = paths
+
+        results = search_memories("query", tmp_path, repo_root=tmp_path)
+        assert len(results) == 2
+
+        all_memories = load_memories(tmp_path)
+        all_ids = {m.memory_id for m in all_memories}
+        for r in results:
+            assert r.memory_id in all_ids, (
+                f"search emitted {r.memory_id!r} but verify would reject it"
+            )
