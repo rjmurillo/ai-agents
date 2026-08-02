@@ -80,6 +80,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Planning Artifacts',
     'Agent Drift Detection',
     'Install Parity (agents and rules)',
+    'Agent Content Parity (.claude/agents vs src/claude)',
     'Plugin Version Bump',
     'Hook Anchoring (Claude + Copilot)',
     'Copilot Agent Frontmatter',
