@@ -43,7 +43,9 @@
       "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "test",
       "content": "Verification: uv run pytest tests/ -x -q completed with 14336 passed, 21 skipped, and 45 xfailed. Focused Ruff, mypy, Python 3.10 syntax validation, actionlint, gh act validation, security scan, and git diff --check passed. Independent final review found no defects.",
-      "caused_by": [],
+      "caused_by": [
+        "e006"
+      ],
       "leads_to": []
     },
     {
@@ -52,7 +54,9 @@
       "type": "commit",
       "content": "Commit: 304cb593f",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e005"
+      ]
     }
   ],
   "metrics": {
@@ -63,5 +67,7 @@
     "commits": 1,
     "files_changed": 2
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 1"
 }
