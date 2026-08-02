@@ -67,7 +67,9 @@
       "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "test",
       "content": "pytest 871 passed",
-      "caused_by": [],
+      "caused_by": [
+        "e025"
+      ],
       "leads_to": []
     },
     {
@@ -91,7 +93,9 @@
       "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "test",
       "content": "pytest 18 passed on the two registration suites; build_all --check drift clears once vendored lib is committed",
-      "caused_by": [],
+      "caused_by": [
+        "e025"
+      ],
       "leads_to": []
     },
     {
@@ -107,7 +111,9 @@
       "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "test",
       "content": "pytest: 78 passed (targeted suites); RUN_CLI_E2E smoke 16 passed 1 skipped; ruff clean",
-      "caused_by": [],
+      "caused_by": [
+        "e025"
+      ],
       "leads_to": []
     },
     {
@@ -123,7 +129,9 @@
       "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "test",
       "content": "pytest 16 passed 1 skipped on smoke; 78 passed targeted",
-      "caused_by": [],
+      "caused_by": [
+        "e025"
+      ],
       "leads_to": []
     },
     {
@@ -139,7 +147,9 @@
       "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "error",
       "content": "Rebase onto merged main surfaced a strategy conflict: the merged 3076 squash contains post-fork remote work (narrow case-insensitive host matchers per Bash guard giving 0-spawn common case, plus a generator transaction/rollback module with 1115 new test lines). The mechanical rebase resolutions clobbered that work; 24 generator tests fail. Branch parked unpushed; pre-rebase state preserved as perf/claude-hook-dispatch-prerebase; PR 3105 open but branch not pushed.    git diff 987e35fd..8c0d7287 shows 2350-line generator delta; pytest 24 failed on tests/build_scripts/test_generate_hooks.py",
-      "caused_by": [],
+      "caused_by": [
+        "e025"
+      ],
       "leads_to": []
     },
     {
@@ -155,7 +165,9 @@
       "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "test",
       "content": "pytest 33 passed on tests/hooks/test_claude_hook_dispatch.py; invoke_dispatch_claude.py --group stop exit 0",
-      "caused_by": [],
+      "caused_by": [
+        "e025"
+      ],
       "leads_to": []
     },
     {
@@ -171,7 +183,9 @@
       "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "test",
       "content": "pytest 2528 passed 1 skipped across hooks+build_scripts; ruff and mypy clean; copilot regen delta = matcher union + 2 pruned shims + write-edit ordering",
-      "caused_by": [],
+      "caused_by": [
+        "e025"
+      ],
       "leads_to": []
     },
     {
@@ -187,7 +201,9 @@
       "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "test",
       "content": "pytest 139 passed on guard+dispatch suites; mypy clean",
-      "caused_by": [],
+      "caused_by": [
+        "e025"
+      ],
       "leads_to": []
     },
     {
@@ -204,7 +220,16 @@
       "type": "commit",
       "content": "Commit: 62dff4b1",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e008",
+        "e011",
+        "e013",
+        "e015",
+        "e017",
+        "e019",
+        "e021",
+        "e023"
+      ]
     }
   ],
   "metrics": {
@@ -215,5 +240,7 @@
     "commits": 5,
     "files_changed": 17
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 8"
 }

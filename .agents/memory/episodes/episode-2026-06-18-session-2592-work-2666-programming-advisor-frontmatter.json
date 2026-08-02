@@ -59,7 +59,10 @@
       "timestamp": "2026-06-18T00:00:00+00:00",
       "type": "test",
       "content": "Ran pre_pr.py   All validations passed (25 passed, 0 failed, 4 skipped).",
-      "caused_by": [],
+      "caused_by": [
+        "e008",
+        "e009"
+      ],
       "leads_to": []
     },
     {
@@ -68,7 +71,9 @@
       "type": "commit",
       "content": "Commit: 435ab3bb",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e009",
@@ -76,7 +81,9 @@
       "type": "commit",
       "content": "Commit: 7c1090a48",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     }
   ],
   "metrics": {
@@ -87,5 +94,7 @@
     "commits": 2,
     "files_changed": 4
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 2"
 }

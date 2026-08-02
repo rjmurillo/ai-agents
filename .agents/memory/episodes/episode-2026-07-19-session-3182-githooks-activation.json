@@ -27,7 +27,18 @@
       "timestamp": "2026-07-19T00:00:00+00:00",
       "type": "test",
       "content": "Registered the shim in both SessionStart dispatch groups and regenerated the Copilot tree      The issue's written plan (hand-edit .claude/settings.json + .claude/hooks/hooks.json) is stale: post-#3075, SessionStart hooks register as shims in .claude/hooks/dispatch_groups.json and settings.json holds only the per-group dispatcher call. Added the activation shim to both sessionstart-1-session_initialization_enforcer (source) and plugin-sessionstart-1-session_initialization_enforcer (plugin surface; REQ-2 makes it a strict no-op in consumer repos). Ran build_all.py: regenerated src/copilot-cli/hooks/SessionStart/_manifest.json, src/copilot-cli/hooks/hooks.json, and the generated hook copy. dispatch/parity/generation suites stayed green (306 passed).",
-      "caused_by": [],
+      "caused_by": [
+        "e005",
+        "e006",
+        "e009",
+        "e011",
+        "e013",
+        "e015",
+        "e017",
+        "e019",
+        "e021",
+        "e023"
+      ],
       "leads_to": []
     },
     {
@@ -44,7 +55,10 @@
       "type": "commit",
       "content": "Commit: 4774bc78",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e003",
+        "e008"
+      ]
     },
     {
       "id": "e006",
@@ -52,7 +66,10 @@
       "type": "commit",
       "content": "Commit: 0e5a5432",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e003",
+        "e008"
+      ]
     },
     {
       "id": "e007",
@@ -67,7 +84,18 @@
       "timestamp": "2026-07-19T00:00:00+00:00",
       "type": "test",
       "content": "Fixed PR #3244 bot review findings: RCE vector, non-deterministic root, Windows decode, semgrep      Added _is_self_repository trust gate so the shipped plugin hook never executes a consumer repo relative scripts/install_git_hooks.py (CodeRabbit L83 RCE Major). Rewrote project_directory to walk up to the git top level via git rev-parse --show-toplevel with fail-open fallback (Copilot L58 determinism). Replaced text=True with encoding=utf-8, errors=replace on both subprocess.run calls (Gemini/CodeRabbit L101 Windows UnicodeDecodeError). Added a scoped nosemgrep with a mini-ADR for the false-positive tainted-env-args (list-form argv, no shell, installer is the repos own tracked file). Regenerated the copilot mirror (build_all --check clean). Tests: 16 passed, including RCE regression (foreign repo installer never runs) and walk-up.",
-      "caused_by": [],
+      "caused_by": [
+        "e005",
+        "e006",
+        "e009",
+        "e011",
+        "e013",
+        "e015",
+        "e017",
+        "e019",
+        "e021",
+        "e023"
+      ],
       "leads_to": []
     },
     {
@@ -76,7 +104,10 @@
       "type": "commit",
       "content": "Commit: 3b8cf763",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e003",
+        "e008"
+      ]
     },
     {
       "id": "e010",
@@ -92,7 +123,10 @@
       "type": "commit",
       "content": "Commit: 7e461011",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e003",
+        "e008"
+      ]
     },
     {
       "id": "e012",
@@ -108,7 +142,10 @@
       "type": "commit",
       "content": "Commit: 999fed45",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e003",
+        "e008"
+      ]
     },
     {
       "id": "e014",
@@ -124,7 +161,10 @@
       "type": "commit",
       "content": "Commit: 989dbbb1",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e003",
+        "e008"
+      ]
     },
     {
       "id": "e016",
@@ -140,7 +180,10 @@
       "type": "commit",
       "content": "Commit: 5ce9c70c",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e003",
+        "e008"
+      ]
     },
     {
       "id": "e018",
@@ -156,7 +199,10 @@
       "type": "commit",
       "content": "Commit: 8578c46d",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e003",
+        "e008"
+      ]
     },
     {
       "id": "e020",
@@ -172,7 +218,10 @@
       "type": "commit",
       "content": "Commit: 486c7fd2",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e003",
+        "e008"
+      ]
     },
     {
       "id": "e022",
@@ -188,7 +237,10 @@
       "type": "commit",
       "content": "Commit: 6d3ca1f7",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e003",
+        "e008"
+      ]
     }
   ],
   "metrics": {
@@ -199,5 +251,7 @@
     "commits": 10,
     "files_changed": 6
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 20"
 }

@@ -35,7 +35,9 @@
       "timestamp": "2026-07-08T00:00:00+00:00",
       "type": "test",
       "content": "Verified ADR code block matches module exactly (8 patterns); ran pytest -k investigation (50 passed).",
-      "caused_by": [],
+      "caused_by": [
+        "e005"
+      ],
       "leads_to": []
     },
     {
@@ -44,7 +46,9 @@
       "type": "commit",
       "content": "Commit: 58f58a7b",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e004"
+      ]
     },
     {
       "id": "e006",
@@ -71,5 +75,7 @@
     "commits": 1,
     "files_changed": 4
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 1"
 }

@@ -142,7 +142,7 @@ BRANCH="<branch-name>"
 # The head.sha you already read from get_pr_context.py before starting work.
 EXPECTED_REMOTE_SHA="<observed-head-sha>"
 git push origin "${SHA}:refs/heads/${BRANCH}" \
-  --force-with-lease="refs/heads/${BRANCH}:${EXPECTED_REMOTE_SHA}" --no-verify
+  --force-with-lease="refs/heads/${BRANCH}:${EXPECTED_REMOTE_SHA}"
 ```
 
 Pin the lease to an explicit SHA; never use bare `--force-with-lease` here.
