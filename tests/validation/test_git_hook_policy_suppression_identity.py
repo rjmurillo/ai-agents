@@ -242,6 +242,7 @@ class TestEndToEndThroughGit:
             capture_output=True,
             text=True,
             encoding="utf-8",
+            errors="replace",
         )
 
     @pytest.fixture
@@ -265,6 +266,7 @@ class TestEndToEndThroughGit:
             capture_output=True,
             text=True,
             encoding="utf-8",
+            errors="replace",
         ).stdout.strip()
         target.write_text(head_text, encoding="utf-8")
         self._run(repo, "add", "-A")
@@ -276,6 +278,7 @@ class TestEndToEndThroughGit:
             capture_output=True,
             text=True,
             encoding="utf-8",
+            errors="replace",
         ).stdout.strip()
         return base, head
 
@@ -287,6 +290,7 @@ class TestEndToEndThroughGit:
             capture_output=True,
             text=True,
             encoding="utf-8",
+            errors="replace",
         ).stdout
 
     def test_escalation_is_blocked_against_a_real_git_diff(self, repo: Path) -> None:
