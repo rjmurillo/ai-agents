@@ -27,7 +27,19 @@ These rules apply to every change in this repository.
 ## MUST NOT
 
 1. MUST NOT force-push shared branches.
-2. MUST NOT skip hooks (`--no-verify`) or bypass signing.
+2. MUST NOT skip hooks or bypass signing. ADR-086 lines 95 to 98 enumerate five
+   local bypasses and state that policy forbids using them to skip required
+   checks: `git --no-verify`, `LEFTHOOK=0`, an overridden `LEFTHOOK_BIN`, a
+   lefthook configuration override, and a direct edit to an installed hook.
+   This rule adds a sixth the ADR does not name, `LEFTHOOK_EXCLUDE`, which
+   disables selected jobs rather than the whole run. Policy forbids all six
+   equally. Naming only
+   `--no-verify` invites the reading that a different mechanism is sanctioned;
+   it is not, and no repository document describes any of them as a supported
+   skip. Protected CI is a backstop, not a substitute: a bypassed push shifts
+   a 10 minute local failure into a slower remote one and can leave the branch
+   red for other agents. When a hook blocks you for a reason unrelated to your
+   diff, hand the branch back with the measurement instead of bypassing.
 3. MUST NOT edit `.agents/HANDOFF.md` (read-only per ADR-014).
 4. MUST NOT put logic in YAML workflows (ADR-006).
 5. MUST NOT use em-dashes (U+2014) or en-dashes (U+2013) in any authored text:
