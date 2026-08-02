@@ -71,7 +71,7 @@ def _read_output(tmp_path: Path, name: str) -> str:
 # Positive: scoped rules emit ------------------------------------------------
 
 
-def test_scoped_rule_with_paths_remaps_to_applyTo(tmp_path: Path) -> None:
+def test_scoped_rule_with_paths_remaps_to_apply_to(tmp_path: Path) -> None:
     """`paths:` must be renamed to `applyTo:` with value preserved."""
     _write_rule(
         tmp_path / "rules_src",
@@ -91,7 +91,7 @@ def test_scoped_rule_with_paths_remaps_to_applyTo(tmp_path: Path) -> None:
     assert "description:" in out
 
 
-def test_scoped_rule_with_applyTo_preserved(tmp_path: Path) -> None:
+def test_scoped_rule_with_apply_to_preserved(tmp_path: Path) -> None:
     """`applyTo:` already in source must round-trip unchanged."""
     _write_rule(
         tmp_path / "rules_src",
@@ -107,7 +107,7 @@ def test_scoped_rule_with_applyTo_preserved(tmp_path: Path) -> None:
     assert "priority:" not in out.split("---")[1]
 
 
-def test_alwaysApply_and_priority_dropped(tmp_path: Path) -> None:
+def test_always_apply_and_priority_dropped(tmp_path: Path) -> None:
     _write_rule(
         tmp_path / "rules_src",
         "scoped",
@@ -198,7 +198,7 @@ def test_severity_field_in_source_is_passed_through(tmp_path: Path) -> None:
 # M7-T4: vendor-install path filter --------------------------------------
 
 
-def test_internal_paths_filtered_from_applyTo(tmp_path: Path) -> None:
+def test_internal_paths_filtered_from_apply_to(tmp_path: Path) -> None:
     """`.agents/`, `.claude/`, `.serena/` globs MUST be dropped from applyTo.
 
     Source rules under .claude/rules/ reference internal repo paths that
@@ -228,7 +228,7 @@ def test_internal_paths_filtered_from_applyTo(tmp_path: Path) -> None:
     assert ".github/workflows/**" in fm
 
 
-def test_block_list_paths_flattened_to_applyTo_string(tmp_path: Path) -> None:
+def test_block_list_paths_flattened_to_apply_to_string(tmp_path: Path) -> None:
     """A `paths:` YAML block list MUST flatten to a comma-separated applyTo.
 
     Claude Code reads `paths` as a YAML list; the Copilot mirror expects a
@@ -301,11 +301,12 @@ def test_block_list_paths_internal_globs_filtered(tmp_path: Path) -> None:
     assert "[" not in fm and "]" not in fm
 
 
-def test_all_internal_paths_synthesizes_universal_scope(tmp_path: Path) -> None:
-    """When every glob is internal-only, applyTo MUST fall back to '**'.
+def test_all_internal_paths_skips_rule_for_plugin_destination(tmp_path: Path) -> None:
+    """When every glob is internal-only, the rule is skipped, not universalized.
 
-    Avoids emitting `applyTo: ""` (matches nothing) when a rule scoped
-    only to internal paths gets fully filtered.
+    Prior behavior synthesized ``applyTo: '**'`` (issue #4317). The correct
+    behavior is to omit the rule entirely from the plugin output so consumers
+    do not load instructions about paths they do not have.
     """
     _write_rule(
         tmp_path / "rules_src",
@@ -314,10 +315,17 @@ def test_all_internal_paths_synthesizes_universal_scope(tmp_path: Path) -> None:
         body="body\n",
     )
     cfg = _write_config(tmp_path)
-    rc, _ = generate_rules.generate_rules(cfg, tmp_path)
+    rc, result = generate_rules.generate_rules(cfg, tmp_path)
     assert rc == 0
-    out = _read_output(tmp_path, "internal_only")
-    assert 'applyTo: "**"' in out or "applyTo: '**'" in out or "applyTo: **" in out
+    # The rule must not be emitted to the plugin output directory.
+    out_file = tmp_path / "instr_out" / "internal_only.instructions.md"
+    assert not out_file.exists(), (
+        "All-internal-scope rule must not be written to the plugin destination"
+    )
+    # The audit must record a scope-skipped entry.
+    scope_skipped = [e for e in result.entries if e.action == "scope-skipped"]
+    assert scope_skipped, "Expected at least one scope-skipped audit entry"
+    assert result.scope_skipped == 1
 
 
 def test_serena_internal_path_filtered(tmp_path: Path) -> None:
@@ -546,7 +554,7 @@ artifacts:
     return cfg
 
 
-def test_outputDirs_writes_to_every_target(tmp_path: Path) -> None:
+def test_output_dirs_writes_to_every_target(tmp_path: Path) -> None:
     """outputDirs list emits one copy of each rule into every target dir.
 
     Why it matters: ships rules to .github/instructions/ (repo-internal
@@ -578,7 +586,7 @@ def test_outputDirs_writes_to_every_target(tmp_path: Path) -> None:
     )
 
 
-def test_outputDirs_and_outputDir_both_set_returns_2(tmp_path: Path) -> None:
+def test_output_dirs_and_output_dir_both_set_returns_2(tmp_path: Path) -> None:
     """Setting both keys is a config error. Intent must be unambiguous."""
     _write_rule(tmp_path / "rules_src", "x", frontmatter='paths: "**"\n')
     cfg = tmp_path / "platform.yaml"
@@ -600,7 +608,7 @@ artifacts:
     assert rc == 2
 
 
-def test_outputDirs_empty_list_returns_2(tmp_path: Path) -> None:
+def test_output_dirs_empty_list_returns_2(tmp_path: Path) -> None:
     """Empty outputDirs is a config error (no destination = nothing to do)."""
     _write_rule(tmp_path / "rules_src", "x", frontmatter='paths: "**"\n')
     cfg = tmp_path / "platform.yaml"
@@ -620,7 +628,7 @@ artifacts:
     assert rc == 2
 
 
-def test_neither_outputDir_nor_outputDirs_returns_2(tmp_path: Path) -> None:
+def test_neither_output_dir_nor_output_dirs_returns_2(tmp_path: Path) -> None:
     """Missing both keys is a config error."""
     _write_rule(tmp_path / "rules_src", "x", frontmatter='paths: "**"\n')
     cfg = tmp_path / "platform.yaml"
@@ -639,7 +647,7 @@ artifacts:
     assert rc == 2
 
 
-def test_outputDir_non_string_returns_2(tmp_path: Path) -> None:
+def test_output_dir_non_string_returns_2(tmp_path: Path) -> None:
     """A non-string outputDir is a config error; reject before str() coercion."""
     _write_rule(tmp_path / "rules_src", "x", frontmatter='paths: "**"\n')
     cfg = tmp_path / "platform.yaml"
@@ -659,7 +667,7 @@ artifacts:
     assert rc == 2
 
 
-def test_outputDirs_with_non_string_element_returns_2(tmp_path: Path) -> None:
+def test_output_dirs_with_non_string_element_returns_2(tmp_path: Path) -> None:
     """A non-string element in outputDirs is a config error."""
     _write_rule(tmp_path / "rules_src", "x", frontmatter='paths: "**"\n')
     cfg = tmp_path / "platform.yaml"
@@ -681,7 +689,7 @@ artifacts:
     assert rc == 2
 
 
-def test_outputDirs_prunes_orphans_in_every_target(tmp_path: Path) -> None:
+def test_output_dirs_prunes_orphans_in_every_target(tmp_path: Path) -> None:
     """Orphan pruning runs per output dir. Stale files removed from all targets."""
     _write_rule(tmp_path / "rules_src", "live", frontmatter='paths: "**"\n')
     for sub in ("out_a", "out_b"):

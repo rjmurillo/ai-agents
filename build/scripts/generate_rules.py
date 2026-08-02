@@ -564,11 +564,6 @@ def generate_rules(
 
     expected_outputs: dict[Path, set[str]] = {od: set() for od in output_dirs}
     for src in sources:
-        name = (
-            src.name[: -len(source_suffix)]
-            if src.name.endswith(source_suffix)
-            else src.stem
-        )
         # Process once per output target. The audit records each
         # write separately so callers can see all destinations.
         for output_dir in output_dirs:
