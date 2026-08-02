@@ -221,8 +221,8 @@ class MutationRunner:
     ) -> subprocess.CompletedProcess[str]:
         env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
         sys.stderr.flush()
-        sys.stdout.flush()
         try:
+            sys.stdout.flush()
             return subprocess.run(
                 command,
                 cwd=self.cwd,
