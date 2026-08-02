@@ -14,6 +14,7 @@ Tests under `tests/`, skill `tests/` directories, and `.agents/security/benchmar
 4. **Coverage targets**. Coverage MUST meet category minimums (`AGENTS.md`): 100% security, 80% business, 60% docs.
 5. **Independent tests**. Each test MUST pass in isolation. Shared mutable state is prohibited.
 6. **Placement**. New tests MUST live in the canonical locations: `tests/`, `.claude/skills/<name>/tests/`, or `.agents/security/benchmarks/`.
+7. **Mutation harness requirements**. A mutation harness MUST include at least one inverted control: a mutation the suite must survive, asserting `rc == 0`. Target test files by filesystem path, never a dotted module name. Assert `returncode != 4` (no "file or directory not found") and `"no tests ran" not in output` on every run. Count literal occurrences before mutating; report DID-NOT-APPLY and fail if the literal is absent. A harness with only positive controls (`rc != 0`) cannot distinguish dead mutants from a broken harness (#4246).
 
 ## SHOULD
 
@@ -22,6 +23,7 @@ Tests under `tests/`, skill `tests/` directories, and `.agents/security/benchmar
 3. **Mock at boundaries**. SHOULD mock external dependencies (HTTP, filesystem, shells); avoid mocking domain logic.
 4. **Mirror obligation on contract changes**. SHOULD grep for tests asserting old contracts (signatures, return types, error shapes) and flip them in the same diff, per `.agents/governance/TESTING-RIGOR.md`.
 5. **Isolate process-global state in a subprocess**. A regression guard that asserts on process-global state (`sys.path`, `sys.modules`, `os.environ`, `cwd`) SHOULD run in a clean subprocess when the property under test can be masked by another test module's import-time mutation. Sibling modules under `tests/` insert directories on `sys.path` at collection, so an in-process guard for the *absence* of such an entry passes for the wrong reason and stops catching the regression it was written for. Exemplar: the subprocess-isolated lazy-import guard in `tests/validation/test_pre_pr_model_pin_wiring.py` (#3073), whose earlier in-process form passed with the bug reinstated because sibling portability tests kept `scripts/validation` on `sys.path`.
+6. **Per-consumer wiring test for shared guards**. When a gate or guard is shared across several call sites (consumers), each consumer SHOULD have a test that drives the consumer's real entry point (via `main(argv)` or `subprocess.run`) and fails when the consumer stops calling the gate. Drive the consumer twice over the same input, differing only in the condition the gate rejects, so a consumer failing for an unrelated reason also fails its own control. Incident: `check_skill_md_portability.py` shipped without calling `portability_baseline.py`'s guard; unit tests on the guard passed throughout because they could not observe whether any call site reached it (#4252). Existing exemplars: `tests/validation/test_pre_pr_model_pin_wiring.py` and `tests/validation/test_rule_activation_coverage_wiring.py`.
 
 ## MUST NOT
 
