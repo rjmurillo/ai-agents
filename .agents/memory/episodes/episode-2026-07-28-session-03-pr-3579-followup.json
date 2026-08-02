@@ -12,9 +12,7 @@
       "type": "milestone",
       "content": "Refuse degraded optimizer measurements",
       "caused_by": [],
-      "leads_to": [
-        "e006"
-      ]
+      "leads_to": []
     },
     {
       "id": "e002",
@@ -22,9 +20,7 @@
       "type": "milestone",
       "content": "Reject symlink-backed state",
       "caused_by": [],
-      "leads_to": [
-        "e006"
-      ]
+      "leads_to": []
     },
     {
       "id": "e003",
@@ -32,43 +28,38 @@
       "type": "milestone",
       "content": "Negative controls",
       "caused_by": [],
-      "leads_to": [
-        "e006"
-      ]
+      "leads_to": []
     },
     {
       "id": "e004",
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "test",
       "content": "Scratch worktree with test-only patch collected 44 tests: 21 failed and 23 passed. The failing tests cover the new refusal behavior.",
-      "caused_by": [],
-      "leads_to": [
+      "caused_by": [
         "e006"
-      ]
+      ],
+      "leads_to": []
     },
     {
       "id": "e005",
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "error",
       "content": "Negative controls     Changed tests fail against current main when production changes are absent. Scratch worktree with test-only patch collected 44 tests: 21 failed and 23 passed. The failing tests cover the new refusal behavior.",
-      "caused_by": [],
-      "leads_to": [
+      "caused_by": [
         "e006"
-      ]
+      ],
+      "leads_to": []
     },
     {
       "id": "e006",
-      "timestamp": "2026-07-28T13:40:01+00:00",
+      "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 84b75eb3a",
-      "caused_by": [
-        "e001",
-        "e002",
-        "e003",
+      "caused_by": [],
+      "leads_to": [
         "e004",
         "e005"
-      ],
-      "leads_to": []
+      ]
     }
   ],
   "metrics": {
@@ -81,5 +72,7 @@
   },
   "lessons": [
     "A measurement not taken is not a measurement of zero. Refuse degraded reports with exit 2 rather than emitting false values."
-  ]
+  ],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 2 -> 2"
 }

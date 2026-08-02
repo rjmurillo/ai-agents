@@ -12,9 +12,7 @@
       "type": "milestone",
       "content": "Split reflect/SKILL.md via progressive disclosure",
       "caused_by": [],
-      "leads_to": [
-        "e005"
-      ]
+      "leads_to": []
     },
     {
       "id": "e002",
@@ -22,9 +20,7 @@
       "type": "milestone",
       "content": "Regenerated copilot-cli mirror",
       "caused_by": [],
-      "leads_to": [
-        "e005"
-      ]
+      "leads_to": []
     },
     {
       "id": "e003",
@@ -32,9 +28,7 @@
       "type": "milestone",
       "content": "Validated",
       "caused_by": [],
-      "leads_to": [
-        "e005"
-      ]
+      "leads_to": []
     },
     {
       "id": "e004",
@@ -42,24 +36,20 @@
       "type": "error",
       "content": "Validated     pre_pr Passed 25 Failed 0",
       "caused_by": [
+        "e005",
         "e006"
       ],
-      "leads_to": [
-        "e005"
-      ]
+      "leads_to": []
     },
     {
       "id": "e005",
-      "timestamp": "2026-06-18T13:49:06+00:00",
+      "timestamp": "2026-06-18T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 1ad8252a4",
-      "caused_by": [
-        "e001",
-        "e002",
-        "e003",
+      "caused_by": [],
+      "leads_to": [
         "e004"
-      ],
-      "leads_to": []
+      ]
     },
     {
       "id": "e006",
@@ -80,5 +70,7 @@
     "commits": 1,
     "files_changed": 6
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 2"
 }

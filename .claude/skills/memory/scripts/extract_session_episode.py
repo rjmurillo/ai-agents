@@ -627,6 +627,48 @@ def _commit_datetime(sha: str) -> datetime | None:
         return None
 
 
+@lru_cache(maxsize=256)
+def _sha_is_reachable(sha: str) -> bool:
+    """Return True when ``sha`` is reachable from at least one named ref.
+
+    A commit that resolves (``git cat-file -t`` succeeds) but is reachable from
+    zero refs is a dangling object: clone residue from a squash-merged branch.
+    Whether the object is present depends on local ``git gc`` timing, not on
+    the repository content. Using it as evidence of commit order produces
+    clone-dependent results: green on CI, red on a developer clone that never
+    collected. Issue #4240.
+
+    This check uses ``git for-each-ref --contains`` because it queries the
+    object's position in the ref graph rather than the object database.
+    ``--contains`` iterates all refs by default and exits as soon as one match
+    is found; on large repositories the optional ``--format=%(refname)`` and a
+    short-circuit via ``head -1`` make it faster, but the default is safe here.
+
+    Returns ``False`` on any subprocess error, missing git binary, or timeout.
+    A ``False`` is treated as unknown, matching the ``None`` contract of
+    ``_commit_datetime``.
+    """
+    if not sha:
+        return False
+    env = os.environ.copy()
+    for var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"):
+        env.pop(var, None)
+    env["LC_ALL"] = "C"
+    try:
+        result = subprocess.run(
+            ["git", "for-each-ref", "--contains", sha, "--format=%(refname)"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return bool(result.stdout.strip())
+
+
 def _chronological(shas: list[str]) -> list[str]:
     """``shas`` in committer-date order, or unchanged when git cannot order them.
 
@@ -1935,12 +1977,19 @@ def validate_event_ids(events: Any) -> list[str]:
 
 
 def _commit_event_dates(events: list) -> dict[str, datetime]:
-    """Map event id to committer date, for commit events whose SHA resolves here.
+    """Map event id to committer date, for commit events reachable from a named ref.
 
-    A squash-merged branch takes its SHAs with it, so an abbreviated SHA from a
-    branch that no longer exists resolves nowhere. Those events are absent from
-    the map, and every caller skips what is missing rather than guessing a
-    position git did not supply.
+    Reachability (``git for-each-ref --contains``) is the filter, not mere
+    resolvability (``git cat-file -t``). A SHA that resolves but is reachable
+    from zero refs is a dangling object: clone residue from a squash-merged
+    branch. Whether it is present depends on local ``git gc`` timing, not on
+    the repository content, so the same artifact produces different verdicts on
+    different machines. Issue #4240, CI-scripts rule MUST-9: a claim about what
+    the repository contains MUST be computed from a named ref.
+
+    Treating an unreachable SHA as absent matches the intent of the original
+    skip-when-unresolvable policy from #4219: absence of evidence is not
+    evidence of order.
     """
     dates: dict[str, datetime] = {}
     for evt in events:
@@ -1949,7 +1998,9 @@ def _commit_event_dates(events: list) -> dict[str, datetime]:
         if entry.get("type") != "commit" or not isinstance(identifier, str):
             continue
         sha = _commit_sha(entry)
-        moment = _commit_datetime(sha) if sha else None
+        if not sha or not _sha_is_reachable(sha):
+            continue
+        moment = _commit_datetime(sha)
         if moment is not None:
             dates[identifier] = moment
     return dates

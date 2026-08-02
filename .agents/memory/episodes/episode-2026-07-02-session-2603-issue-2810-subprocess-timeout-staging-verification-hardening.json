@@ -11,9 +11,7 @@
       "timestamp": "2026-07-02T00:00:00+00:00",
       "type": "milestone",
       "content": "invoke_precommit_security.py: added timeouts to the gh --version, code-scanning gh api, Get-Module and Install-Module calls; a TimeoutExpired now degrades PSScriptAnalyzer to unavailable; the code-scanning timeout is caught by the existing SubprocessError handler and skips.",
-      "caused_by": [
-        "e007"
-      ],
+      "caused_by": [],
       "leads_to": []
     },
     {
@@ -21,9 +19,7 @@
       "timestamp": "2026-07-02T00:00:00+00:00",
       "type": "milestone",
       "content": "invoke_precommit_security.py: the discarded _stage_security_report return is now checked; a staging failure fails the run with exit 1 instead of passing without the required report.",
-      "caused_by": [
-        "e007"
-      ],
+      "caused_by": [],
       "leads_to": []
     },
     {
@@ -31,9 +27,7 @@
       "timestamp": "2026-07-02T00:00:00+00:00",
       "type": "milestone",
       "content": "run_semgrep.py: added a 300s timeout to the scan subprocess and a dedicated TimeoutExpired branch that logs a scan-failure and returns no findings.",
-      "caused_by": [
-        "e007"
-      ],
+      "caused_by": [],
       "leads_to": []
     },
     {
@@ -41,9 +35,7 @@
       "timestamp": "2026-07-02T00:00:00+00:00",
       "type": "milestone",
       "content": "mcp_client.py: added a win32 reader-thread read timeout so os.read cannot block forever on Windows, and an overall monotonic deadline in _read_response against notification/id-mismatch floods.",
-      "caused_by": [
-        "e007"
-      ],
+      "caused_by": [],
       "leads_to": []
     },
     {
@@ -51,9 +43,7 @@
       "timestamp": "2026-07-02T00:00:00+00:00",
       "type": "milestone",
       "content": "Verification: uv run pytest tests/test_security_gate_timeouts_2810.py tests/test_memory_sync/test_mcp_client.py => 15 passed; mypy => no issues on the three scripts.",
-      "caused_by": [
-        "e007"
-      ],
+      "caused_by": [],
       "leads_to": []
     },
     {
@@ -68,18 +58,12 @@
     },
     {
       "id": "e007",
-      "timestamp": "2026-06-30T17:06:43+00:00",
+      "timestamp": "2026-07-02T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: f13f73f",
       "caused_by": [],
       "leads_to": [
-        "e001",
-        "e002",
-        "e003",
-        "e004",
-        "e005",
-        "e006",
-        "e008"
+        "e006"
       ]
     },
     {
@@ -87,9 +71,7 @@
       "timestamp": "2026-07-02T00:00:00+00:00",
       "type": "milestone",
       "content": "run_semgrep.py: added a 300s timeout to the scan subprocess and a dedicated TimeoutExpired branch that returns a blocking ERROR semgrep-scan-failure finding so a hung scan cannot silently pass the gate.",
-      "caused_by": [
-        "e007"
-      ],
+      "caused_by": [],
       "leads_to": []
     }
   ],
@@ -101,5 +83,7 @@
     "commits": 1,
     "files_changed": 6
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 1"
 }

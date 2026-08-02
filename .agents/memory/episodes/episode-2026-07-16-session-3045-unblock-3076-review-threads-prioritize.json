@@ -12,9 +12,7 @@
       "type": "milestone",
       "content": "Reconstructed the existing PR 3076 worktree, read the handoff and project constraints, acquired the PR-autofix lease, and mapped two unresolved duplicate review threads to the canonical and generated SessionStart context-loader docstring.",
       "caused_by": [],
-      "leads_to": [
-        "e011"
-      ]
+      "leads_to": []
     },
     {
       "id": "e002",
@@ -22,9 +20,7 @@
       "type": "milestone",
       "content": "Completed durable stale matcher-shim pruning in the dispatcher generator, removed 20 stale generated artifacts, and merged six concurrent remote commits containing transactional hook generation work without force-pushing.",
       "caused_by": [],
-      "leads_to": [
-        "e011"
-      ]
+      "leads_to": []
     },
     {
       "id": "e003",
@@ -32,9 +28,7 @@
       "type": "milestone",
       "content": "Updated the canonical _emit_utf8 docstring to describe protocol text, regenerated the Copilot mirror, and passed all 16 context-loader tests.",
       "caused_by": [],
-      "leads_to": [
-        "e011"
-      ]
+      "leads_to": []
     },
     {
       "id": "e004",
@@ -42,9 +36,7 @@
       "type": "milestone",
       "content": "Scoped Windows publish simulation to avoid importing msvcrt on Linux and aligned timeout-hardening tests with the established fail-closed repository-root contract. The affected suites passed 133 and 42 tests respectively.",
       "caused_by": [],
-      "leads_to": [
-        "e011"
-      ]
+      "leads_to": []
     },
     {
       "id": "e005",
@@ -52,9 +44,7 @@
       "type": "milestone",
       "content": "Hardened stale-shim cleanup to identify generated content, preserve NO-REGEN files with notices, and propagate filesystem failures. The expanded dispatcher and regen-guard suites passed 53 tests and focused Ruff passed.",
       "caused_by": [],
-      "leads_to": [
-        "e011"
-      ]
+      "leads_to": []
     },
     {
       "id": "e006",
@@ -62,19 +52,22 @@
       "type": "milestone",
       "content": "Ran the full test suite: 14,284 passed, 20 skipped, 45 expected failures, and no failures. Runnable CLI hook end-to-end tests passed; installation-scoped tests skipped because no scoped plugin installation was present.",
       "caused_by": [],
-      "leads_to": [
-        "e011"
-      ]
+      "leads_to": []
     },
     {
       "id": "e007",
       "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "test",
       "content": "Ran the full test suite: 14,284 passed, 20 skipped, 45 expected failures, and no failures. Runnable CLI hook end-to-end tests passed; installation-scoped tests skipped because no scoped plugin installation was present.",
-      "caused_by": [],
-      "leads_to": [
-        "e011"
-      ]
+      "caused_by": [
+        "e011",
+        "e014",
+        "e015",
+        "e018",
+        "e021",
+        "e023"
+      ],
+      "leads_to": []
     },
     {
       "id": "e008",
@@ -82,9 +75,7 @@
       "type": "milestone",
       "content": "Validated generated agents, plugin library sync, manifest parity, build_all generation drift, install parity, all 33 branch-changed Python files with Ruff, and all 33 supported changed files with the CWE-78 scanner. Security detection and scanning reported zero findings.",
       "caused_by": [],
-      "leads_to": [
-        "e011"
-      ]
+      "leads_to": []
     },
     {
       "id": "e009",
@@ -92,9 +83,7 @@
       "type": "milestone",
       "content": "Merged two additional concurrent remote commits that made the same docstring correction and preserved non-UTF-8 test diagnostics. No remote changes were overwritten.",
       "caused_by": [],
-      "leads_to": [
-        "e011"
-      ]
+      "leads_to": []
     },
     {
       "id": "e010",
@@ -102,36 +91,18 @@
       "type": "milestone",
       "content": "Ran the exact pre-PR command, diagnosed its bare-interpreter import-path failure, and reran with the repository root on PYTHONPATH. The authoritative rerun passed 29 validations with 4 expected skips and no failures.",
       "caused_by": [],
-      "leads_to": [
-        "e011"
-      ]
+      "leads_to": []
     },
     {
       "id": "e011",
-      "timestamp": "2026-07-16T08:38:20+00:00",
+      "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 9ad574f4f",
-      "caused_by": [
-        "e001",
-        "e002",
-        "e003",
-        "e004",
-        "e005",
-        "e006",
-        "e007",
-        "e008",
-        "e009",
-        "e010",
-        "e012",
-        "e013",
-        "e016",
-        "e017",
-        "e019",
-        "e020",
-        "e022"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e014"
+        "e007",
+        "e017",
+        "e020"
       ]
     },
     {
@@ -140,9 +111,7 @@
       "type": "milestone",
       "content": "Confirmed a newly surfaced review finding: off-tree dispatcher consolidation scanned the empty staging directory and could not remove stale generated shims from the published event directory.",
       "caused_by": [],
-      "leads_to": [
-        "e011"
-      ]
+      "leads_to": []
     },
     {
       "id": "e013",
@@ -150,32 +119,30 @@
       "type": "milestone",
       "content": "Moved published stale-shim deletion into HookGenerationTransaction with POSIX and Windows rollback behavior, preserved the immutable first backup across publish-then-delete sequences, and added successful cleanup, NO-REGEN, rollback, missing-target, duplicate-target, and partial-failure tests. The generator and dispatcher suites passed 171 tests with 1 platform skip; runtime-contract suites passed 7 tests; Ruff, CWE-78 scanning, regeneration, and drift checks passed.",
       "caused_by": [],
-      "leads_to": [
-        "e011"
-      ]
+      "leads_to": []
     },
     {
       "id": "e014",
-      "timestamp": "2026-07-16T09:19:45+00:00",
+      "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 53afb0f25",
-      "caused_by": [
-        "e011"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e015"
+        "e007",
+        "e017",
+        "e020"
       ]
     },
     {
       "id": "e015",
-      "timestamp": "2026-07-16T09:22:13+00:00",
+      "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: b8cd47432",
-      "caused_by": [
-        "e014"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e018"
+        "e007",
+        "e017",
+        "e020"
       ]
     },
     {
@@ -184,30 +151,33 @@
       "type": "milestone",
       "content": "After all 16 pre-push checks passed, the push found two concurrent Cursor commits for the same stale-cleanup defect. Merged them without force, removed their redundant direct post-commit cleanup while preserving the remote history, and reran the generator and dispatcher suites with 171 passed and 1 platform skip.",
       "caused_by": [],
-      "leads_to": [
-        "e011"
-      ]
+      "leads_to": []
     },
     {
       "id": "e017",
       "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "test",
       "content": "After all 16 pre-push checks passed, the push found two concurrent Cursor commits for the same stale-cleanup defect. Merged them without force, removed their redundant direct post-commit cleanup while preserving the remote history, and reran the generator and dispatcher suites with 171 passed and 1 platform skip.",
-      "caused_by": [],
-      "leads_to": [
-        "e011"
-      ]
+      "caused_by": [
+        "e011",
+        "e014",
+        "e015",
+        "e018",
+        "e021",
+        "e023"
+      ],
+      "leads_to": []
     },
     {
       "id": "e018",
-      "timestamp": "2026-07-16T09:31:36+00:00",
+      "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 11ee2f9ef",
-      "caused_by": [
-        "e015"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e021"
+        "e007",
+        "e017",
+        "e020"
       ]
     },
     {
@@ -216,30 +186,33 @@
       "type": "milestone",
       "content": "Addressed two new canonical and generated _emit_utf8 docstring threads by documenting the ambient-encoding text fallback, regenerated the Copilot mirror, and passed 31 context-loader tests. Merged origin/main, combined its Copilot CLI 1.0.71-3 coverage with the branch's plugin-directory scoping and 1.0.72 negative control, passed the conflict-marker verifier, and ran the real plugin smoke with 17 passed and 1 explicit skip.",
       "caused_by": [],
-      "leads_to": [
-        "e011"
-      ]
+      "leads_to": []
     },
     {
       "id": "e020",
       "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "test",
       "content": "Addressed two new canonical and generated _emit_utf8 docstring threads by documenting the ambient-encoding text fallback, regenerated the Copilot mirror, and passed 31 context-loader tests. Merged origin/main, combined its Copilot CLI 1.0.71-3 coverage with the branch's plugin-directory scoping and 1.0.72 negative control, passed the conflict-marker verifier, and ran the real plugin smoke with 17 passed and 1 explicit skip.",
-      "caused_by": [],
-      "leads_to": [
-        "e011"
-      ]
+      "caused_by": [
+        "e011",
+        "e014",
+        "e015",
+        "e018",
+        "e021",
+        "e023"
+      ],
+      "leads_to": []
     },
     {
       "id": "e021",
-      "timestamp": "2026-07-16T09:45:56+00:00",
+      "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: ac4d46fb6",
-      "caused_by": [
-        "e018"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e023"
+        "e007",
+        "e017",
+        "e020"
       ]
     },
     {
@@ -248,19 +221,19 @@
       "type": "milestone",
       "content": "Addressed the canonical and generated _emit_utf8 wrapper findings by treating TypeError and ValueError from callable reconfigure implementations as unsupported reconfiguration, parameterized the binary-buffer regression coverage across io.UnsupportedOperation, TypeError, and ValueError, regenerated the Copilot mirror, and passed all 33 context-loader tests, scoped Ruff, diff checks, and the committed generation-drift check.",
       "caused_by": [],
-      "leads_to": [
-        "e011"
-      ]
+      "leads_to": []
     },
     {
       "id": "e023",
-      "timestamp": "2026-07-16T09:59:45+00:00",
+      "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: f39f2e94d",
-      "caused_by": [
-        "e021"
-      ],
-      "leads_to": []
+      "caused_by": [],
+      "leads_to": [
+        "e007",
+        "e017",
+        "e020"
+      ]
     }
   ],
   "metrics": {
@@ -271,5 +244,7 @@
     "commits": 1,
     "files_changed": 5
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 18"
 }

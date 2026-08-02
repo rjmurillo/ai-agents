@@ -12,9 +12,7 @@
       "type": "milestone",
       "content": "Read issue #2662: retire deprecated incoherence skill (absorbed by doc-accuracy)",
       "caused_by": [],
-      "leads_to": [
-        "e013"
-      ]
+      "leads_to": []
     },
     {
       "id": "e002",
@@ -22,9 +20,7 @@
       "type": "milestone",
       "content": "Found script lives at .claude/skills/incoherence/scripts/incoherence.py, not scripts/incoherence.py as issue assumed; no live invoker references it outside the skill bundle",
       "caused_by": [],
-      "leads_to": [
-        "e013"
-      ]
+      "leads_to": []
     },
     {
       "id": "e003",
@@ -32,9 +28,7 @@
       "type": "milestone",
       "content": "Relocated incoherence.py to scripts/incoherence.py via git mv to preserve runnability per issue acceptance (scripts/incoherence.py still runnable)",
       "caused_by": [],
-      "leads_to": [
-        "e013"
-      ]
+      "leads_to": []
     },
     {
       "id": "e004",
@@ -42,9 +36,7 @@
       "type": "milestone",
       "content": "Deleted canonical .claude/skills/incoherence/ (SKILL.md, references/DEVELOPMENT.md) and generated mirror src/copilot-cli/skills/incoherence/",
       "caused_by": [],
-      "leads_to": [
-        "e013"
-      ]
+      "leads_to": []
     },
     {
       "id": "e005",
@@ -52,9 +44,7 @@
       "type": "milestone",
       "content": "Repointed validation-authority SKILL.md Related-Skills row from incoherence to doc-accuracy (canonical + regenerated copilot mirror)",
       "caused_by": [],
-      "leads_to": [
-        "e013"
-      ]
+      "leads_to": []
     },
     {
       "id": "e006",
@@ -62,9 +52,7 @@
       "type": "milestone",
       "content": "Removed dead 'incoherence' category keyword from scripts/skill_registry.py (orphaned after skill deletion)",
       "caused_by": [],
-      "leads_to": [
-        "e013"
-      ]
+      "leads_to": []
     },
     {
       "id": "e007",
@@ -72,9 +60,7 @@
       "type": "milestone",
       "content": "Bumped plugin.json 0.5.207 -> 0.5.208 for both project-toolkit manifests (.claude + src/copilot-cli) per #2118",
       "caused_by": [],
-      "leads_to": [
-        "e013"
-      ]
+      "leads_to": []
     },
     {
       "id": "e008",
@@ -82,9 +68,7 @@
       "type": "milestone",
       "content": "Regenerated platform artifacts via build/scripts/build_all.py",
       "caused_by": [],
-      "leads_to": [
-        "e013"
-      ]
+      "leads_to": []
     },
     {
       "id": "e009",
@@ -92,9 +76,7 @@
       "type": "milestone",
       "content": "Verified scripts/incoherence.py runs: step 1/22 DETECTION PARENT output, exit 0",
       "caused_by": [],
-      "leads_to": [
-        "e013"
-      ]
+      "leads_to": []
     },
     {
       "id": "e010",
@@ -102,9 +84,7 @@
       "type": "milestone",
       "content": "Validators: orphan-ref 49 findings (== baseline, zero incoherence; single-word name invisible to SKILL_REF_RE which requires a hyphen); marketplace count_claim findings zero; agent drift unchanged pre/post (11 pre-existing, none incoherence); plugin version bump PASS",
       "caused_by": [],
-      "leads_to": [
-        "e013"
-      ]
+      "leads_to": []
     },
     {
       "id": "e011",
@@ -112,40 +92,27 @@
       "type": "milestone",
       "content": "Test evidence: uv run python -m pytest tests/ -k 'skill_registry or registry' -> 62 passed, 12848 deselected. pre_pr.py 24 passed (Plugin Version Bump passed, Agent Drift Detection passed, Markdown Linting passed). scripts/incoherence.py smoke run passed (exit 0).",
       "caused_by": [],
-      "leads_to": [
-        "e013"
-      ]
+      "leads_to": []
     },
     {
       "id": "e012",
       "timestamp": "2026-06-18T00:00:00+00:00",
       "type": "test",
       "content": "Test evidence: uv run python -m pytest tests/ -k 'skill_registry or registry' -> 62 passed, 12848 deselected. pre_pr.py 24 passed (Plugin Version Bump passed, Agent Drift Detection passed, Markdown Linting passed). scripts/incoherence.py smoke run passed (exit 0).",
-      "caused_by": [],
-      "leads_to": [
+      "caused_by": [
         "e013"
-      ]
+      ],
+      "leads_to": []
     },
     {
       "id": "e013",
-      "timestamp": "2026-06-18T14:05:12+00:00",
+      "timestamp": "2026-06-18T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: fda295e9",
-      "caused_by": [
-        "e001",
-        "e002",
-        "e003",
-        "e004",
-        "e005",
-        "e006",
-        "e007",
-        "e008",
-        "e009",
-        "e010",
-        "e011",
+      "caused_by": [],
+      "leads_to": [
         "e012"
-      ],
-      "leads_to": []
+      ]
     }
   ],
   "metrics": {
@@ -156,5 +123,7 @@
     "commits": 1,
     "files_changed": 2
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 1"
 }

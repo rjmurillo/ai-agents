@@ -11,20 +11,20 @@
       "timestamp": "2026-07-15T00:00:00+00:00",
       "type": "test",
       "content": "scripts/eval/_model_panel_core.py + eval-model-panel.py + 24 tests. Reuses eval-agent-vs-baseline via #2710 --provider/--model; effect-size=recall_delta, degradation classification vs frontier band; --dry-run zero-spend; panel --panel-config-overridable. uv run pytest tests/eval/ -> 293 passed; ruff+mypy clean; no suppressions. Paid sweep owner-gated; unblocks #3045 #2840.",
-      "caused_by": [],
-      "leads_to": [
+      "caused_by": [
         "e002"
-      ]
+      ],
+      "leads_to": []
     },
     {
       "id": "e002",
-      "timestamp": "2026-07-15T08:56:58+00:00",
+      "timestamp": "2026-07-15T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 79515f40df",
-      "caused_by": [
+      "caused_by": [],
+      "leads_to": [
         "e001"
-      ],
-      "leads_to": []
+      ]
     }
   ],
   "metrics": {
@@ -35,5 +35,7 @@
     "commits": 1,
     "files_changed": 2
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 1"
 }

@@ -12,9 +12,7 @@
       "type": "milestone",
       "content": "context",
       "caused_by": [],
-      "leads_to": [
-        "e005"
-      ]
+      "leads_to": []
     },
     {
       "id": "e002",
@@ -22,19 +20,17 @@
       "type": "milestone",
       "content": "verify",
       "caused_by": [],
-      "leads_to": [
-        "e005"
-      ]
+      "leads_to": []
     },
     {
       "id": "e003",
       "timestamp": "2026-06-07T00:00:00+00:00",
       "type": "test",
       "content": "uv run pytest tests/eval/test_pr_churn.py = 19 passed. python3 scripts/validation/pre_pr.py = All validations passed (exit 0). AGENTS.md token budget = 1223/2000.",
-      "caused_by": [],
-      "leads_to": [
+      "caused_by": [
         "e005"
-      ]
+      ],
+      "leads_to": []
     },
     {
       "id": "e004",
@@ -42,22 +38,17 @@
       "type": "milestone",
       "content": "implement",
       "caused_by": [],
-      "leads_to": [
-        "e005"
-      ]
+      "leads_to": []
     },
     {
       "id": "e005",
-      "timestamp": "2026-06-07T02:31:19+00:00",
+      "timestamp": "2026-06-07T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: d2800b214",
-      "caused_by": [
-        "e001",
-        "e002",
-        "e003",
-        "e004"
-      ],
-      "leads_to": []
+      "caused_by": [],
+      "leads_to": [
+        "e003"
+      ]
     }
   ],
   "metrics": {
@@ -68,5 +59,7 @@
     "commits": 1,
     "files_changed": 0
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 1"
 }

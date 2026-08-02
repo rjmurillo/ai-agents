@@ -12,9 +12,7 @@
       "type": "milestone",
       "content": "Read issue #2666 via get_issue_context.py",
       "caused_by": [],
-      "leads_to": [
-        "e008"
-      ]
+      "leads_to": []
     },
     {
       "id": "e002",
@@ -22,9 +20,7 @@
       "type": "milestone",
       "content": "Branched fix/2666-programming-advisor-frontmatter-version off origin/main eff30e3ab4",
       "caused_by": [],
-      "leads_to": [
-        "e008"
-      ]
+      "leads_to": []
     },
     {
       "id": "e003",
@@ -32,9 +28,7 @@
       "type": "milestone",
       "content": "Added top-level version: 1.0.0 to .claude/skills/programming-advisor/SKILL.md (matching the existing nested metadata.version)",
       "caused_by": [],
-      "leads_to": [
-        "e008"
-      ]
+      "leads_to": []
     },
     {
       "id": "e004",
@@ -42,9 +36,7 @@
       "type": "milestone",
       "content": "Ran skill_frontmatter.py --changed-files on canonical",
       "caused_by": [],
-      "leads_to": [
-        "e008"
-      ]
+      "leads_to": []
     },
     {
       "id": "e005",
@@ -52,9 +44,7 @@
       "type": "milestone",
       "content": "Regenerated mirrors via build/scripts/build_all.py",
       "caused_by": [],
-      "leads_to": [
-        "e008"
-      ]
+      "leads_to": []
     },
     {
       "id": "e006",
@@ -62,9 +52,7 @@
       "type": "milestone",
       "content": "Ran pre_pr.py",
       "caused_by": [],
-      "leads_to": [
-        "e008"
-      ]
+      "leads_to": []
     },
     {
       "id": "e007",
@@ -72,27 +60,20 @@
       "type": "test",
       "content": "Ran pre_pr.py   All validations passed (25 passed, 0 failed, 4 skipped).",
       "caused_by": [
+        "e008",
         "e009"
       ],
-      "leads_to": [
-        "e008"
-      ]
+      "leads_to": []
     },
     {
       "id": "e008",
-      "timestamp": "2026-06-18T13:30:47+00:00",
+      "timestamp": "2026-06-18T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 435ab3bb",
-      "caused_by": [
-        "e001",
-        "e002",
-        "e003",
-        "e004",
-        "e005",
-        "e006",
+      "caused_by": [],
+      "leads_to": [
         "e007"
-      ],
-      "leads_to": []
+      ]
     },
     {
       "id": "e009",
@@ -113,5 +94,7 @@
     "commits": 2,
     "files_changed": 4
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 2"
 }

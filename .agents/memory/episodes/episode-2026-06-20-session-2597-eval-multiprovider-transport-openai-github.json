@@ -12,30 +12,27 @@
       "type": "milestone",
       "content": "Add OpenAI + GitHub Models providers to the eval harness behind an EVAL_PROVIDER/--provider Strategy",
       "caused_by": [],
-      "leads_to": [
-        "e003"
-      ]
+      "leads_to": []
     },
     {
       "id": "e002",
       "timestamp": "2026-06-20T00:00:00+00:00",
       "type": "test",
       "content": "uv run pytest tests/eval/test_providers.py -q -> 26 passed; uv run pytest -k 'eval_api_adapter or anthropic or providers or eval_skill_overlap' -> 126 passed",
-      "caused_by": [],
-      "leads_to": [
+      "caused_by": [
         "e003"
-      ]
+      ],
+      "leads_to": []
     },
     {
       "id": "e003",
-      "timestamp": "2026-06-20T22:37:09+00:00",
+      "timestamp": "2026-06-20T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 790e1ce0b83c7df1c7dcf72ff418a681972c74b2",
-      "caused_by": [
-        "e001",
+      "caused_by": [],
+      "leads_to": [
         "e002"
-      ],
-      "leads_to": []
+      ]
     }
   ],
   "metrics": {
@@ -46,5 +43,7 @@
     "commits": 4,
     "files_changed": 25
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 1"
 }

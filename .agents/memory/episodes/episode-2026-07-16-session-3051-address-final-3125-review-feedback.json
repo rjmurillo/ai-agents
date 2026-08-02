@@ -12,9 +12,7 @@
       "type": "milestone",
       "content": "Reviewed two new PR 3125 threads. One identified per-test TemporaryDirectory overhead. The other found the PR description no longer matched fail-on-attribution behavior.",
       "caused_by": [],
-      "leads_to": [
-        "e005"
-      ]
+      "leads_to": []
     },
     {
       "id": "e002",
@@ -22,9 +20,7 @@
       "type": "milestone",
       "content": "Added a failing regression, then replaced each temporary directory with a UUID trace path directly under the system temp directory. The path is Windows-safe and removed after attribution, including pytest.fail paths.",
       "caused_by": [],
-      "leads_to": [
-        "e005"
-      ]
+      "leads_to": []
     },
     {
       "id": "e003",
@@ -32,32 +28,27 @@
       "type": "milestone",
       "content": "Verification: uv run pytest tests/ -x -q completed with 14362 passed. The focused 34-test contract suite, Ruff, mypy, Python 3.10 syntax validation, security scan, and independent review passed.",
       "caused_by": [],
-      "leads_to": [
-        "e005"
-      ]
+      "leads_to": []
     },
     {
       "id": "e004",
       "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "test",
       "content": "Verification: uv run pytest tests/ -x -q completed with 14362 passed. The focused 34-test contract suite, Ruff, mypy, Python 3.10 syntax validation, security scan, and independent review passed.",
-      "caused_by": [],
-      "leads_to": [
+      "caused_by": [
         "e005"
-      ]
+      ],
+      "leads_to": []
     },
     {
       "id": "e005",
-      "timestamp": "2026-07-16T15:32:06+00:00",
+      "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 42a4cd1aa",
-      "caused_by": [
-        "e001",
-        "e002",
-        "e003",
+      "caused_by": [],
+      "leads_to": [
         "e004"
-      ],
-      "leads_to": []
+      ]
     }
   ],
   "metrics": {
@@ -68,5 +59,7 @@
     "commits": 1,
     "files_changed": 2
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 1"
 }

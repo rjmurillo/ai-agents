@@ -678,5 +678,7 @@
     "duration_minutes": 0,
     "recoveries": 0,
     "errors": 49
-  }
+  },
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 52"
 }

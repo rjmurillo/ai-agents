@@ -57,5 +57,7 @@
     "commits": 9,
     "files_changed": 12
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 3"
 }
