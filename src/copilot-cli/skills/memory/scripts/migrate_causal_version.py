@@ -188,7 +188,9 @@ def migrate_episode_file(path: Path, *, stamp_date: str) -> tuple[str, str]:
     orig_count = _edge_count(events)
     rebuilt_count = _edge_count(rebuilt)
 
-    return _apply_migration(path, data, events, rebuilt, orig_edges, orig_count, rebuilt_count, stamp_date)
+    return _apply_migration(
+        path, data, events, rebuilt, orig_edges, orig_count, rebuilt_count, stamp_date
+    )
 
 
 def _episode_paths(target: Path) -> list[Path]:
