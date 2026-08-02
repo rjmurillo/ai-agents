@@ -31,6 +31,7 @@ def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
         check=True,
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
 
 
@@ -54,12 +55,14 @@ def git_sandbox() -> Iterator[GitSandbox]:
             check=True,
             capture_output=True,
             text=True,
+            encoding="utf-8",
         )
         subprocess.run(
             ["git", "clone", str(remote), str(main)],
             check=True,
             capture_output=True,
             text=True,
+            encoding="utf-8",
         )
         _git(main, "config", "user.email", "test@example.com")
         _git(main, "config", "user.name", "Test User")
