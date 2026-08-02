@@ -18,7 +18,10 @@ import json
 import os
 import subprocess
 import sys
-from collections.abc import Mapping
+import tempfile
+import time
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -34,23 +37,40 @@ hole in the same artifact.
 """
 
 
-def _is_tracked(repo_root: Path, path: Path) -> bool:
-    """Report whether git has the baseline, so absence can be told from loss."""
+def _run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes] | None:
+    env = {
+        key: value for key, value in os.environ.items() if not key.upper().startswith("GIT_")
+    }
+    try:
+        return subprocess.run(
+            ["git", "-C", str(repo_root), *args],
+            capture_output=True,
+            env=env,
+            check=False,
+        )
+    except OSError:
+        return None
+
+
+def _was_recorded(repo_root: Path, path: Path) -> bool | None:
+    """Report whether branch history has the baseline, None when git cannot answer."""
     try:
         rel = path.resolve().relative_to(repo_root.resolve())
     except (OSError, ValueError):
         return False
-    try:
-        proc = subprocess.run(
-            ["git", "-C", str(repo_root), "ls-files", "-z", "--", str(rel)],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            check=False,
-        )
-    except OSError:
+
+    proc = _run_git(repo_root, "log", "-1", "--format=%H", "HEAD", "--", str(rel))
+    if proc is None:
+        return None
+    if proc.returncode == 0:
+        return bool(proc.stdout.strip())
+
+    refs = _run_git(repo_root, "show-ref", "--head")
+    if refs is None:
+        return None
+    if refs.returncode == 1 and not refs.stdout:
         return False
-    return proc.returncode == 0 and bool(proc.stdout.strip("\0").strip())
+    return None
 
 
 def _coerce_counts(section: object, name: str) -> tuple[dict[str, int] | None, str | None]:
@@ -85,8 +105,11 @@ def read_previous_sections(
     try:
         raw = path.read_text(encoding="utf-8")
     except FileNotFoundError:
-        if _is_tracked(repo_root, path):
-            return None, "git tracks the baseline but it is absent from disk"
+        recorded = _was_recorded(repo_root, path)
+        if recorded is None:
+            return None, "git could not determine whether branch history recorded the baseline"
+        if recorded:
+            return None, "git history records the baseline but it is absent from disk"
         return None, None
     except OSError as exc:
         return None, f"the baseline could not be read ({exc.strerror or exc})"
@@ -203,6 +226,47 @@ def refuse_symlinked_baseline(baseline_path: Path) -> bool:
     return True
 
 
+@contextmanager
+def _baseline_write_lock(lock_path: Path) -> Iterator[None]:
+    deadline = time.monotonic() + 10.0
+    while True:
+        try:
+            lock_path.mkdir(mode=0o700)
+            break
+        except FileExistsError:
+            if time.monotonic() >= deadline:
+                raise TimeoutError(
+                    f"timed out waiting for baseline lock {lock_path}"
+                ) from None
+            time.sleep(0.05)
+    try:
+        yield
+    finally:
+        lock_path.rmdir()
+
+
+def _replace_atomically(baseline_path: Path, text: str) -> None:
+    fd: int | None = None
+    tmp: Path | None = None
+    try:
+        fd, tmp_name = tempfile.mkstemp(
+            dir=baseline_path.parent,
+            prefix=f".{baseline_path.name}.",
+            suffix=".tmp",
+        )
+        tmp = Path(tmp_name)
+        handle = os.fdopen(fd, "w", encoding="utf-8")
+        fd = None
+        with handle:
+            handle.write(text)
+        os.replace(tmp, baseline_path)
+    finally:
+        if fd is not None:
+            os.close(fd)
+        if tmp is not None:
+            tmp.unlink(missing_ok=True)
+
+
 def write_baseline_json(
     repo_root: Path,
     baseline_path: Path,
@@ -223,20 +287,18 @@ def write_baseline_json(
     artifact whole for every reader, and replaces a symlink at the destination
     rather than following it out of the repository.
     """
-    if refuse_symlinked_baseline(baseline_path):
-        return 2
-
-    previous, problem = read_previous_sections(repo_root, baseline_path)
-    if refuse_dropped_entries(previous, counted, unit, allow_shrink, problem):
-        return 2
-
-    text = json.dumps(payload, indent=2) + "\n"
-    tmp = baseline_path.with_name(f"{baseline_path.name}.{os.getpid()}.tmp")
+    lock_path = baseline_path.with_name(f".{baseline_path.name}.write-lock")
     try:
-        tmp.write_text(text, encoding="utf-8")
-        os.replace(tmp, baseline_path)
+        with _baseline_write_lock(lock_path):
+            if refuse_symlinked_baseline(baseline_path):
+                return 2
+
+            previous, problem = read_previous_sections(repo_root, baseline_path)
+            if refuse_dropped_entries(previous, counted, unit, allow_shrink, problem):
+                return 2
+
+            _replace_atomically(baseline_path, json.dumps(payload, indent=2) + "\n")
     except OSError as exc:
-        tmp.unlink(missing_ok=True)
         print(f"Could not write baseline {baseline_path}: {exc}", file=sys.stderr)
         return 2
     return 0

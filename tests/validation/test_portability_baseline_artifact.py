@@ -11,6 +11,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 import pytest
@@ -78,6 +79,43 @@ class TestPredecessorLifecycle:
         path = _baseline(root, NESTED)
         path.unlink()
         sections, problem = read_previous_sections(root, path)
+        assert sections is None
+        assert problem is not None and "absent from disk" in problem
+
+    def test_a_staged_baseline_deletion_remains_recorded_in_head(
+        self, tmp_path: Path
+    ) -> None:
+        root = _repo(tmp_path)
+        path = _baseline(root, NESTED)
+        subprocess.run(
+            ["git", "-C", str(root), "rm", "-q", str(path.relative_to(root))],
+            check=True,
+            capture_output=True,
+        )
+
+        sections, problem = read_previous_sections(root, path)
+
+        assert sections is None
+        assert problem is not None and "absent from disk" in problem
+
+    def test_a_committed_baseline_deletion_remains_recorded_in_history(
+        self, tmp_path: Path
+    ) -> None:
+        root = _repo(tmp_path)
+        path = _baseline(root, NESTED)
+        subprocess.run(
+            ["git", "-C", str(root), "rm", "-q", str(path.relative_to(root))],
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(root), "commit", "-qm", "delete baseline"],
+            check=True,
+            capture_output=True,
+        )
+
+        sections, problem = read_previous_sections(root, path)
+
         assert sections is None
         assert problem is not None and "absent from disk" in problem
 
@@ -208,6 +246,20 @@ class TestTheWriteItself:
         assert write_baseline_json(root, path, NESTED, SECTIONS, UNIT, False) == 0
         assert json.loads(path.read_text(encoding="utf-8"))["files"] == {"a.md": 2, "b.md": 3}
 
+    def test_a_precreated_temporary_symlink_cannot_redirect_the_write(
+        self, tmp_path: Path
+    ) -> None:
+        root = _repo(tmp_path)
+        path = root / "scripts" / "validation" / "b.json"
+        victim = tmp_path / "victim.txt"
+        victim.write_text("DO NOT OVERWRITE", encoding="utf-8")
+        predictable = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+        predictable.symlink_to(victim)
+
+        assert write_baseline_json(root, path, NESTED, SECTIONS, UNIT, False) == 0
+        assert victim.read_text(encoding="utf-8") == "DO NOT OVERWRITE"
+        assert json.loads(path.read_text(encoding="utf-8"))["files"] == {"a.md": 2, "b.md": 3}
+
     def test_the_predecessor_is_rechecked_at_write_time(self, tmp_path: Path) -> None:
         """The caller's earlier check cannot see a writer that raced it."""
         root = _repo(tmp_path)
@@ -215,6 +267,55 @@ class TestTheWriteItself:
         shrunk: dict[str, dict[str, int]] = {"files": {"a.md": 2}, "marker_files": {"m.md": 13}}
         assert write_baseline_json(root, path, shrunk, shrunk, UNIT, False) == 2
         assert json.loads(path.read_text(encoding="utf-8"))["files"] == {"a.md": 2, "b.md": 3}
+
+    def test_concurrent_writers_serialize_the_read_and_replace(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        root = _repo(tmp_path)
+        path = _baseline(root, NESTED)
+        first_entered_replace = threading.Event()
+        release_first = threading.Event()
+        second_entered_replace = threading.Event()
+        original_replace = os.replace
+
+        def replace(source: Path, destination: Path) -> None:
+            if threading.current_thread().name == "stale-writer":
+                first_entered_replace.set()
+                assert release_first.wait(timeout=2)
+            else:
+                second_entered_replace.set()
+            original_replace(source, destination)
+
+        monkeypatch.setattr(os, "replace", replace)
+        reduced = {"files": {"a.md": 1}, "marker_files": {"m.md": 13}}
+        results: list[int] = []
+        first = threading.Thread(
+            target=lambda: results.append(
+                write_baseline_json(root, path, NESTED, SECTIONS, UNIT, False)
+            ),
+            name="stale-writer",
+        )
+        second = threading.Thread(
+            target=lambda: results.append(
+                write_baseline_json(root, path, reduced, reduced, UNIT, True)
+            ),
+            name="tightening-writer",
+        )
+
+        first.start()
+        assert first_entered_replace.wait(timeout=2)
+        second.start()
+        second_reached_replace_while_first_held_lock = second_entered_replace.wait(
+            timeout=0.2
+        )
+        release_first.set()
+        first.join(timeout=2)
+        second.join(timeout=2)
+
+        assert not second_reached_replace_while_first_held_lock
+        assert not first.is_alive() and not second.is_alive()
+        assert results == [0, 0]
+        assert json.loads(path.read_text(encoding="utf-8"))["files"] == {"a.md": 1}
 
     def test_a_concurrently_truncated_baseline_is_refused(self, tmp_path: Path) -> None:
         """Truncation used to look like "no predecessor", turning a race into a wipe."""

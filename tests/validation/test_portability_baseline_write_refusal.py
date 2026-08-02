@@ -153,9 +153,29 @@ class TestUnresolvedConflicts:
         target.write_text(SKILL_BODY.format(name="main"), encoding="utf-8")
         _git(tmp_path, "commit", "-qam", "main")
         merge = subprocess.run(
-            ["git", "-C", str(tmp_path), "merge", "side"], capture_output=True, encoding="utf-8"
+            [
+                "git",
+                "-C",
+                str(tmp_path),
+                "-c",
+                "user.email=t@t",
+                "-c",
+                "user.name=t",
+                "merge",
+                "side",
+            ],
+            capture_output=True,
+            encoding="utf-8",
+            check=False,
         )
         assert merge.returncode != 0, "fixture failed to produce a conflict"
+        unmerged = subprocess.run(
+            ["git", "-C", str(tmp_path), "ls-files", "-u"],
+            check=True,
+            capture_output=True,
+            encoding="utf-8",
+        )
+        assert unmerged.stdout, f"merge failed before producing a conflict: {merge.stderr}"
 
         assert _update(tmp_path, module) == 2
         assert baseline.read_bytes() == before
