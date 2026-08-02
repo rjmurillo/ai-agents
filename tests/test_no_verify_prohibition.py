@@ -34,6 +34,8 @@ _INSTRUCTION_ROOTS = (
     ".github/instructions",
 )
 
+_BINARY_SNIFF_BYTES = 8192
+
 # Pattern 1: git command with --no-verify on the same line.
 _SHELL_NO_VERIFY = re.compile(r"\bgit\b[^\n]*--no-verify")
 
@@ -64,6 +66,14 @@ def _is_allowed(path: Path) -> bool:
     return any(rel == a or rel.startswith(a + "/") for a in _ALLOWED)
 
 
+def _is_binary(path: Path) -> bool:
+    try:
+        with path.open("rb") as handle:
+            return b"\0" in handle.read(_BINARY_SNIFF_BYTES)
+    except OSError:
+        return False
+
+
 def _instruction_files() -> list[Path]:
     """All non-Python, non-binary files under the instruction roots."""
     files: list[Path] = []
@@ -79,6 +89,8 @@ def _instruction_files() -> list[Path]:
             if "__pycache__" in path.parts:
                 continue
             if _is_allowed(path):
+                continue
+            if _is_binary(path):
                 continue
             files.append(path)
     return files
@@ -151,6 +163,18 @@ class TestTheDetectorItself:
             "No instruction files found under instruction roots. "
             "Update _INSTRUCTION_ROOTS if directory layout changed."
         )
+
+    def test_nul_in_sniff_window_marks_file_binary(self, tmp_path: Path) -> None:
+        path = tmp_path / "asset.bin"
+        path.write_bytes(b"prefix\0suffix")
+
+        assert _is_binary(path)
+
+    def test_text_without_nul_is_not_binary(self, tmp_path: Path) -> None:
+        path = tmp_path / "doc.md"
+        path.write_text("git status\n", encoding="utf-8")
+
+        assert not _is_binary(path)
 
 
 def test_no_instruction_doc_recommends_no_verify() -> None:
