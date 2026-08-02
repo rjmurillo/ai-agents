@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size, this suite covers one validator end to end.
 """Tests for the exec-path vendor-portability ratchet (issue #2838).
 
 Covers: detection regex, opt-out marker, two-tree scan, diff ratchet, CLI exit

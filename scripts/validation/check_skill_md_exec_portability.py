@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, parser and CLI stay together to keep ratchet semantics auditable.
 """Exec-path vendor-portability ratchet for skill instruction files (issue #2838).
 
 Companion to ``check_skill_md_portability.py``. That validator counts *prose*
