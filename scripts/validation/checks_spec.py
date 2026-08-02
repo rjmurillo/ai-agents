@@ -127,9 +127,11 @@ def validate_skill_md_portability(repo_root: Path) -> bool:
         raise MissingScriptSkip(
             "scripts/validation/check_skill_md_portability.py not present"
         )
-    exit_code, stdout, stderr = _run_subprocess(
-        [sys.executable, str(script), "--repo-root", str(repo_root)]
-    )
+    cmd = [sys.executable, str(script), "--repo-root", str(repo_root)]
+    base_ref = _resolve_branch_base_ref(repo_root)
+    if base_ref:
+        cmd.extend(["--base-ref", base_ref])
+    exit_code, stdout, stderr = _run_subprocess(cmd)
     output = (stdout or "") + (stderr or "")
     if output.strip():
         for line in output.strip().splitlines()[:40]:

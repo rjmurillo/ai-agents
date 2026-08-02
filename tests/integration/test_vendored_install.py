@@ -125,7 +125,7 @@ def test_ai_review_common_imports_from_vendored_copy(vendored_root: Path) -> Non
     result = subprocess.run(
         [sys.executable, "-c", code],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         timeout=15,
         check=False,
     )

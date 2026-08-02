@@ -133,7 +133,7 @@ Full evidence line in the session log looks like `"qaValidation": { "level": "MU
 - [ ] Generated artifact: add a runtime-contract test with a negative control (Phase 3, item 2).
 - [ ] All git-mutating tests isolated in `tmp_path` repos (the #2316 guard will fail you otherwise).
 - [ ] Prove collection: `uv run pytest PATH --collect-only -q` shows your tests; then run them; then run the coverage pin form from Phase 4 on changed files.
-- [ ] Run `python3 scripts/validation/pre_pr.py` before the PR (the local shift-left aggregate; see `ai-agents-change-control` for the full gate ladder).
+- [ ] Run `uv run python scripts/validation/pre_pr.py` before the PR (the local shift-left aggregate; see `ai-agents-change-control` for the full gate ladder).
 
 ## Anti-Patterns
 

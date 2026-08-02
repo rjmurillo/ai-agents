@@ -365,4 +365,3 @@ def covered_stems(test_source: str, stems: frozenset[str]) -> set[str]:
         if _proves_failure(segment, results):
             covered |= driven
     return covered & stems
-

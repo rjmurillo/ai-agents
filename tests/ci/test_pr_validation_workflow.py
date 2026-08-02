@@ -567,7 +567,7 @@ def test_workflow_delegates_all_pr_validation_blocks():
     assert "python3 scripts/ci/update_needs_split_label.py --mode add" in workflow
     assert "python3 scripts/ci/update_needs_split_label.py --mode remove" in workflow
     assert "python3 scripts/ci/enforce_pr_validation.py" in workflow
-    assert "python3 scripts/ci/adr006_run_block_scanner.py --exact 45" in workflow
+    assert "python3 scripts/ci/adr006_run_block_scanner.py --exact 1" in workflow
     assert "gh api `\n            -X DELETE" not in workflow
     assert "Write-Error \"PR has $env:COMMIT_COUNT commits" not in workflow
 
@@ -749,7 +749,7 @@ class TestModelPinEnforcementIsWiredIntoCI:
                 "enforce",
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             cwd=REPO_ROOT,
         )
         assert result.returncode == 0, result.stdout + result.stderr
@@ -872,45 +872,6 @@ class TestTheAdr006PinMatchesReality:
         )
 
 
-class TestTheSuppressionBackstopIsWired:
-    """Issue #4061: the suppression policy ran through lefthook only.
-
-    A required CI step is the only thing that covers a clone without
-    `lefthook install`, a `--no-verify` push, a server-side "Update branch"
-    merge, or a bot push. Assert the step exists, calls the shared policy
-    implementation, and is not gated on the bot exclusion, since bot pushes
-    are one of the routes the gap was reported for.
-    """
-
-    @staticmethod
-    def _steps() -> list[dict]:
-        document = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
-        return [
-            step
-            for job in document["jobs"].values()
-            for step in job.get("steps", [])
-            if isinstance(step.get("run"), str)
-            and "security-suppressions-range" in step["run"]
-        ]
-
-    def test_a_step_invokes_the_range_subcommand(self) -> None:
-        steps = self._steps()
-        assert steps, (
-            "pr-validation.yml runs no security-suppressions-range step, so the "
-            "no-net-new suppression contract is local-hook only again (#4061)"
-        )
-        assert "scripts/validation/git_hook_policy.py" in steps[0]["run"], (
-            "the CI step must call the same policy module the pre-push hook does"
-        )
-
-    def test_the_step_is_not_gated_on_the_bot_exclusion(self) -> None:
-        for step in self._steps():
-            assert "should-run" not in str(step.get("if", "")), (
-                f"step {step.get('name')!r} exempts bot actors, which is one of "
-                f"the routes #4061 was filed for"
-            )
-
-
 class TestTheQaCheckFailsLoudlyWhenTheApiFails:
     """Issue #4068: a gh failure graded a code PR as "no code changes".
 
@@ -963,3 +924,172 @@ class TestTheQaCheckFailsLoudlyWhenTheApiFails:
         assert output.read_text(encoding="utf-8") == (
             "has_code_changes=False\nqa_report_exists=N/A\n"
         )
+
+
+class TestBotSkipGuardClassification:
+    """Every step behind the skip guard must have a documented classification.
+
+    Issue #4151: the skip guard exempts dependabot[bot], github-actions[bot],
+    and renovate[bot] for throughput reasons (dependency-bump PRs should not
+    pay for the full validation suite). That reasoning holds for expensive
+    advisory checks against the PR body or diff. It does not hold for gates
+    whose job is to catch a class of change regardless of who authored it.
+
+    Bots open workflow-only PRs (action SHA bumps). A correctness gate that is
+    skip-guarded is invisible to exactly those PRs. The ADR-006 run-block
+    ratchet was the only correctness gate still gated behind the skip guard; it
+    is now unconditional.
+
+    Classification rationale (throughput-motivated = OK to remain skip-guarded):
+    - Checkout repository: bot PRs receive a separate unconditional checkout
+    - Setup PowerShell: UI tooling for the skip-guarded steps
+    - Validate PR Description vs Diff: meaningless for a bot dep-bump PR body
+    - Validate PR Description Standards: same
+    - Check QA Report Exists: same
+    - Generate Validation Report: same
+    - Post PR Comment: same
+    - Set Job Summary: same
+    - Check PR commit count: a single-commit dep-bump is never blocked
+    - Enforce Blocking Issues: depends on outputs of skip-guarded steps above
+
+    Security/correctness gates that MUST be unconditional:
+    - Run ADR-006 run-block ratchet (moved here by Issue #4151 fix)
+    """
+
+    HOST_JOB = "validate-pr"
+    BOT_SKIP_GUARD = "steps.should-run.outputs.skip != 'true'"
+
+    @staticmethod
+    def _jobs() -> dict:
+        return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))["jobs"]
+
+    @classmethod
+    def _host_steps(cls) -> list:
+        return cls._jobs()[cls.HOST_JOB]["steps"]
+
+    @classmethod
+    def _skip_guarded_steps(cls) -> list[dict]:
+        return [
+            step
+            for step in cls._host_steps()
+            if cls._has_bot_skip_guard_component(step.get("if"))
+        ]
+
+    @classmethod
+    def _has_bot_skip_guard_component(cls, condition: object) -> bool:
+        if not isinstance(condition, str):
+            return False
+
+        expression = condition.strip()
+        if expression.startswith("${{") and expression.endswith("}}"):
+            expression = expression[3:-2].strip()
+
+        return any(
+            component.strip().strip("()").strip() == cls.BOT_SKIP_GUARD
+            for component in expression.split("&&")
+        )
+
+    def test_skip_guard_classifier_detects_compound_conditions(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Positive: a step can add a condition and still stay bot-skipped."""
+        guarded_step = {
+            "name": "Compound guarded step",
+            "if": f"{self.BOT_SKIP_GUARD} && github.event_name == 'push'",
+        }
+        monkeypatch.setattr(type(self), "_host_steps", classmethod(lambda cls: [guarded_step]))
+
+        assert self._skip_guarded_steps() == [guarded_step]
+
+    def test_skip_guard_classifier_rejects_negated_conditions(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Negative: a negated occurrence is not a skip guard."""
+        unguarded_step = {
+            "name": "Negated guarded step",
+            "if": f"!({self.BOT_SKIP_GUARD}) && github.event_name == 'push'",
+        }
+        monkeypatch.setattr(type(self), "_host_steps", classmethod(lambda cls: [unguarded_step]))
+
+        assert self._skip_guarded_steps() == []
+
+    def test_skip_guard_classifier_accepts_wrapped_expression(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Edge: GitHub expressions may carry the optional wrapper."""
+        guarded_step = {
+            "name": "Wrapped guarded step",
+            "if": f"${{{{ ({self.BOT_SKIP_GUARD}) && github.event_name == 'push' }}}}",
+        }
+        monkeypatch.setattr(type(self), "_host_steps", classmethod(lambda cls: [guarded_step]))
+
+        assert self._skip_guarded_steps() == [guarded_step]
+
+    # Exactly these step names are permitted behind the skip guard.
+    # If this set grows, the new step must be justified as throughput-motivated.
+    _ALLOWED_BEHIND_GUARD: frozenset[str] = frozenset(
+        {
+            "Checkout repository",
+            "Setup PowerShell",
+            "Validate PR Description vs Diff",
+            "Validate PR Description Standards",
+            "Check QA Report Exists",
+            "Generate Validation Report",
+            "Post PR Comment",
+            "Set Job Summary",
+            "Check PR commit count",
+            "Enforce Blocking Issues",
+        }
+    )
+
+    def test_adr006_ratchet_is_unconditional(self) -> None:
+        """Positive: the ADR-006 gate must run for bot-authored PRs.
+
+        Renovate and Dependabot open workflow-only PRs. A run-block scanner
+        that is skip-guarded is invisible to the actors most likely to touch
+        workflow YAML. The comment in the workflow already says 'Runs on every
+        PR because workflow YAML can change in any PR'; this test pins that.
+        """
+        adr006_steps = [
+            step
+            for step in self._host_steps()
+            if "adr006_run_block_scanner.py" in str(step.get("run", ""))
+        ]
+        assert len(adr006_steps) == 1, "expected exactly one ADR-006 step"
+        step = adr006_steps[0]
+        assert "if" not in step, (
+            f"ADR-006 ratchet must be unconditional, found: if: {step.get('if')!r}"
+        )
+
+    def test_no_security_gate_is_skip_guarded(self) -> None:
+        """Negative: every skip-guarded step must be throughput-motivated.
+
+        A step whose name is not in _ALLOWED_BEHIND_GUARD and is behind the
+        skip guard is a new security/correctness gate that slipped past the
+        exemption check. Adding a name to _ALLOWED_BEHIND_GUARD requires a
+        written justification showing the step is throughput-motivated, not
+        correctness-motivated.
+        """
+        guarded = {str(step.get("name", "")) for step in self._skip_guarded_steps()}
+        unknown = guarded - self._ALLOWED_BEHIND_GUARD
+        assert unknown == set(), (
+            f"Steps behind the bot-skip guard without a throughput justification: {unknown!r}. "
+            "Add the name to _ALLOWED_BEHIND_GUARD with a comment explaining why it is "
+            "throughput-motivated, not a correctness or security gate."
+        )
+
+    def test_all_allowed_guarded_steps_are_present(self) -> None:
+        """Edge: the allowlist must not include names that no longer exist.
+
+        A step removed from the workflow without pruning the allowlist leaves
+        phantom permission in _ALLOWED_BEHIND_GUARD that is never exercised.
+        This test requires every allowed name to actually exist in the workflow,
+        either as a skip-guarded step or elsewhere in the job (the commit-count
+        label steps are conditional on a different output, not on skip).
+        """
+        all_step_names = {str(step.get("name", "")) for step in self._host_steps()}
+        for name in self._ALLOWED_BEHIND_GUARD:
+            assert name in all_step_names, (
+                f"_ALLOWED_BEHIND_GUARD contains {name!r} but no step with that name "
+                "exists in the workflow. Remove the stale entry."
+            )

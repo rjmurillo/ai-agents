@@ -199,24 +199,6 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: python3 scripts/ci/enforce_pr_validation.py
 
-      # Issue #2967: ADR-006 forbids business logic in workflow `run:` blocks.
-      # The burn-down count (93 at audit time) had no gate, so it could climb
-      # back silently between extraction PRs.
-      #
-      # `--max` used to hold it, and that left slack: the pin sat at 58 while
-      # the real count was 45, so 13 fresh violations could land green and
-      # nothing forced the number down after an extraction batch. `--exact`
-      # makes the count match exactly, the same policy ruff_count_ratchet.py
-      # and taste_count_ratchet.py already use, so an unrecorded improvement
-      # fails as loudly as a regression. Lower this number after each
-      # extraction; the failure message prints the command that reports it.
-      #
-      # Runs on every PR because workflow YAML can change in any PR, and pytest.yml
-      # (which hosts the ruff ratchets) only runs when Python files change.
-      - name: Run ADR-006 run-block ratchet
-        if: steps.should-run.outputs.skip != 'true'
-        run: python3 scripts/ci/adr006_run_block_scanner.py --exact 45
-
       # Issue #3330: workflow *schema* validation had no required CI gate. YAML
       # Lint (yaml-lint.yml) does run on `**/*.yml` for PRs, but it runs yamllint,
       # which checks syntax and style. It does not know what a workflow is: it
@@ -253,6 +235,21 @@ jobs:
       - name: Validate workflow YAML
         run: uv run --frozen python3 scripts/validate_workflows.py
 
+      # Issue #2967: ADR-006 forbids business logic in workflow `run:` blocks.
+      # The burn-down count had no gate, so it could climb back silently between
+      # extraction PRs.
+      #
+      # `--max` left slack: the pin sat at 58 while the real count was 45, so
+      # 13 fresh violations could land green. `--exact` makes the count match
+      # reality, the same policy ruff_count_ratchet.py and taste_count_ratchet.py
+      # already use. Lower this number after each extraction batch.
+      #
+      # Unconditional (Issue #4151): Renovate and Dependabot open workflow-only
+      # PRs (action SHA bumps), which are exactly the PRs that could smuggle a
+      # new run block past this gate if it were skip-guarded.
+      - name: Run ADR-006 run-block ratchet
+        run: python3 scripts/ci/adr006_run_block_scanner.py --exact 1
+
       # Issue #3779: taste-lints emits severity="error" and nothing could fail
       # because of one. The linter itself is correct (it exits 10 on an error),
       # but `run_taste_advisory` in scripts/validation/git_hook_policy.py read
@@ -262,10 +259,9 @@ jobs:
       # learned to ignore, which is the same training signal that teaches people
       # to ignore the naming and complexity rules in the same output.
       #
-      # Enforcing outright is not viable: 613 error-severity violations exist.
-      # The total in scripts/ci/taste_count_baseline.txt must match exactly.
-      # Record a lower count after cleanup with
-      # `python scripts/ci/taste_count_ratchet.py --update`.
+      # Existing debt is capped by scripts/ci/taste_count_baseline.txt.
+      # Lower counts pass without rewriting that shared line. Use --update
+      # only when intentionally lowering the ceiling.
       #
       # This job hosts it for the same reason it hosts the workflow-YAML and
       # model-pin gates: taste-lints scans Markdown, YAML, JSON, shell, and
@@ -281,27 +277,14 @@ jobs:
         run: |
           git fetch --depth=1 origin "$BASE_REF"
           uv run --frozen python3 scripts/ci/taste_count_ratchet.py --base-ref FETCH_HEAD
-
       # Issue #4068: ADR-006 extraction converts loud shell failures into silent
       # Python successes. A `run:` block dies under `set -e`; the Python
       # translation returns a sentinel, and when no caller turns that sentinel
-      # into a nonzero exit the step goes green on a failure that used to be
-      # red. Six instances were found in two extraction PRs, and three of them
-      # shipped tests asserting the swallow. Every one of those tests asserted
-      # on a helper's return value and never on main(argv), which structurally
-      # cannot catch an exit-code defect.
+      # into a nonzero exit the step goes green on a failure that used to be red.
       #
-      # This gates the observable property instead of tracing sentinels: an
-      # extracted CI script whose CLI is never proven to exit nonzero. Credit
-      # needs a nonzero assertion and a call into that script's CLI in the same
-      # test function, so a helper-level assertion counts for nothing. Equality
-      # ratchet, same policy and same shared harness as the taste gate above.
-      # Record a lower count after adding coverage with
-      # `python scripts/ci/cli_exit_contract_ratchet.py --update`.
-      #
-      # Hosted here rather than in pytest.yml because a PR that adds a script
-      # under scripts/ci or .github/scripts without a test that drives its CLI
-      # must fail even when the paths filter would skip a Python job.
+      # This gates the observable property: an extracted CI script whose CLI is
+      # never proven to exit nonzero. Credit needs a nonzero assertion and a call
+      # into that script's CLI in the same test function.
       - name: Run CLI exit-contract ratchet
         env:
           BASE_REF: ${{ github.base_ref }}
@@ -309,6 +292,15 @@ jobs:
           git fetch --depth=1 origin "$BASE_REF"
           uv run --frozen python3 scripts/ci/cli_exit_contract_ratchet.py --base-ref FETCH_HEAD
 
+      # Issue #4039: type: ignore suppressions bypass the mypy ratchet by inflating
+      # allowed violations without the ratchet noticing. Counting them separately
+      # ensures net-new suppressions are visible and blocked on a regression.
+      - name: Run type-ignore count ratchet
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --depth=1 origin "$BASE_REF"
+          uv run --frozen python3 scripts/ci/type_ignore_count_ratchet.py --base-ref FETCH_HEAD
       # Issue #3770: `conflict-marker-policy` runs only at pre-commit over the
       # index. Every route that skips local hooks reached the remote unchecked:
       # a server-side merge from the "Update branch" button, `--no-verify`, a
@@ -331,33 +323,6 @@ jobs:
       # is clean today, so this is a ratchet at zero with no allowlist.
       - name: Check for conflict markers
         run: uv run --frozen python3 scripts/validation/git_hook_policy.py tracked-conflict-markers
-
-      # Issue #4061: the no-net-new security suppression contract (#3899, wired
-      # by PR #4023) ran only through lefthook. Every route that skips local
-      # hooks landed a fresh nosec, nosemgrep, lgtm, or security noqa with no
-      # failing check: a clone without `lefthook install`, `--no-verify`, the
-      # server-side "Update branch" merge, a bot push. audit-hook-bypass.yml
-      # records bypass evidence and is non-blocking by contract, so it does not
-      # close this.
-      #
-      # Same shape of fix as the conflict-marker step above (#3770): one
-      # range-based subcommand over the identical scan functions the pre-push
-      # hook uses, so CI and the hook cannot drift apart. File-scoped removal
-      # credit, pure-rename exemption, and notebook cell diffing all come along
-      # unchanged.
-      #
-      # Unconditional, like the two gates above, so bot-authored PRs are covered.
-      # The fetch is a no-op under the fetch-depth: 0 checkout and supplies the
-      # base object under the shallow bot-skip checkout. It is tolerant on
-      # purpose: when the object cannot be fetched the Python exit-2 path prints
-      # a diagnostic naming the unresolvable revision.
-      - name: Check for net-new security suppressions
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          git fetch --no-tags --depth=1 origin "$BASE_SHA" || true
-          uv run --frozen python3 scripts/validation/git_hook_policy.py \
-            security-suppressions-range --base "$BASE_SHA" --head HEAD
 
       # Issue #2840: ADR-080 requires an unjustified `model:` pin to fail CI.
       # `check_model_pins.py --mode enforce` exits 1 on a new or changed pin

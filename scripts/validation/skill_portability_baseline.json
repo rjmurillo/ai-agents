@@ -55,19 +55,19 @@
     "skills/github/scripts/pr/test_pr_merged.py": 1,
     "skills/github/scripts/pr/unresolve_pr_review_thread.py": 1,
     "skills/github/scripts/reactions/add_comment_reaction.py": 1,
-    "skills/golden-principles/scripts/scan_principles.py": 2,
-    "skills/memory-reflexion/tests/test_memory_reflexion_structure.py": 2,
+    "skills/golden-principles/scripts/scan_principles_core.py": 2,
+    "skills/memory-reflexion/tests/test_memory_reflexion_structure.py": 1,
     "skills/memory-search/tests/test_skill_structure.py": 1,
     "skills/memory/memory_core/reflexion_memory.py": 1,
     "skills/memory/memory_core/schema_validation.py": 1,
     "skills/memory/scripts/extract_session_episode.py": 3,
     "skills/memory/scripts/search_memory.py": 1,
-    "skills/memory/scripts/test_memory_health.py": 3,
-    "skills/memory/tests/test_memory_health.py": 12,
+    "skills/memory/scripts/test_memory_health.py": 2,
+    "skills/memory/tests/test_memory_health.py": 7,
     "skills/merge-resolver/scripts/resolve_pr_conflicts.py": 7,
     "skills/merge-resolver/tests/test_resolve_pr_conflicts.py": 2,
     "skills/orphan-ref-validator/scripts/counts.py": 1,
-    "skills/orphan-ref-validator/scripts/scan.py": 5,
+    "skills/orphan-ref-validator/scripts/scan.py": 4,
     "skills/orphan-ref-validator/tests/test_scan.py": 11,
     "skills/pr-comment-responder/scripts/cluster_threads.py": 1,
     "skills/quality-grades/scripts/grade_domains.py": 5,
@@ -83,6 +83,6 @@
     "skills/spec-generator/tests/test_reasons_section_headers.py": 1,
     "skills/steering-matcher/get_applicable_steering.py": 2,
     "skills/steering-matcher/scripts/get_applicable_steering.py": 2,
-    "skills/taste-lints/scripts/taste_lints.py": 4
+    "skills/taste-lints/scripts/taste_lints.py": 3
   }
 }
