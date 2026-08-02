@@ -458,6 +458,7 @@ def run_all_validations(
     # optional groups (e.g. ``[a] [b]``) make Copilot CLI parse separate flow nodes.
     # Canonical CI source: .github/workflows/validate-generated-agents.yml, step
     # "Validate Copilot agent frontmatter (issues #2491-#2497, #2500)", which runs
+    # doc-interpreter-portability: verbatim CI quote; CI installs deps system-wide
     # verbatim: ``python3 scripts/validation/validate_argument_hint.py``. This local
     # check calls validate_argument_hint() over the same default scan surface.
     run_validation(
