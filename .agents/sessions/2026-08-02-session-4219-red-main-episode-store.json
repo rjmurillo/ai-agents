@@ -1,0 +1,114 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4219,
+    "date": "2026-08-02",
+    "branch": "fix/episode-store-backwards-chains",
+    "startingCommit": "d82b5e37ee3a",
+    "objective": "Repair the 14 backwards commit-to-commit edges in the committed episode store that PR #4219 gated on but never cleaned, so main stops failing test_the_committed_episode_store_is_clean and every open PR can push again."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "complete": false,
+        "evidence": "No Serena MCP tools exposed in this Copilot CLI session; used the repository tree and git directly."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "complete": false,
+        "evidence": "Serena unavailable, so initial_instructions could not be called."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "This file."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "git branch --show-current = fix/episode-store-backwards-chains."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "fix/episode-store-backwards-chains != main."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Read .agents/HANDOFF.md; it is read-only per ADR-014 and was not modified."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "complete": true,
+        "evidence": "Branch created at d82b5e37ee3a, the origin/main tip at session start."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Read AGENTS.md, .claude/rules/universal.md, .claude/rules/knowledge-persistence.md, and .claude/rules/ci-scripts.md before acting."
+      }
+    },
+    "sessionEnd": {
+      "logCompleted": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "This log records the objective, the evidence, and the follow-ups."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": ".agents/HANDOFF.md read only, not modified."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Repair and this log committed together; endingCommit recorded in a follow-up commit per issue #3618."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "extract_session_episode.py --validate reports 381 validated, 0 violations. pytest tests/skills/memory/test_extract_session_episode.py = 244 passed, including test_the_committed_episode_store_is_clean which fails on main."
+      },
+      "checklistComplete": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Store clean, module green, non-destructiveness measured field by field before commit."
+      },
+      "markdownLintRun": {
+        "level": "SHOULD",
+        "complete": true,
+        "evidence": "No Markdown files changed on this branch; the change is 12 episode JSON files plus this log."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "complete": false,
+        "evidence": "Serena unavailable; the durable lesson was stored as a Copilot repository memory instead."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Bisected the failing test. c7a401c7a8~1 passes in 0.24s, c7a401c7a8 (PR #4219) fails in 5.15s, so #4219 merged red and every branch that merges main inherits the failure."
+    },
+    {
+      "step": "Triaged the 14 violations before repairing rather than baselining them. The validator docstring names the root cause: the pre-#3638 linker chained commits by list position while _collect_shas put the session's last commit first, so an episode recorded an effect as its own cause."
+    },
+    {
+      "step": "Measured the repair against git ground truth. 64 of 64 original commit timestamps were synthetic midnight placeholders; 63 of 63 repaired timestamps equal git's committer instant. The 64th SHA belongs to a squash-merged branch and no longer resolves, which the validator documents and skips."
+    },
+    {
+      "step": "Proved non-destructiveness field by field: 0 events added or dropped, 0 id sequences changed, 0 narrative content fields rewritten, 0 leads_to edges lost, top-level metadata identical. Only caused_by, leads_to, and timestamp differ."
+    },
+    {
+      "step": "Ran extract_session_episode.py --validate --fix, then re-validated: 381 validated, 0 violations, 12 repaired."
+    }
+  ],
+  "nextSteps": [
+    "Record this commit's SHA as endingCommit in a follow-up commit.",
+    "Re-push PR #4109 and PR #4164 once this lands; both were failing pre-push on nothing but this test.",
+    "File an issue on the branch-protection gap that let PR #4219 merge with a red required test."
+  ],
+  "endingCommit": ""
+}
