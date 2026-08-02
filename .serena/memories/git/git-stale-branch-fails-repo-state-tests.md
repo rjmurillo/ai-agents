@@ -12,8 +12,14 @@ branch changed. Merge `origin/main` into the branch before pushing.
 
 ## Context
 
-Fires at push time. `lefthook.yml` runs the full pytest suite in the pre-push
-hook, which takes about 11 minutes, so the failure surfaces only after the wait.
+Fires at push time. The `python-tests` pre-push job in `lefthook.yml` shells out
+to `git_hook_policy.py pytest`, whose `_pytest_commands` runs two pytest
+invocations, both deselecting the `integration` marker: the main tree under
+`tests/` with `tests/test_safe_push_pr_branch.py` ignored, then that file alone
+with `safe_push_transport` also deselected. So the pre-push run is the
+non-integration suite, not the whole suite. It still takes about 11 minutes, so
+the failure surfaces only after the wait. Re-derive the exact argv with
+`git grep -n "not integration" -- scripts/validation/git_hook_policy.py`.
 
 ## Evidence
 
