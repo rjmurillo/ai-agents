@@ -105,7 +105,6 @@
       "result": "Backwards edges e005->e006 and e007->e008 fixed. test_the_committed_episode_store_is_clean passes."
     }
   ],
-  "endingCommit": "4540d4b2252b1088c7e671ff7ac93645e08a9ea4",
   "nextSteps": [
     "Push branch fix/parity-torn-main to remote",
     "Create PR closing #4168"
@@ -114,5 +113,6 @@
     "whatWentWell": "Root cause was already measured by owner; investigation confirmed findings quickly.",
     "whatCouldImprove": "Pre-push hook episode test failure was a local environment issue unrelated to changes; required repair of a pre-existing bad episode file.",
     "lessonsLearned": "Always check whether a test failure is pre-existing before treating it as a blocker."
-  }
+  },
+  "endingCommit": "bb5c0bf76b5a8c784153af30cf553328d4489759"
 }
