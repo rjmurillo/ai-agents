@@ -457,6 +457,10 @@ GENERATED_GLOBS = {
     "memory": (".serena/memories/**/*.md",),
 }
 
+# Per-commit atomic file limit (AGENTS.md:24, .claude/rules/universal.md:15).
+# Generated companions (episodes, mcp, agents, memory-index) are exempt.
+MAX_AUTHORED_FILES_PER_COMMIT = 5
+
 
 @dataclass(frozen=True, slots=True)
 class PushRef:
@@ -1995,6 +1999,81 @@ def extract_session_episodes(paths: Sequence[str], repo_root: Path) -> int:
         if stage_result != 0:
             return stage_result
     return 0
+
+
+def _all_generated_paths() -> frozenset[str]:
+    """Return every path/glob prefix that counts as hook-generated."""
+    paths: set[str] = set()
+    for entries in GENERATED_PATHS.values():
+        paths.update(entries)
+    for globs in GENERATED_GLOBS.values():
+        paths.update(globs)
+    return frozenset(paths)
+
+
+def _is_generated(relative_path: str) -> bool:
+    """Return True when *relative_path* matches any generated-file pattern."""
+    for entries in GENERATED_PATHS.values():
+        if relative_path in entries:
+            return True
+    for globs in GENERATED_GLOBS.values():
+        if any(_matches_generated_glob(relative_path, pat) for pat in globs):
+            return True
+    return False
+
+
+def check_atomic_commit(repo_root: Path) -> int:
+    """Block when authored staged files exceed MAX_AUTHORED_FILES_PER_COMMIT.
+
+    Generated companions (episodes, mcp, agents, memory-index) are exempt from
+    the count so that a hook-generated sixth file cannot silently produce a
+    policy-violating commit. The function prints the generated files it found
+    so authors can see the full staged set.
+
+    EXIT CODES:
+      0 - staged authored files are within the limit
+      1 - staged authored files exceed the limit
+      2 - unexpected error determining the staged set
+    """
+    result = _run_git(repo_root, ["diff", "--cached", "--name-only", "--diff-filter=ACM"])
+    if result.returncode != 0:
+        print("ERROR: could not determine staged files", file=sys.stderr)
+        return 2
+
+    staged = [p for p in result.stdout.splitlines() if p]
+    authored: list[str] = []
+    generated: list[str] = []
+    for path in staged:
+        if _is_generated(path):
+            generated.append(path)
+        else:
+            authored.append(path)
+
+    authored_count = len(authored)
+    if generated:
+        print(
+            f"INFO: {len(generated)} generated file(s) excluded from atomic-commit count:",
+            file=sys.stderr,
+        )
+        for gp in generated:
+            print(f"  {gp}", file=sys.stderr)
+
+    if authored_count <= MAX_AUTHORED_FILES_PER_COMMIT:
+        return 0
+
+    print(
+        f"ERROR: commit touches {authored_count} authored files"
+        f" (limit is {MAX_AUTHORED_FILES_PER_COMMIT}).",
+        file=sys.stderr,
+    )
+    print("Authored files staged:", file=sys.stderr)
+    for ap in authored:
+        print(f"  {ap}", file=sys.stderr)
+    print(
+        "Split this commit or use commit-limit-bypass to override the ceiling entirely.",
+        file=sys.stderr,
+    )
+    return 1
 
 
 def _episode_id_from_output(stdout: str) -> str | None:
@@ -5876,6 +5955,10 @@ def _handle_extract_episodes(args: argparse.Namespace) -> int:
     return extract_session_episodes(args.paths, _repo_root(args))
 
 
+def _handle_atomic_commit(args: argparse.Namespace) -> int:
+    return check_atomic_commit(_repo_root(args))
+
+
 def _handle_semgrep(args: argparse.Namespace) -> int:
     return run_semgrep(_repo_root(args))
 
@@ -5929,6 +6012,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("security-suppressions-staged", _handle_staged_suppressions),
         ("pre-push", _handle_pre_push),
         ("tracked-conflict-markers", _handle_tracked_conflict_markers),
+        ("atomic-commit", _handle_atomic_commit),
     )
     for name, handler in path_commands:
         _add_path_command(subparsers, name, handler)
