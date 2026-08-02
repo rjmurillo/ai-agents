@@ -35,7 +35,11 @@
       "timestamp": "2026-07-03T00:00:00+00:00",
       "type": "test",
       "content": "Full suite passed: uv run pytest tests/ -x reported 13431 passed, 20 skipped, 45 xfailed before final session-log commit.",
-      "caused_by": [],
+      "caused_by": [
+        "e011",
+        "e016",
+        "e018"
+      ],
       "leads_to": []
     },
     {
@@ -67,7 +71,11 @@
       "timestamp": "2026-07-03T00:00:00+00:00",
       "type": "test",
       "content": "tests/hooks/test_invoke_lsp_read_guard*.py now clear TMPDIR and pin CLAUDE_PROJECT_DIR in autouse fixtures. Targeted LSP guard tests passed: 67 passed.",
-      "caused_by": [],
+      "caused_by": [
+        "e011",
+        "e016",
+        "e018"
+      ],
       "leads_to": []
     },
     {
@@ -83,7 +91,11 @@
       "timestamp": "2026-07-03T00:00:00+00:00",
       "type": "test",
       "content": "uv run pytest tests/ -x passed: 13299 passed, 20 deselected-by-marker, 45 expected failures, 3 warnings. Scoped uv run ruff check on 31 PR Python files passed. Full repo ruff still has unrelated baseline violations.",
-      "caused_by": [],
+      "caused_by": [
+        "e011",
+        "e016",
+        "e018"
+      ],
       "leads_to": []
     },
     {
@@ -92,7 +104,12 @@
       "type": "commit",
       "content": "Commit: f7c1b1f8ef2d",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e004",
+        "e008",
+        "e010",
+        "e014"
+      ]
     },
     {
       "id": "e012",
@@ -115,7 +132,11 @@
       "timestamp": "2026-07-03T00:00:00+00:00",
       "type": "test",
       "content": "tests/test_aggregate_quality_verdicts.py now expects DID_NOT_RUN when the security review hits infrastructure failure without code-quality findings. Targeted aggregate tests passed: 25 passed.",
-      "caused_by": [],
+      "caused_by": [
+        "e011",
+        "e016",
+        "e018"
+      ],
       "leads_to": []
     },
     {
@@ -132,7 +153,12 @@
       "type": "commit",
       "content": "Commit: 50a2e768074a",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e004",
+        "e008",
+        "e010",
+        "e014"
+      ]
     },
     {
       "id": "e017",
@@ -148,7 +174,12 @@
       "type": "commit",
       "content": "Commit: 4c0e1881b0c0",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e004",
+        "e008",
+        "e010",
+        "e014"
+      ]
     }
   ],
   "metrics": {
@@ -159,5 +190,7 @@
     "commits": 2,
     "files_changed": 4
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 12"
 }
