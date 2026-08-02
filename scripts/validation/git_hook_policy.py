@@ -3539,7 +3539,7 @@ def _semgrep_command(
     # subprocess Popen(encoding=, errors=) that are valid on Python 3.6+.
     # This repo requires Python 3.14 (pyproject.toml python_requires >=3.14),
     # so those compatibility warnings are false positives here.
-    _EXCLUDE_COMPAT_RULES = [
+    exclude_compat_rules = [
         "--exclude-rule",
         "python.lang.compatibility.python36",
         "--exclude-rule",
@@ -3559,7 +3559,7 @@ def _semgrep_command(
         "--max-target-bytes=0",
         "--no-exclude-binary-files",
         "--json",
-        *_EXCLUDE_COMPAT_RULES,
+        *exclude_compat_rules,
         "--",
         *targets,
     ]
