@@ -605,11 +605,13 @@ class TestHelperFunctions:
             env: dict[str, str],
             capture_output: bool,
             text: bool,
+            encoding: str,
             check: bool,
         ) -> subprocess.CompletedProcess[str]:
             seen["command"] = command
             seen["cwd"] = cwd
             seen["env"] = env
+            seen["encoding"] = encoding
             return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
 
         monkeypatch.setattr(mod.subprocess, "run", fake_run)
@@ -619,6 +621,7 @@ class TestHelperFunctions:
         assert seen["cwd"] == str(tmp_path)
         assert isinstance(seen["env"], dict)
         assert seen["env"]["LC_ALL"] == "C"
+        assert seen["encoding"] == "utf-8"
 
     def test_list_unmerged_files_empty_for_clean_repo(
         self, repo_with_intentional_fenced_marker: Path
