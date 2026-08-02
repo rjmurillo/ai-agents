@@ -1,14 +1,21 @@
 # Validate Plugin Version Bump
 #
-# Fails when a packaged plugin's source directory changes without a
-# strictly-greater bump to its .claude-plugin/plugin.json version. Installed
-# plugin caches key off that version; an unbumped version means installs never
-# re-sync (PR #1942 / PR #2114 motivated this gate).
+# Fails when a packaged plugin's .claude-plugin/plugin.json carries a version
+# field. With the field absent, Claude Code resolves freshness from the git
+# commit SHA, which changes on every merge. A committed version pins freshness
+# to that string and conflicts across every concurrent PR.
 #
-# Scope: the 3 packaged plugins (.claude, src/claude, src/copilot-cli).
-# Runs only on PRs/pushes that touch a plugin source dir or the gate itself.
+# The same rule covers the two marketplace files: a per-plugin version in a
+# marketplace entry is Claude Code's resolution step 2 and pins freshness ahead
+# of the commit SHA. A marketplace-only change touches no plugin source, so this
+# workflow filters on those two paths as well.
 #
-# Related: Issue rjmurillo/ai-agents#2118
+# Scope: the 3 packaged plugins (.claude, src/claude, src/copilot-cli) plus
+# .claude-plugin/marketplace.json and .github/plugin/marketplace.json.
+# Runs only on PRs/pushes that touch a plugin source dir, a marketplace file,
+# or the gate itself.
+#
+# Related: ADR-092, Issue rjmurillo/ai-agents#4080, Issue rjmurillo/ai-agents#2118
 
 name: Validate Plugin Version Bump
 
@@ -43,6 +50,8 @@ jobs:
               - '.claude/**'
               - 'src/claude/**'
               - 'src/copilot-cli/**'
+              - '.claude-plugin/marketplace.json'
+              - '.github/plugin/marketplace.json'
               - 'build/scripts/validate_plugin_version_bump.py'
               - 'scripts/validation/run_plugin_version_bump_ci.py'
               - 'scripts/validation/ci_runner_base.py'
@@ -62,9 +71,9 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           # fetch-depth: 0 so the runner can resolve origin/<base> and the
-          # push-event before-SHA. The validator diffs against a base ref to
-          # read the prior plugin.json version; a shallow checkout leaves that
-          # ref unresolvable.
+          # push-event before-SHA. The validator reads the manifests from a git
+          # ref rather than the working tree, so a shallow checkout that cannot
+          # resolve the head ref would fail the gate as a config error.
           fetch-depth: 0
 
       - name: Setup code environment
@@ -88,13 +97,14 @@ jobs:
         if: failure()
         run: |
           echo ""
-          echo "=== Plugin Version Bump Validation Failed ==="
+          echo "=== Plugin Version Field Validation Failed ==="
           echo ""
-          echo "A plugin source dir changed without a strictly-greater"
-          echo "plugin.json version bump. Installs will not re-sync."
+          echo "A packaged plugin manifest carries a 'version' field."
+          echo "That pins Claude Code freshness to the string instead of the"
+          echo "commit SHA, and conflicts across every concurrent PR."
           echo ""
-          echo "Fix: bump the version in the reported .claude-plugin/plugin.json"
-          echo "to a higher semver, then commit."
+          echo "Fix: delete the 'version' line from the reported"
+          echo ".claude-plugin/plugin.json, then commit. See ADR-092."
           echo ""
 
   skip-validation:

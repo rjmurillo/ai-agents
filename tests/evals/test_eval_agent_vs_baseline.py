@@ -86,6 +86,7 @@ ERR_SERVER_ERROR = adapter_mod.ERR_SERVER_ERROR
 ERR_TIMEOUT = adapter_mod.ERR_TIMEOUT
 ERR_CLIENT_ERROR = adapter_mod.ERR_CLIENT_ERROR
 ERR_AUTH = adapter_mod.ERR_AUTH
+ERR_UNKNOWN = adapter_mod.ERR_UNKNOWN
 ERR_TOTAL_TIMEOUT = adapter_mod.ERR_TOTAL_TIMEOUT
 
 RunPersistence = persistence_mod.RunPersistence
@@ -434,6 +435,24 @@ class TestPlanRunner:
                 model_id="model-without-pricing",
             )
 
+    def test_opus_5_costs_the_published_per_mtok_rate(self):
+        # Issue #3905: claude-opus-5 had no pricing row, so every plan naming
+        # it raised UnsupportedModelError. The expected value is derived from
+        # the published $5/$25 per MTok rather than copied from the table, so
+        # an order-of-magnitude typo in the row fails here. Do not also assert
+        # a fixed dollar total: that reds on any EST_TOKENS_PER_CALL or 70/30
+        # split refinement, which _plan_runner.py says to expect.
+        plan = PlanRunner.build_plan(
+            fixtures=_make_fixtures(1),
+            model_id="claude-opus-5",
+            n_runs=1,
+        )
+
+        expected_usd = (
+            plan.estimated_tokens_in * 5.0 + plan.estimated_tokens_out * 25.0
+        ) / 1_000_000
+        assert plan.estimated_cost_usd == pytest.approx(expected_usd)
+
     def test_cost_line_format(self):
         plan = PlanRunner.build_plan(
             fixtures=_make_fixtures(1),
@@ -570,6 +589,50 @@ class TestCliExitCodes:
         assert "planned_calls=6" in captured.out
         assert "cost_estimate_usd=" in captured.out
         assert "rate_as_of=" in captured.out
+
+    def test_panel_model_opus_5_plans_and_exits_zero(self, tmp_path, capsys):
+        # The exact command that failed in issue #3905. claude-opus-5 is the
+        # reference tier in scripts/eval/panels/owner-copilot-cli.json, and
+        # eval-model-panel.py shells this child with --model.
+        fixtures_dir = tmp_path / "fixtures"
+        fixtures_dir.mkdir()
+        _write_fixture(fixtures_dir, "F001.json", _valid_fixture_payload())
+
+        rc = cli_main([
+            "--dry-run",
+            "--agent",
+            "security",
+            "--fixtures",
+            str(fixtures_dir),
+            "--model",
+            "claude-opus-5",
+        ])
+
+        assert rc == 0
+        captured = capsys.readouterr()
+        assert "cost_estimate_usd=" in captured.out
+        assert "No pricing rate" not in captured.err
+
+    def test_unpriced_model_still_exits_two(self, tmp_path, capsys):
+        # The fail-closed guard #2858 added must survive the #3905 fix: an id
+        # with no rate must not silently plan at a fabricated cost.
+        fixtures_dir = tmp_path / "fixtures"
+        fixtures_dir.mkdir()
+        _write_fixture(fixtures_dir, "F001.json", _valid_fixture_payload())
+
+        rc = cli_main([
+            "--dry-run",
+            "--agent",
+            "security",
+            "--fixtures",
+            str(fixtures_dir),
+            "--model",
+            "claude-opus-99",
+        ])
+
+        assert rc == 2
+        captured = capsys.readouterr()
+        assert "No pricing rate for model_id='claude-opus-99'" in captured.err
 
 
 # ===========================================================================
@@ -789,6 +852,125 @@ class TestAnthropicAPIAdapterLogging:
             assert payload["fixture_id"] == "F007"
             assert "attempt" in payload
             assert "outcome" in payload
+
+    # The module docstring promises three things are never logged: API keys,
+    # request bodies, and full error payloads. The sibling test above covers
+    # only the first, and only when the key arrives via the environment.
+    # These three cover the other two, one per path that emits a category.
+    #
+    # `_anthropic_api` builds its message as
+    # `f"Anthropic API returned HTTP {code}: {sanitized}"`, appending the
+    # response body. So the body reaches the adapter inside an exception
+    # message and `_categorize_error` reads that text. Nothing in `_emit_log`
+    # enforces the promise; it holds because every `_categorize_error` branch
+    # returns a constant from a closed set. These tests pin that.
+    _BODY = "RESPONSEBODYCANARYZZZ"
+    _KEY = "sk-ant-INLINE-CANARY-ZZZZ"
+
+    @staticmethod
+    def _provider_message(status: int) -> str:
+        return (
+            f"Anthropic API returned HTTP {status}: "
+            '{"error": "internal", "echo": "'
+            + TestAnthropicAPIAdapterLogging._BODY
+            + '", "authorization": "'
+            + TestAnthropicAPIAdapterLogging._KEY
+            + '"}'
+        )
+
+    @staticmethod
+    def _assert_records_carry_no_provider_text(captured, expected_lines: int) -> None:
+        body = TestAnthropicAPIAdapterLogging._BODY
+        key = TestAnthropicAPIAdapterLogging._KEY
+        assert body not in captured.err
+        assert body not in captured.out
+        assert key not in captured.err
+        assert key not in captured.out
+        # A closed taxonomy is what makes the promise hold. A call site that
+        # forwarded the message would have to put it in some field, so assert
+        # every emitted value is one the code chose, not one it copied.
+        allowed = {
+            ERR_RATE_LIMIT,
+            ERR_SERVER_ERROR,
+            ERR_TIMEOUT,
+            ERR_CLIENT_ERROR,
+            ERR_AUTH,
+            ERR_UNKNOWN,
+            ERR_TOTAL_TIMEOUT,
+            None,
+        }
+        log_lines = [ln for ln in captured.err.splitlines() if ln.startswith("{")]
+        assert len(log_lines) == expected_lines
+        for line in log_lines:
+            payload = json.loads(line)
+            assert payload["error_category"] in allowed
+            for value in payload.values():
+                assert body not in str(value)
+                assert key not in str(value)
+
+    def test_a_retried_error_logs_no_provider_text(self, capsys):
+        """HTTP 500 is transient, so this drives the retry log path."""
+        message = self._provider_message(500)
+        transport = _FakeTransport(
+            script=[
+                lambda: (_ for _ in ()).throw(RuntimeError(message)),
+                "scored response",
+            ]
+        )
+        adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
+        adapter.call_model(
+            prompt="user prompt",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F008",
+            variant="agent",
+            run_index=0,
+            system="system prompt",
+        )
+        self._assert_records_carry_no_provider_text(capsys.readouterr(), 2)
+
+    def test_an_unclassifiable_status_logs_no_provider_text(self, capsys):
+        """HTTP 302 parses as a status but matches no category branch, so it
+        reaches the `ERR_UNKNOWN` fallthrough. That branch is unreachable for
+        any 4xx or 5xx, so the retry test above cannot cover it."""
+        message = self._provider_message(302)
+        transport = _FakeTransport(
+            script=[lambda: (_ for _ in ()).throw(RuntimeError(message))]
+        )
+        adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
+        result = adapter.call_model(
+            prompt="user prompt",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F009",
+            variant="agent",
+            run_index=0,
+            system="system prompt",
+        )
+        assert result.error_category == ERR_UNKNOWN
+        # Not transient, so one attempt and one record.
+        self._assert_records_carry_no_provider_text(capsys.readouterr(), 1)
+
+    def test_a_transport_resolve_failure_logs_no_provider_text(
+        self, monkeypatch, capsys
+    ):
+        """Transport construction fails before any attempt, which is a
+        separate `_emit_log` call site the two tests above never reach."""
+        message = self._provider_message(500)
+
+        def _boom(**_kwargs):
+            raise RuntimeError(message)
+
+        monkeypatch.setattr(adapter_mod, "_default_transport_factory", _boom)
+        adapter = AnthropicAPIAdapter(transport=None, sleep=lambda _s: None)
+        result = adapter.call_model(
+            prompt="user prompt",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F010",
+            variant="agent",
+            run_index=0,
+            system="system prompt",
+        )
+        assert result.attempts == 0
+        self._assert_records_carry_no_provider_text(capsys.readouterr(), 1)
 
 
 # ===========================================================================
@@ -1976,7 +2158,11 @@ class TestReportAggregatorCost:
         # 6 records × tokens_in=100, tokens_out=50.
         # cost = (600 * 0.003 + 300 * 0.015) / 1000 = (1.8 + 4.5)/1000 = 0.0063
         assert result.cost_estimate_usd == pytest.approx(0.0063)
-        assert result.pricing_rate_as_of == "2026-07-08"
+        # DESIGN-004 §5.3a: the aggregator and the plan runner both read the
+        # date from _eval_common rather than minting one. Asserted against the
+        # constant, not a literal, so a verified rate refresh (issue #3905)
+        # does not require editing a test that is about threading, not dates.
+        assert result.pricing_rate_as_of == plan_mod.PRICING_RATE_AS_OF
 
 
 # ===========================================================================
@@ -2447,6 +2633,60 @@ class TestTokensEstimatedFlag:
         ).aggregate()
         assert result.tokens_estimated is False
 
+    def test_an_error_result_reports_uncounted_zeros_as_estimated(self):
+        """An error path counts nothing, so its zeros are neither a heuristic
+        estimate nor a measured `usage` value. It still reports the flag as
+        True, because the flag drives a cost caveat downstream and an absent
+        measurement must not read as an authoritative zero.
+
+        Setting this to False would be locally more literal and globally
+        wrong: `ReportAggregator` takes `any()` over the records, so a run
+        where every call failed would clear the flag and publish a zero cost
+        with no caveat.
+        """
+        message = "Anthropic API returned HTTP 404: missing"
+        transport = _FakeTransport(
+            script=[lambda: (_ for _ in ()).throw(RuntimeError(message))]
+        )
+        adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
+        result = adapter.call_model(
+            prompt="user prompt",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F011",
+            variant="agent",
+            run_index=0,
+        )
+        assert result.outcome == "error"
+        assert result.tokens_in == 0
+        assert result.tokens_out == 0
+        assert result.tokens_estimated is True
+
+    def test_a_run_of_only_estimated_records_keeps_the_cost_caveat(self):
+        """Pins the consequence the test above protects: the caveat is what
+        stops a zero cost from reading as a measured one."""
+        records = _build_records(
+            ["F001"], agent_passed=False, baseline_passed=False
+        )
+        for record in records:
+            record.tokens_estimated = True
+        aggregate = ReportAggregator(
+            records, model_id="claude-sonnet-4-6"
+        ).aggregate()
+        assert aggregate.tokens_estimated is True
+        rendered = writer_mod._render_cost_section(aggregate, 1.0)
+        assert "estimated from a text-length heuristic" in rendered
+
+        # Not vacuous: the caveat is absent when nothing was estimated.
+        for record in records:
+            record.tokens_estimated = False
+        measured = ReportAggregator(
+            records, model_id="claude-sonnet-4-6"
+        ).aggregate()
+        assert measured.tokens_estimated is False
+        assert "estimated from a text-length heuristic" not in (
+            writer_mod._render_cost_section(measured, 1.0)
+        )
+
     def test_report_json_includes_tokens_estimated(self, tmp_path):
         writer = ReportWriter(tmp_path / "reports")
         aggregate = AggregateResult(
@@ -2566,6 +2806,94 @@ class TestAdapterTotalWallBudget:
         # 2 calls land; the budget guard prevents a 3rd attempt.
         assert slow.calls == 2
 
+    def test_wall_budget_can_deny_a_transient_error_its_first_retry(self):
+        # The retry-policy docstring calls 5xx transient. Transient names the
+        # error, not a promise that a second call happens: when the very first
+        # attempt burns more than the budget, no retry occurs and the recorded
+        # category is the budget's, not the transport's. Without this case the
+        # class only proves the guard stops a 3rd attempt, which leaves
+        # "transient is retried" looking unconditional.
+        #
+        # Two independent guards can produce this outcome, the projection check
+        # after the error and the elapsed check at the top of the next
+        # iteration, and they return the same category and the same attempt
+        # count here. This test pins the documented behaviour, not which guard
+        # delivered it; neutering the budget itself is what makes it fail.
+        clock_state = [0.0]
+
+        def clock() -> float:
+            return clock_state[0]
+
+        slow = _SlowTransport(clock_state, seconds_per_call=200.0)
+        adapter = AnthropicAPIAdapter(
+            transport=slow,
+            sleep=lambda _s: None,
+            clock=clock,
+            total_timeout_seconds=180.0,
+        )
+        result = adapter.call_model(
+            prompt="x",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F-WB0",
+            variant="agent",
+            run_index=0,
+        )
+        assert result.outcome == "error"
+        assert result.error_category == ERR_TOTAL_TIMEOUT
+        assert result.attempts == 1
+        # The transport was called once and never retried.
+        assert slow.calls == 1
+
+    def test_a_guard_that_fires_before_a_call_does_not_count_it(self, capsys):
+        # The pre-attempt guard is reachable only when the sleep overshoots the
+        # backoff the projection guard budgeted for, which a loaded or
+        # suspended host does. Here attempt 1 burns 100s of a 180s budget, the
+        # projection allows a retry, then the sleep overshoots to 200s and the
+        # top-of-loop guard stops the run before the second call.
+        #
+        # It fires before the call, so the attempt it is standing at never
+        # happened. The stderr log and the returned result describe the same
+        # event and must report the same count.
+        clock_state = [0.0]
+
+        def clock() -> float:
+            return clock_state[0]
+
+        def oversleeping_sleep(_seconds: float) -> None:
+            clock_state[0] += 100.0
+
+        slow = _SlowTransport(clock_state, seconds_per_call=100.0)
+        adapter = AnthropicAPIAdapter(
+            transport=slow,
+            sleep=oversleeping_sleep,
+            clock=clock,
+            total_timeout_seconds=180.0,
+        )
+        result = adapter.call_model(
+            prompt="x",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F-WB1",
+            variant="agent",
+            run_index=0,
+        )
+
+        assert result.error_category == ERR_TOTAL_TIMEOUT
+        assert slow.calls == 1
+        assert result.attempts == 1
+
+        budget_lines = [
+            json.loads(line)
+            for line in capsys.readouterr().err.splitlines()
+            if line.strip().startswith("{")
+        ]
+        aborted = [
+            record
+            for record in budget_lines
+            if record.get("error_category") == ERR_TOTAL_TIMEOUT
+        ]
+        assert len(aborted) == 1
+        assert aborted[0]["attempt"] == result.attempts
+
     def test_wall_budget_does_not_fire_on_fast_calls(self):
         # Each call is fast; budget never trips, normal retry exhaustion
         # path runs to completion and returns server_error.
@@ -2592,6 +2920,42 @@ class TestAdapterTotalWallBudget:
         assert result.outcome == "error"
         assert result.error_category == ERR_SERVER_ERROR
         assert fast.calls == 3
+
+
+class TestAdapterNonPositiveMaxRetries:
+    """`max_retries <= 0` skips the loop and lands on the fallthrough return.
+
+    Pinned because the record it produces is indistinguishable from a real
+    provider failure: `outcome="error"` carrying `ERR_UNKNOWN`. A caller
+    configuration mistake is reported in the provider's vocabulary, and no
+    attempt log is emitted to say otherwise. Refs #4121.
+    """
+
+    @pytest.mark.parametrize("max_retries", [0, -1, False])
+    def test_non_positive_max_retries_calls_no_transport(
+        self, max_retries: int, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        calls: list[str] = []
+
+        def transport(prompt: str, model_id: str, system: str) -> str:
+            calls.append(model_id)
+            raise AssertionError("transport must not be called")
+
+        adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
+        result = adapter.call_model(
+            prompt="x",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F-MR",
+            variant="agent",
+            run_index=0,
+            max_retries=max_retries,
+        )
+        assert calls == []
+        assert result.outcome == "error"
+        assert result.error_category == ERR_UNKNOWN
+        assert result.attempts == 0
+        # Nothing was attempted, so no attempt log is written.
+        assert capsys.readouterr().err == ""
 
 
 # ---------------------------------------------------------------------------

@@ -248,7 +248,6 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/mem
     ".agents/sessions/2026-01-01-session-130.json"
 ```
 
-
 ### Issue: Episode Extraction Fails
 
 **Symptoms**:

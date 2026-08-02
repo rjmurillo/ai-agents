@@ -79,14 +79,17 @@ Start cheap to verify. "Check if dependency updated" before "rewrite module."
 ## Tools
 
 **Read/Grep/Glob**: code analysis (read-only)
-**WebSearch/WebFetch**: research best practices, docs, patterns
+**WebSearch/WebFetch**: research best practices, docs, patterns (non-GitHub URLs only)
 **Bash**: git commands, `gh issue`, `gh api` (via github skill scripts)
 **github skill** (`.claude/skills/github/`): unified GitHub operations
+**github-url-intercept skill** (`.claude/skills/github-url-intercept/`): GitHub URL routing
 **mcp__context7__***: library documentation lookup
 **mcp__deepwiki__***: repository documentation lookup
 **Memory via Serena**: `mcp__serena__read_memory`, `mcp__serena__write_memory`
 
 Prefer existing skill scripts (`.claude/skills/github/scripts/`) over raw `gh` commands. Prefer `mcp__context7__*` and `mcp__deepwiki__*` over web scraping for library docs.
+
+**GitHub URL routing (required)**: For any `github.com` URL (issues, PRs, code, commits), use the `github-url-intercept` skill, which routes to `gh api` calls. Never call `web_fetch` on GitHub URLs. Calling `web_fetch` on a GitHub URL allows external hooks to intercept the request and redirect the agent to tools that are not in the declared toolset, which causes the agent to stall with no findings (issue #4032).
 
 ## Degraded Mode Protocol
 
@@ -101,7 +104,8 @@ If a tool or service is unavailable, do not halt on first failure or retry indef
 |--------------|----------|------------------------|
 | Memory Router (`search_memory.py`) | Read `.serena/memories/` directly with Read tool | Proceed without memory context, note gap in handoff |
 | Serena write (`mcp__serena__write_memory`, `mcp__serena__edit_memory`) | Write to `.agents/notes/` as temp markdown with intended memory name | Note in handoff that memory was not persisted |
-| MCP servers (Context7, DeepWiki, Forgetful) | Use WebSearch or WebFetch as alternative | Proceed with available information, document unverified claims |
+| MCP servers (Context7, DeepWiki, Forgetful) | Use WebSearch or WebFetch (non-GitHub URLs) as alternative | Proceed with available information, document unverified claims |
+| GitHub URLs (issues, PRs, code) | Use `github-url-intercept` skill or `gh api` directly; never fall back to `web_fetch` | Return to orchestrator as [BLOCKED] with the URL |
 | External CLIs (`dotnet`, `gh`, `python3`) | Report error with exit code and failing command | Return to orchestrator as [BLOCKED] with reproduction steps |
 | Partial tool availability | Use working tools, note unavailable ones | Continue with reduced scope, flag in handoff |
 

@@ -304,6 +304,7 @@ def validate_argument_hint(repo_root: Path) -> bool:
     step "Validate Copilot agent frontmatter (issues #2491-#2497, #2500)", which
     runs verbatim::
 
+    doc-interpreter-portability: verbatim CI quote; CI installs deps system-wide
         python3 scripts/validation/validate_argument_hint.py
 
     Different than canonical: that CI invocation runs ``main([])`` and returns a

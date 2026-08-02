@@ -59,7 +59,7 @@ Excluded per [#2080](https://github.com/rjmurillo/ai-agents/issues/2080):
 Per `~/Documents/Mobile/wiki/comparisons/Anthropic Interpretability Triad vs The Bicameral Bet.md`, the original architect, devops, qa fixtures saturated at 0.000 because the model defaults already solved them. Replaced with 24 fixtures built from the five operational facts:
 
 1. **CoT conditional faithfulness** -> force artifacts (file:line citations), not narration
-2. **Misfired known-entity inhibitor** -> planted fake ADRs (`ADR-091`), fake file paths, fake secret names, fake AC numbers; agent must verify or ESCALATE
+2. **Misfired known-entity inhibitor** -> planted fake ADRs (`ADR-092`), fake file paths, fake secret names, fake AC numbers; agent must verify or ESCALATE
 3. **Introspection ~= abstractness signal** -> replaced "rate confidence" with kill-criteria (3 falsifiable observations)
 4. **Capability in synergistic middle layers** -> "list 2 alternatives before recommending" gates
 5. **Emotion vectors** -> no-affect baits ("team is excited", "non-controversial", "moving fast"); agent must remain blunt

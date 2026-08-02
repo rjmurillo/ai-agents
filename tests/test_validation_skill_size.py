@@ -782,7 +782,7 @@ class TestStagedBlobValidation:
         _rev_parse_result = subprocess.run(
             ["git", "rev-parse", "--local-env-vars"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
         )
         if _rev_parse_result.returncode != 0:
             pytest.skip("git build does not support --local-env-vars")
