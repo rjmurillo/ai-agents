@@ -23,6 +23,7 @@ import os
 import re
 import subprocess
 import sys
+from typing import Any
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -155,7 +156,7 @@ def _unwrap_checks_payload(checks_data: dict[str, object]) -> dict[str, object] 
     return payload if isinstance(payload, dict) else None
 
 
-def _coerce_checks_list(payload: dict[str, object]) -> list[dict] | None:
+def _coerce_checks_list(payload: dict[str, object]) -> list[dict[str, Any]] | None:
     """Return a checked list of check objects, or None when malformed."""
     checks_value = payload.get("Checks")
     if checks_value is None:
@@ -284,7 +285,7 @@ def fetch_workflow_run_logs(
     repo: str,
     run_id: str,
     job_id: str | None,
-) -> dict:
+) -> dict[str, object]:
     """Fetch logs for a GitHub Actions workflow run."""
     # Try job-specific logs first
     if job_id:
@@ -327,15 +328,15 @@ def fetch_workflow_run_logs(
 def get_check_logs(
     owner: str,
     repo: str,
-    failing_checks: list[dict],
+    failing_checks: list[dict[str, Any]],
     max_lines: int,
     context_lines: int,
-) -> list[dict]:
+) -> list[dict[str, object]]:
     """Fetch logs for all failing checks."""
-    results: list[dict] = []
+    results: list[dict[str, object]] = []
 
     for check in failing_checks:
-        check_result: dict = {
+        check_result: dict[str, object] = {
             "Name": check.get("Name", ""),
             "DetailsUrl": check.get("DetailsUrl", ""),
             "State": check.get("State", ""),
@@ -377,7 +378,7 @@ def get_check_logs(
         check_result["LogSource"] = log_result["Source"]
 
         content = log_result["Content"]
-        log_lines = content.splitlines() if isinstance(content, str) else content
+        log_lines = content.splitlines() if isinstance(content, str) else []
 
         snippets = get_failure_snippets(log_lines, context_lines, max_lines)
         check_result["Snippets"] = snippets
@@ -436,7 +437,7 @@ def main(argv: list[str] | None = None) -> int:
 
     fmt = get_output_format(args.output_format)
     pr_number = args.pull_request
-    failing_checks: list[dict] = []
+    failing_checks: list[dict[str, Any]] = []
     merge_ref_warning: str | None = None
 
     checks_input = args.checks_input
