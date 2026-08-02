@@ -1,3 +1,5 @@
+<!-- # taste-lint: ignore file-size, append-only review record; splitting breaks audit continuity. -->
+
 # ADR Debate Log: Consolidated Per-Event Hook Dispatcher
 
 ## Summary
@@ -14,6 +16,32 @@
 
 This review reconciled the shipped implementation with its decision record.
 It did not change the dispatcher decision.
+
+## 2026-07-31 Issue #3218 Closure Amendment
+
+### Scope
+
+Issue #3218 closed on 2026-07-28 after repository evidence showed its
+retirement premise was wrong. The expansion seam and matcher union remain live
+generation paths. Parity tests cover the generated surfaces.
+
+### Roles and Vote Record
+
+| Agent | Vote |
+|-------|------|
+| architect | Accept |
+| critic | Accept |
+| independent-thinker | Accept |
+| security | Accept |
+| analyst | Accept |
+| high-level-advisor | Accept |
+
+### Resolution
+
+The amendment corrected all stale #3218 ownership claims, preserved the
+low process-savings finding, and replaced the dead issue-based trigger with a
+new architecture-decision trigger. ADR-082 contained no #3218 reference.
+Existing debate history remains unchanged.
 
 ## Round 1
 
@@ -540,6 +568,25 @@ PR #3292 validation pass.
 | high-level-advisor | Accept | The retirement trigger prevents dateless persistence. |
 
 Final tally: **6 Accept, 0 Disagree-and-Commit, 0 Block**. No P0 or P1
+finding remained.
+
+## 2026-07-31 File-Size Suppression Review
+
+The six roles reviewed the narrow file-size suppression for this append-only
+audit record and ADR-068. Splitting either record would break review continuity.
+The critic requested an in-file rationale. The final comments now state that
+reason.
+
+| Agent | Vote | Remaining position |
+|-------|------|--------------------|
+| architect | Accept | The exception preserves the accepted record. |
+| critic | Disagree-and-Commit | The requested rationale was added. |
+| independent-thinker | Accept | The exception is narrow and file-local. |
+| security | Accept | No security gate or content check is bypassed. |
+| analyst | Accept | The audit-continuity rationale is verifiable. |
+| high-level-advisor | Accept | The critic finding is closed. |
+
+Final tally: **5 Accept, 1 Disagree-and-Commit, 0 Block**. No P0 or P1
 finding remained.
 
 ## References

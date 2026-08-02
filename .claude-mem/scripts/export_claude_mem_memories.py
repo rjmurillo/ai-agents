@@ -40,17 +40,61 @@ def validate_output_path(output_path: Path, memories_dir: Path) -> bool:
     return True
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description="Export Claude-Mem memory snapshots"
+def _build_output_path(args: argparse.Namespace) -> Path:
+    """Build the output file path from args, using today's date and optional parts."""
+    if args.output_file:
+        return Path(args.output_file)
+    parts = [date.today().isoformat()]
+    if args.session_number:
+        parts.append(f"session-{args.session_number}")
+    if args.topic:
+        parts.append(args.topic)
+    return _MEMORIES_DIR / (("-".join(parts)) + ".json")
+
+
+def _validate_export_output(output_path: Path) -> int:
+    """Return non-zero if the export file is missing, stale, or empty."""
+    if not output_path.exists():
+        print("ERROR: Export file not created despite successful exit code.", file=sys.stderr)
+        return 1
+    file_info = output_path.stat()
+    if (datetime.now().timestamp() - file_info.st_mtime) > 60:
+        print("ERROR: Export file exists but is stale", file=sys.stderr)
+        return 1
+    if file_info.st_size == 0:
+        print("ERROR: Export file created but is empty", file=sys.stderr)
+        return 1
+    print(f"\nExport complete: {output_path} ({file_info.st_size} bytes)")
+    return 0
+
+
+def _run_security_review_memories(output_path: Path) -> int:
+    """Run the memory-export security review script; return 0 on pass or absence."""
+    security_script = _SCRIPT_DIR.parent.parent / "scripts" / "review_memory_export_security.py"
+    if not security_script.exists():
+        print("WARNING: Security review script not found")
+        print("   Manually review for sensitive data before committing")
+        return 0
+    print("\nRunning mandatory security review...")
+    sys.stdout.flush()
+    sec_result = subprocess.run(
+        [sys.executable, str(security_script), "--export-file", str(output_path)]
     )
+    if sec_result.returncode != 0:
+        print("ERROR: Security review FAILED.", file=sys.stderr)
+        return 1
+    print("Security review PASSED - Safe to commit")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Export Claude-Mem memory snapshots")
     parser.add_argument("query", help="Search query to filter memories")
     parser.add_argument("--output-file", default="", help="Path to output JSON file")
     parser.add_argument("--session-number", type=int, default=0, help="Session number for filename")
     parser.add_argument("--topic", default="", help="Topic for filename")
     args = parser.parse_args(argv)
 
-    # Validate query
     if not re.match(r"^[a-zA-Z0-9\s\-_.,()]*$", args.query):
         print("ERROR: Invalid query format. Use alphanumeric characters only.", file=sys.stderr)
         return 1
@@ -69,16 +113,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     _MEMORIES_DIR.mkdir(parents=True, exist_ok=True)
-
-    if args.output_file:
-        output_path = Path(args.output_file)
-    else:
-        parts = [date.today().isoformat()]
-        if args.session_number:
-            parts.append(f"session-{args.session_number}")
-        if args.topic:
-            parts.append(args.topic)
-        output_path = _MEMORIES_DIR / (("-".join(parts)) + ".json")
+    output_path = _build_output_path(args)
 
     if not validate_output_path(output_path, _MEMORIES_DIR):
         return 1
@@ -95,50 +130,20 @@ def main(argv: list[str] | None = None) -> int:
         )
         if result.returncode != 0:
             print(
-                f"ERROR: Export plugin failed with exit code: "
-                f"{result.returncode}",
+                f"ERROR: Export plugin failed with exit code: {result.returncode}",
                 file=sys.stderr,
             )
             return result.returncode
 
-        if not output_path.exists():
-            print("ERROR: Export file not created despite successful exit code.", file=sys.stderr)
-            return 1
+        rc = _validate_export_output(output_path)
+        if rc != 0:
+            return rc
 
-        file_info = output_path.stat()
-        file_age = (datetime.now().timestamp() - file_info.st_mtime)
-
-        if file_age > 60:
-            print("ERROR: Export file exists but is stale", file=sys.stderr)
-            return 1
-
-        if file_info.st_size == 0:
-            print("ERROR: Export file created but is empty", file=sys.stderr)
-            return 1
-
-        print(f"\nExport complete: {output_path} ({file_info.st_size} bytes)")
-
-        # Security review
-        security_script = _SCRIPT_DIR.parent.parent / "scripts" / "review_memory_export_security.py"
-        if security_script.exists():
-            print("\nRunning mandatory security review...")
-            sys.stdout.flush()
-            sec_result = subprocess.run(
-                [sys.executable, str(security_script), "--export-file", str(output_path)]
-            )
-            if sec_result.returncode != 0:
-                print("ERROR: Security review FAILED.", file=sys.stderr)
-                return 1
-            print("Security review PASSED - Safe to commit")
-        else:
-            print("WARNING: Security review script not found")
-            print("   Manually review for sensitive data before committing")
+        return _run_security_review_memories(output_path)
 
     except Exception as e:
         print(f"ERROR: Export failed: {e}", file=sys.stderr)
         return 1
-
-    return 0
 
 
 if __name__ == "__main__":

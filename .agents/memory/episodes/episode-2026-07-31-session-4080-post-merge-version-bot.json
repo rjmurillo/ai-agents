@@ -1,0 +1,119 @@
+{
+  "id": "episode-2026-07-31-session-4080-post-merge-version-bot",
+  "session": "2026-07-31-session-4080-post-merge-version-bot",
+  "timestamp": "2026-07-31T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix issue #4080: post-merge bot owns parity plugin versions, eliminating the O(N^2) version-conflict class. Write ADR-092, implement bot script, update gate logic, fix count ratchet, add tests.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-measured conflict count via git merge-tree across open PRs",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4080-post-merge-version-bot"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read ADR-079 in full; enumerated plugin version consumers",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4080-post-merge-version-bot"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "adr-review skill: authored ADR-092 superseding ADR-079; 6-role review logged in .agents/analysis/ADR-092-debate-log.md",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4080-post-merge-version-bot"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated validate_plugin_version_bump.py: added bot_managed field, manually-bumped gate",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4080-post-merge-version-bot"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created scripts/ci/auto_bump_plugin_version.py and .github/workflows/post-merge-version-bump.yml",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4080-post-merge-version-bot"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated scripts/ci/count_ratchet.py: count < baseline without --update now passes",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4080-post-merge-version-bot"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated all test files; created tests/ci/test_auto_bump_plugin_version.py",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4080-post-merge-version-bot"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated plugin-version-bump.md (canonical rule) and regenerated both instruction mirrors",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4080-post-merge-version-bot"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 8bae0df95b4d19ce84f8d6ee685eadd7e11af296",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4080-post-merge-version-bot"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 6af7749a1504c0978f1a5dc651dc2a5981193c17",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4080-post-merge-version-bot"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: edecb8e8510241c24e26b9176010c391e1887028",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4080-post-merge-version-bot"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 54
+  },
+  "lessons": []
+}

@@ -1,9 +1,10 @@
+# Phase 4: Synthesis Deep Dive
 
 **Panel:** 3-4 Opus agents with distinct evaluative lenses
 **Requirement:** Unanimous approval (all agents)
 **Fallback:** Return to Phase 1 with feedback (max 5 iterations)
 
-### Panel Composition
+## Panel Composition
 
 | Agent | Focus | Key Criteria | When Active |
 |-------|-------|--------------|-------------|
@@ -12,7 +13,7 @@
 | **Evolution/Timelessness** | Future-proofing, extension, ecosystem | Score ≥7, extension points clear, ecosystem fit | Always |
 | **Script/Automation** | Agentic capability, verification, quality | Scripts follow patterns, self-verify, documented | When scripts present |
 
-### Script Agent (Conditional)
+## Script Agent (Conditional)
 
 The Script Agent is activated when the skill includes a `scripts/` directory. Focus areas:
 
@@ -32,7 +33,7 @@ The Script Agent is activated when the skill includes a `scripts/` directory. Fo
 | 6-7 | Functional but missing some agentic capabilities |
 | <6 | Requires revision - insufficient automation quality |
 
-### Agent Evaluation
+## Agent Evaluation
 
 Each agent produces:
 

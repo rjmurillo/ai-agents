@@ -65,14 +65,18 @@ test = "npm test"
 
 ## Template Variables
 
-| Variable | Description |
-|----------|-------------|
-| `{{ branch }}` | Current branch name |
-| `{{ repo }}` | Repository name |
-| `{{ worktree_path }}` | Absolute worktree path |
-| `{{ default_branch }}` | Default branch name |
-| `{{ branch \| sanitize }}` | Branch with `/` replaced by `-` |
-| `{{ branch \| hash_port }}` | Unique port (10000-19999) |
+Template variables, including the filter forms, are shown in a fenced block
+because a markdown table cannot carry a bare `|`, and the escaped `\|` a table
+would need is a template syntax error rather than a filter.
+
+```text
+{{ branch }}                Current branch name
+{{ repo }}                  Repository name
+{{ worktree_path }}         Absolute worktree path
+{{ default_branch }}        Default branch name
+{{ branch | sanitize }}     Branch with / replaced by -
+{{ branch | hash_port }}    Unique port (10000-19999)
+```
 
 ## ai-agents Configuration Pattern
 

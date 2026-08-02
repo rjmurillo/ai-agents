@@ -11,7 +11,6 @@ Turn raw, unstructured capture into an evaluated, actionable inventory of thread
 
 <!-- vendor-portability: declared. During synthesis this skill cross-references the consumer's existing artifacts to wire each High-Signal thread to a prior entity: .claude/skills/ SKILL.md files, .agents/architecture/ADR-*.md, .serena/memories/**, open GitHub issues, and .agents/sessions/*.json. These are best-effort read targets for the elaboration gate; a vendored install without .agents/ or .serena/ simply has fewer connection candidates, not a broken run. Issue #2050. -->
 
-
 ## Triggers
 
 | Trigger Phrase | Operation |

@@ -32,7 +32,7 @@ class TestOrchestrateShSyntax:
         result = subprocess.run(
             ["bash", "-n", str(SCRIPT_PATH)],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
         )
         assert result.returncode == 0, f"Syntax error: {result.stderr}"
 
@@ -56,7 +56,7 @@ class TestOrchestrateShHelp:
         result = subprocess.run(
             [str(SCRIPT_PATH), "help"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             cwd=str(REPO_ROOT),
         )
         assert result.returncode == 0, f"Help failed: {result.stderr}"
@@ -66,7 +66,7 @@ class TestOrchestrateShHelp:
         result = subprocess.run(
             [str(SCRIPT_PATH), "help"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             cwd=str(REPO_ROOT),
         )
         expected_commands = [
@@ -86,7 +86,7 @@ class TestOrchestrateShHelp:
         result = subprocess.run(
             [str(SCRIPT_PATH), "help"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             cwd=str(REPO_ROOT),
         )
         assert "Usage:" in result.stdout or "usage:" in result.stdout.lower()
@@ -100,7 +100,7 @@ class TestOrchestrateShStatus:
         result = subprocess.run(
             [str(SCRIPT_PATH), "status"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             cwd=str(REPO_ROOT),
         )
         # Status may return 0 (success) or non-zero if state is empty
@@ -115,7 +115,7 @@ class TestOrchestrateShStatus:
         result = subprocess.run(
             [str(SCRIPT_PATH), "status"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             cwd=str(REPO_ROOT),
         )
         # Should mention chains even if state is empty
@@ -211,7 +211,7 @@ class TestOrchestrateShInputValidation:
             result = subprocess.run(
                 [str(SCRIPT_PATH), "chain", invalid],
                 capture_output=True,
-                text=True,
+                text=True, encoding="utf-8",
                 cwd=str(REPO_ROOT),
             )
             # Should fail with non-zero exit code
