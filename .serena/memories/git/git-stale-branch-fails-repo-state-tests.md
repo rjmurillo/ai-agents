@@ -79,6 +79,38 @@ job that actually failed:
 error: failed to push some refs
 ```
 
+## The second decoy: a hook that passed reads as a push that succeeded
+
+`pre_pr.py` ends its own output with these two lines:
+
+```
+RESULT: All validations passed
+
+Ready to create pull request!
+```
+
+That is the pre-push hook reporting on itself. It is not `git` and it is not
+GitHub. If you `tail` the log while the push is still uploading, those lines are
+the last thing in the file, and they read as success. They are not.
+
+The push's own result comes after, and looks like one of:
+
+```
+ * [new branch]      <branch> -> <branch>
+   <old>..<new>      <branch> -> <branch>
+error: failed to push some refs
+```
+
+Confirm against the remote rather than against the log:
+
+```bash
+git ls-remote origin <branch>
+```
+
+An empty result means the ref is not there, whatever the log said. This is the
+same class of error as reading the advisory `[FAIL]` above: a line that is true
+about one thing gets read as a verdict on another.
+
 ## Related
 
 - Never pipe `git push` into `tail`: `$?` then reports `tail`'s status, so a
