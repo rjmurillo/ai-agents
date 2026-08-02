@@ -198,6 +198,7 @@ class TestMain:
             [sys.executable, str(_VALIDATOR), "--docs", "README.md", "--repo-root", str(tmp_path)],
             capture_output=True,
             text=True,
+            encoding="utf-8",
         )
 
         assert result.returncode == 1
@@ -211,6 +212,7 @@ class TestMain:
             [sys.executable, str(_VALIDATOR), "--docs", "README.md", "--repo-root", str(tmp_path)],
             capture_output=True,
             text=True,
+            encoding="utf-8",
         )
 
         assert result.returncode == 0
