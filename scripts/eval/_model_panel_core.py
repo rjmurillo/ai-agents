@@ -77,12 +77,18 @@ class Panel:
 
 
 def default_panel() -> Panel:
-    """The documented default panel from #3042.
+    """The generic fallback panel from #3042. Not this repository's live panel.
 
     Two frontier reference tiers (Opus, Sol) plus two degradation probes
-    (Sonnet, Terra). The Anthropic model ids are concrete; the GPT-5.6 (Sol,
-    Terra) ids are placeholders the owner must confirm for their deployment,
-    which is exactly why the panel is `--panel-config`-overridable.
+    (Sonnet, Terra). The Anthropic model ids are concrete and priced. The
+    GPT-5.6 ids (Sol, Terra) are unverified placeholders with no pricing row,
+    so a live run of this panel fails closed on those two tiers.
+
+    Issue #3905 asked whether to repoint these tiers at the models this
+    repository actually operates. The answer is no. Keeping the default
+    generic keeps the offline tests free of provider credentials. Name real
+    models with `--panel-config`; the confirmed config for this deployment is
+    `scripts/eval/panels/owner-copilot-cli.json`.
     """
     return Panel(
         tiers=(

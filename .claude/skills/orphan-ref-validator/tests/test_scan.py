@@ -37,15 +37,25 @@ import pytest
 # Load scan.py via a spec keyed to this file's location so the test suite
 # does not collide with a sibling mirror at src/copilot-cli/skills/.../tests/
 # that imports a bare module name. The stable cache key prevents two test
-# suites from racing on sys.modules["scan"]. Use Path.parts (cross-platform)
-# rather than substring matching against str(_SCRIPT_DIR); on Windows the
-# substring "claude/skills" never matches because the separator is "\\".
+# suites from racing on sys.modules["scan"]. Walk to the repo root (a .git
+# entry) and use the repo-root-relative path to decide canonical vs. mirror;
+# a worktree under .claude/worktrees/ makes ".claude" appear in the absolute
+# path of src/copilot-cli files too, so checking for "src" + "copilot-cli" in
+# the relative path is the only discriminator that is stable across setups.
 _SCRIPT_DIR = Path(__file__).resolve().parent.parent / "scripts"
-_PARTS = _SCRIPT_DIR.parts
+_REPO_ROOT_FOR_KEY: Path | None = next(
+    (p for p in _SCRIPT_DIR.parents if (p / ".git").exists() or (p / ".git").is_file()),
+    None,
+)
+_IS_MIRROR = (
+    _REPO_ROOT_FOR_KEY is not None
+    and _SCRIPT_DIR.is_relative_to(_REPO_ROOT_FOR_KEY)
+    and _SCRIPT_DIR.relative_to(_REPO_ROOT_FOR_KEY).parts[:2] == ("src", "copilot-cli")
+)
 _MODULE_KEY = (
-    "_orphan_ref_validator_scan"
-    if ".claude" in _PARTS
-    else "_orphan_ref_validator_scan_mirror"
+    "_orphan_ref_validator_scan_mirror"
+    if _IS_MIRROR
+    else "_orphan_ref_validator_scan"
 )
 sys.path.insert(0, str(_SCRIPT_DIR))
 _spec = importlib.util.spec_from_file_location(_MODULE_KEY, _SCRIPT_DIR / "scan.py")

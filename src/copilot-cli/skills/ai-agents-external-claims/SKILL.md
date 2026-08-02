@@ -120,10 +120,10 @@ Grounding sources, verified against the working tree:
 | Concept | Source | Re-verify |
 |---------|--------|-----------|
 | Same-pass claim verification, stake-holding sources, round-number tells | gstack `claim-verification-before-ingest` skill | Read the skill's "When this skill fires" section |
-| Reporting-without-acting reward-bias root cause | `.claude/skills/avoiding-manufactured-work/SKILL.md` | `grep -n "Reporting\|reward" .claude/skills/avoiding-manufactured-work/SKILL.md` |
+| Reporting-without-acting reward-bias root cause | `.claude/skills/avoiding-manufactured-work/SKILL.md` | `grep -n -e "Reporting" -e "reward" .claude/skills/avoiding-manufactured-work/SKILL.md` |
 | Flag-with-a-hypothesis provenance discipline | `.claude/rules/voice.md`, "Ownership: See Something, Say Something" | `grep -n "See Something" .claude/rules/voice.md` |
-| Verbatim-quote requirement for mirrored claims (FM-9) | `.agents/governance/FAILURE-MODES.md` (enforced by `.claude/rules/canonical-source-mirror.md`) | `grep -n "character-for-character\|verbatim" .agents/governance/FAILURE-MODES.md` |
-| Vendor docs are not runtime truth (#2205, #2290) | `.claude/skills/ai-agents-research-methodology/SKILL.md` | `grep -n "vendor docs\|2205\|2290" .claude/skills/ai-agents-research-methodology/SKILL.md` |
+| Verbatim-quote requirement for mirrored claims (FM-9) | `.agents/governance/FAILURE-MODES.md` (enforced by `.claude/rules/canonical-source-mirror.md`) | `grep -n -e "character-for-character" -e "verbatim" .agents/governance/FAILURE-MODES.md` |
+| Vendor docs are not runtime truth (#2205, #2290) | `.claude/skills/ai-agents-research-methodology/SKILL.md` | `grep -n -e "vendor docs" -e "2205" -e "2290" .claude/skills/ai-agents-research-methodology/SKILL.md` |
 | Sibling set and issue | Issue #3068; PR #2831 | Repo issue and PR history |
 
 Note on grounding: the "walk the gate, or file conservative" wording adapts a discipline the maintainer applies at the account level; the repo's own on-tree anchors for it are `avoiding-manufactured-work` and the voice.md Ownership rule cited above, not a named section in `.claude/rules/voice.md`.

@@ -1277,6 +1277,59 @@ class TestValidatePRDescription:
         mentioned = extract_mentioned_files(f"{heading}\nChanged `foo.py`.\n")
         assert mentioned == ["foo.py"]
 
+    # ------------------------------------------------------------------
+    # Issue #4019 -- "## What changed" was missing from claim set
+    # ------------------------------------------------------------------
+
+    @pytest.mark.parametrize(
+        "heading",
+        [
+            "## What changed",
+            "## What Changed",
+            "## WHAT CHANGED",
+            "## What\tchanged",
+        ],
+    )
+    def test_issue_4019_what_changed_heading_extracts_inline_code(
+        self, heading: str
+    ) -> None:
+        """Inline-code paths under '## What changed' are change claims (issue #4019)."""
+        mentioned = extract_mentioned_files(f"{heading}\nModified `scripts/foo.py`.\n")
+        assert mentioned == ["scripts/foo.py"]
+
+    @pytest.mark.parametrize(
+        "heading",
+        [
+            "## What changed",
+            "## What Changed",
+        ],
+    )
+    def test_issue_4019_what_changed_fake_path_is_flagged_as_critical(
+        self, heading: str
+    ) -> None:
+        """A path under '## What changed' that is absent from the diff must be CRITICAL."""
+        description = f"{heading}\nModified `ghost-file.py`.\n"
+        mentioned = extract_mentioned_files(description)
+        issues = validate_pr_description(pr_files=["real-file.py"], mentioned_files=mentioned)
+        offenders = [i.file for i in issues if i.severity == "CRITICAL"]
+        assert offenders == ["ghost-file.py"]
+
+    def test_issue_4019_what_was_changed_is_not_a_claim_section(self) -> None:
+        """'## What was changed' is NOT in the claim set; inline paths there are informational."""
+        mentioned = extract_mentioned_files(
+            "## What was changed\nModified `scripts/foo.py`.\n"
+        )
+        assert "scripts/foo.py" not in mentioned
+
+    def test_issue_4019_what_changed_is_distinct_from_summary(self) -> None:
+        """'## Summary' remains informational; only '## What changed' is a claim."""
+        under_summary = extract_mentioned_files("## Summary\nModified `scripts/foo.py`.\n")
+        under_what_changed = extract_mentioned_files(
+            "## What changed\nModified `scripts/foo.py`.\n"
+        )
+        assert "scripts/foo.py" not in under_summary
+        assert "scripts/foo.py" in under_what_changed
+
 
 # ---------------------------------------------------------------------------
 # print_results

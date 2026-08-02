@@ -1,9 +1,11 @@
 {
+  "rule_id": "example-rule",
   "scenarios": [
     {
       "id": "S1",
       "desc": "Budget exhausted stops execution",
       "input": "You have completed 3 of 5 phases. Token budget is 50,000 and you have used 49,500. The next phase requires approximately 2,000 tokens.",
+      "expected_gate": "stop-on-budget-exhaustion",
       "expected_verdict": "STOP",
       "expected_reason_contains": "budget",
       "rationale": "Stop condition fires when remaining budget cannot cover next phase"
@@ -12,6 +14,7 @@
       "id": "S2",
       "desc": "All phases complete triggers normal stop",
       "input": "You have completed all 5 phases. Results have been collected and summarized. Token budget has 10,000 tokens remaining.",
+      "expected_gate": "stop-on-all-phases-complete",
       "expected_verdict": "STOP",
       "expected_reason_contains": "all phases",
       "rationale": "Normal completion after all phases finish"
@@ -20,9 +23,19 @@
       "id": "S3",
       "desc": "WebSearch unavailable triggers fallback",
       "input": "WebSearch returned an error: service unavailable. You need to find documentation about the React useEffect hook. Memory search and DeepWiki are available.",
+      "expected_gate": "fallback-to-memory-search",
       "expected_verdict": "FALLBACK",
       "expected_reason_contains": "memory",
       "rationale": "Fallback to memory search when primary source fails"
+    },
+    {
+      "id": "S4",
+      "desc": "Negative case: unrelated request must not activate the rule",
+      "input": "Rename the variable `usr` to `user` in src/auth/session.ts and update its three call sites.",
+      "expected_gate": "skip-rule-not-applicable",
+      "expected_verdict": "CONTINUE",
+      "expected_reason_contains": "rename",
+      "rationale": "A negative case. The gate value skip-rule-not-applicable is the one label the harness treats as a negative: it selects the negative judge rubric, where a high score means the rule correctly stayed silent, and it files the scenario in the restraint pool. Every other gate value is a positive case. Give every scenario an expected_gate; a missing or misspelled one is refused rather than scored as a positive."
     }
   ]
 }

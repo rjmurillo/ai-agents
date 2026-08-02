@@ -28,14 +28,14 @@ Before publishing any claim or finding, reason step-by-step through these three 
 1. What is the evidence level for this claim? Map it to the four-level hierarchy below:
    - Level 1: Command output in this session (Bash, Grep). Glob lists paths but does not read content; treat Glob results as Level 1.
    - Level 2: File content read in this session (Read).
-   - Level 3: External sources fetched in this session (WebSearch, WebFetch, library docs lookup, repository docs lookup).
+   - Level 3: External sources fetched in this session (WebSearch, WebFetch, mcp__context7__*, mcp__deepwiki__*).
    - Level 4: Training knowledge. "I recall" and "X probably is" are Level 4. Do not publish Level 4 claims. Move them to Open Questions or remove them.
 2. What would change this claim if wrong? Name the specific evidence that would falsify it.
 3. What is the simplest explanation consistent with the evidence? Apply Occam's razor before adopting a more complex hypothesis.
 
 Do not publish a finding without working through all three. A finding without an evidence level is a guess and gets returned for rework.
 
-**Search before claiming (A5)**: Before stating any fact about the codebase, an external system, a library, or a service, verify via tool. Use Grep, Read, WebSearch, library docs lookup, or repository docs lookup. "I recall," "X probably has," and "I think" are not acceptable in published analysis. If a claim cannot be verified in this session, move it to Open Questions (step 7) or remove it. Do not downgrade to Level 4; Level 4 is not publishable.
+**Search before claiming (A5)**: Before stating any fact about the codebase, an external system, a library, or a service, verify via tool. Use Grep, Read, WebSearch, mcp__context7__*, or mcp__deepwiki__*. "I recall," "X probably has," and "I think" are not acceptable in published analysis. If a claim cannot be verified in this session, move it to Open Questions (step 7) or remove it. Do not downgrade to Level 4; Level 4 is not publishable.
 
 **Thinking trigger**: Findings on architecture, security boundaries, performance regressions, and root cause analyses for incidents require explicit reasoning through all three questions. Routine pattern searches and listing tasks may collapse to a one-sentence justification.
 
@@ -79,14 +79,29 @@ Start cheap to verify. "Check if dependency updated" before "rewrite module."
 ## Tools
 
 **Read/Grep/Glob**: code analysis (read-only)
-**WebSearch/WebFetch**: research best practices, docs, patterns
+**WebSearch/WebFetch**: research best practices, docs, patterns (non-GitHub URLs only)
 **Bash**: git commands, `gh issue`, `gh api` (via github skill scripts)
 **github skill** (`.claude/skills/github/`): unified GitHub operations
-**Context7**: library documentation lookup
-**DeepWiki**: repository documentation lookup
-**Serena memory**: read and write cross-session findings
+**github-url-intercept skill** (`.claude/skills/github-url-intercept/`): GitHub URL routing
+**mcp__context7__***: library documentation lookup
+**mcp__deepwiki__***: repository documentation lookup
+**Memory via Serena**: `mcp__serena__read_memory`, `mcp__serena__write_memory`
 
-Prefer existing skill scripts (`.claude/skills/github/scripts/`) over raw `gh` commands. Prefer Context7 and DeepWiki over web scraping for library docs.
+Prefer existing skill scripts (`.claude/skills/github/scripts/`) over raw `gh` commands. Prefer `mcp__context7__*` and `mcp__deepwiki__*` over web scraping for library docs.
+
+**GitHub URL routing (required)**: For any `github.com` URL (issues, PRs, code, commits), use the `github-url-intercept` skill, which routes to `gh api` calls. Never call `web_fetch` on GitHub URLs. Calling `web_fetch` on a GitHub URL allows external hooks to intercept the request and redirect the agent to tools that are not in the declared toolset, which causes the agent to stall with no findings (issue #4032).
+
+**PR identity gate (required before reporting any findings)**: After fetching PR data via `get_pr_context.py`, reconcile these five identities before proceeding. A mismatch means the local checkout and the requested PR are different work items; stop and return the mismatch as an error rather than mixing evidence.
+
+| Identity | API field | Local source | Mismatch action |
+|----------|-----------|--------------|-----------------|
+| Repository | `owner/repo` from URL | `git remote get-url origin` | Stop, report: requested `A`, local is `B` |
+| PR state | `merged` from API | (any claim of merged state) | A claimed merge requires `merged: true` from the API |
+| Head ref | `headRefName` from API | `git branch --show-current` | Stop if they differ and you are on a branch not `main` |
+| Head SHA | `headRefOid` from API | `git rev-parse HEAD` | Stop if they differ; report both SHAs |
+| Merge commit | `mergeCommit.oid` from API | Any cited merge commit | Stop if they differ; do not cite a merge that is not the API's merge commit |
+
+If the tool that would provide API data is unavailable and no fallback can reach the GitHub API, stop and return `[BLOCKED: PR identity gate cannot be satisfied without GitHub API access]`. Do not substitute local checkout content for the requested PR (issue #4221).
 
 ## Read-Only Constraint
 

@@ -21,9 +21,12 @@ import os
 import subprocess
 import sys
 
-_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
-if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib")):
+_plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+_workspace = os.environ.get("GITHUB_WORKSPACE")
+if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
     _lib_dir = os.path.join(_plugin_root, "lib")
+elif _workspace:
+    _lib_dir = os.path.join(_workspace, ".claude", "lib")
 else:
     _lib_dir = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
@@ -74,28 +77,6 @@ query($owner: String!, $name: String!, $prNumber: Int!) {
     }
 }"""
 
-_THREAD_STATE_QUERY = """\
-query($threadId: ID!) {
-    node(id: $threadId) {
-        ... on PullRequestReviewThread {
-            id
-            isResolved
-            pullRequest {
-                number
-            }
-        }
-    }
-}"""
-
-
-def query_thread_state(thread_id: str) -> dict[str, object] | None:
-    """Return live thread state dict, or None if the thread is not found."""
-    data = gh_graphql(_THREAD_STATE_QUERY, {"threadId": thread_id})
-    node = data.get("node")
-    if not isinstance(node, dict):
-        return None
-    return node
-
 
 def resolve_review_thread(thread_id: str) -> bool:
     """Resolve a single review thread. Returns True on success."""
@@ -105,7 +86,9 @@ def resolve_review_thread(thread_id: str) -> bool:
         print(f"WARNING: Failed to resolve thread {thread_id}: {exc}", file=sys.stderr)
         return False
 
-    thread = data.get("resolveReviewThread", {}).get("thread", {})
+    thread = (
+        data.get("resolveReviewThread", {}).get("thread", {})
+    )
     if thread and thread.get("isResolved"):
         print(f"Resolved thread: {thread_id}")
         return True
@@ -135,7 +118,10 @@ def get_unresolved_threads(pr_number: int) -> list[dict]:
     )
 
     threads = (
-        data.get("repository", {}).get("pullRequest", {}).get("reviewThreads", {}).get("nodes", [])
+        data.get("repository", {})
+        .get("pullRequest", {})
+        .get("reviewThreads", {})
+        .get("nodes", [])
     )
     return [t for t in threads if not t.get("isResolved", True)]
 
@@ -167,41 +153,13 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _handle_single_thread(thread_id: str) -> int:
-    """Resolve one thread with pre-mutation state check. Returns exit code."""
-    try:
-        state = query_thread_state(thread_id)
-    except RuntimeError as exc:
-        print(f"Error querying thread state: {exc}", file=sys.stderr)
-        return 3
-    if state is None:
-        result: dict[str, object] = {
-            "action": "SKIP",
-            "reason": "not_found",
-            "thread_id": thread_id,
-        }
-        print(json.dumps(result, indent=2))
-        return 0
-    if state.get("isResolved"):
-        result = {
-            "action": "SKIP",
-            "reason": "already_resolved",
-            "thread_id": thread_id,
-        }
-        print(json.dumps(result, indent=2))
-        return 0
-    success = resolve_review_thread(thread_id)
-    result = {"action": "ACT", "thread_id": thread_id, "success": success}
-    print(json.dumps(result, indent=2))
-    return 0 if success else 1
-
-
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     assert_gh_authenticated()
 
     if args.thread_id:
-        return _handle_single_thread(args.thread_id)
+        success = resolve_review_thread(args.thread_id)
+        return 0 if success else 1
 
     # Resolve all unresolved threads
     try:
@@ -212,7 +170,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if not unresolved:
         print(f"All threads on PR #{args.pull_request} are already resolved")
-        result: dict[str, object] = {
+        result = {
             "TotalUnresolved": 0,
             "Resolved": 0,
             "Failed": 0,
@@ -221,7 +179,9 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(result, indent=2))
         return 0
 
-    print(f"Found {len(unresolved)} unresolved thread(s) on PR #{args.pull_request}")
+    print(
+        f"Found {len(unresolved)} unresolved thread(s) on PR #{args.pull_request}"
+    )
 
     resolved = 0
     failed = 0
@@ -237,7 +197,10 @@ def main(argv: list[str] | None = None) -> int:
             if first.get("databaseId"):
                 comment_id = first["databaseId"]
 
-        print(f"  Resolving thread {thread['id']} (comment {comment_id} by @{author})...")
+        print(
+            f"  Resolving thread {thread['id']} "
+            f"(comment {comment_id} by @{author})..."
+        )
 
         if resolve_review_thread(thread["id"]):
             resolved += 1

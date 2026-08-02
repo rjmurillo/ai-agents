@@ -1,0 +1,137 @@
+{
+  "id": "episode-2026-08-01-session-4169-agents-md-compression-defects",
+  "session": "2026-08-01-session-4169-agents-md-compression-defects",
+  "timestamp": "2026-08-01T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix two AGENTS.md directives that contradict the gates they summarize (issue #4169), and correct unverifiable figures in the context-optimizer rule-audit reference (issue #4175)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Audited the always-on rule corpus for directives that contradict an enforced gate",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4169-agents-md-compression-defects"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Tested whether shared-vocabulary ranking could find such contradictions automatically",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4169-agents-md-compression-defects"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Checked the plugin bump directive against ADR-091",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4169-agents-md-compression-defects"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified before correcting ADR-091 frontmatter, rather than assuming it was stale",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4169-agents-md-compression-defects"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-verified my own vendor-portability declaration in the rule-audit reference",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4169-agents-md-compression-defects"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran a review gate with two independent reviewers before publishing anything",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4169-agents-md-compression-defects"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bisected main after discovering it was red on a clean checkout",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4169-agents-md-compression-defects"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Investigated why a regression reached main without any check failing",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4169-agents-md-compression-defects"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran a positive control before filing a stronger claim about missing CI",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4169-agents-md-compression-defects"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Searched for an existing issue before filing about the ratchet being undiagnosable",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4169-agents-md-compression-defects"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 1a4f2ba07",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4169-agents-md-compression-defects"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 83150f835",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4169-agents-md-compression-defects"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 0e02b65dc",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4169-agents-md-compression-defects"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 3
+  },
+  "lessons": []
+}

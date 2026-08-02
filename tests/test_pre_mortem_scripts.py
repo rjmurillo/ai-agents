@@ -910,7 +910,7 @@ None.
         result = subprocess.run(
             [sys.executable, str(script_path), "--help"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -925,7 +925,7 @@ None.
         result = subprocess.run(
             [sys.executable, str(script_path)],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -944,7 +944,7 @@ None.
                 str(valid_inventory_file),
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -964,7 +964,7 @@ None.
                 "--json",
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -985,7 +985,7 @@ None.
                 str(invalid_file),
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -1005,7 +1005,7 @@ None.
                 str(nonexistent),
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 

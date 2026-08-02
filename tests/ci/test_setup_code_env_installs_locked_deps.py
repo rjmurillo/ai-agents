@@ -179,7 +179,8 @@ class TestFailurePropagation:
         (bin_dir / "uv").chmod(0o755)
         env = {**os.environ, "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}"}
         done = subprocess.run(
-            [sys.executable, str(SCRIPT), str(root)], capture_output=True, text=True, env=env
+            [sys.executable, str(SCRIPT), str(root)],
+            capture_output=True, text=True, encoding="utf-8", env=env
         )
         assert done.returncode == 3
         assert "Traceback" not in done.stderr

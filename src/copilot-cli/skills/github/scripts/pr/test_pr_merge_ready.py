@@ -46,13 +46,15 @@ import subprocess
 import sys
 import time
 from collections import defaultdict
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
-_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
-if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib")):
+_plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+_workspace = os.environ.get("GITHUB_WORKSPACE")
+if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
     _lib_dir = os.path.join(_plugin_root, "lib")
+elif _workspace:
+    _lib_dir = os.path.join(_workspace, ".claude", "lib")
 else:
     _lib_dir = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
@@ -292,8 +294,9 @@ def _group_contexts_by_name(
             grouped_status_contexts[name].append(ctx)
         else:
             continue
-        is_required_by_name[name] = is_required_by_name.get(name, False) or bool(
-            ctx.get("isRequired", False)
+        is_required_by_name[name] = (
+            is_required_by_name.get(name, False)
+            or bool(ctx.get("isRequired", False))
         )
     return grouped_check_runs, grouped_status_contexts, is_required_by_name
 
@@ -302,10 +305,8 @@ def _route_check_run_groups(
     grouped: dict[str, list[dict]],
     is_required_by_name: dict[str, bool],
     *,
-    failed_required: list[str],
-    pending_required: list[str],
-    failed_non_required: list[str],
-    pending_non_required: list[str],
+    failed_required: list[str], pending_required: list[str],
+    failed_non_required: list[str], pending_non_required: list[str],
     skipped_names: list[str],
 ) -> None:
     """Verdict + route + dedupe-log for each CheckRun group."""
@@ -317,19 +318,12 @@ def _route_check_run_groups(
                 "op=check_run_dedupe name=%s rows=%s verdict=%s required=%s",
                 name,
                 [(r.get("status"), r.get("conclusion")) for r in rows],
-                verdict,
-                is_required,
+                verdict, is_required,
             )
-        _route_verdict(
-            name,
-            verdict,
-            is_required,
-            failed_required,
-            pending_required,
-            failed_non_required,
-            pending_non_required,
-            skipped_names=skipped_names,
-        )
+        _route_verdict(name, verdict, is_required,
+                       failed_required, pending_required,
+                       failed_non_required, pending_non_required,
+                       skipped_names=skipped_names)
 
 
 def _route_status_context_groups(
@@ -337,10 +331,8 @@ def _route_status_context_groups(
     seen_check_run_names: set[str],
     is_required_by_name: dict[str, bool],
     *,
-    failed_required: list[str],
-    pending_required: list[str],
-    failed_non_required: list[str],
-    pending_non_required: list[str],
+    failed_required: list[str], pending_required: list[str],
+    failed_non_required: list[str], pending_non_required: list[str],
     skipped_names: list[str],
 ) -> None:
     """Verdict + route for StatusContext groups; skip duplicates of
@@ -349,9 +341,9 @@ def _route_status_context_groups(
     for name, rows in grouped.items():
         if name in seen_check_run_names:
             logger.debug(
-                "op=status_context_skipped reason=dup_of_check_run name=%s rows=%d",
-                name,
-                len(rows),
+                "op=status_context_skipped reason=dup_of_check_run "
+                "name=%s rows=%d",
+                name, len(rows),
             )
             continue
         verdict = _status_context_verdict(rows)
@@ -361,19 +353,12 @@ def _route_status_context_groups(
                 "op=status_context_dedupe name=%s rows=%s verdict=%s required=%s",
                 name,
                 [r.get("state") for r in rows],
-                verdict,
-                is_required,
+                verdict, is_required,
             )
-        _route_verdict(
-            name,
-            verdict,
-            is_required,
-            failed_required,
-            pending_required,
-            failed_non_required,
-            pending_non_required,
-            skipped_names=skipped_names,
-        )
+        _route_verdict(name, verdict, is_required,
+                       failed_required, pending_required,
+                       failed_non_required, pending_non_required,
+                       skipped_names=skipped_names)
 
 
 def _classify_check_contexts(
@@ -398,14 +383,12 @@ def _classify_check_contexts(
     Closes the false-FAIL class on CANCELLED+SUCCESS dedupe AND the
     false-PASS class on CANCELLED-only debounce groups.
     """
-    grouped_check_runs, grouped_status_contexts, is_required_by_name = _group_contexts_by_name(
-        contexts
+    grouped_check_runs, grouped_status_contexts, is_required_by_name = (
+        _group_contexts_by_name(contexts)
     )
     _route_check_run_groups(
-        grouped_check_runs,
-        is_required_by_name,
-        failed_required=failed_required,
-        pending_required=pending_required,
+        grouped_check_runs, is_required_by_name,
+        failed_required=failed_required, pending_required=pending_required,
         failed_non_required=failed_non_required,
         pending_non_required=pending_non_required,
         skipped_names=skipped_names,
@@ -414,8 +397,7 @@ def _classify_check_contexts(
         grouped_status_contexts,
         seen_check_run_names=set(grouped_check_runs.keys()),
         is_required_by_name=is_required_by_name,
-        failed_required=failed_required,
-        pending_required=pending_required,
+        failed_required=failed_required, pending_required=pending_required,
         failed_non_required=failed_non_required,
         pending_non_required=pending_non_required,
         skipped_names=skipped_names,
@@ -493,21 +475,15 @@ def _fetch_pr_data(owner: str, repo: str, pr_number: int, op_start: float) -> di
         duration_ms = int((time.monotonic() - op_start) * 1000)
         if "Could not resolve" in msg:
             logger.warning(
-                "op=merge_ready_failed pr=%d owner=%s repo=%s reason=pr_not_found duration_ms=%d",
-                pr_number,
-                owner,
-                repo,
-                duration_ms,
+                "op=merge_ready_failed pr=%d owner=%s repo=%s "
+                "reason=pr_not_found duration_ms=%d",
+                pr_number, owner, repo, duration_ms,
             )
             error_and_exit(f"PR #{pr_number} not found in {owner}/{repo}", 2)
         logger.warning(
             "op=merge_ready_failed pr=%d owner=%s repo=%s "
             "reason=graphql_error duration_ms=%d error=%s",
-            pr_number,
-            owner,
-            repo,
-            duration_ms,
-            safe_log_str(msg),
+            pr_number, owner, repo, duration_ms, safe_log_str(msg),
         )
         error_and_exit(f"Failed to query PR status: {msg}", 3)
 
@@ -519,11 +495,9 @@ def _fetch_pr_data(owner: str, repo: str, pr_number: int, op_start: float) -> di
         # Operators grepping `reason=pr_not_found` find every script that
         # observed this condition, regardless of which one logged it.
         logger.warning(
-            "op=merge_ready_failed pr=%d owner=%s repo=%s reason=pr_not_found duration_ms=%d",
-            pr_number,
-            owner,
-            repo,
-            duration_ms,
+            "op=merge_ready_failed pr=%d owner=%s repo=%s "
+            "reason=pr_not_found duration_ms=%d",
+            pr_number, owner, repo, duration_ms,
         )
         error_and_exit(f"PR #{pr_number} not found", 2)
     return pr
@@ -568,7 +542,8 @@ def _evaluate_pr_state(pr: dict, reasons: list[str]) -> str:
         reasons.append("Branch is behind base; update against the base branch before merging")
     elif merge_state == "BLOCKED":
         reasons.append(
-            "Merge blocked by branch protection (missing review decision or unmet protection rule)"
+            "Merge blocked by branch protection (missing review decision or "
+            "unmet protection rule)"
         )
     return mergeable
 
@@ -603,18 +578,15 @@ def stale_dirty_suspected(mergeable: str | None, merge_state_status: str | None)
     git-truth decision to the caller. Safe fallback: absent a local refresh,
     ``CanMerge`` stays ``False``, so a true conflict is never silently merged.
     """
-    return (mergeable or "") in _STALE_DIRTY_MERGEABLE or (
-        merge_state_status or ""
-    ) in _STALE_DIRTY_STATE
+    return (
+        (mergeable or "") in _STALE_DIRTY_MERGEABLE
+        or (merge_state_status or "") in _STALE_DIRTY_STATE
+    )
 
 
 def _evaluate_review_threads(
-    pr: dict[str, Any],
-    ignore_threads: bool,
-    reasons: list[str],
-    owner: str,
-    repo: str,
-    pr_number: int,
+    pr: dict, ignore_threads: bool, reasons: list[str],
+    owner: str, repo: str, pr_number: int,
 ) -> tuple[int, int, bool]:
     """Count unresolved threads and append reason.
 
@@ -652,9 +624,7 @@ def _evaluate_review_threads(
         # so unresolved_count is exact, not a lower bound.
         logger.info(
             "op=merge_ready_threads_paginating pr=%d total=%d inline_nodes=%d",
-            pr_number,
-            total_threads,
-            len(nodes),
+            pr_number, total_threads, len(nodes),
         )
         unresolved_threads = get_unresolved_review_threads(owner, repo, pr_number)
         # Use inline count as floor: if paginated call fails (returns []),
@@ -671,11 +641,7 @@ def _evaluate_review_threads(
 
 
 def _paginate_contexts(
-    owner: str,
-    repo: str,
-    pr_number: int,
-    oid: str,
-    start_cursor: str | None,
+    owner: str, repo: str, pr_number: int, oid: str, start_cursor: str | None,
 ) -> tuple[list[dict], bool]:
     """Fetch remaining status-check contexts by cursor pagination.
 
@@ -692,19 +658,14 @@ def _paginate_contexts(
             data = gh_graphql(
                 _CONTEXTS_PAGE_QUERY,
                 {
-                    "owner": owner,
-                    "repo": repo,
-                    "oid": oid,
-                    "number": pr_number,
-                    "cursor": cursor,
+                    "owner": owner, "repo": repo, "oid": oid,
+                    "number": pr_number, "cursor": cursor,
                 },
             )
         except RuntimeError as exc:
             logger.warning(
                 "op=merge_ready_contexts_paginate_error pr=%d oid=%s err=%s",
-                pr_number,
-                oid,
-                safe_log_str(str(exc)),
+                pr_number, oid, safe_log_str(str(exc)),
             )
             return extras, False
         commit_obj = (data.get("repository") or {}).get("object") or {}
@@ -726,9 +687,7 @@ def _evaluate_ci_checks(
     ignore_ci: bool,
     include_non_required: bool,
     reasons: list[str],
-    owner: str = "",
-    repo: str = "",
-    pr_number: int = 0,
+    owner: str = "", repo: str = "", pr_number: int = 0,
 ) -> tuple[list[str], list[str], list[str], list[str], int, bool, int, bool]:
     """Classify rollup contexts and append CI reasons.
 
@@ -758,16 +717,9 @@ def _evaluate_ci_checks(
     pages_complete = True
 
     if ignore_ci:
-        return (
-            failed_required,
-            pending_required,
-            failed_non_required,
-            pending_non_required,
-            passed_checks,
-            ci_passing,
-            rollup_rows,
-            pages_complete,
-        )
+        return (failed_required, pending_required, failed_non_required,
+                pending_non_required, passed_checks, ci_passing,
+                rollup_rows, pages_complete)
 
     commits = pr.get("commits", {}).get("nodes", [])
     if commits:
@@ -785,18 +737,17 @@ def _evaluate_ci_checks(
             # _evaluate_review_threads. If pagination fails or hits
             # the cap, pages_complete stays False so the gate fails
             # closed even if the partial set looks clean.
-            if page_info.get("hasNextPage", False) and owner and repo and pr_number and oid:
+            if (
+                page_info.get("hasNextPage", False)
+                and owner and repo and pr_number and oid
+            ):
                 logger.info(
-                    "op=merge_ready_contexts_paginating pr=%d total=%s inline_nodes=%d",
-                    pr_number,
-                    total_contexts,
-                    len(contexts),
+                    "op=merge_ready_contexts_paginating pr=%d total=%s "
+                    "inline_nodes=%d",
+                    pr_number, total_contexts, len(contexts),
                 )
                 extras, ok = _paginate_contexts(
-                    owner,
-                    repo,
-                    pr_number,
-                    oid,
+                    owner, repo, pr_number, oid,
                     page_info.get("endCursor"),
                 )
                 contexts.extend(extras)
@@ -816,38 +767,24 @@ def _evaluate_ci_checks(
             )
             passed_checks = _count_passed_checks(
                 contexts,
-                blocked=(
-                    failed_required + pending_required + failed_non_required + pending_non_required
-                ),
+                blocked=(failed_required + pending_required
+                         + failed_non_required + pending_non_required),
                 skipped=skipped_names,
             )
 
     ci_passing = _append_ci_reasons(
-        reasons,
-        failed_required,
-        pending_required,
-        failed_non_required,
-        pending_non_required,
-        include_non_required,
+        reasons, failed_required, pending_required,
+        failed_non_required, pending_non_required, include_non_required,
     )
-    return (
-        failed_required,
-        pending_required,
-        failed_non_required,
-        pending_non_required,
-        passed_checks,
-        ci_passing,
-        rollup_rows,
-        pages_complete,
-    )
+    return (failed_required, pending_required, failed_non_required,
+            pending_non_required, passed_checks, ci_passing,
+            rollup_rows, pages_complete)
 
 
 def _append_ci_reasons(
     reasons: list[str],
-    failed_required: list[str],
-    pending_required: list[str],
-    failed_non_required: list[str],
-    pending_non_required: list[str],
+    failed_required: list[str], pending_required: list[str],
+    failed_non_required: list[str], pending_non_required: list[str],
     include_non_required: bool,
 ) -> bool:
     """Append human-readable CI reasons for each non-empty bucket.
@@ -859,12 +796,14 @@ def _append_ci_reasons(
     ci_passing = True
     if failed_required:
         reasons.append(
-            f"{len(failed_required)} required CI check(s) failed: {', '.join(failed_required)}"
+            f"{len(failed_required)} required CI check(s) failed: "
+            f"{', '.join(failed_required)}"
         )
         ci_passing = False
     if pending_required:
         reasons.append(
-            f"{len(pending_required)} required CI check(s) pending: {', '.join(pending_required)}"
+            f"{len(pending_required)} required CI check(s) pending: "
+            f"{', '.join(pending_required)}"
         )
         ci_passing = False
     if include_non_required and failed_non_required:
@@ -883,27 +822,17 @@ def _append_ci_reasons(
 
 
 def _emit_merge_ready_log(
-    pr_number: int,
-    owner: str,
-    repo: str,
-    rollup_rows: int,
-    blocked_names: list[str],
-    unresolved_threads: int,
-    can_merge: bool,
-    op_start: float,
+    pr_number: int, owner: str, repo: str,
+    rollup_rows: int, blocked_names: list[str],
+    unresolved_threads: int, can_merge: bool, op_start: float,
 ) -> None:
     """Boundary log: one structured INFO line per check_merge_readiness call."""
     logger.info(
         "op=merge_ready pr=%d owner=%s repo=%s rollup_rows=%d "
         "distinct_blocked=%d unresolved_threads=%d can_merge=%s "
         "duration_ms=%d",
-        pr_number,
-        owner,
-        repo,
-        rollup_rows,
-        len(set(blocked_names)),
-        unresolved_threads,
-        can_merge,
+        pr_number, owner, repo, rollup_rows, len(set(blocked_names)),
+        unresolved_threads, can_merge,
         int((time.monotonic() - op_start) * 1000),
     )
 
@@ -981,42 +910,21 @@ def check_merge_readiness(
     merge_state = _merge_state_status(pr)
     mergeable = _evaluate_pr_state(pr, reasons)
     unresolved_count, total_threads, threads_pages_complete = _evaluate_review_threads(
-        pr,
-        ignore_threads,
-        reasons,
-        owner,
-        repo,
-        pr_number,
+        pr, ignore_threads, reasons, owner, repo, pr_number,
     )
-    (
-        failed_required,
-        pending_required,
-        failed_non_required,
-        pending_non_required,
-        passed_checks,
-        ci_passing,
-        rollup_rows,
-        contexts_pages_complete,
-    ) = _evaluate_ci_checks(
-        pr,
-        ignore_ci,
-        include_non_required,
-        reasons,
-        owner=owner,
-        repo=repo,
-        pr_number=pr_number,
+    (failed_required, pending_required, failed_non_required,
+     pending_non_required, passed_checks, ci_passing,
+     rollup_rows, contexts_pages_complete) = _evaluate_ci_checks(
+        pr, ignore_ci, include_non_required, reasons,
+        owner=owner, repo=repo, pr_number=pr_number,
     )
     can_merge = len(reasons) == 0
     fetched_pages_complete = threads_pages_complete and contexts_pages_complete
     _emit_merge_ready_log(
-        pr_number,
-        owner,
-        repo,
-        rollup_rows,
-        failed_required + pending_required + failed_non_required + pending_non_required,
-        unresolved_count,
-        can_merge,
-        op_start,
+        pr_number, owner, repo, rollup_rows,
+        failed_required + pending_required
+        + failed_non_required + pending_non_required,
+        unresolved_count, can_merge, op_start,
     )
     return {
         "Success": True,
@@ -1029,7 +937,9 @@ def check_merge_readiness(
         "IsDraft": pr.get("isDraft", False),
         "Mergeable": mergeable,
         "MergeStateStatus": merge_state,
-        "StaleDirtySuspected": stale_dirty_suspected(mergeable or "", merge_state),
+        "StaleDirtySuspected": stale_dirty_suspected(
+            mergeable or "", merge_state
+        ),
         "UnresolvedThreads": unresolved_count,
         "TotalThreads": total_threads,
         "FailedRequiredChecks": failed_required,
@@ -1056,24 +966,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--pull-request",
-        type=int,
-        required=True,
+        "--pull-request", type=int, required=True,
         help="PR number",
     )
     parser.add_argument(
-        "--ignore-ci",
-        action="store_true",
+        "--ignore-ci", action="store_true",
         help="Skip CI check verification",
     )
     parser.add_argument(
-        "--ignore-threads",
-        action="store_true",
+        "--ignore-threads", action="store_true",
         help="Skip unresolved thread check",
     )
     parser.add_argument(
-        "--include-non-required",
-        action="store_true",
+        "--include-non-required", action="store_true",
         help="Non-required check failures also block merge",
     )
     return parser
