@@ -15,8 +15,10 @@ import importlib.util
 import os
 import subprocess
 import types
+from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import MagicMock
 
 
@@ -29,10 +31,6 @@ def _load_tests_conftest() -> types.ModuleType:
     module = importlib.util.module_from_spec(spec)
     loader.exec_module(module)
     return module
-
-
-from collections.abc import Callable
-from typing import cast
 
 
 def _get_fixture_fn(module: types.ModuleType) -> Callable[..., None]:
