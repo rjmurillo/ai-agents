@@ -123,3 +123,84 @@ def test_an_empty_tracked_tree_lists_nothing(tmp_path, monkeypatch):
     """Edge: no tracked files means no violations, distinct from a scan failure."""
     monkeypatch.setattr(subprocess, "run", _fake(_report([_error_item()]), tracked=()))
     assert ratchet.list_violations(tmp_path) == []
+
+
+# Ordering under the 40-line cap (adversarial review of issue #3902).
+#
+# Fixing the key names made the lister emit lines, but the ratchet caps the
+# printed list at 40 and this repository carries 601 tracked violations. On
+# #3902's own PR the single added violation sat at index 596, so the correct
+# lister still printed 40 unrelated historical entries and hid the one line the
+# contributor needed. Ordering branch-touched files first is what makes the
+# diagnostic actionable; these tests pin that ordering and the wiring that
+# feeds it.
+
+
+def _batching_fake(reports: list[str], tracked: tuple[str, ...]):
+    """Return a distinct report per linter batch, in call order.
+
+    The single-report fake above cannot see a lister that returns only the
+    first batch. The real tree needs 19 batches, so that gap is load bearing.
+    """
+    remaining = list(reports)
+
+    def _run(cmd, **kwargs):
+        if cmd[0] == "git":
+            listing = "\0".join(tracked) + ("\0" if tracked else "")
+            return subprocess.CompletedProcess(cmd, 0, stdout=listing, stderr="")
+        return subprocess.CompletedProcess(cmd, 10, stdout=remaining.pop(0), stderr="")
+
+    return _run
+
+
+def test_a_touched_file_is_listed_before_untouched_ones(tmp_path, monkeypatch):
+    """Positive: the branch's own violation leads, whatever its scan position."""
+    items = [_error_item(file=f"old/f{index}.py") for index in range(50)]
+    items.append(_error_item(file="mine.py", message="File exceeds 500 lines (900 lines)"))
+    monkeypatch.setattr(subprocess, "run", _fake(_report(items)))
+
+    lines = ratchet.list_violations(tmp_path, frozenset({"mine.py"}))
+
+    assert lines[0].startswith("mine.py: "), "the touched file must not be buried"
+    assert len(lines) == 51, "prioritising must reorder, never drop"
+    assert lines[1] == "old/f0.py: [file-size] File exceeds 500 lines (1990 lines)"
+
+
+def test_an_untouched_tree_keeps_scan_order(tmp_path, monkeypatch):
+    """Negative: an empty priority set must not reshuffle anything."""
+    items = [_error_item(file=f"old/f{index}.py") for index in range(3)]
+    monkeypatch.setattr(subprocess, "run", _fake(_report(items)))
+
+    lines = ratchet.list_violations(tmp_path, frozenset())
+
+    assert [line.split(":", 1)[0] for line in lines] == ["old/f0.py", "old/f1.py", "old/f2.py"]
+
+
+def test_a_priority_path_that_is_clean_changes_nothing(tmp_path, monkeypatch):
+    """Edge: naming a file with no violations is not an error."""
+    items = [_error_item(file="old/f0.py")]
+    monkeypatch.setattr(subprocess, "run", _fake(_report(items)))
+
+    assert ratchet.list_violations(tmp_path, frozenset({"untouched.py"})) == [
+        "old/f0.py: [file-size] File exceeds 500 lines (1990 lines)"
+    ]
+
+
+def test_every_batch_contributes_violations(tmp_path, monkeypatch):
+    """Edge: a lister that returned only the first batch would pass the rest."""
+    big = "x" * 20000
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        _batching_fake(
+            [
+                _report([_error_item(file="first.py")]),
+                _report([_error_item(file="second.py")]),
+            ],
+            tracked=(f"{big}/a.py", f"{big}/b.py"),
+        ),
+    )
+
+    lines = ratchet.list_violations(tmp_path, frozenset())
+
+    assert [line.split(":", 1)[0] for line in lines] == ["first.py", "second.py"]
