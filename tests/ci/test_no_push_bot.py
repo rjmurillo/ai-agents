@@ -90,7 +90,7 @@ def _has_write_contents(workflow: dict[Any, Any], job: dict[str, Any]) -> bool:
 def _bare_push_violations_in_job(
     path_name: str, job_id: str, job: dict[str, Any]
 ) -> list[str]:
-    violations = []
+    violations: list[str] = []
     for step in job.get("steps", []):
         if not isinstance(step, dict):
             continue
@@ -106,7 +106,7 @@ def _bare_push_violations_in_job(
 
 
 def _bare_push_violations_in_workflow(path: Path, wf: dict[str, Any]) -> list[str]:
-    violations = []
+    violations: list[str] = []
     jobs = wf.get("jobs", {})
     if not isinstance(jobs, dict):
         return violations
