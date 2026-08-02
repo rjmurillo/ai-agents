@@ -1,4 +1,15 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size
+#
+# file-size suppression rationale: this module is a registration sequence, not
+# logic. It holds one function whose body is 48 ordered ``run_validation``
+# calls, so its line count tracks how many gates the project has, not how hard
+# the module is to read. The rule's own remediation (extract helpers) does not
+# apply: the docstring below records that this file was itself extracted from
+# ``pre_pr.py`` for the same ceiling, which reset the count without reducing
+# anything. A second extraction would do the same. The real fix is a
+# table-driven registry (issue #4285), which is out of scope for the change
+# that crossed the line.
 """Ordered pre-PR validation sequence (extracted from ``pre_pr.py``, Issue #3073).
 
 Holds ``run_all_validations``: the ordered list of ``run_validation`` calls that
