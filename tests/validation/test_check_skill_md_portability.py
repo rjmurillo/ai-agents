@@ -19,7 +19,7 @@ from __future__ import annotations
 import json
 import os
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import pytest
 
@@ -27,6 +27,13 @@ _VALIDATION = Path(__file__).resolve().parents[2] / "scripts" / "validation"
 sys.path.insert(0, str(_VALIDATION))
 
 import check_skill_md_portability as cmp  # noqa: E402
+
+
+def _is_under_extra_scan_root(key: str, prefix: str) -> bool:
+    """Return True only when key is inside the scanned extra root."""
+    key_parts = PurePosixPath(key).parts
+    prefix_parts = PurePosixPath(prefix).parts
+    return key_parts[: len(prefix_parts)] == prefix_parts
 
 
 class TestCountUpstreamRefs:
@@ -792,8 +799,10 @@ class TestPluginRootScan:
 class TestExtraScanDirs:
     """Extra scan dirs (commands/, templates/agents/) extend the ratchet scope.
 
-    These are source-only trees whose generated mirrors are covered by the
-    plugin-root scan. Issue #3646.
+    ``.claude/commands`` mirrors into ``src/copilot-cli/skills``, which the
+    plugin-root scan covers. ``templates/agents`` mirrors into
+    ``src/copilot-cli/agents``, which this validator deliberately does not
+    scan, so scanning the template source is the covered surface. Issue #3646.
     """
 
     def _write_md(self, root: Path, rel: str, body: str) -> None:
@@ -816,6 +825,18 @@ class TestExtraScanDirs:
         """Missing directories are silently skipped."""
         dirs = cmp.extra_scan_dirs(tmp_path)
         assert dirs == []
+
+    def test_extra_scan_prefix_does_not_cover_sibling_directory(self, tmp_path: Path) -> None:
+        """A sibling path like commands-old is not under commands."""
+        (tmp_path / ".claude" / "commands").mkdir(parents=True)
+        extra_dir_prefixes = {
+            d.relative_to(tmp_path).as_posix() for d in cmp.extra_scan_dirs(tmp_path)
+        }
+
+        assert not any(
+            _is_under_extra_scan_root(".claude/commands-old/stale.md", prefix)
+            for prefix in extra_dir_prefixes
+        )
 
     def test_commands_dir_refs_are_included_in_scan(self, tmp_path: Path) -> None:
         """A ref inside .claude/commands/ is counted by scan_plugin_roots."""
@@ -1163,7 +1184,7 @@ class TestCommittedRepoHasNoDrift:
             skills_root = key.split("/skills/", 1)[0]
             if skills_root in skills_parent_set:
                 continue
-            if any(key.startswith(prefix) for prefix in extra_dir_prefixes):
+            if any(_is_under_extra_scan_root(key, prefix) for prefix in extra_dir_prefixes):
                 continue
             unscanned.add(key)
         assert not unscanned, f"baseline names unscanned paths: {unscanned}"
