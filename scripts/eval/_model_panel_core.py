@@ -77,16 +77,18 @@ class Panel:
 
 
 def default_panel() -> Panel:
-    """Generic fallback panel for documentation and testing. NOT confirmed for production.
+    """The generic fallback panel from #3042. Not this repository's live panel.
 
     Two frontier reference tiers (Opus, Sol) plus two degradation probes
-    (Sonnet, Terra). The Anthropic tier ids are current at the time of writing.
-    The GPT-5.6 tier ids (Sol, Terra) are unconfirmed placeholders: the string
-    "openai/gpt-5.6" and "openai/gpt-5.6-mini" have not been verified against
-    any live deployment and may produce HTTP 404 errors.
+    (Sonnet, Terra). The Anthropic model ids are concrete and priced. The
+    GPT-5.6 ids (Sol, Terra) are unverified placeholders with no pricing row,
+    so a live run of this panel fails closed on those two tiers.
 
-    For a confirmed panel use --panel-config with a JSON file. See issue #3905
-    for the task of replacing these placeholders with verified ids.
+    Issue #3905 asked whether to repoint these tiers at the models this
+    repository actually operates. The answer is no. Keeping the default
+    generic keeps the offline tests free of provider credentials. Name real
+    models with `--panel-config`; the confirmed config for this deployment is
+    `scripts/eval/panels/owner-copilot-cli.json`.
     """
     return Panel(
         tiers=(

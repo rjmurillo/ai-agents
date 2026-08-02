@@ -11,10 +11,10 @@ signal that teaches people to ignore the naming and complexity rules riding in
 the same output.
 
 Existing debt is recorded in ``taste_count_baseline.txt``, measured with the
-linter itself rather than a reimplementation of it. This freezes the total and
-blocks growth, the same shape ``ruff_count_ratchet.py`` uses for lint debt.
+linter itself rather than a reimplementation of it. This freezes the ceiling
+and blocks growth, the same shape ``ruff_count_ratchet.py`` uses for lint debt.
 Every currently-failing file keeps passing on day one and no contributor's
-existing work breaks, but the count can only fall.
+existing work breaks, but the count cannot rise.
 
 Scope is git-TRACKED files. The linter's own ``--directory`` mode walks the
 filesystem with ``os.walk`` and no exclusions, so it would count untracked
@@ -29,8 +29,8 @@ Stdlib only: this runs by path in CI and must not depend on the project's
 import graph.
 
 Exit codes (AGENTS.md contract):
-    0 - ok (count == baseline, or --update records a decrease)
-    1 - regression (count != baseline, or baseline raised vs --base-ref)
+    0 - ok (count <= baseline, or --update records a decrease)
+    1 - regression (count > baseline, or baseline raised vs --base-ref)
     2 - config error (baseline missing or malformed, bad args)
     3 - external error (the linter could not run)
 """

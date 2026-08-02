@@ -6,7 +6,7 @@ decision-makers: [rjmurillo]
 supersedes: [ADR-079]
 superseded-by: ADR-092
 explainer: null
-implemented: true
+implemented: false
 ---
 
 # ADR-091: Post-Merge Bot Owns Plugin Version and Count Baselines

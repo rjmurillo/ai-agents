@@ -100,15 +100,39 @@ RUFF_COUNT_RATCHET = REPO_ROOT / "scripts" / "ci" / "ruff_count_ratchet.py"
 BANDIT_SUFFIXES = frozenset({".py", ".pyw"})
 TEXTUAL_DIFF_FLAGS = ("--no-ext-diff", "--no-textconv", "--text")
 EMPTY_TREE_SHA1 = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
-ACTIVE_GIT_OPERATION_FILES = (
-    ("MERGE_HEAD", "merge", "git commit to finish the merge or git merge --abort"),
-    ("REBASE_HEAD", "rebase", "git rebase --continue or git rebase --abort"),
+# Git deletes MERGE_HEAD and CHERRY_PICK_HEAD when those operations finish, so
+# their presence means the operation is still open. REBASE_HEAD is not usable
+# the same way: measured on git 2.43.0, it survives a conflicted rebase that has
+# already been continued to completion, so a gate keyed on it blocks every push
+# afterwards. Git's own code calls delete_ref on REBASE_HEAD (builtin/rebase.c
+# and sequencer.c in v2.43.0), so treat this as a cleanup gap rather than a
+# documented guarantee, and re-measure before relying on it in another version.
+# Rebase state lives in the rebase-merge and rebase-apply directories, which git
+# does remove on completion, so those are what this table tracks. The kind field
+# keeps a stray directory named MERGE_HEAD from reading as an open merge.
+ACTIVE_GIT_OPERATION_PATHS = (
+    (
+        "MERGE_HEAD",
+        "file",
+        "merge",
+        "git commit to finish the merge or git merge --abort",
+    ),
+    ("rebase-merge", "dir", "rebase", "git rebase --continue or git rebase --abort"),
+    ("rebase-apply", "dir", "rebase", "git rebase --continue or git rebase --abort"),
     (
         "CHERRY_PICK_HEAD",
+        "file",
         "cherry-pick",
         "git cherry-pick --continue or git cherry-pick --abort",
     ),
 )
+# git am and the apply-backend rebase both use the rebase-apply directory, and a
+# marker file inside it says which one is running. The remedies are not
+# interchangeable: git rebase --continue during a git am exits 128 with
+# "It looks like 'git am' is in progress. Cannot rebase."
+GIT_AM_MARKER = "applying"
+GIT_AM_OPERATION = "git am"
+GIT_AM_REMEDY = "git am --continue or git am --abort"
 SEMGREP_POWERSHELL_RULES = frozenset(
     {
         "yaml.github-actions.security.curl-eval.curl-eval",
@@ -432,6 +456,10 @@ GENERATED_GLOBS = {
     "episodes": (".agents/memory/episodes/episode-*.json",),
     "memory": (".serena/memories/**/*.md",),
 }
+
+# Per-commit atomic file limit (AGENTS.md:24, .claude/rules/universal.md:15).
+# Generated companions (episodes, mcp, agents, memory-index) are exempt.
+MAX_AUTHORED_FILES_PER_COMMIT = 5
 
 
 @dataclass(frozen=True, slots=True)
@@ -891,6 +919,26 @@ def _today_session_log(sessions_dir: Path) -> Path | None:
     return best
 
 
+def _session_log_for_current_branch(sessions_dir: Path, repo_root: Path) -> Path | None:
+    """Return the session log for the current branch, falling back to mtime.
+
+    Calls ``_current_branch`` to identify the active branch, then uses
+    ``_session_log_for_branch`` to find its log deterministically. Falls back
+    to ``_today_session_log`` (newest by mtime) so callers fail open rather
+    than hard-blocking when no branch-specific log exists yet.
+
+    This is the correct replacement for bare ``_today_session_log`` calls
+    in ADR and retrospective gates: concurrent agents on other branches
+    frequently own a newer mtime and the mtime winner names the wrong session.
+    """
+    branch = _current_branch(repo_root)
+    if branch is not None:
+        log = _session_log_for_branch(sessions_dir, branch)
+        if log is not None:
+            return log
+    return _today_session_log(sessions_dir)
+
+
 def _split_frontmatter(content: bytes) -> tuple[bytes, bytes]:
     """Split a document into its frontmatter and its body, without decoding.
 
@@ -1056,7 +1104,7 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
         if not gated_paths:
             return 0
 
-    session_log = _today_session_log(repo_root / ".agents" / "sessions")
+    session_log = _session_log_for_current_branch(repo_root / ".agents" / "sessions", repo_root)
     if session_log is None or not _session_has_adr_review(session_log):
         print(
             "ERROR: ADR changes require adr-review evidence in today's session log",
@@ -1330,7 +1378,7 @@ def check_retrospective_evidence(paths: Sequence[str], repo_root: Path) -> int:
     if paths and _documentation_only(paths):
         return 0
 
-    session_log = _today_session_log(repo_root / ".agents" / "sessions")
+    session_log = _session_log_for_current_branch(repo_root / ".agents" / "sessions", repo_root)
     if paths and _is_trivial_retrospective_session(session_log, paths):
         return 0
     if _today_retrospective_exists(repo_root):
@@ -1476,10 +1524,18 @@ def _git_path(repo_root: Path, path_name: str) -> Path | None:
 
 
 def _active_git_operation(repo_root: Path) -> tuple[str, str] | None:
-    for path_name, operation, remedy in ACTIVE_GIT_OPERATION_FILES:
+    for path_name, kind, operation, remedy in ACTIVE_GIT_OPERATION_PATHS:
         git_path = _git_path(repo_root, path_name)
-        if git_path is not None and git_path.is_file():
-            return operation, remedy
+        if git_path is None:
+            continue
+        if kind == "dir":
+            if not git_path.is_dir():
+                continue
+            if (git_path / GIT_AM_MARKER).is_file():
+                return GIT_AM_OPERATION, GIT_AM_REMEDY
+        elif not git_path.is_file():
+            continue
+        return operation, remedy
     return None
 
 
@@ -1965,6 +2021,88 @@ def extract_session_episodes(paths: Sequence[str], repo_root: Path) -> int:
     return 0
 
 
+def _is_generated(relative_path: str) -> bool:
+    """Return True when *relative_path* matches any generated-file pattern."""
+    for entries in GENERATED_PATHS.values():
+        if relative_path in entries:
+            return True
+    for globs in GENERATED_GLOBS.values():
+        if any(_matches_generated_glob(relative_path, pat) for pat in globs):
+            return True
+    return False
+
+
+def _atomic_commit_paths(diff_output: str) -> list[str]:
+    paths: list[str] = []
+    for line in diff_output.splitlines():
+        if not line:
+            continue
+        parts = line.split("\t")
+        status = parts[0]
+        if status.startswith(("R", "C")) and len(parts) >= 3:
+            paths.append(parts[2])
+        elif len(parts) >= 2:
+            paths.append(parts[1])
+    return paths
+
+
+def check_atomic_commit(repo_root: Path) -> int:
+    """Block when authored staged files exceed MAX_AUTHORED_FILES_PER_COMMIT.
+
+    Generated companions (episodes, mcp, agents, memory-index) are exempt from
+    the count so that a hook-generated sixth file cannot silently produce a
+    policy-violating commit. The function prints the generated files it found
+    so authors can see the full staged set.
+
+    EXIT CODES:
+      0 - staged authored files are within the limit
+      1 - staged authored files exceed the limit
+      2 - unexpected error determining the staged set
+    """
+    result = _run_git(
+        repo_root,
+        ["diff", "--cached", "--name-status", "-M", "--diff-filter=ACMRD"],
+    )
+    if result.returncode != 0:
+        print("ERROR: could not determine staged files", file=sys.stderr)
+        return 2
+
+    staged = _atomic_commit_paths(result.stdout)
+    authored: list[str] = []
+    generated: list[str] = []
+    for path in staged:
+        if _is_generated(path):
+            generated.append(path)
+        else:
+            authored.append(path)
+
+    authored_count = len(authored)
+    if generated:
+        print(
+            f"INFO: {len(generated)} generated file(s) excluded from atomic-commit count:",
+            file=sys.stderr,
+        )
+        for gp in generated:
+            print(f"  {gp}", file=sys.stderr)
+
+    if authored_count <= MAX_AUTHORED_FILES_PER_COMMIT:
+        return 0
+
+    print(
+        f"ERROR: commit touches {authored_count} authored files"
+        f" (limit is {MAX_AUTHORED_FILES_PER_COMMIT}).",
+        file=sys.stderr,
+    )
+    print("Authored files staged:", file=sys.stderr)
+    for ap in authored:
+        print(f"  {ap}", file=sys.stderr)
+    print(
+        "Split this commit. This local pre-commit check has no PR-label bypass.",
+        file=sys.stderr,
+    )
+    return 1
+
+
 def _episode_id_from_output(stdout: str) -> str | None:
     try:
         payload = json.loads(stdout)
@@ -2328,6 +2466,24 @@ def _added_suppression_violations(
     return violations
 
 
+def suppression_identity(text: str, match: re.Match[str]) -> str:
+    """Identity used to credit a removed suppression against an added one.
+
+    `match.group(0)` stops at the directive token, so a Bandit `B324` waiver
+    and a `B605` waiver share one key. Keying credits on that lets an
+    unrelated harmless removal authorize a dangerous addition (issue #4152).
+    The same truncation applies to the semgrep directive and to the bracketed
+    rule in the CodeQL and LGTM forms.
+
+    The comment tail from the match start carries the rule ID and any
+    justification, so it distinguishes suppressions that the token alone
+    conflates. Whitespace is dropped so reindentation, and a directive
+    written with or without a space after the comment marker, still credit a
+    relocated suppression.
+    """
+    return "".join(text[match.start() :].split())
+
+
 def _suppression_violations_in_diff(
     head: str,
     diff_text: str,
@@ -2345,7 +2501,7 @@ def _suppression_violations_in_diff(
         match = SECURITY_SUPPRESSION_RE.search(text)
         if match is None:
             continue
-        removed.setdefault(path, Counter())[match.group(0)] += 1
+        removed.setdefault(path, Counter())[suppression_identity(text, match)] += 1
 
     violations: list[str] = []
     for path, operation, line_number, text in changes:
@@ -2354,9 +2510,10 @@ def _suppression_violations_in_diff(
         match = SECURITY_SUPPRESSION_RE.search(text)
         if match is None:
             continue
+        identity = suppression_identity(text, match)
         file_removed = removed.get(path)
-        if file_removed and file_removed[match.group(0)] > 0:
-            file_removed[match.group(0)] -= 1
+        if file_removed and file_removed[identity] > 0:
+            file_removed[identity] -= 1
             continue
         violations.append(f"{head[:12]}:{path}:{line_number}")
     return violations
@@ -5844,6 +6001,10 @@ def _handle_extract_episodes(args: argparse.Namespace) -> int:
     return extract_session_episodes(args.paths, _repo_root(args))
 
 
+def _handle_atomic_commit(args: argparse.Namespace) -> int:
+    return check_atomic_commit(_repo_root(args))
+
+
 def _handle_semgrep(args: argparse.Namespace) -> int:
     return run_semgrep(_repo_root(args))
 
@@ -5897,6 +6058,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("security-suppressions-staged", _handle_staged_suppressions),
         ("pre-push", _handle_pre_push),
         ("tracked-conflict-markers", _handle_tracked_conflict_markers),
+        ("atomic-commit", _handle_atomic_commit),
     )
     for name, handler in path_commands:
         _add_path_command(subparsers, name, handler)
