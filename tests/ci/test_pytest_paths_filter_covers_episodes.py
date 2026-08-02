@@ -22,6 +22,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from pathlib import Path, PurePosixPath
 
+import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -29,17 +30,30 @@ WORKFLOW = REPO_ROOT / ".github/workflows/pytest.yml"
 EPISODE_STORE = REPO_ROOT / ".agents/memory/episodes"
 GITHUB_DIR = REPO_ROOT / ".github"
 
+PATHS_FILTER_ACTION = "dorny/paths-filter"
 # The action version ``_selected`` models. Re-read ``src/filter.ts`` at this
 # commit before changing the pin: ``MatchOptions`` is where ``dot`` is set.
-PATHS_FILTER_PIN = "dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706"
+PATHS_FILTER_PIN = f"{PATHS_FILTER_ACTION}@7b450fff21473bca461d4b92ce414b9d0420d706"
+
+
+def _select_paths_filter(steps: Iterable[dict]) -> dict:
+    """The step that runs the action, not the first step shaped like it.
+
+    Selecting on ``with.filters`` alone hands every assertion below whichever
+    other step grows that key first. The pin assertion would then report a SHA
+    mismatch, or raise ``KeyError`` on a step carrying no ``uses``, about a step
+    that was never the subject. Matching on the action name rather than on the
+    pin keeps that assertion able to report a version bump.
+    """
+    for step in steps:
+        if str(step.get("uses", "")).startswith(f"{PATHS_FILTER_ACTION}@"):
+            return step
+    raise AssertionError(f"pytest.yml check-paths has no {PATHS_FILTER_ACTION} step")
 
 
 def _paths_filter_step() -> dict:
     workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
-    for step in workflow["jobs"]["check-paths"]["steps"]:
-        if "filters" in (step.get("with") or {}):
-            return step
-    raise AssertionError("pytest.yml has no paths-filter step")
+    return _select_paths_filter(workflow["jobs"]["check-paths"]["steps"])
 
 
 def _python_filter() -> list[str]:
@@ -130,6 +144,24 @@ def test_the_filter_covers_every_github_yaml_file():
         "touching only them skips pytest and every gate that reads them "
         f"(issue #3964): {unselected}\nFilter entries: {patterns}"
     )
+
+
+class TestSelectPathsFilter:
+    def test_a_decoy_step_carrying_filters_is_not_selected(self):
+        decoy = {"name": "some later step", "with": {"filters": "python:\n  - '**/*.md'\n"}}
+        action = {"uses": PATHS_FILTER_PIN, "with": {"filters": "python:\n  - '**/*.py'\n"}}
+
+        assert _select_paths_filter([decoy, action]) is action
+
+    def test_a_different_pin_of_the_same_action_is_still_selected(self):
+        """So the pin assertion reports a SHA bump, not a missing step."""
+        bumped = {"uses": f"{PATHS_FILTER_ACTION}@" + "0" * 40, "with": {"filters": "python:\n"}}
+
+        assert _select_paths_filter([bumped]) is bumped
+
+    def test_no_action_step_raises(self):
+        with pytest.raises(AssertionError, match=PATHS_FILTER_ACTION):
+            _select_paths_filter([{"uses": "actions/checkout@v7"}])
 
 
 class TestSelected:
