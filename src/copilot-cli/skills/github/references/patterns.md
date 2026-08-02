@@ -6,8 +6,9 @@ Reusable patterns for GitHub CLI operations.
 
 ## Script Path
 
-The PR scripts ship inside this skill, not at the repository root. Every example
-below opens by setting `SCRIPTS_DIR`; `CLAUDE_PLUGIN_ROOT` (or
+The GitHub scripts ship inside this skill's `scripts` tree, not at the
+repository root. Every example below opens by setting `SCRIPTS_DIR`;
+`CLAUDE_PLUGIN_ROOT` (or
 `COPILOT_PLUGIN_ROOT`) is set in a vendored install and falls back to `.claude`
 when running in-repo.
 
