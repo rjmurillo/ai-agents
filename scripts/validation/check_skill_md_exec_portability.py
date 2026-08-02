@@ -97,7 +97,7 @@ from scripts.validation.portability_common import (
     write_baseline_json,
 )
 from scripts.validation.portability_common import (
-    resolve_baseline_path as _common_resolve_baseline_path,
+    resolve_checked_baseline as _resolve_checked_baseline,
 )
 
 # Shipped skill trees to scan. Both carry SKILL.md files that agents execute:
@@ -336,11 +336,8 @@ def _resolve_root(repo_root: Path | None) -> Path:
 
 
 def _resolve_baseline_path(root: Path, baseline: Path | None) -> Path | None:
-    """Locate the baseline, refusing anything that resolves outside the root."""
-    resolved = _common_resolve_baseline_path(
-        root, baseline, _DEFAULT_BASELINE_NAME, reject_outside_root=True
-    )
-    return None if resolved == Path("") else resolved
+    """Locate the baseline, refusing anything out of root or hidden from review."""
+    return _resolve_checked_baseline(root, baseline, _DEFAULT_BASELINE_NAME)
 
 
 def _write_baseline(
@@ -448,10 +445,6 @@ def main(argv: list[str] | None = None) -> int:
 
     baseline_path = _resolve_baseline_path(root, args.baseline)
     if baseline_path is None:
-        print(
-            f"--baseline path is outside the repository root, rejecting: {args.baseline}",
-            file=sys.stderr,
-        )
         return 2
 
     try:

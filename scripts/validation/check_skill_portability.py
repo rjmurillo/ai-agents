@@ -63,7 +63,7 @@ from scripts.validation.portability_common import (
     load_baseline as _load_baseline,
 )
 from scripts.validation.portability_common import (
-    resolve_baseline_path as _common_resolve_baseline_path,
+    resolve_checked_baseline as _resolve_checked_baseline,
 )
 from scripts.validation.portability_common import (
     resolve_root as _common_resolve_root,
@@ -294,10 +294,8 @@ def _resolve_baseline_path(root: Path, baseline: Path | None) -> Path | None:
     an out-of-tree destination regardless, so the permissiveness only ever
     bought a read that disagreed with the write it was supposed to precede.
     """
-    resolved = _common_resolve_baseline_path(
-        root, baseline, _DEFAULT_BASELINE_NAME, reject_outside_root=True
-    )
-    return None if resolved == Path("") else resolved
+    resolved = _resolve_checked_baseline(root, baseline, _DEFAULT_BASELINE_NAME)
+    return resolved
 
 
 def _print_portability_results(
@@ -345,11 +343,6 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     baseline_path = _resolve_baseline_path(root, args.baseline)
     if baseline_path is None:
-        print(
-            f"Refusing a baseline outside the repository: {args.baseline}. "
-            "The ratchet only owns the artifact git tracks.",
-            file=sys.stderr,
-        )
         return 2
 
     try:
