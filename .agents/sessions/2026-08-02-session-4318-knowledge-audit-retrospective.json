@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4318,
+    "date": "2026-08-02",
+    "branch": "docs/retro-knowledge-audit",
+    "startingCommit": "1ede2b955",
+    "objective": "Record the knowledge-audit retrospective. Classify the session's failures against the existing taxonomy, link every claim to a command or a file, and list remediation against filed issues."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP not reachable in this harness; fell back to reading .serena/memories/ directly from the worktree"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Same fallback; memory tree read from disk"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read; not edited (ADR-014)"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "retrospective skill template read from .claude/skills/retrospective/references/learning-template.md"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "github skill used for issue and PR operations rather than raw gh"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/rules/retros.md read before writing; three MUSTs it names were missing from the first draft and were added"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Searched .serena/memories/ for prior art on each new memory before writing it"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned docs/retro-knowledge-audit"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "docs/retro-knowledge-audit is not main"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short read before and after every commit in this worktree"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "1ede2b955"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Retrospective committed with failure-mode classification, evidence links, impact table, and remediation table"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not modified"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Two memories written on docs/push-success-message: push verification by remote ref, and review agents mutating a live worktree"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Retrospective and this log committed together"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint via lefthook markdown-check; it reported selecting 0 of 1 target because .markdownlint-cli2.yaml:118 excludes .agents/**. Recorded in the retrospective rather than treated as a clean pass"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/validate_session_json.py"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "This session's output is the retrospective at .agents/retrospective/2026-08-02-knowledge-audit.md"
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: the first draft of the retrospective missed three MUSTs from .claude/rules/retros.md and was rewritten before commit"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Classified the session against .agents/governance/FAILURE-MODES.md",
+      "result": "Modes 4 (false completion markers) and 9 (confident-incorrectness recurrence). No new class proposed."
+    },
+    {
+      "action": "Verified every file and line cited in the evidence table by reading it",
+      "result": "pre_pr.py:330, generate_rules.py:321-337, instruction_budget_constants.py:5, push_guard_base.py, .markdownlint-cli2.yaml:118, checks_tooling.py::_report_selection all confirmed."
+    },
+    {
+      "action": "Re-ran the stale-pycache probe in the revert direction with real writes and no utime",
+      "result": "10 of 10 same-second reverts executed as the mutant on CPython 3.14.6. Matches an independent reviewer's separate implementation."
+    },
+    {
+      "action": "Regenerated the rule mirrors and re-measured the instruction budget",
+      "result": ".md 82603 of 83000 PASS, unchanged, because the rule is scoped to tests/**."
+    },
+    {
+      "action": "Corrected an overclaim in the first retrospective draft",
+      "result": "The lint-selects-nothing trap is not a new discovery; the repo's own markdown-check hook already prints that warning. The retrospective now credits the wrapper and notes that only a direct tool invocation loses the warning."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Land the mutation-control rule covering both cache directions (PR #4314).",
+    "Open PRs for the four branches whose pushes are still failing on python-tests.",
+    "Address #4317: omit internal-only rules from the plugin rather than universalizing them."
+  ]
+}
