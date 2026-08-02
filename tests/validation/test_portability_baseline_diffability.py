@@ -30,7 +30,7 @@ def _git(root: Path, *args: str, stdin: str | None = None) -> subprocess.Complet
         ["git", *args],
         cwd=root,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         input=stdin,
         check=False,
     )

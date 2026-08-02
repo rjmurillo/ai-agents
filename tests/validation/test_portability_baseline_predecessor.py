@@ -398,7 +398,7 @@ class TestALookupThatFailsIsNotAnAbsentFloor:
             ["git", "-C", str(root), "rev-parse", "HEAD:scripts/validation/b.json"],
             check=True,
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
         ).stdout.strip()
         (root / ".git" / "objects" / blob[:2] / blob[2:]).unlink()
 

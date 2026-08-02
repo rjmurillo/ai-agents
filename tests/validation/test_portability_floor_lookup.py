@@ -145,7 +145,7 @@ class TestCaseIsResolvedAgainstTheTreeRatherThanAPathspec:
             ["git", "-C", str(root), "cat-file", "blob", blob],
             check=True,
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
         ).stdout
         assert json.loads(body)["files"] == {"a.md": 4}
 
