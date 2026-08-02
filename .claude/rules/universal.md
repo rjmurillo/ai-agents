@@ -12,7 +12,7 @@ These rules apply to every change in this repository.
 1. **Branch discipline**. MUST NOT push or commit directly to `main` or `master`. Create a feature branch first.
 2. **Issue linkage**. Every PR MUST reference an issue with `Fixes #<n>` or `Refs #<n>` in the description.
 3. **Conventional commits**. Commit messages MUST follow `<type>(<scope>): <desc>` and include a `Co-Authored-By:` trailer when authored with an AI agent.
-4. **Atomic commits**. Each commit MUST touch five or fewer files (see `AGENTS.md` boundaries).
+4. **Atomic commits**. Each commit MUST touch five or fewer authored files (see `AGENTS.md` boundaries). Hook-generated companions (session episodes, MCP config, agent catalog, memory index) are exempt and do not count toward the limit.
 5. **No secrets**. MUST NOT commit credentials, tokens, or API keys. Secrets live in environment variables or the secrets manager.
 6. **Pin Actions to SHA**. New GitHub Actions references MUST pin to a commit SHA, never a floating tag.
 7. **Session log**. Long-running work MUST have a session log under `.agents/sessions/` per `.agents/SESSION-PROTOCOL.md`.
