@@ -45,6 +45,15 @@ __all__ = [
     "write_baseline_json",
 ]
 
+# Variables that run_git strips from the environment before calling git.
+# Their presence means run_git may have hidden a real repository from git.
+# Refs #4258.
+_GIT_POINTER_VARS = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_COMMON_DIR",
+)
+
 
 def _regressions(previous: Mapping[str, int], current: Mapping[str, int]) -> list[str]:
     """List paths the replacement drops or under-counts, worst first."""
@@ -245,11 +254,6 @@ def refuse_undiffable_baseline(repo_root: Path, baseline_path: Path) -> bool:
         # Distinguish them by checking whether the scrub removed a pointer.
         # The variables are still readable in os.environ; they were just not
         # forwarded to git.
-        _GIT_POINTER_VARS = (
-            "GIT_DIR",
-            "GIT_WORK_TREE",
-            "GIT_COMMON_DIR",
-        )
         if any(v in os.environ for v in _GIT_POINTER_VARS):
             print(
                 f"Refusing to trust the baseline {baseline_path}: "

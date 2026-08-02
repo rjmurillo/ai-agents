@@ -10,6 +10,7 @@ so the behavior is observable regardless of the host environment.
 
 from __future__ import annotations
 
+import importlib.abc
 import importlib.util
 import os
 import subprocess
@@ -22,10 +23,18 @@ from unittest.mock import MagicMock
 def _load_tests_conftest() -> types.ModuleType:
     path = Path(__file__).resolve().parent / "conftest.py"
     spec = importlib.util.spec_from_file_location("tests_conftest_under_test", path)
-    assert spec is not None and spec.loader is not None
+    assert spec is not None
+    loader = spec.loader
+    assert isinstance(loader, importlib.abc.Loader)
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)  # type: ignore[union-attr]
+    loader.exec_module(module)
     return module
+
+
+def _get_fixture_fn(module: types.ModuleType) -> object:
+    """Return the unwrapped function behind the isolation fixture."""
+    fixture = module._isolate_tmp_path_from_parent_git_repo
+    return getattr(fixture, "__wrapped__", fixture)
 
 
 class TestHostileGitDirIsUnsettledByFixture:
@@ -39,7 +48,7 @@ class TestHostileGitDirIsUnsettledByFixture:
         among them.
         """
         module = _load_tests_conftest()
-        fixture_fn = module._isolate_tmp_path_from_parent_git_repo.__wrapped__  # type: ignore[attr-defined]
+        fixture_fn = _get_fixture_fn(module)
 
         deleted: list[str] = []
         setenvs: dict[str, str] = {}
@@ -69,7 +78,7 @@ class TestHostileGitDirIsUnsettledByFixture:
     def test_ceiling_contains_tmp_path_parent(self, tmp_path: Path) -> None:
         """The ceiling is set to tmp_path.parent so siblings are also isolated."""
         module = _load_tests_conftest()
-        fixture_fn = module._isolate_tmp_path_from_parent_git_repo.__wrapped__  # type: ignore[attr-defined]
+        fixture_fn = _get_fixture_fn(module)
 
         setenvs: dict[str, str] = {}
         mp = MagicMock()
@@ -89,7 +98,7 @@ class TestHostileGitDirIsUnsettledByFixture:
     def test_fixture_is_noop_without_tmp_path(self, tmp_path: Path) -> None:
         """Tests that do not take tmp_path must not receive a ceiling injection."""
         module = _load_tests_conftest()
-        fixture_fn = module._isolate_tmp_path_from_parent_git_repo.__wrapped__  # type: ignore[attr-defined]
+        fixture_fn = _get_fixture_fn(module)
 
         deleted: list[str] = []
         setenvs: dict[str, str] = {}
