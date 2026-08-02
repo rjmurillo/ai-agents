@@ -73,6 +73,7 @@ def _run_git(args: list[str], cwd: Path | None = None) -> subprocess.CompletedPr
         env=env,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
 
