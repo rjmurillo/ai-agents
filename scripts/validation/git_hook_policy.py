@@ -2001,16 +2001,6 @@ def extract_session_episodes(paths: Sequence[str], repo_root: Path) -> int:
     return 0
 
 
-def _all_generated_paths() -> frozenset[str]:
-    """Return every path/glob prefix that counts as hook-generated."""
-    paths: set[str] = set()
-    for entries in GENERATED_PATHS.values():
-        paths.update(entries)
-    for globs in GENERATED_GLOBS.values():
-        paths.update(globs)
-    return frozenset(paths)
-
-
 def _is_generated(relative_path: str) -> bool:
     """Return True when *relative_path* matches any generated-file pattern."""
     for entries in GENERATED_PATHS.values():
@@ -2020,6 +2010,20 @@ def _is_generated(relative_path: str) -> bool:
         if any(_matches_generated_glob(relative_path, pat) for pat in globs):
             return True
     return False
+
+
+def _atomic_commit_paths(diff_output: str) -> list[str]:
+    paths: list[str] = []
+    for line in diff_output.splitlines():
+        if not line:
+            continue
+        parts = line.split("\t")
+        status = parts[0]
+        if status.startswith(("R", "C")) and len(parts) >= 3:
+            paths.append(parts[2])
+        elif len(parts) >= 2:
+            paths.append(parts[1])
+    return paths
 
 
 def check_atomic_commit(repo_root: Path) -> int:
@@ -2035,12 +2039,15 @@ def check_atomic_commit(repo_root: Path) -> int:
       1 - staged authored files exceed the limit
       2 - unexpected error determining the staged set
     """
-    result = _run_git(repo_root, ["diff", "--cached", "--name-only", "--diff-filter=ACM"])
+    result = _run_git(
+        repo_root,
+        ["diff", "--cached", "--name-status", "-M", "--diff-filter=ACMRD"],
+    )
     if result.returncode != 0:
         print("ERROR: could not determine staged files", file=sys.stderr)
         return 2
 
-    staged = [p for p in result.stdout.splitlines() if p]
+    staged = _atomic_commit_paths(result.stdout)
     authored: list[str] = []
     generated: list[str] = []
     for path in staged:
@@ -2070,7 +2077,7 @@ def check_atomic_commit(repo_root: Path) -> int:
     for ap in authored:
         print(f"  {ap}", file=sys.stderr)
     print(
-        "Split this commit or use commit-limit-bypass to override the ceiling entirely.",
+        "Split this commit. This local pre-commit check has no PR-label bypass.",
         file=sys.stderr,
     )
     return 1
