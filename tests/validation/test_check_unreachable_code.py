@@ -274,7 +274,7 @@ def test_cli_exits_0_on_clean_tree(tmp_path: Path) -> None:
         [sys.executable, "check_unreachable_code.py"],
         cwd=str(tmp_path),
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
     assert result.returncode == 0
 
@@ -292,6 +292,6 @@ def test_cli_exits_1_on_unreachable(tmp_path: Path) -> None:
         [sys.executable, "check_unreachable_code.py"],
         cwd=str(tmp_path),
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
     assert result.returncode == 1

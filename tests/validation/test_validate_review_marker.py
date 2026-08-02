@@ -49,7 +49,7 @@ def _git(repo: Path, *args: str, message_stdin: str | None = None) -> str:
     result = subprocess.run(
         ["git", "-C", str(repo), *args],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         input=message_stdin,
         check=True,
     )
@@ -467,7 +467,7 @@ def test_source_validator_cli_runs() -> None:
     result = subprocess.run(
         [sys.executable, str(SCRIPT_PATH), "--help"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=False,
     )
     assert result.returncode == 0
@@ -535,7 +535,7 @@ def test_cli_defaults_repo_root_to_current_working_directory(git_repo: Path) -> 
         [sys.executable, str(SCRIPT_PATH), "--ref", "HEAD"],
         cwd=git_repo,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=False,
     )
     assert result.returncode == 0
