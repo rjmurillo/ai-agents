@@ -56,9 +56,9 @@ Within a pair it scores only the sections named in `SECTIONS_TO_COMPARE` (`detec
 
 Measured on `origin/main` at `7e8d3ac2f4` (2026-08-01): across the 32 files in `src/claude/*.md`, the 18 allowlisted sections hold 48,177 of the 412,265 characters that `get_markdown_sections()` returns, 11.7%.
 
-Both sides of that ratio exclude YAML frontmatter, because `compare_agent_files` strips it with `remove_yaml_frontmatter` before sectioning, so frontmatter is never a comparison input. Leaving frontmatter in the denominator alone gives 426,714 and a flattering 11.3%, which is the wrong figure: it measures the numerator and the denominator by two different rules.
+Both sides of that ratio exclude YAML frontmatter, because `compare_agent` strips it with `remove_yaml_frontmatter` before sectioning, so frontmatter is never a comparison input. Leaving frontmatter in the denominator alone gives 426,714 and a flattering 11.3%, which is the wrong figure: it measures the numerator and the denominator by two different rules.
 
-A run emits 61 result records: 60 content comparisons plus one `NO COUNTERPART` for `claude-instructions.template`, which has no sibling. Reproduce every number above and below with:
+A run emits 61 result records: 60 content comparisons plus one `NO COUNTERPART` for `claude-instructions.template`, which has no sibling. The script below reproduces current-tree record counts and section coverage. Check out `7e8d3ac2f4` first to reproduce the pinned 412,265-character denominator above.
 
 ```bash
 uv run python - <<'PY'
@@ -118,7 +118,7 @@ Repeated identical lines are free, and free from the very first one: the line's 
 
 What survives all of this is the weaker true claim: a **contradiction that reuses the surrounding vocabulary scores high and passes**, because Jaccard sees tokens, not meaning. And note the last row: even a section scored 8.2 leaves `architect` at 83.3 overall, above the floor. On an agent with one section the same mutation would land at 8.2 overall and fail. The check's sensitivity is inversely proportional to how much of the agent it looks at.
 
-Two further exceptions. `merge-resolver` carries a recorded 20.9 baseline for both of its comparisons (`KNOWN_BASELINE_DRIFT`, `detect_agent_drift.py:116`) and sits in `_ADVISORY_VENDORED_DRIFT` (`:601`). Because the baseline floor is applied in `classify_status`, it does not report drift at all: both comparisons print `OK (baselined)` at 20.9% and exit 0. Install-pair drift is advisory unless `--fail-on-install-drift` is passed (`:714`, `:864-865`); `.github/workflows/drift-detection.yml` does pass it.
+Two further exceptions. `merge-resolver` carries a recorded 20.9 baseline for both of its comparisons (`KNOWN_BASELINE_DRIFT`, `detect_agent_drift.py:116`) and sits in `_ADVISORY_VENDORED_DRIFT` (`:601`). Because the baseline floor is applied in `_classify_overall`, it does not report drift at all: both comparisons print `OK (baselined)` at 20.9% and exit 0. Install-pair drift is advisory unless `--fail-on-install-drift` is passed (`:710-718`, `:864-867`); `.github/workflows/drift-detection.yml` does pass it.
 
 That workflow is a **weekly and manual audit, not a PR merge gate**: its only triggers are `schedule` (Mondays 09:00 UTC) and `workflow_dispatch`, and it opens an issue when it finds drift. The PR-time workflow `agent-drift-detection.yml` runs `generate_agents.py --validate`, which regenerates and compares, and never invokes this detector.
 
