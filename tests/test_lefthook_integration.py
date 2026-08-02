@@ -320,10 +320,12 @@ def test_adr_review_policy_blocks_stale_debate_reference(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    # Canonical debate-log dir is .agents/critique/ (Issue #4250).
+    # A log in .agents/analysis/ (old wrong path) does NOT satisfy the gate.
     _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
-    analysis = tmp_path / ".agents" / "analysis"
-    analysis.mkdir(parents=True)
-    _write_lf(analysis / "old-debate.md", "ADR-042 review")
+    wrong_dir = tmp_path / ".agents" / "analysis"
+    wrong_dir.mkdir(parents=True)
+    _write_lf(wrong_dir / "old-debate.md", "ADR-042 review")
 
     result = policy.check_adr_review_policy(
         [".agents/architecture/ADR-062-navigation.md"],
@@ -331,14 +333,14 @@ def test_adr_review_policy_blocks_stale_debate_reference(
     )
 
     assert result == 1
-    assert "ADR-062" in capsys.readouterr().err
+    assert ".agents/critique" in capsys.readouterr().err
 
 
 def test_adr_review_policy_allows_fresh_evidence_and_no_adr_change(tmp_path: Path) -> None:
     _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
-    analysis = tmp_path / ".agents" / "analysis"
-    analysis.mkdir(parents=True)
-    _write_lf(analysis / "adr-062-debate.md", "ADR-062 review")
+    critique = tmp_path / ".agents" / "critique"
+    critique.mkdir(parents=True)
+    _write_lf(critique / "adr-062-debate.md", "ADR-062 review")
 
     assert (
         policy.check_adr_review_policy(
@@ -352,9 +354,9 @@ def test_adr_review_policy_allows_fresh_evidence_and_no_adr_change(tmp_path: Pat
 
 def test_adr_review_policy_matches_complete_adr_ids(tmp_path: Path) -> None:
     _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
-    analysis = tmp_path / ".agents" / "analysis"
-    analysis.mkdir(parents=True)
-    _write_lf(analysis / "adr-0620-debate.md", "ADR-0620 review")
+    critique = tmp_path / ".agents" / "critique"
+    critique.mkdir(parents=True)
+    _write_lf(critique / "adr-0620-debate.md", "ADR-0620 review")
 
     assert (
         policy.check_adr_review_policy(
@@ -369,11 +371,11 @@ def test_adr_review_policy_rejects_symlinked_debate_evidence(tmp_path: Path) -> 
     if os.name == "nt":
         pytest.skip("Symlink creation requires elevated Windows privileges")
     _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
-    analysis = tmp_path / ".agents" / "analysis"
-    analysis.mkdir(parents=True)
+    critique = tmp_path / ".agents" / "critique"
+    critique.mkdir(parents=True)
     evidence = tmp_path / "evidence.md"
     _write_lf(evidence, "ADR-062 review")
-    (analysis / "adr-062-debate.md").symlink_to(evidence)
+    (critique / "adr-062-debate.md").symlink_to(evidence)
 
     assert (
         policy.check_adr_review_policy(
@@ -382,6 +384,26 @@ def test_adr_review_policy_rejects_symlinked_debate_evidence(tmp_path: Path) -> 
         )
         == 1
     )
+
+
+def test_adr_review_policy_missing_critique_dir_fails(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """No .agents/critique/ directory at all means no debate logs: gate fails."""
+    _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+    # Only the old wrong dir exists; critique dir is absent.
+    wrong = tmp_path / ".agents" / "analysis"
+    wrong.mkdir(parents=True)
+    _write_lf(wrong / "adr-062-debate.md", "ADR-062 review")
+
+    result = policy.check_adr_review_policy(
+        [".agents/architecture/ADR-062-navigation.md"],
+        tmp_path,
+    )
+
+    assert result == 1
+    assert ".agents/critique" in capsys.readouterr().err
 
 
 def test_retrospective_policy_blocks_missing_evidence(
