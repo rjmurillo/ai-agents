@@ -150,6 +150,11 @@ pre-commit:
             run: uv run --frozen python scripts/validation/skill_size.py --staged-only --ci
             glob: "**/SKILL.md"
 
+          - name: command-size
+            timeout: 5m
+            run: uv run --frozen python scripts/validation/command_size.py --changed-files {staged_files} --ci
+            glob: ".claude/commands/*.md"
+
           - name: planning-advisory
             timeout: 5m
             run: uv run --frozen python scripts/validation/git_hook_policy.py planning
