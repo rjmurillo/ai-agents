@@ -248,6 +248,9 @@ jobs:
       - name: Run ADR-006 run-block ratchet
         run: python3 scripts/ci/adr006_run_block_scanner.py --max 58
 
+      - name: Check bare-python3 documentation entrypoints
+        run: uv run --frozen python3 scripts/validation/check_python3_entrypoints.py
+
       # Issue #3779: taste-lints emits severity="error" and nothing could fail
       # because of one. The linter itself is correct (it exits 10 on an error),
       # but `run_taste_advisory` in scripts/validation/git_hook_policy.py read

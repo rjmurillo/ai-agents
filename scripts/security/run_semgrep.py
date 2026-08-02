@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size
+# run_semgrep.py is a single-responsibility scanner; splitting it would scatter
+# the scan orchestration across files. The file grew past 500 lines when pinned
+# resolution helpers were added in issue #4190. File size is monitored but
+# splitting is not warranted until the scan logic itself becomes multi-concern.
 """
 Semgrep Security Scanner for Local Pre-Push Validation
 

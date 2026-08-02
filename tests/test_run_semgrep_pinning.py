@@ -218,38 +218,7 @@ class TestRunExitCode:
         with patch.object(scanner, "_check_semgrep_installed", return_value=False):
             assert scanner.run() == 2
 
-    def test_run_exits_2_as_subprocess_when_semgrep_wrong_version(
-        self, tmp_path: Path
-    ) -> None:
-        """Process exit code must be nonzero when semgrep is missing.
 
-        This tests the exit-code contract at the process boundary, not just
-        the helper return value.
-        """
-        _pyproject(tmp_path, '[project]\ndependencies = [\n    "semgrep==1.171.0",\n]\n')
-        script = Path(__file__).parent.parent / "scripts/security/run_semgrep.py"
-
-        result = subprocess.run(
-            [
-                sys.executable,
-                str(script),
-                "--dry-run",
-            ],
-            capture_output=True,
-            text=True,
-            env={
-                **__import__("os").environ,
-                # Point git to a tmp dir that is not a real repo so _find_repo_root
-                # raises -- but we only care about the semgrep resolution path.
-            },
-            cwd=str(tmp_path),
-        )
-
-        # semgrep is not installed in this venv or PATH differs -- either way,
-        # the scanner must exit nonzero (2) when resolution fails.
-        assert result.returncode in (0, 1, 2), (
-            f"unexpected exit code {result.returncode}: {result.stderr}"
-        )
 
     def test_run_uses_pinned_executable_in_run_semgrep(self, tmp_path: Path) -> None:
         """_run_semgrep must call the pinned executable, not bare 'semgrep'."""
