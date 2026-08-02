@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-28T05:18:53.542312+00:00",
+  "updated": "2026-08-02T00:40:09.704777+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -23320,6 +23320,51 @@
         "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
       ],
       "created": "2026-07-28T05:06:51.357047+00:00"
+    },
+    {
+      "id": "9a96d0dae456",
+      "type": "milestone",
+      "label": "milestone: Loaded kanban task context and relevant project constraints. Copilot CLI delegation produced no changes due quota exhaustion, so implementation continued directly.",
+      "episodes": [
+        "episode-2026-08-02-session-4215-github-models-brownout"
+      ],
+      "created": "2026-08-02T00:40:09.696367+00:00"
+    },
+    {
+      "id": "439297c28f1a",
+      "type": "milestone",
+      "label": "milestone: Added failing regression coverage for GitHub Models HTTP 410 retirement brownout handling.",
+      "episodes": [
+        "episode-2026-08-02-session-4215-github-models-brownout"
+      ],
+      "created": "2026-08-02T00:40:09.696528+00:00"
+    },
+    {
+      "id": "c09953ad36b3",
+      "type": "milestone",
+      "label": "milestone: Added brownout signatures to _is_provider_outage and verified targeted tests passed.",
+      "episodes": [
+        "episode-2026-08-02-session-4215-github-models-brownout"
+      ],
+      "created": "2026-08-02T00:40:09.696663+00:00"
+    },
+    {
+      "id": "2fc5412480a8",
+      "type": "milestone",
+      "label": "milestone: Ran eval tests, full tests, ruff, dry-run eval validation, and full pre_pr.py successfully.",
+      "episodes": [
+        "episode-2026-08-02-session-4215-github-models-brownout"
+      ],
+      "created": "2026-08-02T00:40:09.696792+00:00"
+    },
+    {
+      "id": "de84f58f8848",
+      "type": "outcome",
+      "label": "Outcome: success - Fix issue #4215 so GitHub Models HTTP 410 retirement brownout failures are treated as neutral eval provider skips.",
+      "episodes": [
+        "episode-2026-08-02-session-4215-github-models-brownout"
+      ],
+      "created": "2026-08-02T00:40:09.696910+00:00"
     }
   ],
   "patterns": [
