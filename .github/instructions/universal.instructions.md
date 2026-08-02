@@ -14,9 +14,7 @@ These rules apply to every change in this repository.
 4. **Atomic commits**. Each commit MUST touch five or fewer authored files (see `AGENTS.md` boundaries). Hook-generated companions (session episodes, MCP config, agent catalog, memory index) are exempt and do not count toward the limit.
 5. **No secrets**. MUST NOT commit credentials, tokens, or API keys. Secrets live in environment variables or the secrets manager.
 6. **Pin Actions to SHA**. New GitHub Actions references MUST pin to a commit SHA, never a floating tag.
-7. **Session log**. Long-running work MUST have a session log under `.agents/sessions/` per `.agents/SESSION-PROTOCOL.md`. Two mechanics are enforced and are not obvious from the protocol document:
-   - A commit that stages anything under `.agents/**` MUST carry a session log named `.agents/sessions/YYYY-MM-DD-session-NN<slug>.json` **in that same commit**. `scripts/validation/git_hook_policy.py session` rejects the commit with `ERROR: staged .agents changes require a JSON session log` otherwise, and it runs on every `.agents/**` path, not only on long-running work. Writing the log afterwards does not clear it; the log and the change must land together.
-   - `endingCommit` MUST be recorded in a **follow-up commit, never by amending**. Amending replaces the commit whose SHA the log names, so `validate_session_json.py` then reports the recorded SHA as unreachable (issue #3618). Commit the work with `endingCommit` empty, which is only a warning, then commit the SHA.
+7. **Session log**. Long-running work MUST have a session log under `.agents/sessions/` per `.agents/SESSION-PROTOCOL.md`.
 
 ## SHOULD
 
