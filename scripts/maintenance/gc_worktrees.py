@@ -83,7 +83,9 @@ _GIT_TIMEOUT_SECONDS = 30
 # rejects the push even though this script only reports. Staying under that cap
 # keeps a report from deciding whether code can ship. The cap itself lives in
 # lefthook.yml; tests/ci/test_worktree_gc_wiring.py pins the two together so
-# neither can drift into a push-rejecting pair.
+# neither can drift into a push-rejecting pair. The budget is a bound on work
+# attempted, not on elapsed time, so the cap needs headroom over it rather
+# than a tight arithmetic fit. See build_report for why.
 _DEFAULT_TIME_BUDGET_SECONDS = 90.0
 
 
@@ -268,10 +270,17 @@ def build_report(
 
     ``time_budget`` bounds the inspection loop in seconds. Once it is spent,
     every remaining worktree is kept unread with ``KEEP_TIME_BUDGET`` rather
-    than inspected, so the run always terminates well inside its caller's
-    timeout. A budget of ``None`` or a non-positive number means unlimited.
-    Keeping the leftovers preserves the fail-safe invariant: a worktree this
-    run never looked at can never be proposed for removal.
+    than inspected. A budget of ``None`` or a non-positive number means
+    unlimited. Keeping the leftovers preserves the fail-safe invariant: a
+    worktree this run never looked at can never be proposed for removal.
+
+    The budget is checked between worktrees, so it bounds how many are
+    inspected, not the wall clock. One inspection can still be in flight when
+    the deadline passes, and ``subprocess.run(timeout=...)`` starts its clock
+    only once the child exists, so a loaded machine can stall in process
+    creation for longer than the per-call cap. Treat the budget as a strong
+    bound on work attempted and a soft one on elapsed time; size the caller's
+    timeout with headroom rather than against an arithmetic sum.
 
     ``cwds`` overrides live-process detection, for tests. By default the working
     directories of running processes are read once and any worktree holding one
