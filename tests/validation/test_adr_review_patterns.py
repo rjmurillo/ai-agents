@@ -100,13 +100,34 @@ def test_no_evidence_fails(tmp_path: Path, content: str) -> None:
 
 # --- Edge cases ---
 
+def _symlink_or_skip(link: Path, target: Path) -> None:
+    try:
+        link.symlink_to(target)
+    except OSError as exc:
+        pytest.skip(f"symlink unavailable on this platform: {exc}")
+
+
 def test_symlink_returns_false(tmp_path: Path) -> None:
     """Symlinks are unconditionally rejected to avoid following attacker-controlled paths."""
     target = tmp_path / "target.json"
     target.write_text('{"evidence": "/adr-review invoked"}', encoding="utf-8")
     link = tmp_path / "link.json"
-    link.symlink_to(target)
+    _symlink_or_skip(link, target)
     assert policy._session_has_adr_review(link) is False
+
+
+def test_symlink_creation_error_skips(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def raise_os_error(self: Path, target: Path) -> None:
+        raise OSError("symlink denied")
+
+    monkeypatch.setattr(Path, "symlink_to", raise_os_error)
+
+    with pytest.raises(pytest.skip.Exception) as exc_info:
+        _symlink_or_skip(tmp_path / "link.json", tmp_path / "target.json")
+
+    assert "symlink unavailable on this platform" in str(exc_info.value)
 
 
 def test_unreadable_file_returns_false(tmp_path: Path) -> None:
