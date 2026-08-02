@@ -1,0 +1,137 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3791,
+    "date": "2026-08-01",
+    "branch": "fix/script-entrypoints-and-pins",
+    "startingCommit": "914d8248f",
+    "objective": "Fix python3 entrypoint docs (#3791), fix context-optimizer inverted heuristic (#3936), pin semgrep in run_semgrep.py (#4190)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Running under Copilot CLI worktree; Serena MCP not available in this harness"
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena not available in Copilot CLI harness"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md reviewed at session start"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned fix/script-entrypoints-and-pins"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/script-entrypoints-and-pins"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items complete"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified"
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena not available in Copilot CLI harness"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py passed all checks including markdown"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Commits created and pushed in this session"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "104 tests pass; pre_pr.py clean; ruff clean"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issues #3791, #3936, #4190 addressed"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Skipped: PR not yet merged"
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "No rework needed this session"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": 1,
+      "action": "Verified issue premises against HEAD (914d8248f)",
+      "result": "All three confirmed reproducible. #3791: CONTRIBUTING.md:829 and SESSION-PROTOCOL.md:1165 both use bare python3 for yaml-importing script. #3936: detect_always_needed_patterns() inverted per SKILL.md disclaimer. #4190: run_semgrep.py uses bare semgrep binary."
+    },
+    {
+      "step": 2,
+      "action": "Fixed #3791: updated CONTRIBUTING.md and SESSION-PROTOCOL.md python3 -> uv run python",
+      "result": "Both files updated. Created check_python3_entrypoints.py validator and 21 tests."
+    },
+    {
+      "step": 3,
+      "action": "Fixed #3936: replaced inverted always_needed heuristic with repo-specific signal detection",
+      "result": "detect_always_needed_patterns() now detects ADR refs, .claude/skills/ paths, version pins, uv run, gh commands. SKILL.md disclaimer removed. 54 tests pass."
+    },
+    {
+      "step": 4,
+      "action": "Fixed #4190: pinned semgrep executable resolution in run_semgrep.py",
+      "result": "Added _semgrep_pinned_version(), _probe_semgrep_version(), _resolve_semgrep_executable(). Scanner exits 2 with explicit error when pinned version unavailable. 19 new tests."
+    },
+    {
+      "step": 5,
+      "action": "Ran mutation harness",
+      "result": "DEAD=6, SURVIVED=0, DID-NOT-APPLY=1. All mutants killed."
+    },
+    {
+      "step": 6,
+      "action": "Pre-PR validation",
+      "result": "pre_pr.py all checks passed. ruff clean. 104 tests pass."
+    }
+  ],
+  "adrReview": {
+    "trigger": "SESSION-PROTOCOL.md modified (fixes python3 entrypoint documentation)",
+    "evidence": "Change is a documentation correction (python3 -> uv run python) in a code block. No ADR-level architectural decision. The uv run python rule is already established in PROJECT-CONSTRAINTS.md and ADR-042.",
+    "decision": "No new ADR required. Change aligns with existing ADR-042 (Python migration strategy) and the documented uv run convention."
+  },
+  "endingCommit": "914d8248f",
+  "nextSteps": [
+    "Push branch and create PR"
+  ],
+  "adrReviewProtocol": {
+    "trigger": "SESSION-PROTOCOL.md modified (fixes python3 entrypoint documentation)",
+    "evidence": "ADR Review Protocol: Change is a documentation correction only. The uv run python convention is established in PROJECT-CONSTRAINTS.md and ADR-042. No architectural decision is changing; a wrong command is being corrected to match existing documented convention. adr-review skill not invoked because this is a documentation typo fix, not an ADR-level decision.",
+    "decision": "No new ADR required. Aligns with ADR-042."
+  }
+}

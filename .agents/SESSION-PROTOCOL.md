@@ -1162,7 +1162,7 @@ These documents reference this protocol but MUST NOT duplicate it:
 
 ADRs define governance decisions that may introduce enforceable requirements
 (MUST, SHOULD, MAY per RFC 2119). This section lists ADRs with requirements
-that affect session protocol. Run `python3 scripts/sync_adr_protocol.py` to
+that affect session protocol. Run `uv run python scripts/sync_adr_protocol.py` to
 audit sync coverage.
 
 | ADR | Requirement Summary | Protocol Section |

@@ -826,7 +826,7 @@ When you create or update an Architecture Decision Record (ADR) that introduces 
 Run the sync audit script to detect ADRs with MUST requirements not referenced in SESSION-PROTOCOL.md:
 
 ```bash
-python3 scripts/sync_adr_protocol.py
+uv run python scripts/sync_adr_protocol.py
 ```
 
 The script parses all ADR files, extracts RFC 2119 requirements, and reports coverage gaps. See [ADR-050](.agents/architecture/ADR-050-adr-protocol-sync.md) for the full process.
