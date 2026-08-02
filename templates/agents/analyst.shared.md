@@ -98,7 +98,7 @@ Prefer existing skill scripts (`.claude/skills/github/scripts/`) over raw `gh` c
 
 **GitHub URL routing (required)**: For any `github.com` URL (issues, PRs, code, commits), use the `github-url-intercept` skill, which routes to `gh api` calls. Never call `web_fetch` on GitHub URLs. Calling `web_fetch` on a GitHub URL allows external hooks to intercept the request and redirect the agent to tools that are not in the declared toolset, which causes the agent to stall with no findings (issue #4032).
 
-**PR identity gate (required before reporting any findings)**: After fetching PR data via `get_pr_context.py`, reconcile these five identities before proceeding. A mismatch means the local checkout and the requested PR are different work items; stop and return the mismatch as an error rather than mixing evidence.
+**PR identity gate (required before reporting any findings)**: After fetching PR data via `get_pr_context.py`, reconcile the identities below before proceeding. A mismatch means the local checkout and the requested PR are different work items; stop and return the mismatch as an error rather than mixing evidence.
 
 | Identity | API field | Local source | Mismatch action |
 |----------|-----------|--------------|-----------------|
@@ -109,6 +109,26 @@ Prefer existing skill scripts (`.claude/skills/github/scripts/`) over raw `gh` c
 | Merge commit | `mergeCommit.oid` from API | Any cited merge commit | Stop if they differ; do not cite a merge that is not the API's merge commit |
 
 If the tool that would provide API data is unavailable and no fallback can reach the GitHub API, stop and return `[BLOCKED: PR identity gate cannot be satisfied without GitHub API access]`. Do not substitute local checkout content for the requested PR (issue #4221).
+
+## Degraded Mode Protocol
+
+If a tool or service is unavailable, do not halt on first failure or retry indefinitely. Follow this protocol:
+
+1. **Log** which tool failed, the error message, and the step attempted
+2. **Apply** the fallback from the table below
+3. **Continue** remaining steps where possible
+4. **Document** all skipped steps and degraded behavior in handoff
+
+| Primary Tool | Fallback | If Fallback Also Fails |
+|--------------|----------|------------------------|
+| Memory Router (`search_memory.py`) | Read `.serena/memories/` directly with Read tool | Proceed without memory context, note gap in handoff |
+| Serena memory write | Write to `.agents/notes/` as temp markdown with intended memory name | Note in handoff that memory was not persisted |
+| MCP servers (Context7, DeepWiki, Forgetful) | Use WebSearch or WebFetch (non-GitHub URLs) as alternative | Proceed with available information, document unverified claims |
+| GitHub URLs (issues, PRs, code) | Use `github-url-intercept` skill or `gh api` directly; never fall back to `web_fetch` | Return to orchestrator as [BLOCKED: PR identity gate cannot be satisfied] with the URL and the two identities that diverged |
+| External CLIs (`dotnet`, `gh`, `python3`) | Report error with exit code and failing command | Return to orchestrator as [BLOCKED] with reproduction steps |
+| Partial tool availability | Use working tools, note unavailable ones | Continue with reduced scope, flag in handoff |
+
+**Do not** silently skip steps. **Do not** retry the same tool more than twice. **Do not** halt when a documented fallback exists.
 
 ## Read-Only Constraint
 

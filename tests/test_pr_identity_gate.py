@@ -104,6 +104,20 @@ class TestPRIdentityGate:
         )
 
     @pytest.mark.parametrize("agent_path", ANALYST_AGENT_PATHS)
+    def test_identity_gate_intro_cannot_drift_from_table_count(
+        self, agent_path: Path
+    ) -> None:
+        text = _analyst_text(agent_path)
+        label = _agent_label(agent_path)
+        assert "reconcile the identities below" in text, (
+            f"{label} must avoid a hard-coded identity count that can drift "
+            "from the table"
+        )
+        assert not re.search(r"reconcile these (four|five) identities", text), (
+            f"{label} must not hard-code the identity count"
+        )
+
+    @pytest.mark.parametrize("agent_path", ANALYST_AGENT_PATHS)
     def test_head_sha_reconciliation_required(self, agent_path: Path) -> None:
         text = _analyst_text(agent_path)
         label = _agent_label(agent_path)
@@ -146,4 +160,16 @@ class TestPRIdentityGate:
             f"{label} must require reconciling a claimed merge commit "
             "against the API's merge commit field (issue #4221: the agent "
             "cited a merge commit that belonged to a different PR)"
+        )
+
+    @pytest.mark.parametrize("agent_path", ANALYST_AGENT_PATHS)
+    def test_degraded_mode_github_url_fallback_blocks(self, agent_path: Path) -> None:
+        text = _analyst_text(agent_path)
+        label = _agent_label(agent_path)
+        assert "GitHub URLs (issues, PRs, code)" in text, (
+            f"{label} must include the GitHub URL degraded-mode row"
+        )
+        assert "[BLOCKED: PR identity gate cannot be satisfied]" in text, (
+            f"{label} must block when GitHub API fallback cannot satisfy "
+            "the PR identity gate"
         )
