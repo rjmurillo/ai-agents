@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from typing import cast
 
 ERR_RATE_LIMIT: str = "rate_limit"
 ERR_SERVER_ERROR: str = "server_error"
@@ -56,3 +57,52 @@ BANNED_LOG_FIELDS: frozenset[str] = frozenset(
         "token",
     }
 )
+
+
+def categorize_error(exc: Exception) -> str:
+    """Translate a provider RuntimeError into an error_category.
+
+    `_anthropic_api.call_api` raises one of three well-known message shapes
+    (see `_anthropic_api.py`): HTTP error, timeout, or other URLError.
+    Subprocess-backed providers have no HTTP status at all, so their failures
+    are read from text instead. Anything unrecognized falls back to the
+    transient default, which retries rather than discarding a sample.
+
+    A status, when the message carries one, outranks any text hint. The HTTP
+    error shape appends the sanitized response body, so a 4xx whose body
+    happens to say "timed out" would otherwise be read as a timeout and
+    retried, contradicting the no-retry rule this module documents for
+    non-transient 4xx. Text hints are the fallback for the providers that
+    report no status at all, which is the only population they were chosen to
+    describe.
+    """
+    message = str(exc)
+    match = HTTP_STATUS_RE.search(message)
+    if match is None:
+        if TIMEOUT_HINT in message:
+            return ERR_TIMEOUT
+        if RATE_LIMIT_HINT in message.lower():
+            return ERR_RATE_LIMIT
+        if AUTH_HINT_RE.search(message):
+            return ERR_AUTH
+        return ERR_SERVER_ERROR
+    code = int(match.group(1))
+    if code in (401, 403):
+        return ERR_AUTH
+    if code == 408:
+        return ERR_TIMEOUT
+    if code == 429:
+        return ERR_RATE_LIMIT
+    if 500 <= code < 600:
+        return ERR_SERVER_ERROR
+    if 400 <= code < 500:
+        return ERR_CLIENT_ERROR
+    return cast(str, ERR_UNKNOWN)
+
+
+# Retried = transient. Anything else is recorded once and not retried.
+TRANSIENT: frozenset[str] = frozenset({ERR_RATE_LIMIT, ERR_SERVER_ERROR, ERR_TIMEOUT})
+
+
+def is_transient(category: str) -> bool:
+    return category in TRANSIENT

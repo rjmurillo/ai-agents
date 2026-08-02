@@ -61,6 +61,11 @@ _AUTH_HINT_RE = _constants.AUTH_HINT_RE
 _ALLOWED_LOG_FIELDS: frozenset[str] = _constants.ALLOWED_LOG_FIELDS
 _BANNED_LOG_FIELDS: frozenset[str] = _constants.BANNED_LOG_FIELDS
 
+# Re-exported so existing callers and tests reach them through this module.
+_categorize_error = _constants.categorize_error
+_is_transient = _constants.is_transient
+_TRANSIENT: frozenset[str] = _constants.TRANSIENT
+
 
 @dataclass(frozen=True)
 class APICallResult:
@@ -83,55 +88,6 @@ class APICallResult:
     system_fingerprint: str | None = None
 
 
-def _categorize_error(exc: Exception) -> str:
-    """Translate a provider RuntimeError into an error_category.
-
-    `_anthropic_api.call_api` raises one of three well-known message shapes
-    (see `_anthropic_api.py`): HTTP error, timeout, or other URLError.
-    Subprocess-backed providers have no HTTP status at all, so their failures
-    are read from text instead. Anything unrecognized falls back to the
-    transient default, which retries rather than discarding a sample.
-
-    A status, when the message carries one, outranks any text hint. The HTTP
-    error shape appends the sanitized response body, so a 4xx whose body
-    happens to say "timed out" would otherwise be read as a timeout and
-    retried, contradicting the no-retry rule this module documents for
-    non-transient 4xx. Text hints are the fallback for the providers that
-    report no status at all, which is the only population they were chosen to
-    describe.
-    """
-    message = str(exc)
-    match = _HTTP_STATUS_RE.search(message)
-    if match is None:
-        # No HTTP status. Check the text signals a subprocess provider can
-        # give, then treat the rest as a transient network issue.
-        if _TIMEOUT_HINT in message:
-            return ERR_TIMEOUT
-        if _RATE_LIMIT_HINT in message.lower():
-            return ERR_RATE_LIMIT
-        if _AUTH_HINT_RE.search(message):
-            return ERR_AUTH
-        return ERR_SERVER_ERROR
-    code = int(match.group(1))
-    if code in (401, 403):
-        return ERR_AUTH
-    if code == 408:
-        return ERR_TIMEOUT
-    if code == 429:
-        return ERR_RATE_LIMIT
-    if 500 <= code < 600:
-        return ERR_SERVER_ERROR
-    if 400 <= code < 500:
-        return ERR_CLIENT_ERROR
-    return cast(str, ERR_UNKNOWN)
-
-
-# Retried = transient. Anything else is recorded once and not retried.
-_TRANSIENT: frozenset[str] = frozenset({ERR_RATE_LIMIT, ERR_SERVER_ERROR, ERR_TIMEOUT})
-
-
-def _is_transient(category: str) -> bool:
-    return category in _TRANSIENT
 
 
 def _backoff_delay_seconds(attempt: int) -> float:
@@ -191,7 +147,11 @@ class _OpenAIProviderTransport:
             kwargs["seed"] = self._seed
         text = self._provider.complete(**kwargs)
         fingerprint = getattr(self._provider, "system_fingerprint", None)
-        self.system_fingerprint = fingerprint if isinstance(fingerprint, str) else None
+        if fingerprint is not None and not isinstance(fingerprint, str):
+            raise RuntimeError(
+                f"system_fingerprint must be str or None, got {type(fingerprint).__name__!r}"
+            )
+        self.system_fingerprint = fingerprint
         return text
 
 
@@ -216,7 +176,11 @@ class _AnthropicTransport:
             ),
         )
         fingerprint = metadata.get("system_fingerprint")
-        self.system_fingerprint = fingerprint if isinstance(fingerprint, str) else None
+        if fingerprint is not None and not isinstance(fingerprint, str):
+            raise RuntimeError(
+                f"system_fingerprint must be str or None, got {type(fingerprint).__name__!r}"
+            )
+        self.system_fingerprint = fingerprint
         return text
 
 
@@ -287,7 +251,16 @@ class AnthropicAPIAdapter:
         Never raises on transport failure; the caller inspects `outcome`
         and `error_category`. Logs one structured line per attempt to
         stderr.
+
+        `max_retries` must be at least 1. A value of 0 or less is a caller
+        mistake (no attempt would ever be made), not a retryable runtime
+        condition.
         """
+        if max_retries < 1:
+            raise ValueError(
+                f"max_retries must be at least 1, got {max_retries!r}. "
+                "Pass max_retries=1 to make exactly one attempt with no retries."
+            )
         resolve_start = self._clock()
         try:
             transport = self._resolve_transport()

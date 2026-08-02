@@ -250,7 +250,11 @@ class _OpenAICompatibleProvider:
                 f"{self._provider_label} API returned non-text content for model {model}."
             )
         fingerprint = getattr(resp, "system_fingerprint", None)
-        self.system_fingerprint = fingerprint if isinstance(fingerprint, str) else None
+        if fingerprint is not None and not isinstance(fingerprint, str):
+            raise RuntimeError(
+                f"system_fingerprint must be str or None, got {type(fingerprint).__name__!r}"
+            )
+        self.system_fingerprint = fingerprint
         return content
 
 
