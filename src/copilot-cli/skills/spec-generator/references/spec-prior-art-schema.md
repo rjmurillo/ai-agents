@@ -1,5 +1,7 @@
 #### Step 0.5 PriorArtBlock output schema
 
+<!-- vendor-portability: declared. Extracted from spec-generator/SKILL.md, which carries the same declaration. Names upstream-only paths because it documents the upstream gate: scripts/redact_secrets.py, scripts/metrics_writer.py, scripts/ai_review_common/verdict.py, and scripts/validation/** are the runners; .agents/specs/ (requirements, design, tasks, ontology) and .agents/sessions/STEP-0.5-METRICS.md are consumer-workspace artifacts the gate writes; .claude/skills/spec-generator/SKILL.md and .claude/skills/review/references/security.md are contributor-scoped references in the rjmurillo/ai-agents repository. Issue #2050. -->
+
 The gate emits a Markdown block embedded into the PRD as its first section, named `## Prior Art / Constraints`. The h2 heading MUST be exactly `## Prior Art / Constraints`; any trailing parenthetical (for example `## Prior Art / Constraints (auto-generated)`) is optional metadata. Step 9 check 9d matches by substring (`## Prior Art / Constraints`), so a trailing parenthetical does not break the check. The block has three required subsections; each must be present even if empty (an empty subsection contains a coverage note, not blank text):
 
 ```markdown

@@ -1,5 +1,7 @@
 #### Step 0 gate logic
 
+<!-- vendor-portability: declared. Extracted from spec-generator/SKILL.md, which carries the same declaration. Names upstream-only paths because it documents the upstream gate: scripts/redact_secrets.py and scripts/metrics_writer.py are the runners, .agents/metrics/STEP-0-METRICS.md and .agents/dictionaries/spec-entity-aliases.json are consumer-workspace artifacts the gate writes and reads, and .claude/commands/spec.md, .claude/rules/secret-redaction.md, .claude/skills/memory/SKILL.md, and docs/spec-quality/hedge-phrases.md are contributor-scoped references in the rjmurillo/ai-agents repository. Issue #2050. -->
+
 **Pass criteria** (all must be true):
 
 1. All six fields have non-empty answers.
