@@ -332,7 +332,7 @@ When reviewing an ADR exception request, apply Chesterton's Fence analysis:
 - Scope is vague or expandable
 - No reversibility consideration
 
-**Reference**: [ADR-EXCEPTION-CRITERIA.md](../../.agents/governance/ADR-EXCEPTION-CRITERIA.md)
+**Reference**: Use the ADR exception criteria in this repository's governance docs when available.
 
 ### ADR Review Checklist
 
