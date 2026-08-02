@@ -1,4 +1,4 @@
-# The eval corpus is a closed loop: every fixture is worded by the author of the thing it scores
+# The eval corpus is a closed loop, and the router suite currently measures nothing
 
 ## Question
 
@@ -20,13 +20,17 @@ externally sourced value in it, and that value is used zero times, so the gap is
 not an oversight in the schema. It is visible in the data the schema records.
 
 The one suite where prompt wording is the thing under test carries no provenance
-field at all, and its prompts were written to contain the trigger phrases the
-change under test had just added. That is the closed loop in its strongest form:
-the eval and the thing it scores were authored together from the same word list.
+field at all, its prompts were written to contain the trigger phrases the change
+under test had just added, and it is now pinned to a before-reference that makes
+its two arms identical. It reports a difference of zero and that reads as a
+measurement.
 
 ## Evidence
 
-Measured on `c02f61ddd2` against a clean worktree.
+Measured on `c02f61ddd2` against a clean worktree. Every count below was
+reproduced independently by an adversarial reviewer on a different model family.
+
+### The typed corpus is entirely author-worded
 
 Vocabulary, at `scripts/eval/_eval_agent_types.py:19`, annotated "per REQ-004
 AC-4":
@@ -53,30 +57,52 @@ The constraint is static only. `Fixture` is a plain dataclass with no
 Confirmed with both controls: a bogus value and a declared value are both
 accepted at construction.
 
-### The router suite carries no provenance at all
+### The router suite has no provenance field at all
 
 `evals/skill-router-spike/fixtures.json` is a bare list of 21 items whose keys
-are `candidates`, `correct`, `id`, `query`. There is no `provenance` key, so
-these 21 sit outside the 189 counted above and outside the typed vocabulary.
+are exactly `candidates`, `correct`, `id`, `query`. No item carries a
+`provenance` key, so these 21 sit outside the 189 counted above and outside the
+typed vocabulary.
 
-`scripts/eval/eval_skill_router.py` scores them. It measures whether the SKIP
-clauses issue #2127 added to skill descriptions improve sibling disambiguation,
-by showing a model 2 to 4 candidate descriptions plus one query and asking which
-candidate matches.
-
-Its docstring calls each query "a verbatim user request". That means phrased the
-way a user would phrase it, not taken from a user. The fixture ids are a
-constructed taxonomy, one per sibling in tidy families: `memory-01-recall`,
+Its fixture ids are a constructed per-sibling taxonomy: `memory-01-recall`,
 `memory-02-citation-hygiene`, `memory-03-documentary`,
-`memory-04-forgetful-guidance`. Each query also carries the trigger phrase that
-issue #2127 had just written into the target's description, so
-`memory-02-citation-hygiene` asks to "check the memory's health" against a
-description rewritten to claim health checking.
+`memory-04-forgetful-guidance`.
 
-So the suite measures whether descriptions containing phrase P match queries
-containing phrase P, on prompts written after the descriptions they score, with
-the field set narrowed to a handful of pre-chosen siblings rather than the full
-skill list.
+The queries share wording with the descriptions they are scored against.
+Normalized two-word overlap between each query and its target's description is
+**21 of 21**. A stricter exact-bigram check against the pre-#2127 text still
+matches 19 of 21, the other two differing only by inserted small words:
+`memory-02` asks to "Check the memory's health" against a description carrying
+"check memory health"; elsewhere "assess maintainability" meets "Assess the
+maintainability", and "catch taste/style invariants" meets "Catch taste and
+style invariants".
+
+So the suite measures whether descriptions containing a phrase match queries
+containing that phrase, on prompts written after the descriptions they score.
+
+Issue #2127 asks for phrases "the user would actually say" and "verbatim user
+phrases", and `scripts/eval/eval_skill_router.py` repeats "a verbatim user
+request". Read in context that means phrased the way a user would phrase it, not
+copied from a transcript. Nothing in the script, the issue, or the fixtures
+records a transcript source.
+
+### The suite is a no-op as currently pinned
+
+`eval_skill_router.py:68` sets `BEFORE_REF = "origin/main"` as a module
+constant, and line 13 describes it as "the pre-#2127 description". That was true
+when written. #2127 has since merged, so `origin/main` now carries the post-#2127
+text and both arms read the same bytes.
+
+Measured with the script's own resolution rule, skill first then agent fallback:
+
+```
+candidates=18 identical=18 differ=0 unresolved=0
+```
+
+Every candidate description is byte-identical between `origin/main` and `HEAD`.
+The run is at temperature 0, so the before and after arms receive identical
+input and the reported delta is zero by construction. A zero here means the
+comparison is empty, not that the change failed. Nothing in the output says so.
 
 ### Prior art in this repository
 
@@ -103,18 +129,24 @@ repository has reproduced.
 
 Treat every current eval score as an upper bound, not an estimate. The corpus
 cannot distinguish "the agent handles this task" from "the agent handles this
-task the way its author phrases it." Treat the router numbers as the loosest
-bound of the set, since that suite has no provenance record and its prompts
-postdate the descriptions they score.
+task the way its author phrases it."
 
-Do not fix this by adding a vocabulary value. `public-cve` already proves a value
-alone changes nothing. The binding constraint is that no fixture is sourced from
-text the author did not write, and the supply of such text already exists in the
-local session histories under `~/.copilot/` and `~/.claude/`.
+Treat the router suite as reporting nothing at all until its before-reference is
+repaired. Pin `BEFORE_REF` to the pre-#2127 commit or accept it as an argument,
+then rerun. Until then describe it as a router-format harness, never as evidence
+that #2127 helped or failed to help.
 
-Two consequences to carry:
+Do not fix the provenance gap by adding a vocabulary value. `public-cve` already
+proves a value alone changes nothing. The binding constraint is that no fixture
+is sourced from text the author did not write, and the supply of such text
+already exists in the local session histories under `~/.copilot/` and
+`~/.claude/`.
 
-- A new eval suite that scores its own author's phrasing inherits this ceiling.
+Three consequences to carry:
+
+- A before-and-after eval pinned to a moving ref decays into a no-op the moment
+  the change under test merges. Pin to a commit, not a branch.
+- A new eval suite that scores its own author's phrasing inherits the ceiling.
   Say so in the suite's own notes rather than reporting the number bare.
 - A routing or trigger improvement measured only against these fixtures is close
   to unfalsifiable, because the corpus contains no prompt phrased the way a user
