@@ -11,11 +11,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Audit the duplication before cutting anything",
-      "caused_by": [
-        "e007"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e002"
+        "e021"
       ]
     },
     {
@@ -23,11 +21,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Replace the duplicate with a repository-policy section",
-      "caused_by": [
-        "e001"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e003"
+        "e021"
       ]
     },
     {
@@ -35,11 +31,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Give the one orphaned vendor fact a home in the sidecar",
-      "caused_by": [
-        "e002"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e004"
+        "e021"
       ]
     },
     {
@@ -47,11 +41,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Repoint the content-pin tests at the owning file",
-      "caused_by": [
-        "e003"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e006"
+        "e021"
       ]
     },
     {
@@ -59,11 +51,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "test",
       "content": "30 passed across tests/build_scripts/test_hook_contract_knowledge.py and .claude/skills/agent-harness-reference/tests/. Assertions that span a wrapped line now run through _normalized_text so a reflow cannot turn them red without a fact changing.",
-      "caused_by": [
-        "e026"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e007"
+        "e021"
       ]
     },
     {
@@ -71,11 +61,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Negative controls",
-      "caused_by": [
-        "e004"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e008"
+        "e021"
       ]
     },
     {
@@ -83,11 +71,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "test",
       "content": "Deleting each of 'Omitting decision permits completion.', the Timeout fail-open row, 'implementation-only SDK types', and 'performs one JSON.parse' from the sidecar turned 2 tests red each (the repointed pin plus the canonical-versus-mirror byte compare). Deleting 'Failed-observer partial output is discarded.' from SKILL.md turned 2 red. Appending one line to the generated mirror turned 1 red. Restoring every file returned 25 passed.",
-      "caused_by": [
-        "e005"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e001"
+        "e021"
       ]
     },
     {
@@ -95,11 +81,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Take the autofix bot's corrections",
-      "caused_by": [
-        "e006"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e009"
+        "e021"
       ]
     },
     {
@@ -107,11 +91,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Correct the session number the autofix bot moved the wrong way",
-      "caused_by": [
-        "e008"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e010"
+        "e021"
       ]
     },
     {
@@ -119,11 +101,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Address the PR #3354 review round",
-      "caused_by": [
-        "e009"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e011"
+        "e021"
       ]
     },
     {
@@ -131,11 +111,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Reword the SKILL.md pointer and re-extract the episode",
-      "caused_by": [
-        "e010"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e012"
+        "e021"
       ]
     },
     {
@@ -143,11 +121,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Reconcile the manifest version with the PR description",
-      "caused_by": [
-        "e011"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e013"
+        "e021"
       ]
     },
     {
@@ -155,11 +131,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Correct the false session.number claim in the PR-3354 retrospective",
-      "caused_by": [
-        "e012"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e014"
+        "e021"
       ]
     },
     {
@@ -167,11 +141,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Purge the disproven branch-name invariant from this log",
-      "caused_by": [
-        "e013"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e015"
+        "e021"
       ]
     },
     {
@@ -179,11 +151,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Attribute the shared Stop shape to both vendor references",
-      "caused_by": [
-        "e014"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e016"
+        "e021"
       ]
     },
     {
@@ -191,11 +161,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Reconcile every recorded manifest version with what the branch ships",
-      "caused_by": [
-        "e015"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e017"
+        "e021"
       ]
     },
     {
@@ -203,11 +171,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Make the module's negative assertions survive a rewrap",
-      "caused_by": [
-        "e016"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e018"
+        "e021"
       ]
     },
     {
@@ -215,11 +181,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Regenerate memory artifacts after the final review fixes",
-      "caused_by": [
-        "e017"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e019"
+        "e021"
       ]
     },
     {
@@ -227,28 +191,46 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Merge current main and resolve plugin manifest versions",
-      "caused_by": [
-        "e018"
-      ],
-      "leads_to": []
-    },
-    {
-      "id": "e020",
-      "timestamp": "2026-07-26T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 199a5c04c",
       "caused_by": [],
       "leads_to": [
         "e021"
       ]
     },
     {
+      "id": "e020",
+      "timestamp": "2026-07-26T07:56:31+00:00",
+      "type": "commit",
+      "content": "Commit: 199a5c04c",
+      "caused_by": [
+        "e026"
+      ],
+      "leads_to": []
+    },
+    {
       "id": "e021",
-      "timestamp": "2026-07-26T00:00:00+00:00",
+      "timestamp": "2026-07-26T02:25:18+00:00",
       "type": "commit",
       "content": "Commit: b09c57cfe1",
       "caused_by": [
-        "e020"
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010",
+        "e011",
+        "e012",
+        "e013",
+        "e014",
+        "e015",
+        "e016",
+        "e017",
+        "e018",
+        "e019"
       ],
       "leads_to": [
         "e022"
@@ -256,7 +238,7 @@
     },
     {
       "id": "e022",
-      "timestamp": "2026-07-26T00:00:00+00:00",
+      "timestamp": "2026-07-26T02:25:42+00:00",
       "type": "commit",
       "content": "Commit: da5401a16f",
       "caused_by": [
@@ -268,7 +250,7 @@
     },
     {
       "id": "e023",
-      "timestamp": "2026-07-26T00:00:00+00:00",
+      "timestamp": "2026-07-26T03:07:43+00:00",
       "type": "commit",
       "content": "Commit: 618d8e1a7",
       "caused_by": [
@@ -280,7 +262,7 @@
     },
     {
       "id": "e024",
-      "timestamp": "2026-07-26T00:00:00+00:00",
+      "timestamp": "2026-07-26T03:53:48+00:00",
       "type": "commit",
       "content": "Commit: 006a88767",
       "caused_by": [
@@ -292,7 +274,7 @@
     },
     {
       "id": "e025",
-      "timestamp": "2026-07-26T00:00:00+00:00",
+      "timestamp": "2026-07-26T05:22:06+00:00",
       "type": "commit",
       "content": "Commit: 827a4c699",
       "caused_by": [
@@ -304,14 +286,14 @@
     },
     {
       "id": "e026",
-      "timestamp": "2026-07-26T00:00:00+00:00",
+      "timestamp": "2026-07-26T05:26:28+00:00",
       "type": "commit",
       "content": "Commit: f673788d4",
       "caused_by": [
         "e025"
       ],
       "leads_to": [
-        "e005"
+        "e020"
       ]
     }
   ],
