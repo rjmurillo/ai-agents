@@ -142,7 +142,7 @@ RUNTIME_PATH = ".claude/skills/runtime"
         self._skill_script(tmp_path, "gamma", "Path('.agents/architecture')\n")
         original_read_text = Path.read_text
 
-        def read_text(path: Path, *args: object, **kwargs: object) -> str:
+        def read_text(path: Path, *args: str | None, **kwargs: str | None) -> str:
             if path.name == "run.py":
                 raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "bad byte")
             return original_read_text(path, *args, **kwargs)
@@ -255,7 +255,7 @@ class TestRepoRatchet:
         baseline.write_text('{"files": {}}\n', encoding="utf-8")
         original_read_text = Path.read_text
 
-        def read_text(path: Path, *args: object, **kwargs: object) -> str:
+        def read_text(path: Path, *args: str | None, **kwargs: str | None) -> str:
             if path.name == "run.py":
                 raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "bad byte")
             return original_read_text(path, *args, **kwargs)
@@ -278,6 +278,24 @@ class TestRepoRatchet:
             '{"files": {"skills/alpha/scripts/run.py": 5}}\n', encoding="utf-8"
         )
         assert csp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline_path)]) == 1
+
+    def test_baseline_shrink_requires_the_explicit_override(self, tmp_path: Path) -> None:
+        self._repo_with_clean_skill(tmp_path)
+        baseline_path = tmp_path / "baseline.json"
+        baseline_path.write_text(
+            '{"files": {"skills/alpha/scripts/run.py": 5}}\n', encoding="utf-8"
+        )
+        args = [
+            "--repo-root",
+            str(tmp_path),
+            "--baseline",
+            str(baseline_path),
+            "--update-baseline",
+        ]
+
+        assert csp.main(args) == 2
+        assert csp.main([*args, "--allow-baseline-shrink"]) == 0
+        assert json.loads(baseline_path.read_text(encoding="utf-8"))["files"] == {}
 
     def test_regression_still_triggers_failure(self, tmp_path: Path) -> None:
         """Regressions (current > baseline) must still exit 1."""
