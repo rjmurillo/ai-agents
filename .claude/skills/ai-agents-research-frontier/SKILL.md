@@ -48,7 +48,7 @@ issue, or write-up. All commands run from the repo root.
 | ADR-068 status is Accepted as of 2026-07-30 | `sed -n '1,10p' .agents/architecture/ADR-068-consolidated-hook-dispatcher.md` |
 | Rule-activation eval exists with a no-spend path | `python3 scripts/eval/eval-rule-activation.py --help` |
 | 12 rule scenario fixtures as of 2026-07-30 | `set -- tests/evals/rule-scenarios/*; echo $#` |
-| Corpus size (98 skill directories, 25 rule files, 121 retrospective corpus files, 879 Markdown memory files as of 2026-07-30) | `set -- .claude/skills/*/; echo $#; set -- .claude/rules/*.md; echo $#; python3 -c "from pathlib import Path; print(sum(1 for p in Path('.agents/retrospective').glob('*.md') if p.is_file())); print(sum(1 for p in Path('.serena/memories').rglob('*.md') if p.is_file()))"` |
+| Corpus size (98 skill directories, 25 rule files, 127 retrospective corpus files, 165 Markdown memory files as of 2026-08-02) | `set -- .claude/skills/*/; echo $#; set -- .claude/rules/*.md; echo $#; python3 -c "from pathlib import Path; print(sum(1 for p in Path('.agents/retrospective').glob('*.md') if p.is_file())); print(sum(1 for p in Path('.serena/memories').rglob('*.md') if p.is_file()))"` |
 | Runtime contract tests pass | `uv run pytest tests/build_scripts/test_generate_hooks_runtime_contract.py -q` |
 | Apply-step hooks unregistered | `uv run pytest -q "tests/build_scripts/test_copilot_dispatcher_artifact.py::TestDispatcherArtifacts::test_retired_hooks_are_absent_and_keepers_are_plugin_only"` |
 
@@ -91,17 +91,17 @@ durable competitive surface and everything else is plumbing.
   almost nobody measures whether a rule changes model behavior at all.
 - Rules are unmeasured even here: this repo has 25 rule files under
   `.claude/rules/` but only 12 scenario fixtures under
-  `tests/evals/rule-scenarios/` (as of 2026-07-30). Those fixtures name 12
-  distinct rules, so 13 of 25 rules have no activation baseline.
+  `tests/evals/rule-scenarios/` (as of 2026-07-30). Those fixtures cover 4
+  distinct rule paths, so 21 of 25 rules have no activation baseline.
 - Weight tuning is unavailable to a repository: you cannot fine-tune the vendor
   model, so context curation is the only lever, and the field has no shared
   methodology for verifying it.
 
 ### This repo's asset
 
-- 98 skill directories, 25 rule files, 121 retrospective corpus files,
-  879 Serena Markdown memory files
-  (counts as of 2026-07-30; re-verify with the Phase 1 corpus-size command).
+- 98 skill directories, 25 rule files, 127 retrospective corpus files,
+  165 Serena Markdown memory files
+  (counts as of 2026-08-02; re-verify with the Phase 1 corpus-size command).
 - Gates that produce inspectable artifacts (verification-based governance,
   SESSION-PROTOCOL.md): every rule violation leaves evidence, so compliance is
   measurable after the fact.
@@ -119,7 +119,8 @@ durable competitive surface and everything else is plumbing.
    UNVERIFIED: no per-rule traffic measurement exists; as a proxy, pick rules
    cited most often in `.agents/retrospective/` (grep the rule filename). Write
    scenario JSON files modeled on `tests/evals/rule-scenarios/refactoring.json`,
-   dry-run first, predict scores before the paid run.
+   dry-run first, predict scores before the paid run. (21 of 25 rules currently
+   have no fixture; start with the 3 most-cited.)
 2. Measure FM-1 compliance rate before and after one deliberate context change
    (for example, moving one rule between description-only and full-body
    loading), using session logs under `.agents/sessions/` as the compliance
