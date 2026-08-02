@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- registration list, not logic. Issue #4285.
 """Ordered pre-PR validation sequence (extracted from ``pre_pr.py``, Issue #3073).
 
 Holds ``run_all_validations``: the ordered list of ``run_validation`` calls that
