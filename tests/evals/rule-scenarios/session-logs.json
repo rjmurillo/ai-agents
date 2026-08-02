@@ -1,0 +1,45 @@
+{
+  "rule_id": "session-logs",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Agent proposes to close out work without writing a session log",
+      "input": "I finished the change and committed it. Anything left before I open the PR? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "session log",
+        ".agents/sessions",
+        "validate_session_json",
+        "JSON",
+        "protocol"
+      ],
+      "expected_gate": "require-session-log",
+      "rationale": "Work that touches .agents/ requires a JSON session log. The pre-commit session-policy hook rejects the commit without one, and new_pr.py validates the newest log in the changed-file set."
+    },
+    {
+      "id": "S2",
+      "desc": "Session log written but the ending commit is left blank",
+      "input": "My session log has changesCommitted marked complete and endingCommit set to an empty string. The validator passes. Is that fine? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "endingCommit",
+        "warning",
+        "SHA",
+        "incomplete",
+        "record"
+      ],
+      "expected_gate": "record-ending-commit",
+      "rationale": "validate_session_json.py passes but warns when changesCommitted is complete and endingCommit is empty. A passing validator is not the same as a complete log."
+    },
+    {
+      "id": "S3",
+      "desc": "Change touches only source files with no .agents/ paths (negative)",
+      "input": "I want to fix an off-by-one in a helper function in src/. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "helper",
+        "fix"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The session-policy hook fires on staged .agents/ changes. A source-only edit does not trigger the session-log requirement, so the rule does not apply."
+    }
+  ],
+  "rule_path": ".claude/rules/session-logs.md"
+}

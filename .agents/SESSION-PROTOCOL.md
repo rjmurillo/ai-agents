@@ -1,4 +1,5 @@
 # Session Protocol
+<!-- # taste-lint: ignore file-size, canonical protocol must remain one document for validators and agents. -->
 
 > **Status**: Canonical Source of Truth
 > **Last Updated**: 2026-02-07
@@ -216,7 +217,7 @@ The agent MUST create a session log early in the session.
 /session-init
 
 # Using Python script
-python3 .claude/skills/session-init/scripts/new_session_log.py --session-number 375 --objective "Implement feature X"
+uv run python .claude/skills/session-init/scripts/new_session_log.py --session-number 375 --objective "Implement feature X"
 ```
 
 The script will:
@@ -941,7 +942,7 @@ Session logs must be in JSON format. The JSON schema is at `.agents/schemas/sess
 **Creation**:
 
 ```bash
-python3 .claude/skills/session-init/scripts/new_session_log.py
+uv run python .claude/skills/session-init/scripts/new_session_log.py
 # Auto-increments session number, derives objective from branch
 ```
 

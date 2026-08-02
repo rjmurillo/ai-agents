@@ -4,6 +4,8 @@ description: Technical authority on system design who guards architectural coher
 model: opus
 metadata:
   tier: expert
+# Requires fresh context and separate tool state to make architecture decisions without inherited assumptions.
+isolation_required: true
 argument-hint: Describe the design decision, review request, or ADR topic
 ---
 # Architect Agent
@@ -332,7 +334,7 @@ When reviewing an ADR exception request, apply Chesterton's Fence analysis:
 - Scope is vague or expandable
 - No reversibility consideration
 
-**Reference**: [ADR-EXCEPTION-CRITERIA.md](../../.agents/governance/ADR-EXCEPTION-CRITERIA.md)
+**Reference**: Use the ADR exception criteria in this repository's governance docs when available.
 
 ### ADR Review Checklist
 

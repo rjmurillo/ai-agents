@@ -43,7 +43,7 @@ jobs:
             memories:
               - '.serena/memories/**'
             code:
-              - '.claude/skills/memory-enhancement/**'
+              - 'scripts/memory_enhancement/**'
 
   verify-citations:
     name: Verify citations

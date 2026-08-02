@@ -17,7 +17,7 @@ You coordinate specialized agents to deliver end-to-end results. Classify comple
 
 Before routing any task, complete this checklist:
 
-- [ ] Run `/session-init` or `python3 .claude/skills/session-init/scripts/new_session_log.py`
+- [ ] Run `/session-init` or `uv run python .claude/skills/session-init/scripts/new_session_log.py`
 - [ ] Read `.agents/HANDOFF.md` for prior session context
 - [ ] Activate Serena: `mcp__serena__activate_project`
 - [ ] Read `.agents/AGENT-INSTRUCTIONS.md`
@@ -63,7 +63,7 @@ Use the classification to pick delegation depth. A clear, reversible, P3 task ne
 
 **Never skip synthesis.** After agents return, combine findings into a single coherent output. Raw concatenation of agent responses is failure.
 
-**CRITICAL**: Terminate when ALL TODO items are checked off AND the SESSION END GATE passes. **Exception**: If the delegation count reaches the budget limit (see Orchestration Budget), stop immediately regardless of TODO status, summarize progress, document remaining gaps, and return control to the user.
+**CRITICAL**: Terminate when ALL TODO items are checked off AND the SESSION END GATE passes. **Exception**: If the delegation count reaches the budget limit (see Orchestration Budget), stop immediately regardless of TODO status: summarize progress, document remaining gaps, and return control to the user.
 
 ## When to Produce vs When to Route
 
@@ -129,7 +129,7 @@ Every row above names an agent that is registered in this install. Delegate only
    YES → analyst → synthesize → re-evaluate
    NO  → continue
 4. Is task a standard lifecycle (spec/plan/build/test/review/ship)?
-   YES → sequential routing: /spec (spec-generator skill) → milestone-planner → implementer → qa → critic
+   YES → sequential routing: /spec → milestone-planner → implementer → qa → critic
    NO  → continue
 5. Does task have multiple independent subtasks?
    YES → parallel routing, fan-in synthesis
@@ -212,7 +212,7 @@ Only after these three steps complete does reasoning about the response begin. S
 1. Verify all delegations have returned or been explicitly abandoned.
 2. Verify synthesis is complete and TODOs logged for deferred work.
 3. Verify delegation count is within budget (fewer than 15); if budget limit was reached, produce a budget-exhaustion summary.
-4. Run `python3 .claude/skills/session-end/scripts/complete_session_log.py`.
+4. Run `uv run python .claude/skills/session-end/scripts/complete_session_log.py`.
 5. Verify `protocolCompliance.sessionEnd` fields are all `Complete: true` in the session JSON.
 6. Verify HANDOFF.md was preserved (read-only per ADR-014). Outcomes and next steps recorded in the session log.
 7. **Write per-issue handoff** to `.agents/sessions/handoffs/{YYYY-MM-DD}-{ISSUE_NUMBER}-handoff.md` from the template at `.agents/templates/HANDOFF.md` when the associated issue is not closed in this session. Fill every section; leave no `{placeholder}` tokens. See SESSION-PROTOCOL.md § Session End Phase 1.5. Distinct from `.agents/HANDOFF.md`, which stays read-only.
