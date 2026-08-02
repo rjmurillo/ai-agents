@@ -142,9 +142,31 @@ class TestADiffableBaselineIsAllowed:
         assert refuse_undiffable_baseline(repo, _baseline(repo)) is False
 
     def test_a_named_diff_driver_is_allowed(self, repo: Path) -> None:
-        """`diff=json` picks a hunk-header algorithm; the content still shows."""
+        """`diff=json` picks a hunk-header algorithm; the content still shows.
+
+        A named driver can be made to render as binary, but only by a reader
+        who also sets `diff.<name>.binary=true`. That setting lives in git
+        config, which is per clone and never committed, so it cannot travel
+        with the attack and the forge rendering the review never sees it. The
+        committed ways to reach the same effect are `-diff` and the `binary`
+        macro, and both are refused above.
+
+        Written down because the local-config route is easy to rediscover and
+        reads like a hole. Refusing every named driver on account of it would
+        reject a safe, committed configuration on the strength of a setting the
+        reviewer's forge does not read. The pair below is the discriminator: the
+        driver alone renders text, and only the local setting changes that.
+        """
         _attribute(repo, "scripts/validation/baseline.json diff=json")
-        assert refuse_undiffable_baseline(repo, _baseline(repo)) is False
+        baseline = _baseline(repo)
+        assert refuse_undiffable_baseline(repo, baseline) is False
+
+        baseline.write_text(json.dumps({"files": {"a/b.py": 1}}) + "\n")
+        assert '"a/b.py": 1' in _git(repo, "diff").stdout
+
+        _git(repo, "config", "diff.json.binary", "true")
+        assert "Binary files" in _git(repo, "diff").stdout
+        assert refuse_undiffable_baseline(repo, baseline) is False
 
     def test_a_driver_literally_named_false_is_allowed(self, repo: Path) -> None:
         """`diff=false` reads like a refusal and is not one.
