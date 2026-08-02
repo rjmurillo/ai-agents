@@ -280,7 +280,7 @@ sequenceDiagram
 | Attribute | Value |
 |-----------|-------|
 | **Trigger** | PR modifying `templates/**` or `src/**` |
-| **Script** | `python3 build/generate_agents.py --validate` |
+| **Script** | `uv run python build/generate_agents.py --validate` |
 | **Output** | Pass/fail status |
 | **Exit Behavior** | Fails if generated files don't match |
 

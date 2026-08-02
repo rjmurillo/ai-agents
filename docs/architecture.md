@@ -63,7 +63,7 @@ Claude Code agents in `src/claude/` use a different format. They are plain markd
 To change an agent:
 
 1. Edit the template in `templates/agents/<agent>.shared.md`
-2. Run `python3 build/generate_agents.py` to regenerate platform files
+2. Run `uv run python build/generate_agents.py` to regenerate platform files
 3. Commit both the template and generated outputs
 
 Do not edit files in `src/vs-code-agents/` or `src/copilot-cli/` directly. They are overwritten on regeneration.

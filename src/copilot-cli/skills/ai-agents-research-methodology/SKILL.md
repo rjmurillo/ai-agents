@@ -71,7 +71,7 @@ made after seeing the data is a description, not a test. Concretely:
 2. Validate the setup with zero spend first:
 
    ```bash
-   python3 scripts/eval/eval-prompt-change.py \
+   uv run python scripts/eval/eval-prompt-change.py \
      --prompt templates/agents/analyst.shared.md \
      --scenarios tests/evals/analyst-scenarios.json \
      --base-ref main --dry-run

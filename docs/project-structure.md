@@ -65,7 +65,7 @@ Edit the shared template:
 Then regenerate:
 
 ```bash
-python3 build/generate_agents.py
+uv run python build/generate_agents.py
 ```
 
 Commit both the template and the generated outputs.

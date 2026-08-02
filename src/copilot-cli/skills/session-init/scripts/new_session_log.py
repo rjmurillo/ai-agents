@@ -344,7 +344,7 @@ def main(argv: list[str] | None = None) -> int:
                 f"\nSession log created but schema validation FAILED.\n"
                 f"  File: {filepath}\n"
                 f"Fix issues and re-validate:\n"
-                f'  python3 scripts/validate_session_json.py --creation-mode "{filepath}"',
+                f'  uv run python scripts/validate_session_json.py --creation-mode "{filepath}"',
                 file=sys.stderr,
             )
             return 4

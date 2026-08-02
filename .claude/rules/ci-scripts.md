@@ -18,7 +18,7 @@ Scripts under `scripts/validation/`, `build/`, and `.github/workflows/` gate eve
 
 ## MUST
 
-1. **Local run before commit**. CI-critical scripts MUST be exercised locally before commit. Use `gh act` for workflows, direct `python3` invocation for validation scripts, and the actual test suite for helpers.
+1. **Local run before commit**. CI-critical scripts MUST be exercised locally before commit. Use `gh act` for workflows, direct `uv run python` invocation for validation scripts, and the actual test suite for helpers.
 2. **Shift-left validation**. Before pushing, MUST run `uv run python scripts/validation/pre_pr.py` and resolve any failures.
 3. **Python for new scripts**. New scripts MUST be Python per ADR-042. MUST NOT create new `*.sh` bash scripts.
 4. **Exit codes**. Scripts MUST follow the exit code contract: `0`=ok, `1`=logic, `2`=config, `3`=external, `4`=auth (`AGENTS.md`).
@@ -27,6 +27,8 @@ Scripts under `scripts/validation/`, `build/`, and `.github/workflows/` gate eve
 7. **Verify worktree identity before writing**. A script that resolves the repository root and then writes to it MUST confirm the current directory is inside the resolved root before the first write (`Path.cwd().resolve().is_relative_to(top_level)`). `git rev-parse --show-toplevel` reports a claim, not a fact about where you are: a local `core.worktree` value or a `GIT_WORK_TREE` environment variable redirects it to a directory you are not standing in, and `git status` then reports every tracked file as deleted because it is looking somewhere else. Measured: an ordinary `git worktree add` sets neither, a moved worktree still resolves correctly, and a worktree whose main checkout moved away fails closed with a non-zero exit. So the redirection is always something a person or a tool set on purpose, which is exactly why a script that inherits it has no way to notice.
 8. **Anchor helper resolution on the absolute top level**. A resolver that walks candidate roots to find a repository helper MUST anchor its in-repo rung on `git rev-parse --show-toplevel`, and MUST order that rung ahead of any out-of-repo root. A bare relative `.claude` rung only resolves when cwd happens to be the repository root; invoked from a subdirectory it falls through to a copy under `~/.copilot/installed-plugins` or `~/.claude/plugins/cache`, which can be arbitrarily old. `check_skill_resolver_anchoring.py` enforces this for `SKILL.md` resolvers; the same requirement binds resolvers written anywhere else, where nothing enforces it for you.
 9. **Read the state you are asserting about, and name the ref**. A claim about what the repository *contains* MUST be computed from a named ref: `git ls-tree -r -z --name-only HEAD` for a path inventory, the full `git ls-tree -r -z HEAD` wherever entry mode matters, and `git log HEAD` for history. Use `-z`; paths are not newline-safe, and `--name-only` hides modes, so the tracked `memory_enhancement` symlink is indistinguishable from a regular file. Such a claim MUST NOT come from `git log --all` or from a directory walk. `--all` reads every ref the clone holds rather than the branch: at diagnosis this clone held 2054 `refs/remotes/pr/*` refs while `remote.origin.fetch` covered only branch heads, and deleting one of them flipped a shipped test from failing to passing without changing a byte of the repository (Issue #3753). Prefer `HEAD` to `origin/main`, since a guard scoped to the base branch cannot see what the current change does. Reads of the working tree, the index, and untracked files remain correct and required wherever that state is itself the subject, as in regeneration drift and pre-commit checks. Their findings describe local state and MUST NOT be restated as claims about a ref: a directory walk reported three skills as unusable when what remained on disk was untracked residue from a deletion in PR #2359, and the resulting Issue #3420 was closed NOT_PLANNED.
+10. **Convert every failure signal into a non-zero exit before the step ends**. When a `run:` block moves into a Python module under ADR-006, the shell semantics it is replacing MUST be preserved at the boundary: under `set -e` any non-zero command aborted the step, so the module MUST return a non-zero code to `sys.exit` for the same conditions. Returning a findings list, an error string, `None`, or `False` to a caller that ignores it converts a red step into a green one, and the extraction is then a silent-pass detector rather than a check. Six confirmed instances are tracked in Issue #4068. A green step whose behavior changed in this direction is worse than the shell it replaced, because the shell failed loudly and the module reports success. Verify by running the module against input known to be bad and reading `$?`, not by reading the log.
+11. **Distinguish a run that did nothing from a run that succeeded**. A workflow or gate that early-returns when there is no work MUST NOT report that outcome the same way it reports completed work, or the signal inverts: the job goes green exactly when it is idle and red exactly when it acts, and the failure hides inside a mostly-green history. Measured: an auto-bump workflow's only passing run was the one that found nothing to commit and returned before reaching its push, while every run that had work failed against a branch rule; the run history read 3 of 4 passing and the true rate on runs that did work was 0 of 3.
 
 ## SHOULD
 
@@ -39,6 +41,21 @@ Scripts under `scripts/validation/`, `build/`, and `.github/workflows/` gate eve
 1. MUST NOT put branching logic inside YAML workflow steps (ADR-006).
 2. MUST NOT commit changes that silently change validator behavior without an ADR; validators are authoritative.
 3. MUST NOT skip pre-push validation when touching CI paths.
+4. MUST NOT raise a count baseline (`scripts/ci/*_count_baseline.txt`) to clear a blocked push. Those ratchets exist to refuse a new error-severity violation; raising the number defeats the gate rather than satisfying it. Fix the violation, split the file, or use the rule's documented escape (`# taste-lint: ignore <rule>` with a reason, issue #3779).
+
+## Count ratchets
+
+A count ratchet may only fall. Two consequences follow, and both bite in practice.
+
+**A real improvement MUST be recorded.** An unrecorded improvement leaves slack, so the next regression up to the stale number passes silently. Lower it with the per-ratchet updater, not the shared module:
+
+```bash
+uv run --frozen --extra dev python scripts/ci/ruff_count_ratchet.py --update
+```
+
+`scripts/ci/count_ratchet.py --update <name>` reports success and changes nothing. Verify the file afterwards rather than trusting the message.
+
+**The failure never names the offending file.** It reports a delta, and the remediation command it suggests prints the same aggregate. Locate the offender by diffing per-file counts against `origin/main`; the linter needs `--format json -- <files>` because with no file arguments it scans nothing and reports zero, which reads as a clean tree. Prove attribution instead of inferring it: `git rm --cached <suspect>` and re-run; if the ratchet returns OK, that file was the whole delta.
 
 ## References
 
