@@ -20,9 +20,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.validation.portability_floor import (  # noqa: E402
-    _tracked_blob,
+    Sections,
     read_previous_sections,
 )
+from scripts.validation.portability_git import tracked_blob  # noqa: E402
 
 
 def _git(root: Path, *args: str) -> None:
@@ -109,7 +110,7 @@ class TestCaseIsResolvedAgainstTheTreeRatherThanAPathspec:
         root = _repo(tmp_path)
         _commit_baseline(root, 4)
 
-        blob, problem = _tracked_blob(root, Path("Scripts/validation/b.json"))
+        blob, problem = tracked_blob(root, Path("Scripts/validation/b.json"))
 
         assert blob is None
         assert problem is not None
@@ -119,7 +120,7 @@ class TestCaseIsResolvedAgainstTheTreeRatherThanAPathspec:
         root = _repo(tmp_path)
         _commit_baseline(root, 4)
 
-        blob, problem = _tracked_blob(root, Path("scripts/validation/b.json"))
+        blob, problem = tracked_blob(root, Path("scripts/validation/b.json"))
 
         assert problem is None
         assert blob is not None
@@ -136,7 +137,7 @@ class TestCaseIsResolvedAgainstTheTreeRatherThanAPathspec:
         _git(root, "add", "-A")
         _git(root, "commit", "-qm", "twins")
 
-        blob, problem = _tracked_blob(root, Path("scripts/validation/b.json"))
+        blob, problem = tracked_blob(root, Path("scripts/validation/b.json"))
 
         assert problem is None
         assert blob is not None
@@ -157,7 +158,7 @@ class TestCaseIsResolvedAgainstTheTreeRatherThanAPathspec:
         _git(root, "add", "-A")
         _git(root, "commit", "-qm", "twins")
 
-        blob, problem = _tracked_blob(root, Path("scripts/validation/C.json"))
+        blob, problem = tracked_blob(root, Path("scripts/validation/C.json"))
 
         assert blob is None
         assert problem is None
@@ -166,7 +167,7 @@ class TestCaseIsResolvedAgainstTheTreeRatherThanAPathspec:
         root = _repo(tmp_path)
         _commit_baseline(root, 4)
 
-        blob, problem = _tracked_blob(root, Path("scripts/validation"))
+        blob, problem = tracked_blob(root, Path("scripts/validation"))
 
         assert blob is None
         assert problem is not None
@@ -176,7 +177,7 @@ class TestCaseIsResolvedAgainstTheTreeRatherThanAPathspec:
         root = _repo(tmp_path)
         _commit_baseline(root, 4)
 
-        blob, problem = _tracked_blob(root, Path("scripts/validation/b.json/nested.json"))
+        blob, problem = tracked_blob(root, Path("scripts/validation/b.json/nested.json"))
 
         assert blob is None
         assert problem is not None
@@ -188,7 +189,7 @@ class TestCaseIsResolvedAgainstTheTreeRatherThanAPathspec:
         root = _repo(tmp_path)
         _commit_baseline(root, 4)
 
-        blob, problem = _tracked_blob(root, Path("scripts/validation/brand-new.json"))
+        blob, problem = tracked_blob(root, Path("scripts/validation/brand-new.json"))
 
         assert blob is None
         assert problem is None
@@ -203,7 +204,7 @@ class TestAFloorIsBuiltOnlyFromJsonIntegers:
     """
 
     @staticmethod
-    def _floor(root: Path, payload: object) -> tuple[object, object]:
+    def _floor(root: Path, payload: object) -> tuple[Sections | None, str | None]:
         path = root / "scripts" / "validation" / "b.json"
         path.write_text(json.dumps(payload), encoding="utf-8")
         _git(root, "add", "-A")

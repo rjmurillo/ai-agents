@@ -368,7 +368,13 @@ class TestALookupThatFailsIsNotAnAbsentFloor:
     def test_a_baseline_outside_the_repository_has_no_floor(
         self, tmp_path: Path
     ) -> None:
-        """`check_skill_portability.py` permits this, so it must not refuse."""
+        """A direct library call can still reach this; no checker CLI can.
+
+        All three checkers reject an out-of-root `--baseline` before they get
+        here, so this pins the branch for library callers rather than for the
+        CLI. It is honest for them: git tracks nothing outside the work tree,
+        so there is genuinely no floor to apply.
+        """
         root = _repo(tmp_path)
         _commit_baseline(root, {"files": {"a.md": 4}})
         outside = tmp_path / "outside.json"
