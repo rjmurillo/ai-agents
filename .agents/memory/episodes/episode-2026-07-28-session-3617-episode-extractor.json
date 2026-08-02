@@ -13,7 +13,7 @@
       "content": "Reproduced both defects with an end-to-end probe against a temporary git repo. On the JSON session path a work log quoting 'Linting: 2 files, 0 issues' set metrics.files_changed to 2 while the staged diff held 5 files. On the markdown path the line 'commit abc1234 failed to apply' produced a single event with id e002, dropping the commit event and burning index 1.",
       "caused_by": [],
       "leads_to": [
-        "e002"
+        "e018"
       ]
     },
     {
@@ -21,11 +21,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Measured the corpus before choosing a fix. Across 1000 session logs producing 301 episodes, 83 of 3513 work-log lines (2.4 percent) match more than one event pattern, silently dropping 71 error and 12 commit events. One shipped episode carries non-contiguous ids and none carry duplicates.",
-      "caused_by": [
-        "e001"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e004"
+        "e018"
       ]
     },
     {
@@ -33,19 +31,21 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "error",
       "content": "Measured the corpus before choosing a fix. Across 1000 session logs producing 301 episodes, 83 of 3513 work-log lines (2.4 percent) match more than one event pattern, silently dropping 71 error and 12 commit events. One shipped episode carries non-contiguous ids and none carry duplicates.  2",
-      "caused_by": [],
-      "leads_to": []
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e018"
+      ]
     },
     {
       "id": "e004",
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Found the second cause of non-contiguity: _filter_markdown_events drops error events after ids are already assigned, so filtering alone can leave a gap even when parse_events is correct. That ruled out fixing parse_events alone.",
-      "caused_by": [
-        "e002"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e005"
+        "e018"
       ]
     },
     {
@@ -53,11 +53,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Rewrote parse_events to use a nested add(evt_type, content) closure that increments and appends atomically, mirroring the already-correct json_events pattern. A line matching several patterns now yields one event per match instead of one event with a burned counter.",
-      "caused_by": [
-        "e004"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e006"
+        "e018"
       ]
     },
     {
@@ -65,11 +63,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Added _renumber_events and called it immediately before _link_sequential_events, the single call site. Numbering the final list makes duplicate and non-contiguous ids unrepresentable rather than merely detectable. Safe because the causal linker resets and rebuilds every edge by id from that same list, so no reference can dangle.",
-      "caused_by": [
-        "e005"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e007"
+        "e018"
       ]
     },
     {
@@ -77,11 +73,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Inverted the files_changed precedence so the staged diff is primary and work-log prose is the fallback, matching the split _collect_shas already applies to SHAs. Removed the falsy guard that let any 'N files' phrase suppress the correct staged figure.",
-      "caused_by": [
-        "e006"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e008"
+        "e018"
       ]
     },
     {
@@ -89,11 +83,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Added nine tests covering positive, negative, and edge cases: burned index, duplicate ids, empty list, non-dict entry, padding past nine, multi-pattern line, staged beats prose, prose still applies when nothing is staged, and zero when neither source has a count.",
-      "caused_by": [
-        "e007"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e009"
+        "e018"
       ]
     },
     {
@@ -101,11 +93,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Ran the negative control by swapping in the 95da12691 version of the extractor. Seven of the nine new tests failed, confirming each is load-bearing. The two that passed on both sides are the fallback invariants, which is the correct shape: they prove the precedence flip did not over-tighten and remove the prose path entirely.",
-      "caused_by": [
-        "e008"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e010"
+        "e018"
       ]
     },
     {
@@ -113,11 +103,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Regenerated the copilot mirror with build/scripts/generate_skills.py and confirmed the canonical and generated copies are byte-identical. Bumped .claude/.claude-plugin/plugin.json and src/copilot-cli/.claude-plugin/plugin.json to the same strictly-greater 0.6.171 per the parity gate.",
-      "caused_by": [
-        "e009"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e012"
+        "e018"
       ]
     },
     {
@@ -127,7 +115,7 @@
       "content": "Commit: abc1234",
       "caused_by": [],
       "leads_to": [
-        "e017"
+        "e003"
       ]
     },
     {
@@ -135,11 +123,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Issue #3633 asks for two things and only the second is reachable: _renumber_events already makes duplicate and non-contiguous ids unrepresentable on the write path, so a pre-write uniqueness check would be dead code. The reachable half is detection at rest, for files that never pass through the extractor again after a hand edit or a merge-conflict resolution. Added --validate over a file or directory, exiting 2 on a duplicate id, a gap, a missing id, a non-object event, a non-list events field, or unreadable JSON.",
-      "caused_by": [
-        "e010"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e013"
+        "e018"
       ]
     },
     {
@@ -147,11 +133,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "An earlier corpus probe reported 0 duplicate and 0 non-contiguous ids across 301 episodes and I acted on that, concluding the at-rest validator was unmerited. The probe was broken: it filtered ids with isinstance(i, int) but episode ids are strings, so the list was always empty and the contiguity check never ran. Running the real validator instead found 4 violations on its first pass, all in episode-2026-05-31-session-1857.json, the exact file the issue names. Lesson: run the real implementation over the corpus rather than writing a separate probe.",
-      "caused_by": [
-        "e012"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e014"
+        "e018"
       ]
     },
     {
@@ -159,11 +143,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Repaired episode-2026-05-31-session-1857.json, which shipped ids e002-e005 where e001-e004 belong. All four caused_by and leads_to edges are empty and the ids appear nowhere else in the file, so renumbering is lossless: a 4-line diff. The store now validates clean at 302 files, 0 violations.",
-      "caused_by": [
-        "e013"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e015"
+        "e018"
       ]
     },
     {
@@ -171,11 +153,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Requirement 2 of the issue is to add the check to whatever validates episode files in CI. Traced the gates: memory-validation.yml has no episode path filter, and pytest.yml gates its whole test job behind a dorny/paths-filter whose python entry is '**/*.py'. An episode-only PR, exactly the hand-edit population the issue names, matches neither and skips the job, so the new store-clean pin would never have fired against it. Added '.agents/memory/episodes/**' to that filter, which already carries non-Python inputs (uv.lock, lefthook.yml, .config/wt.toml) and is therefore the set of inputs that change Python test outcomes, not the set of Python files.",
-      "caused_by": [
-        "e014"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e016"
+        "e018"
       ]
     },
     {
@@ -183,30 +163,42 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Three negative controls, all confirmed. Reverting the data repair fails the store-clean pin with the original 'event 1 has id e002, expected e001' message. Parking validate_event_ids fails 10 of the 14 new tests. Removing the paths-filter entry fails the wiring test. With everything restored, 886 tests pass across tests/skills/memory, tests/ci, and .claude/skills/memory/tests. mypy clean on all four changed Python files; portability gate exit 0 with no drift.",
-      "caused_by": [
-        "e015"
-      ],
-      "leads_to": []
-    },
-    {
-      "id": "e017",
-      "timestamp": "2026-07-28T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 0a13d4fb5",
-      "caused_by": [
-        "e011"
-      ],
+      "caused_by": [],
       "leads_to": [
         "e018"
       ]
     },
     {
+      "id": "e017",
+      "timestamp": "2026-07-28T22:22:34+00:00",
+      "type": "commit",
+      "content": "Commit: 0a13d4fb5",
+      "caused_by": [
+        "e021"
+      ],
+      "leads_to": []
+    },
+    {
       "id": "e018",
-      "timestamp": "2026-07-28T00:00:00+00:00",
+      "timestamp": "2026-07-28T19:48:53+00:00",
       "type": "commit",
       "content": "Commit: f03f4635e",
       "caused_by": [
-        "e017"
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010",
+        "e012",
+        "e013",
+        "e014",
+        "e015",
+        "e016"
       ],
       "leads_to": [
         "e019"
@@ -214,7 +206,7 @@
     },
     {
       "id": "e019",
-      "timestamp": "2026-07-28T00:00:00+00:00",
+      "timestamp": "2026-07-28T19:49:27+00:00",
       "type": "commit",
       "content": "Commit: 3a62ac775",
       "caused_by": [
@@ -226,7 +218,7 @@
     },
     {
       "id": "e020",
-      "timestamp": "2026-07-28T00:00:00+00:00",
+      "timestamp": "2026-07-28T20:13:14+00:00",
       "type": "commit",
       "content": "Commit: 111fa504e",
       "caused_by": [
@@ -238,13 +230,15 @@
     },
     {
       "id": "e021",
-      "timestamp": "2026-07-28T00:00:00+00:00",
+      "timestamp": "2026-07-28T22:22:02+00:00",
       "type": "commit",
       "content": "Commit: 97cee6ea4",
       "caused_by": [
         "e020"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e017"
+      ]
     }
   ],
   "metrics": {
