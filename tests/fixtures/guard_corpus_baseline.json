@@ -92,7 +92,7 @@
       96
     ],
     "github/scripts/pr/resolve_pr_review_thread.py": [
-      115
+      116
     ],
     "github/scripts/pr/run_completion_gate.py": [
       655
@@ -164,6 +164,9 @@
     "security-scan/scripts/scan_vulnerabilities.py": [
       166
     ],
+    "session/scripts/test_investigation_eligibility.py": [
+      56
+    ],
     "session-end/scripts/complete_session_log.py": [
       79,
       95,
@@ -195,9 +198,6 @@
       39,
       50,
       133
-    ],
-    "session/scripts/test_investigation_eligibility.py": [
-      56
     ],
     "style-enforcement/scripts/check_style.py": [
       476
