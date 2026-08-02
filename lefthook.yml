@@ -379,7 +379,7 @@ pre-push:
               SKIP_AUTOFIX: "1"
 
           - name: worktree-gc-report
-            timeout: 2m
+            timeout: 5m
             run: uv run --frozen python scripts/maintenance/gc_worktrees.py
 
           - name: python-tests

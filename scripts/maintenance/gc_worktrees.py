@@ -48,12 +48,22 @@ import argparse
 import json
 import subprocess
 import sys
+import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 
 _DEFAULT_BASE = "origin/main"
 _GIT_TIMEOUT_SECONDS = 30
+
+# Inspecting one worktree costs up to three git subprocesses, so the wall clock
+# grows with the worktree count while the caller's patience does not. The
+# pre-push job that runs this reporter is capped by lefthook, and a kill there
+# rejects the push even though this script only reports. Staying under that cap
+# keeps a report from deciding whether code can ship. The cap itself lives in
+# lefthook.yml; tests/ci/test_worktree_gc_wiring.py pins the two together so
+# neither can drift into a push-rejecting pair.
+_DEFAULT_TIME_BUDGET_SECONDS = 90.0
 
 # Reasons a worktree is kept (never removed). Stable strings for tests/automation.
 KEEP_MAIN = "main-or-current worktree"
@@ -63,6 +73,7 @@ KEEP_DIRTY = "uncommitted changes"
 KEEP_DETACHED = "detached HEAD (no branch to evaluate)"
 KEEP_UNPUSHED = "unpushed commits and not merged to base"
 KEEP_GIT_ERROR = "git inspection failed"
+KEEP_TIME_BUDGET = "not inspected (time budget exhausted)"
 
 
 @dataclass
@@ -119,6 +130,11 @@ class GcReport:
     def needs_disposition(self) -> list[Decision]:
         """Kept branches that need a human disposition before they can shrink."""
         return [d for d in self.kept if d.reason == KEEP_UNPUSHED]
+
+    @property
+    def unevaluated(self) -> list[Decision]:
+        """Worktrees the time budget stopped this run from inspecting."""
+        return [d for d in self.decisions if d.reason == KEEP_TIME_BUDGET]
 
 
 def _run_git(args: list[str], cwd: str | None = None) -> str:
@@ -236,11 +252,16 @@ def decide(
     base_ref: str,
     *,
     current_path: str | None = None,
+    inspect: bool = True,
 ) -> Decision:
     """Decide whether a worktree is safe to remove. KEEP on any doubt.
 
     Order matters: cheap structural checks first, git-state checks last. A git
     inspection failure keeps the worktree (fail-safe), never removes it.
+
+    ``inspect=False`` stops before the git-state checks and keeps the worktree
+    with ``KEEP_TIME_BUDGET``. The structural checks above that point cost no
+    subprocess, so they still run and still report the real reason.
     """
     protected_paths = {main_path}
     if current_path:
@@ -254,6 +275,9 @@ def decide(
 
     if worktree.detached or worktree.branch is None:
         return Decision(worktree.path, worktree.branch, remove=False, reason=KEEP_DETACHED)
+
+    if not inspect:
+        return Decision(worktree.path, worktree.branch, remove=False, reason=KEEP_TIME_BUDGET)
 
     try:
         if has_uncommitted_changes(worktree.path):
@@ -278,8 +302,22 @@ def prune_worktrees() -> str:
     return _run_git(["worktree", "prune", "-v"])
 
 
-def build_report(base_ref: str, apply: bool) -> GcReport:
-    """Inspect all worktrees and build the GC plan (no mutation here)."""
+def build_report(
+    base_ref: str,
+    apply: bool,
+    *,
+    time_budget: float | None = None,
+    clock: Callable[[], float] = time.monotonic,
+) -> GcReport:
+    """Inspect all worktrees and build the GC plan (no mutation here).
+
+    ``time_budget`` bounds the inspection loop in seconds. Once it is spent,
+    every remaining worktree is kept unread with ``KEEP_TIME_BUDGET`` rather
+    than inspected, so the run always terminates well inside its caller's
+    timeout. A budget of ``None`` or a non-positive number means unlimited.
+    Keeping the leftovers preserves the fail-safe invariant: a worktree this
+    run never looked at can never be proposed for removal.
+    """
     worktrees = list_worktrees()
     main_path = worktrees[0].path if worktrees else ""
     current_path = _run_git(["rev-parse", "--show-toplevel"])
@@ -290,9 +328,20 @@ def build_report(base_ref: str, apply: bool) -> GcReport:
         main_worktree=main_path,
         total_worktrees=len(worktrees),
     )
-    report.decisions = [
-        decide(wt, main_path, base_ref, current_path=current_path) for wt in worktrees
-    ]
+    deadline = clock() + time_budget if time_budget and time_budget > 0 else None
+    decisions: list[Decision] = []
+    for worktree in worktrees:
+        inspect = deadline is None or clock() < deadline
+        decisions.append(
+            decide(
+                worktree,
+                main_path,
+                base_ref,
+                current_path=current_path,
+                inspect=inspect,
+            )
+        )
+    report.decisions = decisions
     return report
 
 
@@ -302,7 +351,20 @@ def apply_removals(report: GcReport) -> None:
     Records each success in ``report.removed`` and each failure in
     ``report.remove_errors`` without aborting the batch. Pruning runs once
     after removals to clean up any orphaned admin entries.
+
+    Refuses to mutate anything when the report is partial. A truncated run
+    inspects whichever worktrees the clock allowed, so applying it would remove
+    a different set than the dry run a reader reviewed, and ``git worktree
+    prune`` would still drop admin records for worktrees this run never looked
+    at. Rerun with ``--time-budget 0`` to get a complete, reviewable plan.
     """
+    if report.unevaluated:
+        report.remove_errors.append(
+            f"refused: {len(report.unevaluated)} worktree(s) were not inspected; "
+            "rerun with --time-budget 0 for a complete plan before applying"
+        )
+        return
+
     for decision in report.candidates:
         try:
             remove_worktree(decision.path)
@@ -359,6 +421,13 @@ def format_report(report: GcReport) -> str:
         f"  removal candidates: {len(report.candidates)}",
         f"  kept: {len(report.kept)}",
     ]
+    if report.unevaluated:
+        lines.append(
+            f"  PARTIAL: time budget stopped this run after inspecting "
+            f"{report.total_worktrees - len(report.unevaluated)} of "
+            f"{report.total_worktrees}; the remaining {len(report.unevaluated)} "
+            f"are kept unread. Raise --time-budget (0 disables) for a full pass."
+        )
     _append_decision_group(
         lines,
         "  Candidates:",
@@ -402,6 +471,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Emit the report as JSON instead of human-readable text.",
     )
+    parser.add_argument(
+        "--time-budget",
+        type=float,
+        default=_DEFAULT_TIME_BUDGET_SECONDS,
+        metavar="SECONDS",
+        help=(
+            "Stop inspecting after this many seconds and keep the remaining "
+            "worktrees unread (default: %(default)s). Pass 0 for an unbounded "
+            "pass. Uninspected worktrees are never removal candidates."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -409,7 +489,7 @@ def main(argv: list[str] | None = None) -> int:
     """Entry point. Returns an ADR-035 exit code."""
     args = parse_args(argv)
     try:
-        report = build_report(base_ref=args.base, apply=args.apply)
+        report = build_report(base_ref=args.base, apply=args.apply, time_budget=args.time_budget)
         if args.apply:
             apply_removals(report)
     except RuntimeError as exc:
