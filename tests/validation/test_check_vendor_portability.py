@@ -1,3 +1,10 @@
+# taste-lint: ignore file-size
+# All tests for a single script belong in one file for discoverability;
+# splitting across files would obscure which cases are covered and add
+# import overhead without reducing complexity. The file grew to 849 lines
+# because the #4046 fix added 9 new test classes for three new exemption
+# mechanisms (regex-metachar, prose string, tests-dir exclusion), each
+# requiring a positive, negative, and edge case per exemption type.
 """Tests for scripts/validation/check_vendor_portability.py.
 
 Issue #2050. The check fails CI when a vendor-shipped skill script
@@ -706,3 +713,197 @@ def test_nested_dot_slash_scripts_path_is_not_offender(fake_repo: Path) -> None:
     )
 
     assert cvp.collect_offenders(fake_repo) == []
+
+
+# ---------------------------------------------------------------------------
+# Issue #4046 - exemption gaps for the scripts/ prefix
+# ---------------------------------------------------------------------------
+
+
+class TestRegexMetacharExemption:
+    """Raw-string regexes with metacharacters other than ``\\.`` are exempt.
+
+    The original ``_is_raw_string_regex`` checked only for ``\\.``, which works
+    for ``.agents/`` and ``.claude/lib/`` (both start with a dot the regex must
+    escape).  It failed silently for ``scripts/`` (no dot), so
+    ``r"^scripts/"`` and ``r'python\\s+scripts/'`` were flagged as real paths.
+    Issue #4046 broadens the test to any regex metachar.  Isolating negative
+    control: restoring the old ``"\\\\." in token_text`` check breaks these
+    assertions.
+    """
+
+    def test_raw_string_with_caret_is_exempt(self, fake_repo: Path) -> None:
+        """r"^scripts/" contains the anchor metachar ``^`` and must be exempt."""
+        _write(
+            fake_repo,
+            ".claude/skills/foo/collect_metrics.py",
+            'BANNED = re.compile(r"^scripts/")\n',
+        )
+        assert cvp.collect_offenders(fake_repo) == []
+
+    def test_raw_string_with_backslash_escape_is_exempt(self, fake_repo: Path) -> None:
+        r"""r'python\s+scripts/' has ``\s`` (a backslash-escape) and must be exempt."""
+        _write(
+            fake_repo,
+            ".claude/skills/foo/validate_skill.py",
+            "count = re.findall(r'python\\s+scripts/', content)\n",
+        )
+        assert cvp.collect_offenders(fake_repo) == []
+
+    def test_plain_scripts_path_without_metachar_is_still_offender(self, fake_repo: Path) -> None:
+        """r"scripts/foo.py" has no metachar and must still be flagged.
+
+        Isolating negative control: this proves the broader metachar check
+        does not accidentally exempt simple path strings written as raw strings.
+        """
+        _write(
+            fake_repo,
+            ".claude/skills/foo/bad.py",
+            'path = r"scripts/validation/check.py"\n',
+        )
+        offenders = cvp.collect_offenders(fake_repo)
+        assert len(offenders) == 1
+        assert offenders[0].relpath == ".claude/skills/foo/bad.py"
+
+
+class TestProseStringExemption:
+    """Sentence-like and multi-line literals are treated as prose, not paths.
+
+    Recommendation strings, error messages, and template constants that
+    mention ``scripts/`` as a concept (not a path to open) should not be
+    flagged.  Isolating negative control: adding a ``not _is_prose_string``
+    guard removal breaks these assertions.
+    """
+
+    def test_space_containing_string_is_exempt(self, fake_repo: Path) -> None:
+        """A recommendation string with a space is exempt."""
+        _write(
+            fake_repo,
+            ".claude/skills/foo/audit.py",
+            'recs.append("Extract logic to scripts/ subdirectory.")\n',
+        )
+        assert cvp.collect_offenders(fake_repo) == []
+
+    def test_diagnostic_message_without_punctuation_is_exempt(self, fake_repo: Path) -> None:
+        """A validator diagnostic may mention scripts/ without punctuation."""
+        _write(
+            fake_repo,
+            ".claude/skills/foo/validate.py",
+            'self.check("presence", False, "scripts/ directory does not exist")\n',
+        )
+        assert cvp.collect_offenders(fake_repo) == []
+
+    def test_no_space_scripts_path_is_offender(self, fake_repo: Path) -> None:
+        """A path string with no space is still flagged.
+
+        Isolating negative control: proves the prose exemption does not
+        cover compact paths like ``"scripts/run.py"`` that could be a real
+        file the program opens.
+        """
+        _write(
+            fake_repo,
+            ".claude/skills/foo/bad.py",
+            'result = open("scripts/run.py")\n',
+        )
+        offenders = cvp.collect_offenders(fake_repo)
+        assert len(offenders) == 1
+        assert offenders[0].relpath == ".claude/skills/foo/bad.py"
+
+    def test_shell_command_with_spaces_is_offender(self, fake_repo: Path) -> None:
+        """Spaces do not exempt a path passed to a shell command."""
+        _write(
+            fake_repo,
+            ".claude/skills/foo/bad.py",
+            'subprocess.run(".claude/lib/paths.py --check", shell=True)\n',
+        )
+
+        offenders = cvp.collect_offenders(fake_repo)
+
+        assert len(offenders) == 1
+        assert offenders[0].relpath == ".claude/skills/foo/bad.py"
+
+    def test_os_system_command_with_spaces_is_offender(self, fake_repo: Path) -> None:
+        """A command prefix before scripts/ remains visible to the gate."""
+        _write(
+            fake_repo,
+            ".claude/skills/foo/bad.py",
+            'os.system("python scripts/session_log.py")\n',
+        )
+
+        offenders = cvp.collect_offenders(fake_repo)
+
+        assert len(offenders) == 1
+        assert offenders[0].relpath == ".claude/skills/foo/bad.py"
+
+    def test_fstring_command_with_spaces_is_offender(self, fake_repo: Path) -> None:
+        """An f-string command does not become prose because it has spaces."""
+        _write(
+            fake_repo,
+            ".claude/skills/foo/bad.py",
+            'cmd = f"cat .agents/HANDOFF.md {mode}"\n',
+        )
+
+        offenders = cvp.collect_offenders(fake_repo)
+
+        assert len(offenders) == 1
+        assert offenders[0].relpath == ".claude/skills/foo/bad.py"
+
+
+class TestTestsDirectoryExclusion:
+    """Files in ``tests/`` directories are excluded from the scan.
+
+    Test files run only in the development checkout where all upstream paths
+    are present.  A hard-coded path in a test fixture cannot fail a consumer
+    install, so scanning them produces only false positives.
+    Issue #4046 adds an explicit exclusion.
+    Isolating negative control: removing ``"tests" in py_file.parts`` from
+    ``collect_offenders`` breaks the first assertion here.
+    """
+
+    def test_scripts_path_in_tests_dir_is_not_offender(self, fake_repo: Path) -> None:
+        """A hard-coded scripts/ path inside a tests/ subdir is not flagged."""
+        _write(
+            fake_repo,
+            ".claude/skills/foo/tests/test_foo.py",
+            'threads.append(_thread("sess", "scripts/session_log.py", body))\n',
+        )
+        assert cvp.collect_offenders(fake_repo) == []
+
+    def test_agents_path_in_tests_dir_is_not_offender(self, fake_repo: Path) -> None:
+        """.agents/ inside a tests/ subdir is also excluded."""
+        _write(
+            fake_repo,
+            ".claude/skills/foo/tests/test_bar.py",
+            'assert is_valid(".agents/HANDOFF.md")\n',
+        )
+        assert cvp.collect_offenders(fake_repo) == []
+
+    def test_scripts_path_outside_tests_dir_is_offender(self, fake_repo: Path) -> None:
+        """The same compact path in a non-test file is still flagged.
+
+        Isolating negative control: the tests/ exclusion is scoped to the
+        ``tests`` directory component, not to file names starting with ``test_``.
+        A ``scripts/test_foo.py`` file (in the scripts/ dir) is still scanned.
+        """
+        _write(
+            fake_repo,
+            ".claude/skills/foo/scripts/worker.py",
+            'path = "scripts/session_log.py"\n',
+        )
+        offenders = cvp.collect_offenders(fake_repo)
+        assert len(offenders) == 1
+        assert offenders[0].relpath == ".claude/skills/foo/scripts/worker.py"
+
+    def test_tests_ancestor_does_not_disable_scan(self, tmp_path: Path) -> None:
+        """Only repo-relative tests directories are excluded."""
+        repo_root = tmp_path / "tests" / "repo"
+        _write(
+            repo_root,
+            ".claude/skills/foo/scripts/worker.py",
+            'path = "scripts/session_log.py"\n',
+        )
+
+        offenders = cvp.collect_offenders(repo_root)
+
+        assert len(offenders) == 1
+        assert offenders[0].relpath == ".claude/skills/foo/scripts/worker.py"

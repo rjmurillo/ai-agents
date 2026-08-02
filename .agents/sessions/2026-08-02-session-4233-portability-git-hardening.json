@@ -1,0 +1,135 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4233,
+    "date": "2026-08-02",
+    "branch": "rjmurillo/harden-baseline-predecessor",
+    "startingCommit": "babf326d4",
+    "objective": "Close five verified fail-open holes in the portability floor's git reads, found by adversarial review, and repair the two episode files whose backwards commit chains blocked the push."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Copilot CLI harness; Serena MCP tools are not exposed in this session"
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not reachable without Serena activation"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md read-only; git status shows it unmodified per ADR-014"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file, staged with the commits it documents"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returns rjmurillo/harden-baseline-predecessor"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Working in worktree wt-zeroscan on a feature branch; main is protected by a ruleset"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mypy, ruff, and all four ratchets run and read; tests/validation green at 1819 passed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not staged"
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Four sections added to .serena/memories/git/git-absence-and-case-in-plumbing.md, plus two new memory files"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 run on the changed memory; .serena/** is excluded by config so it lints zero files"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Three atomic commits on rjmurillo/harden-baseline-predecessor"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "12 new tests pass; all 8 mutations killed, 2 controls killed 10 and 8"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #4240 filed for the clone-dependency defect found while unblocking the push"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Session continues; retrospective deferred to session end"
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "One rework caught: the first mypy pass reported 8 errors in the new test file, fixed before commit"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": 1,
+      "action": "Ran the full suite to find what failed the earlier push",
+      "result": "1 failed, 21324 passed. tests/skills/memory/test_extract_session_episode.py::test_the_committed_episode_store_is_clean, on data this branch never touched."
+    },
+    {
+      "step": 2,
+      "action": "Checked whether the failure came from this branch",
+      "result": "git diff origin/main...HEAD is empty for .agents/memory/, and the pin exists on main. Both inputs match main, so main carries the failure."
+    },
+    {
+      "step": 3,
+      "action": "Reconciled that against CI, which is green on main",
+      "result": "The validator only compares two commit events when git resolves both SHAs. 19d4a761 and ae8be1c0 are unreachable from main and survive only on the local branch chore/archive-stale-execution-plans, left behind by a squash merge. CI cannot resolve them and skips; this clone can and fails."
+    },
+    {
+      "step": 4,
+      "action": "Filed the blind spot and repaired the data",
+      "result": "Issue #4240. The two files repaired with the --fix that #4219 added; 244 memory tests pass."
+    },
+    {
+      "step": 5,
+      "action": "Split portability_floor.py into a JSON half and a git half",
+      "result": "portability_git.py at 298 lines, portability_floor.py down from 407 to 206. The five fixes would have carried the original past the 500-line taste ceiling."
+    },
+    {
+      "step": 6,
+      "action": "Closed the five holes: ls-tree prefix on any tree-ish, refs/replace substitution, refs deleted but commits in the object database, a committed symlink read as a file, and lossy tree-name decoding",
+      "result": "A probe with a control per attack shows all five defeated and every control intact."
+    },
+    {
+      "step": 7,
+      "action": "Pinned each fix and proved the pins can fail",
+      "result": "12 tests in test_portability_git_lookup.py. Anchors pre-verified unique, then every mutation killed by exactly one test; two always-refuse controls killed 10 and 8."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Resolve the two Copilot review threads on PR #4233 citing 0482ef6428, which is what holds the PR at BLOCKED",
+    "Rewrite the PR body to cover the module split, the five hardening fixes, and the episode repair",
+    "File the two low-severity findings the Opus reviewer raised: the now-dead reject_outside_root=False branch with its three-way sentinel decode, and load_baseline still using int() where _coerce_counts is strict",
+    "Run another reviewer round; every round so far has returned something real"
+  ]
+}

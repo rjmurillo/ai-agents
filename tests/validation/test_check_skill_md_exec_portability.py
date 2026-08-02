@@ -18,6 +18,7 @@ its baseline.
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -30,6 +31,17 @@ try:
     import check_skill_md_exec_portability as cep
 finally:
     sys.path[:] = _ORIGINAL_SYS_PATH
+
+
+
+def _seed_git_tree(root: Path) -> None:
+    """Make the fixture a repository: an unverifiable tree refuses the write."""
+    for args in (
+        ("init", "-q", "-b", "main"),
+        ("add", "-A"),
+        ("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "s"),
+    ):
+        subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
 
 
 class TestCountExecInvocations:
@@ -280,6 +292,12 @@ class TestMainCli:
 
     def test_update_baseline_writes_and_exits_zero(self, tmp_path: Path) -> None:
         self._make_skill(tmp_path, "python3 .claude/skills/a/x.py\n")
+        # Every shipped root must hold a readable file or the scan-coverage guard
+        # refuses the write, because one starved root is a partial checkout.
+        second = tmp_path / "src" / "copilot-cli" / "skills" / "a"
+        second.mkdir(parents=True)
+        (second / "SKILL.md").write_text("No bare invocations.\n", encoding="utf-8")
+        _seed_git_tree(tmp_path)
         baseline = tmp_path / "baseline.json"
         rc = cep.main(
             ["--repo-root", str(tmp_path), "--baseline", str(baseline), "--update-baseline"]

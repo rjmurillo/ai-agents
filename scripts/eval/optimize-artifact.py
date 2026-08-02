@@ -20,9 +20,18 @@ so the loop is drivable from a shell or from an agent's tool calls.
     optimize-artifact.py gate --incumbent base.json --candidate cand.json \\
         --split split.json --incumbent-fingerprint "$FP"
 
+Once the loop converges, and only once, the third group answers:
+
+    optimize-artifact.py report --results cand.json --split split.json
+
 `gate` scores both sides itself from the split's held-out `sel` group rather
 than accepting two numbers. Taking bare numbers would make the loop's most
 damaging mistake, gating on optimize-set scores, a typo away at every step.
+
+`report` reads `test`, which no gate decision has touched, and refuses a
+second read against the same group. It reports a number and does not decide,
+so a loop that branches on it has turned the last honest measurement into one
+more selection step.
 
 Exit codes follow ADR-035:
 
@@ -90,6 +99,14 @@ from _optimizer_core import (
 )
 
 _GATE_GROUP = "sel"
+_GATE_LEDGER_SUFFIX = ".ledger"
+
+# The group `report` reveals, and how many times it may ever be revealed. One,
+# because a group read twice is a group selection has touched, and the whole
+# reason this group exists is that nothing has.
+_REPORT_GROUP = "test"
+_REPORT_BUDGET = 1
+_REPORT_LEDGER_SUFFIX = ".test-ledger"
 
 EXIT_OK = 0
 EXIT_LOGIC = 1
@@ -1453,7 +1470,7 @@ def _ledger_root() -> Path:
     return Path(state) / "ai-agents-eval" / "ledgers"
 
 
-def _holdout_key(split: dict[str, Any]) -> str:
+def _holdout_key(split: dict[str, Any], group: str = _GATE_GROUP) -> str:
     """The identity of the held-out group itself, which is what a budget counts.
 
     Three earlier versions keyed the ledger on something upstream of the group:
@@ -1482,12 +1499,20 @@ def _holdout_key(split: dict[str, Any]) -> str:
     provenance would work and needs a seam that carries one; the seam here
     carries task ids and pass booleans. Sharing is the conservative direction,
     so the collision is accepted rather than reopened.
+
+    `group` is a parameter because there are two withheld groups and each has
+    its own budget: the gate spends consultations against `sel`, and `report`
+    spends its single reveal against `test`. Keying both on membership means
+    the two keys differ whenever the two groups differ, which is always, so an
+    exhausted selection budget cannot block the one-time report and a spent
+    report cannot block the gate. The default is the gate's group because that
+    is the caller this function was written for.
     """
-    sel = sorted(str(task_id) for task_id in _group_ids(split, _GATE_GROUP))
+    members = sorted(str(task_id) for task_id in _group_ids(split, group))
     # JSON rather than a NUL join: joining is not injective when an id may
     # itself contain the separator, and ["a", "b\0c"] would key the same
     # budget as ["a\0b", "c"].
-    canonical = json.dumps(sel, separators=(",", ":"), ensure_ascii=True)
+    canonical = json.dumps(members, separators=(",", ":"), ensure_ascii=True)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
@@ -1668,9 +1693,17 @@ def _digest_scrubbed(holdout_key: str) -> Iterator[None]:
         _ACTIVE_HOLDOUT_KEY.reset(token)
 
 
-def _ledger_path(holdout_key: str) -> Path:
-    """Where the budget for one held-out group lives."""
-    return _ledger_root() / f"{holdout_key}.ledger"
+def _ledger_path(holdout_key: str, suffix: str = _GATE_LEDGER_SUFFIX) -> Path:
+    """Where the budget for one held-out group lives.
+
+    The suffix separates the gate's consultation budget from the report's
+    single reveal. Keying alone would almost separate them, since the two
+    groups never share membership, but almost is the wrong word for a budget:
+    one split's `sel` group can be another split's `test` group, and then both
+    budgets land on one filename under two incompatible schemas. The suffix
+    makes that impossible rather than unlikely.
+    """
+    return _ledger_root() / f"{holdout_key}{suffix}"
 
 
 def _blocking_ancestor(lock: Path) -> Path | None:
@@ -2409,6 +2442,175 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
 
 
 # ---------------------------------------------------------------------------
+# report
+# ---------------------------------------------------------------------------
+
+
+def cmd_report(args: argparse.Namespace) -> int:
+    """Read the test group once, at the end, and never gate on it.
+
+    `split` has drawn this group since the loop was written and no command
+    scored it. `extract --split --group test` could emit its per-task outcomes,
+    uncharged, which is a loophole the trusted controller in ADR-087 Open
+    Requirement 1 closes, not this command; what was missing here was a read
+    that produces a number and pays for it. The gap surfaced through its
+    symptom: an exhausted-budget refusal advised the operator to report on the
+    test group, an invocation the parser rejected statically, and PR #3478
+    removed the advice rather than weaken the boundary that made it false. This
+    is the first branch of ADR-087 Open Requirement 7, which asked for the
+    reveal or for the group to be dropped from the design.
+
+    No `--group`. `score` refuses every group but `opt` and `gate` reads `sel`
+    by definition; offering a choice here would hand back the unmetered read
+    those two restrictions exist to prevent. This command reads `test` and
+    nothing else, once.
+
+    It reports rather than decides, so a passing run emits `score` and no
+    `decision` field. A caller that branches on this number is selecting on the
+    one group no selection decision has touched, which is the property the
+    group exists to hold.
+    """
+    split = _read_split(args.split)
+    if _split_drifted(split):
+        # Raised rather than emitted as a refusal, for the reason `cmd_score`
+        # gives: a hand-edited split is a malformed report, and this command's
+        # caller is an operator reading one number at the end rather than a
+        # loop branching on a verdict document.
+        raise ConfigError(
+            f"{args.split} does not match its own recorded inputs; the groups "
+            "or the seed were edited after the split was drawn. Reporting on "
+            "it would publish a number under a fingerprint that no longer "
+            "names it. Re-split and re-baseline."
+        )
+    test_ids = _group_ids(split, _REPORT_GROUP)
+    if not test_ids:
+        # A config error rather than a score of zero over nothing. The split
+        # was drawn with --test-ratio 0, so there is no reserved group, and
+        # the fix is upstream at the split rather than here.
+        raise ConfigError(
+            f"{args.split} holds an empty test group, so there is nothing "
+            "reserved to report on. Re-split with --test-ratio above zero, "
+            "run the loop against that split, and report at the end."
+        )
+    holdout_key = _holdout_key(split, _REPORT_GROUP)
+
+    # Header only, and before the lock, so the corpus refusal costs nothing.
+    # `cmd_gate` orders it the same way and for the same reason, and the stake
+    # is higher here: its budget is whatever cap the run opened with, this one
+    # is one, so charging a file scored against the wrong task set would cost a
+    # re-split and a re-run of the loop. Reading the header is not a reveal
+    # either, since the caller supplied the file and the refusal below prints
+    # no task id.
+    pin = split.get("corpus", _UNPINNED)
+    with _digest_scrubbed(holdout_key):
+        corpus = _corpus_header(args.results)
+        _refuse_unparseable_input(args.results)
+    # `_corpus_conflict` counts the distinct identities declared across the
+    # inputs, so the gate's two files and this command's one reach it through
+    # the same predicate; passing the single header on both sides lets the set
+    # collapse it rather than restating the rule with one fewer term.
+    if _corpus_refused(pin, corpus, corpus):
+        _emit({
+            "decision": "REFUSE",
+            "reason": (
+                "the split and the results do not agree on one corpus, so the "
+                "number would describe a different task set than the split "
+                "names. Re-score the artifact so that one corpus is named "
+                "across both, and report again. This attempt spent nothing."
+            ),
+            "reported": False,
+            "group": _REPORT_GROUP,
+            "fingerprint": split["fingerprint"],
+        })
+        return EXIT_LOGIC
+
+    # The lock spans the read, the compare, and the write, so two reports
+    # started together cannot both find an unspent budget and both reveal.
+    with _ledger_held(holdout_key):
+        return _report_reveal(args, split, holdout_key, test_ids, pin)
+
+
+def _report_reveal(
+    args: argparse.Namespace,
+    split: dict[str, Any],
+    holdout_key: str,
+    test_ids: list[str],
+    pin: object,
+) -> int:
+    """Spend the one reveal and report what it bought."""
+    ledger = _ledger_path(holdout_key, _REPORT_LEDGER_SUFFIX)
+    try:
+        with _digest_scrubbed(holdout_key):
+            spent = _read_ledger(ledger, holdout_key, _REPORT_BUDGET, None)
+    except LedgerMismatchError as exc:
+        _emit({
+            "decision": "REFUSE",
+            "reason": str(exc),
+            "reported": False,
+            "group": _REPORT_GROUP,
+            "fingerprint": split["fingerprint"],
+        })
+        return EXIT_LOGIC
+
+    if spent >= _REPORT_BUDGET:
+        _emit({
+            "decision": "REFUSE",
+            "reason": (
+                "this test group has already been reported. A second read is "
+                "a second look at the one group no selection decision has "
+                "touched, which is the whole of what it was reserved for. "
+                "Re-split to draw a new one, and expect to re-run the loop: "
+                "a group reported against one artifact is not held out from "
+                "the next."
+            ),
+            "reported": False,
+            "group": _REPORT_GROUP,
+            "fingerprint": split["fingerprint"],
+        })
+        return EXIT_LOGIC
+
+    # Read before the charge, so a file that never parsed is a config error
+    # rather than a spent budget. `cmd_gate` orders its own read the same way.
+    results_file = _read_results(args.results)
+    results = results_file.results
+
+    # Charge before reading the group, not after emitting a number. A crash
+    # between the two would otherwise leave the group read and the reveal
+    # unrecorded, and the retry would get it free.
+    with _digest_scrubbed(holdout_key):
+        _write_ledger(ledger, holdout_key, spent + 1, _REPORT_BUDGET, None)
+
+    if not _covers_holdout(results, test_ids):
+        _emit({
+            "decision": "REFUSE",
+            "reason": (
+                "the results do not cover the test group; score the artifact "
+                "over the whole task set and report again. Which tasks are "
+                "missing is withheld: naming them would name the group. This "
+                "attempt spent the one report this group ever answers, so "
+                "reporting again needs a new split."
+            ),
+            "reported": False,
+            "group": _REPORT_GROUP,
+            "fingerprint": split["fingerprint"],
+        })
+        return EXIT_LOGIC
+
+    _emit({
+        "score": _score_group(results, split, _REPORT_GROUP),
+        "group": _REPORT_GROUP,
+        "n": len(test_ids),
+        # False means the check never ran, not that it failed: a disagreement
+        # refused above without charging. One field rather than the gate's two,
+        # because `corpus_pinned` and `corpus_verified` differ there only in the
+        # unpinned pair that agrees with itself, and one file has no such pair.
+        "corpus_verified": results_file.corpus is not None and results_file.corpus == pin,
+        "fingerprint": split["fingerprint"],
+    })
+    return EXIT_OK
+
+
+# ---------------------------------------------------------------------------
 # buffer
 # ---------------------------------------------------------------------------
 
@@ -3017,6 +3219,25 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     gate_cmd.set_defaults(func=cmd_gate)
+
+    report_cmd = sub.add_parser("report", help="read the test group once, at the end")
+    report_cmd.add_argument(
+        "--results",
+        type=Path,
+        required=True,
+        help="extract output holding per-task pass or fail",
+    )
+    report_cmd.add_argument(
+        "--split",
+        type=Path,
+        required=True,
+        help="split output; the report reads the test group",
+    )
+    # No --group, for the reason `score_cmd` gives above: a free-standing score
+    # on a withheld group is the unmetered read the budget exists to count.
+    # This command reads `test` by definition and charges for it, which is what
+    # makes it a reveal rather than an exemption.
+    report_cmd.set_defaults(func=cmd_report)
 
     check = sub.add_parser("buffer-check", help="has this edit already been rejected")
     check.add_argument("--buffer", type=Path, required=True, help="rejected-edit buffer to consult")

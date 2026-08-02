@@ -1,6 +1,4 @@
-# taste-lint: ignore file-size
-# lefthook.yml is a configuration registry, not source code; each push/pre-commit gate
-# occupies 5-12 lines by design, and file-size warnings discourage adding necessary gates.
+# taste-lint: ignore file-size, hook config is one executable contract and splitting would hide stage order.
 min_version: 2.1.10
 lefthook: uv run --frozen lefthook
 glob_matcher: doublestar
@@ -322,6 +320,12 @@ pre-commit:
         - merge
         - run: test "$SKIP_AUTOFIX" = "1"
 
+    - name: commit-file-count
+      timeout: 2m
+      run: uv run --frozen python scripts/validation/git_hook_policy.py atomic-commit
+      skip:
+        - merge
+
     - name: github-bash-policy
       timeout: 2m
       run: uv run --frozen python scripts/validation/git_hook_policy.py github-bash {staged_files}
@@ -373,6 +377,10 @@ pre-push:
             run: uv run --frozen python scripts/validation/pre_pr.py
             env:
               SKIP_AUTOFIX: "1"
+
+          - name: worktree-gc-report
+            timeout: 2m
+            run: uv run --frozen python scripts/maintenance/gc_worktrees.py
 
           - name: python-tests
             timeout: 30m

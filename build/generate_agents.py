@@ -450,7 +450,7 @@ def _report_validation(differences: list[str]) -> int:
         for diff in differences:
             print(f"  - {diff}")
         print()
-        print("To fix: Run 'python3 build/generate_agents.py' and commit the changes")
+        print("To fix: Run 'uv run python build/generate_agents.py' and commit the changes")
         return 1
 
     print("VALIDATION PASSED: All generated files match committed files")

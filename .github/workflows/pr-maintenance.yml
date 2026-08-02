@@ -82,7 +82,8 @@ jobs:
     needs: discover-prs
     if: needs.discover-prs.outputs.has-prs == 'true'
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 30
+    # Budget: ceil(sum(3 * step timeout + 1.5) + 5) for 5, 10.
+    timeout-minutes: 53
     # The only job that mutates state: pushes merge commits, comments on PRs,
     # and the ai-review action reads workflow status (actions: read).
     permissions:

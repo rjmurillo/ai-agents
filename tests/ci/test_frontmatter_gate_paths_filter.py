@@ -22,6 +22,17 @@ MARKETPLACE_MANIFESTS = (
     REPO_ROOT / ".github/plugin/marketplace.json",
     REPO_ROOT / ".claude-plugin/marketplace.json",
 )
+PATHS_FILTER_ACTION = "dorny/paths-filter@"
+
+
+def _paths_filter_steps(steps: list[dict]) -> list[dict]:
+    """Select by the action, not by the shape.
+
+    A search for the first step carrying a ``with.filters`` key picks up any
+    other step that grows one later, and every assertion downstream then reports
+    against a step that was never the subject.
+    """
+    return [step for step in steps if str(step.get("uses", "")).startswith(PATHS_FILTER_ACTION)]
 
 
 def _gate():
@@ -36,11 +47,9 @@ def _gate():
 
 def _filter_patterns() -> list[str]:
     document = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
-    for step in document["jobs"]["check-paths"]["steps"]:
-        filters = step.get("with", {}).get("filters")
-        if filters:
-            return yaml.safe_load(filters)["agents"]
-    raise AssertionError("no paths-filter step in check-paths")
+    steps = _paths_filter_steps(document["jobs"]["check-paths"]["steps"])
+    assert steps, f"no {PATHS_FILTER_ACTION} step in check-paths"
+    return yaml.safe_load(steps[0]["with"]["filters"])["agents"]
 
 
 def _manifest_sources() -> list[str]:
@@ -94,8 +103,8 @@ def test_the_filter_result_actually_reaches_the_gate() -> None:
     document = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
     check = document["jobs"]["check-paths"]
 
-    filter_steps = [step for step in check["steps"] if step.get("with", {}).get("filters")]
-    assert len(filter_steps) == 1, "expected exactly one paths-filter step"
+    filter_steps = _paths_filter_steps(check["steps"])
+    assert len(filter_steps) == 1, f"expected exactly one {PATHS_FILTER_ACTION} step"
     filter_id = filter_steps[0].get("id")
     assert filter_id, "the paths-filter step needs an id or its output is unreadable"
 

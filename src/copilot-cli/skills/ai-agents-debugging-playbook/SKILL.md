@@ -7,7 +7,7 @@ description: Symptom-to-triage playbook for this repo's recurring failures. Bloc
 
 # ai-agents Debugging Playbook
 
-<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
+<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, .github/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
 Symptom-first triage for this repository's known failure modes. Every row below was earned by a real incident; the retro path is cited so you can read the full story. The playbook answers one question: given this symptom, what is the FIRST command to run, what experiment discriminates between causes, and what trap has already cost someone real time here?
 
 Vocabulary used once: a "guard" is a PreToolUse or pre-push hook that can block an action (exit 2 blocks, exit 0 allows). A "drift gate" is a CI check that fails when a generated tree no longer matches its canonical source. A "discriminating experiment" is one cheap action whose outcome splits the hypothesis space in two.
@@ -83,10 +83,11 @@ If three read-only commands have not identified the cause, stop and escalate to 
 1. Apply the fix on the canonical surface only.
 2. Re-run the exact failing check locally, not a proxy for it:
    - Tests: `uv run pytest tests/ -x` (note: `.claude/skills/*/tests/` are NOT collected by default; run them explicitly, e.g. `uv run pytest .claude/skills/<name>/tests/ -q`)
-   - Full shift-left sweep: `python3 scripts/validation/pre_pr.py` (exit codes per ADR-035: 0 ok, 1 logic, 2 config)
+   - Full shift-left sweep: `uv run python scripts/validation/pre_pr.py` (exit codes per ADR-035: 0 ok, 1 logic, 2 config)
    - Drift: the specific surface command from the table above
-3. Commit with the discipline gates expect: 5 files or fewer per commit. Plan for 20 commits per PR; validation may allow 40 after a qualifying base merge (`git rev-list --count HEAD ^origin/main`).
-4. Escape hatches (`[skip-drift-check]`, etc.) require documented justification and are cataloged in `ai-agents-config-catalog`. Using one IS the incident report; say so in the PR.
+3. Prove the check can still fail. Re-run it with a deliberate defect injected; a gate that prints OK both ways is not covering your change. Three here pass in ways that read as success: `validate_install_parity.py` is a co-change check, not a content comparison, and it skips RULE groups entirely (`:378`) and exempts diffs touching only hand-maintained agent copies (`:389`); that script and `run_plugin_version_bump_ci.py` both diff a base ref, so an uncommitted control is invisible and you must commit the control first; and `detect_agent_drift.py` compares only the 18 headings named in its `SECTIONS_TO_COMPARE` allowlist (`:57-76`), at an 80 percent similarity threshold (`:668`), whose exit code `.github/workflows/drift-detection.yml:35-42` captures and discards. Anything under an unlisted heading is never compared at all: replacing all 22 agent names in the orchestrator's capability matrix in one install copy still reports "OK (100.0% similar)" and exits 0.
+4. Commit with the discipline gates expect: 5 files or fewer per commit. Plan for 20 commits per PR; validation may allow 40 after a qualifying base merge (`git rev-list --count HEAD ^origin/main`).
+5. Escape hatches (`[skip-drift-check]`, etc.) require documented justification and are cataloged in `ai-agents-config-catalog`. Using one IS the incident report; say so in the PR.
 
 ## Traps That Cost Real Time
 
@@ -121,6 +122,7 @@ Before declaring the failure triaged and fixed:
 - [ ] The symptom was matched to a table row, and the FIRST command output (not a guess) identified the cause
 - [ ] The discriminating experiment was run and its outcome recorded in the session log or PR description
 - [ ] The exact failing check passes locally (same command, same file set as CI), not a proxy
+- [ ] The check was proven to still fail with a defect injected, so its pass is about your change and not vacuous
 - [ ] No escape hatch was used; or if one was, the PR description says which, why, and links the infrastructure issue
 - [ ] If the fix touched a canonical surface with mirrors, the drift command for that surface passes and source plus generated are in the same commit
 
@@ -144,6 +146,8 @@ Verified against the working tree on 2026-07-03. Retro-cited short SHAs do not r
 | Payload field names depend on event-key casing | `.serena/memories/copilot-hooks-observations.md` | `grep -n "toolName" .serena/memories/copilot-hooks-observations.md` |
 | Reproduce-on-main rule (PR #1361) | `.serena/memories/ci-infrastructure-observations.md` | `grep -n "1361" .serena/memories/ci-infrastructure-observations.md` |
 | pre_pr.py sequence and exit codes | `scripts/validation/pre_pr.py:1-30` | `sed -n '1,30p' scripts/validation/pre_pr.py` |
+| install-parity checks co-change, not content; skips RULE and hand-maintained-only diffs | `build/scripts/validate_install_parity.py:378,389` | `sed -n '376,392p' build/scripts/validate_install_parity.py` |
+| Agent drift compares an 18-heading allowlist at 80 percent similarity, reported not enforced | `build/scripts/detect_agent_drift.py:57-76,668`, `.github/workflows/drift-detection.yml:35-42` | `sed -n '57,76p;668p' build/scripts/detect_agent_drift.py; sed -n '35,42p' .github/workflows/drift-detection.yml` |
 | testpaths exclude skill tests | `pyproject.toml:41` | `grep -n testpaths pyproject.toml` |
 | FAILURE-MODES.md 11 sections | `.agents/governance/FAILURE-MODES.md:32-404` | `grep -n "^## " .agents/governance/FAILURE-MODES.md` |
 

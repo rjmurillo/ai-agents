@@ -11,14 +11,23 @@ Closed: 2026-01-25T01:04:18Z. Merged via PR #1013 on 2026-01-25T23:58:34Z.
 
 - `scripts/memory_enhancement/graph.py`: MemoryGraph class with BFS/DFS traversal, cycle detection, root finding, link type filtering, adjacency list export
 - `tests/memory_enhancement/test_graph.py`: 23 tests, all passing
-- CLI: `python -m memory_enhancement graph <root>` with `--strategy`, `--max-depth`, `--dir`, `--json` options
+- CLI: a `graph` subcommand taking the root memory as a positional argument, plus `--strategy` (bfs or dfs), `--max-depth`, `--dir`, and `--json` options
 - CWE-22 path traversal protection. Exit codes per ADR-035.
+
+> **CLI signature superseded.** The command above is the Phase 2 form and no
+> longer parses. PR #1576 (2026-04-07) rewrote the memory enhancement layer and
+> replaced it with `graph --start <memory-id> [--depth N]`: the root became a
+> required `--start` option, `--strategy` and `--dir` were dropped, `--max-depth`
+> became `--depth`, and `graph` gained no `--json`. The directory is now set by
+> the global `--memories-dir`, which must precede the subcommand. See
+> [CITATION-SCHEMA.md](../../../.agents/architecture/CITATION-SCHEMA.md) for the
+> current surface. The record below is retained as written.
 
 ## Exit Criteria Met
 
 - Can traverse memory relationships (BFS/DFS)
 - Works with existing Serena memory format
-- `python -m memory_enhancement graph <root>` functional
+- Graph traversal available as a CLI subcommand (signature since superseded, see above)
 
 ## Epic #990 Context
 

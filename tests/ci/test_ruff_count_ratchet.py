@@ -66,13 +66,13 @@ def test_count_above_baseline_is_regression(tmp_path, monkeypatch):
     assert rc == ratchet.EXIT_REGRESSION
 
 
-def test_count_below_baseline_blocks_without_update(tmp_path, monkeypatch):
-    # ADR-092: the post-merge bot that owned this write was removed with the
-    # plugin version field, so an unrecorded improvement leaves slack and blocks.
+def test_count_below_baseline_passes_without_update(tmp_path, monkeypatch):
+    # Issue #4171: an improvement is safe against the ceiling and must not
+    # force every cleanup PR to rewrite the same baseline line.
     baseline = _write_baseline(tmp_path, "408")
     monkeypatch.setattr(subprocess, "run", _fake_scan(1, 400))
     rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path)])
-    assert rc == ratchet.EXIT_REGRESSION
+    assert rc == ratchet.EXIT_OK
     assert baseline.read_text(encoding="utf-8").strip() == "408"
 
 
@@ -84,16 +84,16 @@ def test_count_below_baseline_with_update_lowers_baseline(tmp_path, monkeypatch)
     assert baseline.read_text(encoding="utf-8").strip() == "400"
 
 
-def test_count_below_baseline_names_the_remedy(tmp_path, monkeypatch, capsys):
-    # ADR-092: the message must name --update, not a bot that no longer exists.
+def test_count_below_baseline_reports_slack_without_remedy(tmp_path, monkeypatch, capsys):
+    # Issue #4171: this is now a passing ceiling check, not a required write.
     baseline = _write_baseline(tmp_path, "408")
     monkeypatch.setattr(subprocess, "run", _fake_scan(1, 400))
     rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path)])
-    assert rc == ratchet.EXIT_REGRESSION
+    assert rc == ratchet.EXIT_OK
     captured = capsys.readouterr()
-    assert "BASELINE STALE" in captured.err
-    assert "--update" in captured.err
-    assert "post-merge bot" not in captured.err
+    assert "<= baseline" in captured.out
+    assert "--update" not in captured.out
+    assert "BASELINE STALE" not in captured.err
 
 
 def test_clean_tree_zero_count_passes(tmp_path, monkeypatch):

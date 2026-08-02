@@ -24,6 +24,9 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 from active_plan_closeout import validate_active_plan_closeout
+from check_doc_interpreter_portability import (  # noqa: E402
+    validate_doc_interpreter_portability,
+)
 from check_duplicate_test_helpers import validate_duplicate_test_helpers
 from check_nested_tests import validate_no_nested_tests
 from check_test_tree_writes import validate_test_tree_writes
@@ -41,6 +44,7 @@ from checks_plugin import (
     validate_shipped_skill_routes,
     validate_workflow_local_run,
 )
+from checks_ratchet import validate_count_ratchets  # noqa: E402
 from checks_spec import (
     validate_agent_catalog,
     validate_build_gates,
@@ -119,6 +123,17 @@ def run_all_validations(
         "Python Syntax (compile gate)",
         state,
         lambda: validate_python_syntax(repo_root),
+    )
+
+    # 0.5. Count ratchets (issue #4251). Four sub-second checks that gate the
+    # push. Before this ran here, a contributor saw pre_pr.py pass, pushed, and
+    # learned 674 seconds later that a 0.21 second ratchet had failed, because
+    # the ratchets ran only in the pre-push group alongside the full suite.
+    # Placed second so the cheapest push-blocking signal arrives first.
+    run_validation(
+        "Count Ratchets",
+        state,
+        lambda: validate_count_ratchets(repo_root),
     )
 
     run_validation(
@@ -217,6 +232,15 @@ def run_all_validations(
         "Stale Script References",
         state,
         lambda: validate_stale_script_refs(repo_root),
+    )
+
+    # 3.715 Documented interpreter portability (Issue #3791). Fails when a live
+    # doc tells a contributor to run a script with third-party imports under a
+    # bare `python3`, which dies with ModuleNotFoundError on a clean checkout.
+    run_validation(
+        "Documented Interpreter Portability",
+        state,
+        lambda: validate_doc_interpreter_portability(repo_root),
     )
 
     # 3.72 Orphaned build_all --check deferrals (Issue #2770). Fails when a
@@ -446,6 +470,7 @@ def run_all_validations(
     # optional groups (e.g. ``[a] [b]``) make Copilot CLI parse separate flow nodes.
     # Canonical CI source: .github/workflows/validate-generated-agents.yml, step
     # "Validate Copilot agent frontmatter (issues #2491-#2497, #2500)", which runs
+    # doc-interpreter-portability: verbatim CI quote; CI installs deps system-wide
     # verbatim: ``python3 scripts/validation/validate_argument_hint.py``. This local
     # check calls validate_argument_hint() over the same default scan surface.
     run_validation(

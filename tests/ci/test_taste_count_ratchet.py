@@ -96,13 +96,13 @@ def test_count_above_baseline_is_a_regression(tmp_path, monkeypatch):
     assert rc == ratchet.EXIT_REGRESSION
 
 
-def test_count_below_baseline_blocks_without_update(tmp_path, monkeypatch):
-    # ADR-092: the post-merge bot that owned this write was removed with the
-    # plugin version field, so an unrecorded improvement leaves slack and blocks.
+def test_count_below_baseline_passes_without_update(tmp_path, monkeypatch):
+    # Issue #4171: an improvement is safe against the ceiling and must not
+    # force every cleanup PR to rewrite the same baseline line.
     baseline = _write_baseline(tmp_path, "615")
     monkeypatch.setattr(subprocess, "run", _fake_scan(10, 600))
     rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path)])
-    assert rc == ratchet.EXIT_REGRESSION
+    assert rc == ratchet.EXIT_OK
     assert baseline.read_text(encoding="utf-8").strip() == "615"  # baseline unchanged
 
 
@@ -140,6 +140,29 @@ def test_a_raised_baseline_fails_against_the_base_ref(tmp_path, monkeypatch):
         ]
     )
     assert rc == ratchet.EXIT_REGRESSION
+
+
+def test_a_stale_branch_message_is_not_baseline_raised(tmp_path, monkeypatch, capsys):
+    baseline = _write_baseline(tmp_path, "700")
+    monkeypatch.setattr(subprocess, "run", _fake_scan(10, 600, base_baseline="615"))
+    rc = ratchet.main(_base_ref_argv(baseline, tmp_path))
+    captured = capsys.readouterr()
+    assert rc == ratchet.EXIT_REGRESSION
+    assert "BRANCH BEHIND" in captured.err
+    assert "BASELINE RAISED" not in captured.err
+    assert "Fix the violations" not in captured.err
+
+
+def test_a_real_raised_baseline_still_reports_baseline_raised(
+    tmp_path, monkeypatch, capsys
+):
+    baseline = _write_baseline(tmp_path, "700")
+    monkeypatch.setattr(subprocess, "run", _fake_scan(10, 650, base_baseline="615"))
+    rc = ratchet.main(_base_ref_argv(baseline, tmp_path))
+    captured = capsys.readouterr()
+    assert rc == ratchet.EXIT_REGRESSION
+    assert "BASELINE RAISED" in captured.err
+    assert "BRANCH BEHIND" not in captured.err
 
 
 def test_a_lowered_baseline_passes_against_the_base_ref(tmp_path, monkeypatch):
