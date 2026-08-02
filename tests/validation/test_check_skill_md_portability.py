@@ -1276,6 +1276,147 @@ class TestScanAccounting:
         assert payload["current_total"] == 0
 
 
+class TestBaselineSemanticConflictGuard:
+    """Issue #4195: a checked-in baseline is bound to its generated tree."""
+
+    def _init_repo(self, root: Path) -> None:
+        (root / ".claude" / "skills" / "a").mkdir(parents=True)
+        (root / "src" / "copilot-cli" / "skills").mkdir(parents=True)
+        (root / ".claude" / "skills" / "a" / "SKILL.md").write_text(
+            "Clean prose.\n", encoding="utf-8"
+        )
+        (root / "scripts" / "validation").mkdir(parents=True)
+        (root / "scripts" / "validation" / "check_skill_md_portability.py").write_text(
+            "# scanner\n", encoding="utf-8"
+        )
+        baseline = root / "baseline.json"
+        baseline.write_text(json.dumps({"files": {}, "marker_files": {}}), encoding="utf-8")
+        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.invalid"],
+            cwd=root,
+            check=True,
+        )
+        subprocess.run(["git", "config", "user.name", "Test User"], cwd=root, check=True)
+        subprocess.run(["git", "add", "."], cwd=root, check=True)
+        subprocess.run(["git", "commit", "-qm", "base"], cwd=root, check=True)
+
+    def test_baseline_and_measured_skill_input_cochange_fails_closed(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A branch-local regeneration can be green while the post-merge tree is red."""
+        self._init_repo(tmp_path)
+        (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
+            "<!-- vendor-portability: declares .agents/state -->\nUses .agents/state.\n",
+            encoding="utf-8",
+        )
+        (tmp_path / "baseline.json").write_text(
+            json.dumps(
+                {"files": {}, "marker_files": {".claude/skills/a/SKILL.md": 1}}
+            ),
+            encoding="utf-8",
+        )
+
+        rc = cmp.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--baseline",
+                str(tmp_path / "baseline.json"),
+                "--base-ref",
+                "HEAD",
+            ]
+        )
+
+        assert rc == 1
+        out = capsys.readouterr().out
+        assert "Semantic baseline conflict" in out
+        assert "baseline.json" in out
+        assert ".claude/skills/a/SKILL.md" in out
+
+    def test_baseline_only_change_does_not_trigger_semantic_conflict(
+        self, tmp_path: Path
+    ) -> None:
+        """A baseline-only remediation against current main remains allowed."""
+        self._init_repo(tmp_path)
+        (tmp_path / "baseline.json").write_text(
+            json.dumps(
+                {
+                    "_comment": "refreshed wording only",
+                    "files": {},
+                    "marker_files": {},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        rc = cmp.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--baseline",
+                str(tmp_path / "baseline.json"),
+                "--base-ref",
+                "HEAD",
+            ]
+        )
+
+        assert rc == 0
+
+    def test_baseline_and_counter_code_cochange_fails_closed(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Changing the scanner changes what the stored baseline means."""
+        self._init_repo(tmp_path)
+        (tmp_path / "scripts" / "validation" / "check_skill_md_portability.py").write_text(
+            "# scanner semantics changed\n", encoding="utf-8"
+        )
+        (tmp_path / "baseline.json").write_text(
+            json.dumps({"_comment": "regenerated", "files": {}, "marker_files": {}}),
+            encoding="utf-8",
+        )
+
+        rc = cmp.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--baseline",
+                str(tmp_path / "baseline.json"),
+                "--base-ref",
+                "HEAD",
+            ]
+        )
+
+        assert rc == 1
+        out = capsys.readouterr().out
+        assert "scripts/validation/check_skill_md_portability.py" in out
+
+    def test_bad_base_ref_fails_closed_as_config_error(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Negative: an explicit but unreadable base ref cannot skip the guard."""
+        self._init_repo(tmp_path)
+
+        rc = cmp.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--baseline",
+                str(tmp_path / "baseline.json"),
+                "--base-ref",
+                "missing-ref",
+            ]
+        )
+
+        assert rc == 2
+        err = capsys.readouterr().err
+        assert "Could not compare against --base-ref missing-ref" in err
+
+    def test_future_plugin_skill_root_counts_as_measured_input(self) -> None:
+        """Edge: the co-change guard stays aligned with PLUGIN_ROOTS."""
+        assert cmp._is_measured_input("src/claude/skills/example/SKILL.md") is True
+
+
 class TestTraversalErrorsSurface:
     """Finding 3: traversal errors must fail closed, not be swallowed.
 

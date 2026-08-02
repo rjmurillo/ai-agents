@@ -58,6 +58,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import NamedTuple
@@ -491,7 +492,124 @@ def diff_against_baseline(
 
 
 def build_parser() -> argparse.ArgumentParser:
-    return build_portability_parser(__doc__, _DEFAULT_BASELINE_NAME)
+    parser = build_portability_parser(__doc__, _DEFAULT_BASELINE_NAME)
+    parser.add_argument(
+        "--base-ref",
+        default=None,
+        help=(
+            "Git ref to diff the working tree against for the semantic "
+            "baseline-conflict guard (issue #4195). Omit to skip the guard."
+        ),
+    )
+    return parser
+
+
+# Scanner source files whose edits can change what a stored baseline count
+# means, even when no .md file changes. A baseline generated against the old
+# scanner semantics is not valid once the scanner itself moves (issue #4195).
+_MEASURED_SCANNER_FILES: frozenset[str] = frozenset(
+    {
+        "scripts/validation/check_skill_md_portability.py",
+        "scripts/validation/portability_common.py",
+        "scripts/utils/markdown_parser.py",
+    }
+)
+
+
+def _is_measured_input(rel_path: str) -> bool:
+    """Return whether a repo-relative path feeds this scanner's counts."""
+    if rel_path in _MEASURED_SCANNER_FILES:
+        return True
+    return rel_path.endswith(".md") and any(
+        rel_path.startswith(f"{root}/skills/") for root in PLUGIN_ROOTS
+    )
+
+
+def _changed_files_against_base(root: Path, base_ref: str) -> list[str] | None:
+    """List files changed in the working tree relative to ``base_ref``.
+
+    ``None`` means git could not answer. The caller must fail closed because a
+    supplied ``--base-ref`` is the evidence source for the semantic-conflict
+    guard; silently skipping it would recreate issue #4195.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--name-only", base_ref],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            errors="replace",
+            encoding="utf-8",
+            check=False,
+        )
+    except OSError as exc:
+        print(f"Could not compare against --base-ref {base_ref}: {exc}", file=sys.stderr)
+        return None
+    if result.returncode != 0:
+        stderr = result.stderr.strip() or "git diff failed"
+        print(f"Could not compare against --base-ref {base_ref}: {stderr}", file=sys.stderr)
+        return None
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def check_semantic_baseline_conflict(
+    root: Path, base_ref: str, baseline_path: Path
+) -> list[str] | None:
+    """Return measured inputs that changed alongside the baseline (issue #4195).
+
+    A checked-in baseline is only valid against the tree it was generated
+    from. If the baseline file differs from ``base_ref`` *and* a file the
+    scanner measures (a skill .md, or the scanner code itself) also differs,
+    the baseline on disk was regenerated against a tree the merged branch
+    will not actually have; the two changes must be re-validated together
+    instead of trusted independently. Returns an empty list when there is no
+    such conflict (including baseline-only changes, which remain allowed).
+    """
+    changed = _changed_files_against_base(root, base_ref)
+    if changed is None:
+        return None
+    if not changed:
+        return []
+    try:
+        baseline_rel = baseline_path.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        return []
+    if baseline_rel not in changed:
+        return []
+    return [rel for rel in changed if rel != baseline_rel and _is_measured_input(rel)]
+
+
+def _report_semantic_conflict(
+    baseline_path: Path, root: Path, measured_changed: list[str]
+) -> None:
+    baseline_rel = baseline_path.resolve().relative_to(root.resolve()).as_posix()
+    print(
+        f"Semantic baseline conflict (issue #4195): {baseline_rel} changed "
+        "alongside measured input(s) below. A baseline is only valid for the "
+        "tree it was generated from; regenerate and re-validate together."
+    )
+    for rel in measured_changed:
+        print(f"  changed measured input: {rel}")
+
+
+def _scan_current_counts(
+    root: Path,
+) -> tuple[dict[str, int], dict[str, int], dict[str, int]] | None:
+    """Return current counts and scan coverage, or None after reporting a scan error."""
+    try:
+        current = scan_plugin_roots(root)
+        marker_current = scan_marker_suppressions(root)
+        scanned_by_root = scanned_markdown_by_root(root)
+    except (OSError, MarkdownNestingError) as exc:
+        print(f"Could not scan skills dirs under {root}: {exc}", file=sys.stderr)
+        return None
+    except Exception as exc:
+        print(
+            f"Unexpected scan error under {root}: {type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
+        return None
+    return current, marker_current, scanned_by_root
 
 
 def _resolve_root(repo_root: Path | None) -> Path:
@@ -646,19 +764,10 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
-    try:
-        current = scan_plugin_roots(root)
-        marker_current = scan_marker_suppressions(root)
-        scanned_by_root = scanned_markdown_by_root(root)
-    except (OSError, MarkdownNestingError) as exc:
-        print(f"Could not scan skills dirs under {root}: {exc}", file=sys.stderr)
+    counts = _scan_current_counts(root)
+    if counts is None:
         return 2
-    except Exception as exc:
-        print(
-            f"Unexpected scan error under {root}: {type(exc).__name__}: {exc}",
-            file=sys.stderr,
-        )
-        return 2
+    current, marker_current, scanned_by_root = counts
 
     if args.update_baseline:
         if refuse_unsafe_baseline_write(
@@ -673,6 +782,16 @@ def main(argv: list[str] | None = None) -> int:
         return _write_baseline(
             root, baseline_path, current, marker_current, args.allow_baseline_shrink
         )
+
+    if args.base_ref:
+        conflicting_inputs = check_semantic_baseline_conflict(
+            root, args.base_ref, baseline_path
+        )
+        if conflicting_inputs is None:
+            return 2
+        if conflicting_inputs:
+            _report_semantic_conflict(baseline_path, root, conflicting_inputs)
+            return 1
 
     try:
         baseline = _load_baseline(baseline_path)
