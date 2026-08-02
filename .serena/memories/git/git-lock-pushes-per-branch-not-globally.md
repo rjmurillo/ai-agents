@@ -102,15 +102,30 @@ two of the three suspicious pairs there were parent and child.
 So the path above is not a suggestion. Any agent or script that pushes in this
 repo uses exactly `/tmp/push-lock-<branch-with-slashes-replaced-by-dashes>.lock`
 and nothing else. If you find another form in a prompt, a skill, or a memory,
-correct it rather than adding a third.
+correct it rather than adding a third. Historical records are the exception:
+`.agents/retrospective/2026-07-31-test-infrastructure-cluster.md` records the
+older `/tmp/aiagents-push.lock` as what was running at the time, and a
+retrospective is evidence of a past state rather than instructions to follow.
+Leave those alone; a grep for lock paths will keep surfacing them.
 
 Two details that get "simplified" back into bugs:
 
-- The lock file stays in `/tmp`. It is a live kernel object and every agent must
-  name it identically, so it cannot move to a per-user directory. The push *log*
-  is the opposite case and belongs in `~/src/scratch`; `/tmp` was wiped
-  mid-session on 2026-08-02 and a detached process whose redirect target had
-  vanished reported nothing at all.
+- Every agent must name the lock identically. That, not the directory, is the
+  requirement: `flock` excludes only processes that open the same path, so a
+  per-user or per-worktree lock directory silently buys nothing. `/tmp` is the
+  current choice because it is the one absolute path every agent in this repo
+  can already name, not because `/tmp` is special. The push *log* is the
+  opposite case and belongs in `~/src/scratch`; `/tmp` was wiped mid-session on
+  2026-08-02 and a detached process whose redirect target had vanished reported
+  nothing at all.
+- That same wipe is a live hazard for the lock, not just the log. If `/tmp` is
+  cleared while a push holds the lock, the next push creates a *new inode* at
+  the same path and `flock` stops excluding the two, which is the split-lock
+  failure under a single filename. It is detectable rather than preventable:
+  compare the inode you hold against the one on disk
+  (`stat -c %i <lockfile>`) after acquiring, and treat a mismatch as a lost
+  lock. If this ever fires in practice, move the path to a directory with no
+  wipe policy rather than adding a second scheme.
 - Capture the push status as `echo "REAL_EXIT=$?"` immediately after the `git
   push`, never through a pipeline. `git push | tail -3; echo $?` reports
   `tail`'s status, which is always 0.

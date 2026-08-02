@@ -23,7 +23,7 @@ Then I checked the one thing I had not checked. PR #4302 is CLOSED.
 | ID | Source | What it shows |
 |---|---|---|
 | E1 | `origin/main:scripts/validation/pre_pr_sequence.py:2` | The suppression is still on main. It was never removed. |
-| E2 | `gh pr view 4302 --json state` | CLOSED at 2026-08-02T18:47:19Z. |
+| E2 | PR #4302 state, read with `gh pr view 4302 --json state` | CLOSED at 2026-08-02T18:47:19Z. |
 | E3 | PR #4302 closing comment | "It is the wrong fix." Author closed his own PR. |
 | E4 | PR #4302 closing comment | "The suppression's rationale is correct on the merits, not just expedient." |
 | E5 | PR #4302 closing comment | "It moves 57 lines into a new module and the counter drops below the ceiling. Nothing got simpler." |

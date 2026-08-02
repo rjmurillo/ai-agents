@@ -153,8 +153,12 @@ path above), and one branch had two concurrent pushes running under two
 different lock names. `flock` only excludes processes that agree on the path,
 so the extra schemes bought nothing and hid the race.
 
-The lock file stays under `/tmp` because it is a live kernel object every agent
-must name identically. The push *log* must not: use `~/src/scratch`.
+The lock file currently lives under `/tmp`. The requirement is that every agent
+names it identically, since `flock` excludes only processes that agree on the
+path; `/tmp` is just the one absolute path every agent here can already name.
+The push *log* must not go there: use `~/src/scratch`. See
+`git-lock-pushes-per-branch-not-globally` for the `/tmp`-wipe hazard this
+carries and how to detect it.
 
 ## Evidence
 

@@ -74,7 +74,7 @@
       "markdownLintRun": {
         "level": "SHOULD",
         "complete": true,
-        "evidence": "Scoped lint pending on the changed Markdown; dash prohibition verified with a grep for U+2013 and U+2014 returning 0."
+        "evidence": "markdownlint-cli2 run scoped to the 14 changed Markdown files; .markdownlint-cli2.yaml excludes .agents/** and .serena/**, so 3 files were in scope and returned 'Summary: 0 issues in 0 files'. Dash prohibition verified separately with a grep for U+2013 and U+2014 returning 0."
       },
       "serenaMemoryUpdated": {
         "level": "SHOULD",
