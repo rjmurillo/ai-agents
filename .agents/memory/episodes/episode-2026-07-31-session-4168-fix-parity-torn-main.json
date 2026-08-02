@@ -42,6 +42,15 @@
       "caused_by": [],
       "leads_to": [],
       "_source_session": "2026-07-31-session-4168-fix-parity-torn-main"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: bb5c0bf76b5a8c784153af30cf553328d4489759",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4168-fix-parity-torn-main"
     }
   ],
   "metrics": {
@@ -49,7 +58,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 5
   },
   "lessons": []
