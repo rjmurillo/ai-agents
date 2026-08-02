@@ -22,8 +22,16 @@ import migrate_causal_version  # noqa: I001
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _evt(eid, etype="milestone", content="x", *, ts="2026-07-01T10:00:00+00:00",
-         leads_to=(), caused_by=()):
+
+def _evt(
+    eid,
+    etype="milestone",
+    content="x",
+    *,
+    ts="2026-07-01T10:00:00+00:00",
+    leads_to=(),
+    caused_by=(),
+):
     return {
         "id": eid,
         "timestamp": ts,
@@ -51,6 +59,7 @@ def _read(path: Path) -> dict:
 # Positive: stamp_only
 # ---------------------------------------------------------------------------
 
+
 class TestStampOnly:
     """Episodes whose v2 rebuild produces the same edge topology are stamp-only."""
 
@@ -62,9 +71,7 @@ class TestStampOnly:
         ]
         path = _write(tmp_path / "ep.json", events)
 
-        outcome, reason = migrate_causal_version.migrate_episode_file(
-            path, stamp_date="2026-08-01"
-        )
+        outcome, reason = migrate_causal_version.migrate_episode_file(path, stamp_date="2026-08-01")
 
         assert outcome == "stamp_only"
         data = _read(path)
@@ -100,8 +107,11 @@ class TestStampOnly:
     def test_stamp_only_preserves_all_non_event_fields(self, tmp_path):
         events = [_evt("e001", ts="2026-07-01T10:00:00+00:00")]
         path = _write(
-            tmp_path / "ep.json", events,
-            outcome="success", task="do a thing", metrics={"commits": 1}
+            tmp_path / "ep.json",
+            events,
+            outcome="success",
+            task="do a thing",
+            metrics={"commits": 1},
         )
 
         migrate_causal_version.migrate_episode_file(path, stamp_date="2026-08-01")
@@ -116,6 +126,7 @@ class TestStampOnly:
 # Positive: relinked
 # ---------------------------------------------------------------------------
 
+
 class TestRelinked:
     """Episodes where the v2 rebuild adds edges are relinked and stamped."""
 
@@ -127,9 +138,7 @@ class TestRelinked:
         ]
         path = _write(tmp_path / "ep.json", events)
 
-        outcome, _ = migrate_causal_version.migrate_episode_file(
-            path, stamp_date="2026-08-01"
-        )
+        outcome, _ = migrate_causal_version.migrate_episode_file(path, stamp_date="2026-08-01")
 
         assert outcome == "relinked"
         data = _read(path)
@@ -178,6 +187,7 @@ class TestRelinked:
 # Negative: already_v2
 # ---------------------------------------------------------------------------
 
+
 class TestAlreadyV2:
     """Episodes already carrying causal_order_version=2 are untouched."""
 
@@ -186,11 +196,20 @@ class TestAlreadyV2:
         path = _write(tmp_path / "ep.json", events, version=2)
         original = path.read_bytes()
 
-        outcome, _ = migrate_causal_version.migrate_episode_file(
-            path, stamp_date="2026-08-01"
-        )
+        outcome, _ = migrate_causal_version.migrate_episode_file(path, stamp_date="2026-08-01")
 
         assert outcome == "already_v2"
+        assert path.read_bytes() == original
+
+    def test_existing_different_version_is_not_rewritten(self, tmp_path):
+        events = [_evt("e001", ts="2026-07-01T10:00:00+00:00")]
+        path = _write(tmp_path / "ep.json", events, version=1)
+        original = path.read_bytes()
+
+        outcome, reason = migrate_causal_version.migrate_episode_file(path, stamp_date="2026-08-01")
+
+        assert outcome == "existing_version"
+        assert "not legacy" in reason
         assert path.read_bytes() == original
 
 
@@ -198,24 +217,20 @@ class TestAlreadyV2:
 # Negative: skipped
 # ---------------------------------------------------------------------------
 
+
 class TestSkipped:
     """Migrations that would drop edges, or unreadable files, are skipped."""
 
     def test_skipped_when_rebuild_drops_edges(self, tmp_path):
         # Store two edges; rebuild with no timestamps would drop them.
         events = [
-            _evt("e001", ts="2026-07-01T00:00:00+00:00",
-                 leads_to=["e002", "e003"]),
-            _evt("e002", ts="2026-07-01T00:00:00+00:00",
-                 caused_by=["e001"], leads_to=["e003"]),
-            _evt("e003", ts="2026-07-01T00:00:00+00:00",
-                 caused_by=["e001", "e002"]),
+            _evt("e001", ts="2026-07-01T00:00:00+00:00", leads_to=["e002", "e003"]),
+            _evt("e002", ts="2026-07-01T00:00:00+00:00", caused_by=["e001"], leads_to=["e003"]),
+            _evt("e003", ts="2026-07-01T00:00:00+00:00", caused_by=["e001", "e002"]),
         ]
         path = _write(tmp_path / "ep.json", events)
 
-        outcome, reason = migrate_causal_version.migrate_episode_file(
-            path, stamp_date="2026-08-01"
-        )
+        outcome, reason = migrate_causal_version.migrate_episode_file(path, stamp_date="2026-08-01")
 
         assert outcome == "skipped"
         assert "drop" in reason
@@ -228,9 +243,7 @@ class TestSkipped:
         path = _write(tmp_path / "ep.json", events)
         original = path.read_bytes()
 
-        outcome, _ = migrate_causal_version.migrate_episode_file(
-            path, stamp_date="2026-08-01"
-        )
+        outcome, _ = migrate_causal_version.migrate_episode_file(path, stamp_date="2026-08-01")
 
         # If skipped (same-timestamp drops edges), file must be unchanged.
         if outcome == "skipped":
@@ -240,9 +253,7 @@ class TestSkipped:
         path = tmp_path / "ep.json"
         path.write_bytes(b"not json {{{")
 
-        outcome, reason = migrate_causal_version.migrate_episode_file(
-            path, stamp_date="2026-08-01"
-        )
+        outcome, reason = migrate_causal_version.migrate_episode_file(path, stamp_date="2026-08-01")
 
         assert outcome == "skipped"
         assert "unreadable" in reason
@@ -250,16 +261,29 @@ class TestSkipped:
     def test_no_events_returns_no_events(self, tmp_path):
         path = _write(tmp_path / "ep.json", [])
 
-        outcome, _ = migrate_causal_version.migrate_episode_file(
-            path, stamp_date="2026-08-01"
-        )
+        outcome, _ = migrate_causal_version.migrate_episode_file(path, stamp_date="2026-08-01")
 
         assert outcome == "no_events"
+
+    def test_invalid_ids_are_not_rewritten(self, tmp_path):
+        events = [
+            _evt("e001", ts="2026-07-01T10:00:00+00:00"),
+            _evt("e001", ts="2026-07-01T11:00:00+00:00"),
+        ]
+        path = _write(tmp_path / "ep.json", events)
+        original = path.read_bytes()
+
+        outcome, reason = migrate_causal_version.migrate_episode_file(path, stamp_date="2026-08-01")
+
+        assert outcome == "invalid_ids"
+        assert "duplicate event id" in reason
+        assert path.read_bytes() == original
 
 
 # ---------------------------------------------------------------------------
 # Edge: idempotency
 # ---------------------------------------------------------------------------
+
 
 class TestIdempotent:
     """Running the migration twice leaves the second run with nothing to do."""
@@ -274,9 +298,7 @@ class TestIdempotent:
         migrate_causal_version.migrate_episode_file(path, stamp_date="2026-08-01")
         after_first = path.read_bytes()
 
-        outcome, _ = migrate_causal_version.migrate_episode_file(
-            path, stamp_date="2026-08-02"
-        )
+        outcome, _ = migrate_causal_version.migrate_episode_file(path, stamp_date="2026-08-02")
 
         assert outcome == "already_v2"
         assert path.read_bytes() == after_first
@@ -291,9 +313,7 @@ class TestIdempotent:
         migrate_causal_version.migrate_episode_file(path, stamp_date="2026-08-01")
         after_first = path.read_bytes()
 
-        outcome, _ = migrate_causal_version.migrate_episode_file(
-            path, stamp_date="2026-08-02"
-        )
+        outcome, _ = migrate_causal_version.migrate_episode_file(path, stamp_date="2026-08-02")
 
         assert outcome == "already_v2"
         assert path.read_bytes() == after_first
@@ -302,6 +322,7 @@ class TestIdempotent:
 # ---------------------------------------------------------------------------
 # main() exit codes
 # ---------------------------------------------------------------------------
+
 
 class TestMainExitCodes:
     """main() exits per ADR-035: 0 on clean, 1 on any skip, 2 on bad args."""
@@ -324,6 +345,32 @@ class TestMainExitCodes:
             _evt("e002", ts="2026-07-01T00:00:00+00:00", caused_by=["e001"]),
         ]
         _write(tmp_path / "episode-x.json", events)
+
+        rc = migrate_causal_version.main([str(tmp_path)])
+
+        assert rc == 1
+
+    def test_exits_1_when_any_episode_has_invalid_ids(self, tmp_path, capsys):
+        events = [
+            _evt("e001", ts="2026-07-01T10:00:00+00:00"),
+            _evt("e001", ts="2026-07-01T11:00:00+00:00"),
+        ]
+        _write(tmp_path / "episode-x.json", events)
+
+        rc = migrate_causal_version.main([str(tmp_path)])
+
+        assert rc == 1
+
+    def test_exits_1_when_any_episode_has_no_events(self, tmp_path, capsys):
+        _write(tmp_path / "episode-x.json", [])
+
+        rc = migrate_causal_version.main([str(tmp_path)])
+
+        assert rc == 1
+
+    def test_exits_1_when_any_episode_has_existing_different_version(self, tmp_path, capsys):
+        events = [_evt("e001", ts="2026-07-01T10:00:00+00:00")]
+        _write(tmp_path / "episode-x.json", events, version=1)
 
         rc = migrate_causal_version.main([str(tmp_path)])
 
@@ -372,3 +419,14 @@ class TestMainExitCodes:
         summary = json.loads(out)
         assert summary["dry_run"] is True
         assert summary["total"] == 1
+
+    def test_dry_run_reports_existing_different_version(self, tmp_path, capsys):
+        events = [_evt("e001", ts="2026-07-01T10:00:00+00:00")]
+        _write(tmp_path / "episode-x.json", events, version=1)
+
+        rc = migrate_causal_version.main([str(tmp_path), "--dry-run"])
+
+        out = capsys.readouterr().out
+        summary = json.loads(out)
+        assert rc == 1
+        assert summary["existing_version"] == 1

@@ -9,6 +9,7 @@ Three outcomes per mutant:
 
 Usage: uv run --frozen python tests/skills/memory/mutate_migrate_causal_version.py
 """
+
 from __future__ import annotations
 
 import subprocess
@@ -17,31 +18,45 @@ from pathlib import Path
 
 _SCRIPT = (
     Path(__file__).resolve().parents[3]
-    / ".claude" / "skills" / "memory" / "scripts" / "migrate_causal_version.py"
+    / ".claude"
+    / "skills"
+    / "memory"
+    / "scripts"
+    / "migrate_causal_version.py"
 )
 _TEST = Path(__file__).resolve().parent / "test_migrate_causal_version.py"
 
-_MUTATIONS: list[tuple[str, str, str]] = [
-    # (name, find, replace)
+_MUTATIONS: list[tuple[str, str, str, int]] = [
+    # (name, find, replace, occurrence)
     (
-        "BREAK_version_check",
-        "data.get(\"causal_order_version\") == _CAUSAL_ORDER_VERSION:",
-        "data.get(\"causal_order_version\") != _CAUSAL_ORDER_VERSION:",
+        "BREAK_dry_run_version_check",
+        'data.get("causal_order_version") == _CAUSAL_ORDER_VERSION:',
+        'data.get("causal_order_version") != _CAUSAL_ORDER_VERSION:',
+        1,
+    ),
+    (
+        "BREAK_migrate_version_check",
+        'data.get("causal_order_version") == _CAUSAL_ORDER_VERSION:',
+        'data.get("causal_order_version") != _CAUSAL_ORDER_VERSION:',
+        2,
     ),
     (
         "BREAK_topology_match",
-        "if rebuilt_edges == orig_edges:",
-        "if rebuilt_edges != orig_edges:",
+        "if _edge_set(rebuilt) == orig_edges:",
+        "if _edge_set(rebuilt) != orig_edges:",
+        1,
     ),
     (
         "BREAK_edge_drop_guard",
         "if rebuilt_count < orig_count:",
         "if rebuilt_count > orig_count:",
+        1,
     ),
     (
         "BREAK_skip_exit_code",
-        'return 1 if counts.get("skipped", 0) > 0 else 0',
-        'return 0 if counts.get("skipped", 0) > 0 else 0',
+        "return 1 if any(counts.get(outcome, 0) > 0 for outcome in _FAILURE_OUTCOMES) else 0",
+        "return 0 if any(counts.get(outcome, 0) > 0 for outcome in _FAILURE_OUTCOMES) else 0",
+        1,
     ),
 ]
 
@@ -50,8 +65,13 @@ def run_tests() -> bool:
     """Return True when all tests pass."""
     result = subprocess.run(
         [
-            sys.executable, "-m", "pytest",
-            str(_TEST), "-q", "--tb=no", "--no-header",
+            sys.executable,
+            "-m",
+            "pytest",
+            str(_TEST),
+            "-q",
+            "--tb=no",
+            "--no-header",
         ],
         capture_output=True,
         text=True,
@@ -59,23 +79,31 @@ def run_tests() -> bool:
     return result.returncode == 0
 
 
-def apply(original: str, find: str, replace: str) -> tuple[str, bool]:
+def apply(original: str, find: str, replace: str, occurrence: int) -> tuple[str, bool]:
     """Return (mutated_text, applied). applied is False when find is absent."""
-    count = original.count(find)
-    if count == 0:
+    if occurrence < 1:
         return original, False
-    return original.replace(find, replace, 1), True
+    start = -1
+    search_from = 0
+    for _ in range(occurrence):
+        start = original.find(find, search_from)
+        if start == -1:
+            return original, False
+        search_from = start + len(find)
+    if start == -1:
+        return original, False
+    return original[:start] + replace + original[start + len(find) :], True
 
 
 def main() -> int:
-    original = _SCRIPT.read_text(encoding="utf-8")
-    backup = original
+    backup = _SCRIPT.read_text(encoding="utf-8")
 
     results: list[tuple[str, str]] = []
     did_not_apply: list[str] = []
 
-    for name, find, replace in _MUTATIONS:
-        mutated, applied = apply(original, find, replace)
+    for name, find, replace, occurrence in _MUTATIONS:
+        original = _SCRIPT.read_text(encoding="utf-8")
+        mutated, applied = apply(original, find, replace, occurrence)
 
         if not applied:
             # File would be byte-identical; the literal is missing.

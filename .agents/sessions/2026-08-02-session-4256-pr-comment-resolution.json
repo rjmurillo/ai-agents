@@ -1,0 +1,105 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4256,
+    "date": "2026-08-02",
+    "branch": "fix/episode-corpus-migration",
+    "startingCommit": "1e2a67d47c",
+    "objective": "Clear PR #4256 review threads, validate the memory migration, push, and merge."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "activate_project tool was not exposed; initial_instructions was loaded."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "serena initial_instructions loaded before code changes."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md read-only before editing."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This JSON session log was created and staged."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned fix/episode-corpus-migration."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Work happened in wt-4256 on fix/episode-corpus-migration."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All local validation required before commit passed. Push and merge checks are tracked in this session output."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was read only and not staged."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "No durable new cross-session fact identified yet."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre-commit markdown hooks ran on the staged session log."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Review fix commit 151af01bfd."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Targeted pytest passed 29 tests, mutation harness killed 5 mutants, four ratchets passed, pre_pr.py exited 0."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": 1,
+      "action": "Fetched PR branch and origin/main, created wt-4256, and merged origin/main first.",
+      "result": "Merge commit 3598b31a34 created before review fixes."
+    },
+    {
+      "step": 2,
+      "action": "Fetched unresolved review threads with GraphQL and clustered them.",
+      "result": "Three unresolved threads, zero clusters of four or more."
+    },
+    {
+      "step": 3,
+      "action": "Verified reviewer claims against current tree.",
+      "result": "Canonical and Copilot mirror returned 0 when invalid_ids was nonzero; mutation harness still targeted the old return literal and one stale topology literal."
+    },
+    {
+      "step": 4,
+      "action": "Fixed migration failure outcomes and tests.",
+      "result": "invalid_ids, no_events, generic skipped, and existing different causal_order_version now make run_migrate return 1 without rewriting the records."
+    },
+    {
+      "step": 5,
+      "action": "Verified blast-radius tests and ratchets.",
+      "result": "29 targeted tests passed; mutation harness killed all five mutants; ruff, taste, and type-ignore ratchets passed at baselines 326, 601, and 44."
+    }
+  ],
+  "endingCommit": "151af01bfd",
+  "nextSteps": []
+}

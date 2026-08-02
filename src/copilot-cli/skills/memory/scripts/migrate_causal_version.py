@@ -19,19 +19,21 @@ are handled by extract_session_episode.py --validate --fix, not this script.
 
 Episodes skipped:
 - Already v2 (causal_order_version == 2).
+- Already carries a different causal_order_version (cannot classify as legacy).
 - No events or invalid event ids (cannot rebuild safely).
 - Rebuild would drop edges (conservative guard).
 - Any exception during rebuild.
 
 Exit codes match ADR-035:
   0  All processable episodes are now v2; nothing was left unversioned.
-  1  One or more episodes could not be stamped (skipped count > 0).
+  1  One or more episodes could not be stamped.
   2  No episode files found, or unrecoverable argument error.
 
 Provenance: every written file carries a migration_note field at the top level
 recording this script name and the stamp date. A reader can identify which
 episodes were migrated versus always-correct.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -49,6 +51,7 @@ import extract_session_episode as _ex  # noqa: E402  (path insert required befor
 
 _MIGRATION_SCRIPT = "migrate_causal_version.py"
 _CAUSAL_ORDER_VERSION = _ex.CAUSAL_ORDER_VERSION
+_FAILURE_OUTCOMES = frozenset({"existing_version", "invalid_ids", "no_events", "skipped"})
 
 
 def _edge_set(events: list[dict[str, Any]]) -> set[tuple[str, str]]:
@@ -107,15 +110,13 @@ def _apply_migration(
 
     if rebuilt_count < orig_count:
         return "skipped", (
-            f"refused: v2 rebuild would drop {orig_count - rebuilt_count} "
-            f"of {orig_count} edges"
+            f"refused: v2 rebuild would drop {orig_count - rebuilt_count} of {orig_count} edges"
         )
 
     data["events"] = rebuilt
     data["causal_order_version"] = _CAUSAL_ORDER_VERSION
     data["migration_note"] = (
-        f"relinked by {_MIGRATION_SCRIPT} on {stamp_date}: "
-        f"edges {orig_count} -> {rebuilt_count}"
+        f"relinked by {_MIGRATION_SCRIPT} on {stamp_date}: edges {orig_count} -> {rebuilt_count}"
     )
     try:
         path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
@@ -132,8 +133,10 @@ def _dry_run_classify(path: Path) -> str:
         return "skipped"
     if not isinstance(data, dict):
         return "skipped"
-    if data.get("causal_order_version") == _CAUSAL_ORDER_VERSION:
-        return "already_v2"
+    if "causal_order_version" in data:
+        if data.get("causal_order_version") == _CAUSAL_ORDER_VERSION:
+            return "already_v2"
+        return "existing_version"
     events = data.get("events")
     if not isinstance(events, list) or not events:
         return "no_events"
@@ -154,6 +157,7 @@ def migrate_episode_file(path: Path, *, stamp_date: str) -> tuple[str, str]:
 
     Returns (outcome, reason) where outcome is one of:
       "already_v2"     Already carries causal_order_version == 2.
+      "existing_version" Already carries a different causal_order_version.
       "no_events"      Episode has no events; skipped.
       "invalid_ids"    Event ids fail validation; skipped.
       "stamp_only"     Wrote: added causal_order_version, edges unchanged.
@@ -169,8 +173,10 @@ def migrate_episode_file(path: Path, *, stamp_date: str) -> tuple[str, str]:
     if not isinstance(data, dict):
         return "skipped", "top level is not an object"
 
-    if data.get("causal_order_version") == _CAUSAL_ORDER_VERSION:
-        return "already_v2", ""
+    if "causal_order_version" in data:
+        if data.get("causal_order_version") == _CAUSAL_ORDER_VERSION:
+            return "already_v2", ""
+        return "existing_version", "existing causal_order_version is not legacy"
 
     events = data.get("events")
     if not isinstance(events, list) or not events:
@@ -215,6 +221,7 @@ def run_migrate(target: Path, *, dry_run: bool = False) -> int:
     stamp_date = datetime.now(tz=timezone.utc).date().isoformat()
     counts: dict[str, int] = {
         "already_v2": 0,
+        "existing_version": 0,
         "stamp_only": 0,
         "relinked": 0,
         "no_events": 0,
@@ -234,7 +241,7 @@ def run_migrate(target: Path, *, dry_run: bool = False) -> int:
     summary["dry_run"] = dry_run
     print(json.dumps(summary))
 
-    return 1 if counts.get("skipped", 0) > 0 else 0
+    return 1 if any(counts.get(outcome, 0) > 0 for outcome in _FAILURE_OUTCOMES) else 0
 
 
 def build_parser() -> argparse.ArgumentParser:
