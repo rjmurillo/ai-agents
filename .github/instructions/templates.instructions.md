@@ -18,11 +18,11 @@ applyTo: templates/**
 
 1. **Minimal diff**. Template edits SHOULD make one logical change at a time; avoid bundling prompt rewrites with toolset changes.
 2. **Preview per platform**. SHOULD inspect the generated output for both target platforms (`src/copilot-cli/agents/<agent>.agent.md` and `src/vs-code-agents/<agent>.agent.md`) to confirm the change renders correctly.
-3. **Check drift detection**. SHOULD run `python3 build/scripts/detect_agent_drift.py` after generation. Read its scope first: it does NOT compare templates against anything. It scores `src/claude` against `src/vs-code-agents`, and `.claude/agents` against `.github/agents`, over an 18-section allowlist, so a green run is not evidence that your template edit reached the hand-maintained copies. See `.claude/rules/claude-agents.md`.
+3. **Check drift detection**. SHOULD run `python3 build/scripts/detect_agent_drift.py` after generation. Read its scope first: it does NOT compare templates against anything. It scores `src/claude` against `src/vs-code-agents`, and `.claude/agents` against `.github/agents`, over an 18-section allowlist, so a green run is not evidence that your template edit reached the hand-maintained copies. See the claude-agents rule.
 
 ## MUST NOT
 
-1. MUST NOT edit generated files directly (`src/copilot-cli/agents/`, `src/vs-code-agents/`). Edit the template in `templates/` and regenerate. This does NOT apply to `src/claude/`, `.claude/agents/`, or `.github/agents/`, which are hand-maintained; `.claude/rules/claude-agents.md` MUST-1 requires editing `src/claude/<agent>.md` directly, in the same change as the template.
+1. MUST NOT edit generated files directly (`src/copilot-cli/agents/`, `src/vs-code-agents/`). Edit the template in `templates/` and regenerate. This does NOT apply to `src/claude/`, `.claude/agents/`, or `.github/agents/`, which are hand-maintained; the claude-agents rule, MUST-1, requires editing `src/claude/<agent>.md` directly, in the same change as the template.
 2. MUST NOT remove a platform target without a corresponding ADR.
 
 ## References

@@ -51,6 +51,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 
 def _run_git(args: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
@@ -91,20 +92,29 @@ def list_unmerged_files(cwd: Path) -> list[str]:
     return [line for line in result.stdout.splitlines() if line.strip()]
 
 
-def find_leftover_markers(cwd: Path) -> list[str]:
-    """Return ``file:line: message`` strings for leftover conflict markers.
+def _merge_head(cwd: Path) -> str | None:
+    """Return the MERGE_HEAD SHA when an in-progress merge is active, else None.
 
-    Uses ``git diff HEAD --check`` which reports leftover conflict
-    markers in any in-flight change (working tree or index) relative to
-    HEAD. Exit code 2 from ``--check`` means markers were found; exit 0
-    means none.
+    ``MERGE_HEAD`` exists as a ref only while ``git merge --no-commit`` (or a
+    merge paused by a conflict) is in flight. Its absence is the authoritative
+    signal that no merge is in progress; code must NOT fall back to a plausible
+    default when it is absent during a merge.
     """
-    result = _run_git(["diff", "HEAD", "--check"], cwd=cwd)
+    result = _run_git(["rev-parse", "--verify", "MERGE_HEAD"], cwd=cwd)
+    if result.returncode == 0:
+        sha = result.stdout.strip()
+        return sha if sha else None
+    return None
 
-    # --check returncodes:
-    #   0 -- clean
-    #   2 -- conflict markers (or other --check problems) were reported
-    #   other -- unexpected git failure
+
+def _collect_markers(result: Any, label: str) -> list[str]:
+    """Extract leftover-conflict-marker lines from a git --check result.
+
+    Exit code semantics for ``git diff --check``:
+      0 -- clean
+      2 -- markers (or other --check problems) found
+      other -- unexpected git failure
+    """
     if result.returncode == 0:
         return []
     if result.returncode == 2:
@@ -113,10 +123,44 @@ def find_leftover_markers(cwd: Path) -> list[str]:
             for line in result.stdout.splitlines()
             if line.strip() and "leftover conflict marker" in line
         ]
+    raise RuntimeError(f"{label} failed (exit {result.returncode}): {result.stderr.strip()}")
 
-    raise RuntimeError(
-        f"git diff HEAD --check failed (exit {result.returncode}): {result.stderr.strip()}"
-    )
+
+def find_leftover_markers(cwd: Path) -> list[str]:
+    """Return ``file:line: message`` strings for leftover conflict markers.
+
+    During an in-progress merge (MERGE_HEAD present): runs two checks.
+
+    1. ``git diff --cached --check MERGE_HEAD`` -- staged index vs the
+       incoming branch tip.  This avoids false positives from
+       conflict-marker syntax already committed in the incoming branch's
+       docs (issue #4058).
+
+    2. ``git diff --check`` (working tree vs staged index) -- catches
+       markers that were left in the working tree but not yet staged.
+
+    Outside a merge: uses ``git diff HEAD --check`` which reports
+    leftover conflict markers in any in-flight change (working tree or
+    index) relative to HEAD.
+    """
+    merge_head = _merge_head(cwd)
+    if merge_head is not None:
+        staged_result = _run_git(["diff", "--cached", "--check", merge_head], cwd=cwd)
+        staged_markers = _collect_markers(staged_result, "git diff --cached --check MERGE_HEAD")
+
+        worktree_result = _run_git(["diff", "--check"], cwd=cwd)
+        worktree_markers = _collect_markers(worktree_result, "git diff --check")
+
+        seen: set[str] = set()
+        combined: list[str] = []
+        for line in staged_markers + worktree_markers:
+            if line not in seen:
+                seen.add(line)
+                combined.append(line)
+        return combined
+
+    result = _run_git(["diff", "HEAD", "--check"], cwd=cwd)
+    return _collect_markers(result, "git diff HEAD --check")
 
 
 def verify(cwd: Path) -> tuple[int, dict[str, object]]:
