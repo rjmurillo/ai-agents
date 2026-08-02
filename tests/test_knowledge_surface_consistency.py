@@ -27,6 +27,15 @@ _PLUGIN_VERSION_RULE_SURFACES = (
     / "instructions"
     / "plugin-version-bump.instructions.md",
 )
+_KNOWLEDGE_PERSISTENCE_SURFACES = (
+    REPO_ROOT / ".claude" / "rules" / "knowledge-persistence.md",
+    REPO_ROOT / ".github" / "instructions" / "knowledge-persistence.instructions.md",
+    REPO_ROOT
+    / "src"
+    / "copilot-cli"
+    / "instructions"
+    / "knowledge-persistence.instructions.md",
+)
 _ARCHITECTURE_SKILL_SURFACES = (
     REPO_ROOT / ".claude" / "skills" / "ai-agents-architecture-contract" / "SKILL.md",
     REPO_ROOT
@@ -209,3 +218,8 @@ def test_plugin_version_rules_forbid_manifest_bumps() -> None:
         assert "# Plugin Manifests Carry No Version" in text
         assert "must never add one back" in text
         assert "Nothing. Do not touch the manifests" in text
+
+
+def test_knowledge_persistence_does_not_require_manifest_bumps() -> None:
+    for path in _KNOWLEDGE_PERSISTENCE_SURFACES:
+        assert "manifest bump" not in _read(path).casefold()
