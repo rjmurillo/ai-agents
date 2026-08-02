@@ -68,6 +68,19 @@ class TestSemgrepPinnedVersion:
         with pytest.raises(_SemgrepExecutableError, match="must declare exactly one semgrep pin"):
             _semgrep_pinned_version(tmp_path)
 
+    def test_inline_comment_is_not_a_pin(self, tmp_path: Path) -> None:
+        """A semgrep version appearing in a comment is not counted as a pin.
+
+        Guards the strict line-anchored regex. If the anchors are removed, a comment like
+        ``# was: "semgrep==1.0.0",`` matches the weakened pattern and causes a false pin.
+        """
+        _pyproject(
+            tmp_path,
+            '[project]\n# was: "semgrep==1.0.0",\ndependencies = []\n',
+        )
+        with pytest.raises(_SemgrepExecutableError, match="must declare exactly one semgrep pin"):
+            _semgrep_pinned_version(tmp_path)
+
 
 # ---------------------------------------------------------------------------
 # _probe_semgrep_version
