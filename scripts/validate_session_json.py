@@ -644,10 +644,16 @@ def validate_evidence_agrees_with_session(data: dict[str, Any], result: Validati
         problem = commit_reachability_problem(ending, _PROJECT_ROOT)
         if problem is not None:
             result.errors.append(
-                f"endingCommit {ending!r} {problem}; the SHA was most likely "
-                "orphaned by amending or rebasing the commit that carried it. "
-                "Record the SHA in a follow-up commit instead of amending "
-                "afterwards (issue #3618)"
+                f"endingCommit {ending!r} {problem}; three known causes: "
+                "(1) the commit was amended after the log was written, "
+                "(2) the branch was rebased, or "
+                "(3) the branch was squash-merged into main, which replaces "
+                "the branch tip with a new commit and makes the original "
+                "unreachable (issue #4312). "
+                "If the branch merged cleanly, this is the squash-merge case "
+                "and the original SHA was correct when written. "
+                "For amend/rebase, record the new SHA in a follow-up commit "
+                "instead of amending afterwards (issue #3618)"
             )
 
     if "nextSteps" not in data:
