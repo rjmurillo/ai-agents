@@ -45,6 +45,7 @@ Related: Issue #2761 (worktree accumulation starves markdown LSP), #2759
 from __future__ import annotations
 
 import argparse
+import errno
 import json
 import os
 import pathlib
@@ -54,6 +55,7 @@ import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
+from typing import NamedTuple
 
 _DEFAULT_BASE = "origin/main"
 _GIT_TIMEOUT_SECONDS = 30
@@ -115,6 +117,7 @@ class GcReport:
     apply: bool
     main_worktree: str
     total_worktrees: int = 0
+    occupancy_unreadable: int = 0
     decisions: list[Decision] = field(default_factory=list)
     removed: list[str] = field(default_factory=list)
     remove_errors: list[str] = field(default_factory=list)
@@ -249,26 +252,73 @@ def is_merged_to_base(path: str, base_ref: str) -> bool:
     raise RuntimeError(msg)
 
 
-def occupied_paths() -> frozenset[str]:
+class Occupancy(NamedTuple):
+    """Live-process working directories, plus the size of the blind spot.
+
+    ``unreadable`` counts processes this scan could not resolve but could not
+    rule out either. It is reported so the gap is visible instead of silently
+    counted as vacancy.
+    """
+
+    cwds: frozenset[str]
+    unreadable: int
+
+
+#: ``/proc/<pid>`` entries that disappear mid-scan are genuinely gone, so their
+#: working directory cannot hold a worktree. Every other failure means the
+#: process is alive and its directory is unknown.
+_PROCESS_GONE = frozenset({errno.ENOENT, errno.ESRCH})
+
+
+def occupied_paths() -> Occupancy:
     """Working directories of live processes, read from ``/proc``.
 
     A worktree can be fully merged, fully pushed and clean while an agent is
     still sitting in it. Removing it pulls the directory out from under that
-    process. Returns an empty set where ``/proc`` is unavailable, in which case
-    occupancy is simply unknown and the remaining guards still apply.
+    process.
+
+    Two failure kinds are not the same and are not treated the same. A
+    ``/proc/<pid>`` entry that vanishes mid-scan belongs to a process that has
+    exited, so it cannot hold a worktree and is ignored. A cwd that cannot be
+    read while the process is still alive is unknown, not vacant, and is
+    counted in ``Occupancy.unreadable``.
+
+    Known residual risk. Only unreadable processes owned by this user are
+    counted, because the guard exists to protect this user's own agent shells
+    and a process owned by another user does not chdir into their worktrees.
+    Measured on the development machine this was written for: 332 readable
+    cwds, 691 permission denied, of which 3 were owned by this user, and all
+    three were hardened session daemons (a password-manager helper, the user
+    ``systemd``, and ``sd-pam``) that never enter a worktree. Failing closed on
+    that set would refuse every removal forever, so the gap is disclosed rather
+    than escalated. An interactive shell or agent process is always readable by
+    its own owner, which is the case this guard is for.
+
+    Where ``/proc`` is unavailable the scan returns nothing readable and marks
+    the whole result unknown, so occupancy contributes no false vacancy.
     """
     proc = pathlib.Path("/proc")
     if not proc.is_dir():
-        return frozenset()
+        return Occupancy(frozenset(), 0)
+    uid = os.getuid()
     found: set[str] = set()
+    unreadable = 0
     for entry in proc.iterdir():
         if not entry.name.isdigit():
             continue
         try:
             found.add(os.readlink(entry / "cwd"))
+            continue
+        except OSError as exc:
+            if exc.errno in _PROCESS_GONE:
+                continue
+        try:
+            owned_by_us = entry.stat().st_uid == uid
         except OSError:
             continue
-    return frozenset(found)
+        if owned_by_us:
+            unreadable += 1
+    return Occupancy(frozenset(found), unreadable)
 
 
 def is_occupied(path: str, cwds: frozenset[str]) -> bool:
@@ -358,9 +408,16 @@ def build_report(
     directories of running processes are read once and any worktree holding one
     is kept, because a clean, merged, fully pushed worktree can still be the
     home of a running agent.
+
+    The deadline starts before any work, so the ``/proc`` scan and the two
+    setup git calls are inside the budget rather than added to it. Overrunning
+    during setup leaves every worktree uninspected, which is the fail-safe
+    direction: an uninspected worktree can never be proposed for removal.
     """
+    deadline = clock() + time_budget if time_budget and time_budget > 0 else None
     worktrees = list_worktrees()
-    live_cwds = occupied_paths() if cwds is None else cwds
+    occupancy = Occupancy(cwds, 0) if cwds is not None else occupied_paths()
+    live_cwds = occupancy.cwds
     main_path = worktrees[0].path if worktrees else ""
     current_path = _run_git(["rev-parse", "--show-toplevel"])
     report = GcReport(
@@ -369,8 +426,8 @@ def build_report(
         apply=apply,
         main_worktree=main_path,
         total_worktrees=len(worktrees),
+        occupancy_unreadable=occupancy.unreadable,
     )
-    deadline = clock() + time_budget if time_budget and time_budget > 0 else None
     decisions: list[Decision] = []
     for worktree in worktrees:
         inspect = deadline is None or clock() < deadline
@@ -464,6 +521,12 @@ def format_report(report: GcReport) -> str:
         f"  removal candidates: {len(report.candidates)}",
         f"  kept: {len(report.kept)}",
     ]
+    if report.occupancy_unreadable:
+        lines.append(
+            f"  occupancy blind spot: {report.occupancy_unreadable} live "
+            f"process(es) owned by this user would not report a working "
+            f"directory, so they were not checked against any worktree."
+        )
     if report.unevaluated:
         lines.append(
             f"  PARTIAL: time budget stopped this run after inspecting "

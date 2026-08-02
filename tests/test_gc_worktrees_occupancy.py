@@ -8,6 +8,8 @@ pin the containment rule that decides what "inside" means.
 
 from __future__ import annotations
 
+import errno
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from scripts.maintenance.gc_worktrees import (
@@ -15,9 +17,12 @@ from scripts.maintenance.gc_worktrees import (
     KEEP_MAIN,
     KEEP_OCCUPIED,
     KEEP_TIME_BUDGET,
+    GcReport,
+    Occupancy,
     Worktree,
     build_report,
     decide,
+    format_report,
     is_occupied,
     occupied_paths,
 )
@@ -142,7 +147,7 @@ class TestReportInvariant:
             patch("scripts.maintenance.gc_worktrees._run_git", return_value=_MAIN),
             patch(
                 "scripts.maintenance.gc_worktrees.occupied_paths",
-                return_value=frozenset(),
+                return_value=Occupancy(frozenset(), 0),
             ) as spy,
         ):
             build_report(_BASE, apply=False)
@@ -156,10 +161,109 @@ class TestProcScan:
                 return False
 
         with patch("scripts.maintenance.gc_worktrees.pathlib.Path", return_value=_NoProc()):
-            assert occupied_paths() == frozenset()
+            assert occupied_paths() == Occupancy(frozenset(), 0)
 
     def test_the_live_scan_finds_this_process_own_directory(self):
         import os
 
-        found = occupied_paths()
+        found = occupied_paths().cwds
         assert os.getcwd() in found
+
+
+class _FakeProcEntry:
+    """One ``/proc/<pid>`` entry with a scripted readlink and stat outcome."""
+
+    def __init__(self, name: str, *, cwd=None, link_errno=None, uid=None, stat_errno=None):
+        self.name = name
+        self.cwd = cwd
+        self.link_errno = link_errno
+        self.uid = uid
+        self.stat_errno = stat_errno
+
+    def __truediv__(self, _other):
+        return self
+
+    def stat(self):
+        if self.stat_errno is not None:
+            raise OSError(self.stat_errno, "stat refused")
+        return SimpleNamespace(st_uid=self.uid)
+
+
+def _scan(entries, *, uid=1000) -> Occupancy:
+    """Run occupied_paths() against a synthetic /proc."""
+
+    class _Proc:
+        def is_dir(self):
+            return True
+
+        def iterdir(self):
+            return iter(entries)
+
+    def _readlink(entry):
+        if entry.link_errno is not None:
+            raise OSError(entry.link_errno, "readlink refused")
+        return entry.cwd
+
+    with (
+        patch("scripts.maintenance.gc_worktrees.pathlib.Path", return_value=_Proc()),
+        patch("scripts.maintenance.gc_worktrees.os.readlink", side_effect=_readlink),
+        patch("scripts.maintenance.gc_worktrees.os.getuid", return_value=uid),
+    ):
+        return occupied_paths()
+
+
+class TestUnreadableProcessesAreNotVacancy:
+    """An unreadable cwd is unknown, not proof that no process is there.
+
+    Conflating the two is fail-open in a tool that deletes directories, so
+    each error kind is pinned separately.
+    """
+
+    def test_a_readable_cwd_is_collected_and_counts_as_no_blind_spot(self):
+        found = _scan([_FakeProcEntry("11", cwd="/repo/wt1", uid=1000)])
+        assert found == Occupancy(frozenset({"/repo/wt1"}), 0)
+
+    def test_permission_denied_on_our_own_process_is_counted_not_ignored(self):
+        found = _scan([_FakeProcEntry("11", link_errno=errno.EACCES, uid=1000)])
+        assert found.cwds == frozenset()
+        assert found.unreadable == 1
+
+    def test_a_process_that_exited_mid_scan_is_not_a_blind_spot(self):
+        found = _scan([_FakeProcEntry("11", link_errno=errno.ENOENT, uid=1000)])
+        assert found.unreadable == 0
+
+    def test_a_reaped_pid_is_not_a_blind_spot(self):
+        found = _scan([_FakeProcEntry("11", link_errno=errno.ESRCH, uid=1000)])
+        assert found.unreadable == 0
+
+    def test_another_users_process_is_not_counted_against_our_worktrees(self):
+        found = _scan([_FakeProcEntry("11", link_errno=errno.EACCES, uid=0)])
+        assert found.unreadable == 0
+
+    def test_an_unattributable_process_is_not_counted(self):
+        found = _scan([_FakeProcEntry("11", link_errno=errno.EACCES, stat_errno=errno.EACCES)])
+        assert found.unreadable == 0
+
+    def test_non_numeric_proc_entries_are_skipped(self):
+        found = _scan([_FakeProcEntry("self", link_errno=errno.EACCES, uid=1000)])
+        assert found == Occupancy(frozenset(), 0)
+
+    def test_the_blind_spot_is_disclosed_in_the_human_report(self):
+        report = GcReport(
+            timestamp="t",
+            base_ref=_BASE,
+            apply=False,
+            main_worktree=_MAIN,
+            occupancy_unreadable=3,
+        )
+        assert "occupancy blind spot: 3" in format_report(report)
+
+    def test_no_blind_spot_prints_no_line(self):
+        report = GcReport(
+            timestamp="t",
+            base_ref=_BASE,
+            apply=False,
+            main_worktree=_MAIN,
+            occupancy_unreadable=0,
+        )
+        assert "blind spot" not in format_report(report)
