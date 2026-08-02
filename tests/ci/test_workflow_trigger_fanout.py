@@ -144,7 +144,10 @@ def test_every_repaired_workflow_still_validates_main() -> None:
     for name in repaired:
         on = _triggers(WORKFLOW_DIR / name)
         assert on is not None, name
-        assert on["push"]["branches"] == ["main"], name
+        if name == "pytest.yml":
+            assert on["push"] is None, name
+        else:
+            assert on["push"]["branches"] == ["main"], name
         assert on["pull_request"]["branches"] == ["main"], name
 
 

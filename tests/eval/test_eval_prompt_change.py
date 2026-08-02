@@ -1239,6 +1239,31 @@ class TestMainCLI:
             eval_mod.main()
         assert exc.value.code == 3
 
+    def test_github_models_retirement_brownout_exits_zero(self, tmp_path, monkeypatch, capsys):
+        scen = self._make_scenarios_file(tmp_path)
+        before = tmp_path / "a.md"
+        before.write_text("p", encoding="utf-8")
+        after = tmp_path / "b.md"
+        after.write_text("p", encoding="utf-8")
+
+        monkeypatch.setattr(eval_mod, "load_api_key", lambda: "test-key")
+
+        def boom_run(*a, **kw):
+            raise RuntimeError(
+                "GitHub Models API returned HTTP 410: Error code: 410 - "
+                "{'error': {'code': 'github_models_retirement_brownout'}}"
+            )
+
+        monkeypatch.setattr(eval_mod, "_run_and_report", boom_run)
+        monkeypatch.setattr(sys, "argv", [
+            "prog", "--before", str(before), "--after", str(after),
+            "--scenarios", str(scen),
+        ])
+        with pytest.raises(SystemExit) as exc:
+            eval_mod.main()
+        assert exc.value.code == 0
+        assert "SKIP: behavioral eval could not run" in capsys.readouterr().err
+
     def test_identical_before_after_warning_emitted(self, tmp_path, monkeypatch, capsys):
         scen = self._make_scenarios_file(tmp_path)
         before = tmp_path / "a.md"
@@ -1266,6 +1291,10 @@ class TestIsProviderOutage:
         [
             "Anthropic API returned HTTP 400: usage limits, regain 2026-07-01",
             "GitHub Models API returned HTTP 429: too many requests",
+            (
+                "GitHub Models API returned HTTP 410: Error code: 410 - "
+                "{'error': {'code': 'github_models_retirement_brownout'}}"
+            ),
             "OpenAI API request timed out",
             "OpenAI API network error: ConnectionError",
             "GitHub Models API returned HTTP 503",

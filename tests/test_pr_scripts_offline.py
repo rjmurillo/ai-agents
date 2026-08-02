@@ -71,7 +71,7 @@ def _run_blocked(program: str, env_extra: dict[str, str]) -> subprocess.Complete
     return subprocess.run(
         [sys.executable, "-c", program],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         env=env,
         timeout=60,
         check=False,

@@ -344,7 +344,6 @@ except RuntimeError:
 uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" "[log]"
 ```
 
-
 ## Performance Considerations
 
 | Operation | Typical Latency | Notes |

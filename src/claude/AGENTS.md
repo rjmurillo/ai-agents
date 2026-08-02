@@ -58,7 +58,7 @@ Per ADR-036 §Synchronization Requirement, when adding content that applies to A
 ```text
 1. Edit src/claude/{agent}.md
 2. Duplicate universal changes to templates/agents/{agent}.shared.md
-3. Run: python3 build/generate_agents.py
+3. Run: uv run python build/generate_agents.py
 4. Commit all changed files together
 ```
 
@@ -67,7 +67,7 @@ Per ADR-036 §Synchronization Requirement, when adding content that applies to A
 ```text
 1. Edit templates/agents/{agent}.shared.md
 2. Edit src/claude/{agent}.md (MANUAL - not auto-synced!)
-3. Run: python3 build/generate_agents.py
+3. Run: uv run python build/generate_agents.py
 4. Commit all files atomically
 ```
 
@@ -276,7 +276,7 @@ gh pr view 50 --json ...
 1. Create `src/claude/{agent-name}.md` with required sections
 2. Create `templates/agents/{agent-name}.shared.md` with platform-agnostic content
 3. Update `templates/platforms/*.yaml` if new tools needed
-4. Run `python3 build/generate_agents.py`
+4. Run `uv run python build/generate_agents.py`
 5. Update documentation (root AGENTS.md, AGENT-SYSTEM.md)
 6. Commit all files together
 
@@ -291,7 +291,7 @@ gh pr view 50 --json ...
 
 3. Edit templates/agents/{agent}.shared.md with equivalent changes
 
-4. Run: python3 build/generate_agents.py
+4. Run: uv run python build/generate_agents.py
 
 5. Review generated files in src/vs-code-agents/ and src/copilot-cli/
 
@@ -302,7 +302,7 @@ gh pr view 50 --json ...
 
 ```bash
 # Validate generated files match templates
-python3 build/generate_agents.py --validate
+uv run python build/generate_agents.py --validate
 
 # Check for drift between Claude and VS Code
 python3 build/scripts/detect_agent_drift.py

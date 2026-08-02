@@ -113,6 +113,7 @@ ignore = []
 # Test files use sys.path.insert() before importing modules under test
 "tests/hooks/**/*.py" = ["E402"]
 "tests/skills/**/*.py" = ["E402"]
+"tests/validation/**/*.py" = ["E402"]
 # ANN suppression for test files (annotations not required in tests)
 "tests/**/*.py" = ["ANN"]
 "**/tests/**/*.py" = ["ANN"]

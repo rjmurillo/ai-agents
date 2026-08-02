@@ -1,6 +1,6 @@
-## Changelog
+# Changelog
 
-### v4.1.0 (Current)
+## v4.1.0 (Current)
 
 - **Extended frontmatter support** - Full support for `model`, `context`, `agent`, `hooks`, `user-invocable`
 - Created `scripts/_constants.py` for shared validation constants
@@ -12,7 +12,7 @@
 - Updated skill template with modern best practices
 - Expanded frontmatter requirements table with 10 properties
 
-### v4.0.0
+## v4.0.0
 
 - **Phase 0 Skill Triage** - Intelligent routing before creation
 - Universal input handling - any prompt works
@@ -20,7 +20,7 @@
 - Decision matrix: USE | IMPROVE | CREATE | COMPOSE
 - Renamed from SkillCreator to SkillForge
 
-### v3.2.0
+## v3.2.0
 
 - Added Script Integration Framework for agentic skills
 - Added 4th Script Agent to synthesis panel (conditional)
@@ -33,14 +33,14 @@
 - Updated validate-skill.py with script validation
 - Skills can now include self-verifying Python scripts
 
-### v3.1.0
+## v3.1.0
 
 - Added progressive disclosure structure
 - Fixed frontmatter for packaging compatibility
 - Added validation & packaging section
 - Deep dive sections now collapsible
 
-### v3.0.0
+## v3.0.0
 
 - Complete redesign as ultimate meta-skill
 - Added regression questioning loop
@@ -48,11 +48,11 @@
 - Added evolution/timelessness core lens
 - Added multi-agent synthesis panel
 
-### v2.0.0
+## v2.0.0
 
 - Pattern selection guide
 - Quality standards checklist
 
-### v1.0.0
+## v1.0.0
 
 - Basic skill structure
