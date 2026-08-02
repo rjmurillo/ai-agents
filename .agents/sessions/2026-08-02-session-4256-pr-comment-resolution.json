@@ -64,7 +64,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Review fix commit 151af01bfd."
+        "Evidence": "Review fix commit 2b81f6c757; recorded in this follow-up session-log commit."
       },
       "validationPassed": {
         "level": "MUST",
@@ -100,6 +100,6 @@
       "result": "29 targeted tests passed; mutation harness killed all five mutants; ruff, taste, and type-ignore ratchets passed at baselines 326, 601, and 44."
     }
   ],
-  "endingCommit": "151af01bfd",
+  "endingCommit": "2b81f6c757",
   "nextSteps": []
 }

@@ -59,7 +59,8 @@
       "content": "Commit: 3598b31a34",
       "caused_by": [],
       "leads_to": [
-        "e007"
+        "e007",
+        "e008"
       ],
       "_source_session": "2026-08-02-session-4256-pr-comment-resolution"
     },
@@ -73,6 +74,17 @@
       ],
       "leads_to": [],
       "_source_session": "2026-08-02-session-4256-pr-comment-resolution"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 2b81f6c757",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4256-pr-comment-resolution"
     }
   ],
   "metrics": {
@@ -80,7 +92,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 6
   },
   "lessons": []
