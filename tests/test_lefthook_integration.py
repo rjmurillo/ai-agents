@@ -2442,18 +2442,26 @@ def test_skillforge_excludes_fixtures_and_command_mirrors(
         calls.append(list(args))
         return _completed(0)
 
+    # `build` is a generated command mirror because .claude/commands/build.md
+    # exists; `hand-written` sits in the same directory with no command source,
+    # so it is an authored skill and must still reach the validator.
+    commands = tmp_path / ".claude" / "commands"
+    commands.mkdir(parents=True)
+    (commands / "build.md").write_text("# build\n", encoding="utf-8")
+
     monkeypatch.setattr(policy, "_run_command", fake_run)
     result = policy.run_skillforge(
         [
             "evals/example/SKILL.md",
             "src/copilot-cli/skills/build/SKILL.md",
+            "src/copilot-cli/skills/hand-written/SKILL.md",
             ".claude/skills/real-skill/SKILL.md",
         ],
         tmp_path,
     )
 
     # Fixtures and command mirrors are skipped before any subprocess runs, so
-    # the only skill that reaches SkillForge is the real one. The
+    # the skills that reach SkillForge are the authored ones. The
     # frontmatter-only exemption probes HEAD and index blobs via _run_command
     # first, so filter to the validator invocation rather than counting every
     # subprocess call.
@@ -2461,8 +2469,60 @@ def test_skillforge_excludes_fixtures_and_command_mirrors(
         call for call in calls if any("validate-skill.py" in str(arg) for arg in call)
     ]
     assert result == 0
-    assert len(validate_calls) == 1
-    assert validate_calls[0][-1] == ".claude/skills/real-skill"
+    assert [call[-1] for call in validate_calls] == [
+        "src/copilot-cli/skills/hand-written",
+        ".claude/skills/real-skill",
+    ]
+
+
+def test_skillforge_mirror_skip_is_derived_from_the_commands_directory(
+    tmp_path: Path,
+) -> None:
+    """The mirror set has one source of truth: .claude/commands/<name>.md.
+
+    Enumerating names in lefthook.yml and again in git_hook_policy.py is what
+    let the two lists drift (9 of 14 in one, 14 in the other).
+    """
+    commands = tmp_path / ".claude" / "commands"
+    commands.mkdir(parents=True)
+    (commands / "research.md").write_text("# research\n", encoding="utf-8")
+
+    # Positive: a mirror whose command source exists is skipped.
+    assert (
+        policy._skip_skillforge_path("src/copilot-cli/skills/research/SKILL.md", tmp_path) is True
+    )
+    # Positive: eval fixtures are skipped regardless of the commands directory.
+    assert policy._skip_skillforge_path("evals/example/SKILL.md", tmp_path) is True
+
+    # Negative: no command source, so the skill is authored and stays gated.
+    assert (
+        policy._skip_skillforge_path("src/copilot-cli/skills/analyze/SKILL.md", tmp_path) is False
+    )
+    # Negative: the Claude tree is never a mirror, even for a command name.
+    assert policy._skip_skillforge_path(".claude/skills/research/SKILL.md", tmp_path) is False
+
+    # Edge: a nested file under a mirror directory is not the mirror itself.
+    assert (
+        policy._skip_skillforge_path(
+            "src/copilot-cli/skills/research/references/workflow.md", tmp_path
+        )
+        is False
+    )
+    # Edge: a sub-directory command (forgetful/memory-save.md) has no flat
+    # mirror, so the flat path must not be skipped on its account.
+    assert (
+        policy._skip_skillforge_path("src/copilot-cli/skills/memory-save/SKILL.md", tmp_path)
+        is False
+    )
+
+
+def test_lefthook_skillforge_exclude_does_not_restate_the_mirror_names() -> None:
+    """lefthook.yml must not carry a second copy of the mirror list."""
+    config = yaml.safe_load((PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
+
+    excludes = _job_map(config, "pre-commit")["skillforge"]["exclude"]
+
+    assert excludes == ["evals/**"]
 
 
 def test_generated_staging_uses_the_named_allowlist(tmp_path: Path) -> None:
