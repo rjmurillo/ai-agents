@@ -66,6 +66,25 @@ class TestGetLatestSemanticMilestone:
         assert result["Data"]["title"] == "0.2.1"
         assert result["Data"]["number"] == 3
 
+    def test_v_prefixed_titles(self, capsys):
+        mod = self._import()
+        milestones = [
+            {"title": "v0.4.0", "number": 1},
+            {"title": "v0.6.x close-out", "number": 2},
+            {"title": "v0.5.0", "number": 3},
+        ]
+        with (
+            patch("get_latest_semantic_milestone.assert_gh_authenticated"),
+            patch("get_latest_semantic_milestone.resolve_repo_params", return_value=_mock_repo()),
+            patch("get_latest_semantic_milestone.gh_api_paginated", return_value=milestones),
+        ):
+            rc = mod.main([])
+        assert rc == 0
+        result = json.loads(capsys.readouterr().out)
+        assert result["Data"]["found"] is True
+        assert result["Data"]["title"] == "v0.5.0"
+        assert result["Data"]["number"] == 3
+
     def test_no_milestones(self, capsys):
         mod = self._import()
         with (

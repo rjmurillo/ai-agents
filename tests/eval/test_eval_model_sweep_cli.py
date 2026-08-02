@@ -163,7 +163,6 @@ def test_parse_report_extracts_agent_rates():
         "per_fixture_pass_rates": {
             "f1": {"agent": [1.0, 0.5], "baseline": [0.0]},
             "f2": {"agent": [0.5]},
-            "f3": {"baseline": [0.0]},  # no agent variant -> skipped
         },
         "total_tokens_in": 100,
         "total_tokens_out": 200,
@@ -178,6 +177,42 @@ def test_parse_report_extracts_agent_rates():
     assert result.tokens_out == 200
     assert result.cost_usd == 0.05
     assert result.error_count == 2
+
+
+@pytest.mark.parametrize(
+    "per_fixture",
+    [
+        {"f1": {"agent": []}},
+        {"f1": {"agent": [True]}},
+        {"f1": {"agent": [2.0]}},
+        {"f1": {"agent": [float("nan")]}},
+        {"f1": {"baseline": [1.0]}},
+        {"f1": ["not", "a", "variant", "mapping"]},
+    ],
+)
+def test_parse_report_rejects_missing_or_impossible_rates(per_fixture):
+    report = {
+        "agent_recall": 1.0,
+        "fixture_set_sha": "sha-abc",
+        "per_fixture_pass_rates": per_fixture,
+        "error_count": 0,
+    }
+
+    with pytest.raises(ValueError):
+        sweep.parse_report(report, model_id="m1")
+
+
+@pytest.mark.parametrize("agent_recall", [True, 2.0, float("nan")])
+def test_parse_report_rejects_impossible_agent_recall(agent_recall):
+    report = {
+        "agent_recall": agent_recall,
+        "fixture_set_sha": "sha-abc",
+        "per_fixture_pass_rates": {"f1": {"agent": [1.0]}},
+        "error_count": 0,
+    }
+
+    with pytest.raises(ValueError, match="agent_recall"):
+        sweep.parse_report(report, model_id="m1")
 
 
 @pytest.mark.parametrize(

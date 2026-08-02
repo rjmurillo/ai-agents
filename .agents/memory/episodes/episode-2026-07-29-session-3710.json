@@ -1,0 +1,86 @@
+{
+  "id": "episode-2026-07-29-session-3710",
+  "session": "2026-07-29-session-3710",
+  "timestamp": "2026-07-29T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix #3710: markdown lint gate reports PASS when it selected zero files",
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "routing",
+      "context": "",
+      "chosen": "Reproduce #3710: markdown lint gate returns PASS on zero selected files",
+      "rationale": "Verified live with markdownlint-cli2 0.23.2: a file carrying MD041 and MD032 placed under .agents/ prints 'Linting: 0 files' and exits 0. .markdownlint-cli2.yaml excludes 3,529 of 3,935 tracked markdown files (89.7%) through 44 ignores patterns.",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduce #3710: markdown lint gate returns PASS on zero selected files",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Find and fix a second defect in the same function",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Establish that Summary cannot substitute for the Linting banner",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ship the fix with tests and mutation coverage",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "File the second call site rather than expand the diff",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 4
+  },
+  "lessons": []
+}

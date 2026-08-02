@@ -12,7 +12,7 @@ matching "Source" instead.
 
 | Generator | Source (edit here) | Output (do not edit) | Spec |
 |-----------|--------------------|----------------------|------|
-| `build/generate_agents.py` | `templates/agents/*.shared.md` | `src/claude/`, `src/copilot-cli/agents/`, `src/vs-code-agents/` (per platform YAML) | ADR-002 |
+| `build/generate_agents.py` | `templates/agents/*.shared.md` | `src/copilot-cli/agents/`, `src/vs-code-agents/` (per platform YAML) | ADR-002 |
 | `build/scripts/generate_rules.py` | `.claude/rules/*.md` | `.github/instructions/*.instructions.md`, `src/copilot-cli/instructions/*.instructions.md` | REQ-003-006 |
 | `build/scripts/generate_skills.py` | `.claude/skills/<name>/` | `src/copilot-cli/skills/<name>/` | REQ-003-001 |
 | `build/scripts/generate_commands.py` | `.claude/commands/<name>.md` | `src/copilot-cli/skills/<name>/SKILL.md` | REQ-003-001 |
@@ -30,6 +30,13 @@ install-parity validator, which fails CI when a sibling drifts from its source.
 |------|------|-------|
 | `.claude/agents/<name>.md` | Claude Code self-host agent copy | `build/scripts/validate_install_parity.py` |
 | `.github/agents/<name>.agent.md` | GitHub Copilot self-host agent copy | `build/scripts/validate_install_parity.py` |
+| `src/claude/<name>.md` | claude-agents plugin agent copy | `build/scripts/validate_install_parity.py` |
+
+`src/claude/` is a hand-maintained copy, not a generator output. It was
+misclassified as a strict vendored copy until Issue #2882; the membership rule
+in `validate_install_parity.py` (`_SHARED_AGENT_HAND_MAINTAINED_PREFIXES`) is
+the authority. Editing a shared agent means editing the template plus all three
+copies in this table; running `build_all.py` will not do it for you.
 
 ## Regenerating
 
@@ -38,21 +45,22 @@ commands, rules, hooks):
 
 ```bash
 # Regenerate everything from canonical sources.
-python3 build/scripts/build_all.py
+uv run python build/scripts/build_all.py
 
 # Verify generated trees match sources without writing (CI drift gate).
-python3 build/scripts/build_all.py --check
+uv run python build/scripts/build_all.py --check
 
 # Agents only (also runnable standalone).
-python3 build/generate_agents.py
+uv run python build/generate_agents.py
 
 # PR-quality CI prompts only.
 python3 build/scripts/generate_pr_quality_prompts.py
 ```
 
 After editing a source listed above, run the matching regen command and commit
-the regenerated output in the same PR. A plugin source change also requires a
-`plugin.json` version bump (see AGENTS.md, Issue #2118).
+the regenerated output in the same PR. A plugin source change requires no
+`plugin.json` edit: the manifests carry no `version` field, and adding one back
+fails `build/scripts/validate_plugin_version_bump.py` (ADR-092, Issue #4080).
 
 The Copilot hook generator retains per-matcher shim wrappers, then emits one
 dispatcher registration per event when the platform enables dispatcher mode.

@@ -11,48 +11,32 @@
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "milestone",
       "content": "First end-to-end run of the loop against a real model. Fingerprint 06f74397...",
-      "caused_by": [
-        "e014"
-      ],
-      "leads_to": [
-        "e002"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e002",
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "milestone",
       "content": "A held-out ACCEPT, which the loop is built to treat as the win condition.",
-      "caused_by": [
-        "e001"
-      ],
-      "leads_to": [
-        "e003"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e003",
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "milestone",
       "content": "The verdict on this benchmark was decided by scorer variance, not by the edit. The real candidate got lucky; the no-op got unlucky.",
-      "caused_by": [
-        "e002"
-      ],
-      "leads_to": [
-        "e004"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e004",
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "milestone",
       "content": "489 tests pass, 100% coverage on all three optimizer modules, ruff and mypy clean.",
-      "caused_by": [
-        "e003"
-      ],
-      "leads_to": [
-        "e006"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e005",
@@ -61,7 +45,13 @@
       "content": "Commit: 06f74397",
       "caused_by": [],
       "leads_to": [
-        "e007"
+        "e014",
+        "e041",
+        "e042",
+        "e043",
+        "e044",
+        "e046",
+        "e048"
       ]
     },
     {
@@ -69,23 +59,23 @@
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "milestone",
       "content": "Four blocking findings closed, verified by replaying the 2026-07-27 live runs: the false ACCEPT is now refused naming both the family bar and the corrected per-comparison bar, and attempts to loosen the bar to 0.5 or drop it are refused without spending a consultation. 508 tests pass with 100 percent line coverage on all three optimizer modules. Code landed as a5791784c.",
-      "caused_by": [
-        "e004"
-      ],
-      "leads_to": [
-        "e008"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e007",
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: a5791784c",
-      "caused_by": [
-        "e005"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e017"
+        "e014",
+        "e041",
+        "e042",
+        "e043",
+        "e044",
+        "e046",
+        "e048"
       ]
     },
     {
@@ -93,72 +83,48 @@
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "milestone",
       "content": "Reported that the rule-path finding was independently corroborated on the agent benchmark: twelve of twenty-four agent fixtures moving on identical input. RETRACTED the same day and withdrawn in full. The two runs disagree on fixture_set_sha, so the corpus changed alongside the prompt and the comparison was confounded, not a null control. No valid agent-path null control exists in the repository. What survives: the rule path has a live null control, and the hook path needs none because pytest results are deterministic.",
-      "caused_by": [
-        "e006"
-      ],
-      "leads_to": [
-        "e009"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e009",
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "milestone",
       "content": "489 tests pass at this point in the session, 100% coverage on all three optimizer modules, ruff and mypy clean.",
-      "caused_by": [
-        "e008"
-      ],
-      "leads_to": [
-        "e010"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e010",
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "milestone",
       "content": "WRONG, retracted the same day in the phase below. The agent-path null control was not a null control: the two runs disagree on fixture_set_sha, so the corpus changed along with nothing else I had checked. The twelve-of-twenty-four corroboration is withdrawn in full. What survives this phase is the defect shape 16 correction, which rests on rule-path data, and the --max-p ledger verification, which does not depend on what the reports measured.",
-      "caused_by": [
-        "e009"
-      ],
-      "leads_to": [
-        "e011"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e011",
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "milestone",
       "content": "All three findings closed. The id invariant test in tests/skills/memory/test_update_causal_graph.py caught the second-order breakage before it reached the remote, which is exactly what that test exists for. 96 tests pass in that file.",
-      "caused_by": [
-        "e010"
-      ],
-      "leads_to": [
-        "e012"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e012",
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "milestone",
       "content": "A published claim is withdrawn within hours of publishing it, and the withdrawal produced a real defect: the comparison tool ignores the field the report format provides to validate the comparison. Task ids are not a substitute, since all eight ids matched while the contents differed. Corrected state of the evidence: one path, the rule path, has a valid null control; the hook path needs none because pytest_results is deterministic; the agent path has none.",
-      "caused_by": [
-        "e011"
-      ],
-      "leads_to": [
-        "e013"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e013",
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "milestone",
       "content": "1050 tests pass with 100% coverage on all three optimizer modules. Ruff and mypy clean on changed files. The guard refuses the exact pair that produced the retracted claim, and refuses it again when the envelope is stripped.",
-      "caused_by": [
-        "e012"
-      ],
-      "leads_to": [
-        "e015"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e014",
@@ -166,46 +132,64 @@
       "type": "test",
       "content": "['uv run pytest tests/eval/ tests/test_eval_optimizer_core.py tests/test_eval_optimizer_adapters.py: 1050 passed', 'coverage: optimize-artifact.py 461 stmts 100%, _optimizer_core.py 259 stmts 100%, _optimizer_adapters.py 89 stmts 100%', 'gate on evals/architect-spike/reports/20260528T051601Z-70c6ae97 against 20260528T055934Z-5f4d8ad4: REJECT, compared false, consultations 0', 'same pair with the candidate envelope stripped to a bare mapping: REJECT, compared false, consultations 0']",
       "caused_by": [
-        "e038"
+        "e005",
+        "e007",
+        "e017",
+        "e020",
+        "e021",
+        "e022",
+        "e023",
+        "e024",
+        "e025",
+        "e026",
+        "e027",
+        "e028",
+        "e029",
+        "e030",
+        "e031",
+        "e032",
+        "e033",
+        "e034",
+        "e035",
+        "e036",
+        "e037",
+        "e038",
+        "e039",
+        "e040",
+        "e049"
       ],
-      "leads_to": [
-        "e001"
-      ]
+      "leads_to": []
     },
     {
       "id": "e015",
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "milestone",
       "content": "Five review findings closed, one documented overclaim corrected rather than defended. Ruff and mypy clean on changed files, no em or en dashes in any changed file.",
-      "caused_by": [
-        "e013"
-      ],
-      "leads_to": [
-        "e016"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e016",
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "milestone",
       "content": "Three round-17 findings fixed TDD and empirically re-proved. The generalizable lesson: a shared payload builder does not stop two call sites from drifting, it only makes the drift visible as an argument, so a test must assert the call sites produce equal output.",
-      "caused_by": [
-        "e015"
-      ],
-      "leads_to": [
-        "e018"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e017",
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: e8f3cb0fe8871786efaeb82225d72d0c49906348",
-      "caused_by": [
-        "e007"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e020"
+        "e014",
+        "e041",
+        "e042",
+        "e043",
+        "e044",
+        "e046",
+        "e048"
       ]
     },
     {
@@ -213,21 +197,15 @@
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "milestone",
       "content": "Seven review threads closed, and the two highest-priority were the ones where a claim I had already retracted was still being published by a generator I had been skipping all session. 1102 tests pass with 100 percent coverage on all three optimizer modules; ruff and mypy clean; zero em or en dashes in any changed file. Three lessons generalize. A retraction is not complete when the source document carries it, only when every derived artifact does, and SKIP_AUTOFIX buys commit speed by deferring exactly the generators that keep derived artifacts honest. Asserting that both numbers appear in a refusal does not test that a reader can tell which is which. And a number carried into five documents by copying is corrected in five places or in none, with the test docstring the most likely to be missed, because nobody greps rationale prose when they change a claim.",
-      "caused_by": [
-        "e016"
-      ],
-      "leads_to": [
-        "e019"
-      ]
+      "caused_by": [],
+      "leads_to": []
     },
     {
       "id": "e019",
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "milestone",
       "content": "The statistical claim is correct in all five places it lives, and every review thread on PR #3478 is answered and resolved. Defect shape 21 generalizes one level up: it was first diagnosed as a retraction that stops at the source document and leaves the generated tier asserting a withdrawn claim, and the independence figure is the same failure in prose. A number copied into five documents is corrected in five places or in none, and the test docstring is the one most likely to be missed because nobody greps rationale prose when they change a claim.",
-      "caused_by": [
-        "e018"
-      ],
+      "caused_by": [],
       "leads_to": []
     },
     {
@@ -235,11 +213,15 @@
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: c1b25afc8199c3d02a21cd7d2d9db0f30669042e",
-      "caused_by": [
-        "e017"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e021"
+        "e014",
+        "e041",
+        "e042",
+        "e043",
+        "e044",
+        "e046",
+        "e048"
       ]
     },
     {
@@ -247,11 +229,15 @@
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 44be0404f",
-      "caused_by": [
-        "e020"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e022"
+        "e014",
+        "e041",
+        "e042",
+        "e043",
+        "e044",
+        "e046",
+        "e048"
       ]
     },
     {
@@ -259,11 +245,15 @@
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: b32f4bd16",
-      "caused_by": [
-        "e021"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e023"
+        "e014",
+        "e041",
+        "e042",
+        "e043",
+        "e044",
+        "e046",
+        "e048"
       ]
     },
     {
@@ -271,11 +261,15 @@
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: a541a88cd",
-      "caused_by": [
-        "e022"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e024"
+        "e014",
+        "e041",
+        "e042",
+        "e043",
+        "e044",
+        "e046",
+        "e048"
       ]
     },
     {
@@ -283,11 +277,15 @@
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: a33c5c089",
-      "caused_by": [
-        "e023"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e025"
+        "e014",
+        "e041",
+        "e042",
+        "e043",
+        "e044",
+        "e046",
+        "e048"
       ]
     },
     {
@@ -295,11 +293,15 @@
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 7d8a015a3",
-      "caused_by": [
-        "e024"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e026"
+        "e014",
+        "e041",
+        "e042",
+        "e043",
+        "e044",
+        "e046",
+        "e048"
       ]
     },
     {
@@ -307,11 +309,15 @@
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: f6057de64",
-      "caused_by": [
-        "e025"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e027"
+        "e014",
+        "e041",
+        "e042",
+        "e043",
+        "e044",
+        "e046",
+        "e048"
       ]
     },
     {
@@ -319,11 +325,15 @@
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 1009eb761",
-      "caused_by": [
-        "e026"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e028"
+        "e014",
+        "e041",
+        "e042",
+        "e043",
+        "e044",
+        "e046",
+        "e048"
       ]
     },
     {
@@ -331,11 +341,15 @@
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: bac4cf0e7",
-      "caused_by": [
-        "e027"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e029"
+        "e014",
+        "e041",
+        "e042",
+        "e043",
+        "e044",
+        "e046",
+        "e048"
       ]
     },
     {
@@ -343,11 +357,15 @@
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: e3bdae5bb",
-      "caused_by": [
-        "e028"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e030"
+        "e014",
+        "e041",
+        "e042",
+        "e043",
+        "e044",
+        "e046",
+        "e048"
       ]
     },
     {
@@ -355,11 +373,15 @@
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: cdd704367",
-      "caused_by": [
-        "e029"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e031"
+        "e014",
+        "e041",
+        "e042",
+        "e043",
+        "e044",
+        "e046",
+        "e048"
       ]
     },
     {
@@ -367,11 +389,15 @@
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: de1e96c31",
-      "caused_by": [
-        "e030"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e032"
+        "e014",
+        "e041",
+        "e042",
+        "e043",
+        "e044",
+        "e046",
+        "e048"
       ]
     },
     {
@@ -379,11 +405,15 @@
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: feb236208",
-      "caused_by": [
-        "e031"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e033"
+        "e014",
+        "e041",
+        "e042",
+        "e043",
+        "e044",
+        "e046",
+        "e048"
       ]
     },
     {
@@ -391,11 +421,15 @@
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 8810db74e",
-      "caused_by": [
-        "e032"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e034"
+        "e014",
+        "e041",
+        "e042",
+        "e043",
+        "e044",
+        "e046",
+        "e048"
       ]
     },
     {
@@ -403,11 +437,15 @@
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 11c2ba505",
-      "caused_by": [
-        "e033"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e035"
+        "e014",
+        "e041",
+        "e042",
+        "e043",
+        "e044",
+        "e046",
+        "e048"
       ]
     },
     {
@@ -415,11 +453,15 @@
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 66029eb45",
-      "caused_by": [
-        "e034"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e036"
+        "e014",
+        "e041",
+        "e042",
+        "e043",
+        "e044",
+        "e046",
+        "e048"
       ]
     },
     {
@@ -427,11 +469,15 @@
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 185fc7631",
-      "caused_by": [
-        "e035"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e037"
+        "e014",
+        "e041",
+        "e042",
+        "e043",
+        "e044",
+        "e046",
+        "e048"
       ]
     },
     {
@@ -439,11 +485,15 @@
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 136840822",
-      "caused_by": [
-        "e036"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e038"
+        "e014",
+        "e041",
+        "e042",
+        "e043",
+        "e044",
+        "e046",
+        "e048"
       ]
     },
     {
@@ -451,11 +501,283 @@
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: db48b1c65",
-      "caused_by": [
-        "e037"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e014"
+        "e014",
+        "e041",
+        "e042",
+        "e043",
+        "e044",
+        "e046",
+        "e048"
+      ]
+    },
+    {
+      "id": "e039",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: a9154fc2d",
+      "caused_by": [],
+      "leads_to": [
+        "e014",
+        "e041",
+        "e042",
+        "e043",
+        "e044",
+        "e046",
+        "e048"
+      ]
+    },
+    {
+      "id": "e040",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 4710c7ee4",
+      "caused_by": [],
+      "leads_to": [
+        "e014",
+        "e041",
+        "e042",
+        "e043",
+        "e044",
+        "e046",
+        "e048"
+      ]
+    },
+    {
+      "id": "e041",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "test",
+      "content": "Forced interleaving before the fix: two added:true reports, one stored entry. After: one success, one explicit ConfigError naming the lock, lock cleaned up. 1437 eval tests pass with 100% statement coverage on optimize-artifact.py (587), _optimizer_core.py (283), _optimizer_adapters.py (89). Full suite 15651 passed, 26 skipped. ruff clean on both changed files; RUFF_RATCHET_BASE_REF=origin/main ruff_ratchet.py reports passed for 3 changed files; mypy clean.",
+      "caused_by": [
+        "e005",
+        "e007",
+        "e017",
+        "e020",
+        "e021",
+        "e022",
+        "e023",
+        "e024",
+        "e025",
+        "e026",
+        "e027",
+        "e028",
+        "e029",
+        "e030",
+        "e031",
+        "e032",
+        "e033",
+        "e034",
+        "e035",
+        "e036",
+        "e037",
+        "e038",
+        "e039",
+        "e040",
+        "e049"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e042",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "test",
+      "content": "['Eval suite 1472 to 1494 passed, all three optimizer modules at 100 percent statement coverage.', 'Full suite 15713 passed, 26 skipped, 262.82s.', 'Ruff ratchet passed for 5 changed Python files against origin/main. mypy clean. Zero dashes, zero lines over 100 columns.', 'Commits 8af188e16 finding four, 3b04293fb finding three, f187cb0bc finding two, 8583129b3 finding one.', 'Eight mutations M24 through M31, every one red, each multi-part fix falsified in halves.', 'Shape 45 written to .agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md.']",
+      "caused_by": [
+        "e005",
+        "e007",
+        "e017",
+        "e020",
+        "e021",
+        "e022",
+        "e023",
+        "e024",
+        "e025",
+        "e026",
+        "e027",
+        "e028",
+        "e029",
+        "e030",
+        "e031",
+        "e032",
+        "e033",
+        "e034",
+        "e035",
+        "e036",
+        "e037",
+        "e038",
+        "e039",
+        "e040",
+        "e049"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e043",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "test",
+      "content": "['Eval suite 1494 to 1505 passed, all three optimizer modules still at 100 percent statement coverage.', 'Commits 4fc921120 the contention split, e4d5c0d6c the permission guard hoist.', 'M32 reverts the split, 5 red. M33 lets the mkdir handler borrow the contention message, 6 red.', 'Guard verified to fire: 16 tests go from run to skipped when the predicate sees a zero euid.', 'Both review threads answered with the measured output and resolved.', 'Shape 46 written to .agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md.']",
+      "caused_by": [
+        "e005",
+        "e007",
+        "e017",
+        "e020",
+        "e021",
+        "e022",
+        "e023",
+        "e024",
+        "e025",
+        "e026",
+        "e027",
+        "e028",
+        "e029",
+        "e030",
+        "e031",
+        "e032",
+        "e033",
+        "e034",
+        "e035",
+        "e036",
+        "e037",
+        "e038",
+        "e039",
+        "e040",
+        "e049"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e044",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "test",
+      "content": "Eval suite 1562 to 1609 passing. Ruff ratchet passed for 5 changed files. Mutations M41, M42, M43b, M44 and M45 all killed. Issues #3588 and #3591 filed. Commits f401792ba, 479076dd2 and 75515e0ac on fix/eval-refuse-malformed-input.",
+      "caused_by": [
+        "e005",
+        "e007",
+        "e017",
+        "e020",
+        "e021",
+        "e022",
+        "e023",
+        "e024",
+        "e025",
+        "e026",
+        "e027",
+        "e028",
+        "e029",
+        "e030",
+        "e031",
+        "e032",
+        "e033",
+        "e034",
+        "e035",
+        "e036",
+        "e037",
+        "e038",
+        "e039",
+        "e040",
+        "e049"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e045",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "PR #3579 re-merged with main and pushed as 1ebc1fb3d with 1697 passing. The disproved-justification episode is recorded as shape 66 so the next round treats a plan's stated rationale as a claim to verify, not a premise.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e046",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "test",
+      "content": "PR #3579 re-merged with main and pushed as 1ebc1fb3d with 1697 passing. The disproved-justification episode is recorded as shape 66 so the next round treats a plan's stated rationale as a claim to verify, not a premise.",
+      "caused_by": [
+        "e005",
+        "e007",
+        "e017",
+        "e020",
+        "e021",
+        "e022",
+        "e023",
+        "e024",
+        "e025",
+        "e026",
+        "e027",
+        "e028",
+        "e029",
+        "e030",
+        "e031",
+        "e032",
+        "e033",
+        "e034",
+        "e035",
+        "e036",
+        "e037",
+        "e038",
+        "e039",
+        "e040",
+        "e049"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e047",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Three atomic commits on feat/eval-rule-multirun: 1c17fbd97 the bool bar, 45070a105 the parser module narrowing, 652555541 the parser-derived window. Suite 1849 passed with ruff and mypy clean on both changed files, and the reviewer has the new implementation to attack.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e048",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "test",
+      "content": "Three atomic commits on feat/eval-rule-multirun: 1c17fbd97 the bool bar, 45070a105 the parser module narrowing, 652555541 the parser-derived window. Suite 1849 passed with ruff and mypy clean on both changed files, and the reviewer has the new implementation to attack.",
+      "caused_by": [
+        "e005",
+        "e007",
+        "e017",
+        "e020",
+        "e021",
+        "e022",
+        "e023",
+        "e024",
+        "e025",
+        "e026",
+        "e027",
+        "e028",
+        "e029",
+        "e030",
+        "e031",
+        "e032",
+        "e033",
+        "e034",
+        "e035",
+        "e036",
+        "e037",
+        "e038",
+        "e039",
+        "e040",
+        "e049"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e049",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 691dcfb0e",
+      "caused_by": [],
+      "leads_to": [
+        "e014",
+        "e041",
+        "e042",
+        "e043",
+        "e044",
+        "e046",
+        "e048"
       ]
     }
   ],
@@ -464,8 +786,10 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 22,
+    "commits": 25,
     "files_changed": 6
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 46 -> 175"
 }

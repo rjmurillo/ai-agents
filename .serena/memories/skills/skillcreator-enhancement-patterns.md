@@ -7,7 +7,7 @@
 
 When reviewing an existing skill with skillcreator methodology:
 
-1. **Run validation first**: `python3 .claude/skills/skillcreator/scripts/validate-skill.py <skill-path>`
+1. **Run validation first**: `python3 .claude/skills/SkillForge/scripts/validate-skill.py <skill-path>`
 2. **Note check count**: Initial vs final (e.g., 6/15 → 18/18)
 3. **Apply multi-lens analysis** to identify gaps
 

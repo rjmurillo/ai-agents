@@ -9,6 +9,7 @@ baseline (the CI ratchet that blocks new upstream-path references).
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -44,18 +45,15 @@ class TestCountUpstreamRefs:
         assert csp.count_upstream_refs(text) == 0
 
     def test_counts_multiple_occurrences(self) -> None:
-        text = (
-            "paths = ['.agents/a', '.agents/b', "
-            "'.claude/review-axes/c', '.claude/skills/d']"
-        )
+        text = "paths = ['.agents/a', '.agents/b', '.claude/review-axes/c', '.claude/skills/d']"
         assert csp.count_upstream_refs(text) == 4
 
     def test_counts_split_claude_path_construction(self) -> None:
-        text = '''\
+        text = """\
 os.path.join(root, ".claude", "lib")
 Path(".claude") / "review-axes"
 base / ".claude" / "skills"
-'''
+"""
         assert csp.count_upstream_refs(text) == 3
 
     def test_ignores_python_comments_and_docstrings(self) -> None:
@@ -70,24 +68,24 @@ def path() -> str:
         assert csp.count_upstream_refs(text) == 1
 
     def test_ignores_python_cli_prose_strings(self) -> None:
-        text = '''\
+        text = """\
 parser = argparse.ArgumentParser(
     description="Mentions .agents/ as CLI prose.",
     epilog="Mentions .claude/lib/ as CLI prose.",
 )
 parser.add_argument("--path", help="Mentions .claude/skills/ as CLI prose.")
 runtime = ".agents/runtime"
-'''
+"""
         assert csp.count_upstream_refs(text) == 1
 
     def test_ignores_python_cli_prose_fstrings(self) -> None:
-        text = '''\
+        text = """\
 parser.add_argument(
     "--path",
     help=f"Mentions .agents/{name} and .claude/lib/{name} as CLI prose.",
 )
 runtime = ".agents/runtime"
-'''
+"""
         assert csp.count_upstream_refs(text) == 1
 
     def test_ignores_hash_comments_in_shell_and_powershell(self) -> None:
@@ -145,10 +143,15 @@ RUNTIME_PATH = ".claude/skills/runtime"
         self._skill_script(tmp_path, "gamma", "Path('.agents/architecture')\n")
         original_read_text = Path.read_text
 
-        def read_text(path: Path, *args: object, **kwargs: object) -> str:
+        def read_text(
+            path: Path,
+            encoding: str | None = None,
+            errors: str | None = None,
+            newline: str | None = None,
+        ) -> str:
             if path.name == "run.py":
                 raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "bad byte")
-            return original_read_text(path, *args, **kwargs)
+            return original_read_text(path, encoding, errors, newline)
 
         monkeypatch.setattr(Path, "read_text", read_text)
 
@@ -157,11 +160,11 @@ RUNTIME_PATH = ".claude/skills/runtime"
 
 
 class TestRepoRoot:
-    def test_fallback_is_parent_directory_when_start_is_file(self, tmp_path: Path) -> None:
-        script = tmp_path / "script.py"
+    def test_fallback_is_parent_directory_when_start_is_file(self, external_tmp_path: Path) -> None:
+        script = external_tmp_path / "script.py"
         script.write_text("print('ok')\n", encoding="utf-8")
 
-        assert csp._repo_root(script) == tmp_path
+        assert csp._repo_root(script) == external_tmp_path
 
 
 class TestDiffAgainstBaseline:
@@ -258,11 +261,121 @@ class TestRepoRatchet:
         baseline.write_text('{"files": {}}\n', encoding="utf-8")
         original_read_text = Path.read_text
 
-        def read_text(path: Path, *args: object, **kwargs: object) -> str:
+        def read_text(
+            path: Path,
+            encoding: str | None = None,
+            errors: str | None = None,
+            newline: str | None = None,
+        ) -> str:
             if path.name == "run.py":
                 raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "bad byte")
-            return original_read_text(path, *args, **kwargs)
+            return original_read_text(path, encoding, errors, newline)
 
         monkeypatch.setattr(Path, "read_text", read_text)
 
         assert csp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)]) == 2
+
+    def test_improvement_triggers_failure_to_tighten_baseline(self, tmp_path: Path) -> None:
+        """Baseline slack (current < baseline) must exit 1 (issue #3730).
+
+        A stale baseline allows future regressions to accumulate silently up to
+        the slack headroom. The fix: any non-zero improvement list exits 1 so
+        the author must run --update-baseline.
+        """
+        self._repo_with_clean_skill(tmp_path)
+        # Baseline records 5 refs; current code has 0. That is an improvement.
+        baseline_path = tmp_path / "baseline.json"
+        baseline_path.write_text(
+            '{"files": {"skills/alpha/scripts/run.py": 5}}\n', encoding="utf-8"
+        )
+        assert csp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline_path)]) == 1
+
+    def test_baseline_shrink_requires_the_explicit_override(self, tmp_path: Path) -> None:
+        self._repo_with_clean_skill(tmp_path)
+        baseline_path = tmp_path / "baseline.json"
+        baseline_path.write_text(
+            '{"files": {"skills/alpha/scripts/run.py": 5}}\n', encoding="utf-8"
+        )
+        # The floor now comes from the committed copy, so the fixture has to be
+        # a real repository. A directory with no git in it cannot answer what
+        # was already forgiven, and the guard refuses rather than guess.
+        for command in (
+            ["init", "-q"],
+            ["config", "user.email", "t@example.com"],
+            ["config", "user.name", "t"],
+            ["add", "-A"],
+            ["commit", "-qm", "seed"],
+        ):
+            subprocess.run(
+                ["git", "-C", str(tmp_path), *command], check=True, capture_output=True
+            )
+        args = [
+            "--repo-root",
+            str(tmp_path),
+            "--baseline",
+            str(baseline_path),
+            "--update-baseline",
+        ]
+
+        assert csp.main(args) == 2
+        assert csp.main([*args, "--allow-baseline-shrink"]) == 0
+        assert json.loads(baseline_path.read_text(encoding="utf-8"))["files"] == {}
+
+    def test_regression_still_triggers_failure(self, tmp_path: Path) -> None:
+        """Regressions (current > baseline) must still exit 1."""
+        skills = tmp_path / ".claude" / "skills" / "beta" / "scripts"
+        skills.mkdir(parents=True, exist_ok=True)
+        (skills / "run.py").write_text(
+            "import subprocess\nsubprocess.run(['.agents/run.sh'])\n",
+            encoding="utf-8",
+        )
+        baseline_path = tmp_path / "baseline.json"
+        baseline_path.write_text('{"files": {"skills/beta/scripts/run.py": 0}}\n', encoding="utf-8")
+        assert csp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline_path)]) == 1
+
+    def test_exact_match_exits_zero(self, tmp_path: Path) -> None:
+        """Only an exact match between current and baseline exits 0."""
+        skills = tmp_path / ".claude" / "skills" / "gamma" / "scripts"
+        skills.mkdir(parents=True, exist_ok=True)
+        (skills / "run.py").write_text("print('ok')\n", encoding="utf-8")
+        baseline_path = tmp_path / "baseline.json"
+        baseline_path.write_text(
+            '{"files": {"skills/gamma/scripts/run.py": 0}}\n', encoding="utf-8"
+        )
+        assert csp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline_path)]) == 0
+
+    def test_a_baseline_outside_the_repository_is_refused_in_both_modes(
+        self, tmp_path: Path
+    ) -> None:
+        """The read and the write have to agree about what they will accept.
+
+        This checker used to resolve any `--baseline` while the write path
+        refused every out-of-tree destination, so a read succeeded and the
+        update it was meant to precede failed. The permissiveness was never a
+        decision: the resolver predated the containment test its two siblings
+        apply, and a later dedupe preserved the gap verbatim.
+        """
+        root = tmp_path / "repo"
+        skills = root / ".claude" / "skills" / "delta" / "scripts"
+        skills.mkdir(parents=True)
+        (skills / "run.py").write_text("print('ok')\n", encoding="utf-8")
+        outside = tmp_path / "outside.json"
+        outside.write_text('{"files": {}}\n', encoding="utf-8")
+        argv = ["--repo-root", str(root), "--baseline", str(outside)]
+
+        assert csp.main(argv) == 2
+        assert csp.main([*argv, "--update-baseline"]) == 2
+        assert json.loads(outside.read_text(encoding="utf-8")) == {"files": {}}
+
+    def test_a_baseline_inside_the_repository_is_still_accepted(
+        self, tmp_path: Path
+    ) -> None:
+        """The refusal above is only correct if the supported path still works."""
+        root = tmp_path / "repo"
+        skills = root / ".claude" / "skills" / "delta" / "scripts"
+        skills.mkdir(parents=True)
+        (skills / "run.py").write_text("print('ok')\n", encoding="utf-8")
+        inside = root / "baseline.json"
+        inside.write_text('{"files": {"skills/delta/scripts/run.py": 0}}\n', encoding="utf-8")
+
+        assert csp.main(["--repo-root", str(root), "--baseline", str(inside)]) == 0

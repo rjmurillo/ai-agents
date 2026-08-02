@@ -93,9 +93,9 @@ jobs:
     env:
       RUN_CLI_E2E: '1'
       # renovate: datasource=npm depName=@anthropic-ai/claude-code
-      CLAUDE_CODE_VERSION: '2.1.217'
+      CLAUDE_CODE_VERSION: '2.1.220'
       # renovate: datasource=npm depName=@github/copilot
-      COPILOT_CLI_VERSION: '1.0.73'
+      COPILOT_CLI_VERSION: '1.0.75'
     steps:
       - name: Harden Runner
         # Windows and macOS runners do not support harden-runner; gate it.
@@ -206,6 +206,14 @@ jobs:
     permissions:
       contents: read
     steps:
+      # The reporter is a repo script, so this job needs it on disk. Without
+      # this the step died with Errno 2 and masked the real smoke result.
+      - name: Checkout reporter script
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          sparse-checkout: scripts/ci/require_job_results.py
+          sparse-checkout-cone-mode: false
+
       - name: Report
         shell: bash
         env:
@@ -213,16 +221,11 @@ jobs:
           TRUSTED: ${{ needs.authorize.outputs.trusted }}
           SMOKE_RESULT: ${{ needs.smoke.result }}
         run: |
-          if [ "$AUTHORIZE_RESULT" != "success" ]; then
-            echo "::error::Trusted-context gate result: $AUTHORIZE_RESULT"
-            exit 1
-          fi
-          if [ "$TRUSTED" != "true" ]; then
-            echo "::error::Untrusted context; smoke skipped. Run on trusted repo via schedule/workflow_dispatch."
-            exit 1
-          fi
-          if [ "$SMOKE_RESULT" != "success" ]; then
-            echo "::error::Nightly smoke result: $SMOKE_RESULT"
-            exit 1
-          fi
-          echo "Nightly CLI smoke passed on all platforms."
+          python3 scripts/ci/require_job_results.py \
+            --check AUTHORIZE_RESULT success \
+              "Trusted-context gate result: {value}" \
+            --check TRUSTED true \
+              "Untrusted context; smoke skipped. Run on trusted repo via schedule/workflow_dispatch." \
+            --check SMOKE_RESULT success \
+              "Nightly smoke result: {value}" \
+            --success-message "Nightly CLI smoke passed on all platforms."

@@ -92,9 +92,7 @@ def test_missing_repo_root_is_exit_2(all_tools, tmp_path):
 def test_non_workflow_paths_are_filtered_out(all_tools, monkeypatch, tmp_path):
     # Custom actions and unrelated YAML never run under gh act; they drop out
     # and, with nothing left to test, the run is a clean no-op.
-    r = w.run_local_test(
-        [".github/actions/foo/action.yml", "README.md"], tmp_path
-    )
+    r = w.run_local_test([".github/actions/foo/action.yml", "README.md"], tmp_path)
     assert r.exit_code == 0
     assert r.note == "no workflow files to test"
 
@@ -132,9 +130,7 @@ def test_actionlint_missing_is_exit_3(monkeypatch, tmp_path):
     assert "actionlint" in r.note
 
 
-def test_actionlint_missing_in_remote_container_downgrades_to_warning(
-    monkeypatch, tmp_path
-):
+def test_actionlint_missing_in_remote_container_downgrades_to_warning(monkeypatch, tmp_path):
     # actionlint unavailable inside a remote container (CLAUDECODE set, no CI)
     # must not block the push: it degrades to a logged warning (exit 0), the same
     # way the gh/gh act gap already does. Issue #3064 extends PR #2548's degrade
@@ -149,9 +145,7 @@ def test_actionlint_missing_in_remote_container_downgrades_to_warning(
     assert "actionlint" in r.note
 
 
-def test_actionlint_missing_in_ci_still_blocks_even_with_container_signal(
-    monkeypatch, tmp_path
-):
+def test_actionlint_missing_in_ci_still_blocks_even_with_container_signal(monkeypatch, tmp_path):
     # CI provisions actionlint, so a missing binary is a real failure. The CI
     # marker overrides the container signal via the real _is_remote_container():
     # hard exit 3, never degraded (Issue #3064).
@@ -191,9 +185,7 @@ def test_gh_act_extension_missing_is_exit_3(monkeypatch, tmp_path):
     assert "gh act extension" in r.note
 
 
-def test_gh_act_missing_in_remote_container_downgrades_to_warning(
-    monkeypatch, tmp_path
-):
+def test_gh_act_missing_in_remote_container_downgrades_to_warning(monkeypatch, tmp_path):
     # gh act unavailable inside a remote container (CLAUDECODE set, no CI) must
     # not block the push: it degrades to a logged warning (exit 0). Item 3 of
     # issue #2548.
@@ -209,9 +201,7 @@ def test_gh_act_missing_in_remote_container_downgrades_to_warning(
     assert "gh act" in r.note
 
 
-def test_gh_act_missing_in_ci_still_blocks_even_with_container_signal(
-    monkeypatch, tmp_path
-):
+def test_gh_act_missing_in_ci_still_blocks_even_with_container_signal(monkeypatch, tmp_path):
     # In CI, gh act is provisioned, so a missing extension is a real failure.
     # The CI marker overrides the container signal: hard exit 3, never degraded.
     monkeypatch.setattr(w, "_have", lambda tool: True)
@@ -298,9 +288,7 @@ def test_docker_not_installed_is_exit_3_with_distinct_note(monkeypatch, tmp_path
     assert "Docker is not installed" in r.note
 
 
-def test_docker_missing_in_remote_container_downgrades_to_warning(
-    all_tools, monkeypatch, tmp_path
-):
+def test_docker_missing_in_remote_container_downgrades_to_warning(all_tools, monkeypatch, tmp_path):
     # Docker unavailable inside a remote container (CLAUDECODE set, no CI) must
     # not block the push: actionlint and the dry-run pass, and the full stage's
     # Docker gap degrades to a logged warning (exit 0). Issue #3064.
@@ -584,7 +572,7 @@ def test_secret_in_comment_is_not_blocking(all_tools, monkeypatch, tmp_path):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         "name: x\n# mentions secrets.ABSENT_SECRET in a comment\n"
-        'on: push\njobs:\n  j:\n    runs-on: ubuntu-latest\n    steps:\n'
+        "on: push\njobs:\n  j:\n    runs-on: ubuntu-latest\n    steps:\n"
         '      - run: echo "the literal text secrets.ABSENT_SECRET is fine"\n',
         encoding="utf-8",
     )
@@ -657,9 +645,7 @@ def test_format_json_exposes_secret_skipped(all_tools, monkeypatch, tmp_path):
     assert payload["exit_code"] == 0
 
 
-def test_format_json_exposes_missing_secret_names_for_exit_4(
-    all_tools, monkeypatch, tmp_path
-):
+def test_format_json_exposes_missing_secret_names_for_exit_4(all_tools, monkeypatch, tmp_path):
     monkeypatch.delenv("BOT_PAT_2841", raising=False)
     _write_wf_secrets(tmp_path, WF, "BOT_PAT_2841")
     monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
@@ -766,9 +752,7 @@ def test_read_worktree_gitdir_relative_pointer(tmp_path):
     gitdir.mkdir(parents=True)
     worktree = tmp_path / "wt"
     worktree.mkdir()
-    (worktree / ".git").write_text(
-        "gitdir: ../.git/worktrees/feat\n", encoding="utf-8"
-    )
+    (worktree / ".git").write_text("gitdir: ../.git/worktrees/feat\n", encoding="utf-8")
     assert w._read_worktree_gitdir(worktree) == str(gitdir.resolve())
 
 
@@ -1109,9 +1093,7 @@ def test_act_full_downgrades_other_pr_context_properties(monkeypatch, tmp_path):
     assert "[WARN]" in res.detail
 
 
-def test_act_full_workflow_dispatch_pr_context_error_still_blocks(
-    monkeypatch, tmp_path
-):
+def test_act_full_workflow_dispatch_pr_context_error_still_blocks(monkeypatch, tmp_path):
     wf = _write_wf(tmp_path, "name: x\non: workflow_dispatch\njobs: {}\n")
     monkeypatch.setattr(
         w,
@@ -1249,6 +1231,28 @@ def test_act_limitation_hint_matches_known_patterns() -> None:
     assert w._act_limitation_hint("Error: job 'build' exited 2") is None
 
 
+def test_act_limitation_hint_matches_action_cache_copy_failure() -> None:
+    """dockerd refusing act's action staging path is transport, not a defect."""
+    text = (
+        "[Validate Plugin Version Bump/Check Changed Paths] failed to copy content "
+        "to container: Error response from daemon: statat "
+        "var/run/act/actions/dorny-paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706"
+        ": path escapes from parent"
+    )
+    hint = w._act_limitation_hint(text)
+    assert hint is not None
+    assert "local transport" in hint
+
+
+def test_act_limitation_hint_ignores_a_real_copy_failure_elsewhere() -> None:
+    """Only the act staging path is excused; other copy failures still block."""
+    text = (
+        "failed to copy content to container: Error response from daemon: statat "
+        "home/runner/work/repo/artifact.tar: path escapes from parent"
+    )
+    assert w._act_limitation_hint(text) is None
+
+
 def test_act_limitation_hint_matches_empty_pr_env_patterns() -> None:
     # Empty PR-context env-var manifestations (#3265), event-scoped to
     # pull_request; workflow_dispatch keeps them blocking.
@@ -1283,14 +1287,71 @@ def test_act_limitation_hint_matches_empty_pr_env_patterns() -> None:
     )
 
 
+def test_act_limitation_hint_matches_argparse_empty_pr_number() -> None:
+    """argparse's ``type=int`` prints a different message than a bare int().
+
+    post_issue_comment.py takes --issue as an argparse int, so an empty
+    PR_NUMBER under act surfaces as "argument --issue: invalid int value: ''"
+    rather than the "invalid literal for int()" form. Same act-only cause,
+    different surface text.
+    """
+    assert (
+        w._act_limitation_hint(
+            "post_issue_comment.py: error: argument --issue: invalid int value: ''",
+            "pull_request",
+        )
+        is not None
+    )
+    # Event-scoped: workflow_dispatch keeps it blocking.
+    assert (
+        w._act_limitation_hint(
+            "post_issue_comment.py: error: argument --issue: invalid int value: ''",
+            "workflow_dispatch",
+        )
+        is None
+    )
+    # A non-empty value is a real defect, not the empty-env signature.
+    assert (
+        w._act_limitation_hint(
+            "error: argument --issue: invalid int value: 'abc'",
+            "pull_request",
+        )
+        is None
+    )
+
+
+def test_adr035_wrapper_annotation_is_explained_only_alongside_a_limitation() -> None:
+    """run_with_retry.py's ADR-035 annotation is derived, not a cause.
+
+    When the wrapped script failed for an attributed act limitation, the
+    wrapper annotation restates that limitation one layer up and must not veto
+    the downgrade. On its own it stays unexplained, so a genuine configuration
+    error still blocks.
+    """
+    wrapper = "::error::Configuration error (ADR-035 exit 2). Check command output."
+    limitation = "error: argument --issue: invalid int value: ''"
+
+    combined = f"{limitation}\n{wrapper}\n"
+    assert w._unexplained_error_annotations(combined, "pull_request") == []
+    assert w._act_limitation_hint(combined, "pull_request") is not None
+
+    # Negative: the wrapper alone is a real configuration error.
+    assert len(w._unexplained_error_annotations(wrapper, "pull_request")) == 1
+
+    # Negative: event-scoped, so workflow_dispatch keeps both blocking.
+    assert len(w._unexplained_error_annotations(combined, "workflow_dispatch")) == 1
+
+    # Negative: a genuine annotation riding along still blocks.
+    with_genuine = f"{combined}::error::Genuine action bug\n"
+    assert w._act_limitation_hint(with_genuine, "pull_request") is None
+
+
 def test_format_text_surfaces_warning_detail_on_ok() -> None:
     report = w.Report(
         exit_code=0,
         stages=[
             w.StageResult("actionlint", True),
-            w.StageResult(
-                "gh act (full)", True, "[WARN] x.yml: act container lacks .git"
-            ),
+            w.StageResult("gh act (full)", True, "[WARN] x.yml: act container lacks .git"),
         ],
     )
     out = w._format_text(report)
@@ -1313,6 +1374,16 @@ def test_act_limitation_hint_matches_paths_filter_missing_base() -> None:
     # Not event-scoped: the payload gap is identical on every act event.
     assert w._act_limitation_hint(verbatim, "pull_request") is not None
     assert w._act_limitation_hint(verbatim, "workflow_dispatch") is not None
+
+
+def test_act_limitation_hint_matches_local_server_port_collision() -> None:
+    text = (
+        'time="2026-07-28T02:03:00-07:00" level=fatal '
+        'msg="listen tcp 192.168.1.179:34567: bind: address already in use"'
+    )
+    hint = w._act_limitation_hint(text)
+    assert hint is not None
+    assert "local reusable-workflow server port" in hint
 
 
 def test_act_limitation_hint_does_not_match_unrelated_base_error() -> None:
@@ -1346,11 +1417,22 @@ def test_act_limitation_hint_downgrades_when_every_annotation_is_explained() -> 
 
 
 def test_act_limitation_hint_explains_paths_filter_git_rev_parse_annotation() -> None:
+    combined = "::error::The process 'git rev-parse --abbrev-ref HEAD' failed with exit code 128"
+    assert w._act_limitation_hint(combined, "push") is not None
+
+
+def test_act_limitation_hint_attributes_aggregator_cascade_to_limitation() -> None:
     combined = (
-        "::error::The process 'git rev-parse --abbrev-ref HEAD' "
-        "failed with exit code 128"
+        "[CLI Smoke/Check Changed Paths]   ::error::The process "
+        "'git rev-parse --abbrev-ref HEAD' failed with exit code 128\n"
+        "[CLI Smoke/Smoke Result]   ::error::Check changed paths result: failure"
     )
     assert w._act_limitation_hint(combined, "push") is not None
+
+
+def test_act_limitation_hint_blocks_aggregator_cascade_without_limitation() -> None:
+    combined = "[CLI Smoke/Smoke Result]   ::error::Check changed paths result: failure"
+    assert w._act_limitation_hint(combined, "push") is None
 
 
 def test_act_limitation_hint_ignores_non_annotation_noise() -> None:
@@ -1377,3 +1459,334 @@ def test_pr_context_annotation_is_unexplained_outside_pull_request() -> None:
     )
     assert w._act_limitation_hint(combined, "pull_request") is not None
     assert w._act_limitation_hint(combined, "workflow_dispatch") is None
+
+
+# --- act artifact-service limitation (#3690) -----------------------------
+
+# The verbatim tail of a real local act run against agent-metrics.yml. act's
+# embedded artifact server rejects the protobuf field the current
+# actions/upload-artifact client sends, the client reads the rejection as
+# malformed JSON, retries five times, then aborts.
+_ARTIFACT_TRANSPORT_FAILURE = (
+    "[Agent Metrics/Collect]   | Root directory input is valid!\n"
+    'level=error msg="Error decode request body: proto: (line 1:143): '
+    'unknown field \\"mime_type\\""\n'
+    "[Agent Metrics/Collect]   | Attempt 1 of 5 failed with error: "
+    "Unexpected end of JSON input. Retrying request in 3000 ms...\n"
+    "[Agent Metrics/Collect]   \u2757  ::error::Failed to CreateArtifact: "
+    "Failed to make request after 5 attempts: Unexpected end of JSON input\n"
+    "[Agent Metrics/Collect]   \u274c  Failure - Main Upload metrics artifact\n"
+    "Error: Job 'Collect Agent Metrics' failed"
+)
+
+
+def test_artifact_transport_failure_is_act_limitation() -> None:
+    # Positive: the observed CreateArtifact transport failure downgrades.
+    assert w._act_limitation_hint(_ARTIFACT_TRANSPORT_FAILURE) is not None
+
+
+def test_artifact_transport_failure_downgrades_regardless_of_event() -> None:
+    # The artifact server gap is not event-scoped: act lacks the service under
+    # every event, so the rule must hold for each one the gate can select.
+    for event in (None, "push", "workflow_dispatch", "pull_request", "schedule"):
+        assert w._act_limitation_hint(_ARTIFACT_TRANSPORT_FAILURE, event) is not None
+
+
+def test_artifact_transport_failure_matches_any_artifact_verb() -> None:
+    # Anchored on the retry-exhaustion suffix, so download- and finalize-side
+    # transport failures downgrade too without enumerating every verb.
+    for verb in (
+        "CreateArtifact",
+        "FinalizeArtifact",
+        "ListArtifacts",
+        "GetSignedArtifactURL",
+        "DeleteArtifact",
+    ):
+        text = (
+            f"::error::Failed to {verb}: Failed to make request after "
+            "5 attempts: Unexpected end of JSON input"
+        )
+        assert w._act_limitation_hint(text) is not None, verb
+
+
+def test_artifact_no_files_found_still_blocks() -> None:
+    # Negative control. A real artifact defect carries no retry-exhaustion
+    # suffix, so the rule must not swallow it.
+    text = (
+        "::error::No files were found with the provided path: dist/. No artifacts will be uploaded."
+    )
+    assert w._act_limitation_hint(text) is None
+
+
+def test_artifact_invalid_name_still_blocks() -> None:
+    # Negative control. An invalid artifact name is a workflow defect.
+    text = (
+        "::error::The artifact name is not valid: bad/name. "
+        "Contains the following character: Forward slash /"
+    )
+    assert w._act_limitation_hint(text) is None
+
+
+def test_artifact_limitation_does_not_excuse_a_real_failure() -> None:
+    # Edge: a genuine action failure alongside the artifact limitation keeps
+    # blocking, because the unexplained annotation vetoes the downgrade.
+    combined = (
+        _ARTIFACT_TRANSPORT_FAILURE
+        + "\n[Agent Metrics/Collect]   ::error::collect_metrics.py exited 2"
+    )
+    assert w._act_limitation_hint(combined) is None
+
+
+def test_retry_suffix_without_artifact_verb_does_not_match() -> None:
+    # Edge: the rule requires the "Failed to <verb>:" prefix, so an unrelated
+    # retry-exhaustion message is not silently downgraded.
+    text = "::error::Failed after 5 attempts: Unexpected end of JSON input"
+    assert w._act_limitation_hint(text) is None
+
+
+def test_act_full_artifact_transport_failure_warns(monkeypatch, tmp_path):
+    # Integration: the full act stage downgrades to a passing WARN instead of
+    # blocking the push. This is the #3690 symptom.
+    wf = _write_wf(tmp_path, "name: x\non: workflow_dispatch\njobs: {}\n")
+    monkeypatch.setattr(
+        w,
+        "_run",
+        lambda cmd, *, timeout, cwd=None, env=None: (
+            1,
+            _ARTIFACT_TRANSPORT_FAILURE,
+            "",
+        ),
+    )
+    res = w._act_full_stage([wf.name], tmp_path)
+    assert res.ok is True
+    assert "[WARN]" in res.detail
+    assert "artifact" in res.detail
+
+
+def test_act_full_artifact_defect_still_fails(monkeypatch, tmp_path):
+    # Integration negative control: a real artifact defect keeps the stage red.
+    wf = _write_wf(tmp_path, "name: x\non: workflow_dispatch\njobs: {}\n")
+    monkeypatch.setattr(
+        w,
+        "_run",
+        lambda cmd, *, timeout, cwd=None, env=None: (
+            1,
+            "::error::No files were found with the provided path: dist/.",
+            "",
+        ),
+    )
+    res = w._act_full_stage([wf.name], tmp_path)
+    assert res.ok is False
+
+
+# ---------------------------------------------------------------------------
+# No-repo-context limitation (gh API calls in act containers - issue #3981)
+# ---------------------------------------------------------------------------
+
+_NO_REPO_CONTEXT_LOG = (
+    "[Workflow Coalescing Metrics/Collect Coalescing Metrics]   "
+    "| Could not infer repository info. "
+    "Please provide -Owner and -Repo parameters."
+)
+
+
+def test_no_repo_context_is_act_limitation() -> None:
+    # Positive: the "could not infer" message downgrades the failure.
+    hint = w._act_limitation_hint(_NO_REPO_CONTEXT_LOG)
+    assert hint is not None
+    assert "repository context" in hint
+
+
+def test_no_repo_context_limitation_applies_across_events() -> None:
+    # The repo-context gap is not event-scoped: act lacks it under every event.
+    for event in (None, "push", "workflow_dispatch", "pull_request", "schedule"):
+        hint = w._act_limitation_hint(_NO_REPO_CONTEXT_LOG, event)
+        assert hint is not None, f"expected hint for event={event!r}"
+
+
+def test_no_repo_context_limitation_does_not_excuse_genuine_error() -> None:
+    # A genuine workflow error alongside the limitation keeps the stage red.
+    combined = _NO_REPO_CONTEXT_LOG + "\n[Coalescing/Commit]   ::error::collect_metrics.py exited 2"
+    assert w._act_limitation_hint(combined) is None
+
+
+def test_act_full_no_repo_context_warns(monkeypatch, tmp_path) -> None:
+    # Integration: the full act stage downgrades to a passing WARN instead of
+    # blocking the push when the act container lacks repo context.
+    wf = _write_wf(tmp_path, "name: x\non: workflow_dispatch\njobs: {}\n")
+    monkeypatch.setattr(
+        w,
+        "_run",
+        lambda cmd, *, timeout, cwd=None, env=None: (
+            1,
+            _NO_REPO_CONTEXT_LOG,
+            "",
+        ),
+    )
+    res = w._act_full_stage([wf.name], tmp_path)
+    assert res.ok is True
+    assert "[WARN]" in res.detail
+    assert "repository context" in res.detail
+
+
+# ---------------------------------------------------------------------------
+# Cold action cache and the stage timeout (issue #3949)
+# ---------------------------------------------------------------------------
+
+_CLONE_LINE = (
+    "*DRYRUN* [CodeQL Analysis/Analyze (actions)-1]   git clone "
+    "'https://github.com/github/codeql-action' # ref=f205ea1c3313d32999d8d6a48b4f6530d4437b38"
+)
+
+
+def _hang_after(text: str) -> list[str]:
+    """Command that writes ``text`` to stdout, flushes, then sleeps 30 seconds.
+
+    The sleep only has to outlive the budget its caller passes to ``_run`` (2
+    seconds today), so the child is still running when the kill lands.
+    """
+    script = f"import sys, time; sys.stdout.write({text!r}); sys.stdout.flush(); time.sleep(30)"
+    return [sys.executable, "-c", script]
+
+
+def test_dryrun_budget_covers_a_cold_action_cache() -> None:
+    # act clones every referenced action before it can plan, so the dry run needs
+    # the same budget as the full run. Measured on codeql-analysis.yml: 17s warm,
+    # still cloning at 130s with 787M pulled on an empty --action-cache-path.
+    # Equality, not >=: the module derives one constant from the other, and a
+    # future edit that re-splits them into independent literals fails here in
+    # both directions instead of only when the dry run is made smaller.
+    assert w._ACT_DRYRUN_TIMEOUT == w._ACT_FULL_TIMEOUT
+
+
+def test_run_keeps_partial_stdout_on_timeout() -> None:
+    # Positive: the child's pre-kill output is the only evidence of what the run
+    # was doing. Before the fix _run returned "" here and the cause was lost.
+    rc, out, err = w._run(_hang_after(_CLONE_LINE + "\n"), timeout=2)
+
+    assert rc == -1
+    assert _CLONE_LINE in out
+    assert "TimeoutExpired" in err
+
+
+def test_run_returns_empty_output_when_timeout_child_wrote_nothing() -> None:
+    # Edge: TimeoutExpired carries None for a stream the child never wrote to.
+    # Decoding must yield "" rather than raising or leaking "None".
+    rc, out, err = w._run([sys.executable, "-c", "import time; time.sleep(30)"], timeout=2)
+
+    assert rc == -1
+    assert out == ""
+    assert err.startswith("TimeoutExpired: ")
+
+
+def test_decode_partial_handles_bytes_str_and_none() -> None:
+    # subprocess builds TimeoutExpired from the raw pipe buffers, so the partial
+    # output arrives as bytes even though _run passes text=True.
+    assert w._decode_partial(b"clone\n") == "clone\n"
+    assert w._decode_partial("clone\n") == "clone\n"
+    assert w._decode_partial(None) == ""
+    assert w._decode_partial(b"\xff") == "�"
+
+
+def test_timeout_hint_names_the_cold_cache_when_clones_are_present() -> None:
+    # Positive: clone lines in the partial output identify the cache, not the
+    # workflow, as the cause, and name the re-run as the remedy.
+    combined = f"{_CLONE_LINE}\n{_CLONE_LINE}\nTimeoutExpired: timed out after 120 seconds"
+
+    hint = w._stage_timeout_hint(combined)
+
+    assert hint is not None
+    assert "2 'git clone' line(s)" in hint
+    assert "cold gh act action cache" in hint
+    assert "Re-run" in hint
+
+
+def test_timeout_hint_does_not_blame_the_cache_without_clone_activity() -> None:
+    # Negative: a timeout with no clone traffic is a slow run. Claiming a cold
+    # cache there would point the operator at the wrong suspect.
+    combined = "[Build/Compile]   running tests\nTimeoutExpired: timed out after 600 seconds"
+
+    hint = w._stage_timeout_hint(combined)
+
+    assert hint is not None
+    assert "cold gh act action cache is not the cause" in hint
+    assert "git clone" not in hint
+
+
+def test_timeout_hint_is_absent_without_a_timeout() -> None:
+    # Negative: an ordinary nonzero exit gets no timeout cause line, even when
+    # the output happens to carry clone activity.
+    assert w._stage_timeout_hint(f"{_CLONE_LINE}\n::error::step failed") is None
+
+
+def test_timeout_hint_survives_the_detail_truncation() -> None:
+    # Edge: the cap trims the raw output, and the timeout marker sits at its
+    # tail. Deriving the hint from the full text keeps the cause visible.
+    combined = ("noise\n" * 2000) + _CLONE_LINE + "\nTimeoutExpired: timed out after 120 seconds"
+
+    detail = w._with_timeout_hint(combined)
+
+    assert len(combined) > 4000
+    assert "TimeoutExpired" not in detail[:4000]
+    assert "cold gh act action cache" in detail
+
+
+def test_act_dryrun_timeout_fails_with_the_cause(monkeypatch, tmp_path) -> None:
+    # Integration: the stage still blocks, but the operator now reads why.
+    wf = _write_wf(tmp_path, "name: x\non: workflow_dispatch\njobs: {}\n")
+    monkeypatch.setattr(
+        w,
+        "_run",
+        lambda cmd, *, timeout, cwd=None, env=None: (
+            -1,
+            _CLONE_LINE + "\n",
+            "TimeoutExpired: Command '['gh', 'act', '-n']' timed out after 120 seconds",
+        ),
+    )
+
+    res = w._act_dryrun_stage([wf.name], tmp_path)
+
+    assert res.ok is False
+    assert "cold gh act action cache" in res.detail
+    assert "1 'git clone' line(s)" in res.detail
+
+
+def test_act_timeout_does_not_downgrade_on_a_limitation_signature(monkeypatch, tmp_path) -> None:
+    # Regression guard for the partial-output change: a run killed mid-flight
+    # never validated the workflow, so a limitation signature in what it managed
+    # to emit must not turn the timeout into a passing WARN.
+    wf = _write_wf(tmp_path, "name: x\non: workflow_dispatch\njobs: {}\n")
+    monkeypatch.setattr(
+        w,
+        "_run",
+        lambda cmd, *, timeout, cwd=None, env=None: (
+            -1,
+            "fatal: not a git repository\n" + _CLONE_LINE + "\n",
+            "TimeoutExpired: Command '['gh', 'act', '-n']' timed out after 120 seconds",
+        ),
+    )
+
+    res = w._act_dryrun_stage([wf.name], tmp_path)
+
+    assert res.ok is False
+    assert "[WARN]" not in res.detail
+
+
+def test_actionlint_timeout_fails_with_the_cause(monkeypatch, tmp_path) -> None:
+    # Sibling call site: actionlint routes through the same _run, so its timeout
+    # detail gets the same cause line instead of a bare TimeoutExpired.
+    wf = _write_wf(tmp_path, "name: x\non: workflow_dispatch\njobs: {}\n")
+    monkeypatch.setattr(
+        w,
+        "_run",
+        lambda cmd, *, timeout, cwd=None, env=None: (
+            -1,
+            "",
+            "TimeoutExpired: Command '['actionlint']' timed out after 60 seconds",
+        ),
+    )
+
+    res = w._actionlint_stage([wf.name], tmp_path)
+
+    assert res.ok is False
+    assert "killed by the stage timeout" in res.detail

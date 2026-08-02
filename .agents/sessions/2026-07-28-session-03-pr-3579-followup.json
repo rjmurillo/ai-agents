@@ -1,0 +1,131 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3,
+    "date": "2026-07-28",
+    "branch": "fix/eval-degraded-symlink-followup",
+    "startingCommit": "dcc3e7923",
+    "objective": "Follow up after PR #3579 merged before both High review findings were fully fixed.",
+    "id": "2026-07-28-session-03-pr-3579-followup"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions were loaded during the continuation session."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions returned the Serena manual."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "The task continuation summary carried the active handoff from the PR #3579 fix session."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Created this JSON log under .agents/sessions/ for the follow-up branch."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Worked on fix/eval-degraded-symlink-followup, merging origin/main when it advanced."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All follow-up changes are on fix/eval-degraded-symlink-followup."
+      },
+      "memoriesLoaded": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "The supplied summary and PR review findings provided the relevant context."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status and merge-base guards were run before edits and commits."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Both High findings were fixed and verified with targeted tests, probes, ruff, and dash byte checks."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md was not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "No new durable convention was created. The measurement rule is encoded in tests."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No Markdown files were changed by this follow-up work."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Production and test fixes were committed before this session-log commit."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Targeted pytest passed 920 tests, full optimizer target passed 1533 tests, ruff passed, and required probes returned expected exit codes."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Follow-up PR preparation is complete once this log is committed and pushed."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Refuse degraded optimizer measurements",
+      "outcome": "Agent reports now require fixture_ids and completed variant runs. JUnit skipped and errored test cases now exit 2. Assertion failures still map to false.",
+      "evidence": "Final probes returned exit 2 for agent error_count, JUnit error, truncated denominator, and empty run cases. Clean full denominator returned A true and B false."
+    },
+    {
+      "task": "Reject symlink-backed state",
+      "outcome": "State absence now checks the directory entry with lstat and rejects all symlinks before buffer or ledger logic can fail open.",
+      "evidence": "Final probes returned exit 2 for buffer and ledger symlinks covering dangling, file target, and directory target."
+    },
+    {
+      "task": "Negative controls",
+      "outcome": "Changed tests fail against current main when production changes are absent.",
+      "evidence": "Scratch worktree with test-only patch collected 44 tests: 21 failed and 23 passed. The failing tests cover the new refusal behavior."
+    }
+  ],
+  "learnings": {
+    "patterns": [
+      {
+        "pattern": "A measurement not taken is not a measurement of zero.",
+        "context": "Optimizer extraction for agent reports and JUnit hook reports.",
+        "application": "Refuse degraded reports with exit 2 rather than emitting false values."
+      }
+    ]
+  },
+  "endingCommit": "84b75eb3a",
+  "nextSteps": [
+    "Open the follow-up PR against main and wait for CI."
+  ],
+  "developmentPhase": {
+    "current": "completion",
+    "history": [
+      {
+        "phase": "completion",
+        "gate": "passed"
+      }
+    ]
+  }
+}

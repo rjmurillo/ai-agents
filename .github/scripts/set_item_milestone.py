@@ -31,8 +31,10 @@ from scripts.github_core.api import (  # noqa: E402
     resolve_repo_params,
 )
 
-# Matches semantic version strings like "0.2.0", "1.10.3"
-_SEMVER_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
+# Matches semantic version strings like "0.2.0", "v0.4.0", "1.10.3".
+# The optional v prefix matches the repository's tag and milestone convention
+# (every milestone since 0.3.0 is v-prefixed; see issue #3945).
+_SEMVER_PATTERN = re.compile(r"^v?\d+\.\d+\.\d+$")
 
 
 # -------------------------------------------------------------------
@@ -41,8 +43,8 @@ _SEMVER_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
 
 
 def _parse_semver_tuple(version: str) -> tuple[int, ...]:
-    """Parse "X.Y.Z" into (X, Y, Z) for proper numeric sorting."""
-    return tuple(int(part) for part in version.split("."))
+    """Parse "X.Y.Z" or "vX.Y.Z" into (X, Y, Z) for proper numeric sorting."""
+    return tuple(int(part) for part in version.removeprefix("v").split("."))
 
 
 def get_latest_semantic_milestone(
@@ -232,6 +234,15 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="Specific milestone to assign (auto-detects if omitted)",
     )
+    parser.add_argument(
+        "--missing-milestone-ok",
+        action="store_true",
+        help=(
+            "Treat a repository with no semantic version milestone as success. "
+            "Emits a warning annotation and exits 0 instead of the ADR-035 "
+            "configuration-error code."
+        ),
+    )
     return parser
 
 
@@ -275,6 +286,14 @@ def main(argv: list[str] | None = None) -> int:
                 "No semantic version milestone found. "
                 "Create one (e.g., 0.3.0) or pass --milestone-title."
             )
+            if args.missing_milestone_ok:
+                # The absence of a milestone is a repository state, not a
+                # failure of this run. Reporting it as ADR-035 exit 2 makes
+                # run_with_retry.py print a configuration-error annotation
+                # that the caller then has to suppress in shell.
+                print(f"::warning::{msg}", flush=True)
+                _write_result(True, item_type, item_number, "", "skipped", msg)
+                return 0
             print(msg, file=sys.stderr)
             _write_result(
                 False,

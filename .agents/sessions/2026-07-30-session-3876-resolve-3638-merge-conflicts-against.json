@@ -1,0 +1,150 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3876,
+    "date": "2026-07-30",
+    "branch": "autofix/pr-3638-session3390",
+    "startingCommit": "6fde8b433",
+    "objective": "Resolve PR 3638 merge conflicts against main and preserve surviving causal ordering fixes"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions succeeded. The MCP inventory did not expose activate_project, so the server's existing repository binding was used."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial_instructions completed before conflict analysis."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was read and preserved as a read-only reference. No issue 3464 handoff existed."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed 50 GitHub skill scripts. Invoked pr-autofix, merge-resolver, session-init, agent-harness-reference, and session-end."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/usage-mandatory.md read."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md and path-scoped instructions read."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/memory-index.md and usage-mandatory.md loaded."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "autofix/pr-3638-session3390"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On autofix/pr-3638-session3390"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Verified active merge on autofix/pr-3638-session3390 at 6fde8b433 with MERGE_HEAD 7885aa691."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "6fde8b433"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All conflicts resolved, deleted Tier 3 files preserved as deleted, surviving episode code tested, merge committed, and session log completed."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remains unchanged."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No new durable memory needed. ADR-089 and PR discourse already record the deletion boundary and rationale."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No Markdown file was authored by this merge resolution, so scoped markdown lint had no target."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Primary resolution merge commit 63d4f32efba8696f78d88fe25088f3a6a2165cea exists. This log is included in the final main-sync merge."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "319 episode and removal tests passed. Ruff, Python compilation, mirror parity, manifest checks, and conflict-marker verification passed."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Session task tracker updated after context, resolution, validation, and merge commit phases."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-07-30T04:20:00Z",
+      "entry": "Read issues #3464 and #3598, PR #3638 discourse, ADR-089, deletion commit ffe2320c5, and conflicting file history."
+    },
+    {
+      "time": "2026-07-30T04:35:00Z",
+      "entry": "Kept ADR-089 deletions for the Tier 3 graph, updater, schemas, graph tests, and lefthook integration tests."
+    },
+    {
+      "time": "2026-07-30T04:45:00Z",
+      "entry": "Combined main's event renumbering, decision outcome stamping, commit chronology, and validate mode with v2 timestamp and ancestry causal ordering."
+    },
+    {
+      "time": "2026-07-30T04:55:00Z",
+      "entry": "Regenerated the Copilot memory skill mirror and resolved plugin versions while preserving the separate Claude manifest line."
+    },
+    {
+      "time": "2026-07-30T05:05:00Z",
+      "entry": "Ran 66 focused positive, negative, and edge tests, then 319 full episode and removal tests. All passed."
+    },
+    {
+      "time": "2026-07-30T05:10:00Z",
+      "entry": "Created merge commit 63d4f32efba8696f78d88fe25088f3a6a2165cea with both expected parents."
+    },
+    {
+      "time": "2026-07-30T05:20:00Z",
+      "entry": "Merged nine commits that reached origin/main during validation. Resolved the only new conflicts by setting paired project-toolkit manifests to 0.6.5420, one patch above the highest open plugin PR."
+    }
+  ],
+  "endingCommit": "63d4f32efba8696f78d88fe25088f3a6a2165cea",
+  "nextSteps": [
+    "PR #3638 still exceeds the ADR-008 commit ceiling. Resolving that blocker requires branch history rewriting, which this task prohibited."
+  ]
+}

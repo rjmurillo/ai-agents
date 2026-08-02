@@ -65,8 +65,8 @@ jobs:
           PR_BODY: ${{ github.event.pull_request.body }}
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-          set +e
-          authorized=$(python3 ./tests/workflows/test_claude_authorization.py \
+          python3 scripts/ci/check_claude_authorization.py \
+            --checker ./tests/workflows/test_claude_authorization.py \
             --event-name "$EVENT_NAME" \
             --actor "$ACTOR" \
             --author-association "$AUTHOR_ASSOCIATION" \
@@ -75,27 +75,7 @@ jobs:
             --issue-body "$ISSUE_BODY" \
             --issue-title "$ISSUE_TITLE" \
             --pr-body "$PR_BODY" \
-            --pr-title "$PR_TITLE")
-          exit_code=$?
-          set -e
-
-          if [ "$exit_code" -ne 0 ]; then
-            echo "::error::Authorization check script failed with exit code $exit_code."
-            echo "::error::This indicates a script error, not an authorization denial."
-            echo "::error::Review the step output above for specific error messages."
-            echo "::error::Check the Actions summary 'Claude Authorization Check' section if available."
-            exit 1
-          fi
-
-          # Validate output format to prevent silent failures from unexpected values
-          authorized=$(echo "$authorized" | tr -d '[:space:]')
-          if [ "$authorized" != "true" ] && [ "$authorized" != "false" ]; then
-            echo "::error::Authorization check returned unexpected value: '$authorized'. Expected 'true' or 'false'."
-            echo "::error::This may indicate the script exited without producing valid output."
-            exit 1
-          fi
-
-          echo "authorized=$authorized" >> "$GITHUB_OUTPUT"
+            --pr-title "$PR_TITLE"
 
   claude-response:
     needs: check-authorization

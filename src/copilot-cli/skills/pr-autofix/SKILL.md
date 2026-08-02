@@ -1,14 +1,15 @@
 ---
 name: pr-autofix
-description: Autonomous PR monitor and fixer per docs/autonomous-pr-monitor.md. Triages open PRs by tier, addresses thread feedback, fixes CI failures, and enables auto-merge when the 4-condition Ready-to-Merge gate passes.
+description: Autonomous PR monitor and fixer. Triages open PRs by tier, addresses thread feedback, fixes CI failures, and enables auto-merge when the 4-condition Ready-to-Merge gate passes.
 allowed-tools: Bash, Read, Edit, Write, Skill
 user-invocable: true
 ---
 
 # /pr-autofix
 
-Autonomous PR monitor and fixer. Implements the protocol from
-`docs/autonomous-pr-monitor.md`.
+Autonomous PR monitor and fixer. This file carries the whole protocol,
+including the Ready-to-Merge definition below. Nothing outside it is needed
+to run the command.
 
 ## Triggers
 
@@ -109,7 +110,7 @@ If `BEHIND`, update branch against main BEFORE other actions (see doc Branch Upd
 
 - **PR description mismatch**: Remove file references not in the diff (use GitHub API to PATCH body).
 - **Branch behind main**: Worktree + `git merge origin/main --no-edit` + push (no force needed).
-- **Stale merge-state cache**: `test_pr_merge_ready.py` sets `StaleDirtySuspected=true` when GitHub reports `mergeable == "CONFLICTING"` or `mergeStateStatus == "DIRTY"`. This is advisory, not authoritative. Verify against local git FIRST: in a worktree, `git fetch origin "$BASE"`, then `git merge-base --is-ancestor "origin/$BASE" HEAD` (exit 0 = ancestor) AND a `git merge --no-commit --no-ff "origin/$BASE"` trial merge that stays clean. Both clean means the conflict is stale: run a safe base-ref refresh (`git merge origin/"$BASE" --no-edit` + push, no force) after the Force-Push Safety SHA audit, then re-run the completion gate. A failing trial merge means the conflict is real: resolve via merge-resolver. Evidence required: the ancestry exit code and trial-merge result. See doc Stale merge-state cache section (issue #2368).
+- **Stale merge-state cache**: `test_pr_merge_ready.py` sets `StaleDirtySuspected=true` when GitHub reports `mergeable == "CONFLICTING"` or `mergeStateStatus == "DIRTY"`. This is advisory, not authoritative. Verify against local git FIRST: in a worktree, `git fetch origin "$BASE"`, then `git merge-base --is-ancestor "origin/$BASE" HEAD` (exit 0 = ancestor) AND a `git merge --no-commit --no-ff "origin/$BASE"` trial merge that stays clean. Both clean means the conflict is stale: run a safe base-ref refresh (`git merge origin/"$BASE" --no-edit` + push, no force) after the Force-Push Safety SHA audit, then re-run the completion gate. A failing trial merge means the conflict is real: resolve via merge-resolver agent. Evidence required: the ancestry exit code and trial-merge result. See doc Stale merge-state cache section (issue #2368).
 - **Stale CI check**: Push fresh commit to re-trigger; avoid `--no-verify` if possible.
 - **Bot review threads**: Read, triage per Thread Severity, reply with disposition, resolve via `add_pr_review_thread_reply.py --resolve`.
 - **Session validation failure**: Use session-log-fixer skill.
@@ -121,8 +122,23 @@ Before any push: verify `git rev-parse "refs/heads/$BRANCH"` matches the PR's ex
 ```bash
 SHA="<known-good-sha>"
 BRANCH="<branch-name>"
-git push origin "${SHA}:refs/heads/${BRANCH}" --force-with-lease --no-verify
+# The head.sha you already read from get_pr_context.py before starting work.
+EXPECTED_REMOTE_SHA="<observed-head-sha>"
+git push origin "${SHA}:refs/heads/${BRANCH}" \
+  --force-with-lease="refs/heads/${BRANCH}:${EXPECTED_REMOTE_SHA}"
 ```
+
+Pin the lease to an explicit SHA; never use bare `--force-with-lease` here.
+Bare `--force-with-lease` takes its expected value from
+`refs/remotes/origin/$BRANCH`, and any concurrent `git fetch`, including one run
+by a sibling agent in the same checkout, silently advances that ref to the other
+agent's commit. The lease then passes and the push destroys their work. Measured
+on a two-clone repro: with a fetch between the two pushes the bare form
+overwrote a sibling's commit, while
+`--force-with-lease=refs/heads/$BRANCH:<observed-sha>` rejected the identical
+push with `stale info` (issues #3653, #3413). The `rev-parse` check above is a
+separate read and cannot close the window between check and push; only the
+pinned lease is atomic.
 
 Quote every variable expansion. The shell does not treat `:` specially in a refspec; the real reason to quote is that branch names can contain characters the shell DOES treat specially (`*`, `?`, `[`, whitespace), and unquoted `$BRANCH` will word-split or glob on those.
 
@@ -176,7 +192,7 @@ GitHub refuses auto-merge for `UNSTABLE` PRs (issue #2439) and may also reject a
 | `CLEAN` | Auto-merge when waiting is useful; direct merge if GitHub returns the already-clean rejection | `set_pr_auto_merge.py --enable`, then `merge_pr.py --strategy squash` fallback |
 | `UNSTABLE` with documented non-required failures | Direct merge (immediate) | `merge_pr.py --strategy squash` |
 | `BEHIND` | Update branch first, then re-classify | `git merge origin/main --no-edit` + push |
-| `DIRTY`/`CONFLICTING` | See Stale merge-state cache pattern below | merge-resolver if real conflict |
+| `DIRTY`/`CONFLICTING` | See Stale merge-state cache pattern below | merge-resolver agent if real conflict |
 
 `set_pr_auto_merge.py` detects the `UNSTABLE` and already-`CLEAN` rejections from GitHub's GraphQL API and emits the direct-merge fallback command in its error output (exit 3) so the operator never has to translate the generic "GraphQL request failed" message themselves.
 

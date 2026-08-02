@@ -83,13 +83,12 @@ class TestCrossBranchSessionAllocation:
             assert new_session_log._origin_main_max_session() == 0
 
     def test_origin_main_max_zero_on_subprocess_error(self):
-        with patch.object(
-            new_session_log.subprocess, "run", side_effect=OSError("git missing")
-        ):
+        with patch.object(new_session_log.subprocess, "run", side_effect=OSError("git missing")):
             assert new_session_log._origin_main_max_session() == 0
 
     def test_origin_main_max_zero_on_timeout(self):
         import subprocess as _sp
+
         with patch.object(
             new_session_log.subprocess,
             "run",
@@ -100,25 +99,17 @@ class TestCrossBranchSessionAllocation:
     def test_auto_detect_uses_origin_when_higher_than_local(self, tmp_path):
         # Local branch only knows session 5; a sibling committed 2340 to main.
         (tmp_path / "2026-01-01-session-5-test.json").write_text("{}")
-        with patch.object(
-            new_session_log, "_origin_main_max_session", return_value=2340
-        ):
+        with patch.object(new_session_log, "_origin_main_max_session", return_value=2340):
             assert new_session_log._auto_detect_session_number(str(tmp_path)) == 2341
 
     def test_auto_detect_uses_local_when_higher_than_origin(self, tmp_path):
         (tmp_path / "2026-01-01-session-99-test.json").write_text("{}")
-        with patch.object(
-            new_session_log, "_origin_main_max_session", return_value=40
-        ):
+        with patch.object(new_session_log, "_origin_main_max_session", return_value=40):
             assert new_session_log._auto_detect_session_number(str(tmp_path)) == 100
 
     def test_auto_detect_origin_only_when_no_local_dir(self, tmp_path):
-        with patch.object(
-            new_session_log, "_origin_main_max_session", return_value=2340
-        ):
-            result = new_session_log._auto_detect_session_number(
-                str(tmp_path / "missing")
-            )
+        with patch.object(new_session_log, "_origin_main_max_session", return_value=2340):
+            result = new_session_log._auto_detect_session_number(str(tmp_path / "missing"))
             assert result == 2341
 
     def test_auto_detect_uses_explicit_repo_root_for_artifact_root(self, tmp_path):
@@ -128,27 +119,18 @@ class TestCrossBranchSessionAllocation:
         with patch.object(
             new_session_log, "_origin_main_max_session", return_value=2340
         ) as mock_origin:
-            result = new_session_log._auto_detect_session_number(
-                str(artifact_sessions), repo_root
-            )
+            result = new_session_log._auto_detect_session_number(str(artifact_sessions), repo_root)
         assert result == 2341
         mock_origin.assert_called_once_with(repo_root)
 
     def test_max_existing_includes_origin(self, tmp_path):
         (tmp_path / "2026-01-01-session-5.json").write_text("{}")
-        with patch.object(
-            new_session_log, "_origin_main_max_session", return_value=2340
-        ):
+        with patch.object(new_session_log, "_origin_main_max_session", return_value=2340):
             assert new_session_log._get_max_existing_session(str(tmp_path)) == 2340
 
     def test_max_existing_origin_only(self, tmp_path):
-        with patch.object(
-            new_session_log, "_origin_main_max_session", return_value=2340
-        ):
-            assert (
-                new_session_log._get_max_existing_session(str(tmp_path / "missing"))
-                == 2340
-            )
+        with patch.object(new_session_log, "_origin_main_max_session", return_value=2340):
+            assert new_session_log._get_max_existing_session(str(tmp_path / "missing")) == 2340
 
 
 class TestDeriveObjective:
@@ -188,9 +170,7 @@ class TestBuildSessionData:
             "commit": "abc1234",
             "status": "clean",
         }
-        data = new_session_log._build_session_data(
-            git_info, 1, "Test objective", "2026-01-01"
-        )
+        data = new_session_log._build_session_data(git_info, 1, "Test objective", "2026-01-01")
         assert data["session"]["number"] == 1
         assert data["session"]["date"] == "2026-01-01"
         assert data["session"]["branch"] == "main"
@@ -210,9 +190,7 @@ class TestBuildSessionData:
             "commit": "abc1234",
             "status": "clean",
         }
-        data = new_session_log._build_session_data(
-            git_info, 1, "Test objective", "2026-01-01"
-        )
+        data = new_session_log._build_session_data(git_info, 1, "Test objective", "2026-01-01")
         assert data["schemaVersion"] == "1.0"
 
     def test_not_on_main_detection(self):
@@ -222,15 +200,11 @@ class TestBuildSessionData:
             "commit": "abc1234",
             "status": "clean",
         }
-        data = new_session_log._build_session_data(
-            git_info, 1, "Test", "2026-01-01"
-        )
+        data = new_session_log._build_session_data(git_info, 1, "Test", "2026-01-01")
         assert data["protocolCompliance"]["sessionStart"]["notOnMain"]["Complete"] is True
 
         git_info["branch"] = "main"
-        data = new_session_log._build_session_data(
-            git_info, 1, "Test", "2026-01-01"
-        )
+        data = new_session_log._build_session_data(git_info, 1, "Test", "2026-01-01")
         assert data["protocolCompliance"]["sessionStart"]["notOnMain"]["Complete"] is False
 
 
@@ -259,24 +233,18 @@ class TestWriteSessionFile:
     def test_atomic_creation(self, tmp_path):
         """Test O_EXCL prevents overwrite via collision retry."""
         data = {"session": {"number": 1}}
-        path1, _ = new_session_log._write_session_file(
-            str(tmp_path), data, "2026-01-01", "test"
-        )
+        path1, _ = new_session_log._write_session_file(str(tmp_path), data, "2026-01-01", "test")
         assert os.path.exists(path1)
 
         data2 = {"session": {"number": 1}}
-        path2, _ = new_session_log._write_session_file(
-            str(tmp_path), data2, "2026-01-01", "test"
-        )
+        path2, _ = new_session_log._write_session_file(str(tmp_path), data2, "2026-01-01", "test")
         assert os.path.exists(path2)
         assert path2 != path1
 
     def test_creates_directory(self, tmp_path):
         sessions_dir = str(tmp_path / "deep" / "nested")
         data = {"session": {"number": 1}}
-        path, _ = new_session_log._write_session_file(
-            sessions_dir, data, "2026-01-01", "test"
-        )
+        path, _ = new_session_log._write_session_file(sessions_dir, data, "2026-01-01", "test")
         assert os.path.exists(path)
         assert os.path.isdir(sessions_dir)
 
@@ -285,9 +253,7 @@ class TestRunValidation:
     """Tests for _run_validation function."""
 
     def test_returns_false_when_no_script(self, tmp_path):
-        result = new_session_log._run_validation(
-            str(tmp_path / "test.json"), str(tmp_path)
-        )
+        result = new_session_log._run_validation(str(tmp_path / "test.json"), str(tmp_path))
         assert result is False
 
     @patch("new_session_log.subprocess.run")
@@ -297,9 +263,7 @@ class TestRunValidation:
         scripts_dir.mkdir()
         (scripts_dir / "validate_session_json.py").write_text("# stub")
         mock_run.return_value = MagicMock(returncode=0)
-        result = new_session_log._run_validation(
-            str(tmp_path / "test.json"), str(tmp_path)
-        )
+        result = new_session_log._run_validation(str(tmp_path / "test.json"), str(tmp_path))
         assert result is True
 
     @patch("new_session_log.subprocess.run")
@@ -308,10 +272,21 @@ class TestRunValidation:
         scripts_dir.mkdir()
         (scripts_dir / "validate_session_json.py").write_text("# stub")
         mock_run.return_value = MagicMock(returncode=1)
-        result = new_session_log._run_validation(
-            str(tmp_path / "test.json"), str(tmp_path)
-        )
+        result = new_session_log._run_validation(str(tmp_path / "test.json"), str(tmp_path))
         assert result is False
+
+    @patch("new_session_log.subprocess.run")
+    def test_passes_creation_mode_flag_to_validator(self, mock_run, tmp_path):
+        """Validator is called with --creation-mode so protocol items are not checked
+        at creation time, but the full schema still binds (post-#4001, issues #3914, #3946)."""
+        scripts_dir = tmp_path / "scripts"
+        scripts_dir.mkdir()
+        (scripts_dir / "validate_session_json.py").write_text("# stub")
+        mock_run.return_value = MagicMock(returncode=0)
+        new_session_log._run_validation(str(tmp_path / "test.json"), str(tmp_path))
+        call_args = mock_run.call_args[0][0]
+        assert "--creation-mode" in call_args
+        assert "--existing-log" not in call_args
 
 
 class TestGetDescriptiveKeywords:
@@ -332,9 +307,7 @@ class TestGetDescriptiveKeywords:
     def test_limits_keywords(self):
         from session_init.template_helpers import get_descriptive_keywords
 
-        result = get_descriptive_keywords(
-            "session protocol validation testing checking verifying"
-        )
+        result = get_descriptive_keywords("session protocol validation testing checking verifying")
         assert len(result.split("-")) <= 5
 
 
@@ -352,12 +325,47 @@ class TestMain:
         }
         sessions_dir = tmp_path / ".agents" / "sessions"
         sessions_dir.mkdir(parents=True)
-        exit_code = new_session_log.main([
-            "--session-number", "1",
-            "--objective", "test objective",
-            "--skip-validation",
-        ])
+        exit_code = new_session_log.main(
+            [
+                "--session-number",
+                "1",
+                "--objective",
+                "test objective",
+                "--skip-validation",
+            ]
+        )
         assert exit_code == 0
+
+    @patch("new_session_log._run_validation")
+    @patch("new_session_log._origin_main_max_session", return_value=0)
+    @patch("new_session_log.get_git_info")
+    def test_main_validation_exits_0_on_fresh_creation(
+        self, mock_git, _mock_origin, mock_validate, tmp_path
+    ):
+        """Fresh creation runs schema-only validation and exits 0 (#3914, #3946).
+
+        Previously, the validator checked protocol compliance (sessionEnd MUSTs),
+        which are always incomplete at creation time. Now only schema is checked.
+        """
+        mock_git.return_value = {
+            "repo_root": str(tmp_path),
+            "branch": "feat/test",
+            "commit": "abc1234",
+            "status": "clean",
+        }
+        mock_validate.return_value = True  # schema check passes
+        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir.mkdir(parents=True)
+        exit_code = new_session_log.main(
+            [
+                "--session-number",
+                "1",
+                "--objective",
+                "test objective",
+            ]
+        )
+        assert exit_code == 0
+        mock_validate.assert_called_once()
 
 
 def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -365,7 +373,7 @@ def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
         ["git", *args],
         cwd=str(cwd),
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         timeout=30,
         check=True,
     )
@@ -376,7 +384,7 @@ def _git_available() -> bool:
         result = subprocess.run(
             ["git", "--version"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=10,
             check=False,
         )
@@ -429,9 +437,7 @@ class TestParallelBranchCollisionIntegration:
         # Local scan alone would yield 1 (empty dir); origin/main has 2335, so
         # the next number must be 2336, not a reuse of 2335.
         assert new_session_log._origin_main_max_session() == 2335
-        assert (
-            new_session_log._auto_detect_session_number(str(local_sessions)) == 2336
-        )
+        assert new_session_log._auto_detect_session_number(str(local_sessions)) == 2336
 
     def test_origin_max_zero_outside_any_repo(self, tmp_path, monkeypatch):
         # No git repo at all -> best-effort scan returns 0, allocation falls back.

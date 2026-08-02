@@ -13,6 +13,8 @@ import pytest
 
 from scripts.validation import skill_size as _skill_size_mod
 from scripts.validation.skill_size import (
+    RATIONALE_MIN_CHARS,
+    RATIONALE_SEARCH_LINES,
     SKILL_BYTE_LIMIT,
     SKILL_BYTE_TARGET,
     SKILL_BYTE_WARNING,
@@ -22,10 +24,18 @@ from scripts.validation.skill_size import (
     StagedDiscoveryError,
     check_skill_size,
     get_staged_skill_files,
+    has_exception_rationale,
     has_size_exception,
     main,
     read_staged_blob_bytes,
 )
+
+_FIXTURE_REASON = (
+    "size-exception rationale for this fixture. The gate demands a stated reason "
+    "beside a declared escape hatch, so a fixture that exercises the exception "
+    "path must carry one too or it tests a shape the repository forbids."
+)
+_FIXTURE_COMMENT = f"<!--\n{_FIXTURE_REASON}\n-->\n"
 
 # ---------------------------------------------------------------------------
 # has_size_exception
@@ -97,7 +107,9 @@ class TestCheckSkillSize:
     def test_exceeds_limit_with_exception(self, tmp_path: Path) -> None:
         skill = tmp_path / "SKILL.md"
         skill.write_text(
-            "---\nname: test\nsize-exception: true\n---\n" + "line\n" * SKILL_SIZE_LIMIT
+            "---\nname: test\nsize-exception: true\n---\n"
+            + _FIXTURE_COMMENT
+            + "line\n" * SKILL_SIZE_LIMIT
         )
 
         result = check_skill_size(skill)
@@ -180,7 +192,9 @@ class TestCheckSkillSizeBytes:
     def test_exceeds_byte_limit_with_exception(self, tmp_path: Path) -> None:
         skill = tmp_path / "SKILL.md"
         skill.write_text(
-            "---\nname: test\nsize-exception: true\n---\n" + ("x" * 600 + "\n") * 50,
+            "---\nname: test\nsize-exception: true\n---\n"
+            + _FIXTURE_COMMENT
+            + ("x" * 600 + "\n") * 50,
             encoding="utf-8",
         )
 
@@ -295,7 +309,7 @@ class TestCheckSkillSizeBytes:
         skill_dir = tmp_path / "skill"
         skill_dir.mkdir()
         (skill_dir / "SKILL.md").write_text(
-            "---\nname: test\nsize-exception: true\n---\n" + "line\n" * 600
+            "---\nname: test\nsize-exception: true\n---\n" + _FIXTURE_COMMENT + "line\n" * 600
         )
 
         exit_code = main(["--path", str(tmp_path), "--ci"])
@@ -316,7 +330,7 @@ class TestCheckSkillSizeBytes:
         skill_dir = tmp_path / "skill"
         skill_dir.mkdir()
         (skill_dir / "SKILL.md").write_text(
-            "---\nname: test\nsize-exception: true\n---\n" + "x" * 500,
+            "---\nname: test\nsize-exception: true\n---\n" + _FIXTURE_COMMENT + "x" * 500,
             encoding="utf-8",
         )
 
@@ -395,7 +409,9 @@ class TestStagedBlobValidation:
         big = b"x" * (SKILL_BYTE_LIMIT + 64)
         skill = self._write_skill(tmp_path, b"---\nname: big\n---\n" + big)
         self._stage_all(tmp_path)
-        skill.write_bytes(b"---\nname: big\nsize-exception: true\n---\n" + big)
+        skill.write_bytes(
+            b"---\nname: big\nsize-exception: true\n---\n" + _FIXTURE_COMMENT.encode() + big
+        )
 
         monkeypatch.chdir(tmp_path)
         assert main(["--staged-only", "--ci"]) == 1
@@ -408,7 +424,10 @@ class TestStagedBlobValidation:
         # Proves exception parsing reads the staged blob too.
         self._init_repo(tmp_path)
         big = b"x" * (SKILL_BYTE_LIMIT + 64)
-        skill = self._write_skill(tmp_path, b"---\nname: big\nsize-exception: true\n---\n" + big)
+        skill = self._write_skill(
+            tmp_path,
+            b"---\nname: big\nsize-exception: true\n---\n" + _FIXTURE_COMMENT.encode() + big,
+        )
         self._stage_all(tmp_path)
         skill.write_bytes(b"---\nname: big\n---\n" + big)  # exception removed, unstaged
 
@@ -761,7 +780,7 @@ class TestStagedBlobValidation:
         _rev_parse_result = subprocess.run(
             ["git", "rev-parse", "--local-env-vars"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
         )
         if _rev_parse_result.returncode != 0:
             pytest.skip("git build does not support --local-env-vars")
@@ -951,3 +970,123 @@ class TestStagedBlobValidation:
         discovered = {p.as_posix() for p in get_staged_skill_files()}
         assert "src/copilot-cli/skills/big/SKILL.md" in discovered
         assert main(["--staged-only", "--ci"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# has_exception_rationale (Issue #3632)
+# ---------------------------------------------------------------------------
+
+_LONG_REASON = (
+    "size-exception rationale. The 500-line ceiling in skill_size.py wants this "
+    "body split into references/, but the overage predates this change and the "
+    "split alters runtime behavior for every caller, so it needs its own tests "
+    "rather than riding along here. Issue #3632 retires the key."
+)
+
+
+def _oversized(lines: int = SKILL_SIZE_LIMIT + 10) -> str:
+    return "\n".join(f"line {n}" for n in range(lines))
+
+
+def _doc(frontmatter: str, head: str = "", body: str | None = None) -> str:
+    return f"---\n{frontmatter}\n---\n{head}\n{body if body is not None else _oversized()}"
+
+
+class TestHasExceptionRationale:
+    """Rationale detection for a declared size-exception."""
+
+    def test_long_comment_in_head_qualifies(self) -> None:
+        assert has_exception_rationale(f"<!--\n{_LONG_REASON}\n-->\nbody") is True
+
+    def test_absent_comment_does_not_qualify(self) -> None:
+        assert has_exception_rationale("---\nsize-exception: true\n---\nbody") is False
+
+    def test_token_comment_is_too_short(self) -> None:
+        assert has_exception_rationale("<!-- size-exception -->\nbody") is False
+
+    def test_long_comment_without_the_keyword_does_not_qualify(self) -> None:
+        unrelated = _LONG_REASON.replace("size-exception", "generation note")
+        assert has_exception_rationale(f"<!--\n{unrelated}\n-->\nbody") is False
+
+    def test_comment_opening_past_the_window_does_not_qualify(self) -> None:
+        filler = "\n".join("x" for _ in range(RATIONALE_SEARCH_LINES + 5))
+        assert has_exception_rationale(f"{filler}\n<!--\n{_LONG_REASON}\n-->") is False
+
+    def test_comment_opening_inside_the_window_may_close_outside_it(self) -> None:
+        padding = "\n".join(f"{_LONG_REASON} continued." for _ in range(60))
+        content = f"<!--\n{_LONG_REASON}\n{padding}\n-->"
+        assert content.count("\n") > RATIONALE_SEARCH_LINES
+        assert has_exception_rationale(content) is True
+
+    def test_empty_content_does_not_qualify(self) -> None:
+        assert has_exception_rationale("") is False
+
+    def test_keyword_match_is_case_insensitive(self) -> None:
+        shouted = _LONG_REASON.replace("size-exception", "SIZE-EXCEPTION")
+        assert has_exception_rationale(f"<!--\n{shouted}\n-->") is True
+
+    def test_body_at_the_length_floor_qualifies(self) -> None:
+        reason = "size-exception " + "j" * (RATIONALE_MIN_CHARS - len("size-exception "))
+        assert len(reason) == RATIONALE_MIN_CHARS
+        assert has_exception_rationale(f"<!--{reason}-->") is True
+
+    def test_body_one_char_below_the_floor_does_not_qualify(self) -> None:
+        reason = "size-exception " + "j" * (RATIONALE_MIN_CHARS - len("size-exception ") - 1)
+        assert len(reason) == RATIONALE_MIN_CHARS - 1
+        assert has_exception_rationale(f"<!--{reason}-->") is False
+
+
+class TestExceptionRequiresRationale:
+    """check_skill_size refuses an undocumented escape hatch."""
+
+    def test_oversized_exception_without_rationale_fails(self, tmp_path: Path) -> None:
+        target = tmp_path / "SKILL.md"
+        target.write_text(_doc("name: big\nsize-exception: true"), encoding="utf-8")
+        result = check_skill_size(target)
+        assert result.passed is False
+        assert any("no rationale" in e for e in result.errors)
+
+    def test_oversized_exception_with_rationale_passes(self, tmp_path: Path) -> None:
+        target = tmp_path / "SKILL.md"
+        target.write_text(
+            _doc("name: big\nsize-exception: true", head=f"<!--\n{_LONG_REASON}\n-->"),
+            encoding="utf-8",
+        )
+        result = check_skill_size(target)
+        assert result.passed is True
+        assert result.warning is True
+
+    def test_within_limits_exception_without_rationale_still_passes(self, tmp_path: Path) -> None:
+        """A declared-but-unused exception is dead config, not a blocking defect."""
+        target = tmp_path / "SKILL.md"
+        target.write_text(_doc("name: small\nsize-exception: true", body="tiny"), encoding="utf-8")
+        result = check_skill_size(target)
+        assert result.passed is True
+
+    def test_oversized_without_exception_reports_only_the_size_error(self, tmp_path: Path) -> None:
+        target = tmp_path / "SKILL.md"
+        target.write_text(_doc("name: big"), encoding="utf-8")
+        result = check_skill_size(target)
+        assert result.passed is False
+        assert not any("no rationale" in e for e in result.errors)
+
+    def test_byte_overage_alone_also_requires_a_rationale(self, tmp_path: Path) -> None:
+        """The byte ceiling is an independent dimension and must gate the same way."""
+        fat = "w" * (SKILL_BYTE_LIMIT + 100)
+        target = tmp_path / "SKILL.md"
+        target.write_text(_doc("name: fat\nsize-exception: true", body=fat), encoding="utf-8")
+        assert len(fat.splitlines()) < SKILL_SIZE_LIMIT
+        result = check_skill_size(target)
+        assert result.passed is False
+        assert any("no rationale" in e for e in result.errors)
+
+    def test_shipped_spec_forms_carry_a_rationale(self) -> None:
+        """The two files that hold the only live exceptions must stay documented."""
+        root = Path(__file__).resolve().parents[1]
+        for relative in (
+            ".claude/commands/spec.md",
+            "src/copilot-cli/skills/spec/SKILL.md",
+        ):
+            content = (root / relative).read_text(encoding="utf-8")
+            assert has_size_exception(content), relative
+            assert has_exception_rationale(content), relative

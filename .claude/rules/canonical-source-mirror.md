@@ -1,6 +1,7 @@
 ---
 paths:
   - ".claude/hooks/**"
+  - ".claude/rules/**"
   - "scripts/validation/**"
   - "build/scripts/**"
   - ".claude/skills/**"
@@ -16,7 +17,7 @@ This rule binds those claims to evidence. It exists because PR #1887 (the M4 evi
 
 ## What this rule binds
 
-This rule binds any new component under `.claude/hooks/`, `scripts/validation/`, `build/scripts/`, `.claude/skills/`, or `.github/prompts/` whose contract is derived from another source in the repository. The two Copilot-side mirrors scope differently by consumer. `.github/instructions/canonical-source-mirror.instructions.md`, read by Copilot in full-repo context, keeps the full path set (`.claude/hooks/**`, `scripts/validation/**`, `build/scripts/**`, `.claude/skills/**`, `.github/prompts/**`). Its `src/copilot-cli/` twin ships inside the plugin, so it narrows to the paths that travel with the plugin (`scripts/validation/**`, `build/scripts/**`, `.github/prompts/**`). The rule still binds the `.claude/` paths on the Claude side. Examples:
+This rule binds any new component under `.claude/hooks/`, `.claude/rules/`, `scripts/validation/`, `build/scripts/`, `.claude/skills/`, or `.github/prompts/` whose contract is derived from another source in the repository. The two Copilot-side mirrors scope differently by consumer. `.github/instructions/canonical-source-mirror.instructions.md`, read by Copilot in full-repo context, keeps the full path set (`.claude/hooks/**`, `.claude/rules/**`, `scripts/validation/**`, `build/scripts/**`, `.claude/skills/**`, `.github/prompts/**`). Its `src/copilot-cli/` twin ships inside the plugin, so it narrows to the paths that travel with the plugin (`scripts/validation/**`, `build/scripts/**`, `.github/prompts/**`). The rule still binds the `.claude/` paths on the Claude side. Examples:
 
 - A pre-push hook that "mirrors" a CI validator's regex.
 - A skill helper that "matches" the exit codes of a validator script.
@@ -58,6 +59,24 @@ A guard that is silently stricter than canonical is a bug in waiting. A guard th
 - **"Aligned with X" with no divergence section, when the implementation diverges.** The reader assumes parity; the code does not deliver parity; the bug compounds with the false claim. Reject.
 - **First-commit citation deferred to "I will add it later".** The cost of citing the canonical source is roughly zero at write time and roughly one round of review later. Pay the zero. Reject.
 - **Self-referential test that mirrors the producer's own output.** A test that asserts a generator emits a specific string, then checks the generator emitted that string, pins the output to itself. It proves the producer is internally consistent; it proves nothing about the canonical contract the output is supposed to honor, and it cannot catch a wrong variable, a wrong path, or a wrong exit code. This is this rule applied at the test layer. The test that satisfies the rule exercises the contract INDEPENDENTLY: it runs the artifact under the real runtime conditions (the cwd and environment the host sets) and asserts the intended effect, with a negative control proving the test fails when the artifact is wrong. PR #2205 shipped a string-match test of this shape against `generate_hooks._build_copilot_entry`; it passed while the generated hooks wedged customer environments. See `.claude/rules/generated-artifacts.md` and `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md`.
+
+## Behavioral claims: read the body, not the name
+
+A claim about what another component **does** is load-bearing in the same way a "mirrors" claim is. "Validator X skips directory Y." "Hook Z runs on push." "Helper W returns None on failure." The reader acts on these without re-deriving them, and a rule file that carries one is read by every agent on every session it applies to.
+
+A function's name is not evidence of its behavior. Neither is its call site, a prior PR description, or your memory of it. Open the file and read the body. Then quote the line you are relying on, with its path and line number:
+
+```python
+# build/scripts/validate_plugin_manifests.py:318-327 prunes it by name:
+#     excluded_dirs = {".agent-tmp", ".worktrees", "worktrees", "node_modules",
+#                      ".git", "cache", ".pytest_cache", ".pytest_tmp"}
+```
+
+PR #3775 shipped rule text in `.claude/rules/testing.md` claiming `.pytest_tmp` was "the only name both `validate_plugin_manifests.py` and `check_placeholder_identity.py` skip". The second half was false. `scripts/validation/check_placeholder_identity.py:36 _is_pytest_tmp` never inspects a directory of that name. It returns true only when the whole repository root sits under `tempfile.gettempdir()` and its resolved path contains `pytest-of-`, which is a different question entirely. The author reasoned from the function's name and never opened the file. The false claim reached always-on instruction text and survived two review rounds before a third-model review caught it.
+
+The function's own docstring stated the real behavior accurately. Reading it would have cost seconds. That is the asymmetry this section exists for: verification is cheap at write time, and a false behavioral claim in a rule file is expensive for as long as it stands, because every reader who trusts it inherits the error and some of them build on it.
+
+This section binds any assertion about another component's behavior, whatever words carry it. The trigger is not a phrase like "mirrors"; the trigger is that you told the reader what some other code does.
 
 ## Reference: the M4 episode
 

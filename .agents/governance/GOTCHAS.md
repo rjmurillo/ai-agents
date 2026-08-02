@@ -1,0 +1,313 @@
+# Gotchas
+
+Non-obvious repository behavior that cost real time to learn and cannot be
+inferred from reading the code. Each entry states the trap, the symptom you
+will actually see, and the fix.
+
+`AGENTS.md` is budget-capped because it is injected into every session. Two
+byte gates disagree: `tests/test_workspace_limits.py` allows 3072 per file,
+`scripts/validate_workspace_budget.py` allows 3000. **Write to 3000.** The
+stricter gate binds, and a file between the two passes one and fails the other
+(Refs #3951). These entries live here instead so detail is not paid for on
+every turn. `AGENTS.md` points at this file from its Retrieval section, and
+`.github/copilot-instructions.md` points at it from its Gotchas section.
+
+`.github/copilot-instructions.md` is injected into every Copilot session too,
+at roughly twice that per-file budget, and **no gate measures it**: the
+workspace budget covers only `CLAUDE.md`, `AGENTS.md`, and `.claude/CLAUDE.md`,
+and `instruction_budget.py` covers only `.github/instructions/*.instructions.md`.
+New always-on guidance therefore belongs here, not there (Refs #3991).
+
+## Four portability checkers exist and their names do not tell you the scope
+
+Running three of them is not running the fourth. Two read scripts and two read
+Markdown, and the two Markdown checkers are inverses of each other: one counts
+prose references and deliberately ignores `.claude/skills/`, the other looks
+for executable invocations of exactly that tree. All four live in
+`scripts/validation/`, not `build/scripts/`.
+
+| Script | Scans | Catches |
+|---|---|---|
+| `scripts/validation/check_vendor_portability.py` | skill scripts | code that reads an upstream-only path |
+| `scripts/validation/check_skill_portability.py` | skill scripts | drift against the script baseline |
+| `scripts/validation/check_skill_md_portability.py` | skill `.md` | an upstream path cited in **prose** |
+| `scripts/validation/check_skill_md_exec_portability.py` | skill `.md` | a bare `.claude/skills/...` script **invocation** |
+
+Symptom: the first two pass, you commit, and the push is rejected by
+`pre_pr.py` with `[FAIL] Skill Markdown Portability` naming a reference file
+you just added. A new `.md` under `.claude/skills/` that cites a repo path such
+as `.agents/analysis/...` starts at baseline 0 and any reference is drift.
+
+Fix: resolve the path through the plugin or skill root, or declare it with an
+HTML comment marker on its own line at the end of the file:
+
+```text
+<!-- vendor-portability: declared. <what the path is, why the file cites it,
+and what a vendored install loses without it>. Issue #2050. -->
+```
+
+Both the canonical file and its `src/copilot-cli/` mirror carry the marker,
+because the checker scans both trees.
+
+## A bare directory argument to taste-lints is a silent false pass
+
+`taste_lints.py --rules file-size <dir>` with the directory as a **positional**
+argument scans **zero** files, prints "0 files scanned, no violations found",
+and exits 0. That is a false pass, not a clean result: positional arguments go
+into the `files` list, and a directory is not a file.
+
+Directory scanning is supported, but only through the flag:
+
+```
+# works: 4 files scanned
+uv run --frozen python .claude/skills/taste-lints/scripts/taste_lints.py \
+  --rules file-size --directory .claude/skills/context-optimizer/references
+
+# silent no-op: 0 files scanned, exit 0
+uv run --frozen python .claude/skills/taste-lints/scripts/taste_lints.py \
+  --rules file-size .claude/skills/context-optimizer/references
+```
+
+Also available: `--git-staged` and `--diff-scope BASE_BRANCH`. Explicit file
+paths remain the safest habit, because the count in the output line is the
+only thing that distinguishes a real pass from the no-op, and "no violations
+found" reads identically either way.
+
+Authored file size is a **hard error at 501 lines** and a warning from 301 to
+500, so a file that silently skipped the check can block a later commit.
+
+## A commit touching `.agents/` must carry the session log
+
+`session-policy` rejects any commit that stages a file under `.agents/` unless
+the JSON session log is staged in that **same** commit. Splitting the work into
+"content commit, then log commit" fails on the first one.
+
+Symptom: a commit touching `.agents/analysis/` or `.agents/architecture/` is
+rejected while the identical change under any other path commits fine. See also
+"Session log ordering" below, which governs when the log may first be staged.
+
+## Session log ordering
+
+Create the session log **untracked in the worktree before the first commit**,
+and stage it only at session end.
+
+`branch-context-policy` reads the worktree and wants the log present.
+`session-policy` rejects a *staged* log whose `sessionEnd` is incomplete. A
+session log cannot be both staged early and complete early, so following the
+protocol literally (create and stage at start) cannot pass both gates.
+
+Symptom: a commit is rejected by one of the two policies no matter which order
+you try. Refs #3904.
+
+## Run validation with `uv run python`, never bare `python3`
+
+`scripts/validation/checks_spec.py` shells out to child validators with
+`sys.executable`. A system interpreter at the entry point therefore propagates
+to every child check, and two of them fail with `ModuleNotFoundError:
+markdown_it` because the dependency lives in the project venv.
+
+Symptom: `uv run python scripts/validation/pre_pr.py` reports failures that have
+nothing to do with your change. Refs #3938.
+
+## Instruction-budget ceilings ratchet to measured size
+
+`scripts/validation/instruction_budget.py` enforces a ceiling that was set from
+the corpus as it stood, and it has been raised as the corpus grew. A passing
+gate therefore says the corpus did not grow since the last ratchet. It does not
+say the corpus is small.
+
+Compare against the goal, not the ceiling. The always-on corpus is roughly 95KB
+on a `.py` edit.
+
+## Security suppression comments block commits, merges, and pushes
+
+`git_hook_policy.py` runs the same security suppression policy at pre-commit,
+pre-merge-commit, and pre-push. It blocks bare `noqa`, `noqa` lists containing
+an `S` rule, file-level Ruff or Flake8 security directives, `nosec`,
+`nosemgrep`, `lgtm[`, `codeql[`, and `cwe-suppress`.
+
+Non-security `noqa` codes pass. `type: ignore` is outside this gate; issue
+#4039 tracks its separate policy.
+
+A suppression moved within one file consumes an equal removal credit. Pure
+renames and rename-with-edit changes between scanned suffixes preserve that
+credit. A rename from an unscanned suffix into a scanned suffix scans the full
+destination file, because the suppression becomes active at that boundary.
+
+Existing suppressions on `main` remain grandfathered unless the change makes
+them newly active. Refs #3940, #4049, #4051, and #4052.
+
+## The push blocks at 21 commits, and the check runs at push time
+
+The pre-push `push-ref-policy` hook hard-fails at more than 20 commits ahead of
+`origin/main`. It runs at push time, so a long branch discovers the ceiling
+after the work is committed, not while it accumulates. Check it mid-session:
+
+```
+git rev-list --count HEAD ^origin/main
+```
+
+Relief is the `commit-limit-bypass` label on the PR, and nothing else. Squashing
+is often the wrong repair, because the five-file atomic-commit rule then makes
+the collapsed commit a violation of a different rule. Prefer the label when the
+branch is one coherent thread, and split into a second PR when it is not.
+
+## Never revert a source file with `git checkout` to negative-control a fix
+
+Negative-controlling a fix means reverting the source, confirming the new tests
+fail, then restoring. `git checkout <file>` restores the file to HEAD, which
+silently discards **every other uncommitted change in it**, not just the one
+you meant to undo. On a file carrying two unrelated in-progress fixes, one
+control run destroyed both.
+
+Copy the file aside and copy it back:
+
+```
+cp scripts/eval/thing.py /tmp/thing.bak
+# ... sabotage, run the test, observe the failure ...
+cp /tmp/thing.bak scripts/eval/thing.py
+```
+
+`git stash push <file>` is safe by comparison (the change is recoverable) but
+still moves *all* of the file's changes, so a control run that expects only
+one behavior to regress will see several.
+
+Symptom: a control that should fail passes instead, because the sabotage never
+applied to the code you thought you were editing. Check `git status` before
+concluding the test is weak.
+
+## The mypy and ruff gates are ratchets, not clean-tree checks
+
+`git_hook_policy.py mypy` tolerates the pre-existing error count in a file and
+fails only when your change adds to it. Touching a file with pre-existing
+errors does not oblige you to fix them, but adding one error to a file that had
+eight will fail the push with all nine printed.
+
+Symptom: a wall of errors on lines you did not touch. Count them against the
+merge base before assuming the change is yours.
+
+## Eval harness
+
+These matter only when running `scripts/eval/`. Full detail lives in
+`.claude/skills/context-optimizer/references/rule-audit-procedure.md`.
+
+- Run without an API key using `EVAL_PROVIDER=copilot-cli`. The provider must
+  run in an empty working directory, because the Copilot CLI loads `AGENTS.md`,
+  `CLAUDE.md`, and `.github/instructions/**` from its cwd and would otherwise
+  put the treatment into the control cell.
+- Copilot CLI reported token counts are non-monotonic (109k from `/tmp` against
+  96k in-repo for the same trivial prompt). They are not a measurement of
+  anything. Use `instruction_budget.py`. Refs #3906.
+- A single eval run cannot resolve a delta under about 1.0 on a 0-5 scale.
+  Measured run-to-run spread on identical inputs was 0.94 on Opus 5 and 1.11 on
+  Sol 5.6. Run four times per model and count sign consistency, not means.
+
+## The PR description gate blocks on paths and on dashes
+
+`scripts/validation/pr_description.py --ci` runs as `PR Validation / Validate
+PR` in branch protection and blocks merge on two things.
+
+**A file path mentioned but not in the diff.** The validator extracts paths
+only from inline code, bold, list items, and Markdown links, so a path in plain
+prose is fine but an inline-backtick mention is not. Silence a genuine
+reference the way the validator recognizes: a citation cue, a fenced code
+block, a GitHub admonition (`> [!NOTE]`), or a contextual H2 such as
+`## References`, `## Related Files`, `## See Also`, `## Notes`,
+`## Background`, `## Evidence`, `## Out of Scope`, or `## Prior Art`. The full
+set is `_CONTEXTUAL_SECTION_NAMES` and `_REFERENCE_SECTION_PREFIXES` in the
+validator.
+
+A citation cue is narrower than it looks, and both constraints are
+load-bearing. The cue (`see`, `per`, `defined in`, `for example`, and the rest
+of `_INLINE_CITATION_PATTERN`) must sit on the same line and immediately
+before the path, separated only by whitespace, colons, or an open paren. And
+the backtick span must end at the extension: `` `taste_lints.py` `` is
+suppressible, `` `taste_lints.py --rules file-size` `` is not, because the
+trailing flags push the closing backtick past the extension. Reword so the
+path stands alone in its own span.
+
+Do not guess at the shape and push to find out. The extractor imports and runs
+offline against a candidate body, which turns a round trip through CI into a
+one-second check:
+
+```python
+import importlib.util, sys, pathlib
+spec = importlib.util.spec_from_file_location("prd", "scripts/validation/pr_description.py")
+m = importlib.util.module_from_spec(spec)
+sys.modules["prd"] = m  # dataclass resolution needs the module registered
+spec.loader.exec_module(m)
+print(sorted(m.extract_mentioned_files(pathlib.Path(sys.argv[1]).read_text())))
+```
+
+Anything it prints that is not in the diff is a CRITICAL waiting to happen.
+
+**Any em-dash (U+2014) or en-dash (U+2013).** Byte-verify rather than trusting
+a visual scan:
+
+```
+python3 -c "import sys;d=open(sys.argv[1],'rb').read();print(sum(d.count(c.encode()) for c in ('\u2014','\u2013')))" body.md
+```
+
+Editing the body re-triggers the gate on `pull_request: edited`, so no new
+commit is needed. Bot reviewers produce false positives on both checks; verify
+at byte level before editing.
+
+The validator takes `--pr-number` and fetches the **live** body, so push and
+update the PR before running it locally.
+
+## Never put a literal pipe inside a Markdown table cell
+
+Escape it as `\|` or reword. A bare `|` breaks rendering and trips bot
+table-format flags.
+
+## Reference skill scripts by plugin root, not a bare `.claude/` path
+
+Use `"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/..."`. A
+bare `.claude/skills/...` path fails under Copilot CLI and trips
+`check_skill_md_exec_portability.py`.
+
+## `gh pr view --json reviewThreads` is not a valid field
+
+The field does not exist on that command and the error does not suggest the
+alternative. Use `gh api graphql` with a `reviewThreads` query on the pull
+request instead.
+
+## Workspace Budget Gotchas
+
+Non-obvious facts about the workspace byte-gate that save debugging time.
+
+## Byte-gate ceilings (always-on files)
+
+These files are measured by `scripts/validate_workspace_budget.py` on every CI
+run. Each file has a ceiling. Exceeding it blocks the push.
+
+| File | Ceiling | Ratchet? | Notes |
+|---|---|---|---|
+| `AGENTS.md` | 3000 bytes | no | Standard; 2999 bytes as of 2025-07-30 (one byte of headroom) |
+| `CLAUDE.md` | 3000 bytes | no | Standard |
+| `.claude/CLAUDE.md` | 3000 bytes | no | Standard |
+| `.github/copilot-instructions.md` | 6351 bytes | yes | Non-regression ratchet seeded at 6351 bytes (2025-07-30, issue #3991). Target: reduce to 3000 after moving the Gotchas section to `.agents/governance/` (issue #3952). |
+
+**Standard files** (no ratchet) also share a combined pool: `TOTAL_BUDGET_BYTES
+= 6600`. Files with a ratchet are measured only by their individual ceiling.
+
+**To lower a ratchet**: trim the file content, then update `FILE_CEILING_BYTES`
+in `scripts/validate_workspace_budget.py` to the new measured size. Never raise
+a ceiling without recording the reason in the same change.
+
+## The shared total only covers standard files
+
+`TOTAL_BUDGET_BYTES = 6600` applies to `AGENTS.md + CLAUDE.md + .claude/CLAUDE.md`
+only. Adding a ratchet file to that sum would yield a meaningless constraint
+because the ratchet file already has its own ceiling.
+
+## An empty WORKSPACE_FILES disables the gate silently
+
+`test_workspace_files_nonempty` guards this. If you see that test failing, the
+constant was emptied somewhere and every per-file assertion is vacuously true.
+
+## Gate location
+
+`tests/test_workspace_limits.py` runs via the standard `pytest` suite. It imports
+constants from `scripts/validate_workspace_budget.py` directly, so the test and
+the enforcer always agree (fixed by issue #3951).

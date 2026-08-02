@@ -502,7 +502,7 @@ def _run_cli(*args: str, cwd: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(SCANNER_PATH), *args],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         cwd=cwd,
         check=False,
     )

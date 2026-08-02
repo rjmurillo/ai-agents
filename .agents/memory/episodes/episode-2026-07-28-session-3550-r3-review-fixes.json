@@ -1,0 +1,29 @@
+{
+  "id": "episode-2026-07-28-session-3550-r3-review-fixes",
+  "session": "2026-07-28-session-3550-r3-review-fixes",
+  "timestamp": "2026-07-28T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Recover cancelled autofix work for PR #3550. Fix remaining review threads: symlink error_type misclassification, TASK-013 label accuracy.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 22cd08ec3",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 4
+  },
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "stamp_only by migrate_causal_version.py on 2026-08-02: v2 edge rebuild agrees with stored edges"
+}

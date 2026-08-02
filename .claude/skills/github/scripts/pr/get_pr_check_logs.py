@@ -24,9 +24,9 @@ import re
 import subprocess
 import sys
 
-_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
-if _plugin_root:
+if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
     _lib_dir = os.path.join(_plugin_root, "lib")
 elif _workspace:
     _lib_dir = os.path.join(_workspace, ".claude", "lib")
@@ -165,6 +165,27 @@ def _coerce_checks_list(payload: dict[str, object]) -> list[dict] | None:
     if not all(isinstance(check, dict) for check in checks_value):
         return None
     return checks_value
+
+
+def _merge_ref_unusable(payload: dict[str, object]) -> bool:
+    """Return True when get_pr_checks reports an unusable merge ref."""
+    return payload.get("MergeRefUsable") is False
+
+
+def _write_merge_ref_error(payload: dict[str, object], fmt: str) -> None:
+    warning = payload.get("MergeStateWarning")
+    message = (
+        warning
+        if isinstance(warning, str) and warning
+        else "PR merge ref cannot be built; check logs are incomplete"
+    )
+    write_skill_error(
+        message,
+        1,
+        error_type="VerificationFailed",
+        output_format=fmt,
+        script_name="get_pr_check_logs.py",
+    )
 
 
 
@@ -457,6 +478,10 @@ def main(argv: list[str] | None = None) -> int:
         if payload.get("Number") and pr_number == 0:
             pr_number = payload["Number"]
 
+        if _merge_ref_unusable(payload):
+            _write_merge_ref_error(payload, fmt)
+            return 1
+
         checks_list = _coerce_checks_list(payload)
         if checks_list is None:
             write_skill_error(
@@ -485,6 +510,8 @@ def main(argv: list[str] | None = None) -> int:
             ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=60,
         )
 
@@ -520,6 +547,9 @@ def main(argv: list[str] | None = None) -> int:
                 script_name="get_pr_check_logs.py",
             )
             return 3
+        if _merge_ref_unusable(payload):
+            _write_merge_ref_error(payload, fmt)
+            return 1
         checks_list = _coerce_checks_list(payload)
         if checks_list is None:
             write_skill_error(
