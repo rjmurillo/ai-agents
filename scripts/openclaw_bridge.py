@@ -211,7 +211,9 @@ def generate_skill_md(agent: AgentDefinition) -> str:
         "",
         f"- **Model**: `{model}`",
         f"- **Role**: {_TIER_TO_OPENCLAW_ROLE.get(agent.tier, agent.tier)}",
-        f"- **Source**: ai-agents (`{agent.source_path}`)" if agent.source_path else f"- **Source**: ai-agents ({agent.name})",
+        f"- **Source**: ai-agents (`{agent.source_path}`)"
+        if agent.source_path
+        else f"- **Source**: ai-agents ({agent.name})",
         "",
     ]
 

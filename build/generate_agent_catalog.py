@@ -236,7 +236,9 @@ def _resolve_paths(args: argparse.Namespace) -> tuple[Path, Path]:
         templates_dir = _REPO_ROOT / "templates" / "agents"
 
     output_path = (
-        _resolve_cli_path(args.output) if args.output is not None else (_REPO_ROOT / _OUTPUT_RELATIVE)
+        _resolve_cli_path(args.output)
+        if args.output is not None
+        else (_REPO_ROOT / _OUTPUT_RELATIVE)
     )
     return templates_dir, output_path
 
