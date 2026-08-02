@@ -27,6 +27,8 @@ class TestRunSqlite3Timeout:
             ["sqlite3", "/fake/db", "SELECT 1;"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
         )
 

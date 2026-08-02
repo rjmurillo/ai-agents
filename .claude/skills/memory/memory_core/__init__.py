@@ -18,15 +18,9 @@ from .memory_router import (  # noqa: F401
     test_forgetful_available,
 )
 from .reflexion_memory import (  # noqa: F401
-    add_causal_edge,
-    add_causal_node,
-    add_pattern,
-    get_anti_patterns,
-    get_causal_path,
     get_decision_sequence,
     get_episode,
     get_episodes,
-    get_patterns,
     get_reflexion_memory_status,
     new_episode,
 )
@@ -65,15 +59,9 @@ __all__ = [
     "search_memory",
     "test_forgetful_available",
     # Reflexion memory
-    "add_causal_edge",
-    "add_causal_node",
-    "add_pattern",
-    "get_anti_patterns",
-    "get_causal_path",
     "get_decision_sequence",
     "get_episode",
     "get_episodes",
-    "get_patterns",
     "get_reflexion_memory_status",
     "new_episode",
 ]

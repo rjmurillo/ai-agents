@@ -1,0 +1,128 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 1,
+    "date": "2026-07-28",
+    "branch": "fix/3580-ruff-ratchet-local-gate",
+    "startingCommit": "bbe26780",
+    "objective": "Fix issue #3580 by running the ruff ratchets before push so developers catch new ruff debt locally.",
+    "id": "2026-07-28-session-01-fix-3580-ruff-ratchet-local-gate"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP initial instructions were loaded in this session."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions returned the Serena manual for this work."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md as a read-only reference and did not modify it."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Created this JSON log under .agents/sessions/ for issue #3580 work."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git status showed fix/3580-ruff-ratchet-local-gate ahead of origin/main by one commit before session-log creation."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All #3580 changes are on fix/3580-ruff-ratchet-local-gate, not main."
+      },
+      "memoriesLoaded": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Repository instructions and prior session summary supplied the relevant gate context."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status inspected in the #3580 worktree before adding this log."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Issue #3580 was proved real, fixed with local pre-push ruff ratchets, and covered by three wiring tests."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md was read only and not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "No durable cross-harness convention was created. The new behavior lives in lefthook.yml and tests."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No Markdown files changed for #3580, so scoped markdown lint had no target."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Code change committed as b67e7947. This session-log commit records retrospective evidence required by pre-push policy."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Targeted pytest, ruff, mypy, pre_pr, dash byte check, and full pre-push suite passed before the push was blocked only by missing retrospective evidence. Learnings captured in this session log."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #3580 PR preparation is complete once this session log is committed and pushed."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "activity": "Proved #3580 still real",
+      "evidence": "CI ran scripts/ci/ruff_ratchet.py and scripts/ci/ruff_count_ratchet.py, while pre-push only had advisory ruff --exit-zero."
+    },
+    {
+      "activity": "Moved ruff ratchets local",
+      "evidence": "Added blocking pre-push jobs in lefthook.yml for changed-file and whole-tree ruff ratchets."
+    },
+    {
+      "activity": "Verified tests are meaningful",
+      "evidence": "Revert negative control against origin/main failed all three added wiring tests."
+    }
+  ],
+  "learnings": {
+    "patterns": [
+      {
+        "pattern": "CI-only ratchets should have a matching fast local gate",
+        "context": "Issue #3580",
+        "application": "Run both ruff ratchets in pre-push because measured added latency stayed below one second."
+      }
+    ]
+  },
+  "endingCommit": "b67e7947",
+  "nextSteps": [
+    "Open PR with Fixes #3580 and report latency plus negative-control evidence."
+  ],
+  "developmentPhase": {
+    "current": "completion",
+    "history": [
+      {
+        "phase": "completion",
+        "gate": "passed"
+      }
+    ]
+  }
+}

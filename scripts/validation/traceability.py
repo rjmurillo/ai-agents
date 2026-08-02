@@ -25,7 +25,16 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from scripts.github_core.repo import get_repo_root
+# ---------------------------------------------------------------------------
+# Ensure repo root is on sys.path so scripts.github_core is importable
+# whether this script is invoked as a module or by file path (issue #3657).
+# ---------------------------------------------------------------------------
+_repo_root_candidate = Path(__file__).resolve().parent.parent.parent
+if str(_repo_root_candidate) not in sys.path:
+    sys.path.insert(0, str(_repo_root_candidate))
+
+_SPEC_ID_RE = r"[A-Z]+-[A-Za-z0-9]+"
+_RELATED_ID_RE = re.compile(rf"\b{_SPEC_ID_RE}\b")
 
 # ---------------------------------------------------------------------------
 # Data classes
@@ -114,11 +123,19 @@ def parse_yaml_front_matter(file_path: Path) -> SpecInfo | None:
     if status_match:
         spec.status = status_match.group(1).strip()
 
-    # Parse related (array)
+    related_ids: list[str] = []
+
+    inline_related = re.search(r"(?m)^related:\s*\[([^\]]*)\]\s*$", yaml_text)
+    if inline_related:
+        related_ids.extend(_RELATED_ID_RE.findall(inline_related.group(1)))
+
     related_match = re.search(r"(?s)related:\s*\r?\n((?:\s+-\s+.+\r?\n?)+)", yaml_text)
     if related_match:
         related_block = related_match.group(1)
-        spec.related = [m.group(1) for m in re.finditer(r"-\s+([A-Z]+-[A-Z0-9]+)", related_block)]
+        related_ids.extend(_RELATED_ID_RE.findall(related_block))
+
+    if related_ids:
+        spec.related = list(dict.fromkeys(related_ids))
 
     return spec
 
@@ -460,6 +477,10 @@ def validate_specs_path(specs_path_str: str) -> Path:
 
     if not is_absolute:
         # Relative path: enforce traversal protection
+        # Imported here, not at module scope, because the sys.path bootstrap
+        # above must run first when this script is invoked by file path.
+        from scripts.github_core.repo import get_repo_root
+
         repo_root = get_repo_root()
 
         if repo_root:

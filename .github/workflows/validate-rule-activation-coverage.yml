@@ -1,0 +1,84 @@
+# Validate Rule and Skill Activation Coverage (Issue #3457)
+#
+# Fails when a rule (.claude/rules/*.md) or skill (.claude/skills/*/SKILL.md)
+# has no activation scenario and is not listed in
+# scripts/validation/rule_activation_coverage_baseline.json, or when a scenario
+# points at a deleted artifact. The ratchet only blocks NEW uncovered drift;
+# baselined debt is allowed until a scenario is added.
+#
+# Fail-closed: a missing inventory, an unparseable baseline, or a malformed
+# scenario exits non-zero. An unmeasured artifact must never read as clean.
+#
+# Uses dorny/paths-filter: fires on all PRs to satisfy the required-check
+# contract, skips with a passing status when no relevant files changed. No
+# logic in YAML (ADR-006); the check step calls a Python entry point.
+
+name: Validate Rule Activation Coverage
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+jobs:
+  check-changes:
+    name: Check for Rule, Skill, or Scenario Changes
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      should-run-coverage: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.coverage }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Check path filters
+        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706  # v4.0.2
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          filters: |
+            coverage:
+              - '.claude/rules/**'
+              - '.claude/skills/**/SKILL.md'
+              - 'tests/evals/rule-scenarios/**'
+              - 'tests/evals/skill-scenarios/**'
+              - 'scripts/validation/check_rule_activation_coverage.py'
+              - 'scripts/validation/rule_activation_coverage_baseline.json'
+              - '.github/workflows/validate-rule-activation-coverage.yml'
+
+  validate-coverage:
+    name: Validate Rule Activation Coverage
+    needs: check-changes
+    if: needs.check-changes.outputs.should-run-coverage == 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 3
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Check rule and skill activation coverage ratchet
+        run: python3 scripts/validation/check_rule_activation_coverage.py
+
+  skip-validation:
+    name: Skip Validation (No Coverage-Relevant Changes)
+    needs: check-changes
+    if: needs.check-changes.outputs.should-run-coverage != 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 1
+    permissions:
+      contents: read
+    steps:
+      - name: Skip message
+        run: |
+          echo "Rule activation coverage validation skipped - no relevant files changed"

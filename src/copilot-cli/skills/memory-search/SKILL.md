@@ -5,7 +5,7 @@ description: Tier 1 semantic memory search across Serena and Forgetful with
   progressive disclosure and token-budget warnings. The focused search operation
   split out of the memory router per ADR-063. Use when you say `search memory`,
   `what do we know about X`, or `recall prior context`. Do NOT use to extract
-  session episodes, update the causal graph, or add citations (use memory or
+  session episodes or add citations (use memory or
   memory-enhancement).
 license: MIT
 metadata:
@@ -138,7 +138,7 @@ attribution, to the caller.
 
 | Skill | When to Use Instead |
 |-------|---------------------|
-| `memory` | Router for episode extraction, causal graph, health, or maintenance |
+| `memory` | Router for episode extraction, health, or maintenance |
 | `memory-enhancement` | Add citations, verify code references, track confidence |
 | `curating-memories` | Memory maintenance (obsolete, deduplicate, link) |
 | `exploring-knowledge-graph` | Multi-hop graph traversal beyond Tier 1 search |

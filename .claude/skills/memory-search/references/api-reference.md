@@ -1,632 +1,440 @@
 # Memory System API Reference
+<!-- # taste-lint: ignore file-size -->
+<!-- file-size rationale: reference doc for the memory API; every entry
+documents a real entry point verified by test_reference_docs_resolve.py,
+and splitting the reference breaks lookup by single file. -->
 
-Complete reference for all public functions in the Phase 2A Memory System (v0.2.0).
+Complete reference for the public functions in the memory system.
+
+Every function below is Python. The repository ships no PowerShell: `git ls-files '*.ps1' '*.psm1'` returns zero files, and ADR-042 makes Python the only scripting language for new work.
+
+## Importing
+
+`memory_core` is a package under the memory skill, not an installed distribution. Put the skill root on `sys.path` first:
+
+```python
+import os
+import sys
+_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT") or ".claude"
+sys.path.insert(0, f"{_root}/skills/memory")
+
+from memory_core.memory_router import search_memory
+from memory_core.reflexion_memory import get_episode
+```
+
+`.claude/skills/memory/tests/conftest.py` does exactly this for the test suite.
 
 ## Module Index
 
 | Module | Purpose | Location |
 |--------|---------|----------|
-| [MemoryRouter](#memoryrouter-module) | Unified memory search (Tier 1) | .claude/skills/memory/scripts/search_memory.py |
-| [ReflexionMemory](#reflexionmemory-module) | Episodes and causality (Tiers 2 & 3) | .claude/skills/memory/scripts/extract_session_episode.py, update_causal_graph.py |
+| [memory_router](#memory_router-module) | Unified memory search (Tier 1) | `.claude/skills/memory/memory_core/memory_router.py` |
+| [reflexion_memory](#reflexion_memory-module) | Session episodes (Tier 2) | `.claude/skills/memory/memory_core/reflexion_memory.py` |
 
-## MemoryRouter Module
+Two scripts wrap these modules with a command line: `.claude/skills/memory/scripts/search_memory.py` and `.claude/skills/memory/scripts/extract_session_episode.py`.
 
-### Search-Memory
+## memory_router Module
+
+### search_memory
 
 Unified memory search across Serena and Forgetful.
 
-**Syntax**:
+**Signature**:
 
-```powershell
-Search-Memory
-    [-Query] <String>
-    [-MaxResults <Int32>]
-    [-SemanticOnly]
-    [-LexicalOnly]
+```python
+def search_memory(
+    query: str,
+    max_results: int = 10,
+    semantic_only: bool = False,
+    lexical_only: bool = False,
+) -> list[MemoryResult]
 ```
 
 **Parameters**:
 
-- **Query** (String, Required): Search query (1-500 chars, alphanumeric + safe punctuation)
-  - Pattern: `^[a-zA-Z0-9\s\-.,_()&:]+$`
-- **MaxResults** (Int32, Optional): Maximum results to return (1-100, default: 10)
-- **SemanticOnly** (Switch, Optional): Force Forgetful-only search (fails if unavailable)
-- **LexicalOnly** (Switch, Optional): Force Serena-only search (always available)
+- **query** (`str`, required): Search query, 1-500 chars. Pattern: `^[a-zA-Z0-9\s\-.,_()&:]+$`
+- **max_results** (`int`): Maximum results to return, 1-100. Default 10.
+- **semantic_only** (`bool`): Force Forgetful-only search. Raises if Forgetful is unavailable.
+- **lexical_only** (`bool`): Force Serena-only search. Always available.
 
-**Returns**: `PSCustomObject[]` with properties:
+**Returns**: `list[MemoryResult]`. See [MemoryResult](#memoryresult).
 
-- `Name` (String): Memory name
-- `Content` (String): Full memory content
-- `Source` (String): "Serena" or "Forgetful"
-- `Score` (Double): Relevance score (Serena: percentage, Forgetful: similarity)
-- `Path` (String): File path (Serena only, nullable)
-- `Hash` (String): SHA-256 content hash (64 chars, lowercase hex)
+**Raises**:
 
-**Throws**:
-
-- `Cannot specify both -SemanticOnly and -LexicalOnly`: Mutually exclusive switches
-- `Forgetful is not available and -SemanticOnly was specified`: Forgetful required but not running
-- `Cannot validate argument on parameter 'Query'`: Query validation failed (invalid characters or length)
+- `ValueError`: both `semantic_only` and `lexical_only` were passed, or the query failed validation.
+- `RuntimeError`: `semantic_only` was passed and Forgetful is unavailable.
 
 **Example**:
 
-```powershell
-$results = Search-Memory -Query "PowerShell arrays" -MaxResults 5
-foreach ($r in $results) {
-    Write-Host "$($r.Name) (Source: $($r.Source), Score: $($r.Score))"
-}
+```python
+for r in search_memory("python arrays", max_results=5):
+    print(f"{r.name} (source: {r.source}, score: {r.score})")
+```
+
+**Command line**:
+
+```bash
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "python arrays" --max-results 5
 ```
 
 ---
 
-### Test-ForgetfulAvailable
+### MemoryResult
 
-Checks if Forgetful MCP is available with 30s caching.
+The dataclass every search function returns.
 
-**Syntax**:
+| Field | Type | Meaning |
+|-------|------|---------|
+| `name` | `str` | Memory name |
+| `content` | `str \| None` | Full memory content. `None` when `skip_content` was set. |
+| `source` | `str` | `"Serena"` or `"Forgetful"` |
+| `score` | `float` | Relevance. Serena: fraction of query keywords matched. Forgetful: similarity. |
+| `path` | `str \| None` | File path. Serena only. |
+| `hash` | `str \| None` | SHA-256 content hash, 64 lowercase hex chars. |
+| `id` | `int \| None` | Forgetful record id. `None` for Serena results. |
 
-```powershell
-Test-ForgetfulAvailable
-    [-Port <Int32>]
-    [-Force]
+---
+
+### invoke_serena_search
+
+Lexical search across Serena memory files.
+
+**Signature**:
+
+```python
+def invoke_serena_search(
+    query: str,
+    memory_path: str = ".serena/memories",
+    max_results: int = 10,
+    skip_content: bool = False,
+) -> list[MemoryResult]
+```
+
+Scoring is the fraction of query keywords that appear in the filename. `skip_content=True` skips file reads and SHA-256 hashing, which is the fast path when only names are needed.
+
+---
+
+### invoke_forgetful_search
+
+Semantic search via the Forgetful MCP HTTP endpoint, using JSON-RPC 2.0.
+
+**Signature**:
+
+```python
+def invoke_forgetful_search(
+    query: str,
+    endpoint: str = "http://localhost:8020/mcp",
+    max_results: int = 10,
+) -> list[MemoryResult]
+```
+
+`endpoint` must use the `http` or `https` scheme. Other schemes (`file://`, `ftp://`) are rejected.
+
+---
+
+### merge_memory_results
+
+Merges and deduplicates results from both sources using SHA-256 content hashing. Serena results take priority: they appear first and are treated as canonical.
+
+**Signature**:
+
+```python
+def merge_memory_results(
+    serena_results: list[MemoryResult] | None = None,
+    forgetful_results: list[MemoryResult] | None = None,
+    max_results: int = 10,
+) -> list[MemoryResult]
+```
+
+---
+
+### test_forgetful_available
+
+Checks whether Forgetful MCP is reachable, with 30 second caching.
+
+**Signature**:
+
+```python
+def test_forgetful_available(port: int = 8020, force: bool = False) -> bool
+```
+
+**Side effect**: updates the health check cache, TTL 30 seconds. Pass `force=True` to skip the cache.
+
+**Example**:
+
+```python
+if test_forgetful_available():
+    print("Forgetful is available")
+```
+
+---
+
+### get_memory_router_status
+
+Diagnostic information about the router.
+
+**Signature**:
+
+```python
+def get_memory_router_status() -> dict[str, Any]
+```
+
+**Returns** a dict shaped like this. Note the top level uses capitalized keys while `Configuration` uses snake_case, which is a real quirk of the current implementation:
+
+```python
+{
+    "Serena": {"Available": True, "Path": ".serena/memories"},
+    "Forgetful": {"Available": False, "Endpoint": "http://localhost:8020/mcp"},
+    "Cache": {"AgeSeconds": 0.0, "TTLSeconds": 30.0},
+    "Configuration": {
+        "serena_path": ".serena/memories",
+        "forgetful_port": 8020,
+        "forgetful_timeout": 0.5,
+        "max_results": 10,
+    },
+}
+```
+
+`forgetful_timeout` is in seconds, not milliseconds.
+
+**Example**:
+
+```python
+status = get_memory_router_status()
+print(status["Serena"]["Available"], status["Forgetful"]["Available"])
+```
+
+---
+
+### get_content_hash
+
+Returns the SHA-256 hash of a string as 64 lowercase hex characters. Used for deduplication.
+
+```python
+def get_content_hash(content: str) -> str
+```
+
+---
+
+### reset_caches
+
+Clears the health check and file listing caches. Tests call this between cases.
+
+```python
+def reset_caches() -> None
+```
+
+---
+
+## reflexion_memory Module
+
+### get_episode
+
+Retrieves one episode by session id.
+
+**Signature**:
+
+```python
+def get_episode(session_id: str) -> dict[str, Any] | None
 ```
 
 **Parameters**:
 
-- **Port** (Int32, Optional): Forgetful server port (default: 8020)
-- **Force** (Switch, Optional): Skip cache and force fresh check
+- **session_id** (`str`, required): for example `"2026-01-01-session-126"`.
 
-**Returns**: `Boolean` indicating availability
+**Returns**: the episode dict, or `None` when no episode file exists.
 
-**Side Effects**: Updates health check cache with 30s TTL
+**Raises**: `ValueError` when the resolved path escapes the episodes directory.
+
+**Episode keys**:
+
+- `id` (`str`): episode identifier
+- `session` (`str`): source session id
+- `timestamp` (`str`): ISO 8601
+- `outcome` (`str`): `"success"`, `"partial"`, or `"failure"`
+- `task` (`str`): high-level task description
+- `decisions` (`list`): decision objects
+- `events` (`list`): event objects
+- `metrics` (`dict`): performance metrics
+- `lessons` (`list`): lessons learned
 
 **Example**:
 
-```powershell
-if (Test-ForgetfulAvailable) {
-    Write-Host "Forgetful is available"
-}
+```python
+episode = get_episode("2026-01-01-session-126")
+if episode:
+    print(episode["outcome"])
 ```
 
 ---
 
-### Get-MemoryRouterStatus
-
-Returns diagnostic information about the Memory Router.
-
-**Syntax**:
-
-```powershell
-Get-MemoryRouterStatus
-```
-
-**Parameters**: None
-
-**Returns**: `PSCustomObject` with properties:
-
-- `Serena` (Hashtable):
-  - `Available` (Boolean): Whether Serena path exists
-  - `Path` (String): Configured Serena memory path
-- `Forgetful` (Hashtable):
-  - `Available` (Boolean): Whether Forgetful is reachable
-  - `Endpoint` (String): Configured Forgetful MCP endpoint
-- `Cache` (Hashtable):
-  - `AgeSeconds` (Double): Seconds since last health check (-1 if never checked)
-  - `TTLSeconds` (Double): Cache time-to-live (30s)
-- `Configuration` (Hashtable):
-  - `SerenaPath` (String): Serena memory directory
-  - `ForgetfulPort` (Int32): Forgetful server port
-  - `ForgetfulTimeout` (Int32): TCP timeout in milliseconds
-  - `MaxResults` (Int32): Default max results
-
-**Example**:
-
-```powershell
-$status = Get-MemoryRouterStatus
-Write-Host "Serena: $($status.Serena.Available), Forgetful: $($status.Forgetful.Available)"
-```
-
----
-
-## ReflexionMemory Module
-
-### Episode Functions
-
-#### Get-Episode
-
-Retrieves an episode by session ID.
-
-**Syntax**:
-
-```powershell
-Get-Episode -SessionId <String>
-```
-
-**Parameters**:
-
-- **SessionId** (String, Required): Session identifier (e.g., "2026-01-01-session-126")
-
-**Returns**: `PSCustomObject` with episode data, or `$null` if not found
-
-**Properties**:
-
-- `id` (String): Episode identifier
-- `session` (String): Source session ID
-- `timestamp` (String): ISO 8601 timestamp
-- `outcome` (String): "success", "partial", or "failure"
-- `task` (String): High-level task description
-- `decisions` (Array): Decision objects
-- `events` (Array): Event objects
-- `metrics` (Hashtable): Performance metrics
-- `lessons` (Array): Lessons learned
-
-**Example**:
-
-```powershell
-$episode = Get-Episode -SessionId "2026-01-01-session-126"
-if ($episode) {
-    Write-Host "Outcome: $($episode.outcome)"
-}
-```
-
----
-
-#### Get-Episodes
+### get_episodes
 
 Retrieves episodes matching criteria.
 
-**Syntax**:
+**Signature**:
 
-```powershell
-Get-Episodes
-    [-Outcome <String>]
-    [-Since <DateTime>]
-    [-MaxResults <Int32>]
+```python
+def get_episodes(
+    outcome: str | None = None,
+    task: str | None = None,
+    since: datetime | None = None,
+    max_results: int = 20,
+) -> list[dict[str, Any]]
 ```
 
 **Parameters**:
 
-- **Outcome** (String, Optional): Filter by outcome ("success", "partial", "failure")
-- **Since** (DateTime, Optional): Filter episodes since this date
-- **MaxResults** (Int32, Optional): Maximum results (1-100, default: 20)
+- **outcome** (`str | None`): `"success"`, `"partial"`, or `"failure"`.
+- **task** (`str | None`): substring match on the task field, case-insensitive.
+- **since** (`datetime | None`): only episodes at or after this time.
+- **max_results** (`int`): 1-100. Default 20.
 
-**Returns**: `PSCustomObject[]` sorted by timestamp descending
+**Returns**: episode dicts sorted by timestamp, newest first.
+
+**Raises**: `ValueError` on an unknown `outcome` or an out-of-range `max_results`.
 
 **Example**:
 
-```powershell
-$failures = Get-Episodes -Outcome "failure" -Since (Get-Date).AddDays(-7)
+```python
+from datetime import datetime, timedelta, timezone
+
+failures = get_episodes(
+    outcome="failure",
+    since=datetime.now(timezone.utc) - timedelta(days=7),
+)
 ```
 
 ---
 
-#### New-Episode
+### new_episode
 
-Creates a new episode from structured data.
+Creates an episode from structured data and writes it to disk.
 
-**Syntax**:
+**Signature**:
 
-```powershell
-New-Episode
-    -SessionId <String>
-    -Task <String>
-    -Outcome <String>
-    [-Decisions <Array>]
-    [-Events <Array>]
-    [-Lessons <Array>]
-    [-Metrics <Hashtable>]
+```python
+def new_episode(
+    session_id: str,
+    task: str,
+    outcome: str,
+    decisions: list[dict[str, Any]] | None = None,
+    events: list[dict[str, Any]] | None = None,
+    lessons: list[str] | None = None,
+    metrics: dict[str, Any] | None = None,
+    skip_validation: bool = False,
+) -> dict[str, Any]
 ```
 
-**Parameters**:
+**Side effect**: writes `.agents/memory/episodes/episode-{session_id}.json`.
 
-- **SessionId** (String, Required): Source session identifier
-- **Task** (String, Required): High-level task description
-- **Outcome** (String, Required): "success", "partial", or "failure"
-- **Decisions** (Array, Optional): Decision objects (default: @())
-- **Events** (Array, Optional): Event objects (default: @())
-- **Lessons** (Array, Optional): Lesson strings (default: @())
-- **Metrics** (Hashtable, Optional): Metrics hashtable (default: @{})
+**Raises**: `ValueError` on an invalid outcome or a schema validation failure, `OSError` on a write failure.
 
-**Returns**: Hashtable with episode data
-
-**Side Effects**: Writes JSON file to `.agents/memory/episodes/episode-{SessionId}.json`
+`skip_validation` exists for tests. Do not set it in production code.
 
 **Example**:
 
-```powershell
-$episode = New-Episode `
-    -SessionId "2026-01-01-session-130" `
-    -Task "Implement feature X" `
-    -Outcome "success" `
-    -Lessons @("Lesson 1", "Lesson 2")
+```python
+episode = new_episode(
+    session_id="2026-01-01-session-130",
+    task="Implement feature X",
+    outcome="success",
+    lessons=["Lesson 1", "Lesson 2"],
+)
 ```
 
 ---
 
-#### Get-DecisionSequence
+### get_decision_sequence
 
 Retrieves the decision sequence from an episode.
 
-**Syntax**:
+**Signature**:
 
-```powershell
-Get-DecisionSequence -EpisodeId <String>
+```python
+def get_decision_sequence(episode_id: str) -> list[dict[str, Any]]
 ```
 
 **Parameters**:
 
-- **EpisodeId** (String, Required): Episode identifier (e.g., "episode-2026-01-01-126")
+- **episode_id** (`str`, required): for example `"episode-2026-01-01-session-126"`. The `episode-` prefix is stripped before lookup, so the session id also works.
 
-**Returns**: `PSCustomObject[]` sorted by timestamp, or empty array if episode not found
+**Returns**: decision dicts sorted by timestamp. Empty list when the episode does not exist.
 
 **Example**:
 
-```powershell
-$decisions = Get-DecisionSequence -EpisodeId "episode-2026-01-01-126"
-foreach ($d in $decisions) {
-    Write-Host "$($d.timestamp): $($d.chosen)"
+```python
+for d in get_decision_sequence("episode-2026-01-01-session-126"):
+    print(d["timestamp"], d["chosen"])
+```
+
+---
+
+### get_reflexion_memory_status
+
+**Signature**:
+
+```python
+def get_reflexion_memory_status() -> dict[str, Any]
+```
+
+**Returns**:
+
+```python
+{
+    "Episodes": {"Path": "/abs/path/.agents/memory/episodes", "Count": 322},
+    "Configuration": {"EpisodesPath": "/abs/path/.agents/memory/episodes"},
 }
 ```
 
----
-
-### Causal Graph Functions
-
-#### Add-CausalNode
-
-Adds a node to the causal graph.
-
-**Syntax**:
-
-```powershell
-Add-CausalNode
-    -Type <String>
-    -Label <String>
-    [-EpisodeId <String>]
-```
-
-**Parameters**:
-
-- **Type** (String, Required): Node type ("decision", "event", "outcome", "pattern", "error")
-- **Label** (String, Required): Human-readable label
-- **EpisodeId** (String, Optional): Source episode ID
-
-**Returns**: Hashtable with node data
-
-**Properties**:
-
-- `id` (String): Node ID (e.g., "n001")
-- `type` (String): Node type
-- `label` (String): Human-readable label
-- `episodes` (Array): Episode IDs referencing this node
-- `frequency` (Int32): Number of occurrences
-- `success_rate` (Double): Success rate (0-1)
-
-**Side Effects**: Updates `.agents/memory/causality/causal-graph.json`
-
-**Deduplication**: If label exists, increments frequency and adds episode to list
-
 **Example**:
 
-```powershell
-$node = Add-CausalNode -Type "decision" -Label "Choose routing" -EpisodeId "episode-126"
-Write-Host "Node ID: $($node.id)"
-```
-
----
-
-#### Add-CausalEdge
-
-Adds an edge to the causal graph.
-
-**Syntax**:
-
-```powershell
-Add-CausalEdge
-    -SourceId <String>
-    -TargetId <String>
-    -Type <String>
-    [-Weight <Double>]
-```
-
-**Parameters**:
-
-- **SourceId** (String, Required): Source node ID
-- **TargetId** (String, Required): Target node ID
-- **Type** (String, Required): Edge type ("causes", "enables", "prevents", "correlates")
-- **Weight** (Double, Optional): Confidence weight (0-1, default: 0.5)
-
-**Returns**: Hashtable with edge data
-
-**Properties**:
-
-- `source` (String): Source node ID
-- `target` (String): Target node ID
-- `type` (String): Edge type
-- `weight` (Double): Confidence weight (running average)
-- `evidence_count` (Int32): Number of supporting episodes
-
-**Side Effects**: Updates `.agents/memory/causality/causal-graph.json`
-
-**Deduplication**: If edge exists, updates weight with running average and increments evidence count
-
-**Example**:
-
-```powershell
-$edge = Add-CausalEdge -SourceId "n001" -TargetId "n002" -Type "causes" -Weight 0.9
-Write-Host "Evidence count: $($edge.evidence_count)"
-```
-
----
-
-#### Get-CausalPath
-
-Finds causal path between two nodes using breadth-first search.
-
-**Syntax**:
-
-```powershell
-Get-CausalPath
-    -FromLabel <String>
-    -ToLabel <String>
-    [-MaxDepth <Int32>]
-```
-
-**Parameters**:
-
-- **FromLabel** (String, Required): Source node label (partial match with `-like "*$label*"`)
-- **ToLabel** (String, Required): Target node label (partial match with `-like "*$label*"`)
-- **MaxDepth** (Int32, Optional): Maximum path depth (1-10, default: 5)
-
-**Returns**: Hashtable with:
-
-- `found` (Boolean): Whether path was found
-- `path` (Array): Node objects along the path (empty if not found)
-- `depth` (Int32): Number of edges in path (only if found)
-- `error` (String): Error message (only if not found)
-
-**Algorithm**: Breadth-first search with cycle detection
-
-**Example**:
-
-```powershell
-$path = Get-CausalPath -FromLabel "decision" -ToLabel "outcome" -MaxDepth 5
-if ($path.found) {
-    Write-Host "Path depth: $($path.depth)"
-    foreach ($node in $path.path) {
-        Write-Host "  -> $($node.label)"
-    }
-}
-```
-
----
-
-### Pattern Functions
-
-#### Add-Pattern
-
-Adds a pattern to the causal graph.
-
-**Syntax**:
-
-```powershell
-Add-Pattern
-    -Name <String>
-    -Trigger <String>
-    -Action <String>
-    [-Description <String>]
-    [-SuccessRate <Double>]
-```
-
-**Parameters**:
-
-- **Name** (String, Required): Pattern name
-- **Trigger** (String, Required): Condition that triggers this pattern
-- **Action** (String, Required): Recommended action
-- **Description** (String, Optional): Pattern description
-- **SuccessRate** (Double, Optional): Success rate (0-1, default: 1.0)
-
-**Returns**: Hashtable with pattern data
-
-**Properties**:
-
-- `id` (String): Pattern ID (e.g., "p001")
-- `name` (String): Pattern name
-- `description` (String): Description
-- `trigger` (String): Triggering condition
-- `action` (String): Recommended action
-- `success_rate` (Double): Success rate (running average)
-- `occurrences` (Int32): Number of times pattern used
-- `last_used` (String): ISO 8601 timestamp of last use
-
-**Side Effects**: Updates `.agents/memory/causality/causal-graph.json`
-
-**Deduplication**: If name exists, increments occurrences, updates success_rate, and sets last_used
-
-**Example**:
-
-```powershell
-$pattern = Add-Pattern `
-    -Name "Lint bypass" `
-    -Trigger "Unrelated lint errors" `
-    -Action "Use --no-verify with justification" `
-    -SuccessRate 1.0
-```
-
----
-
-#### Get-Patterns
-
-Retrieves patterns matching criteria.
-
-**Syntax**:
-
-```powershell
-Get-Patterns
-    [-MinSuccessRate <Double>]
-    [-MinOccurrences <Int32>]
-```
-
-**Parameters**:
-
-- **MinSuccessRate** (Double, Optional): Minimum success rate (0-1, default: 0)
-- **MinOccurrences** (Int32, Optional): Minimum occurrences (1-1000, default: 1)
-
-**Returns**: `PSCustomObject[]` sorted by success_rate descending
-
-**Example**:
-
-```powershell
-$proven = Get-Patterns -MinSuccessRate 0.7 -MinOccurrences 3
-foreach ($p in $proven) {
-    Write-Host "$($p.name): $($p.success_rate * 100)% over $($p.occurrences) uses"
-}
-```
-
----
-
-#### Get-AntiPatterns
-
-Retrieves anti-patterns (low success rate patterns).
-
-**Syntax**:
-
-```powershell
-Get-AntiPatterns
-    [-MaxSuccessRate <Double>]
-```
-
-**Parameters**:
-
-- **MaxSuccessRate** (Double, Optional): Maximum success rate (0-1, default: 0.3)
-
-**Returns**: `PSCustomObject[]` sorted by success_rate ascending
-
-**Filter**: Only includes patterns with at least 2 occurrences
-
-**Example**:
-
-```powershell
-$antiPatterns = Get-AntiPatterns -MaxSuccessRate 0.3
-foreach ($ap in $antiPatterns) {
-    Write-Host "AVOID: $($ap.name) - $($ap.success_rate * 100)% success"
-}
-```
-
----
-
-### Status Functions
-
-#### Get-ReflexionMemoryStatus
-
-Gets the status of the reflexion memory system.
-
-**Syntax**:
-
-```powershell
-Get-ReflexionMemoryStatus
-```
-
-**Parameters**: None
-
-**Returns**: `PSCustomObject` with properties:
-
-- `Episodes` (Hashtable):
-  - `Path` (String): Episodes directory path
-  - `Count` (Int32): Number of episode files
-- `CausalGraph` (Hashtable):
-  - `Path` (String): Causal graph file path
-  - `Version` (String): Schema version
-  - `Updated` (String): Last update timestamp (ISO 8601)
-  - `Nodes` (Int32): Number of nodes
-  - `Edges` (Int32): Number of edges
-  - `Patterns` (Int32): Number of patterns
-- `Configuration` (Hashtable):
-  - `EpisodesPath` (String): Episodes directory
-  - `CausalityPath` (String): Causality directory
-
-**Example**:
-
-```powershell
-$status = Get-ReflexionMemoryStatus
-Write-Host "Episodes: $($status.Episodes.Count)"
-Write-Host "Nodes: $($status.CausalGraph.Nodes)"
+```python
+print(get_reflexion_memory_status()["Episodes"]["Count"])
 ```
 
 ---
 
 ## Scripts
 
+### search_memory.py
+
+Command line wrapper over `memory_router`.
+
+```bash
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" <query> \
+    [--max-results N] [--lexical-only | --semantic-only] \
+    [--format json|table] [--serena-path PATH] [--episodes-path PATH]
+```
+
+Unlike `memory_router.search_memory`, this script also searches the episode store.
+
 ### extract_session_episode.py
 
-Extracts episode data from session logs.
-
-**Syntax**:
+Extracts episode data from a session log.
 
 ```bash
-python3 .claude/skills/memory/scripts/extract_session_episode.py
-    --session-log-path <String>
-    [--output-path <String>]
-    [--force]
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" <session-log-path> \
+    [--output-path DIR] [--force | --preserve] [--pending-stage]
 ```
 
 **Parameters**:
 
-- **SessionLogPath** (String, Required): Path to session log file (must exist)
-- **OutputPath** (String, Optional): Output directory (default: `.agents/memory/episodes/`)
-- **Force** (Switch, Optional): Overwrite existing episode file
+- **session_log_path** (required, positional): path to the session log. Must exist.
+- **--output-path**: output directory. Default `.agents/memory/episodes/`.
+- **--force**: overwrite an existing episode file.
+- **--preserve**: merge fresh extraction over an existing file rather than replacing it.
 
-**Returns**: Hashtable with episode data (also printed to console)
+**Exit codes**:
 
-**Exit Codes**:
-
-- `0`: Success
-- `1`: Failed to read session log, write episode file, or episode already exists without `-Force`
-
-**Example**:
-
-```bash
-python3 .claude/skills/memory/scripts/extract_session_episode.py \
-    --session-log-path ".agents/sessions/2026-01-01-session-126.json"
-```
-
----
-
-### update_causal_graph.py
-
-Updates the causal graph from episode data.
-
-**Syntax**:
-
-```bash
-python3 .claude/skills/memory/scripts/update_causal_graph.py
-    [--episode-path <String>]
-    [--since <duration>]
-    [--dry-run]
-```
-
-**Parameters**:
-
-- **EpisodePath** (String, Optional): Path to episode file or directory (default: `.agents/memory/episodes/`)
-- **Since** (DateTime, Optional): Only process episodes since this date
-- **DryRun** (Switch, Optional): Show what would be updated without making changes
-
-**Returns**: `PSCustomObject` with statistics:
-
-- `episodes_processed` (Int32): Number of episodes processed
-- `nodes_added` (Int32): Number of nodes added
-- `edges_added` (Int32): Number of edges added
-- `patterns_added` (Int32): Number of patterns added
-
-**Exit Codes**:
-
-- `0`: Success or no episodes to process
-- `1`: Module not found or critical error
+- `0`: success
+- `1`: failed to read the session log, failed to write the episode, or the episode exists and neither `--force` nor `--preserve` was given
 
 **Example**:
 
 ```bash
-python3 .claude/skills/memory/scripts/update_causal_graph.py --since 7d
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" \
+    .agents/sessions/2026-01-01-session-126.json
 ```
 
 ---
@@ -635,42 +443,42 @@ python3 .claude/skills/memory/scripts/update_causal_graph.py --since 7d
 
 ### Decision Object
 
-```powershell
-@{
-    id        = "d001"                    # String: Decision ID
-    timestamp = "2026-01-01T17:05:00Z"   # String: ISO 8601 timestamp
-    type      = "design"                  # String: design|implementation|test|recovery|routing
-    context   = "Choosing routing"       # String: Decision context
-    chosen    = "Serena-first"           # String: Chosen option
-    rationale = "Lower latency"          # String: Rationale
-    outcome   = "success"                 # String: success|partial|failure
-    effects   = @("d002", "d003")        # Array: IDs of affected decisions/events
+```python
+{
+    "id": "d001",                        # str: decision id
+    "timestamp": "2026-01-01T17:05:00Z", # str: ISO 8601
+    "type": "design",                    # str: design|implementation|test|recovery|routing
+    "context": "Choosing routing",       # str: decision context
+    "chosen": "Serena-first",            # str: chosen option
+    "rationale": "Lower latency",        # str: rationale
+    "outcome": "success",                # str: success|partial|failure
+    "effects": ["d002", "d003"],         # list[str]: affected decision or event ids
 }
 ```
 
 ### Event Object
 
-```powershell
-@{
-    id        = "e001"                    # String: Event ID
-    timestamp = "2026-01-01T17:10:00Z"   # String: ISO 8601 timestamp
-    type      = "commit"                  # String: tool_call|commit|error|milestone|test|handoff
-    content   = "Created module"         # String: Event description
-    caused_by = @("d001")                # Array: IDs of causing decisions
-    leads_to  = @("e002")                # Array: IDs of resulting events
+```python
+{
+    "id": "e001",                        # str: event id
+    "timestamp": "2026-01-01T17:10:00Z", # str: ISO 8601
+    "type": "commit",                    # str: tool_call|commit|error|milestone|test|handoff
+    "content": "Created module",         # str: event description
+    "caused_by": ["d001"],               # list[str]: causing decision ids
+    "leads_to": ["e002"],                # list[str]: resulting event ids
 }
 ```
 
 ### Metrics Object
 
-```powershell
-@{
-    duration_minutes = 45      # Int32: Session duration
-    tool_calls       = 87      # Int32: Number of tool invocations
-    errors           = 2       # Int32: Error count
-    recoveries       = 2       # Int32: Recovery count
-    commits          = 3       # Int32: Commit count
-    files_changed    = 8       # Int32: Files modified
+```python
+{
+    "duration_minutes": 45,  # int: session duration
+    "tool_calls": 87,        # int: tool invocations
+    "errors": 2,             # int: error count
+    "recoveries": 2,         # int: recovery count
+    "commits": 3,            # int: commit count
+    "files_changed": 8,      # int: files modified
 }
 ```
 
@@ -678,47 +486,38 @@ python3 .claude/skills/memory/scripts/update_causal_graph.py --since 7d
 
 ## Error Handling
 
-All functions follow PowerShell error handling conventions:
-
-- **Terminating Errors**: Thrown via `throw` for invalid input or critical failures
-- **Non-Terminating Errors**: Written via `Write-Warning` for recoverable issues
-- **Return Values**: `$null` or empty arrays for not-found scenarios (not exceptions)
-
-**Error Action Preference**: All modules use `$ErrorActionPreference = 'Stop'` for strict error handling.
-
-**Validation**: Input validation via `ValidatePattern`, `ValidateLength`, `ValidateRange`, `ValidateSet`
+- Invalid input raises `ValueError`. Read failures raise `OSError`. A required-but-unavailable Forgetful raises `RuntimeError`.
+- Not-found is not an error. `get_episode` returns `None`; `get_decision_sequence` and `get_episodes` return empty lists.
+- Recoverable problems are reported through the `logging` module, not by raising.
 
 ---
 
 ## Performance Characteristics
 
-| Function | Typical Latency | Complexity |
+| Function | Typical latency | Complexity |
 |----------|----------------|------------|
-| Search-Memory (Serena-only) | 530ms | O(n) file scan |
-| Search-Memory (augmented) | 700ms | O(n) + network |
-| Test-ForgetfulAvailable (cached) | <1ms | O(1) hash lookup |
-| Test-ForgetfulAvailable (fresh) | 1-500ms | TCP connect |
-| Get-MemoryRouterStatus | <10ms | File stats + cache read |
-| Get-Episode | <50ms | JSON file read |
-| Get-Episodes | ~200ms | O(n) directory scan |
-| New-Episode | ~100ms | JSON serialization + write |
-| Add-CausalNode | ~50ms | Load + modify + save |
-| Add-CausalEdge | ~50ms | Load + modify + save |
-| Get-CausalPath | ~100ms | BFS traversal |
-| Get-Patterns | <20ms | In-memory filter |
-| Get-ReflexionMemoryStatus | <50ms | File stats + JSON read |
+| `search_memory` (Serena only) | 530ms | O(n) file scan |
+| `search_memory` (augmented) | 700ms | O(n) + network |
+| `test_forgetful_available` (cached) | <1ms | O(1) cache read |
+| `test_forgetful_available` (fresh) | 1-500ms | TCP connect |
+| `get_memory_router_status` | <10ms | file stats + cache read |
+| `get_episode` | <50ms | JSON file read |
+| `get_episodes` | ~200ms | O(n) directory scan |
+| `new_episode` | ~100ms | JSON serialize + write |
+| `get_reflexion_memory_status` | <50ms | file stats |
 
-**Note**: Latencies assume SSD storage and hot filesystem cache.
+Latencies assume SSD storage and a hot filesystem cache.
 
 ---
 
 ## Related Documentation
 
-- [Memory Router](memory-router.md) - Detailed Memory Router usage
-- [Reflexion Memory](reflexion-memory.md) - Detailed Reflexion Memory usage
-- [Benchmarking](../../memory-maintenance/references/benchmarking.md) - Performance measurement
-- [Quick Start Guide](quick-start.md) - Common usage patterns
-- ADR-037 - Memory Router Architecture
-- ADR-038 - Reflexion Memory Schema
+- [Memory Router](memory-router.md). Detailed router usage.
+- [Reflexion Memory](../../memory-reflexion/references/reflexion-memory.md). Detailed episode usage.
+- [Benchmarking](../../memory-maintenance/references/benchmarking.md). Performance measurement.
+- [Quick Start Guide](quick-start.md). Common usage patterns.
+- ADR-037. Memory Router architecture.
+- ADR-038. Reflexion Memory schema.
+- ADR-042. Python-first scripting.
 
-<!-- vendor-portability: declared. This API reference documents PowerShell defaults that write episodes to .agents/memory/episodes/ and the causal graph to .agents/memory/causality/. These are configurable output paths (OutputPath/EpisodePath params); a vendored install overrides them or lets the tool create the default dir. Issue #2050. -->
+<!-- vendor-portability: declared. This API reference documents Python defaults that write episodes to .agents/memory/episodes/. That is a configurable output path (--output-path); a vendored install overrides it or lets the tool create the default dir. Issue #2050. -->

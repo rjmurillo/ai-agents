@@ -359,7 +359,7 @@ if [ ! -f "$COMMENT_MAP" ]; then
   echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
   exit 1
 fi
-PENDING=$(grep -Ec "Status: \[ACKNOWLEDGED\]|Status: pending" "$COMMENT_MAP" || true)
+PENDING=$(grep -Ec "^\*\*Status\*\*: \[ACKNOWLEDGED\]|^\*\*Status\*\*: pending|^\*\*Status\*\*: \[NEW\]" "$COMMENT_MAP" || true)
 
 # Count unresolved review threads separately
 UNRESOLVED_API=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
@@ -389,7 +389,7 @@ if [ ! -f "$COMMENT_MAP" ]; then
   echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
   exit 1
 fi
-PENDING=$(grep -Ec "Status: pending|Status: \[ACKNOWLEDGED\]" "$COMMENT_MAP" || true)
+PENDING=$(grep -Ec "^\*\*Status\*\*: pending|^\*\*Status\*\*: \[ACKNOWLEDGED\]|^\*\*Status\*\*: \[NEW\]" "$COMMENT_MAP" || true)
 
 if [ "$REMAINING" -ne 0 ] || [ "$PENDING" -ne 0 ]; then
   echo "[BLOCKED] API unresolved: $REMAINING, Artifact pending: $PENDING"
@@ -1320,15 +1320,15 @@ if [ ! -f "$COMMENT_MAP" ]; then
   echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
   exit 1
 fi
-ADDRESSED=$(grep -c "Status: \[COMPLETE\]" "$COMMENT_MAP" || true)
-WONTFIX=$(grep -c "Status: \[WONTFIX\]" "$COMMENT_MAP" || true)
+ADDRESSED=$(grep -c "^\*\*Status\*\*: \[COMPLETE\]" "$COMMENT_MAP" || true)
+WONTFIX=$(grep -c "^\*\*Status\*\*: \[WONTFIX\]" "$COMMENT_MAP" || true)
 TOTAL=$TOTAL_COMMENTS
 
 echo "Verification: $((ADDRESSED + WONTFIX)) / $TOTAL comments addressed"
 
 if [ "$((ADDRESSED + WONTFIX))" -lt "$TOTAL" ]; then
   echo "[WARNING] INCOMPLETE: $((TOTAL - ADDRESSED - WONTFIX)) comments remaining"
-  grep -E -B 5 "Status: \[ACKNOWLEDGED\]|Status: pending" "$COMMENT_MAP" || true
+  grep -E -B 5 "^\*\*Status\*\*: \[ACKNOWLEDGED\]|^\*\*Status\*\*: pending|^\*\*Status\*\*: \[NEW\]" "$COMMENT_MAP" || true
   # Return to Phase 3 for unaddressed comments
 fi
 ```
@@ -1424,16 +1424,24 @@ if [ "$success" != "true" ]; then
     exit 1
 fi
 
-# Check for failures
-failed_count=$(echo "$checks" | jq '.FailedCount')
-if [ "$failed_count" -gt 0 ]; then
+# Check for failures and unusable merge refs
+merge_ref_usable=$(echo "$checks" | jq -r '.Data.MergeRefUsable')
+all_passing=$(echo "$checks" | jq -r '.Data.AllPassing')
+failed_count=$(echo "$checks" | jq '.Data.FailedCount')
+if [ "$merge_ref_usable" = "false" ]; then
+    echo "[BLOCKED] PR merge ref cannot be built, so CI status is incomplete"
+    exit 1
+elif [ "$failed_count" -gt 0 ]; then
     echo "[BLOCKED] $failed_count CI check(s) not passing:"
-    echo "$checks" | jq -r '.Checks[] | select(.Conclusion != "SUCCESS" and .Conclusion != "NEUTRAL" and .Conclusion != "SKIPPED") | "  - \(.Name): \(.Conclusion)\n    Details: \(.DetailsUrl)"'
+    echo "$checks" | jq -r '.Data.Checks[] | select(.Conclusion != "SUCCESS" and .Conclusion != "NEUTRAL" and .Conclusion != "SKIPPED") | "  - \(.Name): \(.Conclusion)\n    Details: \(.DetailsUrl)"'
     # Do NOT claim completion - return to Phase 6 for fixes
+    exit 1
+elif [ "$all_passing" != "true" ]; then
+    echo "[BLOCKED] CI checks are not all passing"
     exit 1
 fi
 
-echo "[PASS] All CI checks passing ($(echo "$checks" | jq '.PassedCount') checks)"
+echo "[PASS] All CI checks passing ($(echo "$checks" | jq '.Data.PassedCount') checks)"
 ```
 
 **Exit codes**:
@@ -1452,9 +1460,9 @@ echo "[PASS] All CI checks passing ($(echo "$checks" | jq '.PassedCount') checks
 
 | Criterion | Check | Status |
 |-----------|-------|--------|
-| All comments resolved | `grep -c "Status: \[COMPLETE\]\|\[WONTFIX\]"` equals total | [ ] |
+| All comments resolved | `grep -c -e "^\*\*Status\*\*: \[COMPLETE\]" -e "^\*\*Status\*\*: \[WONTFIX\]" "$COMMENT_MAP"` equals total | [ ] |
 | No new comments | Re-check returned 0 new | [ ] |
-| CI checks pass | `get_pr_checks.py --pull-request [number]` AllPassing = true | [ ] |
+| CI checks pass | `get_pr_checks.py --pull-request [number]` MergeRefUsable = true and AllPassing = true | [ ] |
 | No unresolved threads | `gh pr view --json reviewThreads` all resolved | [ ] |
 | Commits pushed | `git status` shows "up to date with origin" | [ ] |
 

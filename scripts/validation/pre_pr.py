@@ -15,8 +15,9 @@ Validation sequence:
     7b. Spec Contradiction Check (PR/issue vs committed frontmatter; advisory)
     8. YAML Style (check YAML style with yamllint) [skip if --quick]
     9. Path Normalization (check for absolute paths) [skip if --quick, requires PS1]
-   10. Planning Artifacts (validate planning consistency) [skip if --quick, requires PS1]
-   11. Agent Drift (detect semantic drift) [skip if --quick, requires PS1]
+   10. Traceability (validate spec links)
+   11. Planning Artifacts (validate planning consistency) [skip if --quick, requires PS1]
+   12. Agent Drift (detect semantic drift) [skip if --quick, requires PS1]
 
 Exit codes follow ADR-035:
     0 - Success (all validations passed)
@@ -46,6 +47,13 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 # Shared infrastructure (subprocess wrapper, SKIP signal, base-ref helpers).
+from active_plan_closeout import validate_active_plan_closeout
+from check_doc_interpreter_portability import (  # noqa: E402, F401
+    validate_doc_interpreter_portability,
+)
+from check_nested_tests import validate_no_nested_tests
+from check_test_tree_writes import validate_test_tree_writes
+from check_unreachable_code import validate_unreachable_code
 from checks_common import (  # noqa: E402, F401
     MissingScriptSkip,
     _gh_base_ref,
@@ -73,6 +81,7 @@ from checks_plugin import (  # noqa: E402, F401
     validate_install_parity,
     validate_lefthook_installed,
     validate_plugin_version_bump,
+    validate_shipped_skill_routes,
     validate_workflow_local_run,
 )
 from checks_spec import (  # noqa: E402, F401
@@ -237,6 +246,16 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Run with verbose output",
     )
+    parser.add_argument(
+        "--markdown-lint-only",
+        action="store_true",
+        help="Run only markdownlint against positional markdown files",
+    )
+    parser.add_argument(
+        "markdown_files",
+        nargs="*",
+        help=argparse.SUPPRESS,
+    )
     return parser
 
 
@@ -250,6 +269,11 @@ def main(argv: list[str] | None = None) -> int:
     if not repo_root.is_dir():
         print(f"[FAIL] Invalid repository root: {repo_root}", file=sys.stderr)
         return 2
+
+    if args.markdown_lint_only:
+        return 0 if validate_markdown_lint(repo_root, args.markdown_files) else 1
+    if args.markdown_files:
+        parser.error("markdown files can only be passed with --markdown-lint-only")
 
     quick = args.quick
     mode = "Quick (fast checks only)" if quick else "Full"

@@ -1,0 +1,297 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3651,
+    "date": "2026-07-28",
+    "branch": "fix/marketplace-mirror-gate",
+    "startingCommit": "edaf50a72b",
+    "objective": "Remove the stale component count from the src/claude plugin description and gate counts out of every description this repository publishes, closing the stage PR #2187 left open."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git checkout -B fix/marketplace-mirror-gate origin/main in worktree /tmp/wt-mkt; git status confirmed the branch tracks origin/main at edaf50a72b."
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Work happened on fix/marketplace-mirror-gate. main was only ever read via git show origin/main and git diff."
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read .agents/HANDOFF.md at session start and left it unmodified per ADR-014."
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file, .agents/sessions/2026-07-28-session-3651-marketplace-mirror-gate.json, written from tool output rather than copied from another log."
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Serena MCP activated for rjmurillo/ai-agents at session start; memory search used to find the prior marketplace and plugin-source memories before writing a new one."
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "initial_instructions retrieved after activation."
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Read .github/instructions/plugin-version-bump.instructions.md for the parity pair and the max(open PR)+1 rule, and .claude/rules/ for the dash prohibition and atomic-commit limits."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Every item in this block carries evidence from a command run in this session."
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git status shows .agents/HANDOFF.md unmodified across all three commits."
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Added .serena/memories/decision-plugin-descriptions-carry-no-counts.md, which records the count rule, the two arguments for entry/manifest equality that adversarial review refuted, and the upstream evidence that entries may carry independent catalog metadata."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "The only markdown in the diff is the new Serena memory, and the repository's markdownlint-cli2 configuration excludes .serena/** from its glob. The scoped run over that path therefore had no inputs and reported 0 issues in 0 files."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Four commits on fix/marketplace-mirror-gate over origin/main: manifests, gate plus tests, workflows, then memory and this log. Lefthook pre-commit and commit-msg passed on each."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "uv run pytest tests/test_check_plugin_manifest_parity.py -q reported 51 passed. uv run ruff check on the gate and its tests reported All checks passed. python3 build/scripts/check_plugin_manifest_parity.py exited 0 reporting 8 descriptions checked. Negative control: restoring the '25 specialized' prefix made it exit 1 naming the exact substring. python3 build/scripts/validate_plugin_version_bump.py --base origin/main --head HEAD reported OK. Twelve mutations were applied to the gate and every one failed at least one test."
+      },
+      "retrospectiveInvoked": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Two adversarial review rounds by gpt-5.6-sol (rubber-duck) plus a gemini-3.1-pro security pass. Round 2 returned one BLOCKING and five MAJOR findings. The BLOCKING finding refuted the premise of the original design and the change was rebuilt around the narrower invariant instead of shipped."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Reproduce the stale count and confirm it is still live on main",
+      "outcome": "git show origin/main:src/claude/.claude-plugin/plugin.json returned '25 specialized agent definitions with templates and governance for Claude Code'. The entry publishing it in .claude-plugin/marketplace.json carries the same sentence without the count."
+    },
+    {
+      "task": "Date the regression against the sweep that caused it",
+      "outcome": "PR #2187 landed as 2043c39863 on 2026-06-01. git show proves it rewrote descriptions in the two marketplace files only and never touched the src/claude manifest. The count survived 57 days."
+    },
+    {
+      "task": "First design: require each marketplace entry to mirror its manifest",
+      "outcome": "Implemented entry-to-manifest equality on name and description, with source classification, pluginRoot handling, and repository containment because the check had to resolve each entry to a directory."
+    },
+    {
+      "task": "Adversarial review round 1 (gemini-3.1-pro security, gpt-5.6-sol rubber-duck)",
+      "outcome": "Seven findings. Fixed a path-traversal vector the security pass missed on one of two shapes, a None-equals-None silent pass on absent names, an unhandled UnicodeDecodeError, and a mutation that let the second marketplace go unchecked."
+    },
+    {
+      "task": "Discover main had moved and half the change was already shipped",
+      "outcome": "PR #3559 merged as edaf50a72b and had already repaired the Copilot description. Closed issue #3645 with byte-level evidence instead of shipping a duplicate fix, and rebuilt the branch on current main."
+    },
+    {
+      "task": "Adversarial review round 2 refuted the design",
+      "outcome": "BLOCKING: the equality invariant had no support. The reviewer proved PR #3559 was not independent convergence by showing e99659d1cc^ already carried that string before the PR did any work, and that the mirror had never held on disk for all pairs."
+    },
+    {
+      "task": "Verify the refutation against upstream rather than accept it",
+      "outcome": "Upstream marketplace docs confirm an entry may include any field from the plugin manifest schema as catalog metadata, and that under 'strict: false' the entry is the entire definition with no plugin.json required. The gate would have failed a valid marketplace."
+    },
+    {
+      "task": "Rebuild around the invariant the evidence supports",
+      "outcome": "Replaced entry-to-manifest equality with a scan for component counts in every published description, which is the decision PR #2187 actually made. The gate lost 84 lines and the entire source-resolution surface, so the traversal, pluginRoot, and strict-mode findings became unreachable rather than patched."
+    },
+    {
+      "task": "Prove the new tests constrain the new code",
+      "outcome": "51 tests. Twelve mutations run, all killed, including skipping a configured file by name, which the previous suite let survive. Two mutations exposed real gaps: the regex window boundary was unpinned until a three-intervening-word case was added."
+    },
+    {
+      "task": "Align the workflows with the check they run",
+      "outcome": "Added the marketplace files and the Claude manifest to both path filters so an edit to any of them cannot skip the job that gates it, and quoted two step names that YAML truncated at an unquoted '#'."
+    },
+    {
+      "task": "Send the redesign for a third adversarial pass",
+      "outcome": "Rounds 1 and 2 attacked a design that no longer exists, so the count gate had only self-review behind it. The third pass returned one blocking and three major findings, all reproduced locally before any were accepted.",
+      "evidence": "gpt-5.6-sol, 202 tool calls. Findings: versions stale again, the pattern misses ordinary counts, the pattern trips on ordinary prose, a mutation survives, dead constant left behind, three historical claims still false."
+    },
+    {
+      "task": "Reproduce the pattern counterexamples before fixing anything",
+      "outcome": "All five false negatives and both false positives reproduced exactly as reported. '1 agent', 'one agent', '3 MCP servers', '25-agent toolkit' and a count three words from its noun all passed the gate; 'three rules of thumb' and 'two workflows' both failed it.",
+      "evidence": "Direct search against the compiled pattern, printed per case. 5 MISSED and 2 wrongly CAUGHT."
+    },
+    {
+      "task": "Restructure the pattern around real component categories",
+      "outcome": "Narrowed the nouns to the categories a manifest actually declares plus the unit a marketplace inventories, which removed the prose false positives. That made it safe to drop the plural requirement, accept hyphenated forms, and widen the window to three words, which removed the false negatives. A partitive exclusion on 'of' replaced the blunt removal of the token 'one'.",
+      "evidence": "17 cases: 10 must-catch all caught, 7 must-not-catch all passed. Gate still exits 0 on the repository, 8 descriptions checked."
+    },
+    {
+      "task": "Kill the surviving mutation and the one it exposed",
+      "outcome": "Removing any single component noun or count token now fails a test. Fifteen mutations found one survivor: dropping 'hundred'. The test that should have caught it read its own expectations out of the module under test, so deleting a token also deleted the case that checked it.",
+      "evidence": "Expected token list written out in the test. 19 mutations run in this round, 19 killed."
+    },
+    {
+      "task": "Verify the historical claims instead of correcting them from the report",
+      "outcome": "The reviewer said the memory's claim that the pairs never agreed was false. Checking it directly showed the reviewer was right and my correction was also wrong: the pairs agreed at four mainline commits, and only while both copies carried a count. #2187 broke the agreement deliberately when it stripped the counts from the marketplace copies.",
+      "evidence": "Walked 38 mainline commits touching src/claude/.claude-plugin/plugin.json. Agreement at 645f868915, 2e85005e0f (23 on both sides) and 178a898a9a, 60c363c5e1 (25 on both sides)."
+    },
+    {
+      "task": "Trace when the count actually went wrong",
+      "outcome": "Not when an agent was added, as the first commit message claimed. cb7a9f9b01 converted the spec-generator agent into a skill and deleted its definition on 2026-05-31, taking the catalog from 25 to 24. #2187 landed the next day and missed the manifest.",
+      "evidence": "git show --stat cb7a9f9b01 shows .claude/agents/spec-generator.md deleted, 155 lines."
+    },
+    {
+      "task": "Guard the gate's own file list",
+      "outcome": "The gate reads a hardcoded list, which is the shape of mistake #2187 made. Added a test that walks git ls-files and fails when a manifest is not registered. Verified by adding a sixth manifest describing '12 specialized agents': it exits 0 through the gate and fails the test by name.",
+      "evidence": "Two negative controls: unregistering a configured file and introducing a new one both fail the test."
+    },
+    {
+      "task": "Rebuild the branch on current main a third time",
+      "outcome": "Main moved twice more during the review. Re-read every open PR head: two now hold 0.6.160, so the parity pair went to 0.6.161; src/claude stayed at 0.3.49 above #3613's 0.3.48. History rebuilt linearly so the corrected account of the drift is in the commit that makes the change.",
+      "evidence": "17 open PRs read per manifest. Gate, tests, ruff, dash scan and version bump validator all green after the rebuild."
+    }
+  ],
+  "outcomes": {
+    "deliverables": [
+      {
+        "type": "code",
+        "path": "src/claude/.claude-plugin/plugin.json",
+        "description": "Stale '25 ' count removed from the published description."
+      },
+      {
+        "type": "code",
+        "path": "build/scripts/check_plugin_manifest_parity.py",
+        "description": "check_description_counts gates component counts out of all eight published descriptions."
+      },
+      {
+        "type": "test",
+        "path": "tests/test_check_plugin_manifest_parity.py",
+        "description": "51 tests including a per-file parameterization that kills file-skipping mutations."
+      },
+      {
+        "type": "config",
+        "path": ".github/workflows/validate-generated-agents.yml",
+        "description": "Path filter and step name corrected so manifest edits trigger the gate."
+      },
+      {
+        "type": "config",
+        "path": ".github/workflows/agent-drift-detection.yml",
+        "description": "Path filter covers both marketplace files and all three manifests."
+      },
+      {
+        "type": "documentation",
+        "path": ".serena/memories/decision-plugin-descriptions-carry-no-counts.md",
+        "description": "Records the count rule and the refuted equality argument so it is not retried."
+      }
+    ],
+    "decisions": [
+      {
+        "decision": "Gate component counts in descriptions, not entry-to-manifest equality.",
+        "rationale": "PR #2187 is a real cited decision that counts do not belong in these strings. Equality is not: upstream permits an entry to carry independent catalog metadata, 'strict: false' entries need no plugin.json, and no commit in this repo's history ever had all pairs in agreement.",
+        "impact": "The gate blocks the defect that actually occurred and stays silent on the taste question nobody decided. It cannot fail a marketplace that is valid upstream."
+      },
+      {
+        "decision": "Rebuild rather than patch after the round-2 BLOCKING finding.",
+        "rationale": "Five of the six MAJOR findings existed only because the design resolved marketplace sources to directories. Removing that need makes them unreachable instead of fixed.",
+        "impact": "The gate is 84 lines smaller and has no path handling built from marketplace input."
+      },
+      {
+        "decision": "Close #3645 with evidence instead of shipping a duplicate fix.",
+        "rationale": "PR #3559 had already repaired the Copilot description on main.",
+        "impact": "One issue closed with a byte-level citation; no redundant hunk in this PR."
+      },
+      {
+        "decision": "Narrow the component nouns to real manifest categories, then loosen everything else",
+        "rationale": "The pattern was simultaneously too narrow and too wide: it missed '1 agent' and '3 MCP servers' while failing on 'two workflows'. Both faults share a cause. A noun list containing prose words like rules and workflows forces every other part of the pattern to stay tight to compensate. Cutting the list to categories the schema declares removes the pressure, so singular forms, hyphens and a wider window become safe.",
+        "impact": "Ten counted phrasings that previously shipped are now caught, and two prose phrasings that previously failed now pass."
+      },
+      {
+        "decision": "Write test expectations out rather than derive them from the module",
+        "rationale": "A test that reads its expected values from the code under test cannot detect a deletion from that code, because the deletion removes the case as well. Dropping a count token survived the whole suite for exactly this reason.",
+        "impact": "Deleting any count token or component category now fails a named assertion."
+      }
+    ]
+  },
+  "learnings": {
+    "patterns": [
+      {
+        "pattern": "Send the adversarial reviewer at the premise, not only the implementation.",
+        "context": "Round 1 attacked the code and found seven real defects. Round 2 was told explicitly to attack the justification, and that is the round that found the design was wrong.",
+        "application": "When a change adds a blocking gate, one review round must be aimed at whether the invariant is real, separately from whether the code implements it correctly."
+      },
+      {
+        "pattern": "Verify a reviewer's factual claim before acting on it, in both directions.",
+        "context": "The reviewer's version numbers were stale and recomputing them was necessary. Its claim about PR #3559 was correct and checking it killed my own argument.",
+        "application": "Re-derive every load-bearing claim from a primary source. A reviewer being wrong once is not evidence it is wrong again."
+      },
+      {
+        "pattern": "Removing a capability can delete a class of defects instead of patching them.",
+        "context": "Path traversal, pluginRoot joins, containment, and strict-mode handling all existed only to resolve an entry to a directory. The narrower gate needs no path at all.",
+        "application": "When review returns several findings clustered in one subsystem, ask whether the subsystem is required before fixing each finding."
+      },
+      {
+        "pattern": "Mutation testing finds untested boundaries, not just untested branches.",
+        "context": "Widening the regex window from two intervening words to nine broke no test, so the boundary was decorative until a three-word case pinned it.",
+        "application": "Mutate numeric bounds and thresholds, not only control flow."
+      },
+      {
+        "pattern": "Reproduce every adversarial finding locally before accepting or rejecting it",
+        "context": "A third-round review returned seven findings against a redesign.",
+        "application": "Each was run as a direct probe first. All seven reproduced, and one of them turned out to understate the problem: verifying its historical claim showed my own correction was wrong too."
+      }
+    ],
+    "avoidances": [
+      {
+        "antipattern": "Treating a convergent later fix as independent corroboration.",
+        "consequence": "PR #3559 looked like a second author reaching the same conclusion. Its branch already carried the string before it started; the merge restored pre-existing text.",
+        "correction": "Before citing convergence, check the branch base. git show <first-commit>^:<path> shows whether the value was derived or inherited."
+      },
+      {
+        "antipattern": "Reasoning from textual similarity to intent.",
+        "consequence": "Two descriptions being the same sentence was read as proof that equality was intended. It only showed one copy had a count that the other did not.",
+        "correction": "Similarity supports the narrow claim about the differing token. Promoting it to a general invariant needs a decision record or an upstream requirement."
+      },
+      {
+        "antipattern": "Claiming a lint ran when its config excluded every file in scope.",
+        "consequence": "The first draft of this log said scoped markdownlint reported no findings. It had reported zero files, because the config excludes .serena/**.",
+        "correction": "Read the tool's file count, not just its exit code, before writing evidence."
+      },
+      {
+        "antipattern": "Deriving a test's expected values from the module the test constrains",
+        "consequence": "The assertion cannot fail on deletion. Removing a token from the vocabulary also removed the case that exercised it, so the mutation passed 65 tests.",
+        "correction": "Write the expected set out in the test and assert the module's set equals it, so drift in either direction is a named failure."
+      },
+      {
+        "antipattern": "Correcting a claim a reviewer flagged without re-deriving it from the source",
+        "consequence": "The reviewer was right that 'the pairs never agreed' was false; the replacement claim was also false. The pairs agreed at four commits, which the corrected sentence still denied.",
+        "correction": "Re-run the query. The verified answer was more useful than either version: agreement existed only while both copies carried a count, so equality and countlessness are in tension and #2187 chose countlessness."
+      },
+      {
+        "antipattern": "Treating a hardcoded file list in a gate as complete because it is complete today",
+        "consequence": "The gate would miss a sixth manifest exactly as #2187 missed the third, which is the failure it exists to prevent.",
+        "correction": "Add a test that discovers the files independently and fails when the configured list does not cover them."
+      }
+    ]
+  },
+  "endingCommit": "f2a851b1ee458861df9c977041deaba95236ca7e",
+  "nextSteps": [
+    "Push fix/marketplace-mirror-gate and open the PR with Fixes #3651 and Refs #3645, #2187.",
+    "PR #3638 carries 0.6.147 in src/claude/.claude-plugin/plugin.json, a cross-version-line collision. If it merges first, every open PR touching that manifest fails the strictly-greater check. Commented on the PR; unresolved.",
+    "Delete the abandoned remote branch fix/copilot-manifest-description.",
+    "Consider a validator that detects verbatim-copied evidence strings between session logs."
+  ]
+}

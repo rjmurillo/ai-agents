@@ -13,12 +13,16 @@ Covers:
 from __future__ import annotations
 
 import importlib
+import importlib.util
 import os
+import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 import yaml
+
+from scripts.ci import verify_code_env as verify
 
 # The canonical bootstrap module lives outside any importable package, so we
 # load it directly via importlib.util to avoid coupling these tests to the
@@ -29,13 +33,14 @@ BOOTSTRAP_PATH = REPO_ROOT / ".claude" / "lib" / "bootstrap.py"
 
 VM_BOOTSTRAP_PATH = REPO_ROOT / "scripts" / "bootstrap-vm.sh"
 SETUP_ACTION_PATH = REPO_ROOT / ".github" / "actions" / "setup-code-env" / "action.yml"
+
+
 WORKTRUNK_CONFIG_PATH = REPO_ROOT / ".config" / "wt.toml"
 WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
 
+
 def _load_bootstrap():
-    spec = importlib.util.spec_from_file_location(
-        "bootstrap_under_test", BOOTSTRAP_PATH
-    )
+    spec = importlib.util.spec_from_file_location("bootstrap_under_test", BOOTSTRAP_PATH)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(module)
@@ -137,7 +142,7 @@ print(m.resolve_plugin_lib_dir())
         [sys.executable, str(runner)],
         check=True,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         env={k: v for k, v in os.environ.items() if k != "CLAUDE_PLUGIN_ROOT"},
     )
 
@@ -217,24 +222,56 @@ def test_setup_action_preserves_input_and_installs_lefthook_after_dependencies()
     install = text.index("- name: Enable git hooks")
     assert "enable-git-hooks:" in text
     assert validation < dependencies < install
-    assert (
-        "if: inputs.enable-git-hooks == 'true' && inputs.enable-python != 'true'"
-        in text
-    )
+    assert "if: inputs.enable-git-hooks == 'true' && inputs.enable-python != 'true'" in text
     assert "enable-git-hooks=true requires enable-python=true" in text
     assert "exit 2" in text
-    assert (
-        "if: inputs.enable-git-hooks == 'true' && inputs.enable-python == 'true'"
-        in text
-    )
+    assert "if: inputs.enable-git-hooks == 'true' && inputs.enable-python == 'true'" in text
     assert "uv run --frozen --extra dev lefthook install --reset-hooks-path" in text
-    assert (
-        "if ($env:ENABLE_GIT_HOOKS -eq 'true' -and $env:ENABLE_PYTHON -eq 'true')"
-        in text
-    )
-    assert "if ($LASTEXITCODE -ne 0)" in text
-    assert "exit $LASTEXITCODE" in text
+    assert "scripts/ci/verify_code_env.py" in text
     assert "git config core.hooksPath" not in text
+
+
+def test_setup_action_verification_gates_lefthook_on_both_inputs(monkeypatch) -> None:
+    """The lefthook check runs only when git hooks and Python are both enabled.
+
+    This replaces three assertions against the PowerShell that used to live in
+    the action's verify step (extracted under ADR-006, issue #3532). The
+    contract is the same; it is now measured by running the code rather than by
+    grepping the shell that used to implement it.
+    """
+    calls: list[int] = []
+
+    def _verify_lefthook() -> int:
+        calls.append(1)
+        return 0
+
+    monkeypatch.setattr(verify, "verify_lefthook", _verify_lefthook)
+    monkeypatch.setattr(verify.shutil, "which", lambda _name: None)
+    monkeypatch.setenv("ENABLE_PESTER", "false")
+    for hooks, python, expected in [
+        ("true", "true", 1),
+        ("true", "false", 0),
+        ("false", "true", 0),
+    ]:
+        calls.clear()
+        monkeypatch.setenv("ENABLE_GIT_HOOKS", hooks)
+        monkeypatch.setenv("ENABLE_PYTHON", python)
+        verify.main([])
+        assert len(calls) == expected, (hooks, python)
+
+
+def test_setup_action_verification_propagates_lefthook_exit_code(monkeypatch) -> None:
+    """A failed lefthook check fails the step with its own exit code."""
+    monkeypatch.setattr(
+        verify, "_run", lambda _argv: subprocess.CompletedProcess(args=[], returncode=5, stdout="")
+    )
+    monkeypatch.setattr(verify.shutil, "which", lambda _name: None)
+    monkeypatch.setenv("ENABLE_GIT_HOOKS", "true")
+    monkeypatch.setenv("ENABLE_PYTHON", "true")
+    monkeypatch.setenv("ENABLE_PESTER", "false")
+
+    assert verify.verify_lefthook() == 5
+    assert verify.main([]) == 5, "main must propagate the failing exit code, not swallow it"
 
 
 def test_workflows_choose_hook_installation_explicitly() -> None:
@@ -257,7 +294,6 @@ def test_worktrunk_post_create_installs_lefthook() -> None:
 
     assert (
         'configure-hooks = "uv run --frozen --extra dev lefthook install '
-        "--reset-hooks-path && uv run --frozen --extra dev lefthook check-install\""
-        in text
+        '--reset-hooks-path && uv run --frozen --extra dev lefthook check-install"' in text
     )
     assert "core.hooksPath" not in text

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import os
+import shutil
 import sys
+import uuid
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -74,6 +76,37 @@ def _default_project_repo(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AI_AGENTS_PROJECT_REPO", "1")
 
 
+@pytest.fixture(autouse=True)
+def _isolate_tmp_path_from_parent_git_repo(
+    request: pytest.FixtureRequest,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Prevent repo-local pytest temp dirs from discovering the parent checkout."""
+    if "tmp_path" not in request.fixturenames:
+        return
+    tmp_path = request.getfixturevalue("tmp_path")
+    existing = os.environ.get("GIT_CEILING_DIRECTORIES")
+    ceiling = str(tmp_path.parent)
+    value = ceiling if not existing else f"{ceiling}{os.pathsep}{existing}"
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", value)
+
+
+@pytest.fixture
+def external_tmp_path() -> Iterator[Path]:
+    """Create a temp directory outside the checkout for path-boundary tests."""
+    # Imported here rather than at module scope: the helper lives under `tests`,
+    # which only becomes importable after the sys.path insert above.
+    from tests.external_scratch import outside_every_repository
+
+    root = outside_every_repository(PROJECT_ROOT) / f".pytest-external-{PROJECT_ROOT.name}"
+    path = root / uuid.uuid4().hex
+    path.mkdir(parents=True)
+    try:
+        yield path
+    finally:
+        shutil.rmtree(path, ignore_errors=True)
+
+
 def assert_validation_result(
     result: ValidationResult,
     *,
@@ -130,4 +163,3 @@ def temp_test_dir(tmp_path: Path) -> Path:
     test_dir = tmp_path / "test_workspace"
     test_dir.mkdir(parents=True, exist_ok=True)
     return test_dir
-

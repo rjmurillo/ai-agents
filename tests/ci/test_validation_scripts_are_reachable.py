@@ -27,11 +27,11 @@ Workflow, hook, and skill documentation can name an entry point. Once a
 ``SKILL.md`` names a helper script, the graph follows that helper's imports and
 executable string literals.
 
-Under that model the same 89 scripts yield four unreachable, each of which is a
+Under that model the same 89 scripts yield two unreachable, each of which is a
 real decision recorded in ``_NO_CALLER`` below rather than a bulk exemption.
 
 What this does not do: prove the caller is correct, or that the script would
-pass if run. Two of the entries below are unreachable precisely because
+pass if run. Both of the entries below are unreachable precisely because
 they fail against the current tree, which is tracked separately. Reachability
 is the floor, not the ceiling.
 """
@@ -41,6 +41,7 @@ from __future__ import annotations
 import ast
 import functools
 import re
+import sys
 from pathlib import Path
 
 import pytest
@@ -93,20 +94,6 @@ _NO_CALLER: dict[str, str] = {
         "not a code gate: a PR cannot introduce a duplicate priority label on "
         "an issue. Belongs on a schedule, which does not exist yet."
     ),
-    "scripts/validation/consistency.py": (
-        "Fails against the current tree: `--all --ci` exits 1 with 4 of 7 "
-        "feature checks failing. Wiring it as-is would red main. The protocol "
-        "it implements (.agents/governance/consistency-protocol.md) is live and "
-        "there are 23 requirement and 19 design artifacts to check, so the fix "
-        "is to resolve the findings and then wire it. Tracked in #3360."
-    ),
-    "scripts/validation/traceability.py": (
-        "Fails against the current tree: `--ci` exits 1, reporting TASK-011 "
-        "complete while its DESIGN reference is not. Same shape as "
-        "consistency.py: the schema it implements "
-        "(.agents/governance/traceability-schema.md) is live, so the fix is to "
-        "resolve the findings and then wire it. Tracked in #3360."
-    ),
 }
 
 
@@ -127,8 +114,32 @@ def _python_sources() -> tuple[Path, ...]:
         base = _REPO_ROOT / root
         if not base.is_dir():
             continue
-        sources.extend(p for p in base.rglob("*.py") if not any(s in p.parts for s in skip))
+        sources.extend(
+            p
+            for p in base.rglob("*.py")
+            if not any(s in p.relative_to(_REPO_ROOT).parts for s in skip)
+        )
     return tuple(sources)
+
+
+def test_python_sources_keeps_checkout_nested_under_worktrees(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Skip tokens are path-relative so agent worktree parents do not hide all files."""
+    repo = tmp_path / ".claude" / "worktrees" / "issue-4159"
+    included = repo / "scripts" / "caller.py"
+    relative_skip = repo / "scripts" / "worktrees" / "scratch.py"
+    cache_skip = repo / "scripts" / "__pycache__" / "cached.py"
+    for source in (included, relative_skip, cache_skip):
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text("print('reachable')\n", encoding="utf-8")
+
+    monkeypatch.setattr(sys.modules[__name__], "_REPO_ROOT", repo)
+    _python_sources.cache_clear()
+    try:
+        assert _python_sources() == (included,)
+    finally:
+        _python_sources.cache_clear()
 
 
 def _module_name(rel: str) -> str:
@@ -333,6 +344,11 @@ def _reference_graph() -> dict[str, frozenset[str]]:
         rel = path.relative_to(_REPO_ROOT).as_posix()
         try:
             source = path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            # The file existed when `_python_sources` listed it, but another
+            # process deleted it before this read. A vanished file cannot make
+            # a guarded script reachable or unreachable, so skip the stale edge.
+            continue
         except (OSError, UnicodeError) as exc:
             raise RuntimeError(f"Cannot inspect Python source {rel}: {exc}") from exc
         try:
@@ -500,6 +516,65 @@ class TestTheReachabilityProbeWorks:
 
     def test_the_graph_covers_more_than_one_file(self) -> None:
         assert len(_reference_graph()) > 1, "the probe is not walking the tree"
+
+    def test_a_python_source_that_vanishes_mid_walk_is_skipped(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        real_source = next(p for p in _python_sources() if p.is_file())
+        vanished = _REPO_ROOT / "scripts" / "__vanished_probe__.py"
+        assert not vanished.exists()
+        monkeypatch.setattr(
+            "tests.ci.test_validation_scripts_are_reachable._python_sources",
+            lambda: (real_source, vanished),
+        )
+        _source_paths.cache_clear()
+        _source_index.cache_clear()
+        _source_paths_by_name.cache_clear()
+        _reference_graph.cache_clear()
+        try:
+            graph = _reference_graph()
+        finally:
+            _source_paths.cache_clear()
+            _source_index.cache_clear()
+            _source_paths_by_name.cache_clear()
+            _reference_graph.cache_clear()
+
+        real_rel = real_source.relative_to(_REPO_ROOT).as_posix()
+        vanished_rel = vanished.relative_to(_REPO_ROOT).as_posix()
+        assert real_rel in graph
+        assert vanished_rel not in graph
+        assert all(vanished_rel not in targets for targets in graph.values())
+
+    def test_an_unreadable_python_source_still_fails_hard(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        unreadable = _REPO_ROOT / "scripts" / "__unreadable_probe__.py"
+        monkeypatch.setattr(
+            "tests.ci.test_validation_scripts_are_reachable._python_sources",
+            lambda: (unreadable,),
+        )
+        real_read_text = Path.read_text
+
+        def raise_permission_error(self: Path, *args, **kwargs) -> str:
+            if self == unreadable:
+                raise PermissionError("permission denied")
+            return real_read_text(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "read_text", raise_permission_error)
+        _source_paths.cache_clear()
+        _source_index.cache_clear()
+        _source_paths_by_name.cache_clear()
+        _reference_graph.cache_clear()
+        try:
+            with pytest.raises(RuntimeError, match=r"__unreadable_probe__\.py"):
+                _reference_graph()
+        finally:
+            _source_paths.cache_clear()
+            _source_index.cache_clear()
+            _source_paths_by_name.cache_clear()
+            _reference_graph.cache_clear()
 
     def test_reachability_is_transitive(self) -> None:
         """An aggregator's callees count, which is the whole point."""

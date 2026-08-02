@@ -74,15 +74,19 @@ def build_parser() -> argparse.ArgumentParser:
         description="Create protocol-compliant JSON session log.",
     )
     parser.add_argument(
-        "--session-number", type=int, default=0,
+        "--session-number",
+        type=int,
+        default=0,
         help="Session number. Auto-detects from existing files if not provided.",
     )
     parser.add_argument(
-        "--objective", default="",
+        "--objective",
+        default="",
         help="Session objective description.",
     )
     parser.add_argument(
-        "--skip-validation", action="store_true",
+        "--skip-validation",
+        action="store_true",
         help="Skip validation after creating session log (testing only).",
     )
     return parser
@@ -179,7 +183,10 @@ def _derive_objective(branch: str) -> str:
     try:
         result = subprocess.run(
             ["git", "log", "--oneline", "-3"],
-            capture_output=True, text=True, timeout=10, check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
         )
         if result.returncode == 0 and result.stdout.strip():
             first_line = result.stdout.strip().splitlines()[0]
@@ -264,8 +271,9 @@ def _run_validation(session_log_path: str, repo_root: str) -> bool:
         return False
 
     print("Running validation...", file=sys.stderr)
+    sys.stdout.flush()
     result = subprocess.run(
-        [sys.executable, validation_script, session_log_path],
+        [sys.executable, validation_script, "--creation-mode", session_log_path],
         capture_output=False,
         timeout=60,
         check=False,
@@ -314,7 +322,10 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         filepath, final_number = _write_session_file(
-            sessions_dir, session_data, current_date, objective,
+            sessions_dir,
+            session_data,
+            current_date,
+            objective,
         )
     except OSError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
@@ -330,13 +341,18 @@ def main(argv: list[str] | None = None) -> int:
         passed = _run_validation(filepath, repo_root)
         if not passed:
             print(
-                f"\nSession log created but validation FAILED.\n"
+                f"\nSession log created but schema validation FAILED.\n"
                 f"  File: {filepath}\n"
                 f"Fix issues and re-validate:\n"
-                f"  python3 scripts/validate_session_json.py \"{filepath}\"",
+                f'  uv run python scripts/validate_session_json.py --creation-mode "{filepath}"',
                 file=sys.stderr,
             )
             return 4
+        print(
+            "Schema validation passed. Full protocol validation runs at session"
+            " end via complete_session_log.py.",
+            file=sys.stderr,
+        )
     else:
         print("Validation skipped (--skip-validation flag set).", file=sys.stderr)
 

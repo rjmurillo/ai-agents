@@ -1,0 +1,219 @@
+{
+  "id": "episode-2026-07-27-session-3494-skill-description-triggers",
+  "session": "2026-07-27-session-3494-skill-description-triggers",
+  "timestamp": "2026-07-27T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Promote already-documented trigger phrases from ## Triggers tables into the skill descriptions that carry none, so the router can see them at load time. Refs #3494.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read the wiki page Skill Description as Loadtime Trigger and .agents/governance/skill-description-trigger-standard.md. Both state the description is the only text loaded at routing time and must carry phrases the user would actually say.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured trigger presence twice, wrong both times. A regex for Use (when|for|to) counted the negative clause Do NOT use to as a positive trigger, flagging 8. Stripping negative clauses gave 9. Reading all 9 by hand showed 5 were false positives because the corpus also uses Trigger on, Apply when, Run after, Use PROACTIVELY after, and Designed to be invoked.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Abandoned the phrasing heuristic for a checkable predicate. 48 of 96 skills carry a ## Triggers table whose first column holds backticked user phrases. Testing case-insensitive membership of those phrases in the skill's own description found 21 skills matching zero of their own documented phrases, covering 150 phrases the router never sees.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Scoped the change to the 13 of those 21 that carry no quoted user phrase of any kind. The other 8 already have some phrase surface, so choosing between two phrasings is a judgement call that belongs in a separate argument.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wrote the edit as a script with three assertions worked out by hand before running: placement ahead of any Do NOT clause, YAML round-trip preserving the value byte for byte, and the key set unchanged. Each new description was checked under 1024 characters with no angle brackets.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified after the edit: skill_frontmatter.py reports 96 of 96 passed; every source description matches its src/copilot-cli mirror; the zero-coverage count fell from 21 to 10.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "test",
+      "content": "Verified after the edit: skill_frontmatter.py reports 96 of 96 passed; every source description matches its src/copilot-cli mirror; the zero-coverage count fell from 21 to 10.",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [
+        "e001"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured the cost honestly. The 13 descriptions grew by 1,270 bytes total, roughly 318 tokens added to the permanently loaded description block.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Dropped 2 of the intended 13. The skillforge pre-commit hook rejected observability and taste-lints for pre-existing structural errors: observability documents its scripts under ## Available Scripts rather than ## Scripts, and taste-lints has neither a Scripts section nor a Verification section. Confirmed pre-existing by reading both files as they stand on origin/main. The hook only inspects staged files, so both failures were latent until an unrelated edit staged them.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Kept the two changes separate rather than authoring structural sections inside a phrase-promotion change. Filed #3496 with the exact errors, the reason each is latent, and the two description sentences it should land once the structure is fixed.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Final cost, measured on the 11 that landed: 1,102 bytes added to the permanently loaded description block, roughly 276 tokens.",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Adversarial review on gpt-5.6-sol measured the coverage gap twice with two independent extractors and reported 22 to 11 where this PR claimed 21 to 10. Rather than accept or dismiss it, traced the single-skill difference: orphan-ref-validator.",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ]
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Found that both numbers are right under their own predicate, and that mine was the weaker one. orphan-ref-validator's description contains the literal string /build Mandatory Exit Gate, which happens to contain the table phrase build mandatory exit gate as a substring. A plain substring test therefore scored it as covered. It is not covered in any useful sense: build mandatory exit gate is a lifecycle descriptor, not something a user says, and the skill's three real user phrases were all absent.",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ]
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed the skill rather than only the number. Promoted the three real phrases into orphan-ref-validator, making it the twelfth skill in this change. Re-measured under both predicates against the working tree: the loose substring measure goes 21 to 10, the strict measure that requires a genuine quoted user phrase goes 31 to 19. The PR now names which predicate produces which number instead of quoting one without saying how it was computed.",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ]
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Took a second review finding on routing rather than phrase honesty. The phrase respond to review comments came from the github skill's own trigger table, so it passed the no-invented-phrase check, but pr-comment-responder already owns that request and explicitly tells the reader not to use it for the single-comment case that the github table row actually points at. Promoting it would have pulled the generic skill in front of the specialist. Swapped it for add label to issue, which is also literal from the github table and which no other skill claims.",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e016"
+      ]
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged current main, which had moved and had itself added a SKIP clause to the github description. Resolved four conflicts by hand so the promoted phrase sits ahead of main's SKIP clause rather than replacing it, and kept the manifests at 0.6.141 against main's 0.6.140.",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 3e8de52c7e0e735c3863fc39b66f07c7c4b44018",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ]
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 4
+  },
+  "lessons": []
+}

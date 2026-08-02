@@ -1,0 +1,402 @@
+{
+  "id": "episode-2026-07-28-session-3651-marketplace-mirror-gate",
+  "session": "2026-07-28-session-3651-marketplace-mirror-gate",
+  "timestamp": "2026-07-28T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Remove the stale component count from the src/claude plugin description and gate counts out of every description this repository publishes, closing the stage PR #2187 left open.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Traced the drift the gate exists to catch. git show 2043c39863 proves the count-stripping sweep in PR #2187 changed descriptions only in the two marketplace files. It touched two plugin.json files for version alone and never touched src/claude/.claude-plugin/plugin.json, which still opened with '25 specialized agent definitions'. The two strings in that pair are the same sentence with the count removed from one copy, which is what identifies the omission as an incomplete transformation rather than an intended difference.",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved a Chesterton's Fence before writing any gate. validate_plugin_version_bump.py carries a docstring line recording that validate_marketplace_counts.py was deliberately retired in the same PR #2187, because it compared a hard-coded count against the filesystem and therefore went red on every PR that added a component. The mirror check compares two checked-in strings and derives nothing, so it cannot fire on unrelated work. Recorded the distinction in the module docstring and in a Serena memory so a future reader who finds the retired validator's grave does not re-litigate it.",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added check_marketplace_mirrors() to build/scripts/check_plugin_manifest_parity.py, comparing each marketplace entry's name and description against the plugin.json at its source directory, with 34 tests. Wired both marketplace files into the path filters of validate-generated-agents.yml and agent-drift-detection.yml so an edit to a marketplace alone runs the gate.",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Mutation-tested the suite rather than trusting a green run. Removing 'description' from _MIRRORED_FIELDS killed 5 tests and short-circuiting _compare_entry killed 6, so the original tests were not vacuous. A later adversarial review found a mutation that did survive: skipping the last configured marketplace. Added a two-marketplace fixture in both drift directions plus a CLI test that derives the expected entry count from the checked-in files. That mutation now kills 3 tests.",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "A cross-model security review by gemini-3.1-pro-preview reported one LOW finding, a path traversal in the source join. Verifying it myself showed the reviewer had found one of two vectors: './/etc/passwd' escapes because the join goes absolute, and './../../etc' escapes by walking out, which the reviewer missed. '/etc/passwd' was already safe. Added a resolve() plus is_relative_to() containment guard checked before .exists(), with three tests that plant a real readable manifest outside the root so a permissive implementation returns 0 and the test fails. Forcing the guard to return True kills exactly the two escape tests.",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "One of those new tests failed and the test was wrong, not the code. It used './sub/../plug' where 'sub' never existed, so .exists() failed before containment mattered. Fixing the fixture exposed a second defect in my own reporting: config errors printed under the staleness header with the staleness advice, which tells a reader with a bad path to 'edit whichever copy is wrong so both carry the same string'. Split the header and the fix line by failure class.",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "A cross-model adversarial review by gpt-5.6-sol returned 2 BLOCKING, 4 MAJOR and 1 MINOR. Three were real defects in the comparison itself. 'entry.get(f) != data.get(f)' read absent-on-both as agreement, so name is now required on both sides per upstream while description stays optional. _local_source_dir returned None for any string not starting with './', so a dropped prefix or a deleted source silently evaded the gate; upstream defines a string source as always a relative path and every remote source as an object, so non-conforming strings are now config errors and metadata.pluginRoot is honored. _read_manifest did not catch UnicodeDecodeError, so invalid UTF-8 crashed with exit 1 instead of the ADR-035 config code 2. Each fix was mutation-tested and each mutation killed exactly its own test.",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verifying the review's MINOR finding proved my own commit message false and nearly overturned the change. The message claimed the sweep had cleaned both marketplace files and both project-toolkit manifests; git show disproved it. Tracing further showed the mirror has never held on disk for two of the three pairs, so history of agreement cannot justify the gate. Consulting the upstream marketplace specification confirmed it does not require an entry to repeat its manifest's text. What re-established the premise was textual identity: each marketplace description is the same sentence as its manifest description with the counts removed. The gate enforces a repository convention, and the docstring and memory now say so explicitly instead of implying a specification rule.",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recomputed the version targets independently rather than taking the reviewer's numbers. Fetching all 21 open PR heads and reading every manifest showed the parity pair tops out at 0.6.152 in PR #3643, not the 0.6.151 the reviewer reported, and the src/claude 0.3.x line tops out at 0.3.48 in PR #3613. Set 0.6.153 and 0.3.49. PR #3638 carries 0.6.147 in src/claude, a cross-version-line collision already flagged on that PR, excluded from the 0.3.x maximum.",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Discovered mid-session that origin/main had moved and had already fixed half the change. PR #3559 landed 22 minutes after the original data commit and restored the Copilot description to the exact string its marketplace entry publishes. Rebuilt the branch on current main with three clean commits, dropped the now-redundant Copilot hunk, and closed #3645 with the evidence rather than shipping a duplicate fix. The independent convergence on the same string is now cited as evidence the convention is real.",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-28T10:01:33+00:00",
+      "type": "commit",
+      "content": "Commit: 37a42bb7e0",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e024"
+      ]
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-28T10:00:47+00:00",
+      "type": "commit",
+      "content": "Commit: a7169cb800",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010",
+        "e014",
+        "e015",
+        "e016",
+        "e017",
+        "e018",
+        "e019",
+        "e020",
+        "e021",
+        "e022",
+        "e023",
+        "e025",
+        "e026",
+        "e027",
+        "e028",
+        "e029",
+        "e030",
+        "e031",
+        "e032"
+      ],
+      "leads_to": [
+        "e013"
+      ]
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-28T10:01:11+00:00",
+      "type": "commit",
+      "content": "Commit: 76ad4621e3",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduce the stale count and confirm it is still live on main",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Date the regression against the sweep that caused it",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "First design: require each marketplace entry to mirror its manifest",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Adversarial review round 1 (gemini-3.1-pro security, gpt-5.6-sol rubber-duck)",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Discover main had moved and half the change was already shipped",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Adversarial review round 2 refuted the design",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verify the refutation against upstream rather than accept it",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebuild around the invariant the evidence supports",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Prove the new tests constrain the new code",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Align the workflows with the check they run",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-07-28T10:34:21+00:00",
+      "type": "commit",
+      "content": "Commit: 5f9317fdf8",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e033"
+      ]
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Send the redesign for a third adversarial pass",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduce the pattern counterexamples before fixing anything",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e027",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Restructure the pattern around real component categories",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e028",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Kill the surviving mutation and the one it exposed",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e029",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verify the historical claims instead of correcting them from the report",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e030",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Trace when the count actually went wrong",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e031",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Guard the gate's own file list",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e032",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebuild the branch on current main a third time",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e033",
+      "timestamp": "2026-07-28T11:04:33+00:00",
+      "type": "commit",
+      "content": "Commit: f2a851b1ee458861df9c977041deaba95236ca7e",
+      "caused_by": [
+        "e024"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 5,
+    "files_changed": 3
+  },
+  "lessons": [
+    "Verify a reviewer's factual findings about your own artifacts, not just its findings about the code.. When a review disputes a claim in a commit message, ADR, or memory, run the command that settles it before rewording. The correction may reach further than the sentence.",
+    "Recompute a reviewer's numbers from the source rather than adopting them.. Treat numeric claims in review output as pointers to a check, not as the result of one.",
+    "When a security review reports one instance of a vulnerability class, probe the whole class.. Enumerate the shapes the input can take and test each, then mutation-test the guard to confirm the tests would fail without it.",
+    "Re-read the base branch before pushing a long-running change.. Diff the branch point against the current base and check whether any part of the change has already landed, before opening the PR.",
+    "Avoid: Treating a green test suite as evidence that the tests constrain the implementation.. Mutate the implementation deliberately and require a named test to die. Eight mutations were run here and each killed exactly the test written for it.",
+    "Avoid: Printing configuration errors under a staleness header with staleness remediation advice.. Branch both the header and the fix line on the failure class, and give each class its own exit code per ADR-035.",
+    "Send the adversarial reviewer at the premise, not only the implementation.. When a change adds a blocking gate, one review round must be aimed at whether the invariant is real, separately from whether the code implements it correctly.",
+    "Verify a reviewer's factual claim before acting on it, in both directions.. Re-derive every load-bearing claim from a primary source. A reviewer being wrong once is not evidence it is wrong again.",
+    "Removing a capability can delete a class of defects instead of patching them.. When review returns several findings clustered in one subsystem, ask whether the subsystem is required before fixing each finding.",
+    "Mutation testing finds untested boundaries, not just untested branches.. Mutate numeric bounds and thresholds, not only control flow.",
+    "Avoid: Treating a convergent later fix as independent corroboration.. Before citing convergence, check the branch base. git show <first-commit>^:<path> shows whether the value was derived or inherited.",
+    "Avoid: Reasoning from textual similarity to intent.. Similarity supports the narrow claim about the differing token. Promoting it to a general invariant needs a decision record or an upstream requirement.",
+    "Avoid: Claiming a lint ran when its config excluded every file in scope.. Read the tool's file count, not just its exit code, before writing evidence.",
+    "Reproduce every adversarial finding locally before accepting or rejecting it. Each was run as a direct probe first. All seven reproduced, and one of them turned out to understate the problem: verifying its historical claim showed my own correction was wrong too.",
+    "Avoid: Deriving a test's expected values from the module the test constrains. Write the expected set out in the test and assert the module's set equals it, so drift in either direction is a named failure.",
+    "Avoid: Correcting a claim a reviewer flagged without re-deriving it from the source. Re-run the query. The verified answer was more useful than either version: agreement existed only while both copies carried a count, so equality and countlessness are in tension and #2187 chose countlessness.",
+    "Avoid: Treating a hardcoded file list in a gate as complete because it is complete today. Add a test that discovers the files independently and fails when the configured list does not cover them."
+  ]
+}

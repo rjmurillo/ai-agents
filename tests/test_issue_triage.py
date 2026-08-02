@@ -19,8 +19,8 @@ from scripts.issue_triage import (
     AGENT_LABEL_PREFIX,
     AREA_LABEL_PREFIX,
     DEFAULT_STALE_DAYS,
-    PRIORITY_LABEL_PREFIX,
     ISO_TIMESTAMP_PATTERN,
+    PRIORITY_LABEL_PREFIX,
     IssueFinding,
     IssueRecord,
     LinkedPrFetchError,
@@ -31,6 +31,7 @@ from scripts.issue_triage import (
     classify,
     detect_duplicates,
     detect_linked_pr_status,
+    fetch_linked_prs,
     fetch_open_issues,
     format_human,
     has_agent_label,
@@ -379,6 +380,28 @@ class TestFetchOpenIssues:
         with pytest.raises(ValueError):
             fetch_open_issues("o", "r", limit=10_000)
 
+    @pytest.mark.parametrize(
+        ("owner", "repo"), [(".", "r"), ("..", "r"), ("o", "."), ("o", "..")]
+    )
+    def test_rejects_directory_aliases_without_calling_gh(self, owner: str, repo: str):
+        """Both names are interpolated into a gh argument, so they are validated.
+
+        The rejection has to happen before the subprocess call, otherwise the
+        traversal shape has already left the process.
+        """
+        with patch("scripts.issue_triage.subprocess.run") as run:
+            with pytest.raises(ValueError, match="owner|repo"):
+                fetch_open_issues(owner, repo, limit=10)
+        assert not run.called
+
+    def test_accepts_names_with_dots_elsewhere(self):
+        completed = type(
+            "Completed", (), {"returncode": 0, "stdout": "[]", "stderr": ""},
+        )
+        with patch("scripts.issue_triage.subprocess.run", return_value=completed) as run:
+            assert fetch_open_issues("my-org", "my.repo", limit=10) == []
+        assert run.called
+
     def test_returns_parsed_payload(self):
         completed = type(
             "Completed", (), {"returncode": 0, "stdout": '[{"number": 1}]', "stderr": ""},
@@ -421,6 +444,28 @@ class TestFetchOpenIssues:
         with patch("scripts.issue_triage.subprocess.run", return_value=completed):
             with pytest.raises(RuntimeError, match="non-list"):
                 fetch_open_issues("o", "r", limit=10)
+
+
+class TestFetchLinkedPrsIdentity:
+    """`fetch_linked_prs` interpolates owner and repo into a REST path."""
+
+    @pytest.mark.parametrize(
+        ("owner", "repo"), [(".", "r"), ("..", "r"), ("o", "."), ("o", "..")]
+    )
+    def test_rejects_directory_aliases_without_calling_gh(self, owner: str, repo: str):
+        """`..` here yields `repos/o/../issues/1/timeline`, a different endpoint."""
+        with patch("scripts.issue_triage.subprocess.run") as run:
+            with pytest.raises(ValueError, match="owner|repo"):
+                fetch_linked_prs(owner, repo, 1)
+        assert not run.called
+
+    def test_valid_names_reach_gh_with_the_expected_path(self):
+        completed = type(
+            "Completed", (), {"returncode": 0, "stdout": "[]", "stderr": ""},
+        )
+        with patch("scripts.issue_triage.subprocess.run", return_value=completed) as run:
+            assert fetch_linked_prs("my-org", "my.repo", 7) == ()
+        assert "repos/my-org/my.repo/issues/7/timeline" in run.call_args[0][0]
 
 
 class TestLoadIssuesFromInput:

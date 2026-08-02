@@ -8,7 +8,7 @@ description: Catalog of this repo's measurement instruments, each with command, 
 # ai-agents Diagnostics Toolkit
 
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
-Measure instead of eyeball. Every instrument below is a read-only command that turns a vague worry ("are skills getting bloated?", "did generation drift?") into a number you can compare against a baseline. The Instrument Index gives you, per instrument, the question it answers and the exact command; [`references/instrument-guides.md`](references/instrument-guides.md) gives the healthy and unhealthy reading, the current repo baseline (as of 2026-07-02; description budget and skill size re-measured 2026-07-03), and the trap that has already cost someone time.
+Measure instead of eyeball. Every instrument below is a read-only command that turns a vague worry ("are skills getting bloated?", "did generation drift?") into a number you can compare against a baseline. The Instrument Index gives you, per instrument, the question it answers and the exact command; [`references/instrument-guides.md`](references/instrument-guides.md) gives the healthy and unhealthy reading, the current repo baseline (as of 2026-07-29), and the trap that has already cost someone time.
 
 Vocabulary, defined once: an "instrument" is a script whose output you read, not a gate you must pass. A "drift gate" is a CI check that fails when a generated tree stops matching its canonical source. "EVENT telemetry" is the one-line JSON a push guard prints to stderr when it runs. A "baseline" is the number the instrument reports on a clean checkout of main; you measure your delta against it.
 
@@ -55,7 +55,7 @@ Match the worry to the row in the Instrument Index. Two routing rules:
 
 - Run from the repo root. All commands above assume it.
 - Use `uv run python`, not bare `python3`, for anything that imports repo modules (PyYAML lives in the venv; bare `python3` gives `ModuleNotFoundError: No module named 'yaml'`).
-- All instruments here are read-only in the modes shown. `build_all.py --check` runs its generators and then restores the owned trees from a snapshot (issue #2440, `build/scripts/build_all.py:893`), so its log prints `Mode: Generate` and `Written: 49` even though nothing changes on disk. Confirm with `git status --porcelain` if suspicious, and see the trap in the Drift gates section of [`references/instrument-guides.md`](references/instrument-guides.md).
+- All instruments here are read-only in the modes shown. `build_all.py --check` runs its generators and then restores the owned trees from a snapshot (issue #2440, `build/scripts/build_all.py:1005-1033`), so its log prints `Mode: Generate` and a nonzero `Written:` count even though nothing changes on disk. Confirm with `git status --porcelain` if suspicious, and see the trap in the Drift gates section of [`references/instrument-guides.md`](references/instrument-guides.md).
 - Read the exit code, not just the prose. It is the machine signal:
 
 | Exit code | Convention (ADR-035 / AGENTS.md) | Exceptions |
@@ -67,7 +67,7 @@ Match the worry to the row in the Instrument Index. Two routing rules:
 
 ### Phase 3: Read the number against the baseline
 
-Compare against the "Current baseline" entry in each guide in [`references/instrument-guides.md`](references/instrument-guides.md). The repo baseline is NOT all green: three instruments are red on main today. What matters for your change is the delta: your PR should add zero new findings, and should not grow a budget without saying so.
+Compare against the "Current baseline" entry in each guide in [`references/instrument-guides.md`](references/instrument-guides.md). The repo baseline is NOT all green: golden principles is red on main today (exit 10, 109 errors), and the description budget is over its 8000-token gate at ~10235 (exit 1 in gate mode). What matters for your change is the delta: your PR should add zero new findings, and should not grow a budget without saying so.
 
 ### Phase 4: Act on the reading
 
@@ -75,7 +75,7 @@ Green and unchanged: move on. Red where the baseline was green: your change caus
 
 ## Instrument Guides
 
-Per-instrument detail (the exact command variants, the current repo baseline as of 2026-07-02, the healthy and unhealthy readings, and the trap each instrument has already cost someone) lives in [`references/instrument-guides.md`](references/instrument-guides.md). Pick the instrument from the index above, then consult its section. That reference also carries the Current Baselines Summary snapshot.
+Per-instrument detail (the exact command variants, the current repo baseline as of 2026-07-29, the healthy and unhealthy readings, and the trap each instrument has already cost someone) lives in [`references/instrument-guides.md`](references/instrument-guides.md). Pick the instrument from the index above, then consult its section. That reference also carries the Current Baselines Summary snapshot.
 
 ## Anti-Patterns
 
@@ -101,9 +101,9 @@ Before citing any number from this toolkit in a PR, session log, or decision:
 
 ## Provenance and Maintenance
 
-Written 2026-07-02. All baselines measured by running the instruments on this checkout on that date. Retro-cited short SHAs do not resolve locally even with full history present (~1471 commits as of 2026-07-03); do not use `git log` to re-derive any of this.
+Written 2026-07-02; every baseline in this skill re-measured 2026-07-29 by running each instrument on this checkout. Under the current squash-only policy, PR-branch SHAs do not land on `main`. One merge commit predates that policy (`0f13c85ab`, PR #1, 2025-12-13), so verify ancestry instead of assuming. Do not use `git log` to re-derive any of this.
 
-Sources: `scripts/skill_description_budget.py` (docstring, issue #2794), `scripts/validation/skill_size.py` (limits, issue #676), `.claude/skills/orphan-ref-validator/scripts/scan.py:157` and `patterns.py:95-96` (directives), `.claude/skills/golden-principles/scripts/scan_principles.py` (rules, exit 10), `build/scripts/build_all.py:19,893` (#2440 read-only check), `build/scripts/classify_guard_maturity.py` (tier table), `build/scripts/aggregate_guard_intercepts.py:185-189` (telemetry default source), `.github/workflows/pytest.yml:144-164` (coverage pins), `scripts/eval/eval-prompt-change.py --help` and `scripts/eval/_anthropic_api.py` (harness), `AGENTS.md:19` (commit cap), `.claude/skills/SkillForge/scripts/validate-skill.py:171` (1024 cap).
+Sources: `scripts/skill_description_budget.py` (docstring, issue #2794), `scripts/validation/skill_size.py` (limits, issue #676), `.claude/skills/orphan-ref-validator/scripts/scan.py:234-235` and `patterns.py:63,89` (directives), `.claude/skills/golden-principles/scripts/scan_principles.py` (rules, exit 10), `build/scripts/build_all.py:19,1005-1033` (#2440 read-only check), `build/scripts/classify_guard_maturity.py` (tier table), `build/scripts/aggregate_guard_intercepts.py:185-189` (telemetry default source), `.github/workflows/pytest.yml:202-222` (coverage pins), `scripts/eval/eval-prompt-change.py --help` and `scripts/eval/_anthropic_api.py` (harness), `AGENTS.md:17` (commit cap), `.claude/skills/SkillForge/scripts/_constants.py:65` (1024 cap, canonical; `validate-skill.py:241-242` enforces it).
 
 Re-verify one-liners for every volatile fact:
 

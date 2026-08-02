@@ -9,7 +9,7 @@ Behavioral evaluation tools for prompt, skill, and agent changes. Implements ADR
 python3 scripts/eval/eval-suite.py --dry-run
 
 # Evaluate a specific prompt change (before/after comparison):
-python3 scripts/eval/eval-prompt-change.py \
+uv run python scripts/eval/eval-prompt-change.py \
   --prompt .claude/commands/research.md \
   --scenarios tests/evals/research-scenarios.json \
   --base-ref main \
@@ -29,6 +29,51 @@ python3 scripts/eval/eval-rule-activation.py \
 python3 scripts/eval/eval-skill-overlap.py \
   --pairs scripts/eval/examples/example-overlap-pairs.json --dry-run
 ```
+
+## Providers
+
+`--provider` selects the transport. Most take an API key; one does not.
+
+| Name | Transport | Credential |
+|------|-----------|------------|
+| `anthropic` (default) | urllib, dependency-free | `ANTHROPIC_API_KEY` |
+| `anthropic-sdk` | `anthropic` package | `ANTHROPIC_API_KEY` |
+| `openai`, `codex` | `openai` package | `OPENAI_API_KEY` |
+| `github`, `github-models` | `openai` package, Models base URL | `GITHUB_TOKEN` |
+| `copilot`, `copilot-cli` | GitHub Copilot CLI subprocess | none, reuses `copilot` auth |
+
+Prefer `copilot-cli` when the question is "does this change help the models we
+actually run." It costs no separate API billing and reaches the ids this
+repository's owner works in. The confirmed panel is
+`scripts/eval/panels/owner-copilot-cli.json`:
+
+```bash
+python3 scripts/eval/eval-model-panel.py \
+  --agents orchestrator \
+  --panel-config scripts/eval/panels/owner-copilot-cli.json
+```
+
+Three things about `copilot-cli` that will cost you a run if you miss them:
+
+- **It runs in an empty temp directory, deliberately.** The CLI loads
+  `AGENTS.md`, `CLAUDE.md`, and `.github/instructions/**` from its working
+  directory. In this repository those files are usually the variable under
+  test, so running from the repo root would put the treatment into the control
+  cell and quietly destroy the comparison.
+- **Do not compare its scores to an HTTP provider's.** User-level config in
+  `~/.copilot/` still loads (the auth token lives there), so it is a constant
+  within a run but not across transports. Same reasoning ADR-058 already
+  applies to cross-provider comparison.
+- **Do not use the CLI's reported token counts as a measurement.** They are
+  non-monotonic: the same trivial prompt reported 109.3k tokens from `/tmp` and
+  95.9k from inside the repo, because the figure folds in tool definitions and
+  cache accounting. For byte and token budgets use
+  `scripts/validation/instruction_budget.py`, which is deterministic.
+
+It ignores `max_tokens`, `temperature`, and `seed`, because the CLI exposes no
+sampling controls. Fixtures still run unchanged; if you need sampling
+determinism, use an HTTP provider. `COPILOT_CLI_BIN` and `COPILOT_CLI_TIMEOUT`
+override the executable and the default 900s timeout.
 
 ## Scripts
 
@@ -122,12 +167,43 @@ Each scenario × mechanism produces a response that is graded by an LLM judge on
 three 1-5 dimensions: `activation_score`, `citation_score`, `behavior_score`.
 The eval passes only when the `description` mechanism averages ≥3.5 and beats
 baseline by ≥0.5. `full` cannot rescue a failed description route. Any judge/API failure forces verdict `FAIL_JUDGE_ERRORS`,
-overriding the score-based gate. A scenarios file that contains no positive
-cases (only `skip-rule-not-applicable` scenarios) yields `NO_POSITIVE_CASES`,
-also a failing verdict because activation cannot be validated by negative
-cases alone.
+overriding the score-based gate.
+
+Both pools are required, and a file missing either one is refused. A file with
+no positive case (only `skip-rule-not-applicable` scenarios) yields
+`NO_POSITIVE_CASES`, because activation cannot be validated by negative cases
+alone. A file with no negative case yields `NO_NEGATIVE_CASES`, because the
+restraint floor would then be computed over an empty pool: it cannot fail
+there, and a clean positive result would read as a clean run, certifying
+restraint the run never measured. Both are refused earlier and more cheaply
+than that. Validation rejects an empty scenario list, a file with no positive
+scenario, and a file with no negative scenario before any API call, so the pull
+request dry run catches all three for free. The verdicts remain because replay
+and direct callers reach the aggregation step without passing through the
+scenario loader, and a gate that only one path enforces is a gate with a hole
+in it.
+
+The process exit code names which kind of thing went wrong: 0 clean, 1 a rule
+that underperformed, 2 a configuration problem, 3 an external or API failure,
+4 a credential that could not be loaded.
+`NO_POSITIVE_CASES` is a 2, not a 1. It reports that the scenario file cannot
+validate activation and says nothing at all about the rule, so reporting it as
+a rule failure would attach a verdict to a population the run never measured.
+`NO_NEGATIVE_CASES` is a 2 for the same reason, one pool over.
+A run reduces the verdict codes with `max()`, so the worst outcome across all
+targets decides the exit and adding a target can never improve it.
+
+Exit 4 sits outside that reduction. It is returned before the first target is
+read, when `_load_api_key` cannot produce a credential, so no scenario has been
+measured and there is nothing to reduce against. Reading 4 as the top of the
+`max()` ordering would invert what it reports: 3 says the run reached the API
+and the API failed, while 4 says the run never got that far. A caller that
+branches on these should treat 4 as "nothing ran" rather than as a worse 3.
+A dry run skips credential loading entirely and so cannot return 4.
 
 Per-rule or per-reference scenario files live in `tests/evals/rule-scenarios/{rule}.json`:
+
+`rule_id` names the population every number in that file is published under, and one run refuses two files that claim the same id rather than letting the second overwrite the first. Omitting it is safe but not free: a reference target then defaults to the reference filename, so two references under one skill router stay distinct only as long as their filenames do. When present, `rule_id` and `skill_id` MUST be non-empty strings. The published record is a JSON object keyed by this value, and JSON keys are strings, so a declared `1` and a declared `"1"` are two distinct keys in memory that clear the duplicate check and then collapse to one key on serialization, dropping a measured target from the record without a word. The loader refuses the type before any API call rather than losing the result after all of them.
 
 ```json
 {
@@ -157,11 +233,69 @@ Per-rule or per-reference scenario files live in `tests/evals/rule-scenarios/{ru
 
 Adding a new activation eval:
 
-1. Write `tests/evals/rule-scenarios/{rule-id}.json` with 3-5 positive scenarios and at least one negative case.
-2. Use `rule_path` for always-on rules, or `skill_path` plus `reference_path` for progressive-disclosure references.
-3. Run `uv run python scripts/eval/eval-rule-activation.py --scenarios tests/evals/rule-scenarios/{rule-id}.json --dry-run` to confirm the script can parse the target.
-4. Run live (without `--dry-run`) to score. Skill-reference targets add one route call per scenario before response scoring.
-5. Iterate on the rule or skill `description` field until the `description` mechanism passes on its own. Treat `full` as ceiling diagnostics, not as a passing route.
+1. Write `tests/evals/rule-scenarios/{rule-id}.json` with at least one positive scenario and at least one negative case. The harness enforces that both pools are non-empty before it spends anything, so a file missing either fails the dry run rather than reaching a live scoring run. Aim for 3 to 5 positives: fewer makes the average a description of one or two observations, more mostly buys API spend. That range is guidance, not a check. Most files in the tree carry two positives, so enforcing a floor of three would refuse the corpus every published result was measured on.
+2. Give every scenario an `expected_gate`. The harness refuses a file where one is missing, because that string picks the judge rubric and the pool: an unreadable gate would grade a negative case against the positive rubric and then average it into the positive pool. `skip-rule-not-applicable` is the one value that marks a negative case, and any near miss of it in the `skip-rule` namespace is refused rather than scored as a positive.
+3. Use `rule_path` for always-on rules, or `skill_path` plus `reference_path` for progressive-disclosure references.
+4. Run `uv run python scripts/eval/eval-rule-activation.py --scenarios tests/evals/rule-scenarios/{rule-id}.json --dry-run` to confirm the script can parse the target.
+5. Run live (without `--dry-run`) to score. Skill-reference targets add one route call per scenario before response scoring.
+6. Iterate on the rule or skill `description` field until the `description` mechanism passes on its own. Treat `full` as ceiling diagnostics, not as a passing route.
+7. Read the `Routing:` caveat before accepting a `description` pass. One skill router fronts every sibling reference, and a sibling resolves for your target as readily as the target does. That caveat counts the positive cells whose router never opened the reference under test, so a pass reported beside a nonzero count is partly a measurement of some other reference.
+
+### Software Engineering Library Rollback Gate
+
+ADR-088 moved these eight book-derived references behind `software-engineering-library`:
+`clean-architecture`, `domain-driven-design`, `enterprise-patterns`, `refactoring`,
+`release-it`, `philosophy-of-software-design`, `data-intensive-applications`, and
+`working-with-legacy-code`.
+
+Owner: `agent-qa`.
+
+Cadence: weekly Monday 06:30 UTC through
+`.github/workflows/software-engineering-library-activation.yml`, with a
+`pull_request` dry-run wiring gate for changes to the skill, fixtures, eval script,
+or workflow.
+
+Persistent state lives in the GitHub Actions cache at
+`.eval-state/software-engineering-library-activation-state.json`. The state records
+one entry per moved reference with `consecutive_activation_failures`,
+`last_verdict`, `last_run_id`, and `last_checked_at`. `FAIL_THRESHOLD`,
+`FAIL_NO_DELTA`, `NO_POSITIVE_CASES`, and `NO_RESULT` increment the rollback streak.
+`FAIL_JUDGE_ERRORS` is treated as an external eval failure and does not increment
+the activation rollback streak.
+
+The measurement verdicts carry no evidence about the rule, so they are absent
+from that list on purpose. `FAIL_ROUTE_MISSED_TARGET` means at least one positive
+cell scored on a reference the run never opened: one skill router fronts many
+sibling references, and a sibling resolves for any target, so the score measures
+content the target did not supply. Counting it would retire a rule for the
+harness's routing imprecision. The miss is counted only on the mechanisms the
+target can actually reach, which for a routed target excludes `full`: that
+treatment is force-injected, no deployment performs it, and its scores are
+already dropped from every average, ranking, and gate, so letting a miss there
+decide the run would hand the verdict to a mechanism the target cannot reach.
+`FAIL_POSITIVE_INCOMPLETE`,
+`FAIL_NEGATIVE_INCOMPLETE`, and `FAIL_OVER_ACTIVATION` are excluded for the same
+reason. Fix the routing or the reference, then re-run.
+
+`NO_NEGATIVE_CASES` is excluded too, which reads as an inconsistency next to
+`NO_POSITIVE_CASES` on that list until you ask what the rollback does. Rollback
+restores the reference to the always-on rule surface. That remedies "the run
+cannot show the skill activates", so `NO_POSITIVE_CASES` counts. It cannot
+remedy "the run cannot show the skill restrains", because an always-on rule is
+the least restrained state available: rolling back would move the reference
+further from what the missing pool was supposed to measure. Add the negative
+scenario instead.
+
+The workflow runs all eight scenario files live on the weekly schedule and feeds
+`activation-results.json` into
+`scripts/eval/software_engineering_library_activation_gate.py`. A reference that
+reaches two consecutive activation failures trips the rollback threshold.
+
+When the threshold trips, the workflow uploads the eval report, opens or updates a
+rollback tracking issue, and fails the repository gate. The restoration PR must
+restore the failing book reference to the always-on rule surface or strengthen the
+skill trigger and scenario coverage. It must include the latest gate report and pass
+this workflow before merge.
 
 ## Skill Overlap Eval
 
@@ -285,7 +419,7 @@ This tool splits the task ids into three groups and keeps them apart:
 |-------|-------------|---------|---------------|
 | `opt` | The optimizing agent | Read failures here, propose edits from them. | The remainder, 0.6 |
 | `sel` | The gate | Decides accept or reject. Each decision spends one consultation from a fixed budget. | 0.4 |
-| `test` | Nothing yet | Reserved for a final report. **No command scores it**, so today it only shrinks `opt` and `sel`. See ADR-087 Open Requirement 7. | 0.0, opt in with `--test-ratio` |
+| `test` | `report`, once | The final number, read after the loop converges. `report` scores it once and refuses every read after that. It never gates. | 0.0, opt in with `--test-ratio` |
 
 `--test-ratio` defaults to zero, so out of the box you get two groups and an
 empty `test`. That is a concession to this repo's real fixture counts: most
@@ -315,6 +449,7 @@ one-fixture gate, which measures nothing.
 | `score` | Fraction of one group passing. |
 | `apply` | Apply bounded patches to an artifact file. |
 | `gate` | Decide whether the candidate replaces the incumbent. |
+| `report` | Score the `test` group once, after the loop is done. |
 | `buffer-check` | Has this edit already been rejected? |
 | `buffer-add` | Record a rejected edit so it is not re-proposed. |
 
@@ -351,10 +486,117 @@ it today, so the other two write `null` and the gate reports the comparison as
 unverified rather than pretending it checked. A bare `{task_id: bool}` file
 still reads, as an unknown corpus.
 
-Adapters fail closed. A fixture the variant never ran, a scenario whose judge
-errored, and a skipped test all score as failures rather than being dropped.
-Dropping a task shrinks the denominator, which raises the score, so a silent
-omission would read as an improvement.
+Adapters fail closed. By default a fixture the variant never ran and a skipped
+test both score as failures rather than being dropped; `extract --kind hook
+--on-skip exclude` opts out for plain skips. Dropping a task shrinks the
+denominator, which raises the score, so a silent omission would read as an
+improvement.
+
+That is the default and not the only policy. `extract --kind hook` takes
+`--on-skip`, which is `fail` above and `exclude` to drop a skipped test from the
+mapping instead. Reach for `exclude` only when the skips are static, because
+dropping a task is not free. A conditionally skipped test changes the task-id
+set between runs, and the split was drawn once from the full set. If the dropped
+id landed in the held-out group, the gate charges a consultation, reports
+`REJECT` at exit 1, and says `compared: false`: the operator pays out of a small
+budget for a verdict that measured nothing, and reads a rejection of a candidate
+that was never scored. If it landed outside that group the run proceeds and the
+drift is invisible. `exclude` drops only a testcase whose skip stands alone: one
+that also carries a failure or an error demonstrated something and scores false
+under either policy.
+
+`--kind rule` goes further and refuses. A scenario whose mechanism errored,
+whose scores are missing, or whose judge reported a failure is a config error
+that exits 2 and names the scenarios, rather than scoring them false. The two
+policies answer the same threat and differ on what a wasted consultation is
+worth. Scoring a failed judge as a real failure is a measurement of the judge,
+not of the rule, and the gate would spend one of a small budget of held-out
+consultations to reach a verdict that carries no information about the
+candidate. The rule path is also the one that can least afford the noise: it is
+single-shot against an LLM judge, and scoring identical rule text twice moved 5
+of 24 tasks across the pass threshold (ADR-087 Open Requirement 6, #3445),
+while the agent path averages over runs. Exit 2 is the loop's documented signal
+to stop and let an operator re-run the scorer.
+
+Calling `rule_results` from `_optimizer_adapters` directly still fails closed.
+The refusal lives in `extract`, so the library keeps one contract and the
+command that spends budget keeps a stricter one.
+
+### Reading a rule across several runs
+
+Refusing a broken judge does not help when the judge answers cleanly and
+differently each time. `--kind rule` takes more than one `--input`, one report
+per run of `eval-rule-activation.py`, and reduces each scenario across them
+before the bar is applied:
+
+```bash
+uv run --frozen python "$OA" extract --kind rule \
+    --input run1.json run2.json run3.json --reduce mean > base.json
+```
+
+The reduction is over scores, not over verdicts. Thresholding each run and then
+voting would throw away the distance from the bar, which is the only thing that
+says whether a disagreement was close. Reducing first matches what
+`agent_results` already does: collapse the runs to one number, apply the bar
+once.
+
+`--reduce` takes `mean` (the default), `min`, `max`, or `median`. `min` reads as
+"every run must clear the bar" and `max` as "any run may", so the strict and
+lenient readings are both reachable without a second flag. `--kind agent` and
+`--kind hook` still take exactly one `--input` and refuse a second, because
+`agent_results` already averages over runs and `pytest_results` is
+deterministic.
+
+One run behaves exactly as before, so an existing caller needs no change:
+`rule_results_multi([scenarios])` and `rule_results(scenarios)` agree.
+
+The runs must agree on which scenarios they scored, and a scenario with
+evidence in some runs but not others is refused rather than reduced over
+whatever is left. Both are the fail-closed policy above, applied to the shape
+this flag introduces. Scoring a partially evidenced scenario false would let a
+judge error on the incumbent's run read as a failing scenario, so a candidate
+that merely ran cleanly would look like a fail-to-pass improvement. That is the
+spurious accept the gate exists to prevent, arriving through the scorer.
+
+### Two kinds of judge noise, two reducers
+
+`--reduce` is not the only reduction on this path, and the two do not see the
+same noise.
+
+`eval-rule-activation.py` can score a scenario more than once inside a single
+run. `--judge-repeats` sets how many, the report persists every answer under
+`score_samples`, and `--rule-reduce` collapses them per score key before
+anything else looks at the run. That drops one erratic judge call.
+
+`--reduce` then collapses whole runs, one report file each, after the samples
+inside each are already collapsed. That catches a different failure: a whole
+report landing on the far side of the bar. The ADR-087 measurement found 13 of
+24 tasks moving between runs and 5 crossing the accept threshold, mean absolute
+movement 0.49 on a five-point scale, which is movement no amount of
+within-run repetition can average away.
+
+```bash
+uv run --frozen python "$OA" extract --kind rule \
+    --input run1.json run2.json run3.json \
+    --rule-reduce median --reduce mean > base.json
+```
+
+Both take `mean`, `min`, `max`, or `median`. `--rule-reduce` defaults to
+`median`, which is the resistant choice for a handful of samples where one
+outlier is the thing being removed. `--reduce` defaults to `mean`. A report
+carrying no `score_samples` is unaffected by `--rule-reduce`, so reports
+written before this existed read the same.
+
+Order matters and is fixed: samples collapse inside a run, then runs collapse
+across reports. Reducing runs first would mix a scenario's outlier sample into
+the cross-run number and hide the movement `--reduce` exists to see.
+
+How many runs is a judgment, not a setting. The benchmark behind this flag
+(ADR-087 Open Requirement 6, #3445) measured a mean absolute movement of 0.49
+points on the five-point scale between two scorings of identical rule text.
+Three runs at `mean` is the cheapest configuration that can outvote one outlier.
+Nothing here enforces a count, and one run remains legal so the flag can be
+adopted without rescoring everything first.
 
 `--kind rule` does not invert negative cases. `eval-rule-activation.py` builds
 the judge prompt so 5 always means the rule behaved correctly, negative cases
@@ -372,7 +614,7 @@ OA=scripts/eval/optimize-artifact.py
 # Baseline the incumbent and fix the split once.
 uv run --frozen python "$OA" extract --kind agent --input report.json > base.json
 FP=$(uv run --frozen python "$OA" split --results base.json --seed run-7 \
-    --out split.json | python3 -c "import json,sys;print(json.load(sys.stdin)['fingerprint'])")
+    --out split.json | uv run --frozen python -c "import json,sys;print(json.load(sys.stdin)['fingerprint'])")
 
 # Per step: check the budget, reject a repeat, apply, rescore, gate.
 uv run --frozen python "$OA" budget --step 3 --total 12
@@ -380,7 +622,8 @@ uv run --frozen python "$OA" budget --step 3 --total 12
 # Exit 1 means this edit was already rejected, so skip it. Exit 2 means the
 # command itself failed and the loop must stop rather than treat a typo in a
 # path as a clean finish.
-uv run --frozen python "$OA" buffer-check --buffer rejected.json --patches p.json
+uv run --frozen python "$OA" buffer-check --buffer rejected.json --patches p.json \
+    --artifact target.md
 case $? in
   0) ;;
   1) continue ;;
@@ -398,8 +641,56 @@ Add `--max-p 0.05` when the held-out group is large enough for the tail to
 mean something. See "What a live run measured" below for why, and for the
 group size at which the bar starts refusing everything.
 
-On reject, revert the file and run `buffer-add` so the same edit is not
-re-proposed. On accept, the candidate becomes the incumbent.
+On reject, revert the file and run `buffer-add` with the artifact path so the
+same edit is not re-proposed against the same artifact state. On accept, the
+candidate becomes the incumbent and prior rejections against the old artifact
+state expire.
+
+`buffer-add --reason` is required and takes free text. It records why the edit
+was rejected so a later step, or a reader auditing the buffer, can tell a gate
+reject apart from a refused patch or an operator veto. Name the deciding
+signal, not the intent: `gate: sel score dropped 0.62 -> 0.55` tells the next
+reader something, `bad edit` does not.
+
+### Reporting the test group, once
+
+When the loop has converged and the consultation budget is spent, one command
+reads the third group:
+
+```bash
+uv run --frozen python "$OA" report --results cand.json --split split.json
+```
+
+It prints `score`, `group`, `n`, `corpus_verified`, and `fingerprint`, and no
+`decision` field, because it reports rather than decides. Exit 0 on a number,
+1 on a refusal, 2 on a split it cannot use.
+
+Five things bound it. It has no `--group`, so it reads `test` and nothing
+else. It answers once per test group: the second call refuses, and the record
+is keyed on the group's membership, so copying or renaming the split does not
+buy another. Its budget is separate from the gate's, so an exhausted
+consultation budget does not block the report and a spent report does not
+block the gate. It honours the corpus pin the gate honours, refusing results
+that name a corpus the split does not, which the gate refuses because a
+comparison across a corpus change measures the change too, and this command
+refuses because nothing downstream compares the number at all. And a results
+file that does not cover the test group is refused **after** the read is
+charged, for the same reason the gate charges first: a free coverage probe
+against a withheld group is an oracle over its membership.
+
+The corpus refusal is free, unlike the coverage one. A corpus identity is a
+header on the file the caller supplied, decidable without touching the group,
+so it is read before the lock and charges nothing. `corpus_verified` reports
+whether the check ran at all: the rule and hook paths publish no corpus
+identity, so `false` there means unchecked rather than failed.
+
+Score the artifact over the whole task set before calling this. There is one
+attempt, and spending it on a short results file means re-splitting and
+re-running the loop.
+
+`--test-ratio` defaults to 0, so this command has nothing to read unless the
+split was drawn with a test group. It says so rather than reporting a score
+over an empty set.
 
 ### What the gate refuses
 
@@ -443,13 +734,12 @@ files it can already reach. **It is not held-out validation of unseen tasks.**
 
 Three things make that the honest description rather than an overcautious one:
 
-- **`extract` emits every task's outcome, uncharged.** It takes `--kind`,
-  `--input`, and scoring flags. It takes no group argument, so the mapping it
-  writes covers `opt`, `sel`, and `test` alike. The documented workflow has the
-  optimizer run `extract` itself to build `base.json` and `cand.json`, which
-  means held-out outcomes are already in the optimizer's own files before the
-  gate is called. Only `score --group` is group-aware, and nothing forces the
-  loop through it.
+- **`extract` can emit either the full result set or one split group.** Its
+  output is an envelope that records the scoring parameters beside the
+  `{task_id: bool}` mapping. When `--split` and `--group` are supplied, it first
+  requires coverage of the whole split universe, then emits only that group.
+  The gate refuses mismatched extraction parameters and refuses any results
+  file that does not cover `opt`, `sel`, and `test`.
 - **Task ids resolve to readable definitions that carry their own grading
   criteria.** `evals/analyst-spike/fixtures/F001.json` holds the input, the
   expected verdict, and the regex the scorer asserts.
@@ -475,39 +765,46 @@ optimizer cooperates:
   the root.
 - Concurrent gates against one split serialize on a lock, so a parallel pair
   cannot spend one budget twice.
-- A recorded charge survives a crash. The ledger is written to a temp file,
-  fsynced, renamed, and then the *parent directory* is fsynced too. Without
-  that last step the bytes were durable but the directory entry pointing at
-  them was not, so a host losing power after a reported charge could come back
-  with the rename undone and hand the consultation back for free. That is the
-  one outcome charging before scoring exists to prevent, so a charge a crash
-  can erase defeats the ordering it was written to protect. Windows cannot open
-  a directory as a descriptor and `os.replace` is atomic there regardless, so
-  the step is skipped on that platform rather than failed. A directory that
-  opens and then refuses to sync is warned about on stderr and not raised: the
-  write and the rename have already succeeded by then, and in the ledger's case
-  the consultation has already been charged, so aborting would spend a look and
-  return no verdict. That is the same trade the charging order exists to avoid,
-  pointing the other way. Every other failure in that function precedes the
-  rename and leaves the destination untouched, so those still refuse. That
-  warning goes through the same redaction the raised errors do, and cannot
-  itself fail: a diagnostic printed after a success must not become a new way
-  to lose the work it is reporting on, and must not disclose in plain text
-  what the exception path is required to redact. "Cannot fail" is enforced as
-  a rule rather than as a list of the failures anyone has demonstrated: an
-  earlier version suppressed `OSError` because that is what a reviewer's
-  closed-stream demonstration raised, and a stream closed for real raises
-  `ValueError`. There is a third rule alongside those two. The warning must
-  not land on the stream carrying the verdict. `sys.stderr` can be absent in
-  an embedded or windowed interpreter, and printing to a file of `None` does
-  not skip the write, it falls back to stdout, where the JSON a caller parses
-  is. A diagnostic that corrupts the payload it is diagnosing is worse than
-  one that crashes, because nothing reports it. "Absent" covers two cases and
-  for four rounds the code handled one. A harness can blank the attribute or
-  delete it, and the second turns reading it into an `AttributeError` raised
-  before the suppression is even entered, from the line whose only job is to
-  decide whether to warn. Reading it with `getattr` routes that case into the
-  `None` branch already there, which enforces the no-abort rule at the last
+- A recorded charge survives a crash on POSIX. The ledger is written to a temp
+  file, fsynced, renamed, and the *parent directory* is then fsynced too.
+  Without that last step the bytes were durable but the directory entry
+  pointing at them was not, so a host losing power after a reported charge
+  could come back with the rename undone and hand the consultation back for
+  free. That is the one outcome charging before scoring exists to prevent, so
+  a charge a crash can erase defeats the ordering it was written to protect.
+  Windows cannot open a directory as a descriptor, so the step is skipped on
+  that platform rather than failed, and the skip is a real gap. `os.replace`
+  is atomic on Windows, but atomicity is not the property at stake here:
+  CPython calls `MoveFileExW` with `MOVEFILE_REPLACE_EXISTING` alone, omitting
+  `MOVEFILE_WRITE_THROUGH`, the flag Microsoft documents as waiting for the
+  move to reach disk. So a Windows host can lose a recorded charge to a power
+  cut the same way an unsynced POSIX host can. The skip is silent rather than
+  warned because it holds for every write, and a warning on each one would
+  cost stderr its signal. A directory that opens and then refuses to sync is
+  warned about on stderr and not raised: the write and the rename have already
+  succeeded by then, and in the ledger's case the consultation has already
+  been charged, so aborting would spend a look and return no verdict. That is
+  the same trade the charging order exists to avoid, pointing the other way.
+  Every other failure in that function precedes the rename and leaves the
+  destination untouched, so those still refuse. That warning goes through the
+  same redaction the raised errors do, and cannot itself fail: a diagnostic
+  printed after a success must not become a new way to lose the work it is
+  reporting on, and must not disclose in plain text what the exception path is
+  required to redact. "Cannot fail" is enforced as a rule rather than as a
+  list of the failures anyone has demonstrated: an earlier version suppressed
+  `OSError` because that is what a reviewer's closed-stream demonstration
+  raised, and a stream closed for real raises `ValueError`. There is a third
+  rule alongside those two. The warning must not land on the stream carrying
+  the verdict. `sys.stderr` can be absent in an embedded or windowed
+  interpreter, and printing to a file of `None` does not skip the write, it
+  falls back to stdout, where the JSON a caller parses is. A diagnostic that
+  corrupts the payload it is diagnosing is worse than one that crashes,
+  because nothing reports it. "Absent" covers two cases and for four rounds
+  the code handled one. A harness can blank the attribute or delete it, and
+  the second turns reading it into an `AttributeError` raised before the
+  suppression is even entered, from the line whose only job is to decide
+  whether to warn. Reading it with `getattr` routes that case into the `None`
+  branch already there, which enforces the no-abort rule at the last
   expression standing outside the guard without adding a second branch to it.
 - The split record is structurally tamper-evident, in two parts because
   neither alone suffices. The fingerprint covers the split's *inputs* (seed,
@@ -582,16 +879,13 @@ Four further refusals close holes that open once a loop runs many steps:
   exists, since there the complement spans two groups and the published sizes
   do not say which task is in which. It is not worth describing as a boundary.
 
-  Held-out outcomes do not stay behind that line either. `score --group` is
-  group-aware, but `extract` is not, and the workflow above has the optimizer
-  run `extract` itself. What the budget bounds is how many times an edit may be
-  compared against the held-out group through the gate, which is the loop's
-  own **gate comparisons** against that group. It is not a bound on total
-  selection pressure, and the difference matters: `extract` and `score` reach
-  results without touching the ledger, so an optimizer that inspects its own
-  files applies pressure the count never sees. Closing that needs #3452 and a
-  controller. Gate comparisons are the quantity multiple-comparison correction
-  is about, and it is the one this mechanism actually holds.
+  Held-out outcomes still do not stay behind that line by themselves. `extract`
+  is group-aware, but a caller can still run the ungrouped form unless a
+  controller owns the scorer output and hands the optimizer only `opt`. What
+  the budget bounds is how many times an edit may be compared against the
+  held-out group through the gate, which is the loop's own **gate comparisons**
+  against that group. It is not a bound on total selection pressure. Closing
+  that needs the trusted controller in ADR-087 Open Requirement 1.
 
   Three things this does not cover, stated rather than implied. The cap is
   whatever positive integer the first call names, so the budget is only as tight
@@ -723,11 +1017,32 @@ naming the write. Cleanup cannot stand in for the failure it cleans up after,
 so the unlink is now suppressed on `OSError` while every other class still
 escapes. All three now answer exit 2 with a `ConfigError` document.
 
+The fourth was worse than a traceback, because it answered. `_emit` writes with
+a bare `print`, so a reader that closed early made it raise `BrokenPipeError`,
+an `OSError`, which the handler did not name. It left `main` and exited 1, and
+exit 1 on this CLI is REJECT: a verdict on a comparison that never finished. On
+`gate` the ledger write precedes the final emit, so a consultation had already
+been charged against a fixed budget and the answer it bought was discarded.
+CPython contributed a second mode on its own. When the payload fits the pipe
+buffer the write succeeds and the shutdown flush fails instead, which prints
+`Exception ignored while flushing sys.stdout` and replaces the status with 120,
+so the caller saw neither a verdict nor a config failure. Measured on this
+branch: `split` over 20000 tasks into a closed reader exited 1 with a traceback,
+and `budget` into the same exited 120. Both now exit 2 with one line on stderr.
+`main` is a thin `except OSError` guard over `_dispatch`, which holds the old
+body, and the guard covers parser construction too, because `print_help` writes
+to stderr and stderr closes for the same reasons stdout does. The handler does
+not retry the write on the stream that just failed; the exit code carries it.
+
+Catching `OSError` that broadly at the top gives up nothing. Any `OSError` that
+reached `main` before was an unhandled crash exiting 1, and exit 2 is the
+correct answer for a run that produced no decision.
+
 | Code | Meaning |
 |------|---------|
 | 0 | Accept, novel patch, or plain success |
 | 1 | Reject, already-rejected patch, or a refused patch |
-| 2 | Bad arguments, unreadable input, or malformed data |
+| 2 | Bad arguments, unreadable input, malformed data, or a stream that could not be written |
 
 ### Scope
 

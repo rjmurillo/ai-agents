@@ -30,13 +30,13 @@ Every change belongs to at least one class. A mixed change inherits the union of
 | Docs-only | Markdown prose only; no code, no generated trees | QA evidence row `SKIPPED: docs-only` (case-insensitive; ADR-034 cites it as the pre-existing pattern) |
 | Investigation-only | Nothing outside the ADR-034 allowlist (below) | QA evidence row `SKIPPED: investigation-only` |
 | Code | Python, scripts, tests, libs | Full QA evidence per `.agents/governance/TESTING-RIGOR.md`; see `ai-agents-validation-and-qa` |
-| Plugin content | Anything under `.claude/`, `src/claude/`, or `src/copilot-cli/` | Strictly greater semver bump of that tree's `.claude-plugin/plugin.json` |
+| Plugin content | Anything under `.claude/`, `src/claude/`, or `src/copilot-cli/` | No manifest edit. The `.claude-plugin/plugin.json` files carry no `version`; Claude Code resolves freshness from the commit SHA (ADR-092) |
 | Git hook configuration | `lefthook.yml` | Named-job validation and relevant validator tests |
 | Claude lifecycle hook | `.claude/hooks/**`, hook generators | Dual-registration sync; runtime-contract tests; `scripts/validation/validate_hook_anchoring.py` |
 | Workflow | `.github/workflows/*.yml` | No logic in YAML (ADR-006); SHA-pinned actions; run changed workflows before push (AGENTS.md Always list) |
 | ADR / governance | Any `ADR-*.md` or `SESSION-PROTOCOL.md` create or edit | Fires the `adr-review` multi-agent debate gate (AGENTS.md "ADR Review"); governance changes need human approval plus an ADR |
 
-The OPERATIVE investigation-only allowlist is the enforcement module `scripts/modules/investigation_allowlist.py` (docstring: "Single source of truth for investigation artifact path patterns"; consumed by `validate_session_json.py`, the session skill, and `validate_investigation_claims.py`). It allows 9 patterns (display form from `get_investigation_allowlist_display()`):
+The OPERATIVE investigation-only allowlist is the enforcement module `scripts/modules/investigation_allowlist.py` (docstring: "Single source of truth for investigation artifact path patterns"; consumed by `validate_session_json.py`, the session skill, and `validate_investigation_claims.py`). It allows 8 patterns as of 2026-07-30 (display form from `get_investigation_allowlist_display()`):
 
 - `.agents/sessions/` (session logs)
 - `.agents/analysis/` (investigation outputs)
@@ -46,9 +46,8 @@ The OPERATIVE investigation-only allowlist is the enforcement module `scripts/mo
 - `.agents/memory/` (memory artifacts)
 - `.agents/architecture/REVIEW-*` (review artifacts)
 - `.agents/critique/` (critique outputs)
-- `.agents/memory/episodes/` (listed separately in the module; subsumed by `.agents/memory/`)
 
-Known divergence, surfaced here, not resolved: the ADR-034 text (`.agents/architecture/ADR-034-investigation-session-qa-exemption.md:79-83`) lists only the first 5 paths, so the code has drifted wider than the ADR. Reconciling that requires an ADR-034 amendment; until one lands, the code list is what the gate enforces.
+Former divergence, now closed: the ADR-034 text (`.agents/architecture/ADR-034-investigation-session-qa-exemption.md:78-87`) once listed only the first 5 paths, and #2958 reconciled it to the same 8 the module enforces. The code list is still what the gate enforces, so re-check the module rather than the ADR when they disagree.
 
 One staged file outside the enforced list voids the exemption. The session then needs real QA evidence, or you split the work into two sessions.
 
@@ -61,17 +60,17 @@ Special case, generated trees. `src/vs-code-agents/` and `src/copilot-cli/agents
 | Docs-only | Scoped markdownlint on changed files; dash prohibition; session log still required |
 | Investigation-only | Staged-file allowlist check in the pre-commit QA validator (ADR-034) |
 | Code | Full test rigor: positive, negative, edge, branch coverage, mocked I/O; coverage floors 100 security / 80 business / 60 docs (AGENTS.md Standards) |
-| Plugin content | Version-bump gate at two layers: `pre_pr.py` wrapping `build/scripts/validate_plugin_version_bump.py` at pre-push, CI `.github/workflows/validate-plugin-version-bump.yml` |
+| Plugin content | Version-field gate at two layers: `pre_pr.py` wrapping `build/scripts/validate_plugin_version_bump.py` at pre-push, CI `.github/workflows/validate-plugin-version-bump.yml` |
 | Hook | Anchoring validator; runtime-contract tests (`tests/build_scripts/test_generate_hooks_runtime_contract.py`); keep `.claude/settings.json` and `.claude/hooks/hooks.json` in sync by hand |
 | Workflow | SHA-pin validation; yamllint style; local workflow run gate in pre-push (`SKIP_WORKFLOW_LOCAL_TEST` escape exists for unrunnable workflows; semantics in `ai-agents-config-catalog`) |
 | ADR / governance | `adr-review` debate to consensus; blocking `git_hook_policy.py adr-review` Lefthook job |
-| Any canonical-source edit | Drift gates: `python3 build/generate_agents.py --validate` and `python3 build/scripts/build_all.py --check`; CI mirrors in `agent-drift-detection.yml` and `drift-detection.yml` |
+| Any canonical-source edit | Drift gates: `uv run python build/generate_agents.py --validate` and `uv run python build/scripts/build_all.py --check`; CI mirrors in `agent-drift-detection.yml` and `drift-detection.yml` |
 
 Drift-gate bypass exists but is not free. `[skip-drift-check]` anywhere in a commit message on the PR skips agent drift detection (`.github/workflows/agent-drift-detection.yml:17`). Using it demands a stated reason and human approval; an unexplained bypass marker reads as the session 1187 escape-hatch abuse pattern (told in `references/incident-history.md`) and will be challenged in review.
 
 ### Phase 3: Run the gates, local to CI
 
-The gate ladder runs in feedback-cost order: pre-commit beats CI beats code review beats documentation, so catch violations at rung 1 (`python3 scripts/validation/pre_pr.py`, `--quick` skips slow checks), not rung 4 (CI round-trip plus reviewer attention). Local hooks fire only after Lefthook is installed: `uv run --frozen lefthook install --reset-hooks-path`, then verify with `uv run --frozen lefthook check-install`. Commit-discipline caps: 5 files or fewer per commit, block at 20 commits per PR (warn above 15 via `git rev-list --count HEAD ^origin/main`), and scope markdownlint to changed files only.
+The gate ladder runs in feedback-cost order: pre-commit beats CI beats code review beats documentation, so catch violations at rung 1 (`uv run python scripts/validation/pre_pr.py`, `--quick` skips slow checks), not rung 4 (CI round-trip plus reviewer attention). Local hooks fire only after Lefthook is installed: `uv run --frozen lefthook install --reset-hooks-path`, then verify with `uv run --frozen lefthook check-install`. Commit-discipline caps: 5 files or fewer per commit, 20 commits per PR, or 40 when the branch merges main, blocking only above that cap (warn at 10, alert at 15, via `git rev-list --count HEAD ^origin/main`), and scope markdownlint to changed files only.
 
 The full four-rung ladder (shift-left runner, pre-commit, pre-push, CI required checks with their exact commands and exit codes), the commit-discipline enforcement points, and the PR #908 story that set the caps are in `references/gate-ladder.md`. Consult it before your first push in a session.
 
@@ -86,7 +85,7 @@ Check this table before any push. The incident column is the answer to "why"; do
 | No em or en dashes in authored text | `validate_dash_prohibition` (`scripts/validation/checks_dash.py` via `pre_pr.py`) + dash-guard hook; `tests/hooks/fixtures/` exempt | `.claude/rules/universal.md` MUST NOT 5: bot reviewers open one or more threads per dash, every PR (Issue #1923) |
 | SHA-pin all GitHub Actions | Pre-commit hook + workflow validation (`.agents/governance/PROJECT-CONSTRAINTS.md:162`) | Tags are mutable, so pinning blocks supply-chain tag-moving. Operative rule: pin everything unless a human explicitly approves the GP-006 first-party `actions/*` tag allowance, and disclose the tension in your PR description when you hit it. Fuller writeup in `references/incident-history.md` |
 | Generated and released hook artifacts fail closed and loud (ADR-066 D1, ADR-071). Scoped, not blanket: push guards fail open on infrastructure errors by design (`.claude/hooks/PreToolUse/push_guard_base.py` docstring); repo-wide audit tracked in #2271. Per-family table: `ai-agents-architecture-contract` Phase 3 | `validate_hook_anchoring.py`, runtime-contract tests, named Lefthook jobs, and CI enforcement | #2205 customer wedge; policy reversal in the incident history |
-| Plugin content change requires a strictly greater plugin.json semver | `pre_pr.py` + `validate-plugin-version-bump.yml` | PR #1942 stale-cache; incident history |
+| No `version` field in any plugin manifest or marketplace entry | `pre_pr.py` + `validate-plugin-version-bump.yml` | ADR-092: the field pins freshness to a hand-bumped string and conflicts across every concurrent PR (issue #4080 measured 14 of 22) |
 | Block-style YAML arrays only in frontmatter | `.agents/governance/PROJECT-CONSTRAINTS.md:224` ("Exceptions: None") | Copilot CLI frontmatter parser fails on CRLF and related formatting: github/copilot-cli#694, cited at PROJECT-CONSTRAINTS.md:220; ADR-044 |
 | `.agents/HANDOFF.md` is read-only | `.claude/rules/universal.md` MUST NOT 3 | ADR-014 (Accepted): the monolithic handoff file bloated and became a chronic merge-conflict magnet; distributed handoffs replaced it |
 | Memory-first: retrieval precedes reasoning | AGENTS.md Retrieval section; session-start gates | ADR-007: Serena memories are canonical, Forgetful supplementary. Search before building; do not re-derive settled decisions |
@@ -105,7 +104,7 @@ Six of the table's incidents compress a multi-round failure and are told in full
 |--------------|-------------------|
 | Editing a generated tree to silence a drift gate | Inverts the source of truth (2025-12-15 incident, reverted). Ask which side is canonical first |
 | Using `[skip-drift-check]` or `commit-limit-bypass` without a stated reason and human approval | Bypass markers are audited; unexplained use reads as the session 1187 pattern |
-| Bumping plugin.json "just in case" on every commit | The gate fires only when tree content changed; noise bumps hide real releases in the version history |
+| Adding a `version` back to a plugin.json or marketplace entry | The gate fails on the field's presence (ADR-092). Freshness already tracks the commit SHA, so the field only re-creates the merge conflict it was deleted for |
 | Adding a fail-open wrapper so a broken hook "does not block anyone" | Rejected pattern (#2230, recorded in ADR-071): silent exit 0 disables the hook while looking like success, exactly the #2205 failure |
 | Classifying a mixed session as investigation-only | One staged file outside the ADR-034 allowlist voids the exemption; split the work |
 | Fixing a bot-flagged dash or style claim without byte-level verification | Bots false-positive; count the actual bytes before editing (PR #1873 observation: an em-dash flag on a line with zero em-dashes) |
@@ -117,16 +116,16 @@ Six of the table's incidents compress a multi-round failure and are told in full
 Before you push, confirm:
 
 - [ ] Change classified (Phase 1) and every class obligation from Phase 2 satisfied
-- [ ] `python3 scripts/validation/pre_pr.py` exits 0
+- [ ] `uv run python scripts/validation/pre_pr.py` exits 0
 - [ ] `uv run --frozen lefthook check-install` exits 0
-- [ ] Touched `.claude/`, `src/claude/`, or `src/copilot-cli/`? The matching `plugin.json` version strictly increased
-- [ ] Touched a canonical generation source? `python3 build/scripts/build_all.py --check` and `python3 build/generate_agents.py --validate` both pass
+- [ ] Touched `.claude/`, `src/claude/`, or `src/copilot-cli/`? The matching `plugin.json` still carries no `version` field (`python3 build/scripts/validate_plugin_version_bump.py` exits 0)
+- [ ] Touched a canonical generation source? `uv run python build/scripts/build_all.py --check` and `uv run python build/generate_agents.py --validate` both pass
 - [ ] Commit count under 20 (`git rev-list --count HEAD ^origin/main`), each commit 5 files or fewer
 - [ ] Created or edited an ADR or SESSION-PROTOCOL.md? `adr-review` gate acknowledged
 - [ ] No em or en dashes in changed files: `python3 -c "import sys; b=open(sys.argv[1],'rb').read(); print(b.count(chr(0x2014).encode())+b.count(chr(0x2013).encode()))" FILE` prints 0
 
 ## Provenance and Maintenance
 
-Verified against the working tree on 2026-07-03. A selected index of the drift-prone cited source lines, each paired with its re-verify command, is in `references/provenance.md`. Consult and update it when you edit this skill or any reference it points to.
+Authored 2026-07-03, facts re-verified against the working tree on 2026-07-30. A selected index of the drift-prone cited source lines, each paired with its re-verify command, is in `references/provenance.md`. Consult and update it when you edit this skill or any reference it points to.
 
-Maintenance rule: any edit to a cited source line number, plugin version, or ADR status invalidates the matching row. Re-run the re-verify command and update the row in the same commit. This file is plugin content; editing it requires bumping both `.claude/.claude-plugin/plugin.json` and `src/copilot-cli/.claude-plugin/plugin.json` (parity enforced by `build/scripts/check_plugin_manifest_parity.py`).
+Maintenance rule: any edit to a cited source line number or ADR status invalidates the matching row. Re-run the re-verify command and update the row in the same commit. This file is plugin content, so regenerate the Copilot mirror (`uv run python build/scripts/build_all.py`) in the same commit. No manifest bump: the manifests carry no version (ADR-092).
