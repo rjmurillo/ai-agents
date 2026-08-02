@@ -199,16 +199,6 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: python3 scripts/ci/enforce_pr_validation.py
 
-      # Issue #2967: ADR-006 forbids business logic in workflow `run:` blocks.
-      # The burn-down count (93 at audit time, 87 today) had no gate, so it could
-      # climb back silently between extraction PRs. This freezes it: the scanner
-      # exits 1 when the count exceeds --max. Lower --max after each extraction.
-      # Runs on every PR because workflow YAML can change in any PR, and pytest.yml
-      # (which hosts the ruff ratchets) only runs when Python files change.
-      - name: Run ADR-006 run-block ratchet
-        if: steps.should-run.outputs.skip != 'true'
-        run: python3 scripts/ci/adr006_run_block_scanner.py --max 58
-
       # Issue #3330: workflow *schema* validation had no required CI gate. YAML
       # Lint (yaml-lint.yml) does run on `**/*.yml` for PRs, but it runs yamllint,
       # which checks syntax and style. It does not know what a workflow is: it
@@ -247,6 +237,19 @@ jobs:
 
       - name: Check bare-python3 documentation entrypoints
         run: uv run --frozen python3 scripts/validation/check_python3_entrypoints.py
+
+      # Issue #2967: ADR-006 forbids business logic in workflow `run:` blocks.
+      # The burn-down count started at 93 at audit time. This freezes the
+      # current ratchet ceiling at 58: the scanner exits 1 when the count
+      # exceeds --max. Lower --max after each extraction.
+      #
+      # Unconditional (Issue #4151): Renovate and Dependabot open workflow-only
+      # PRs (action SHA bumps), which are exactly the PRs that could smuggle a
+      # new run block past this gate if it were skip-guarded. A gate that exempts
+      # the actors who author workflow changes is weaker than the hook it
+      # backstops, not equal to it.
+      - name: Run ADR-006 run-block ratchet
+        run: python3 scripts/ci/adr006_run_block_scanner.py --max 58
 
       # Issue #3779: taste-lints emits severity="error" and nothing could fail
       # because of one. The linter itself is correct (it exits 10 on an error),

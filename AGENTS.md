@@ -15,7 +15,7 @@
 
 **Start**: Init Serena|Read HANDOFF+latest issue handoff|Resume check|Log|Search mem|Verify git
 **Mid**: `git rev-list --count HEAD ^origin/main` block >20; notice 10; warn 15
-**Pre-PR**: `python3 scripts/validation/pre_pr.py`|No BLOCKING|Security scan|Style `.gemini/styleguide.md`
+**Pre-PR**: `uv run python scripts/validation/pre_pr.py`|No BLOCKING|Security scan|Style `.gemini/styleguide.md`
 **End**: Complete log|Keep HANDOFF|Issue handoff if open|Update Serena|Lint|Commit|Check
 
 ## Boundaries

@@ -64,7 +64,7 @@ def run_compression(content: str, level: str = "medium") -> dict:
         result = subprocess.run(
             [sys.executable, str(SCRIPT_PATH), "-i", input_path, "-l", level],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             check=True
         )
         return dict(json.loads(result.stdout))

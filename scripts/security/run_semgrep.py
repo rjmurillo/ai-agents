@@ -338,6 +338,18 @@ class SemgrepScanner:
             self.config,
             "--json",
             "--no-git-ignore",
+            # requires-python = ">=3.14" (pyproject.toml). The python36 and
+            # python37 compatibility families warn about arguments unavailable
+            # before those versions, which are eight and seven minor versions
+            # below the project floor. Every finding they produce is a
+            # guaranteed false positive here, and their own metadata classifies
+            # them as "compatibility", not security. Excluding the family keeps
+            # them from blocking PRs that comply with the encoding convention
+            # that tests/test_subprocess_text_encoding.py mandates (issue #4223).
+            "--exclude-rule",
+            "python.lang.compatibility.python36",
+            "--exclude-rule",
+            "python.lang.compatibility.python37",
         ]
 
         if self.severity:

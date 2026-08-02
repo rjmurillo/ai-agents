@@ -57,7 +57,7 @@ Why:
 - **Clearer.** The tool name announces the intent. A reviewer scanning the transcript can read "Edit auth.ts" faster than parsing `sed -i 's/foo/bar/g' auth.ts`.
 - **Safer.** No shell quoting traps. No command-injection surface. No accidental glob expansion against paths the model did not intend.
 
-Reserve Bash for operations the dedicated tools cannot perform: `git`, package managers (`npm`, `pip`, `uv`, `cargo`), build runners (`make`, `python build/scripts/build_all.py`), anything that needs a real shell environment or a multi-stage pipe.
+Reserve Bash for operations the dedicated tools cannot perform: `git`, package managers (`npm`, `pip`, `uv`, `cargo`), build runners (`make`, `uv run python build/scripts/build_all.py`), anything that needs a real shell environment or a multi-stage pipe.
 
 **When a dedicated tool is unavailable in the current harness.** Fall back to the closest Bash equivalent and state the fallback in your response so the user knows the tool boundary was crossed.
 
