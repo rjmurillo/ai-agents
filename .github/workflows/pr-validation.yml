@@ -165,7 +165,7 @@ jobs:
         # live in the testable module. A transient GitHub API failure degrades
         # to status=UNKNOWN and exit 0 (issue #3262); the downstream Enforce
         # Blocking Issues step still enforces a real BLOCKED status.
-        run: python3 scripts/validation/pr_commit_count.py --pr-number "$PR_NUMBER"
+        run: uv run --frozen python scripts/validation/pr_commit_count.py --pr-number "$PR_NUMBER"
 
       - name: Apply needs-split label
         # Fixes #2557: this step is ADVISORY and must never fail the job.
