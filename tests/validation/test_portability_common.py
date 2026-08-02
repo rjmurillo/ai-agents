@@ -213,3 +213,28 @@ class TestAnOverrideKeepsTheEvidenceTheSymlinkGuardNeeds:
         )
 
         assert resolved == root / "scripts" / "validation" / "b.json"
+
+    def test_a_link_followed_by_a_parent_step_names_the_file_it_was_checked_as(
+        self, tmp_path: Path
+    ) -> None:
+        """Collapsing `..` textually looked like the safe half of not resolving.
+
+        It is not. `link/../victim.json` is containment-tested as a sibling of
+        whatever the link points into, then collapses to a sibling of the link
+        itself, so the guard vets one file and hands back another. Worse, the
+        collapse consumes the link, leaving nothing for the symlink refusal to
+        catch. The path has to survive whole.
+        """
+        root = tmp_path / "repo"
+        (root / "target" / "a" / "b").mkdir(parents=True)
+        (root / "victim.json").write_text("{}", encoding="utf-8")
+        (root / "target" / "a" / "victim.json").write_text("{}", encoding="utf-8")
+        (root / "link").symlink_to(root / "target" / "a" / "b")
+        override = Path("link/../victim.json")
+
+        resolved = common.resolve_baseline_path(
+            root, override, "d.json", reject_outside_root=True
+        )
+
+        assert resolved.resolve() == (root / override).resolve()
+        assert "link" in resolved.parts

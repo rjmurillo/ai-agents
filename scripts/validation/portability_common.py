@@ -140,13 +140,15 @@ def resolve_baseline_path(
         candidate = root / candidate
     if not candidate.expanduser().resolve().is_relative_to(root_resolved):
         return Path("")
-    # Return the lexically normalised path, not the resolved one. `resolve()`
-    # follows every symlink, so handing its output onward erases the evidence
-    # the symlink guard exists to find: an in-repository link would pass the
-    # containment test above and then be written through as if it were the
-    # baseline. Collapsing `..` textually is safe precisely because any symlink
-    # that would make it unsound is refused downstream.
-    return Path(os.path.normpath(candidate))
+    # Return the candidate exactly as written, neither resolved nor textually
+    # normalised. `resolve()` follows every symlink, which erases the evidence
+    # the symlink guard exists to find. Collapsing `..` textually looks safer
+    # but is not: `link/../victim.json` is containment-tested as the directory
+    # the link points into and then collapses to a sibling of the link, so the
+    # guard vets one file and hands back another, with no symlink left in the
+    # result for the downstream check to catch. Kept whole, that same path
+    # still names the link, and the link is refused.
+    return candidate
 
 
 def write_baseline(

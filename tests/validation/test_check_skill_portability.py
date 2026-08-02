@@ -343,3 +343,39 @@ class TestRepoRatchet:
             '{"files": {"skills/gamma/scripts/run.py": 0}}\n', encoding="utf-8"
         )
         assert csp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline_path)]) == 0
+
+    def test_a_baseline_outside_the_repository_is_refused_in_both_modes(
+        self, tmp_path: Path
+    ) -> None:
+        """The read and the write have to agree about what they will accept.
+
+        This checker used to resolve any `--baseline` while the write path
+        refused every out-of-tree destination, so a read succeeded and the
+        update it was meant to precede failed. The permissiveness was never a
+        decision: the resolver predated the containment test its two siblings
+        apply, and a later dedupe preserved the gap verbatim.
+        """
+        root = tmp_path / "repo"
+        skills = root / ".claude" / "skills" / "delta" / "scripts"
+        skills.mkdir(parents=True)
+        (skills / "run.py").write_text("print('ok')\n", encoding="utf-8")
+        outside = tmp_path / "outside.json"
+        outside.write_text('{"files": {}}\n', encoding="utf-8")
+        argv = ["--repo-root", str(root), "--baseline", str(outside)]
+
+        assert csp.main(argv) == 2
+        assert csp.main([*argv, "--update-baseline"]) == 2
+        assert json.loads(outside.read_text(encoding="utf-8")) == {"files": {}}
+
+    def test_a_baseline_inside_the_repository_is_still_accepted(
+        self, tmp_path: Path
+    ) -> None:
+        """The refusal above is only correct if the supported path still works."""
+        root = tmp_path / "repo"
+        skills = root / ".claude" / "skills" / "delta" / "scripts"
+        skills.mkdir(parents=True)
+        (skills / "run.py").write_text("print('ok')\n", encoding="utf-8")
+        inside = root / "baseline.json"
+        inside.write_text('{"files": {"skills/delta/scripts/run.py": 0}}\n', encoding="utf-8")
+
+        assert csp.main(["--repo-root", str(root), "--baseline", str(inside)]) == 0

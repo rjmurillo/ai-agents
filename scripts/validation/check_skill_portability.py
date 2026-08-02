@@ -285,10 +285,19 @@ def _resolve_root(repo_root: Path | None) -> Path:
     return _common_resolve_root(repo_root, Path(__file__).resolve(), require_repo_marker=True)
 
 
-def _resolve_baseline_path(root: Path, baseline: Path | None) -> Path:
-    return _common_resolve_baseline_path(
-        root, baseline, _DEFAULT_BASELINE_NAME, reject_outside_root=False
+def _resolve_baseline_path(root: Path, baseline: Path | None) -> Path | None:
+    """Locate the baseline, refusing anything that resolves outside the root.
+
+    This checker used to accept any `--baseline`, which was never a decision:
+    the resolver simply predated the containment test its two siblings already
+    apply, and a later dedupe preserved the gap verbatim. The write path refuses
+    an out-of-tree destination regardless, so the permissiveness only ever
+    bought a read that disagreed with the write it was supposed to precede.
+    """
+    resolved = _common_resolve_baseline_path(
+        root, baseline, _DEFAULT_BASELINE_NAME, reject_outside_root=True
     )
+    return None if resolved == Path("") else resolved
 
 
 def _print_portability_results(
@@ -335,6 +344,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Skills dir not found: {skills_dir}", file=sys.stderr)
         return 2
     baseline_path = _resolve_baseline_path(root, args.baseline)
+    if baseline_path is None:
+        print(
+            f"Refusing a baseline outside the repository: {args.baseline}. "
+            "The ratchet only owns the artifact git tracks.",
+            file=sys.stderr,
+        )
+        return 2
 
     try:
         current = scan_skill_scripts(skills_dir)
