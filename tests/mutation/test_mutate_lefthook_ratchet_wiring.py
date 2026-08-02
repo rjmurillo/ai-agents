@@ -1,7 +1,7 @@
-"""Mutation harness for test_lefthook_ratchet_wiring.py (issue #4041, #4130).
+"""Mutation harness for test_lefthook_ratchet_wiring.py (issue #4041, #4246).
 
 Mutants:
-  (a) Comment out the ruff-count-ratchet job (different ratchet, control).
+  (a) Comment out the python-lint-count-ratchet job (different ratchet, control).
   (b) Comment out the taste-count-ratchet job.
   (c) Comment out the type-ignore-count-ratchet job.
   (d) Delete --base-ref from the taste-count-ratchet run field only.
@@ -18,33 +18,46 @@ Rules:
 
 from __future__ import annotations
 
+import os
+import shutil
 import subprocess
 import sys
 import time
 from pathlib import Path
 
-import pytest
-
 _LEFTHOOK = Path(__file__).resolve().parents[2] / "lefthook.yml"
 _TEST_MODULE = "tests.ci.test_lefthook_ratchet_wiring"
+_TEST_FILE = _LEFTHOOK.parent / "tests/ci/test_lefthook_ratchet_wiring.py"
 
+_RUFF_COUNT_NAME_PATTERN = "          - name: python-lint-count-ratchet\n"
 _TASTE_NAME_PATTERN = "          - name: taste-count-ratchet\n"
 _TYPE_NAME_PATTERN = "          - name: type-ignore-count-ratchet\n"
 
 
 def _run_wiring_tests() -> tuple[int, str]:
     """Run the wiring test suite and return (returncode, output)."""
+    pycache = _TEST_FILE.parent / "__pycache__"
+    if pycache.exists():
+        shutil.rmtree(pycache)
     result = subprocess.run(
-        [sys.executable, "-m", "pytest", _TEST_MODULE, "-x", "-q"],
+        [sys.executable, "-m", "pytest", "--pyargs", _TEST_MODULE, "-x", "-q"],
         capture_output=True,
+        encoding="utf-8",
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+        errors="replace",
         text=True,
-        cwd=str(_LEFTHOOK.parents[1]),
+        cwd=str(_LEFTHOOK.parent),
     )
     return result.returncode, result.stdout + result.stderr
 
 
 def _count_occurrences(text: str, pattern: str) -> int:
     return text.count(pattern)
+
+
+def _require_unique_pattern(text: str, pattern: str) -> None:
+    count = _count_occurrences(text, pattern)
+    assert count == 1, f"PATTERN-AMBIGUOUS: {pattern!r} appears {count} times"
 
 
 def _mutate_and_test(original: bytes, mutated_text: str, mutant_name: str) -> tuple[int, str]:
@@ -62,14 +75,29 @@ def _mutate_and_test(original: bytes, mutated_text: str, mutant_name: str) -> tu
 class TestMutantKillsWiringTests:
     """Each mutant must kill at least one wiring test."""
 
+    def test_mutant_a_comment_out_other_ratchet_survives(self) -> None:
+        """Commenting out another ratchet must not fail these wiring tests."""
+        original = _LEFTHOOK.read_bytes()
+        text = original.decode("utf-8")
+        _require_unique_pattern(text, _RUFF_COUNT_NAME_PATTERN)
+
+        mutated = text.replace(
+            _RUFF_COUNT_NAME_PATTERN,
+            "          # - name: python-lint-count-ratchet\n",
+        )
+        rc, output = _mutate_and_test(
+            original, mutated, "mutant-a-python-lint-count-commented"
+        )
+        assert rc == 0, (
+            f"CONTROL MUTANT DIED: commenting out python-lint-count-ratchet "
+            f"failed wiring tests for taste and type-ignore jobs.\n{output}"
+        )
+
     def test_mutant_b_comment_out_taste_job(self) -> None:
         """Commenting out taste-count-ratchet must fail wiring tests."""
         original = _LEFTHOOK.read_bytes()
         text = original.decode("utf-8")
-
-        count = _count_occurrences(text, _TASTE_NAME_PATTERN)
-        if count != 1:
-            pytest.skip(f"PATTERN-AMBIGUOUS: '{_TASTE_NAME_PATTERN!r}' appears {count} times")
+        _require_unique_pattern(text, _TASTE_NAME_PATTERN)
 
         mutated = text.replace(
             _TASTE_NAME_PATTERN,
@@ -85,10 +113,7 @@ class TestMutantKillsWiringTests:
         """Commenting out type-ignore-count-ratchet must fail wiring tests."""
         original = _LEFTHOOK.read_bytes()
         text = original.decode("utf-8")
-
-        count = _count_occurrences(text, _TYPE_NAME_PATTERN)
-        if count != 1:
-            pytest.skip(f"PATTERN-AMBIGUOUS: '{_TYPE_NAME_PATTERN!r}' appears {count} times")
+        _require_unique_pattern(text, _TYPE_NAME_PATTERN)
 
         mutated = text.replace(
             _TYPE_NAME_PATTERN,
@@ -106,9 +131,7 @@ class TestMutantKillsWiringTests:
         text = original.decode("utf-8")
 
         target = "taste_count_ratchet.py --base-ref origin/main"
-        count = _count_occurrences(text, target)
-        if count != 1:
-            pytest.skip(f"PATTERN-AMBIGUOUS: '{target}' appears {count} times")
+        _require_unique_pattern(text, target)
 
         mutated = text.replace(target, "taste_count_ratchet.py")
         rc, output = _mutate_and_test(original, mutated, "mutant-d-taste-no-base-ref")
@@ -123,9 +146,7 @@ class TestMutantKillsWiringTests:
         text = original.decode("utf-8")
 
         target = "type_ignore_count_ratchet.py --base-ref origin/main"
-        count = _count_occurrences(text, target)
-        if count != 1:
-            pytest.skip(f"PATTERN-AMBIGUOUS: '{target}' appears {count} times")
+        _require_unique_pattern(text, target)
 
         mutated = text.replace(target, "type_ignore_count_ratchet.py")
         rc, output = _mutate_and_test(original, mutated, "mutant-e-type-no-base-ref")

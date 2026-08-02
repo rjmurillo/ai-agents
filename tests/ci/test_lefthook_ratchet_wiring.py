@@ -1,4 +1,4 @@
-"""Negative-control tests for pre-push lefthook ratchet wiring (issue #4041, #4130).
+"""Negative-control tests for pre-push lefthook ratchet wiring (issue #4041, #4246).
 
 These tests verify that the taste-count-ratchet and type-ignore-count-ratchet
 jobs are present and active in lefthook.yml's pre-push section. The previous
@@ -7,7 +7,8 @@ implementation substring-searched raw YAML text, which produced three defects:
 1. A commented-out job still passes the text-search test.
 2. Deleting ``--base-ref`` from one job could still pass if the 300-character
    search window reached the neighbouring job's flag.
-3. The test never exercised the module's ``main(argv)`` exit code (issue #4068).
+3. The mutation harness never proved the unmutated wiring tests exited zero
+   before applying mutants (issue #4246).
 
 The fix parses lefthook.yml with ``yaml.safe_load`` and asserts on the ``run``
 field of each named job. A commented-out job produces no YAML key, so the test
@@ -21,13 +22,17 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 import yaml
 
 _LEFTHOOK = Path(__file__).resolve().parents[2] / "lefthook.yml"
 
 
 def _load_lefthook() -> dict:
-    return yaml.safe_load(_LEFTHOOK.read_text(encoding="utf-8"))
+    data = yaml.safe_load(_LEFTHOOK.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise AssertionError("lefthook.yml must parse to a YAML mapping.")
+    return data
 
 
 def _find_job(jobs: list, name: str) -> dict | None:
@@ -48,7 +53,12 @@ def _find_job(jobs: list, name: str) -> dict | None:
 
 def _get_pre_push_job(name: str) -> dict | None:
     d = _load_lefthook()
-    jobs = d.get("pre-push", {}).get("jobs", [])
+    pre_push = d.get("pre-push", {})
+    if not isinstance(pre_push, dict):
+        return None
+    jobs = pre_push.get("jobs", [])
+    if not isinstance(jobs, list):
+        return None
     return _find_job(jobs, name)
 
 
@@ -120,8 +130,31 @@ class TestTypeIgnoreCountRatchetWiring:
         )
 
 
-class TestRatchetWiringMainExitCodes:
-    """Assert on subprocess exit codes, not helper return values (issue #4068).
+class TestLefthookParsing:
+    """Malformed lefthook.yml content should fail with an intentional message."""
+
+    def test_load_lefthook_rejects_empty_yaml(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        fake_yml = tmp_path / "lefthook.yml"
+        fake_yml.write_text("", encoding="utf-8")
+        monkeypatch.setattr(sys.modules[__name__], "_LEFTHOOK", fake_yml)
+
+        with pytest.raises(AssertionError, match="YAML mapping"):
+            _load_lefthook()
+
+    def test_pre_push_non_mapping_returns_missing_job(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        fake_yml = tmp_path / "lefthook.yml"
+        fake_yml.write_text("pre-push: []\n", encoding="utf-8")
+        monkeypatch.setattr(sys.modules[__name__], "_LEFTHOOK", fake_yml)
+
+        assert _get_pre_push_job("taste-count-ratchet") is None
+
+
+class TestRatchetWiringSubprocessExitCodes:
+    """Assert on subprocess exit codes, not helper return values (issue #4246).
 
     A helper-level assertion cannot catch a wrong exit code. These tests call
     the lookup logic through a subprocess so the exit code is observable.
@@ -132,16 +165,15 @@ class TestRatchetWiringMainExitCodes:
             [
                 sys.executable, "-c",
                 (
-                    "import sys, yaml; "
-                    f"d = yaml.safe_load(open({str(_LEFTHOOK)!r})); "
-                    "jobs = d.get('pre-push', {}).get('jobs', []); "
-                    "found = any(isinstance(j, dict) and j.get('name') == 'taste-count-ratchet' "
-                    "           for g in jobs for j in ([g] + (g.get('group', {}).get('jobs', []) "
-                    "           if isinstance(g, dict) else []))); "
-                    "sys.exit(0 if found else 1)"
+                    "import sys; "
+                    "from tests.ci import test_lefthook_ratchet_wiring as m; "
+                    "job = m._get_pre_push_job('taste-count-ratchet'); "
+                    "sys.exit(0 if job is not None else 1)"
                 ),
             ],
             capture_output=True,
+            encoding="utf-8",
+            errors="replace",
         )
         assert result.returncode == 0, (
             f"Expected exit 0 (taste-count-ratchet present), got {result.returncode}."
@@ -154,15 +186,17 @@ class TestRatchetWiringMainExitCodes:
             [
                 sys.executable, "-c",
                 (
-                    "import sys, yaml; "
-                    f"d = yaml.safe_load(open({str(fake_yml)!r})); "
-                    "jobs = d.get('pre-push', {}).get('jobs', []); "
-                    "found = any(isinstance(j, dict) and j.get('name') == 'taste-count-ratchet' "
-                    "           for j in jobs); "
-                    "sys.exit(0 if found else 1)"
+                    "import sys; "
+                    "from pathlib import Path; "
+                    "from tests.ci import test_lefthook_ratchet_wiring as m; "
+                    f"m._LEFTHOOK = Path({str(fake_yml)!r}); "
+                    "job = m._get_pre_push_job('taste-count-ratchet'); "
+                    "sys.exit(0 if job is not None else 1)"
                 ),
             ],
             capture_output=True,
+            encoding="utf-8",
+            errors="replace",
         )
         assert result.returncode == 1, (
             f"Expected exit 1 (job absent), got {result.returncode}."

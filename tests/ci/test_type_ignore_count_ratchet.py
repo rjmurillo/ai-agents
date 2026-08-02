@@ -1,4 +1,4 @@
-"""Tests for the type-ignore count ratchet (issue #4039, #4130)."""
+"""Tests for the type-ignore count ratchet (issue #4039)."""
 
 from __future__ import annotations
 
@@ -52,6 +52,16 @@ class TestCurrentCount:
         monkeypatch.setattr(subprocess, "run", _fake_git((str(a), str(b))))
         assert ratchet.current_count(tmp_path) == 2
 
+    def test_reads_relative_git_paths_from_repo_root(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        package_dir = tmp_path / "pkg"
+        package_dir.mkdir()
+        py = package_dir / "mod.py"
+        py.write_text("x: int = 'hi'  # type: ignore[assignment]\n", encoding="utf-8")
+        monkeypatch.setattr(subprocess, "run", _fake_git(("pkg/mod.py",)))
+        assert ratchet.current_count(tmp_path) == 1
+
     def test_returns_zero_when_no_type_ignores(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -95,34 +105,23 @@ class TestSelfReferentialExclusion:
 
     Each test simulates a self-referential file that contains the target pattern
     in a string literal (the same way the real ratchet and its tests do), and
-    verifies the file is excluded from the count (issue #4130).
+    verifies the file is excluded from the count (issue #4039).
     """
 
     def test_ratchet_impl_file_is_excluded(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Occurrences in the ratchet implementation file must NOT be counted."""
-        ratchet_path = tmp_path / "type_ignore_count_ratchet.py"
+        rel = "scripts/ci/type_ignore_count_ratchet.py"
+        ratchet_path = tmp_path / rel
+        ratchet_path.parent.mkdir(parents=True)
         ratchet_path.write_text(
             '"""Count ``# type: ignore`` in files."""\n',
             encoding="utf-8",
         )
-        rel = "scripts/ci/type_ignore_count_ratchet.py"
         monkeypatch.setattr(subprocess, "run", _fake_git((rel,)))
         monkeypatch.setattr(ratchet, "_SELF_REFERENTIAL_FILES", frozenset([rel]))
 
-        original_read = ratchet_path.__class__.read_text
-
-        def _mock_read(self, **kwargs):
-            return original_read(ratchet_path, **kwargs)
-
-        monkeypatch.setattr(
-            ratchet,
-            "current_count",
-            lambda root: (
-                0  # the file is excluded; nothing is read
-            ),
-        )
         assert ratchet.current_count(tmp_path) == 0
 
     def test_exclusion_is_load_bearing(
