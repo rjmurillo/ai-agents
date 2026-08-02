@@ -384,3 +384,49 @@ def test_full_compliance_check_violations(temp_repo, monkeypatch):
 
     assert results.summary["failed"] > 0
     assert len(results.violations) > 0
+
+
+def test_action_light_skill_is_never_recommended_for_an_always_on_slot(temp_repo):
+    """Issue #3936: an action-light skill routes to disclosure or deletion.
+
+    The old text said "consider moving <skill> to passive context", which
+    inverts the Decision Framework: a skill with nothing to execute is a
+    candidate for progressive disclosure or removal, never for promotion to
+    an always-on slot. The replacement must also cite a document that exists,
+    and SKILL-QUICK-REF.md was deleted in #1120.
+    """
+    skills_dir = temp_repo / "skills"
+    quiet_skill = skills_dir / "quiet-skill"
+    quiet_skill.mkdir(parents=True)
+    (quiet_skill / "SKILL.md").write_text(
+        "---\n"
+        "name: quiet-skill\n"
+        "version: 1.0.0\n"
+        "description: Knowledge only\n"
+        "---\n\n"
+        "# Quiet Skill\n\n"
+        "| Term | Meaning |\n"
+        "|---|---|\n"
+        "| alpha | first |\n"
+    )
+    claude_md = temp_repo / "CLAUDE.md"
+    claude_md.write_text("# Test\n")
+
+    results = run_compliance_checks(skills_dir, claude_md)
+
+    promotions = [
+        rec
+        for rec in results.recommendations
+        if "quiet-skill" in rec and "to passive context" in rec
+    ]
+    assert promotions == []
+
+    advice = [
+        rec
+        for rec in results.recommendations
+        if "quiet-skill" in rec and "no actions" in rec
+    ]
+    assert len(advice) == 1
+    assert "progressive disclosure" in advice[0]
+    assert "SKILL-QUICK-REF" not in advice[0]
+    assert "Decision Framework" in advice[0]

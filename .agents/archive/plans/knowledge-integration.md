@@ -4,7 +4,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Status** | In Progress |
+| **Status** | Completed |
 | **Created** | 2026-04-11 |
 | **Owner** | orchestrator |
 | **Complexity** | High |
@@ -63,6 +63,8 @@ Critical path: M0 + M1 + M2 + M3 = 3 days to kill gate.
 ## Blockers
 
 - None
+
+> **Closeout note:** Completed on 2026-07-27. Evidence: M0 to M3 passed the kill gate; M4 scale-out continues under issue #3421.
 
 ## Related
 

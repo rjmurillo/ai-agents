@@ -14,7 +14,6 @@ metadata:
 
 # Autoplan
 
-
 One lazy entry point for the whole catalog. Classify the request, route it,
 apply defaults, and only stop for decisions that are genuinely the user's.
 Models and people do not hand-route across dozens of skills; this skill does.
@@ -90,7 +89,7 @@ evidence (failing tests, widening diff), not on speculation.
 | Bug, error, "why is this broken" | Skill: analyze, then /build for the fix |
 | PR, issue, label, milestone ops | Skill: github |
 | Respond to PR review threads | Skill: pr-comment-responder |
-| Merge conflicts | Skill: merge-resolver |
+| Merge conflicts | Agent: merge-resolver |
 | Session-protocol CI failure | Skill: session-log-fixer |
 | Push, ship, "open a PR" | /ship (or /push-pr for push-only) |
 | "what do we know about X" | Skill: memory-search |
@@ -132,7 +131,7 @@ Apply these without asking. Log each application for the final gate.
 4. **Bias to action.** Internal and reversible: act. Flag what you assumed in
    the final gate instead of pausing mid-run.
 5. **Mirrors and gates.** Honor repo obligations without prompting: sync
-   generated mirrors, bump plugin manifests, write the session log, keep
+   generated mirrors, write the session log, keep
    commits atomic.
 
 Classify every decision the run surfaces; never promote silently.

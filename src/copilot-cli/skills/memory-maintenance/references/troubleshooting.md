@@ -10,28 +10,46 @@ This guide provides solutions to common issues with the memory system. Issues ar
 
 Run these commands to quickly assess system health:
 
+One script covers every tier:
+
 ```bash
-# Memory Router status
-python3 .claude/skills/memory/scripts/search_memory.py --status
+# All tiers, JSON (default)
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/test_memory_health.py"
 
-# Reflexion Memory status
-python3 .claude/skills/memory/scripts/extract_session_episode.py --status
-
-# Forgetful health check
-python3 scripts/forgetful/check_memory_health.py
+# Human-readable
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/test_memory_health.py" --format table
 ```
 
 ### Expected Healthy Output
 
 ```json
 {
-  "SerenaAvailable": true,
-  "ForgetfulAvailable": true,
-  "SerenaPath": "/path/to/.serena/memories",
-  "SerenaMemoryCount": 460,
-  "ForgetfulUrl": "http://localhost:8020"
+  "timestamp": "2026-07-29T07:27:03.569031+00:00",
+  "overall": "healthy",
+  "tiers": {
+    "tier0_working": {"name": "Working Memory", "available": true},
+    "tier1_semantic": {
+      "name": "Semantic Memory",
+      "available": true,
+      "serena":    {"available": true,  "count": 95},
+      "forgetful": {"available": true,  "endpoint": "http://localhost:8020/mcp"}
+    },
+    "tier2_episodic": {
+      "name": "Episodic Memory",
+      "available": true,
+      "episodes": {"available": true, "count": 322}
+    }
+  },
+  "modules": [
+    {"name": "memory_router",    "available": true},
+    {"name": "reflexion_memory", "available": true}
+  ],
+  "recommendations": []
 }
 ```
+
+`overall` reports `degraded` rather than `unhealthy` when Forgetful is down,
+because Serena and the episode store both still answer.
 
 ## Memory Router Issues
 
@@ -39,24 +57,30 @@ python3 scripts/forgetful/check_memory_health.py
 
 **Symptoms**:
 
-- `Search-Memory` returns empty results
+- `search_memory` returns an empty list
 - Expected memories not found
 
 **Diagnosis**:
 
-```powershell
-# Check system status
-$status = Get-MemoryRouterStatus
+```python
+import os
+import sys
+_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT") or ".claude"
+sys.path.insert(0, f"{_root}/skills/memory")
+from memory_core.memory_router import get_memory_router_status
 
-# Verify Serena path exists
-Test-Path $status.SerenaPath
-
-# Count memories
-(Get-ChildItem $status.SerenaPath -Filter "*.md").Count
-
-# Try exact filename match
-Get-ChildItem $status.SerenaPath -Filter "*keyword*"
+status = get_memory_router_status()
+print(status["Serena"])  # {"Available": ..., "Path": ...}
 ```
+
+```bash
+# Count memories, then try an exact filename match
+ls .serena/memories/*.md | wc -l
+ls .serena/memories/ | grep keyword
+```
+
+Serena scores on the **filename**, not the body, so a keyword that appears only
+inside a memory will not match.
 
 **Solutions**:
 
@@ -77,18 +101,18 @@ Get-ChildItem $status.SerenaPath -Filter "*keyword*"
 
 **Diagnosis**:
 
-```powershell
-# Check if Forgetful is running
-python3 scripts/forgetful/check_memory_health.py
+```bash
+# Check every tier
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/test_memory_health.py" --format table
 
-# Check port
-Test-NetConnection -ComputerName localhost -Port 8020
+# Check the port
+ss -ltn 'sport = :8020'
 
-# Check service (Linux)
+# Check the service (Linux)
 systemctl --user status forgetful
 
-# Check service (Windows)
-Get-ScheduledTask -TaskName 'ForgetfulMCP' | Get-ScheduledTaskInfo
+# Check the scheduled task (Windows)
+schtasks /query /tn ForgetfulMCP /v /fo list
 ```
 
 **Solutions**:
@@ -107,7 +131,7 @@ Get-ScheduledTask -TaskName 'ForgetfulMCP' | Get-ScheduledTaskInfo
 systemctl --user start forgetful
 
 # Windows
-Start-ScheduledTask -TaskName 'ForgetfulMCP'
+schtasks /run /tn ForgetfulMCP
 
 # Manual (any OS)
 cd path/to/forgetful && python -m forgetful serve --port 8020
@@ -122,11 +146,11 @@ cd path/to/forgetful && python -m forgetful serve --port 8020
 
 **Diagnosis**:
 
-```powershell
-# Check query against pattern
-$query = "your query here"
-$pattern = '^[a-zA-Z0-9\s\-.,_()&:]+$'
-$query -match $pattern  # Should return True
+```python
+import re
+
+query = "your query here"
+print(bool(re.match(r"^[a-zA-Z0-9\s\-.,_()&:]+$", query)))  # want True
 ```
 
 **Solutions**:
@@ -142,7 +166,7 @@ $query -match $pattern  # Should return True
 **Valid Query Examples**:
 
 ```text
-"PowerShell arrays"                    # Spaces OK
+"shell arrays"                        # Spaces OK
 "git hooks: pre-commit"               # Colons OK
 "authentication (OAuth 2.0)"          # Parentheses OK
 "CI-CD pipelines"                     # Hyphens OK
@@ -157,17 +181,15 @@ $query -match $pattern  # Should return True
 
 **Diagnosis**:
 
-```powershell
-# Benchmark search
-$sw = [System.Diagnostics.Stopwatch]::StartNew()
-$results = Search-Memory -Query "test" -LexicalOnly
-$sw.Stop()
-Write-Host "Lexical: $($sw.ElapsedMilliseconds)ms"
+```bash
+time uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "test" --lexical-only
+time uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "test" --semantic-only
+```
 
-$sw.Restart()
-$results = Search-Memory -Query "test" -SemanticOnly
-$sw.Stop()
-Write-Host "Semantic: $($sw.ElapsedMilliseconds)ms"
+Or benchmark every tier at once:
+
+```bash
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/measure_memory_performance.py"
 ```
 
 **Solutions**:
@@ -193,22 +215,22 @@ Write-Host "Semantic: $($sw.ElapsedMilliseconds)ms"
 
 **Symptoms**:
 
-- `Get-Episode` returns null
+- `get_episode` returns `None`
 - Error: "Episode not found for session"
 
 **Diagnosis**:
 
-```powershell
-# Check episode file exists
-$sessionId = "2026-01-01-session-130"
-$episodePath = ".agents/memory/episodes/episode-$sessionId.json"
-Test-Path $episodePath
+```bash
+SESSION_ID=2026-01-01-session-130
+
+# Does the episode exist?
+ls ".agents/memory/episodes/episode-$SESSION_ID.json"
 
 # List available episodes
-Get-ChildItem ".agents/memory/episodes" -Filter "*.json" | Select-Object Name
+ls .agents/memory/episodes/*.json | head
 
-# Check session log exists
-Test-Path ".agents/sessions/$sessionId.md"
+# Does the session log exist? Logs are JSON, not markdown.
+ls ".agents/sessions/$SESSION_ID.json"
 ```
 
 **Solutions**:
@@ -222,55 +244,8 @@ Test-Path ".agents/sessions/$sessionId.md"
 **Extracting Episode**:
 
 ```bash
-python3 scripts/extract_session_episode.py \
-    --session-log-path ".agents/sessions/.agents/sessions/2026-01-01-session-130.json"
-```
-
-### Issue: Causal Graph Empty
-
-**Symptoms**:
-
-- `Get-Patterns` returns empty
-- `Get-CausalPath` returns "No path found"
-- `CausalGraph.Nodes: 0` in status
-
-**Diagnosis**:
-
-```powershell
-# Check causal graph file
-$graphPath = ".agents/memory/causality/causal-graph.json"
-Test-Path $graphPath
-
-# Check graph content
-if (Test-Path $graphPath) {
-    $graph = Get-Content $graphPath | ConvertFrom-Json
-    Write-Host "Nodes: $($graph.nodes.Count)"
-    Write-Host "Edges: $($graph.edges.Count)"
-    Write-Host "Patterns: $($graph.patterns.Count)"
-}
-
-# Check if episodes exist
-(Get-ChildItem ".agents/memory/episodes" -Filter "*.json").Count
-```
-
-**Solutions**:
-
-| Cause | Solution |
-|-------|----------|
-| No episodes extracted | Extract episodes first |
-| Graph never built | Run update_causal_graph.py |
-| Graph file corrupted | Delete and rebuild |
-
-**Rebuilding Causal Graph**:
-
-```bash
-# Remove old graph
-rm -f ".agents/memory/causality/causal-graph.json"
-
-# Rebuild from all episodes
-for episode in .agents/memory/episodes/*.json; do
-    python3 scripts/update_causal_graph.py --episode-path "$episode"
-done
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" \
+    ".agents/sessions/2026-01-01-session-130.json"
 ```
 
 ### Issue: Episode Extraction Fails
@@ -282,15 +257,20 @@ done
 
 **Diagnosis**:
 
-```powershell
-# Check session log exists and has content
-$logPath = ".agents/sessions/.agents/sessions/2026-01-01-session-130.json"
-if (Test-Path $logPath) {
-    $content = Get-Content $logPath -Raw
-    Write-Host "Log size: $($content.Length) chars"
-    Write-Host "Has decisions: $($content -match '## Decisions')"
-    Write-Host "Has outcome: $($content -match '## (Outcome|Result)')"
-}
+```bash
+LOG=.agents/sessions/2026-01-01-session-130.json
+
+# Is the log valid JSON, and does it carry the fields the extractor reads?
+uv run python -c "
+import json, sys
+log = json.load(open('$LOG', encoding='utf-8'))
+print('keys:', sorted(log))
+print('has decisions:', bool(log.get('decisions')))
+print('has outcome:', log.get('outcome'))
+"
+
+# Schema check
+uv run python scripts/validate_session_json.py "$LOG"
 ```
 
 **Solutions**:
@@ -304,53 +284,20 @@ if (Test-Path $logPath) {
 
 **Required Session Log Sections**:
 
-```markdown
-## Session: 2026-01-01-session-130
+Session logs are JSON, not markdown. See `.agents/SESSION-PROTOCOL.md` for the
+full schema; the extractor reads these fields:
 
-## Objective
-[What the session aimed to accomplish]
-
-## Decisions
-[List of decisions made during session]
-
-## Events
-[Notable events: errors, milestones, commits]
-
-## Outcome
-[success|partial|failure with explanation]
-
-## Lessons Learned
-[Key takeaways from the session]
+```json
+{
+  "sessionId": "2026-01-01-session-130",
+  "objective": "What the session aimed to accomplish",
+  "decisions": [],
+  "events": [],
+  "outcome": "success",
+  "lessons": [],
+  "nextSteps": []
+}
 ```
-
-### Issue: Pattern Not Recognized
-
-**Symptoms**:
-
-- Expected patterns not in `Get-Patterns` output
-- Success rate shows 0 when should be higher
-
-**Diagnosis**:
-
-```powershell
-# Check pattern in graph
-$graph = Get-Content ".agents/memory/causality/causal-graph.json" | ConvertFrom-Json
-$graph.patterns | Where-Object { $_.name -match "pattern name" }
-
-# Check related nodes
-$graph.nodes | Where-Object { $_.label -match "decision keyword" }
-
-# Check edges
-$graph.edges | Where-Object { $_.from -match "decision" }
-```
-
-**Solutions**:
-
-| Cause | Solution |
-|-------|----------|
-| Pattern threshold not met | Pattern needs MinOccurrences (default 3) |
-| Episodes not processed | Run update_causal_graph.py |
-| Decision not recorded | Ensure session logs capture decisions |
 
 ## Skill Issues
 
@@ -389,20 +336,31 @@ find .claude/skills -name "*.py" -type f
 **Diagnosis**:
 
 ```bash
-# Check module path
-test -f ".claude/skills/memory/scripts/search_memory.py" && echo "exists" || echo "not found"
+# Check the module file
+ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+test -f "$ROOT/skills/memory/memory_core/memory_router.py" && echo exists || echo missing
 
-# Test import
-python3 -c "import importlib.util; spec = importlib.util.spec_from_file_location('memory_router', '.claude/skills/memory/scripts/search_memory.py'); print('OK' if spec else 'FAIL')"
+# Test the import the same way the tests do
+uv run python -c "
+import os, sys
+_root = os.environ.get('COPILOT_PLUGIN_ROOT') or os.environ.get('CLAUDE_PLUGIN_ROOT') or '.claude'
+sys.path.insert(0, f'{_root}/skills/memory')
+from memory_core.memory_router import search_memory
+print('OK')
+"
 ```
 
 **Solutions**:
 
 | Cause | Solution |
 |-------|----------|
+| Skill dir not on `sys.path` | the plugin root on `sys.path` first (see the snippet above) |
 | Wrong working directory | Run from project root |
-| Module file missing | Verify .claude/skills/memory/scripts/ directory |
+| Module file missing | Verify `.claude/skills/memory/memory_core/` |
 | Syntax error in module | Check Python syntax |
+
+`memory_core` is a package inside the skill, not an installed distribution.
+`.claude/skills/memory/tests/conftest.py` shows the canonical import setup.
 
 ## Directory Structure Issues
 
@@ -411,32 +369,22 @@ python3 -c "import importlib.util; spec = importlib.util.spec_from_file_location
 **Symptoms**:
 
 - Error: "Directory not found"
-- Episode/causality operations fail
+- Episode operations fail
 
 **Diagnosis**:
 
-```powershell
-# Check required directories
-$dirs = @(
-    ".serena/memories",
-    ".agents/memory/episodes",
-    ".agents/memory/causality"
-)
-
-foreach ($dir in $dirs) {
-    $exists = Test-Path $dir
-    Write-Host "$dir : $exists"
-}
+```bash
+for dir in .serena/memories .agents/memory/episodes; do
+    [ -d "$dir" ] && echo "$dir : present" || echo "$dir : MISSING"
+done
 ```
 
 **Solutions**:
 
 Create missing directories:
 
-```powershell
-New-Item -ItemType Directory -Force -Path ".serena/memories"
-New-Item -ItemType Directory -Force -Path ".agents/memory/episodes"
-New-Item -ItemType Directory -Force -Path ".agents/memory/causality"
+```bash
+mkdir -p .serena/memories .agents/memory/episodes
 ```
 
 ### Issue: Path Mismatch After Migration
@@ -448,10 +396,9 @@ New-Item -ItemType Directory -Force -Path ".agents/memory/causality"
 
 **Diagnosis**:
 
-```powershell
+```bash
 # Check for old path references
-Get-ChildItem -Path "scripts", "tests" -Filter "*.ps1" -Recurse |
-    Select-String -Pattern '\.agents/episodes[^/]|\.agents/causality[^/]'
+grep -rn '\.agents/episodes[^/]' scripts tests
 ```
 
 **Solutions**:
@@ -461,14 +408,13 @@ Update all references to use new paths:
 ```text
 Old Path                    New Path
 .agents/episodes/           .agents/memory/episodes/
-.agents/causality/          .agents/memory/causality/
 ```
 
 ## Common Error Messages
 
-### "Cannot validate argument on parameter 'Query'"
+### "Query contains invalid characters"
 
-**Cause**: Query contains invalid characters.
+**Cause**: Query contains characters outside the allowed class.
 
 **Fix**: Use only allowed characters: `a-zA-Z0-9\s\-.,_()&:`
 
@@ -484,12 +430,6 @@ Old Path                    New Path
 
 **Fix**: Run `extract_session_episode.py` on the session log.
 
-### "No causal path found"
-
-**Cause**: No causal relationship exists between nodes.
-
-**Fix**: Verify nodes exist, check edge directions, increase depth.
-
 ### "Memory file not found"
 
 **Cause**: Serena memory file doesn't exist.
@@ -500,123 +440,58 @@ Old Path                    New Path
 
 ### Full System Check
 
-```powershell
-# Save as Check-MemorySystem.ps1
-[CmdletBinding()]
-param()
+`test_memory_health.py` already performs the full check. It covers every tier,
+both module files, and emits remediation hints, so do not hand-roll a
+diagnostic script.
 
-Write-Host "=== Memory System Diagnostic ===" -ForegroundColor Cyan
-
-# Check directories
-Write-Host "`n[Directories]" -ForegroundColor Yellow
-@(
-    ".serena/memories",
-    ".agents/memory/episodes",
-    ".agents/memory/causality"
-) | ForEach-Object {
-    $exists = Test-Path $_
-    $status = if ($exists) { "OK" } else { "MISSING" }
-    $color = if ($exists) { "Green" } else { "Red" }
-    Write-Host "  $_ : $status" -ForegroundColor $color
-}
-
-# Check modules
-Write-Host "`n[Modules]" -ForegroundColor Yellow
-@(
-    ".claude/skills/memory/scripts/search_memory.py",
-    ".claude/skills/memory/scripts/extract_session_episode.py"
-) | ForEach-Object {
-    $exists = Test-Path $_
-    $status = if ($exists) { "OK" } else { "MISSING" }
-    $color = if ($exists) { "Green" } else { "Red" }
-    Write-Host "  $_ : $status" -ForegroundColor $color
-}
-
-# Check Serena memories
-Write-Host "`n[Serena Memories]" -ForegroundColor Yellow
-if (Test-Path ".serena/memories") {
-    $count = (Get-ChildItem ".serena/memories" -Filter "*.md").Count
-    Write-Host "  Count: $count" -ForegroundColor Green
-} else {
-    Write-Host "  Directory missing" -ForegroundColor Red
-}
-
-# Check episodes
-Write-Host "`n[Episodes]" -ForegroundColor Yellow
-if (Test-Path ".agents/memory/episodes") {
-    $count = (Get-ChildItem ".agents/memory/episodes" -Filter "*.json").Count
-    Write-Host "  Count: $count" -ForegroundColor Green
-} else {
-    Write-Host "  Directory missing" -ForegroundColor Red
-}
-
-# Check causal graph
-Write-Host "`n[Causal Graph]" -ForegroundColor Yellow
-$graphPath = ".agents/memory/causality/causal-graph.json"
-if (Test-Path $graphPath) {
-    $graph = Get-Content $graphPath | ConvertFrom-Json
-    Write-Host "  Nodes: $($graph.nodes.Count)" -ForegroundColor Green
-    Write-Host "  Edges: $($graph.edges.Count)" -ForegroundColor Green
-    Write-Host "  Patterns: $($graph.patterns.Count)" -ForegroundColor Green
-} else {
-    Write-Host "  Graph not found" -ForegroundColor Red
-}
-
-# Check Forgetful
-Write-Host "`n[Forgetful]" -ForegroundColor Yellow
-try {
-    $response = Invoke-RestMethod -Uri "http://localhost:8020/health" -TimeoutSec 2
-    Write-Host "  Status: Available" -ForegroundColor Green
-} catch {
-    Write-Host "  Status: Unavailable" -ForegroundColor Yellow
-    Write-Host "  (System works via Serena fallback)" -ForegroundColor Gray
-}
-
-Write-Host "`n=== Diagnostic Complete ===" -ForegroundColor Cyan
+```bash
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/test_memory_health.py" --format table
 ```
+
+It checks:
+
+| Area | What it reports |
+|------|-----------------|
+| Tier 0 | Working memory (always available) |
+| Tier 1 | Serena memory count, Forgetful reachability and endpoint |
+| Tier 2 | Episode directory and episode count |
+| Modules | `memory_router.py` and `reflexion_memory.py` presence |
+| Overall | `healthy`, `degraded`, or `unhealthy`, plus `recommendations` |
+
+Exit code is 0 when the system is healthy or degraded, non-zero when it is
+unhealthy, so it is safe to use in a gate.
 
 ### Search Performance Test
 
+`measure_memory_performance.py` already benchmarks the router. It warms up,
+repeats, and reports the list/match/read split per query, so do not hand-roll a
+timing loop.
+
 ```bash
-# Save as test_search_performance.sh
-QUERIES=("PowerShell" "git hooks" "authentication")
-ITERATIONS=3
-
-for query in "${QUERIES[@]}"; do
-    echo ""
-    echo "Query: '$query'"
-
-    # Lexical only
-    total=0
-    for ((i=0; i<ITERATIONS; i++)); do
-        start=$(date +%s%N)
-        python3 .claude/skills/memory/scripts/search_memory.py \
-            --query "$query" --lexical-only > /dev/null
-        end=$(date +%s%N)
-        elapsed=$(( (end - start) / 1000000 ))
-        total=$((total + elapsed))
-    done
-    avg=$((total / ITERATIONS))
-    echo "  Lexical: ${avg}ms avg"
-
-    # Combined (if Forgetful available)
-    python3 .claude/skills/memory/scripts/search_memory.py \
-        --query "$query" --format json > /dev/null 2>&1
-    if [ $? -eq 0 ]; then
-        total=0
-        for ((i=0; i<ITERATIONS; i++)); do
-            start=$(date +%s%N)
-            python3 .claude/skills/memory/scripts/search_memory.py \
-                --query "$query" > /dev/null
-            end=$(date +%s%N)
-            elapsed=$(( (end - start) / 1000000 ))
-            total=$((total + elapsed))
-        done
-        avg=$((total / ITERATIONS))
-        echo "  Combined: ${avg}ms avg"
-    fi
-done
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/measure_memory_performance.py" \
+    --iterations 5 --warmup 1 --format console
 ```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--queries ...` | built-in set | Queries to benchmark |
+| `--iterations N` | see `--help` | Timed runs per query |
+| `--warmup N` | see `--help` | Untimed runs before timing |
+| `--serena-only` | off | Skip Forgetful |
+| `--format {console,markdown,json}` | `console` | Output format |
+| `--serena-path PATH` | `.serena/memories` | Override the Serena store |
+
+Measured on this repo with 95 Serena memories, Forgetful down:
+
+```text
+=== Summary ===
+Serena Average: 0.55ms
+Forgetful: Not available
+```
+
+That figure is the in-process search only. The ~500ms in the performance
+targets above is the end-to-end CLI cost, which is dominated by interpreter
+startup.
 
 ## Getting Help
 

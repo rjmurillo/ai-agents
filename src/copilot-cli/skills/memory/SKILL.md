@@ -1,7 +1,7 @@
 ---
 name: memory
 version: 0.3.0
-description: Thin router for the four-tier memory system. Points callers at the
+description: Thin router for the tiered memory system. Points callers at the
   focused sub-skills for each operation, Tier 1 search, the reflexion write path,
   the memory-first gate, and maintenance. Use when you ask "what do we know about
   X", "recall prior context", or "search memory" and are not sure which operation
@@ -14,7 +14,7 @@ metadata:
 ---
 # Memory System Skill
 
-Thin router across the four-tier memory system. Each operation lives in a focused
+Thin router across the tiered memory system. Each operation lives in a focused
 sub-skill (ADR-063 memory-skill decomposition); this router points you at the
 right one so a caller loads only the surface it needs.
 
@@ -46,7 +46,7 @@ matches your task; each carries a smaller context than the full memory surface.
 | Sub-Skill | Operation | Load When |
 |-----------|-----------|-----------|
 | `memory-search` | Tier 1 semantic search (Serena + Forgetful) | You need facts, patterns, or rules |
-| `memory-reflexion` | Tier 2 episode extraction and Tier 3 causal update | You are recording a completed session |
+| `memory-reflexion` | Tier 2 episode extraction | You are recording a completed session |
 | `memory-gate` | Memory-First Gate (BLOCKING) and Chesterton's Fence protocol | You are about to change an existing system |
 | `memory-maintenance` | Health check, token count, size validation, benchmark, density | You are maintaining the memory stores |
 
@@ -59,7 +59,6 @@ Use this skill when the user says:
 - `search memory` for semantic search across tiers (routes to memory-search)
 - `check memory health` for system status (routes to memory-maintenance)
 - `extract episode from session` for session replay (routes to memory-reflexion)
-- `update causal graph` for pattern tracking (routes to memory-reflexion)
 - `memory-first gate` before changing an existing system (routes to memory-gate)
 
 ---
@@ -76,7 +75,7 @@ What do you need?
 │   └─► memory-gate sub-skill (search the "why" first, BLOCKING)
 │
 ├─► Record what happened in a completed session?
-│   └─► memory-reflexion sub-skill (Tier 2 episode, then Tier 3 causal)
+│   └─► memory-reflexion sub-skill (Tier 2 episode extraction)
 │
 ├─► Store new factual knowledge directly?
 │   └─► using-forgetful-memory skill
@@ -175,7 +174,6 @@ When observations contradict, prefer the most recent, create a new memory with a
 | Serena memories | Serena memory store (travels with the repository) |
 | Forgetful memories | HTTP MCP (vector DB) |
 | Episodes | Local episode store (see `memory-reflexion`) |
-| Causal graph | Local causal-graph store (see `memory-reflexion`) |
 
 ---
 
@@ -242,12 +240,11 @@ The router owns the canonical memory scripts. Sub-skills delegate to these paths
 
 | Script | Purpose | Exit Codes |
 |--------|---------|------------|
-| `search_memory.py` | Tier 1 semantic search across Serena and Forgetful | 0=success, 1=error |
+| `search_memory.py` | Search across Serena, the episode store, and Forgetful | 0=success, 1=error |
 | `count_memory_tokens.py` | Token counting with tiktoken caching | 0=success, 1=error |
 | `test_memory_size.py` | Memory atomicity validation | 0=pass, 1=violations |
 | `test_memory_health.py` | System health dashboard | 0=success |
-| `extract_session_episode.py` | Episode extraction from session logs | 0=success, 1=error |
-| `update_causal_graph.py` | Causal graph pattern tracking | 0=success, 1=error |
+| `extract_session_episode.py` | Episode extraction; `--validate` checks the store at rest, `--fix` repairs backwards commit order | 0=success, 1=error, 2=violation or bad flag |
 | `measure_memory_performance.py` | Serena and Forgetful benchmark | 0=success, 1=error |
 | `improve_memory_graph_density.py` | Graph density improvement | 0=success, 1=error |
 | `convert_index_table_links.py` | Index table link conversion | 0=success, 1=error |
@@ -266,7 +263,7 @@ Invoke via the portable root form:
 | Skill | When to Use Instead |
 |-------|---------------------|
 | `memory-search` | Tier 1 search only; smaller context than the router (ADR-063) |
-| `memory-reflexion` | Tier 2 episode extraction and Tier 3 causal update (ADR-063) |
+| `memory-reflexion` | Tier 2 episode extraction (ADR-063) |
 | `memory-gate` | Memory-First Gate and Chesterton's Fence protocol (ADR-063) |
 | `memory-maintenance` | Health, token count, size, benchmark, density (ADR-063) |
 | `memory-enhancement` | Add citations, verify code references, track confidence |
@@ -275,4 +272,4 @@ Invoke via the portable root form:
 | `curating-memories` | Memory content maintenance (obsolete, deduplicate) |
 | `exploring-knowledge-graph` | Multi-hop graph traversal |
 
-<!-- vendor-portability: declared. This skill links reference docs that ship in its own references/ tree and routes callers to sibling sub-skills. The episode and causal-graph stores are the consumer's own data dirs, created on demand when absent in a vendored install. Issue #2050, ADR-063. -->
+<!-- vendor-portability: declared. This skill links reference docs that ship in its own references/ tree and routes callers to sibling sub-skills. The episode store is the consumer's own data dir, created on demand when absent in a vendored install. Issue #2050, ADR-063. -->

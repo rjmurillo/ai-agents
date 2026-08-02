@@ -52,6 +52,10 @@ try:
     assert _spec and _spec.loader
     eval_agents = importlib.util.module_from_spec(_spec)
     _spec.loader.exec_module(eval_agents)
+    _suite_spec = importlib.util.spec_from_file_location("eval_suite", SUITE_SCRIPT)
+    assert _suite_spec and _suite_spec.loader
+    eval_suite = importlib.util.module_from_spec(_suite_spec)
+    _suite_spec.loader.exec_module(eval_suite)
 finally:
     if _path_added and str(EVAL_DIR) in sys.path:
         sys.path.remove(str(EVAL_DIR))
@@ -305,3 +309,55 @@ class TestEvalSuiteAgentsDryRun:
             f"Staged agent file must be classified as an agent; "
             f"classification: {output.get('classification')}"
         )
+
+    def test_invalid_base_ref_exits_config(self):
+        result = _run_suite(
+            "--scope", "agents",
+            "--dry-run",
+            "--base-ref", "definitely-not-a-real-ref",
+        )
+
+        assert result.returncode == 2
+        assert "git diff against definitely-not-a-real-ref failed" in result.stderr
+
+    def test_malformed_behavioral_child_output_is_external_failure(self, monkeypatch):
+        class _Result:
+            returncode = 0
+            stdout = "not json"
+            stderr = ""
+
+        monkeypatch.setattr(eval_suite.subprocess, "run", lambda *_args, **_kwargs: _Result())
+        result = eval_suite.run_behavioral_for_prompt(
+            "prompt.md", "scenarios.json", "HEAD", False, "model", False
+        )
+
+        assert result["passed"] is False
+        assert result["exit_code"] == 3
+
+    def test_malformed_agent_child_output_is_external_failure(self, monkeypatch):
+        class _Result:
+            returncode = 0
+            stdout = "not json"
+            stderr = ""
+
+        monkeypatch.setattr(eval_suite.subprocess, "run", lambda *_args, **_kwargs: _Result())
+        result = eval_suite.run_agent_quality([".claude/agents/demo.md"], "model", False)
+
+        assert result["passed"] is False
+        assert result["agents"]["demo"]["passed"] is False
+        assert result["agents"]["demo"]["exit_code"] == 3
+
+    def test_malformed_skill_child_output_is_external_failure(self, monkeypatch):
+        class _Result:
+            returncode = 0
+            stdout = "[1, 2, 3]"
+            stderr = ""
+
+        monkeypatch.setattr(eval_suite.subprocess, "run", lambda *_args, **_kwargs: _Result())
+        result = eval_suite.run_skill_knowledge(
+            [".claude/skills/demo/SKILL.md"], "model", False
+        )
+
+        assert result["passed"] is False
+        assert result["skills"]["demo"]["passed"] is False
+        assert result["skills"]["demo"]["exit_code"] == 3

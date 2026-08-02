@@ -115,6 +115,12 @@ _CHANGE_CLAIM_SECTION_NAMES: tuple[str, ...] = (
     r"Per[- \t]?file[ \t]+changes",
     r"Files[ \t]+Changed",
     r"Changed[ \t]+Files",
+    # Natural synonym used in ~10% of merged PR bodies (measured 2026-07-30:
+    # 10/100 recent merged PRs used "What changed" vs 20 using "Changes").
+    # Without this entry, inline code and markdown links under "## What changed"
+    # are silently skipped, giving the gate a false-clean result on bodies it
+    # never checked.
+    r"What[ \t]+changed",
 )
 
 _CHANGE_CLAIM_SCOPED_PATTERN_INDEXES: frozenset[int] = frozenset({0, 3, 4})
@@ -241,6 +247,8 @@ def get_repo_info() -> RepoInfo:
             ["git", "remote", "get-url", "origin"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
         )
     except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
@@ -501,7 +509,14 @@ def _is_in_change_claim_region(position: int, regions: list[tuple[int, int]]) ->
 
 
 def extract_mentioned_files(description: str) -> list[str]:
-    """Extract unique file paths mentioned in PR description text."""
+    """Extract unique file paths mentioned in PR description text.
+
+    Strips informational sections (References, Notes, Evidence, etc.) before
+    extraction so that file paths used as citations do not trigger a CRITICAL
+    "mentioned but not in diff" issue. Use ``extract_all_mentioned_files`` to
+    get a broader set that includes those stripped sections (for WARNING
+    suppression only, issue #3712).
+    """
     if not description:
         return []
 
@@ -531,6 +546,42 @@ def extract_mentioned_files(description: str) -> list[str]:
             seen.add(path)
             unique.append(path)
     return unique
+
+
+def extract_all_mentioned_files(description: str) -> frozenset[str]:
+    """Extract all file paths from description, including informational sections.
+
+    Unlike ``extract_mentioned_files``, this function extracts paths from the
+    full description after stripping only admonition blocks and citation cues.
+    Contextual and reference sections (References, Notes, Evidence, etc.) are
+    NOT stripped, so paths cited there are included.
+
+    This broader set is used exclusively for WARNING suppression (check 2 in
+    ``validate_pr_description``): a file mentioned anywhere in the description,
+    even in an informational section, should not trigger "significant file not
+    mentioned" (issue #3712). For the CRITICAL check (file mentioned but not in
+    diff), use ``extract_mentioned_files`` which enforces the stricter parse.
+    """
+    if not description:
+        return frozenset()
+
+    # Strip only admonition blocks and citation cues; keep all sections.
+    text = re.sub(
+        r"^>\s*\[!(WARNING|NOTE|CAUTION|IMPORTANT|TIP)\].*?(?=\n(?!>)|\Z)",
+        "",
+        description,
+        flags=re.DOTALL | re.MULTILINE,
+    )
+    text = _INLINE_CITATION_PATTERN.sub("<CITE>", text)
+
+    paths: set[str] = set()
+    for pattern in FILE_MENTION_PATTERNS:
+        for match in pattern.finditer(text):
+            raw = match.group(1)
+            if " " in raw.strip():
+                continue
+            paths.add(normalize_path(raw))
+    return frozenset(paths)
 
 
 def file_matches(actual: str, mentioned: str) -> bool:
@@ -614,9 +665,18 @@ def validate_no_dashes(title: str, body: str) -> list[Issue]:
 def validate_pr_description(
     pr_files: list[str],
     mentioned_files: list[str],
+    *,
+    all_mentioned_files: frozenset[str] | None = None,
 ) -> list[Issue]:
-    """Compare mentioned files against actual PR files. Return list of issues."""
+    """Compare mentioned files against actual PR files. Return list of issues.
+
+    ``mentioned_files`` is the strict set from ``extract_mentioned_files``.
+    ``all_mentioned_files`` is the broader set from ``extract_all_mentioned_files``,
+    used only for WARNING suppression so that informational-section file
+    references silence "significant file not mentioned" (issue #3712).
+    """
     issues: list[Issue] = []
+    warning_mentioned = all_mentioned_files if all_mentioned_files is not None else frozenset()
 
     # Check 1: Files mentioned but not in diff (CRITICAL)
     for mentioned in mentioned_files:
@@ -642,6 +702,8 @@ def validate_pr_description(
             )
 
     # Check 2: Major files changed but not mentioned (WARNING)
+    # Suppress when the file appears anywhere in the description, including
+    # informational/reference sections (issue #3712).
     for changed in pr_files:
         ext = os.path.splitext(changed)[1]
         if ext not in SIGNIFICANT_EXTENSIONS:
@@ -649,8 +711,9 @@ def validate_pr_description(
         if not SIGNIFICANT_DIRS_PATTERN.match(changed):
             continue
 
-        is_mentioned = any(file_matches(changed, mentioned) for mentioned in mentioned_files)
-        if not is_mentioned:
+        in_strict = any(file_matches(changed, mentioned) for mentioned in mentioned_files)
+        in_broad = any(file_matches(changed, mentioned) for mentioned in warning_mentioned)
+        if not in_strict and not in_broad:
             issues.append(
                 Issue(
                     severity="WARNING",
@@ -773,10 +836,11 @@ def main(argv: list[str] | None = None) -> int:
     print(f"PR has {len(pr_files)} changed files")
 
     mentioned_files = extract_mentioned_files(description)
+    all_mentioned = extract_all_mentioned_files(description)
     print(f"Description mentions {len(mentioned_files)} files")
 
     # Validate: file mentions vs diff
-    issues = validate_pr_description(pr_files, mentioned_files)
+    issues = validate_pr_description(pr_files, mentioned_files, all_mentioned_files=all_mentioned)
 
     # Validate: no em/en-dashes in PR title or body (Issue #1923, REQ-006).
     # The Lefthook jobs declared in lefthook.yml cover staged files and commit

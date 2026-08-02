@@ -166,14 +166,17 @@ fi
 # Quick check - get current status
 checks=$(python3 scripts/pr/get_pr_checks.py --pull-request 50)
 
-all_passing=$(echo "$checks" | jq -r '.AllPassing')
-failed_count=$(echo "$checks" | jq '.FailedCount')
+merge_ref_usable=$(echo "$checks" | jq -r '.Data.MergeRefUsable')
+all_passing=$(echo "$checks" | jq -r '.Data.AllPassing')
+failed_count=$(echo "$checks" | jq '.Data.FailedCount')
 
-if [ "$all_passing" = "true" ]; then
+if [ "$merge_ref_usable" = "false" ]; then
+    echo "BLOCKED: PR merge ref cannot be built, so CI status is incomplete"
+elif [ "$all_passing" = "true" ]; then
     echo "All CI checks passing"
 elif [ "$failed_count" -gt 0 ]; then
     echo "BLOCKED: $failed_count check(s) failed"
-    echo "$checks" | jq -r '.Checks[] | select(.Conclusion != "SUCCESS" and .Conclusion != "NEUTRAL" and .Conclusion != "SKIPPED" and .Conclusion != null) | "  - \(.Name): \(.DetailsUrl)"'
+    echo "$checks" | jq -r '.Data.Checks[] | select(.Conclusion != "SUCCESS" and .Conclusion != "NEUTRAL" and .Conclusion != "SKIPPED" and .Conclusion != null) | "  - \(.Name): \(.DetailsUrl)"'
     exit 1
 else
     pending=$(echo "$checks" | jq '.PendingCount')

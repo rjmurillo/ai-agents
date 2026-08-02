@@ -1,7 +1,7 @@
 ---
 name: git-advanced-workflows
 version: 1.1.0
-description: Advanced Git workflows including rebasing, cherry-picking, bisect, worktrees, and reflog. Use when managing complex Git histories, collaborating on feature branches, or recovering from repository issues.
+description: Advanced Git workflows including rebasing, cherry-picking, bisect, worktrees, and reflog. Use when managing complex Git histories, collaborating on feature branches, or recovering from repository issues. Use when you say "rebase my branch", "cherry-pick a commit", "find the breaking commit", or "recover lost commits".
 license: MIT
 ---
 

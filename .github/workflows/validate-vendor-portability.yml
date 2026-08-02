@@ -15,10 +15,6 @@ on:
   push:
     branches:
       - main
-      - 'feat/**'
-      - 'fix/**'
-      - 'chore/**'
-      - 'copilot/**'
   pull_request:
     branches:
       - main
@@ -88,7 +84,7 @@ jobs:
       - name: Check skill script portability ratchet
         run: python3 -m scripts.validation.check_skill_portability
 
-      - name: Check for new bare-exec skill-path offenders (issue #2838)
+      - name: "Check for new bare-exec skill-path offenders (issue #2838)"
         run: python3 scripts/validation/check_skill_md_exec_portability.py
 
       - name: Check skill resolver anchoring

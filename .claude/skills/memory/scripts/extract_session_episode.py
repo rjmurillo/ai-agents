@@ -21,12 +21,14 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 import re
 import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -194,54 +196,41 @@ def parse_decisions(lines: list[str], timestamp: str | None = None) -> list[dict
 
 def parse_events(lines: list[str], timestamp: str | None = None) -> list[dict]:
     """Extract events from session log."""
-    events = []
+    events: list[dict] = []
     event_index = 0
     ts = timestamp if timestamp is not None else datetime.now(UTC).isoformat()
 
-    for line in lines:
-        evt = None
+    def add(evt_type: str, content: str) -> None:
+        nonlocal event_index
+        event_index += 1
+        events.append(
+            {
+                "id": f"e{event_index:03d}",
+                "timestamp": ts,
+                "type": evt_type,
+                "content": content,
+                "caused_by": [],
+                "leads_to": [],
+            }
+        )
 
+    for line in lines:
         # Commit events
         m = re.search(r"commit[ted]?\s+(?:as\s+)?([a-f0-9]{7,40})", line)
         if not m:
             m = re.search(r"([a-f0-9]{7,40})\s+\w+\(.+\):", line)
         if m:
-            event_index += 1
-            evt = {
-                "id": f"e{event_index:03d}",
-                "timestamp": ts,
-                "type": "commit",
-                "content": f"Commit: {m.group(1)}",
-                "caused_by": [],
-                "leads_to": [],
-            }
+            add("commit", f"Commit: {m.group(1)}")
 
         # Error events
         if re.search(r"error|fail|exception", line, re.IGNORECASE) and not line.startswith("#"):
-            event_index += 1
-            evt = {
-                "id": f"e{event_index:03d}",
-                "timestamp": ts,
-                "type": "error",
-                "content": line.strip(),
-                "caused_by": [],
-                "leads_to": [],
-            }
+            add("error", line.strip())
 
         # Milestone events
         if re.search(r"completed?|done|finished|success", line, re.IGNORECASE) and re.match(
             r"^[-*]\s+(?!\*)", line
         ):
-            event_index += 1
-            content = re.sub(r"^[-*]\s*", "", line.strip())
-            evt = {
-                "id": f"e{event_index:03d}",
-                "timestamp": ts,
-                "type": "milestone",
-                "content": content,
-                "caused_by": [],
-                "leads_to": [],
-            }
+            add("milestone", re.sub(r"^[-*]\s*", "", line.strip()))
 
         # Bold status markers (archive convention): the milestone rule above
         # excludes list markers followed by `**`, so an archived status bullet
@@ -255,31 +244,11 @@ def parse_events(lines: list[str], timestamp: str | None = None) -> list[dict]:
             line,
             re.IGNORECASE,
         ):
-            event_index += 1
-            content = re.sub(r"^[-*]\s*", "", line.strip())
-            evt = {
-                "id": f"e{event_index:03d}",
-                "timestamp": ts,
-                "type": "milestone",
-                "content": content,
-                "caused_by": [],
-                "leads_to": [],
-            }
+            add("milestone", re.sub(r"^[-*]\s*", "", line.strip()))
 
         # Test events
         if re.search(r"test[s]?\s+(pass|fail|run)", line, re.IGNORECASE) or "Pester" in line:
-            event_index += 1
-            evt = {
-                "id": f"e{event_index:03d}",
-                "timestamp": ts,
-                "type": "test",
-                "content": line.strip(),
-                "caused_by": [],
-                "leads_to": [],
-            }
-
-        if evt:
-            events.append(evt)
+            add("test", line.strip())
 
     return events
 
@@ -488,6 +457,20 @@ def _entry_text(entry: Any) -> str:
     return ""
 
 
+def _entry_timestamp(entry: Any, fallback: str) -> str:
+    """Return a work-log entry timestamp when the entry carries one."""
+    for key in ("timestamp", "time"):
+        value = _entry_field(entry, key).strip()
+        if not value:
+            continue
+        try:
+            parsed = _parse_causal_timestamp({"id": "workLog", "timestamp": value})
+        except EpisodeValidationError:
+            continue
+        return parsed.isoformat()
+    return fallback
+
+
 # Fields that carry the entry's own label/intent. Decision detection scans only
 # these so narrative ``evidence``/``result`` prose mentioning "adopt" or
 # "prioritize" does not manufacture spurious decisions (the ``outcome`` field is
@@ -550,8 +533,8 @@ def _already_seen(sha: str, seen: list[str]) -> bool:
     Exact string membership lets one commit in twice when two fields spell it
     at different lengths: a full 40-char ``endingCommit`` and a 7-char
     abbreviation of the same commit in the ``changesCommitted`` evidence. That
-    double-counts ``metrics.commits`` and emits two commit events and two
-    causal-graph nodes for a single commit (issue #3363).
+    double-counts ``metrics.commits`` and emits two commit events for a single
+    commit (issue #3363).
     """
     return any(_same_commit(sha, existing) for existing in seen)
 
@@ -565,7 +548,7 @@ def _prose_shas(text: str) -> list[str]:
     positive: a genuine short SHA prefix that happens to be all decimal digits
     (uncommon for 7-char prefixes, vanishingly rare for full-length SHAs) is
     dropped when it appears only in prose.
-    That miss degrades the causal graph gracefully; counting every decimal ID in
+    That miss degrades the event chain gracefully; counting every decimal ID in
     prose as a commit corrupts it. Structured commit fields (``endingCommit``,
     ``startingCommit``) are scanned unfiltered, so an all-decimal final SHA is
     still captured. ``endingCommit`` records only the final commit, so an
@@ -600,13 +583,86 @@ def _session_floor(session_date: str) -> datetime | None:
     return parsed.astimezone(UTC) - timedelta(days=1)
 
 
+@lru_cache(maxsize=256)
+def _commit_datetime(sha: str) -> datetime | None:
+    """The committer date of ``sha`` in UTC, or ``None`` when git cannot say.
+
+    ``None`` covers every way the question can go unanswered: no checkout, an
+    unresolvable or ambiguous abbreviation, an object that is not a commit, a
+    git binary that is missing or hangs, and a date git prints that cannot be
+    parsed. Callers must treat ``None`` as "unknown", never as "old" or "new".
+
+    Scrubs the ``GIT_*`` variables so the lookup resolves against the ambient
+    working directory rather than whatever repository invoked the hook, which
+    under the pre-commit hook is the repo owning the session log.
+
+    Cached because both callers ask about the same small SHA set repeatedly and
+    each miss is a subprocess. The cache lives for one process, so a commit
+    created after the first lookup within the same run is not observed; no
+    caller creates commits mid-extraction.
+    """
+    if not sha:
+        return None
+    env = os.environ.copy()
+    for var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"):
+        env.pop(var, None)
+    env["LC_ALL"] = "C"
+    try:
+        result = subprocess.run(
+            ["git", "show", "-s", "--format=%cI", f"{sha}^{{commit}}"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+    try:
+        return datetime.fromisoformat((result.stdout or "").strip()).astimezone(UTC)
+    except ValueError:
+        return None
+
+
+def _chronological(shas: list[str]) -> list[str]:
+    """``shas`` in committer-date order, or unchanged when git cannot order them.
+
+    ``_collect_shas`` returns commits in source-of-truth order: ``endingCommit``
+    first, then the ``changesCommitted`` evidence. That is a provenance ranking,
+    not a chronology, and ``endingCommit`` is by definition the *last* commit a
+    session made. Emitting commit events in that order made
+    ``_link_sequential_events`` chain the newest commit into the oldest, so a
+    five-commit episode claimed its final commit caused its first (issue #3619).
+
+    Reorders only when every SHA resolves. A partial answer cannot produce a
+    trustworthy total order: placing unresolved commits first or last asserts a
+    position git did not supply, and this artifact is read as a record of what
+    happened. When any lookup returns ``None`` the input order is preserved
+    unchanged, which is the pre-#3619 behavior and keeps episodes extractable
+    outside a checkout.
+
+    Ties keep their original relative order, so two commits sharing a committer
+    second stay as ``_collect_shas`` ranked them.
+    """
+    resolved: list[datetime] = []
+    for sha in shas:
+        moment = _commit_datetime(sha)
+        if moment is None:
+            return list(shas)
+        resolved.append(moment)
+    return [sha for _, _, sha in sorted(zip(resolved, range(len(shas)), shas, strict=True))]
+
+
 def _prose_sha_predates_session(sha: str, session_date: str) -> bool:
     """Whether git can prove ``sha`` was committed before the session could run.
 
     Work-log prose cites SHAs the session did not author: an upstream merge it
     reasoned about, a third-party commit it bisected, a PR whose base it read.
-    Counting those inflates ``metrics.commits`` and puts commit nodes the
-    session never produced into the causal graph (issue #3328).
+    Counting those inflates ``metrics.commits`` and puts commit events the
+    session never produced into the episode (issue #3328).
 
     The discriminator is the commit's own committer timestamp against
     ``_session_floor``. A commit that already existed a full day before the
@@ -651,29 +707,10 @@ def _prose_sha_predates_session(sha: str, session_date: str) -> bool:
     floor = _session_floor(session_date) if sha else None
     if floor is None:
         return False
-    env = os.environ.copy()
-    for var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"):
-        env.pop(var, None)
-    env["LC_ALL"] = "C"
-    try:
-        result = subprocess.run(
-            ["git", "show", "-s", "--format=%cI", f"{sha}^{{commit}}"],
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            env=env,
-            timeout=10,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired):
+    committed = _commit_datetime(sha)
+    if committed is None:
         return False
-    if result.returncode != 0:
-        return False
-    try:
-        committed = datetime.fromisoformat((result.stdout or "").strip())
-    except ValueError:
-        return False
-    return committed.astimezone(UTC) < floor
+    return committed < floor
 
 
 def _changes_committed_evidence(data: dict) -> str:
@@ -710,8 +747,8 @@ def _collect_shas(data: dict) -> list[str]:
     Prose is not a primary source (issue #3363). A work-log entry legitimately
     cites SHAs the session did not author: a bot's housekeeping commits, a
     commit it bisected, the base of a PR it read. Counting those inflated
-    ``metrics.commits`` and seeded commit nodes in the causal graph for work the
-    session never did, while the session's own commits, recorded only in
+    ``metrics.commits`` and seeded commit events for work the session never
+    did, while the session's own commits, recorded only in
     ``changesCommitted``, were missed entirely. On
     ``fix/3342-harness-reference-size`` the episode counted two foreign commits
     and dropped three of the session's own.
@@ -808,67 +845,89 @@ def json_outcome(data: dict, additional_worklogs: list | None = None) -> str:
     return "success" if all_complete else "partial"
 
 
-def json_events(data: dict, now_iso: str) -> list[dict]:
-    """Type events from the work-log structure, not substring matching."""
+def json_events(data: dict, now_iso: str, *, session_id: str = "") -> list[dict]:
+    """Type events from the work-log structure, not substring matching.
+
+    ``session_id`` stamps each emitted event with ``_source_session`` so that
+    ``_dedupe_events`` can evict events carried over from a different session
+    during a ``--preserve`` merge (issue #4024).  Callers that do not supply a
+    session_id get events without a stamp, which ``_dedupe_events`` treats as
+    same-session for backward compatibility.
+    """
     events: list[dict] = []
     idx = 0
 
-    def add(evt_type: str, content: str) -> None:
+    def add(evt_type: str, content: str, timestamp: str = now_iso) -> None:
         nonlocal idx
         idx += 1
-        events.append(
-            {
-                "id": f"e{idx:03d}",
-                "timestamp": now_iso,
-                "type": evt_type,
-                "content": content,
-                "caused_by": [],
-                "leads_to": [],
-            }
-        )
+        entry: dict = {
+            "id": f"e{idx:03d}",
+            "timestamp": timestamp,
+            "type": evt_type,
+            "content": content,
+            "caused_by": [],
+            "leads_to": [],
+        }
+        if session_id:
+            entry["_source_session"] = session_id
+        events.append(entry)
 
     for entry in _as_list(data.get("workLog")):
+        event_timestamp = _entry_timestamp(entry, now_iso)
         title = _entry_title(entry)
         if title:
-            add("milestone", title)
+            add("milestone", title, event_timestamp)
         text = _entry_text(entry)
         if _PASS_COUNT_RE.search(text):
             evidence = _entry_field(entry, "evidence")
             outcome = _entry_field(entry, "outcome")
-            add("test", (evidence or outcome or text).strip())
+            add("test", (evidence or outcome or text).strip(), event_timestamp)
         if _valid_fail_match(text):
-            add("error", text.strip())
+            add("error", text.strip(), event_timestamp)
 
     # Emit one commit event per distinct session-produced commit SHA so the
     # event stream and metrics.commits share a single provenance rule
     # (issue #3123). Excludes the starting/base SHA, including work-log
-    # mentions of it, matching json_metrics.
-    for sha in _collect_shas(data):
-        add("commit", f"Commit: {sha}")
+    # mentions of it, matching json_metrics. Ordered by committer date rather
+    # than by provenance rank, because _link_sequential_events chains commits
+    # in list order and _collect_shas puts endingCommit, the session's *last*
+    # commit, first (issue #3619).
+    for sha in _chronological(_collect_shas(data)):
+        add("commit", f"Commit: {sha}", _git_commit_timestamp(sha) or now_iso)
 
     return events
 
 
 def json_decisions(data: dict, now_iso: str) -> list[dict]:
-    """Surface work-log entries that describe a choice as decisions."""
+    """Surface work-log entries that describe a choice as decisions.
+
+    ``context`` and ``chosen`` are only both populated when the entry records
+    two distinct things: a label and a separate selection. A work-log title
+    like "Selected issue #1798" is the choice itself, not the situation
+    prompting it, so it goes to ``chosen`` and ``context`` stays empty. Writing
+    it to both was the majority shape: 19 of 28 decisions in the shipped corpus
+    had ``context`` byte-identical to ``chosen``, which reads as corroboration
+    while carrying no independent signal (issue #3628).
+    """
     decisions: list[dict] = []
     idx = 0
     for entry in _as_list(data.get("workLog")):
         text = _entry_text(entry)
         if not _DECISION_RE.search(_decision_signal_text(entry)):
             continue
-        title = _entry_title(entry)
+        title = str(_entry_title(entry) or "").strip()
         outcome = _entry_field(entry, "outcome").strip()
-        # Prefer the decision label; fall back to the outcome only when it is
-        # not a bare status word ("success", "ok", ...).
-        chosen = title or (outcome if outcome.lower() not in _STATUS_WORDS else "")
+        # A bare status word ("success", "ok", ...) is not a selection.
+        selection = outcome if outcome.lower() not in _STATUS_WORDS else ""
+        chosen = selection or title
+        context = title if selection and title != selection else ""
         idx += 1
         decisions.append(
             {
                 "id": f"d{idx:03d}",
                 "timestamp": now_iso,
                 "type": get_decision_type(text),
-                "context": title,
+                "context": context,
                 "chosen": chosen,
                 "rationale": _entry_field(entry, "evidence").strip(),
                 "outcome": "success",
@@ -1118,11 +1177,28 @@ def _dedupe_decisions(existing: list, new: list) -> list[dict]:
     return out
 
 
-def _dedupe_events(existing: list, new: list, midnight: str | None) -> list[dict]:
-    """Union events by (type, content); normalize timestamps; reassign ids."""
+def _dedupe_events(
+    existing: list, new: list, midnight: str | None, *, session_id: str = ""
+) -> list[dict]:
+    """Union events by (type, content); normalize timestamps; reassign ids.
+
+    When ``session_id`` is supplied, existing events that carry a
+    ``_source_session`` stamp from a *different* session are dropped before the
+    union.  Events with no stamp (legacy episodes written before #4024) are kept
+    unchanged, preserving backward compatibility.  Events stamped with the
+    current session are kept unconditionally so accumulated commit events
+    survive ``--preserve`` regeneration (issue #3123).
+    """
     out: list[dict] = []
     seen: set[tuple[str, str]] = set()
-    for evt in list(existing) + list(new):
+    filtered_existing: list[dict] = []
+    for evt in existing:
+        entry = _as_dict(evt)
+        source = entry.get("_source_session", "")
+        if source and session_id and source != session_id:
+            continue  # cross-session stamp: evict
+        filtered_existing.append(entry)
+    for evt in filtered_existing + list(new):
         entry = _as_dict(evt)
         key = (_norm(entry.get("type")), _norm(entry.get("content")))
         if key in seen:
@@ -1189,7 +1265,10 @@ def merge_preserving(new: dict, existing: dict, *, session_id: str = "") -> dict
         _as_list(existing.get("decisions")), _as_list(new.get("decisions"))
     )
     merged["events"] = _dedupe_events(
-        _as_list(existing.get("events")), _as_list(new.get("events")), midnight
+        _as_list(existing.get("events")),
+        _as_list(new.get("events")),
+        midnight,
+        session_id=session_id,
     )
     merged["metrics"] = _merge_metrics(
         _as_dict(new.get("metrics")), _as_dict(existing.get("metrics"))
@@ -1280,10 +1359,14 @@ def _filter_markdown_events(events: list[dict]) -> list[dict]:
     return filtered
 
 
-def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
+def extract_from_json(data: dict, *, archive_fallback: bool = True, session_id: str = "") -> dict:
     """Build the episode component bundle from a JSON session log.
 
-    When `archive_fallback` is True and the primary JSON log yields no events
+    ``session_id`` is forwarded to ``json_events`` so each emitted event is
+    stamped with ``_source_session``.  Pass the value from
+    ``get_session_id_from_path`` at the call site.
+
+    When ``archive_fallback`` is True and the primary JSON log yields no events
     of its own (no milestone/test/error, even if the workLog list is
     technically non-empty, e.g. ``[{}]`` or whitespace stubs), attempts to
     locate and parse the corresponding archive file (JSON first, then markdown)
@@ -1294,7 +1377,7 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
     session_ts = json_timestamp(data)
     session = _as_dict(data.get("session"))
 
-    events = json_events(data, session_ts)
+    events = json_events(data, session_ts, session_id=session_id)
     decisions = json_decisions(data, session_ts)
     lessons = _json_lessons(data)
     metrics_source = data
@@ -1318,7 +1401,9 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
                     archive_content = archive_json_path.read_text(encoding="utf-8")
                     archive_data = looks_like_json_session(archive_content)
                     if archive_data and _as_list(archive_data.get("workLog")):
-                        archive_events = json_events(archive_data, session_ts)
+                        archive_events = json_events(
+                            archive_data, session_ts, session_id=session_id
+                        )
                         archive_decisions = json_decisions(archive_data, session_ts)
                         archive_lessons = _json_lessons(archive_data)
                         if not has_own_events:
@@ -1405,6 +1490,25 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--validate",
+        action="store_true",
+        help=(
+            "Validate an existing episode JSON file, or every *.json under a "
+            "directory, instead of extracting. Exit 2 on a duplicate, missing, "
+            "or non-contiguous event id, or a commit-to-commit edge that runs "
+            "backwards in committer time"
+        ),
+    )
+    parser.add_argument(
+        "--fix",
+        action="store_true",
+        help=(
+            "With --validate, repair backwards commit order in place by "
+            "restamping commit events from git and rebuilding the chain. "
+            "Refuses any file whose rebuild would drop edges"
+        ),
+    )
+    parser.add_argument(
         "--pending-stage",
         action="store_true",
         help=(
@@ -1415,57 +1519,309 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-# Lifecycle precedence for the causal chain. Every JSON extractor event shares
-# one session timestamp, so rank-only edges are intentionally sparse. The rank
-# still protects issue #3260 from linking a commit as ``caused_by`` a later
-# review milestone, but it is no longer enough evidence to assert causality for
-# a pre-code milestone such as issue filing or reproduction.
-_CAUSAL_TYPE_RANK: dict[str, int] = {
-    "implementation": 0,
-    "commit": 1,
-    "test": 2,
-    "error": 3,
-    "milestone": 4,
-}
-_CAUSAL_DEFAULT_RANK = 2
+CAUSAL_ORDER_VERSION = 2
+_CAUSAL_EVENT_TYPES = frozenset({"tool_call", "error", "milestone", "handoff", "commit", "test"})
+_POST_COMMIT_SAME_TIMESTAMP_TYPES = frozenset({"error", "test"})
 
 
-def _causal_rank(evt: dict[str, Any]) -> int:
-    return _CAUSAL_TYPE_RANK.get(evt.get("type", ""), _CAUSAL_DEFAULT_RANK)
+class EpisodeValidationError(ValueError):
+    """Episode event graph validation failed with an ADR-035 exit code."""
+
+    def __init__(self, message: str, exit_code: int) -> None:
+        super().__init__(message)
+        self.exit_code = exit_code
 
 
-def _has_causal_order_evidence(previous: dict[str, Any], current: dict[str, Any]) -> bool:
-    previous_timestamp = previous.get("timestamp") or ""
-    current_timestamp = current.get("timestamp") or ""
-    if previous_timestamp != current_timestamp:
-        return True
-    return _causal_rank(previous) == _causal_rank(current)
+def _parse_causal_timestamp(evt: dict[str, Any]) -> datetime:
+    raw = evt.get("timestamp")
+    event_id = evt.get("id", "<missing>")
+    if not isinstance(raw, str) or not raw.strip():
+        raise EpisodeValidationError(f"event {event_id} has a missing or non-string timestamp", 2)
+    normalized = raw.strip()
+    if normalized.endswith("Z"):
+        normalized = normalized[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError as exc:
+        raise EpisodeValidationError(f"event {event_id} has an invalid timestamp", 2) from exc
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def _event_refs(evt: dict[str, Any], key: str) -> list[str]:
+    raw = evt.get(key, [])
+    event_id = evt.get("id", "<missing>")
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise EpisodeValidationError(f"event {event_id} field {key} must be a list", 2)
+    refs: list[str] = []
+    for ref in raw:
+        if not isinstance(ref, str) or not ref:
+            msg = f"event {event_id} field {key} contains a non-string ref"
+            raise EpisodeValidationError(msg, 2)
+        refs.append(ref)
+    return refs
+
+
+def _validate_causal_event(
+    evt: dict[str, Any],
+    ids: set[str],
+) -> tuple[str, datetime]:
+    if not isinstance(evt, dict):
+        raise EpisodeValidationError("event entry must be an object", 2)
+    event_id = evt.get("id")
+    if not isinstance(event_id, str) or not event_id:
+        raise EpisodeValidationError("event id must be a non-empty string", 2)
+    if event_id in ids:
+        raise EpisodeValidationError(f"duplicate event id: {event_id}", 1)
+    event_type = evt.get("type")
+    if event_type not in _CAUSAL_EVENT_TYPES:
+        raise EpisodeValidationError(f"event {event_id} has unsupported type: {event_type}", 2)
+    return event_id, _parse_causal_timestamp(evt)
+
+
+def _validate_causal_reference(
+    event_id: str,
+    ref: str,
+    ids: set[str],
+    relation: str,
+) -> None:
+    if ref not in ids:
+        raise EpisodeValidationError(f"event {event_id} {relation} unknown event {ref}", 1)
+    if ref == event_id:
+        raise EpisodeValidationError(f"event {event_id} {relation} itself", 1)
+
+
+def _add_causal_references(
+    evt: dict[str, Any],
+    ids: set[str],
+    adjacency: dict[str, set[str]],
+) -> None:
+    event_id = str(evt["id"])
+    for ref in _event_refs(evt, "leads_to"):
+        _validate_causal_reference(event_id, ref, ids, "leads_to")
+        adjacency[event_id].add(ref)
+    for ref in _event_refs(evt, "caused_by"):
+        _validate_causal_reference(event_id, ref, ids, "caused_by")
+        adjacency[ref].add(event_id)
+
+
+def validate_episode_causal_graph(events: list[dict[str, Any]]) -> dict[str, datetime]:
+    """Validate event ids, event types, timestamps, references, and acyclicity."""
+    ids: set[str] = set()
+    parsed: dict[str, datetime] = {}
+    adjacency: dict[str, set[str]] = {}
+
+    for evt in events:
+        event_id, timestamp = _validate_causal_event(evt, ids)
+        ids.add(event_id)
+        parsed[event_id] = timestamp
+        adjacency[event_id] = set()
+
+    for evt in events:
+        _add_causal_references(evt, ids, adjacency)
+
+    _validate_dag(adjacency)
+    return parsed
+
+
+def _validate_dag(adjacency: dict[str, set[str]]) -> None:
+    visiting: set[str] = set()
+    visited: set[str] = set()
+
+    def visit(node: str) -> None:
+        if node in visited:
+            return
+        if node in visiting:
+            raise EpisodeValidationError("episode event graph contains a cycle", 1)
+        visiting.add(node)
+        for child in adjacency[node]:
+            visit(child)
+        visiting.remove(node)
+        visited.add(node)
+
+    for node in adjacency:
+        visit(node)
+
+
+def _commit_sha(evt: dict[str, Any]) -> str | None:
+    match = _SHA_RE.search(str(evt.get("content") or ""))
+    return match.group(0) if match else None
+
+
+def _git_ancestor_relation(left_sha: str, right_sha: str) -> int | None:
+    """Return -1 when left precedes right, 1 when right precedes left."""
+    repo = _repo_root()
+    env = os.environ.copy()
+    env["LC_ALL"] = "C"
+    checks = ((left_sha, right_sha, -1), (right_sha, left_sha, 1))
+    for ancestor, descendant, relation in checks:
+        result = subprocess.run(
+            ["git", "-C", str(repo), "merge-base", "--is-ancestor", ancestor, descendant],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            timeout=10,
+            check=False,
+        )
+        if result.returncode == 0:
+            return relation
+        if result.returncode not in (1, 128):
+            return None
+    return None
+
+
+def _git_commit_timestamp(sha: str) -> str | None:
+    repo = _repo_root()
+    env = os.environ.copy()
+    env["LC_ALL"] = "C"
+    result = subprocess.run(
+        ["git", "-C", str(repo), "show", "-s", "--format=%cI", sha],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+        timeout=10,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+    raw = result.stdout.strip()
+    if not raw:
+        return None
+    try:
+        return _parse_causal_timestamp({"id": sha, "timestamp": raw}).isoformat()
+    except EpisodeValidationError:
+        return None
+
+
+def _event_order_relation(
+    left: dict[str, Any],
+    right: dict[str, Any],
+    timestamps: dict[str, datetime],
+) -> int | None:
+    """Return -1 when left is before right, 1 for reverse, None if incomparable."""
+    left_id = str(left["id"])
+    right_id = str(right["id"])
+    left_time = timestamps[left_id]
+    right_time = timestamps[right_id]
+    if left_time < right_time:
+        return -1
+    if right_time < left_time:
+        return 1
+
+    left_type = left["type"]
+    right_type = right["type"]
+    if left_type == "commit" and right_type == "commit":
+        left_sha = _commit_sha(left)
+        right_sha = _commit_sha(right)
+        if left_sha is None or right_sha is None:
+            return None
+        return _git_ancestor_relation(left_sha, right_sha)
+    if left_type == "commit" and right_type in _POST_COMMIT_SAME_TIMESTAMP_TYPES:
+        return -1
+    if right_type == "commit" and left_type in _POST_COMMIT_SAME_TIMESTAMP_TYPES:
+        return 1
+    return None
+
+
+def _has_alternate_path(source: str, target: str, edges: set[tuple[str, str]]) -> bool:
+    stack = [child for parent, child in edges if parent == source and child != target]
+    seen: set[str] = set()
+    while stack:
+        node = stack.pop()
+        if node == target:
+            return True
+        if node in seen:
+            continue
+        seen.add(node)
+        stack.extend(child for parent, child in edges if parent == node)
+    return False
+
+
+def _immediate_causal_edges(
+    events: list[dict[str, Any]],
+    timestamps: dict[str, datetime],
+) -> set[tuple[str, str]]:
+    ordered_edges: set[tuple[str, str]] = set()
+    for left_index, left in enumerate(events):
+        for right in events[left_index + 1 :]:
+            relation = _event_order_relation(left, right, timestamps)
+            if relation == -1:
+                ordered_edges.add((str(left["id"]), str(right["id"])))
+            elif relation == 1:
+                ordered_edges.add((str(right["id"]), str(left["id"])))
+
+    return {
+        edge for edge in ordered_edges if not _has_alternate_path(edge[0], edge[1], ordered_edges)
+    }
+
+
+def _stamp_decision_outcomes(decisions: list, outcome: str) -> None:
+    """Replace the placeholder decision outcome with the session's measured one.
+
+    Both producers wrote the literal `"success"`, so the field never
+    discriminated: all 24 decisions in the shipped corpus that carried an
+    outcome carried `"success"`, while 8 of 302 episodes were `partial` or
+    `failure` at the session level. A constant that reads as a measurement is
+    worse than no measurement, because a reader cannot tell the two apart
+    (issue #3628).
+
+    The session outcome is the strongest signal the extractor actually has:
+    `json_outcome` derives it from the sessionEnd MUST gates plus counted
+    work-log failures, and it uses the same three values the decision schema
+    allows. Every decision in an episode belongs to that one session, so the
+    session verdict applies to each of them.
+    """
+    for dec in decisions:
+        if isinstance(dec, dict):
+            dec["outcome"] = outcome
+
+
+def _renumber_events(events: list) -> None:
+    """Reassign contiguous, unique ids to the final event list, in place.
+
+    Ids are positional labels, not stable identifiers: `_link_sequential_events`
+    rebuilds every edge from the list that follows this call, so no reference
+    can dangle. Only the `--preserve` path renumbered before (via
+    `_dedupe_events`), which left two ways for a shipped episode to carry ids
+    that tooling cannot index (issue #3633).
+
+    A duplicate id makes every edge touching it ambiguous. A gap comes from
+    filtering after ids are assigned: `_filter_markdown_events` drops error
+    events that fail the counted-failure guard, which is how
+    `episode-2026-05-31-session-1857.json` shipped a list starting at `e002`.
+    Numbering last makes both unrepresentable rather than merely detected.
+    """
+    # The counter advances per assigned id, not per list slot. Numbering by
+    # position gave the event after a malformed entry a number one higher than
+    # the count of events before it, so the ids this function promises to make
+    # contiguous were not. Ids label events, not slots.
+    index = 0
+    for evt in events:
+        if isinstance(evt, dict):
+            index += 1
+            evt["id"] = f"e{index:03d}"
 
 
 def _link_sequential_events(events: list[dict[str, Any]]) -> None:
     """Populate ``caused_by``/``leads_to`` with evidence-gated causal edges.
 
-    ADR-038 defines ``caused_by``/``leads_to`` as first-class event fields so
-    reflexion retrieval can walk a connected causal graph, but every
-    event-construction site emits them empty, leaving the graph flat
-    (issue #3245).
+    ADR-038 defines ``caused_by``/``leads_to`` as first-class event fields so a
+    reader can walk one episode's events in causal order, but every
+    event-construction site emitted them empty, leaving the chain flat
+    (issue #3245). These links stay inside the episode file; the separate
+    aggregated causal graph they once fed was removed by ADR-089.
 
-    The chain follows observed evidence first. ``json_events`` appends every
-    commit after the work-log milestones, so a purely positional chain linked
-    the commit as ``caused_by`` the final PR-review milestone, inverting cause
-    and effect: a commit is created and pushed before any review happens
-    (issue #3260). Events are ordered by ``(timestamp, lifecycle rank, original
-    position)`` so commits precede the tests, errors, and review milestones
-    that follow them, while events of the same rank keep their original order.
-    The physical ``events`` list is left untouched; only the link fields change.
-
-    A rank-only order is not enough evidence for an edge. JSON events often all
-    share one session timestamp, and the schema leaves ``workLog.phase`` as free
-    text instead of a stable pre-code or post-code marker. When adjacent events
-    differ only by type rank at the same timestamp, the graph stays sparse
-    rather than asserting a false cause. This preserves the #3260 invariant that
-    a commit is not caused by a review milestone, and fixes #3464's pre-code
-    milestone inversion.
+    The chain follows measured timestamps first. When timestamps tie, commits
+    are ordered only by local git ancestry. A same-timestamp commit can precede
+    test and error events because those event types report on code execution.
+    Same-timestamp commit and milestone events stay incomparable unless a real
+    timestamp separates them, because milestones also record pre-code work such
+    as issue filing or reproduction (#3464).
 
     Mutates in place. Must run on final ids, i.e. after any id reassignment by
     ``_dedupe_events``, so the references never dangle.
@@ -1475,24 +1831,246 @@ def _link_sequential_events(events: list[dict[str, Any]]) -> None:
     existing values (including curated edges on a loaded episode) are replaced
     by the regenerated chain rather than retained.
     """
-    linkable = [e for e in events if isinstance(e, dict) and e.get("id")]
-    chain_order = sorted(
-        range(len(linkable)),
-        key=lambda i: (
-            linkable[i].get("timestamp") or "",
-            _causal_rank(linkable[i]),
-            i,
-        ),
-    )
-    chain = [linkable[i] for i in chain_order]
-    for evt in chain:
+    timestamps = validate_episode_causal_graph(events)
+    ids = {str(evt["id"]) for evt in events}
+    edges = _immediate_causal_edges(events, timestamps)
+
+    for evt in events:
         evt["caused_by"] = []
         evt["leads_to"] = []
-    for previous, current in zip(chain, chain[1:], strict=False):
-        if not _has_causal_order_evidence(previous, current):
+    for source, target in sorted(edges):
+        if source not in ids or target not in ids:
+            raise EpisodeValidationError(f"edge references unknown event: {source} -> {target}", 1)
+        source_event = next(evt for evt in events if evt["id"] == source)
+        target_event = next(evt for evt in events if evt["id"] == target)
+        source_event["leads_to"].append(target)
+        target_event["caused_by"].append(source)
+    validate_episode_causal_graph(events)
+
+
+def validate_event_ids(events: Any) -> list[str]:
+    """Return one message per event-id violation, empty when the list is sound.
+
+    ``_renumber_events`` makes duplicates unrepresentable on the write path, so
+    this never fires for a file the extractor produced. It exists for the case
+    issue #3633 names as the actual origin of the one duplicate found live: a
+    hand edit or a merge-conflict resolution, which lands a file without ever
+    passing through the extractor again. Prevention at write time and detection
+    at rest cover different populations; neither subsumes the other.
+
+    ``caused_by`` and ``leads_to`` reference events by id, so a duplicate makes
+    every edge touching it ambiguous and a gap means an edge can dangle.
+    """
+    problems: list[str] = []
+    if not isinstance(events, list):
+        return [f"events must be a list, got {type(events).__name__}"]
+
+    seen: dict[str, int] = {}
+    for position, event in enumerate(events, 1):
+        if not isinstance(event, dict):
+            problems.append(f"event {position} is not an object")
             continue
-        previous["leads_to"] = [current["id"]]
-        current["caused_by"] = [previous["id"]]
+        identifier = event.get("id")
+        if not isinstance(identifier, str) or not identifier:
+            problems.append(f"event {position} has no id")
+            continue
+        if identifier in seen:
+            problems.append(
+                f"duplicate event id {identifier} at positions {seen[identifier]} and {position}"
+            )
+            continue
+        seen[identifier] = position
+        expected = f"e{position:03d}"
+        if identifier != expected:
+            problems.append(f"event {position} has id {identifier}, expected {expected}")
+    return problems
+
+
+def _commit_event_dates(events: list) -> dict[str, datetime]:
+    """Map event id to committer date, for commit events whose SHA resolves here.
+
+    A squash-merged branch takes its SHAs with it, so an abbreviated SHA from a
+    branch that no longer exists resolves nowhere. Those events are absent from
+    the map, and every caller skips what is missing rather than guessing a
+    position git did not supply.
+    """
+    dates: dict[str, datetime] = {}
+    for evt in events:
+        entry = _as_dict(evt)
+        identifier = entry.get("id")
+        if entry.get("type") != "commit" or not isinstance(identifier, str):
+            continue
+        sha = _commit_sha(entry)
+        moment = _commit_datetime(sha) if sha else None
+        if moment is not None:
+            dates[identifier] = moment
+    return dates
+
+
+def validate_commit_order(events: Any) -> list[str]:
+    """Return one message per commit-to-commit edge that runs backwards in time.
+
+    ``leads_to`` claims the source commit preceded the target. When git says the
+    target was committed first, the episode records an effect as its own cause.
+    17 such edges shipped across 14 episodes, written by the pre-#3638 linker,
+    which chained commits by list position while ``_collect_shas`` put the
+    session's *last* commit first. Issue #3765 named nine files; the same defect
+    shape reached six more it did not list, and one it did list carries no
+    verifiable edge because none of its abbreviated SHAs still resolves.
+
+    Only commit-to-commit edges are checked, and only where git resolves both
+    SHAs. Every other edge type is ordered by event timestamps this function has
+    no independent evidence about.
+    """
+    if not isinstance(events, list):
+        return []
+    dates = _commit_event_dates(events)
+    problems: list[str] = []
+    for evt in events:
+        entry = _as_dict(evt)
+        source = entry.get("id")
+        if not isinstance(source, str) or source not in dates:
+            continue
+        for raw_target in _as_list(entry.get("leads_to")):
+            target = raw_target if isinstance(raw_target, str) else ""
+            if target not in dates or dates[target] >= dates[source]:
+                continue
+            problems.append(
+                f"commit edge {source} -> {target} runs backwards: "
+                f"{dates[source].isoformat()} then {dates[target].isoformat()}"
+            )
+    return problems
+
+
+def _edge_count(events: list) -> int:
+    """Total ``leads_to`` edges across ``events``."""
+    return sum(len(_as_list(_as_dict(evt).get("leads_to"))) for evt in events)
+
+
+def repair_commit_order(events: list) -> str | None:
+    """Restamp commit events from git and rebuild the chain. Return a refusal.
+
+    Returns ``None`` on success and a one-line reason when the repair is
+    refused, leaving ``events`` untouched in that case.
+
+    Relinking alone is not a repair. These episodes carry session-date midnight
+    on every event, so ``_event_order_relation`` cannot separate a commit from a
+    same-day milestone and drops the edge as incomparable: over the fourteen
+    affected files a bare relink takes 234 edges to 96 and strands 163 of 263
+    events with no edge at all, up from 4. An edgeless graph carries no
+    backwards edge, so the check this repair exists to satisfy cannot see that
+    damage. Restamping first restores the evidence the ordering rule needs, and
+    the edge-count guard below refuses any repair that still loses edges.
+    """
+    dates = _commit_event_dates(events)
+    if not dates:
+        return "no commit event resolves to a git commit in this checkout"
+    before = copy.deepcopy(events)
+    for evt in events:
+        entry = evt if isinstance(evt, dict) else None
+        if entry is not None and entry.get("id") in dates:
+            entry["timestamp"] = dates[entry["id"]].isoformat()
+    try:
+        _renumber_events(events)
+        _link_sequential_events(events)
+    except EpisodeValidationError as exc:
+        events[:] = before
+        return f"relink failed: {exc}"
+    lost = _edge_count(before) - _edge_count(events)
+    if lost > 0:
+        events[:] = before
+        return f"refused: relink would drop {lost} of {_edge_count(before)} edges"
+    return None
+
+
+def _read_episode(path: Path) -> tuple[dict | None, str]:
+    """Return the parsed episode at ``path``, or ``None`` and why it is unusable."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return None, f"unreadable: {exc}"
+    if not isinstance(data, dict):
+        return None, "top level must be an object"
+    return data, ""
+
+
+def validate_episode_file(path: Path) -> list[str]:
+    """Return one message per violation found in the episode JSON at ``path``."""
+    data, failure = _read_episode(path)
+    if data is None:
+        return [f"{path}: {failure}"]
+    events = data.get("events")
+    problems = validate_event_ids(events)
+    if not problems:
+        problems = validate_commit_order(events)
+    return [f"{path}: {problem}" for problem in problems]
+
+
+def repair_episode_file(path: Path) -> tuple[bool, list[str]]:
+    """Repair backwards commit order at ``path``.
+
+    Returns whether the file was rewritten, and one message per reason the
+    repair could not proceed.
+
+    A file with no backwards commit edge is left alone: this repair addresses
+    that defect only, and rewriting a sound episode would churn timestamps no
+    check objects to. That decision lives here rather than in the caller so one
+    read of the file answers both questions.
+
+    An unreadable file yields no message. ``run_validate`` calls
+    ``validate_episode_file`` on the same path straight after, and that reports
+    the identical ``_read_episode`` text; returning it here too printed the line
+    twice under ``--validate --fix`` and told the reader nothing new.
+    """
+    data, _ = _read_episode(path)
+    if data is None:
+        return False, []
+    events = data.get("events")
+    if not isinstance(events, list) or not validate_commit_order(events):
+        return False, []
+    refusal = repair_commit_order(events)
+    if refusal:
+        return False, [f"{path}: {refusal}"]
+    try:
+        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    except OSError as exc:
+        return False, [f"{path}: write failed: {exc}"]
+    return True, []
+
+
+def _episode_paths(target: Path) -> list[Path]:
+    """Expand ``target`` to the episode files it names."""
+    if target.is_dir():
+        return sorted(target.glob("*.json"))
+    return [target]
+
+
+def run_validate(target: Path, *, fix: bool = False) -> int:
+    """Validate an episode file or a directory of them. Exit 2 on violation.
+
+    With ``fix``, repair backwards commit order in place first, then report on
+    what the repair left. A refused repair still counts as a violation, so the
+    exit code never claims a file was fixed when it was not.
+    """
+    paths = _episode_paths(target)
+    if not paths:
+        print(json.dumps({"Error": f"No episode files under {target}"}), file=sys.stderr)
+        return 2
+    repaired = 0
+    if fix:
+        for path in paths:
+            changed, failures = repair_episode_file(path)
+            for failure in failures:
+                print(failure, file=sys.stderr)
+            repaired += int(changed)
+    problems = [problem for path in paths for problem in validate_episode_file(path)]
+    for problem in problems:
+        print(problem, file=sys.stderr)
+    summary: dict[str, int] = {"Validated": len(paths), "Violations": len(problems)}
+    if fix:
+        summary["Repaired"] = repaired
+    print(json.dumps(summary), file=sys.stderr)
+    return 2 if problems else 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1502,6 +2080,22 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({"Error": msg}), file=sys.stderr)
         return 2
     session_log_path = args.session_log_path.resolve()
+
+    if args.validate:
+        if not session_log_path.exists():
+            print(
+                json.dumps({"Error": f"Path not found: {session_log_path}"}),
+                file=sys.stderr,
+            )
+            return 1
+        return run_validate(session_log_path, fix=args.fix)
+
+    if args.fix:
+        print(
+            json.dumps({"Error": "--fix requires --validate"}),
+            file=sys.stderr,
+        )
+        return 2
 
     if not session_log_path.is_file():
         print(
@@ -1536,7 +2130,7 @@ def main(argv: list[str] | None = None) -> int:
     json_data = looks_like_json_session(content)
     if json_data is not None:
         print("  Parsing JSON session log...", file=sys.stderr)
-        bundle = extract_from_json(json_data)
+        bundle = extract_from_json(json_data, session_id=session_id)
         timestamp = bundle["timestamp"]
         task = bundle["task"]
         outcome = bundle["outcome"]
@@ -1564,8 +2158,12 @@ def main(argv: list[str] | None = None) -> int:
                 )
         task = metadata["objectives"][0] if metadata["objectives"] else metadata["title"]
 
-    # Best-effort backfill: when neither the JSON workLog nor the legacy
-    # markdown recorded a files-changed count, derive it from the staged commit.
+    # The staged commit is the primary source for files-changed; work-log prose
+    # is only a fallback. `_FILES_RE` matches any "N files" phrase, so a line
+    # like "markdownlint reported Linting: 2 files, 0 issues" would otherwise
+    # set the count to 2 and, because the backfill was guarded on a falsy value,
+    # suppress the correct staged-diff figure entirely (issue #3617). This is
+    # the same primary/fallback split `_collect_shas` already applies to SHAs.
     # The extractor runs in pre-commit, so the in-flight commit is staged even
     # though no SHA exists yet (issue #2537 item 3).
     # When --pending-stage is set, add 1 to account for the episode file that
@@ -1573,26 +2171,26 @@ def main(argv: list[str] | None = None) -> int:
     # returns, so numstat cannot see it yet). However, skip the +1 if the
     # episode file is already in the staged diff (e.g., via `git add -A`)
     # to avoid double-counting.
-    if not metrics.get("files_changed"):
-        staged = _staged_files_changed(session_log_path.parent)
-        if staged:
-            if args.pending_stage:
-                episode_path = output_path / f"episode-{session_id}.json"
-                repo_root = _repo_root()
-                try:
-                    episode_rel = episode_path.resolve().relative_to(repo_root)
-                    episode_rel_path = str(episode_rel).replace("\\", "/")
-                except ValueError:
-                    episode_rel_path = None
-                staged_paths = _staged_file_paths(session_log_path.parent)
-                if episode_rel_path is not None and episode_rel_path not in staged_paths:
-                    staged += 1
-            metrics["files_changed"] = staged
+    staged = _staged_files_changed(session_log_path.parent)
+    if staged:
+        if args.pending_stage:
+            episode_path = output_path / f"episode-{session_id}.json"
+            repo_root = _repo_root()
+            try:
+                episode_rel = episode_path.resolve().relative_to(repo_root)
+                episode_rel_path = str(episode_rel).replace("\\", "/")
+            except ValueError:
+                episode_rel_path = None
+            staged_paths = _staged_file_paths(session_log_path.parent)
+            if episode_rel_path is not None and episode_rel_path not in staged_paths:
+                staged += 1
+        metrics["files_changed"] = staged
 
     episode = {
         "id": f"episode-{session_id}",
         "session": session_id,
         "timestamp": timestamp,
+        "causal_order_version": CAUSAL_ORDER_VERSION,
         "outcome": outcome,
         "task": task,
         "decisions": decisions,
@@ -1626,8 +2224,7 @@ def main(argv: list[str] | None = None) -> int:
                     json.dumps(
                         {
                             "Error": (
-                                "--preserve requires the existing episode to be "
-                                "a JSON object."
+                                "--preserve requires the existing episode to be a JSON object."
                             ),
                         }
                     ),
@@ -1653,7 +2250,13 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 1
 
-    _link_sequential_events(episode["events"])
+    _renumber_events(episode["events"])
+    _stamp_decision_outcomes(episode["decisions"], episode["outcome"])
+    try:
+        _link_sequential_events(episode["events"])
+    except EpisodeValidationError as exc:
+        print(json.dumps({"Error": str(exc)}), file=sys.stderr)
+        return exc.exit_code
 
     try:
         episode_file.write_text(

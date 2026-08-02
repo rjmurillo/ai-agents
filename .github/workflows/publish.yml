@@ -52,26 +52,7 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       - name: Verify package metadata
-        working-directory: packages/ai-agents-cli
-        run: |
-          node -e "
-            const pkg = require('./package.json');
-            const errors = [];
-            if (pkg.name !== '@rjmurillo/ai-agents')
-              errors.push('name must be @rjmurillo/ai-agents');
-            if (!pkg.publishConfig?.access ||
-                pkg.publishConfig.access !== 'public')
-              errors.push('publishConfig.access must be public');
-            if (!pkg.publishConfig?.provenance)
-              errors.push('publishConfig.provenance must be true');
-            if (!pkg.bin) errors.push('bin entry required');
-            if (!pkg.files) errors.push('files allowlist required');
-            if (errors.length) {
-              console.error(errors.join('\n')); process.exit(1);
-            }
-            console.log('Package metadata OK:',
-              pkg.name + '@' + pkg.version);
-          "
+        run: python3 scripts/ci/verify_npm_package_metadata.py --package-dir packages/ai-agents-cli
 
       - name: Check tag matches package version
         if: startsWith(github.ref, 'refs/tags/v')
@@ -88,19 +69,7 @@ jobs:
           echo "Version match: $TAG_VERSION"
 
       - name: Measure pack size
-        working-directory: packages/ai-agents-cli
-        run: |
-          SIZE=$(npm pack --dry-run 2>&1 | tail -1)
-          echo "Pack size: $SIZE"
-          JSON_OUT=$(npm pack --dry-run --json 2>/dev/null)
-          BYTES=$(echo "$JSON_OUT" | \
-            node -p "JSON.parse(require('fs') \
-              .readFileSync('/dev/stdin','utf8'))[0] \
-              ?.size || 'unknown'")
-          LIMIT=52428800
-          if [ "$BYTES" != "unknown" ] && [ "$BYTES" -gt "$LIMIT" ]; then
-            echo "::warning::Pack size exceeds 50MB threshold"
-          fi
+        run: python3 scripts/ci/measure_npm_pack_size.py --package-dir packages/ai-agents-cli
 
   publish:
     name: Publish to npm
@@ -161,18 +130,4 @@ jobs:
           github.event_name == 'push' ||
           (github.event_name == 'workflow_dispatch' &&
           github.event.inputs.dry-run == 'false')
-        working-directory: packages/ai-agents-cli
-        run: |
-          EXPECTED=$(node -p "require('./package.json').version")
-          echo "Expecting @rjmurillo/ai-agents@${EXPECTED}"
-          for i in 1 2 3 4 5; do
-            sleep 10
-            PUBLISHED=$(npm view "@rjmurillo/ai-agents@${EXPECTED}" version 2>/dev/null || true)
-            if [ "$PUBLISHED" = "$EXPECTED" ]; then
-              echo "Verified: @rjmurillo/ai-agents@${EXPECTED} is live on npm"
-              exit 0
-            fi
-            echo "Attempt $i: version ${EXPECTED} not yet visible, retrying..."
-          done
-          echo "::error::Version ${EXPECTED} not visible on npm after 50s"
-          exit 1
+        run: python3 scripts/ci/verify_npm_published.py --package-dir packages/ai-agents-cli

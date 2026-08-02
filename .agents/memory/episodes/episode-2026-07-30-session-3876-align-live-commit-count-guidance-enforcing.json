@@ -1,0 +1,163 @@
+{
+  "id": "episode-2026-07-30-session-3876-align-live-commit-count-guidance-enforcing",
+  "session": "2026-07-30-session-3876-align-live-commit-count-guidance-enforcing",
+  "timestamp": "2026-07-30T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Align live commit-count guidance with the enforcing code (issue #3944); adr-review skill debate required for the SESSION-PROTOCOL edit",
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "routing",
+      "context": "",
+      "chosen": "Measured five AGENTS.md wordings against the 3000-byte budget and against open PR #3953's measured +4 delta; rejected the reviewer's exact wording at 2996 because it leaves zero slack once #3953 lands, and chose <=20/40(main) at 2991 with 5 bytes of slack remaining.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Derived the commit-count bands by executing classify_count across 0..45 for both limits rather than reading the constants. limit=20 gives OK 0-9, WARNING 10-14, ALERT 15-20, BLOCKED 21+. limit=40 gives ALERT 15-40, BLOCKED 41+. SESSION-PROTOCOL taught warn at 15 and a table of < 15 / 15-19 / >= 20, so all three bands were wrong.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Confirmed ADR-008 defines no commit ceiling by grepping the ADR, and found the real authority: ADR-049 line 35 carries <=20, PROJECT-CONSTRAINTS line 121 carries the PR #908 and issue #934 rationale, and pr_commit_count.py carries all four numbers plus the issue #3596 relief.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Byte-measured AGENTS.md against scripts/validate_workspace_budget.py PER_FILE_BUDGET_BYTES = 3000. The first attempt reached 3056 and failed the gate. Shrank the line to 2982 instead of growing it.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran two adversarial reviews on different model families than the author: gpt-5.6-sol for arithmetic and gates, claude-opus-4.8 for governance and proportionality. The governance review returned SHIP with two non-blocking items.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced both non-blocking findings before acting. FAILURE-MODES.md line 89 told agents to display Commit X/20 (ADR-008) every turn, a live prescriptive instruction carrying the phantom citation. Executed _gated_adr_review_paths with positive and negative controls to confirm that file does not trip the adr-review gate.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rejected the suggested AGENTS.md restore on measurement, not caution. The proposed line is 2997 bytes, 3 under the cap, and open PR #3953 grows AGENTS.md from 2991 to 2995. Both merged would reach 3001 and fail the strict comparison, so the 18-byte slack stays.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read the gpt-5.6-sol adversarial review of the protocol fix: three Required findings, none accepted on trust.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced the off-by-one: executed classify_count across counts 0-45 at limits 20 and 40; BLOCKED first appears at 21 and 41, so exactly 20 and 40 are ALERT and 'block at 20' is wrong.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Proved CI applies the main-merge relief with a positive and negative control on contains_base_merge: a 25-commit payload with no merge classifies BLOCKED at limit 20, the same payload carrying a merge classifies ALERT at limit 40.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured five AGENTS.md wordings against the 3000-byte budget and against open PR #3953's measured +4 delta; rejected the reviewer's exact wording at 2996 because it leaves zero slack once #3953 lands, and chose <=20/40(main) at 2991 with 5 bytes of slack remaining.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated the copilot-cli mirrors with build_all.py and verified line-level parity on both changed skill files; confirmed no new manifest bump was needed because the branch already sits at 0.6.5427 over main's 0.6.5426.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Carried the 40-commit relief into the two remaining live display sites, FAILURE-MODES.md and the session-protocol Serena memory, leaving the dated PR #908 evidence lines untouched.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Caught myself appending these entries to another session's log because a glob picked the wrong file; reverted that log to HEAD and wrote to the correct one.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 575aa74497219bbbb2894a48e417189c7be62a13",
+      "caused_by": [],
+      "leads_to": [
+        "e016"
+      ]
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The final review found the same off-by-one and missing 40-limit relief in CONTRIBUTING.md, PROJECT-CONSTRAINTS.md, claude-skills.md, and two active skill references. Corrected the canonical sources and regenerated both Copilot CLI mirrors.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 75a02b343",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 6
+  },
+  "lessons": []
+}

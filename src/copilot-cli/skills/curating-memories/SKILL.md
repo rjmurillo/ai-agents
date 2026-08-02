@@ -1,6 +1,6 @@
 ---
 name: curating-memories
-description: Guidance for maintaining memory quality through curation. Covers updating outdated memories, marking obsolete content, and linking related knowledge. Use when memories need modification, when new information supersedes old, or when building knowledge graph connections.
+description: Guidance for maintaining memory quality through curation. Covers updating outdated memories, marking obsolete content, and linking related knowledge. Use when memories need modification, when new information supersedes old, or when building knowledge graph connections. Use when you say "how do I update a memory", "how do I mark a memory obsolete", or "how do I deduplicate memories".
 license: MIT
 version: 1.1.0
 ---

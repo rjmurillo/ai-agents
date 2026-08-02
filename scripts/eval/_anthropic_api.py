@@ -82,6 +82,28 @@ def load_api_key() -> str:
     )
 
 
+def load_api_key_for_selected_provider(provider: str | None = None) -> str:
+    """Load the Anthropic key, or return "" when another transport is selected.
+
+    Every eval entry point wants a credential precondition so a long run does
+    not die on call one. Only the default urllib path needs *this* credential
+    though: a non-default provider loads its own inside its provider object,
+    and `copilot-cli` has none at all. Entry points that call `load_api_key()`
+    unconditionally make `EVAL_PROVIDER` unreachable from the command line even
+    though `call_api` honors it, which is how the harness ended up unable to
+    run against the models this repository is actually operated in.
+
+    Mirrors the no-op condition `verify_model_available` already applies, so
+    the preflight pair agrees on which transport is in play.
+    """
+    from _providers import is_default_anthropic
+
+    selected = provider if provider is not None else os.environ.get("EVAL_PROVIDER")
+    if not is_default_anthropic(selected):
+        return ""
+    return load_api_key()
+
+
 def call_api(
     api_key: str,
     messages: list[dict[str, str]],
