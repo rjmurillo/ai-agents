@@ -70,7 +70,26 @@ A file that legitimately depends on upstream paths declares it with an HTML comm
      contributors, not plugin consumers (issue #2050) -->
 ```
 
-170 files inside the plugin roots carry it. Use it when the reference is real and intended. Do not use it to silence a reference you should have fixed.
+Files inside the plugin roots carry it in the low hundreds. Count them when the
+number matters rather than trusting a figure written here, because this line has
+already been wrong once:
+
+```bash
+git ls-files .claude src/copilot-cli src/claude | xargs grep -l "vendor-portability:" | wc -l
+```
+
+`git ls-files` rather than a bare `grep -r` on purpose: a recursive walk also
+descends into the nested checkouts under `.claude/worktrees/`, which is the same
+trap described below.
+
+Two structural facts hold regardless of the count. The declaration lives in skill
+files, so `.claude/skills/` and its `src/copilot-cli/skills/` mirror hold nearly
+all of them, and the two track each other because the mirror is generated.
+`src/claude/` holds none, because it ships agents and has no `skills/` directory
+at all.
+
+Use the declaration when the reference is real and intended. Do not use it to
+silence a reference you should have fixed.
 
 ## Known coverage gap
 
@@ -161,7 +180,7 @@ uv run python scripts/validation/check_vendor_portability.py
 Contributor-scoped, per SHOULD 2. These paths live in the `rjmurillo/ai-agents` repository and do not ship. A consumer reading this rule inside an installed plugin cannot resolve them and does not need to.
 
 - `.claude-plugin/marketplace.json`, `.github/plugin/marketplace.json`. The manifests that define what ships.
-- `.claude/rules/plugin-version-bump.md`. Version parity across the shipping roots. This one does ship.
+- `.claude/rules/plugin-version-bump.md`. Why the shipping roots' manifests carry no `version` field (ADR-092). This one does ship.
 - `.agents/architecture/ADR-071-plugin-hook-runtime-contract-verification.md`. Defines the plugin-root env var contract and how each host exports it.
 - `.agents/architecture/ADR-045-framework-extraction-via-plugin-marketplace.md`. Why the marketplace split exists.
 - `.agents/architecture/ADR-083-copilot-dogfood-surface-separation.md`. Which surfaces are dogfood-only.

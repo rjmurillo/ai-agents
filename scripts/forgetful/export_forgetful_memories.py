@@ -110,9 +110,36 @@ def export_table(db_path: str, table: str) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = json.loads(output)
         return rows
     except json.JSONDecodeError as exc:
-        raise RuntimeError(
-            f"Failed to parse JSON for table '{table}': {exc}"
-        ) from exc
+        raise RuntimeError(f"Failed to parse JSON for table '{table}': {exc}") from exc
+
+
+def _build_forgetful_output_path(args: argparse.Namespace) -> Path:
+    """Build the output file path from args."""
+    if args.output_file:
+        return Path(args.output_file)
+    parts = [date.today().isoformat()]
+    if args.session_number:
+        parts.append(f"session-{args.session_number}")
+    if args.topic:
+        parts.append(args.topic)
+    return _EXPORTS_DIR / (("-".join(parts)) + ".json")
+
+
+def _run_security_review_forgetful(output_path: Path) -> int:
+    """Run the memory-export security review script; return 0 on pass or absence."""
+    security_script = _SCRIPT_DIR.parent / "review_memory_export_security.py"
+    if not security_script.exists():
+        return 0
+    print("\nRunning mandatory security review...")
+    sys.stdout.flush()
+    result = subprocess.run(
+        [sys.executable, str(security_script), "--export-file", str(output_path)]
+    )
+    if result.returncode != 0:
+        print("ERROR: Security review FAILED.", file=sys.stderr)
+        return 1
+    print("Security review PASSED - Safe to commit")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -137,16 +164,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     _EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
-
-    if args.output_file:
-        output_path = Path(args.output_file)
-    else:
-        parts = [date.today().isoformat()]
-        if args.session_number:
-            parts.append(f"session-{args.session_number}")
-        if args.topic:
-            parts.append(args.topic)
-        output_path = _EXPORTS_DIR / (("-".join(parts)) + ".json")
+    output_path = _build_forgetful_output_path(args)
 
     if not validate_output_path(output_path, _EXPORTS_DIR):
         return 1
@@ -169,10 +187,13 @@ def main(argv: list[str] | None = None) -> int:
     print(f"   Output: {output_path}")
     print(f"   Tables: {args.include_tables}")
 
-    schema_version = run_sqlite3(
-        args.database_path,
-        "SELECT version_num FROM alembic_version LIMIT 1;",
-    ) or "unknown"
+    schema_version = (
+        run_sqlite3(
+            args.database_path,
+            "SELECT version_num FROM alembic_version LIMIT 1;",
+        )
+        or "unknown"
+    )
 
     export_data: dict[str, Any] = {
         "export_metadata": {
@@ -195,20 +216,7 @@ def main(argv: list[str] | None = None) -> int:
     output_path.write_text(json.dumps(export_data, indent=2) + "\n", encoding="utf-8")
     print(f"\nExport complete: {output_path} ({output_path.stat().st_size} bytes)")
 
-    # Run security review if script exists
-    security_script = _SCRIPT_DIR.parent / "review_memory_export_security.py"
-    if security_script.exists():
-        print("\nRunning mandatory security review...")
-        sys.stdout.flush()
-        result = subprocess.run(
-            [sys.executable, str(security_script), "--export-file", str(output_path)]
-        )
-        if result.returncode != 0:
-            print("ERROR: Security review FAILED.", file=sys.stderr)
-            return 1
-        print("Security review PASSED - Safe to commit")
-
-    return 0
+    return _run_security_review_forgetful(output_path)
 
 
 if __name__ == "__main__":

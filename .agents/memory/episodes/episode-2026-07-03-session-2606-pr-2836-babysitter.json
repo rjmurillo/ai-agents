@@ -35,7 +35,10 @@
       "timestamp": "2026-07-03T00:00:00+00:00",
       "type": "test",
       "content": "uv run pytest tests/test_generate_quality_report.py -x: 23 passed; byte check found zero conflict markers and zero prohibited dash bytes in tests/test_generate_quality_report.py.",
-      "caused_by": [],
+      "caused_by": [
+        "e005",
+        "e006"
+      ],
       "leads_to": []
     },
     {
@@ -44,7 +47,9 @@
       "type": "commit",
       "content": "Commit: d5c4d63a1",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e004"
+      ]
     },
     {
       "id": "e006",
@@ -52,7 +57,9 @@
       "type": "commit",
       "content": "Commit: c16297e77",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e004"
+      ]
     }
   ],
   "metrics": {
@@ -63,5 +70,7 @@
     "commits": 1,
     "files_changed": 2
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 2"
 }

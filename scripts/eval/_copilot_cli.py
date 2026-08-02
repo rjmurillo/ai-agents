@@ -13,11 +13,21 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import subprocess
 import tempfile
 import time
 from pathlib import Path
+
+from _copilot_cli_constants import (
+    FOOTER_COLUMN,
+    FOOTER_LABEL_RE,
+    FOOTER_PROSE_ENDINGS,
+    FOOTER_VALUE_MAX_WORDS,
+    PROVIDER_LABEL,
+    SESSION_STATE_ENV,
+    TRACE_LINE_PREFIXES,
+    UNVERIFIED_MODEL_ENV,
+)
 
 __all__ = ["_CopilotCLIProvider"]
 
@@ -60,31 +70,18 @@ class _CopilotCLIProvider:
     HTTP-provider score.
     """
 
-    # The CLI prints a stats block after the answer, formatted as a fixed-width
-    # label column. Matching on "2+ spaces" is wrong: the widest label
-    # ("AI Credits") fills the column and leaves a single space before its
-    # value. Match the label, then require the padded prefix to reach the
-    # column width, which is what separates a stats line from prose that
-    # happens to open with the same word ("Tokens are the unit of billing").
-    _FOOTER_LABEL_RE = re.compile(
-        r"^(?:Changes|AI Credits|Tokens|Resume|Total duration|Wall time)( +)",
-    )
-    _FOOTER_COLUMN = 11
-
-    #: A stats value is a short token ("1m2s", "12,345", "$0.04"). Prose that
-    #: opens with a label longer than the column ("Total duration and latency
-    #: are ...") satisfies the column test vacuously, so the remainder is
-    #: checked too: real values are short and do not close a sentence.
-    _FOOTER_VALUE_MAX_WORDS = 5
-    _FOOTER_PROSE_ENDINGS = (".", "!", "?", ":", ",")
-
-    #: Where the CLI records structured per-session events. Overridable so the
-    #: tests can point at a fixture tree instead of the operator's real one.
-    _SESSION_STATE_ENV = "COPILOT_SESSION_STATE_DIR"
+    _FOOTER_LABEL_RE = FOOTER_LABEL_RE
+    _FOOTER_COLUMN: int = FOOTER_COLUMN
+    _FOOTER_VALUE_MAX_WORDS: int = FOOTER_VALUE_MAX_WORDS
+    _FOOTER_PROSE_ENDINGS: tuple[str, ...] = FOOTER_PROSE_ENDINGS
+    _SESSION_STATE_ENV: str = SESSION_STATE_ENV
+    _UNVERIFIED_MODEL_ENV: str = UNVERIFIED_MODEL_ENV
+    _TRACE_LINE_PREFIXES: tuple[str, ...] = TRACE_LINE_PREFIXES
+    _PROVIDER_LABEL: str = PROVIDER_LABEL
 
     def __init__(self, *, executable: str = "copilot", timeout: float = 900.0) -> None:
         self.name = "copilot-cli"
-        self._provider_label = "Copilot CLI"
+        self._provider_label = self._PROVIDER_LABEL
         self._executable = executable
         self._timeout = timeout
         self.system_fingerprint: str | None = None
@@ -92,9 +89,22 @@ class _CopilotCLIProvider:
     @classmethod
     def _session_state_root(cls) -> Path:
         override = os.environ.get(cls._SESSION_STATE_ENV)
-        if override:
-            return Path(override)
-        return Path.home() / ".copilot" / "session-state"
+        if not override:
+            return Path.home() / ".copilot" / "session-state"
+        root = Path(override)
+        if not root.is_absolute():
+            # The CLI inherits this variable but runs with cwd set to a
+            # per-call sandbox, so it resolves a relative value there while
+            # this process resolves it here. The two never agree, so every
+            # transcript reads as missing, and that refusal blames the
+            # transcript and invites the opt-in that grades raw stdout. Name
+            # the real cause instead of failing the same way each call.
+            raise RuntimeError(
+                f"{cls._PROVIDER_LABEL} needs {cls._SESSION_STATE_ENV} to be "
+                f"absolute; got {override!r}, which the CLI resolves against a "
+                "per-call sandbox this process cannot read."
+            )
+        return root
 
     @classmethod
     def _read_session_transcript(
@@ -115,7 +125,17 @@ class _CopilotCLIProvider:
         operator's session history.
 
         Returns ``None`` when no matching session is found, which leaves the
-        caller on the stdout path rather than failing the eval.
+        caller on the stdout path. That path no longer grades silently: it
+        refuses a reply carrying tool traces, and refuses an unconfirmed model
+        unless the operator opts in, because the `model` field read here is the
+        only evidence about which model actually answered.
+
+        A matched session whose message content is not text raises instead of
+        returning ``None``. Skipping the message would grade a truncated answer
+        as whole. Returning ``None`` would report a log this reader could not
+        decode as a log that does not exist, and the operator who opted in to a
+        missing transcript did not opt in to a corrupt one. Absence and
+        corruption are different answers, so they take different exits.
         """
         root = cls._session_state_root()
         try:
@@ -130,7 +150,8 @@ class _CopilotCLIProvider:
             except OSError:
                 continue
             matched = False
-            model_used: str | None = None
+            message_models: list[str] = []
+            unattributed = False
             chunks: list[str] = []
             for line in raw.splitlines():
                 line = line.strip()
@@ -152,15 +173,81 @@ class _CopilotCLIProvider:
                     if cwd != sandbox:
                         break
                     matched = True
-                    selected = data.get("selectedModel")
-                    model_used = selected if isinstance(selected, str) else None
                 elif kind == "assistant.message" and matched:
+                    if cls._is_subagent_message(event, data):
+                        continue
                     content = data.get("content")
-                    if isinstance(content, str) and content.strip():
+                    if not isinstance(content, str):
+                        raise RuntimeError(
+                            f"{cls._PROVIDER_LABEL} session transcript is "
+                            "malformed: an assistant message carries content of "
+                            f"type {type(content).__name__}, not text. Reading "
+                            "past it would grade a truncated answer as whole, "
+                            "so the run is refused."
+                        )
+                    if content.strip():
                         chunks.append(content.strip())
+                        spoke = data.get("model")
+                        if isinstance(spoke, str) and spoke:
+                            if spoke not in message_models:
+                                message_models.append(spoke)
+                        else:
+                            unattributed = True
             if matched:
-                return "\n\n".join(chunks), model_used
+                return "\n\n".join(chunks), cls._model_that_spoke(
+                    message_models, unattributed=unattributed
+                )
         return None
+
+    @staticmethod
+    def _is_subagent_message(
+        event: dict[str, object], data: dict[str, object]
+    ) -> bool:
+        """Say whether this message came from a sub-agent, not the model asked.
+
+        A sub-agent runs its own model and writes into the parent session's
+        log, so its text is internal working output that no user ever sees.
+        Joining it into the answer grades text the requested model did not
+        write, and its model would either taint the attribution or refuse a run
+        whose real answer was fine.
+
+        Two markers are available and either alone is enough: the CLI stamps
+        `agentId` on the event and `parentToolCallId` on the message. They
+        usually travel together but not always. One scan of 3777 session logs
+        found 2576 messages, across three sessions, carrying `agentId` alone,
+        and none carrying `parentToolCallId` alone. Requiring both, or reading
+        only the second, would have joined those 2576 into a graded answer. No
+        marker in that scan was null, so testing for the key and testing its
+        value agreed on every message.
+
+        The markers are not a proxy for the model field. In the same scan 36%
+        of marked messages named a model that an unmarked message in the same
+        log also used, so classifying by "ran a different model than the
+        primary" would have accepted tens of thousands of sub-agent messages.
+        """
+        return "agentId" in event or "parentToolCallId" in data
+
+    @staticmethod
+    def _model_that_spoke(
+        message_models: list[str], *, unattributed: bool
+    ) -> str | None:
+        """Return the single model that produced every accepted message.
+
+        `assistant.message` carries the model that generated that specific
+        text. The session's opening `selectedModel` does not: a
+        `session.model_change` event can supersede it mid-session, and it is
+        absent entirely from most observed session logs, so reading it would
+        both miss substitutions and refuse the common case.
+
+        Returns ``None`` unless exactly one model accounts for the whole
+        answer. More than one model means the answer is a blend that no single
+        model produced. ``unattributed`` means some message contributed text
+        while naming no model, so a second message naming one would otherwise
+        vouch for text it did not write.
+        """
+        if unattributed or len(message_models) != 1:
+            return None
+        return message_models[0]
 
     @classmethod
     def _is_footer_line(cls, line: str) -> bool:
@@ -193,20 +280,62 @@ class _CopilotCLIProvider:
     def _strip_footer(cls, text: str) -> str:
         """Remove the CLI's trailing stats block.
 
-        Walks backwards from the end, dropping blank lines and footer-shaped
-        lines, and stops at the first line that is neither. Anchoring at the
-        end (rather than searching forward for the first match) keeps a model
-        answer that legitimately contains the word "Tokens" intact.
+        Footer chrome must be separated from the answer by a blank line. When
+        stdout ends in footer-shaped lines without that separator, the fallback
+        path cannot tell chrome from model text, so it refuses the run instead
+        of silently truncating the answer. See #4125.
         """
         lines = text.splitlines()
         end = len(lines)
-        while end > 0:
-            candidate = lines[end - 1]
-            if not candidate.strip() or cls._is_footer_line(candidate):
-                end -= 1
-                continue
-            break
-        return "\n".join(lines[:end]).strip()
+        while end > 0 and not lines[end - 1].strip():
+            end -= 1
+        footer_start = end
+        while footer_start > 0 and cls._is_footer_line(lines[footer_start - 1]):
+            footer_start -= 1
+        if footer_start == end:
+            return "\n".join(lines[:end]).strip()
+        if footer_start > 0 and lines[footer_start - 1].strip():
+            raise RuntimeError(
+                f"{cls._PROVIDER_LABEL} stdout ends with a stats-shaped line, "
+                "but no blank line separates it from the answer. Nothing on "
+                "this fallback path can tell CLI stats from model text, so the "
+                "run is refused rather than truncated."
+            )
+        answer_end = footer_start
+        while answer_end > 0 and not lines[answer_end - 1].strip():
+            answer_end -= 1
+        return "\n".join(lines[:answer_end]).strip()
+
+    @classmethod
+    def _unverified_model_allowed(cls) -> bool:
+        """Report whether the operator opted in to an unconfirmed model.
+
+        Anything other than an explicit affirmative reads as off, so a stray
+        empty or "0" value fails closed rather than silently loosening the
+        check it exists to guard.
+        """
+        raw = os.environ.get(cls._UNVERIFIED_MODEL_ENV, "")
+        return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+    @classmethod
+    def _may_carry_tool_trace(cls, text: str) -> bool:
+        """Report whether a line in stdout opens the way a CLI trace opens.
+
+        Only meaningful on the stdout fallback. When the structured transcript
+        is readable the answer comes from `assistant.message`, which never
+        carries a trace.
+
+        This deliberately cannot tell a real trace apart from an answer that
+        happens to begin with the same marker, and it refuses both. On the
+        fallback there is no boundary between a trace and the reply, so the
+        choice is a visible refusal an operator can clear by pointing at the
+        session directory, or silently scoring the harness as the model. Only
+        one of those leaves a mark, so the name says `may`.
+        """
+        return any(
+            line.lstrip().startswith(cls._TRACE_LINE_PREFIXES)
+            for line in text.splitlines()
+        )
 
     def complete(
         self,
@@ -223,7 +352,27 @@ class _CopilotCLIProvider:
         # ignore max_tokens/temperature/seed rather than failing, so the same
         # fixture runs unchanged across providers. Callers that need sampling
         # determinism must use an HTTP provider.
+        #
+        # Roles go with them: every message contributes its content and nothing
+        # records who said it. The one caller builds a single user message, so
+        # nothing is lost today. A multi-turn caller would hand the model its
+        # own prior replies as user instructions, and this signature accepts
+        # that input without complaint, so the loss would be silent. See #4128.
         del max_tokens, temperature, seed
+
+        # Guard against unsupported message roles before any subprocess call.
+        # Copilot CLI only folds user and system messages into its single
+        # prompt channel. Other roles (e.g., assistant) cannot be represented
+        # faithfully and must fail visibly.
+        for msg in messages:
+            role = msg.get("role", "")
+            if role not in ("user", "system"):
+                raise RuntimeError(
+                    f"{self._provider_label} API does not support message role "
+                    f"{role!r}. Copilot CLI can only fold user/system messages "
+                    "into its single prompt channel."
+                )
+
         parts = [system.strip()] if system.strip() else []
         parts.extend(
             str(m.get("content", "")).strip()
@@ -285,7 +434,14 @@ class _CopilotCLIProvider:
             transcript = self._read_session_transcript(sandbox, since=started - 5.0)
 
         if completed.returncode != 0:
-            # CWE-200: short ascii excerpt only, never the full stderr body.
+            # CWE-200: strip control bytes, bound the volume. Neither step
+            # redacts. A credential short enough to fit is copied verbatim,
+            # confirmed here for a 40-character token, so this line is not what
+            # keeps a secret out of an eval artifact. The caller is. The adapter
+            # catches this error, keeps only `error_category`, and reports
+            # `raw_response=None`, so the text reaches no log line, no result
+            # field, and no report. Surfacing it anywhere needs a redactor
+            # first, and this comment is the only warning that says so.
             stderr = completed.stderr or completed.stdout or ""
             excerpt = "".join(ch for ch in stderr if 32 <= ord(ch) < 127)[:200]
             raise RuntimeError(
@@ -293,6 +449,8 @@ class _CopilotCLIProvider:
                 f"{completed.returncode}: {excerpt}"
             )
         answer = ""
+        model_verified = False
+        model_used: str | None = None
         if transcript is not None:
             answer, model_used = transcript
             # The CLI accepts --model without confirming it. Silent substitution
@@ -303,10 +461,36 @@ class _CopilotCLIProvider:
                     f"{self._provider_label} API returned no choices for model "
                     f"{model}: the session ran {model_used} instead."
                 )
+            model_verified = model_used is not None
         if not answer:
             answer = self._strip_footer(completed.stdout or "")
+            if answer and self._may_carry_tool_trace(answer):
+                raise RuntimeError(
+                    f"{self._provider_label} could not read a reply for model "
+                    f"{model}: the session transcript was unavailable and a line "
+                    "in stdout opens with a CLI trace marker. Nothing on this "
+                    "path can tell a trace apart from an answer that starts the "
+                    "same way, so the run is refused rather than graded. Point "
+                    f"{self._SESSION_STATE_ENV} at the CLI session directory so "
+                    "the structured transcript can be read."
+                )
         if not answer:
             raise RuntimeError(
                 f"{self._provider_label} API returned no choices for model {model}."
             )
+        if not model_verified and not self._unverified_model_allowed():
+            raise RuntimeError(
+                f"{self._provider_label} could not confirm which model answered "
+                f"for {model}: no session transcript was readable, and the CLI "
+                "accepts --model without confirming it. This transport only "
+                "feeds model-attributed results, so an unconfirmed reply is a "
+                f"score for an unknown model. Point {self._SESSION_STATE_ENV} "
+                "at the CLI session directory, or set "
+                f"{self._UNVERIFIED_MODEL_ENV}=1 to accept that loss knowingly."
+            )
+        # Publish which model the transcript confirmed, reset on every call so
+        # an earlier verified reply cannot vouch for a later unverified one.
+        # None means nobody confirmed, which is how an archived run tells a
+        # confirmed answer apart from a loss the operator opted in to.
+        self.system_fingerprint = model_used
         return answer

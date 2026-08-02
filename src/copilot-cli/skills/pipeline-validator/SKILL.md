@@ -275,7 +275,7 @@ Match the failure against the patterns in `references/error-patterns.md`. If no 
 
 Analyze error messages against known patterns. See [references/error-patterns.md](references/error-patterns.md) for the full pattern catalog.
 
-**Quick Reference: Error-to-Fix Map**
+### Quick Reference: Error-to-Fix Map
 
 | Error Pattern | Auto-Fixable? | Fix Action |
 |---------------|---------------|------------|

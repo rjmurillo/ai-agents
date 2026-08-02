@@ -37,7 +37,7 @@ import json
 import math
 import os
 import re
-import subprocess  # noqa: S404 - invokes a sibling eval script with a fixed, validated argv
+import subprocess  # S404: invokes a sibling eval script with a fixed, validated argv
 import sys
 import uuid
 from pathlib import Path
@@ -120,8 +120,7 @@ def parse_models_arg(raw: str, *, default_model: str) -> list[str]:
         raise argparse.ArgumentTypeError("--models must list at least one model id")
     if not _MODEL_ID_RE.match(default_model):
         raise argparse.ArgumentTypeError(
-            f"--default-model must match {_MODEL_ID_RE.pattern} "
-            f"(got {default_model!r})"
+            f"--default-model must match {_MODEL_ID_RE.pattern} (got {default_model!r})"
         )
     if default_model not in ids:
         ids.append(default_model)
@@ -187,12 +186,7 @@ def build_child_argv(
 
 def child_report_path(agent: str, run_id: str) -> Path:
     """Path to the report.json the base evaluator writes for a run."""
-    return (
-        REPO_ROOT
-        / REPORTS_DIR_TEMPLATE.format(agent=agent)
-        / run_id
-        / "report.json"
-    )
+    return REPO_ROOT / REPORTS_DIR_TEMPLATE.format(agent=agent) / run_id / "report.json"
 
 
 def parse_report(report: dict[str, Any], *, model_id: str) -> ModelResult:
@@ -215,14 +209,10 @@ def parse_report(report: dict[str, Any], *, model_id: str) -> ModelResult:
         raise ValueError(f"report for {model_id} is not a JSON object")
     for field in ("fixture_set_sha", "agent_recall", "per_fixture_pass_rates"):
         if field not in report:
-            raise KeyError(
-                f"report for {model_id} missing required field: {field}"
-            )
+            raise KeyError(f"report for {model_id} missing required field: {field}")
     fixture_set_sha = report["fixture_set_sha"]
     if not isinstance(fixture_set_sha, str) or not fixture_set_sha:
-        raise ValueError(
-            f"report for {model_id} has empty/invalid fixture_set_sha"
-        )
+        raise ValueError(f"report for {model_id} has empty/invalid fixture_set_sha")
     agent_recall = report["agent_recall"]
     if (
         not isinstance(agent_recall, (int, float))
@@ -230,14 +220,10 @@ def parse_report(report: dict[str, Any], *, model_id: str) -> ModelResult:
         or not math.isfinite(agent_recall)
         or not 0.0 <= float(agent_recall) <= 1.0
     ):
-        raise ValueError(
-            f"report for {model_id} agent_recall must be finite and in [0, 1]"
-        )
+        raise ValueError(f"report for {model_id} agent_recall must be finite and in [0, 1]")
     per_fixture = report["per_fixture_pass_rates"]
     if not isinstance(per_fixture, dict) or not per_fixture:
-        raise ValueError(
-            f"report for {model_id} per_fixture_pass_rates must be a non-empty object"
-        )
+        raise ValueError(f"report for {model_id} per_fixture_pass_rates must be a non-empty object")
     excluded_raw = report.get("flaky_fixtures_excluded")
     # Must be a list of fixture ids. A bare string would make set() iterate
     # characters (silently excluding fixtures whose id is a single char),
@@ -250,39 +236,30 @@ def parse_report(report: dict[str, Any], *, model_id: str) -> ModelResult:
         # unhashable dict/list) would either never match or crash set().
         if not all(isinstance(x, str) for x in excluded_raw):
             raise ValueError(
-                f"report for {model_id} flaky_fixtures_excluded "
-                "must be a list of strings"
+                f"report for {model_id} flaky_fixtures_excluded must be a list of strings"
             )
         excluded = set(excluded_raw)
     else:
-        raise ValueError(
-            f"report for {model_id} flaky_fixtures_excluded is not a list"
-        )
+        raise ValueError(f"report for {model_id} flaky_fixtures_excluded is not a list")
     if "error_count" not in report:
         raise KeyError(f"report for {model_id} missing required field: error_count")
     error_count = report["error_count"]
     if not isinstance(error_count, int) or isinstance(error_count, bool):
-        raise ValueError(
-            f"report for {model_id} error_count must be a non-negative integer"
-        )
+        raise ValueError(f"report for {model_id} error_count must be a non-negative integer")
     if error_count < 0:
-        raise ValueError(
-            f"report for {model_id} error_count must be a non-negative integer"
-        )
+        raise ValueError(f"report for {model_id} error_count must be a non-negative integer")
     rates: dict[str, list[float]] = {}
     for fixture_id, variants in per_fixture.items():
         if fixture_id in excluded:
             continue
         if not isinstance(variants, dict):
             raise ValueError(
-                f"report for {model_id} fixture {fixture_id!r} variants "
-                "must be an object"
+                f"report for {model_id} fixture {fixture_id!r} variants must be an object"
             )
         agent_rates = variants.get("agent")
         if not isinstance(agent_rates, list) or not agent_rates:
             raise ValueError(
-                f"report for {model_id} fixture {fixture_id!r} agent rates "
-                "must be a non-empty list"
+                f"report for {model_id} fixture {fixture_id!r} agent rates must be a non-empty list"
             )
         parsed_rates: list[float] = []
         for index, rate in enumerate(agent_rates):
@@ -322,8 +299,7 @@ class ModelEvalRunner(Protocol):
     ``ChildRunError`` (carrying the child exit-code class).
     """
 
-    def run(self, model_id: str) -> ModelResult:
-        ...
+    def run(self, model_id: str) -> ModelResult: ...
 
 
 class SubprocessModelEvalRunner:
@@ -362,7 +338,7 @@ class SubprocessModelEvalRunner:
             provider=self._provider,
         )
         try:
-            completed = subprocess.run(  # noqa: S603 - argv is fixed + validated, shell=False
+            completed = subprocess.run(  # S603: argv is fixed + validated, shell=False
                 argv,
                 capture_output=True,
                 encoding="utf-8",
@@ -422,8 +398,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         type=float,
         default=DEFAULT_MIN_EFFECT,
         help=(
-            "minimum recall lead over the default to justify a pin "
-            f"(default {DEFAULT_MIN_EFFECT})"
+            f"minimum recall lead over the default to justify a pin (default {DEFAULT_MIN_EFFECT})"
         ),
     )
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
@@ -466,11 +441,7 @@ def _default_output_path(agent: str) -> Path:
     # Add a short random suffix so repeated sweeps of the same agent within
     # the same second do not silently overwrite each other's evidence.
     suffix = uuid.uuid4().hex[:8]
-    return (
-        REPO_ROOT
-        / REPORTS_DIR_TEMPLATE.format(agent=agent)
-        / f"sweep-{stamp}-{suffix}.json"
-    )
+    return REPO_ROOT / REPORTS_DIR_TEMPLATE.format(agent=agent) / f"sweep-{stamp}-{suffix}.json"
 
 
 def run_sweep(args: argparse.Namespace, runner: ModelEvalRunner | None = None) -> int:
@@ -499,15 +470,12 @@ def run_sweep(args: argparse.Namespace, runner: ModelEvalRunner | None = None) -
         return EXIT_CONFIG
 
     if args.n_runs < 1:
-        print(
-            f"error: --n-runs must be >= 1 (got {args.n_runs})", file=sys.stderr
-        )
+        print(f"error: --n-runs must be >= 1 (got {args.n_runs})", file=sys.stderr)
         return EXIT_CONFIG
 
     if not math.isfinite(args.child_timeout) or args.child_timeout <= 0:
         print(
-            "error: --child-timeout must be a finite value > 0 "
-            f"(got {args.child_timeout:g})",
+            f"error: --child-timeout must be a finite value > 0 (got {args.child_timeout:g})",
             file=sys.stderr,
         )
         return EXIT_CONFIG
@@ -554,9 +522,7 @@ def run_sweep(args: argparse.Namespace, runner: ModelEvalRunner | None = None) -
 
     report = build_report(
         agent=args.agent,
-        fixtures_sha=next(
-            (r.fixture_set_sha for r in results if r.fixture_set_sha), ""
-        ),
+        fixtures_sha=next((r.fixture_set_sha for r in results if r.fixture_set_sha), ""),
         results=results,
         decision=decision,
         min_effect=args.min_effect,
@@ -568,9 +534,7 @@ def run_sweep(args: argparse.Namespace, runner: ModelEvalRunner | None = None) -
     print(f"{decision.decision}: {decision.reason}")
     try:
         output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(
-            json.dumps(report, indent=2, sort_keys=True), encoding="utf-8"
-        )
+        output.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
     except OSError as exc:
         print(f"error: could not write artifact to {output}: {exc}", file=sys.stderr)
         return EXIT_EXTERNAL

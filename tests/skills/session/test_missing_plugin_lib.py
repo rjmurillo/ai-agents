@@ -47,7 +47,7 @@ def test_missing_plugin_lib_fails_closed(script_path: Path, tmp_path: Path) -> N
     result = subprocess.run(
         [sys.executable, str(script_path), "--help"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         timeout=10,
         check=False,
         env=env,
@@ -68,7 +68,7 @@ def test_workspace_miss_falls_back_to_bundled_lib(script_path: Path, tmp_path: P
     result = subprocess.run(
         [sys.executable, str(script_path), "--help"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         timeout=10,
         check=False,
         env=env,

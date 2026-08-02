@@ -73,7 +73,7 @@ gh pr list --json number,title,labels \
   --jq '.[] | select(.labels | any(.name == "bug")) | .number'
 
 # Raw output (no quotes)
-gh pr view 123 --json title --jq -r '.title'
+gh pr view 123 --json title --jq '.title'
 ```
 
 ## Related

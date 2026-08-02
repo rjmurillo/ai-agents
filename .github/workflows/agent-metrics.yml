@@ -76,23 +76,7 @@ jobs:
         env:
           PERIOD_DAYS: ${{ steps.period.outputs.days }}
           PERIOD_FORMAT: ${{ steps.period.outputs.format }}
-        run: |
-          python .claude/skills/metrics/collect_metrics.py \
-            --since "$PERIOD_DAYS" \
-            --output "$PERIOD_FORMAT" \
-            > metrics-report.txt
-
-          # Capture summary for job output
-          echo "## Agent Metrics Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          if [ "$PERIOD_FORMAT" = "json" ]; then
-            echo '```json' >> $GITHUB_STEP_SUMMARY
-            cat metrics-report.txt >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-          else
-            cat metrics-report.txt >> $GITHUB_STEP_SUMMARY
-          fi
+        run: python scripts/ci/collect_metrics_and_report.py
 
       - name: Display metrics
         run: cat metrics-report.txt
@@ -102,8 +86,7 @@ jobs:
         with:
           name: agent-metrics-${{ github.run_number }}
           path: metrics-report.txt
-          # Optimized retention per .agents/devops/artifact-retention-policy.md
-          retention-days: 30
+          retention-days: 7
 
   # Optional: Create issue if metrics are below targets
   check-thresholds:
@@ -125,59 +108,10 @@ jobs:
 
       - name: Check thresholds
         id: check
-        run: |
-          # Collect metrics as JSON for parsing
-          python .claude/skills/metrics/collect_metrics.py \
-            --since 7 \
-            --output json > metrics.json
-
-          # Parse and check thresholds
-          COVERAGE=$(python -c "import json; m=json.load(open('metrics.json')); print(m['metric_2_coverage']['coverage_rate'])")
-          INFRA_RATE=$(python -c "import json; m=json.load(open('metrics.json')); print(m['metric_4_infrastructure_review']['review_rate'])")
-
-          echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
-          echo "infra_rate=$INFRA_RATE" >> $GITHUB_OUTPUT
-
-          # Check if any threshold is breached
-          ALERT=false
-
-          # Coverage target: 50%
-          if (( $(echo "$COVERAGE < 50" | bc -l) )); then
-            echo "::warning::Agent coverage ($COVERAGE%) is below target (50%)"
-            ALERT=true
-          fi
-
-          # Infrastructure review target: 100%
-          # Only alert if there were infrastructure commits
-          INFRA_COMMITS=$(python -c "import json; m=json.load(open('metrics.json')); print(m['metric_4_infrastructure_review']['infrastructure_commits'])")
-          if [ "$INFRA_COMMITS" != "0" ] && (( $(echo "$INFRA_RATE < 100" | bc -l) )); then
-            echo "::warning::Infrastructure review rate ($INFRA_RATE%) is below target (100%)"
-            ALERT=true
-          fi
-
-          echo "alert=$ALERT" >> $GITHUB_OUTPUT
+        run: python scripts/ci/check_metrics_thresholds.py
 
       - name: Summary
         env:
           CHECK_COVERAGE: ${{ steps.check.outputs.coverage }}
           CHECK_INFRA_RATE: ${{ steps.check.outputs.infra_rate }}
-        run: |
-          echo "## Threshold Check Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Metric | Current | Target | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|--------|---------|--------|--------|" >> $GITHUB_STEP_SUMMARY
-
-          COVERAGE="$CHECK_COVERAGE"
-          INFRA_RATE="$CHECK_INFRA_RATE"
-
-          if (( $(echo "$COVERAGE >= 50" | bc -l) )); then
-            echo "| Agent Coverage | ${COVERAGE}% | 50% | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| Agent Coverage | ${COVERAGE}% | 50% | :x: |" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          if (( $(echo "$INFRA_RATE >= 100" | bc -l) )); then
-            echo "| Infrastructure Review | ${INFRA_RATE}% | 100% | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| Infrastructure Review | ${INFRA_RATE}% | 100% | :warning: |" >> $GITHUB_STEP_SUMMARY
-          fi
+        run: python scripts/ci/write_metrics_threshold_summary.py

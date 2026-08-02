@@ -291,7 +291,7 @@ if [ -z "$SESSION_LOG" ]; then
 fi
 
 # 2. Run session protocol validator
-python3 scripts/validate_session_json.py "$SESSION_LOG"
+uv run python scripts/validate_session_json.py "$SESSION_LOG"
 ```
 
 ### Session End Checklist (REQUIRED)

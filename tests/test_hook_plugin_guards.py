@@ -205,7 +205,7 @@ class TestSyncPluginLib:
         result = subprocess.run(
             [sys.executable, str(REPO_ROOT / "scripts" / "sync_plugin_lib.py"), "--check"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             cwd=str(REPO_ROOT),
             timeout=10,
         )

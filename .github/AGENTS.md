@@ -280,7 +280,7 @@ sequenceDiagram
 | Attribute | Value |
 |-----------|-------|
 | **Trigger** | PR modifying `templates/**` or `src/**` |
-| **Script** | `python3 build/generate_agents.py --validate` |
+| **Script** | `uv run python build/generate_agents.py --validate` |
 | **Output** | Pass/fail status |
 | **Exit Behavior** | Fails if generated files don't match |
 
@@ -314,14 +314,14 @@ sequenceDiagram
 
 ### validate-plugin-version-bump.yml
 
-**Role**: Plugin version-bump gate (Issue #2118)
+**Role**: Plugin version-field gate (ADR-092, Issue #4080)
 
 | Attribute | Value |
 |-----------|-------|
 | **Trigger** | PR/push touching `.claude/**`, `src/claude/**`, or `src/copilot-cli/**` |
 | **Script** | `scripts/validation/run_plugin_version_bump_ci.py` (delegates to `build/scripts/validate_plugin_version_bump.py`) |
 | **Output** | Pass/fail status |
-| **Checks** | A changed plugin source dir must bump its `.claude-plugin/plugin.json` version (strictly greater semver) |
+| **Checks** | No `.claude-plugin/plugin.json` carries a `version` field; Claude Code resolves freshness from the commit SHA instead |
 
 ---
 

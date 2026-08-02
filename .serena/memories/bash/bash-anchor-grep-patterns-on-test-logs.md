@@ -1,0 +1,136 @@
+# Skill: Grepping a push or CI log without flooding the context (90%)
+
+## Statement
+
+An alternation containing a common English word matches far more than the log
+line you wanted. `grep -E "REAL_EXIT|new branch|error:|rejected"` over two push
+logs returned **90 KB**, because pytest test ids contain the word:
+`test_absolute_source_dir_rejected`, `test_relative_path_rejected`, and dozens
+more. The signal was four lines.
+
+Anchor every pattern to the position the real line occupies.
+
+## Recipe
+
+```bash
+grep -E "^REAL_EXIT|^error:|^ ! \[remote rejected\]|^[[:space:]]*\* \[new branch\]|^ [0-9a-f]{7,}\.\.[0-9a-f]{7,}" "$LOG"
+```
+
+Each alternative is pinned: `REAL_EXIT` and `error:` at column zero, git's
+transport lines to their exact rendered prefix. A push log carries thousands of
+pytest lines and roughly five git lines, so an unanchored word is the wrong
+instrument by three orders of magnitude.
+
+Bound the output regardless: `| head -20`. A guard costs nothing when the
+pattern is right and saves the window when it is not.
+
+## Generalization
+
+The same failure mode has two siblings already recorded in this repo:
+
+- `grep -v "^./.git"` silently drops every `.github/` path, because `.git` is a
+  prefix of `.github`. Use `git grep`.
+- An unbounded `ls` on `/tmp` floods for the same reason: the filter was never
+  the constraint, the population was.
+
+The common shape: **a filter chosen for what it keeps, never checked against
+what the corpus actually contains.**
+
+## The mirror image: an empty result is not evidence of absence
+
+The same unvalidated-instrument error runs the other way. `git grep 'ratchet:'
+-- lefthook.yml` returns nothing, which reads as "the ratchet jobs are gone."
+They are not. Lefthook jobs are YAML **list entries** (`- name: python-lint-ratchet`),
+not mapping keys, so nothing in the file ever ends in `ratchet:`. Plain
+`grep -c ratchet lefthook.yml` returns 8 on the same file.
+
+Before reporting that a grep found nothing, prove the pattern can match by
+loosening it one step:
+
+```bash
+grep -c "<the bare word>" "$FILE"   # does the corpus contain the term at all?
+git grep -c "<your pattern>" -- "$FILE"
+```
+
+If the bare word appears and the pattern does not, the pattern is wrong, not the
+corpus. That is the same lesson as the `.git` / `.github` prefix trap, arriving
+as a false negative instead of a flood.
+
+## Verify the instrument first
+
+```bash
+grep -Ec "<pattern>" "$LOG"
+```
+
+A count is one line of output and tells you whether the full grep is safe to
+run. Do this whenever the log is a test run, since test ids are prose.
+
+## Anti-Pattern
+
+Adding a word to an alternation because it appears in the failure you are
+hunting, without asking whether it also appears in the 21000 test names the same
+log contains.
+
+Equally: reading a push log to decide whether a push succeeded. The log's own
+`RESULT: All validations passed` and `Ready to create pull request!` lines come
+from `pre_pr.py` describing itself, not from git. Confirm against the asset:
+
+```bash
+git ls-remote origin <branch>
+```
+
+## A backgrounded push outlives the shell that started it
+
+Related trap, same discipline. A push launched with `&` keeps running after its
+shell is killed or the session moves on. Relaunching it "because the first one
+died" puts two pushes on the same branch, and the loser reports:
+
+```
+ ! [remote rejected] <branch> -> <branch> (cannot lock ref 'refs/heads/<branch>': reference already exists)
+error: failed to push some refs
+REAL_EXIT=1
+```
+
+That exit 1 is a race, not a rejection of the work. The first push created the
+ref; the second still believed it was creating one, because the local
+remote-tracking ref had not been updated. The message says `already exists`
+precisely because the create raced a create.
+
+Before relaunching, check the asset and the process:
+
+```bash
+git ls-remote origin <branch>          # did the first one already land?
+pgrep -af "git push"                   # is it still running?
+```
+
+Then reconcile before believing either answer, since `ls-remote` reflects the
+remote at the instant it ran and an in-flight push can land a second later:
+
+```bash
+git fetch origin <branch>
+git merge-base --is-ancestor origin/<branch> HEAD && echo "local is ahead or equal"
+git rev-parse HEAD origin/<branch>     # equal means the work is on the remote
+```
+
+Better than detecting the race is preventing it. Serialize pushes through a
+lockfile, which also keeps concurrent agents from running several full pytest
+suites at once on the same machine:
+
+```bash
+flock /tmp/aiagents-push.lock git push -u origin <branch>
+```
+
+`flock` waits for the lock rather than failing, so a queued push runs when the
+one ahead of it finishes instead of racing it.
+
+## Evidence
+
+2026-08-02: the 90 KB flood, recovered by re-running with anchored patterns
+against the same two files. The corrected grep returned 4 lines and answered the
+question, which was whether two backgrounded pushes had landed.
+
+Later the same day, the corrected pattern paid for itself. Run against a push
+log it returned three lines, the `remote rejected` line, the `error:` line, and
+`REAL_EXIT=1`, which turned out to be the concurrent-push race above. A
+`git rev-parse HEAD origin/<branch>` then showed the two SHAs equal: the work
+had landed and only the duplicate push had failed.
