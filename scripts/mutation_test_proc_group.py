@@ -32,7 +32,7 @@ WLT_TESTS = ROOT / "tests" / "validation" / "test_run_workflow_local_test.py"
 PYTEST = ["uv", "run", "--frozen", "python", "-m", "pytest"]
 
 
-def run_tests(test_file: Path, label: str) -> subprocess.CompletedProcess:
+def run_tests(test_file: Path, label: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [*PYTEST, str(test_file), "-q", "--tb=no"],
         cwd=ROOT,
@@ -41,7 +41,7 @@ def run_tests(test_file: Path, label: str) -> subprocess.CompletedProcess:
     )
 
 
-def assert_red(result: subprocess.CompletedProcess, mutation_name: str) -> None:
+def assert_red(result: subprocess.CompletedProcess[str], mutation_name: str) -> None:
     output = result.stdout + result.stderr
     if "no tests ran" in output:
         print(f"  FAIL (no tests ran): {mutation_name}")
@@ -55,7 +55,7 @@ def assert_red(result: subprocess.CompletedProcess, mutation_name: str) -> None:
     print(f"  KILLED ok: {mutation_name}")
 
 
-def assert_green(result: subprocess.CompletedProcess, label: str) -> None:
+def assert_green(result: subprocess.CompletedProcess[str], label: str) -> None:
     if result.returncode != 0:
         print(f"  FAIL (suite should be green for {label})")
         print(result.stdout[-2000:])

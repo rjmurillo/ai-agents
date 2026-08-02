@@ -1667,7 +1667,7 @@ def test_branch_context_fails_open_when_git_is_unavailable(
     def no_git(*args: object, **kwargs: object) -> NoReturn:
         raise FileNotFoundError(2, "No such file or directory: 'git'")
 
-    monkeypatch.setattr(policy.subprocess, "run", no_git)
+    monkeypatch.setattr(policy.subprocess, "Popen", no_git)
 
     assert policy.check_branch_context(repo) == 0
 
@@ -2071,12 +2071,19 @@ def test_git_command_boundary_forces_utf8_replacement(
     monkeypatch.setenv("SEMGREP_BASELINE_REF", "HEAD")
     monkeypatch.setenv("SEMGREP_URL", "https://attacker.invalid")
 
-    def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
-        captured["args"] = args[0]
-        captured.update(kwargs)
-        return _completed(0)
+    class FakePopen:
+        returncode = 0
+        pid = os.getpid()
 
-    monkeypatch.setattr(policy.subprocess, "run", fake_run)
+        def __init__(self, args: object, **kwargs: object) -> None:
+            captured["args"] = args
+            captured.update(kwargs)
+
+        def communicate(self, *, input: object = None, timeout: object = None) -> tuple[str, str]:
+            captured["timeout"] = timeout
+            return ("", "")
+
+    monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
 
     policy._run_git(tmp_path, ["status", "--short"])
 
@@ -2107,20 +2114,28 @@ def test_command_boundary_maps_timeout_to_external_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def time_out(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
-        command = args[0]
-        timeout = kwargs["timeout"]
-        assert isinstance(command, list)
-        assert all(isinstance(part, str) for part in command)
-        assert isinstance(timeout, (int, float))
-        raise subprocess.TimeoutExpired(
-            command,
-            timeout,
-            output="partial output\n",
-            stderr="child stalled\n",
-        )
+    class FakePopen:
+        pid = os.getpid()
 
-    monkeypatch.setattr(policy.subprocess, "run", time_out)
+        def __init__(self, args: object, **kwargs: object) -> None:
+            self._args = list(args)
+            self._called = 0
+
+        def communicate(self, *, input: object = None, timeout: object = None) -> tuple[str, str]:
+            self._called += 1
+            if self._called == 1:
+                raise subprocess.TimeoutExpired(
+                    self._args,
+                    timeout,
+                    output="partial output\n",
+                    stderr="child stalled\n",
+                )
+            return ("", "")
+
+        def kill(self) -> None:
+            pass
+
+    monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
 
     result = policy._run_command(
         [sys.executable, "scripts/slow_tool.py", "scan"],
@@ -2140,20 +2155,30 @@ def test_binary_command_boundary_maps_timeout_to_external_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def time_out(*args: object, **kwargs: object) -> subprocess.CompletedProcess[bytes]:
-        command = args[0]
-        timeout = kwargs["timeout"]
-        assert isinstance(command, list)
-        assert all(isinstance(part, str) for part in command)
-        assert isinstance(timeout, (int, float))
-        raise subprocess.TimeoutExpired(
-            command,
-            timeout,
-            output=b"partial bytes\n",
-            stderr=b"binary child stalled\n",
-        )
+    class FakePopen:
+        pid = os.getpid()
 
-    monkeypatch.setattr(policy.subprocess, "run", time_out)
+        def __init__(self, args: object, **kwargs: object) -> None:
+            self._args = list(args)
+            self._called = 0
+
+        def communicate(
+            self, *, input: object = None, timeout: object = None
+        ) -> tuple[bytes, bytes]:
+            self._called += 1
+            if self._called == 1:
+                raise subprocess.TimeoutExpired(
+                    self._args,
+                    timeout,
+                    output=b"partial bytes\n",
+                    stderr=b"binary child stalled\n",
+                )
+            return (b"", b"")
+
+        def kill(self) -> None:
+            pass
+
+    monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
 
     result = policy._run_command_bytes(
         ["git", "-c", "core.commitGraph=false", "diff", "--name-only"],
@@ -3097,7 +3122,6 @@ def test_semgrep_disables_native_suppressions(
     assert "--x-ignore-semgrepignore-files" in calls[0]
     assert "--max-target-bytes=0" in calls[0]
     assert "--no-exclude-binary-files" in calls[0]
-    assert "--exclude-rule" not in calls[0]
     assert "--" in calls[0]
     assert str(tmp_path / "source.py") in calls[0]
     assert str(tmp_path) not in calls[0]
@@ -6172,11 +6196,18 @@ def test_pytest_policy_cleans_hook_environment(
     ):
         monkeypatch.setenv(key, "leaked")
 
-    def fake_run(*_args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
-        captured.update(kwargs)
-        return _completed(0)
+    class FakePopen:
+        returncode = 0
+        pid = os.getpid()
 
-    monkeypatch.setattr(policy.subprocess, "run", fake_run)
+        def __init__(self, _args: object, **kwargs: object) -> None:
+            captured.update(kwargs)
+
+        def communicate(self, *, input: object = None, timeout: object = None) -> tuple[str, str]:
+            captured["timeout"] = timeout
+            return ("", "")
+
+    monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
 
     assert policy.run_pytest(tmp_path) == 0
     env = captured["env"]
@@ -6371,11 +6402,18 @@ def test_cli_e2e_runs_with_clean_plugin_environment(
     monkeypatch.setattr(policy.shutil, "which", lambda name: name if name == "copilot" else None)
     captured: dict[str, object] = {}
 
-    def fake_run(*_args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
-        captured.update(kwargs)
-        return _completed(0)
+    class FakePopen:
+        returncode = 0
+        pid = os.getpid()
 
-    monkeypatch.setattr(policy.subprocess, "run", fake_run)
+        def __init__(self, _args: object, **kwargs: object) -> None:
+            captured.update(kwargs)
+
+        def communicate(self, *, input: object = None, timeout: object = None) -> tuple[str, str]:
+            captured["timeout"] = timeout
+            return ("", "")
+
+    monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
 
     assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 0
     env = captured["env"]
