@@ -71,7 +71,7 @@ made after seeing the data is a description, not a test. Concretely:
 2. Validate the setup with zero spend first:
 
    ```bash
-   python3 scripts/eval/eval-prompt-change.py \
+   uv run python scripts/eval/eval-prompt-change.py \
      --prompt templates/agents/analyst.shared.md \
      --scenarios tests/evals/analyst-scenarios.json \
      --base-ref main --dry-run
@@ -185,8 +185,7 @@ memory, eval numbers, ADR (if governance), calibrated gate, monitoring hook.
 
 Retirement gets recorded, never silenced. The exemplar is issue #2230: a
 launcher-level fail-open wrapper was proposed, evaluated, and REJECTED as a
-silent-failure anti-pattern; the rejection is recorded with rationale in the
-#2205 retro decision table
+silent-failure anti-pattern; the rejection is recorded with rationale in the #2205 retro decision table
 (.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:411) and
 the binding principle lives in `.claude/rules/generated-artifacts.md`. Because
 the rejection was written down, nobody re-proposes it. An unrecorded rejection

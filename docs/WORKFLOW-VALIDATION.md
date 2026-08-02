@@ -7,19 +7,19 @@ This guide explains how to validate GitHub Actions workflows locally before push
 ### Validate All Workflows
 
 ```bash
-python3 scripts/validate_workflows.py
+uv run python scripts/validate_workflows.py
 ```
 
 ### Validate Only Changed Files
 
 ```bash
-python3 scripts/validate_workflows.py --changed
+uv run python scripts/validate_workflows.py --changed
 ```
 
 ### Validate Specific File
 
 ```bash
-python3 scripts/validate_workflows.py .github/workflows/pytest.yml
+uv run python scripts/validate_workflows.py .github/workflows/pytest.yml
 ```
 
 ## What Gets Validated
@@ -63,7 +63,7 @@ The validation script checks:
 If you have `act` installed, you can test workflow execution locally:
 
 ```bash
-python3 scripts/validate_workflows.py --act
+uv run python scripts/validate_workflows.py --act
 ```
 
 This will:
@@ -108,7 +108,7 @@ uv run --frozen lefthook check-install
 Run validation independently before pushing:
 
 ```bash
-python3 scripts/validate_workflows.py --changed
+uv run python scripts/validate_workflows.py --changed
 git push
 ```
 
@@ -186,7 +186,7 @@ Ensure you're running the script from within a git repository:
 
 ```bash
 cd /path/to/repo
-python3 scripts/validate_workflows.py
+uv run python scripts/validate_workflows.py
 ```
 
 ## Examples
@@ -194,7 +194,7 @@ python3 scripts/validate_workflows.py
 ### Example 1: Clean Validation
 
 ```bash
-$ python3 scripts/validate_workflows.py .github/workflows/pytest.yml
+$ uv run python scripts/validate_workflows.py .github/workflows/pytest.yml
 Validating: .github/workflows/pytest.yml
 
 ✅ All validations passed
@@ -203,7 +203,7 @@ Validating: .github/workflows/pytest.yml
 ### Example 2: With Warnings
 
 ```bash
-$ python3 scripts/validate_workflows.py .github/workflows/large-workflow.yml
+$ uv run python scripts/validate_workflows.py .github/workflows/large-workflow.yml
 Validating: .github/workflows/large-workflow.yml
 
 ⚠️  Warnings:
@@ -215,7 +215,7 @@ Validating: .github/workflows/large-workflow.yml
 ### Example 3: With Errors
 
 ```bash
-$ python3 scripts/validate_workflows.py .github/workflows/bad-workflow.yml
+$ uv run python scripts/validate_workflows.py .github/workflows/bad-workflow.yml
 Validating: .github/workflows/bad-workflow.yml
 
 ❌ Errors:

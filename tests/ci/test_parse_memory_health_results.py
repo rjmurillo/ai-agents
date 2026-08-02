@@ -100,10 +100,10 @@ class TestHasIssues:
         ("overrides", "expected"),
         [
             ({}, "false"),
-            ({"broken_citations": 1}, "true"),
-            ({"stale_citations": 1}, "true"),
+            ({"broken_citations": 1, "valid_citations": 7}, "true"),
+            ({"stale_citations": 1, "valid_citations": 7}, "true"),
             ({"stale_memories": ["a.md"]}, "true"),
-            ({"unverified_citations": 5}, "false"),
+            ({"unverified_citations": 5, "valid_citations": 3}, "false"),
             ({"recommendations": ["do a thing"]}, "false"),
         ],
     )

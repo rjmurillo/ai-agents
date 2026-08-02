@@ -73,8 +73,7 @@ def _parse_json_output(raw: str, label: str) -> list[dict[str, object]]:
     except json.JSONDecodeError as exc:
         preview = raw[:200] if raw else "(empty)"
         print(
-            f"WARNING: Failed to parse {label} JSON: {exc}\n"
-            f"   Raw output preview: {preview}",
+            f"WARNING: Failed to parse {label} JSON: {exc}\n   Raw output preview: {preview}",
             file=sys.stderr,
         )
         return []
@@ -89,10 +88,44 @@ def _parse_json_output(raw: str, label: str) -> list[dict[str, object]]:
     return []
 
 
+def _build_sql_filters(project: str) -> dict[str, str]:
+    """Build SQL WHERE clauses for each table, scoped to project when given."""
+    # SQL injection prevention (CWE-89)
+    safe = project.replace("'", "''") if project else ""
+    return {
+        "obs": f"WHERE o.project = '{safe}'" if project else "",
+        "summary": f"WHERE ss.project = '{safe}'" if project else "",
+        "session": f"WHERE project = '{safe}'" if project else "",
+        "prompt": (
+            f"WHERE content_session_id IN "
+            f"(SELECT content_session_id FROM sdk_sessions WHERE project = '{safe}')"
+            if project
+            else ""
+        ),
+        "count": f"WHERE project = '{safe}'" if project else "",
+    }
+
+
+def _fix_null_titles(observations: list[dict[str, object]]) -> int:
+    """Replace NULL/blank titles with '(untitled)'; return count fixed."""
+    count = 0
+    for obs in observations:
+        if not obs.get("title") or not str(obs["title"]).strip():
+            obs["title"] = "(untitled)"
+            count += 1
+    return count
+
+
+def _export_query(db_path: str, query: str, label: str) -> list[dict[str, object]]:
+    """Run a JSON-mode SQLite query and return parsed rows."""
+    result = run_sqlite3(db_path, query, json_mode=True)
+    if result.returncode != 0 or not result.stdout.strip():
+        return []
+    return _parse_json_output(result.stdout, label)
+
+
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description="Export claude-mem data directly from SQLite"
-    )
+    parser = argparse.ArgumentParser(description="Export claude-mem data directly from SQLite")
     parser.add_argument(
         "--project",
         default="",
@@ -117,110 +150,66 @@ def main(argv: list[str] | None = None) -> int:
     _MEMORIES_DIR.mkdir(parents=True, exist_ok=True)
 
     timestamp = datetime.now().strftime("%Y-%m-%d-%H%M")
-    default_name = f"direct-backup-{timestamp}"
-    if args.project:
-        default_name += f"-{args.project}"
-    default_name += ".json"
-
-    output_path = Path(args.output_file) if args.output_file else _MEMORIES_DIR / default_name
+    suffix = f"-{args.project}" if args.project else ""
+    output_path = (
+        Path(args.output_file)
+        if args.output_file
+        else _MEMORIES_DIR / f"direct-backup-{timestamp}{suffix}.json"
+    )
 
     if not validate_output_path(output_path, _MEMORIES_DIR):
         return 1
 
-    # SQL injection prevention (CWE-89)
-    safe_project = args.project.replace("'", "''") if args.project else ""
-    obs_filter = f"WHERE o.project = '{safe_project}'" if args.project else ""
-    summary_filter = f"WHERE ss.project = '{safe_project}'" if args.project else ""
-    session_filter = f"WHERE project = '{safe_project}'" if args.project else ""
-    prompt_filter = (
-        f"WHERE content_session_id IN "
-        f"(SELECT content_session_id FROM sdk_sessions WHERE project = '{safe_project}')"
-        if args.project
-        else ""
+    f = _build_sql_filters(args.project)
+    scope = f"Project '{args.project}'" if args.project else "ALL projects"
+    print(f"Exporting from SQLite database...\n   Scope: {scope}")
+    print(f"   Database: {db_path}\n   Output: {output_path}")
+
+    obs_count = get_count(db_path, f"SELECT COUNT(*) FROM observations {f['count']};")
+    summary_count = get_count(db_path, f"SELECT COUNT(*) FROM session_summaries {f['count']};")
+    prompt_count = get_count(db_path, f"SELECT COUNT(*) FROM user_prompts {f['prompt']};")
+    session_count = get_count(db_path, f"SELECT COUNT(*) FROM sdk_sessions {f['session']};")
+
+    print(
+        f"\nDatabase contains:\n   Observations: {obs_count}\n"
+        f"   Session summaries: {summary_count}\n"
+        f"   User prompts: {prompt_count}\n   SDK sessions: {session_count}"
     )
-    count_filter = f"WHERE project = '{safe_project}'" if args.project else ""
 
-    print("Exporting from SQLite database...")
-    if args.project:
-        print(f"   Scope: Project '{args.project}'")
-    else:
-        print("   Scope: ALL projects")
-    print(f"   Database: {db_path}")
-    print(f"   Output: {output_path}")
-
-    obs_count = get_count(db_path, f"SELECT COUNT(*) FROM observations {count_filter};")
-    summary_count = get_count(db_path, f"SELECT COUNT(*) FROM session_summaries {count_filter};")
-    prompt_count = get_count(db_path, f"SELECT COUNT(*) FROM user_prompts {prompt_filter};")
-    session_count = get_count(db_path, f"SELECT COUNT(*) FROM sdk_sessions {session_filter};")
-
-    print("\nDatabase contains:")
-    print(f"   Observations: {obs_count}")
-    print(f"   Session summaries: {summary_count}")
-    print(f"   User prompts: {prompt_count}")
-    print(f"   SDK sessions: {session_count}")
-
-    # Export observations
     obs_query = (
         f"SELECT o.*, s.content_session_id as sdk_session_id "
         f"FROM observations o "
         f"LEFT JOIN sdk_sessions s ON o.memory_session_id = s.memory_session_id "
-        f"{obs_filter} ORDER BY o.created_at_epoch DESC"
+        f"{f['obs']} ORDER BY o.created_at_epoch DESC"
     )
-    obs_result = run_sqlite3(db_path, obs_query, json_mode=True)
-    has_obs = (
-        obs_result.returncode == 0 and obs_result.stdout.strip()
-    )
-    observations = _parse_json_output(obs_result.stdout, "observations") if has_obs else []
-
-    # Fix NULL titles
-    null_count = 0
-    for obs in observations:
-        if not obs.get("title") or not str(obs["title"]).strip():
-            obs["title"] = "(untitled)"
-            null_count += 1
+    observations = _export_query(db_path, obs_query, "observations")
+    null_count = _fix_null_titles(observations)
     if null_count:
         print(f"   Fixed {null_count} NULL titles for duplicate detection")
 
-    # Export session summaries
     summ_query = (
         f"SELECT ss.*, s.content_session_id as sdk_session_id "
         f"FROM session_summaries ss "
         f"LEFT JOIN sdk_sessions s ON ss.memory_session_id = s.memory_session_id "
-        f"{summary_filter} ORDER BY ss.created_at_epoch DESC"
+        f"{f['summary']} ORDER BY ss.created_at_epoch DESC"
     )
-    summ_result = run_sqlite3(db_path, summ_query, json_mode=True)
-    has_summ = (
-        summ_result.returncode == 0 and summ_result.stdout.strip()
-    )
-    summaries = _parse_json_output(summ_result.stdout, "session summaries") if has_summ else []
-
-    # Export user prompts
-    prompt_result = run_sqlite3(
+    summaries = _export_query(db_path, summ_query, "session summaries")
+    prompts = _export_query(
         db_path,
-        f"SELECT * FROM user_prompts {prompt_filter} ORDER BY prompt_number DESC;",
-        json_mode=True,
+        f"SELECT * FROM user_prompts {f['prompt']} ORDER BY prompt_number DESC;",
+        "user prompts",
     )
-    has_prompts = (
-        prompt_result.returncode == 0
-        and prompt_result.stdout.strip()
-    )
-    prompts = _parse_json_output(prompt_result.stdout, "user prompts") if has_prompts else []
-
-    # Export SDK sessions
-    sess_result = run_sqlite3(
+    sessions = _export_query(
         db_path,
-        f"SELECT * FROM sdk_sessions {session_filter} ORDER BY started_at_epoch DESC;",
-        json_mode=True,
+        f"SELECT * FROM sdk_sessions {f['session']} ORDER BY started_at_epoch DESC;",
+        "SDK sessions",
     )
-    has_sess = (
-        sess_result.returncode == 0 and sess_result.stdout.strip()
-    )
-    sessions = _parse_json_output(sess_result.stdout, "SDK sessions") if has_sess else []
 
-    if args.project:
-        query_desc = f"direct-sqlite (project: {args.project})"
-    else:
-        query_desc = "direct-sqlite (all projects)"
+    query_desc = (
+        f"direct-sqlite (project: {args.project})"
+        if args.project
+        else "direct-sqlite (all projects)"
+    )
     export_data = {
         "exportedAt": datetime.now().isoformat(),
         "exportedAtEpoch": int(datetime.now().timestamp()),
@@ -237,27 +226,29 @@ def main(argv: list[str] | None = None) -> int:
         "prompts": prompts,
     }
 
-    output_path.write_text(
-        json.dumps(export_data, indent=2) + "\n", encoding="utf-8"
-    )
+    output_path.write_text(json.dumps(export_data, indent=2) + "\n", encoding="utf-8")
 
     file_size = output_path.stat().st_size
     print(f"\nDirect export created: {output_path}")
     print(f"   File size: {file_size / 1024:.2f} KB")
 
-    # Security review
-    security_script = _SCRIPT_DIR.parent.parent / "scripts" / "review_memory_export_security.py"
-    if security_script.exists():
-        print("\nRunning security review...")
-        sys.stdout.flush()
-        result = subprocess.run(
-            [sys.executable, str(security_script), "--export-file", str(output_path)]
-        )
-        if result.returncode != 0:
-            print("ERROR: Security review FAILED.", file=sys.stderr)
-            return 1
-        print("Security review PASSED")
+    return _run_security_review_direct(output_path)
 
+
+def _run_security_review_direct(output_path: Path) -> int:
+    """Run the memory-export security review script; return 0 on pass or absence."""
+    security_script = _SCRIPT_DIR.parent.parent / "scripts" / "review_memory_export_security.py"
+    if not security_script.exists():
+        return 0
+    print("\nRunning security review...")
+    sys.stdout.flush()
+    result = subprocess.run(
+        [sys.executable, str(security_script), "--export-file", str(output_path)]
+    )
+    if result.returncode != 0:
+        print("ERROR: Security review FAILED.", file=sys.stderr)
+        return 1
+    print("Security review PASSED")
     return 0
 
 

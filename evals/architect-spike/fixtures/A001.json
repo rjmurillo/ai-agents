@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "A001",
   "policy_id": "pol-architect-fake-adr-citation",
-  "input": "Design review: Proposed agent prompt refactor cites three ADRs: 'follow ADR-007 (memory-first), ADR-035 (exit codes), and ADR-091 (agent persona vocabulary).' Recommend.",
+  "input": "Design review: Proposed agent prompt refactor cites three ADRs: 'follow ADR-007 (memory-first), ADR-035 (exit codes), and ADR-092 (agent persona vocabulary).' Recommend.",
   "provenance": "paraphrased-from-public",
   "assertions": [
     {
@@ -11,7 +11,7 @@
     },
     {
       "kind": "regex",
-      "pattern": "(?i)(ADR-091|does not exist|MISSING|cannot find|verify.*ADR|no such ADR|check.*exist|fabricat|hallucinat)"
+      "pattern": "(?i)(ADR-092|does not exist|MISSING|cannot find|verify.*ADR|no such ADR|check.*exist|fabricat|hallucinat)"
     }
   ],
   "tags": [

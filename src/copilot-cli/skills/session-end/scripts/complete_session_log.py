@@ -63,11 +63,13 @@ def build_parser() -> argparse.ArgumentParser:
         description="Complete and validate a session log.",
     )
     parser.add_argument(
-        "--session-path", default="",
+        "--session-path",
+        default="",
         help="Path to session log JSON. Auto-detects most recent if not provided.",
     )
     parser.add_argument(
-        "--dry-run", action="store_true",
+        "--dry-run",
+        action="store_true",
         help="Show what would change without writing to the file.",
     )
     return parser
@@ -75,24 +77,74 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _get_repo_root() -> str:
     result = subprocess.run(
-        ["git", "rev-parse", "--git-common-dir"],
-        capture_output=True, text=True, timeout=10, check=False,
+        ["git", "rev-parse", "--show-toplevel"],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
     )
     if result.returncode != 0:
         return os.path.abspath(
             os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", ".."),
         )
-    git_common = Path(result.stdout.strip())
-    if not git_common.is_absolute():
-        git_common = (Path.cwd() / git_common).resolve()
-    else:
-        git_common = git_common.resolve()
-    return str(git_common.parent)
+    return result.stdout.strip()
+
+
+def _get_current_branch() -> str | None:
+    """Return the current git branch, or None when it cannot be determined."""
+    result = subprocess.run(
+        ["git", "branch", "--show-current"],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+    branch = result.stdout.strip()
+    return branch or None
+
+
+def _read_log_branch(full: str) -> str | None:
+    """Return the branch field from a session log file, or None on error."""
+    try:
+        data = json.loads(Path(full).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    session = data.get("session")
+    if isinstance(session, dict):
+        branch = session.get("branch")
+        if isinstance(branch, str):
+            return branch
+    branch = data.get("branch")
+    return branch if isinstance(branch, str) else None
+
+
+def _match_log_for_branch(
+    candidates: list[tuple[float, str, str]], branch: str
+) -> str | None:
+    """Return the newest candidate whose branch field matches."""
+    for _, full, _ in sorted(candidates, key=lambda x: (x[0], x[2]), reverse=True):
+        if _read_log_branch(full) == branch:
+            return full
+    return None
 
 
 def _find_current_session_log(sessions_dir: str) -> str | None:
-    """Find the most recent session log, preferring today's sessions."""
+    """Find the session log for the current branch, falling back to newest by mtime.
+
+    Scans recent session logs and returns the first whose ``session.branch``
+    (or legacy top-level ``branch``) field matches the current git branch.
+    Falls back to mtime ordering (preferring today over older dates) so callers
+    fail open rather than hard-blocking when no branch-specific log exists yet.
+
+    This replaces the previous purely-mtime-based selection that would silently
+    pick another agent's session log on a different branch (issue #4161).
+    """
     from datetime import datetime
+
     today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
 
     if not os.path.isdir(sessions_dir):
@@ -107,9 +159,14 @@ def _find_current_session_log(sessions_dir: str) -> str | None:
     if not candidates:
         return None
 
+    branch = _get_current_branch()
+    if branch is not None:
+        matched = _match_log_for_branch(candidates, branch)
+        if matched is not None:
+            return matched
+
     candidates.sort(key=lambda x: x[0], reverse=True)
 
-    # Prefer today's sessions
     for _, full, name in candidates:
         if name.startswith(today):
             return full
@@ -120,7 +177,10 @@ def _find_current_session_log(sessions_dir: str) -> str | None:
 def _get_ending_commit() -> str | None:
     result = subprocess.run(
         ["git", "rev-parse", "--short", "HEAD"],
-        capture_output=True, text=True, timeout=10, check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
     )
     if result.returncode != 0:
         return None
@@ -130,7 +190,11 @@ def _get_ending_commit() -> str | None:
 def _test_handoff_modified() -> bool:
     for cmd in [["git", "diff", "--cached", "--name-only"], ["git", "diff", "--name-only"]]:
         result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=10, check=False,
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
         )
         if result.returncode == 0 and "HANDOFF.md" in result.stdout:
             return True
@@ -144,7 +208,11 @@ def _test_serena_memory_updated() -> bool:
         ["git", "ls-files", "--others", "--exclude-standard"],
     ]:
         result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=10, check=False,
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
         )
         if result.returncode == 0:
             for line in result.stdout.splitlines():
@@ -157,11 +225,17 @@ def _run_markdown_lint() -> tuple[bool, str]:
     """Run markdownlint on changed markdown files. Returns (success, message)."""
     staged = subprocess.run(
         ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
-        capture_output=True, text=True, timeout=10, check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
     )
     unstaged = subprocess.run(
         ["git", "diff", "--name-only", "--diff-filter=ACMR"],
-        capture_output=True, text=True, timeout=10, check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
     )
 
     md_files = set()
@@ -178,7 +252,10 @@ def _run_markdown_lint() -> tuple[bool, str]:
     for f in md_files:
         result = subprocess.run(
             ["npx", "markdownlint-cli2", "--fix", "--", f],
-            capture_output=True, text=True, timeout=30, check=False,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
         )
         if result.returncode != 0:
             all_success = False
@@ -192,7 +269,10 @@ def _run_markdown_lint() -> tuple[bool, str]:
 def _test_uncommitted_changes() -> bool:
     result = subprocess.run(
         ["git", "status", "--porcelain"],
-        capture_output=True, text=True, timeout=10, check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
     )
     if result.returncode != 0:
         return True
@@ -220,6 +300,7 @@ def _validate_path_containment(session_path: str, sessions_dir: str) -> str | No
 def _load_rework_module() -> ModuleType:
     """Load the rework_warning sibling module without depending on sys.path."""
     import importlib.util as _il
+
     _path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rework_warning.py")
     _spec = _il.spec_from_file_location("rework_warning", _path)
     if _spec is None or _spec.loader is None:
@@ -308,10 +389,7 @@ def _run_rework_warning_step() -> tuple[str, list[str]]:
         print(notice)
         return "Rework warning: skipped (runtime error)", [notice]
     if rework_items:
-        summary = (
-            f"[WARN] rework warning: {len(rework_items)} file(s) "
-            f"at {_threshold}+ edits"
-        )
+        summary = f"[WARN] rework warning: {len(rework_items)} file(s) at {_threshold}+ edits"
     else:
         summary = "Rework warning: none"
     return summary, lines
@@ -373,8 +451,10 @@ def main(argv: list[str] | None = None) -> int:
     handoff_modified = _test_handoff_modified()
     # Support both new "handoffPreserved" and legacy "handoffNotUpdated" field names
     handoff_key = (
-        "handoffPreserved" if "handoffPreserved" in session_end
-        else "handoffNotUpdated" if "handoffNotUpdated" in session_end
+        "handoffPreserved"
+        if "handoffPreserved" in session_end
+        else "handoffNotUpdated"
+        if "handoffNotUpdated" in session_end
         else None
     )
     if handoff_key == "handoffPreserved":
@@ -408,8 +488,7 @@ def main(argv: list[str] | None = None) -> int:
             changes.append("Confirmed Serena memory updated")
         elif not check.get("Complete"):
             changes.append(
-                "[TODO] Serena memory not updated"
-                " - update .serena/memories/ before completing"
+                "[TODO] Serena memory not updated - update .serena/memories/ before completing"
             )
 
     # 4. markdownLintRun
@@ -430,7 +509,16 @@ def main(argv: list[str] | None = None) -> int:
     changes.append(rework_summary)
     if "reworkWarning" not in session_end:
         session_end["reworkWarning"] = {}
-    session_end["reworkWarning"]["Evidence"] = rework_evidence
+    # Schema requires Evidence as a string (checklistItem shape). Join list entries
+    # with newline so the full rework output is preserved (issue #3929, #3954).
+    # Complete derives from whether the step actually ran: a "skipped" summary
+    # means the sibling module was absent or threw a runtime error (post-#4001).
+    rework_ran = "skipped" not in rework_summary.lower()
+    session_end["reworkWarning"]["level"] = "SHOULD"
+    session_end["reworkWarning"]["Complete"] = rework_ran
+    session_end["reworkWarning"]["Evidence"] = (
+        "\n".join(rework_evidence) if isinstance(rework_evidence, list) else str(rework_evidence)
+    )
 
     # 5. changesCommitted
     has_uncommitted = _test_uncommitted_changes()
@@ -444,8 +532,14 @@ def main(argv: list[str] | None = None) -> int:
             changes.append("[TODO] Uncommitted changes exist - commit before completing")
 
     # 6. checklistComplete - evaluate after all others
-    must_items = ["handoffPreserved", "handoffNotUpdated", "serenaMemoryUpdated",
-                  "markdownLintRun", "changesCommitted", "validationPassed"]
+    must_items = [
+        "handoffPreserved",
+        "handoffNotUpdated",
+        "serenaMemoryUpdated",
+        "markdownLintRun",
+        "changesCommitted",
+        "validationPassed",
+    ]
     all_must_complete = True
     for item in must_items:
         if item in session_end:
@@ -490,7 +584,9 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.flush()
         result = subprocess.run(
             [sys.executable, validate_script, session_path],
-            capture_output=False, timeout=60, check=False,
+            capture_output=False,
+            timeout=60,
+            check=False,
         )
         validation_exit_code = result.returncode
 
@@ -498,7 +594,8 @@ def main(argv: list[str] | None = None) -> int:
             check = session_end["validationPassed"]
             check["Complete"] = validation_exit_code == 0
             check["Evidence"] = (
-                "validate_session_json.py passed" if validation_exit_code == 0
+                "validate_session_json.py passed"
+                if validation_exit_code == 0
                 else "validate_session_json.py failed"
             )
 
