@@ -94,6 +94,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from scripts.validation.portability_common import (
     build_portability_parser,
     refuse_unsafe_baseline_write,
+    write_baseline_json,
 )
 
 # Shipped skill trees to scan. Both carry SKILL.md files that agents execute:
@@ -344,14 +345,21 @@ def _resolve_baseline_path(root: Path, baseline: Path | None) -> Path | None:
 
 
 def _write_baseline(
-    baseline_path: Path, current: dict[str, int], marker_current: dict[str, int]
+    root: Path,
+    baseline_path: Path,
+    current: dict[str, int],
+    marker_current: dict[str, int],
+    allow_shrink: bool,
 ) -> int:
     total = sum(current.values())
     marker_total = sum(marker_current.values())
-    baseline_path.write_text(
-        json.dumps(
-            {
-                "_comment": (
+    entries = dict(sorted(current.items()))
+    marker_entries = dict(sorted(marker_current.items()))
+    rc = write_baseline_json(
+        root,
+        baseline_path,
+        {
+            "_comment": (
                     "Exec-path vendor-portability ratchet baseline for skill "
                     "Markdown files (issues #2838, #4013, #4156). The files "
                     "object counts bare '.claude/skills/...', 'build/...', or "
@@ -370,14 +378,15 @@ def _write_baseline(
                     "form: drop the invocation or declare it with a "
                     "'<!-- vendor-portability-exec: ... -->' marker."
                 ),
-                "files": dict(sorted(current.items())),
-                "marker_files": dict(sorted(marker_current.items())),
-            },
-            indent=2,
-        )
-        + "\n",
-        encoding="utf-8",
+            "files": entries,
+            "marker_files": marker_entries,
+        },
+        {"files": entries, "marker_files": marker_entries},
+        "skill files",
+        allow_shrink,
     )
+    if rc:
+        return rc
     print(
         f"Baseline written: {len(current)} files, {total} invocations; "
         f"{len(marker_current)} marker files, {marker_total} suppressed invocations."
@@ -459,12 +468,14 @@ def main(argv: list[str] | None = None) -> int:
             root,
             scanned_by_root,
             baseline_path,
-            current,
+            {"files": current, "marker_files": marker_current},
             "skill files",
             args.allow_baseline_shrink,
         ):
             return 2
-        return _write_baseline(baseline_path, current, marker_current)
+        return _write_baseline(
+            root, baseline_path, current, marker_current, args.allow_baseline_shrink
+        )
 
     try:
         baseline = _load_baseline(baseline_path)

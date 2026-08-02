@@ -236,18 +236,21 @@ class TestDroppedEntryGuard:
         assert baseline.read_bytes() == before
 
     def test_a_first_write_has_no_predecessor_to_regress_against(self) -> None:
-        assert refuse_dropped_entries(None, {"a": 1}, "skill files", False) is False
+        assert refuse_dropped_entries(None, {"files": {"a": 1}}, "skill files", False) is False
 
     def test_growth_and_recount_are_not_a_drop(self) -> None:
-        previous = {"a": 1, "b": 2}
-        assert refuse_dropped_entries(previous, {"a": 9, "b": 2, "c": 1}, "u", False) is False
+        previous = {"files": {"a": 1, "b": 2}}
+        current = {"files": {"a": 9, "b": 2, "c": 1}}
+        assert refuse_dropped_entries(previous, current, "u", False) is False
 
     def test_a_dropped_entry_is_refused_and_named(self, capsys: pytest.CaptureFixture[str]) -> None:
-        assert refuse_dropped_entries({"a": 1, "b": 2}, {"a": 1}, "skill files", False) is True
+        previous = {"files": {"a": 1, "b": 2}}
+        assert refuse_dropped_entries(previous, {"files": {"a": 1}}, "skill files", False) is True
         assert "b" in capsys.readouterr().err
 
     def test_the_escape_hatch_is_explicit(self) -> None:
-        assert refuse_dropped_entries({"a": 1, "b": 2}, {"a": 1}, "skill files", True) is False
+        previous = {"files": {"a": 1, "b": 2}}
+        assert refuse_dropped_entries(previous, {"files": {"a": 1}}, "skill files", True) is False
 
 
 class TestCoverageMechanics:

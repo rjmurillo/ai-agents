@@ -10,6 +10,13 @@ import sys
 from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
 
+from scripts.validation.portability_baseline import (
+    read_previous_sections,
+    refuse_dropped_entries,
+    refuse_symlinked_baseline,
+    write_baseline_json,
+)
+
 RegressionMessageFactory = Callable[[str, int, int], str]
 
 
@@ -132,21 +139,26 @@ def resolve_baseline_path(
 
 
 def write_baseline(
-    baseline_path: Path, current: dict[str, int], comment: str, label: str
+    baseline_path: Path,
+    current: dict[str, int],
+    comment: str,
+    label: str,
+    repo_root: Path | None = None,
+    allow_shrink: bool = False,
 ) -> int:
     """Write a sorted portability baseline and print a standard summary."""
     total = sum(current.values())
-    baseline_path.write_text(
-        json.dumps(
-            {
-                "_comment": comment,
-                "files": dict(sorted(current.items())),
-            },
-            indent=2,
-        )
-        + "\n",
-        encoding="utf-8",
+    entries = dict(sorted(current.items()))
+    rc = write_baseline_json(
+        repo_root or baseline_path.parent,
+        baseline_path,
+        {"_comment": comment, "files": entries},
+        {"files": entries},
+        label,
+        allow_shrink,
     )
+    if rc:
+        return rc
     print(f"Baseline written: {len(current)} files, {total} {label}.")
     return 0
 
@@ -275,44 +287,6 @@ def _refuse_partial_worktree(root: Path, scanned_by_root: Mapping[str, int]) -> 
     return True
 
 
-def refuse_dropped_entries(
-    previous: Mapping[str, int] | None,
-    current: Mapping[str, int],
-    unit: str,
-    allow_shrink: bool,
-) -> bool:
-    """Refuse a write that drops entries the baseline already records.
-
-    Every coverage probe reasons about the tree. This one reasons about the
-    artifact being destroyed, which is the thing the hazard is measured in. A
-    partial scan, an index a caller has arranged to agree with a truncated
-    disk, a file replaced by a directory, and a root that was never enumerated
-    all converge on the same observable: the new baseline records fewer files
-    than the one it replaces. Refusing that covers the shapes not yet imagined
-    as well as the ones that are.
-
-    A shrink is legitimate when a file is deliberately removed or its
-    violations are fixed, so the escape exists. It has to be named, because a
-    destructive default is what turned each earlier version of this guard into
-    a wipe.
-    """
-    if previous is None or allow_shrink:
-        return False
-    dropped = sorted(set(previous) - set(current))
-    if not dropped:
-        return False
-    shown = ", ".join(dropped[:5])
-    more = f", and {len(dropped) - 5} more" if len(dropped) > 5 else ""
-    print(
-        f"Refusing to write a baseline that drops {len(dropped)} of {len(previous)} "
-        f"recorded {unit}: {shown}{more}. The baseline is the only record of those "
-        "violations, so dropping an entry forgives it permanently. If the removal is "
-        "deliberate, rerun with --allow-baseline-shrink.",
-        file=sys.stderr,
-    )
-    return True
-
-
 def refuse_uncovered_scan(root: Path, scanned_by_root: Mapping[str, int], unit: str) -> bool:
     """Report and refuse a baseline write that did not cover every shipped root.
 
@@ -350,31 +324,23 @@ def refuse_uncovered_scan(root: Path, scanned_by_root: Mapping[str, int], unit: 
     return True
 
 
-def _previous_entries(path: Path) -> dict[str, int] | None:
-    """Read the baseline being replaced, None when there is nothing to protect."""
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    files = data.get("files") if isinstance(data, dict) else None
-    return files if isinstance(files, dict) else None
-
-
 def refuse_unsafe_baseline_write(
     root: Path,
     scanned_by_root: Mapping[str, int],
     baseline_path: Path,
-    current: Mapping[str, int],
+    current: Mapping[str, Mapping[str, int]],
     unit: str,
     allow_shrink: bool,
 ) -> bool:
     """Decide whether a baseline rewrite is safe. True means the caller must refuse.
 
     Both ratchets ask the same question, so they ask it in one place rather than
-    each growing a copy that drifts.
+    each growing a copy that drifts. Coverage runs first because an unread root
+    explains the shrink that would otherwise be reported without a cause.
     """
     if refuse_uncovered_scan(root, scanned_by_root, unit):
         return True
-    return refuse_dropped_entries(_previous_entries(baseline_path), current, unit, allow_shrink)
-
-
+    if refuse_symlinked_baseline(baseline_path):
+        return True
+    previous, problem = read_previous_sections(root, baseline_path)
+    return refuse_dropped_entries(previous, current, unit, allow_shrink, problem)

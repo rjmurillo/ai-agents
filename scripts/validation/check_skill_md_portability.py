@@ -71,6 +71,7 @@ from scripts.utils.markdown_parser import (
 from scripts.validation.portability_common import (
     build_portability_parser,
     refuse_unsafe_baseline_write,
+    write_baseline_json,
 )
 from scripts.validation.portability_common import (
     diff_against_baseline as _diff_against_baseline,
@@ -541,14 +542,21 @@ def diff_marker_baseline(
 
 
 def _write_baseline(
-    baseline_path: Path, current: dict[str, int], marker_current: dict[str, int]
+    root: Path,
+    baseline_path: Path,
+    current: dict[str, int],
+    marker_current: dict[str, int],
+    allow_shrink: bool,
 ) -> int:
     total = sum(current.values())
     marker_total = sum(marker_current.values())
-    baseline_path.write_text(
-        json.dumps(
-            {
-                "_comment": (
+    entries = dict(sorted(current.items()))
+    marker_entries = dict(sorted(marker_current.items()))
+    rc = write_baseline_json(
+        root,
+        baseline_path,
+        {
+            "_comment": (
                     "Vendor-portability ratchet baseline for skill Markdown "
                     "(issue #2050). The files object counts undeclared "
                     "upstream-only path references per Markdown file. The "
@@ -558,14 +566,15 @@ def _write_baseline(
                     "check_skill_md_portability.py --update-baseline. Lower "
                     "values in files are better; marker_files values must stay exact."
                 ),
-                "files": dict(sorted(current.items())),
-                "marker_files": dict(sorted(marker_current.items())),
-            },
-            indent=2,
-        )
-        + "\n",
-        encoding="utf-8",
+            "files": entries,
+            "marker_files": marker_entries,
+        },
+        {"files": entries, "marker_files": marker_entries},
+        "skill .md files",
+        allow_shrink,
     )
+    if rc:
+        return rc
     print(
         f"Baseline written: {len(current)} files, {total} refs; "
         f"{len(marker_current)} marker files, {marker_total} suppressed refs."
@@ -656,12 +665,14 @@ def main(argv: list[str] | None = None) -> int:
             root,
             scanned_by_root,
             baseline_path,
-            current,
+            {"files": current, "marker_files": marker_current},
             "skill .md files",
             args.allow_baseline_shrink,
         ):
             return 2
-        return _write_baseline(baseline_path, current, marker_current)
+        return _write_baseline(
+            root, baseline_path, current, marker_current, args.allow_baseline_shrink
+        )
 
     try:
         baseline = _load_baseline(baseline_path)
