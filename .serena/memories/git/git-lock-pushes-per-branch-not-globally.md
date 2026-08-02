@@ -65,6 +65,30 @@ the operation instead of the contended resource is the general shape, and it is
 invisible until throughput matters, because correctness never regresses. It
 only ever gets slower.
 
+## One scheme, or none
+
+`flock` excludes only processes that open the *same path*. Two lock schemes
+running at once therefore produce two disjoint groups that cannot see each
+other, and the guard silently stops guarding while still looking present in
+every command line. A partially adopted lock is worse than no lock, because it
+reads as protection.
+
+So the path above is not a suggestion. Any agent or script that pushes in this
+repo uses exactly `/tmp/push-lock-<branch-with-slashes-replaced-by-dashes>.lock`
+and nothing else. If you find another form in a prompt, a skill, or a memory,
+correct it rather than adding a third.
+
+Two details that get "simplified" back into bugs:
+
+- The lock file stays in `/tmp`. It is a live kernel object and every agent must
+  name it identically, so it cannot move to a per-user directory. The push *log*
+  is the opposite case and belongs in `~/src/scratch`; `/tmp` was wiped
+  mid-session on 2026-08-02 and a detached process whose redirect target had
+  vanished reported nothing at all.
+- Capture the push status as `echo "REAL_EXIT=$?"` immediately after the `git
+  push`, never through a pipeline. `git push | tail -3; echo $?` reports
+  `tail`'s status, which is always 0.
+
 ## Related
 
 - A backgrounded push outlives the shell that started it. Relaunching races the

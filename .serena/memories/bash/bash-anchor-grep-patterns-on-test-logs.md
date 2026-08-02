@@ -132,7 +132,7 @@ Better than detecting the race is preventing it. Serialize pushes through a
 lockfile, keyed on the branch:
 
 ```bash
-BR=<branch>
+BR=$(git rev-parse --abbrev-ref HEAD)
 SLUG=$(printf '%s' "$BR" | tr '/' '-')
 flock "/tmp/push-lock-$SLUG.lock" git push -u origin "$BR"
 ```
@@ -152,6 +152,9 @@ Every agent must name the lock identically or it excludes nothing. Measured
 path above), and one branch had two concurrent pushes running under two
 different lock names. `flock` only excludes processes that agree on the path,
 so the extra schemes bought nothing and hid the race.
+
+The lock file stays under `/tmp` because it is a live kernel object every agent
+must name identically. The push *log* must not: use `~/src/scratch`.
 
 ## Evidence
 
