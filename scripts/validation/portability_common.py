@@ -14,6 +14,7 @@ from scripts.validation.portability_baseline import (
     read_previous_sections,
     refuse_dropped_entries,
     refuse_symlinked_baseline,
+    refuse_undiffable_baseline,
     write_baseline_json,
 )
 
@@ -149,6 +150,39 @@ def resolve_baseline_path(
     # result for the downstream check to catch. Kept whole, that same path
     # still names the link, and the link is refused.
     return candidate
+
+
+def resolve_checked_baseline(
+    root: Path,
+    baseline: Path | None,
+    default_baseline_name: str,
+) -> Path | None:
+    """Resolve the baseline and vet it, or explain on stderr and return None.
+
+    Every checker that accepts `--baseline` needs the same two answers before
+    it may trust the file: the path must stay inside the repository, and git
+    must still show a reader when a count inside it goes down. Both were
+    written out per checker once, and `resolve_baseline_path` above records
+    what that cost: the copies drifted into the same defect independently.
+
+    So this is the single gate rather than a third copy of the pair. Returning
+    `None` for either refusal keeps the sentinel uniform too; the checkers had
+    split into `None` and `Path("")` for the same condition, which is the same
+    drift starting again in the return type.
+    """
+    resolved = resolve_baseline_path(
+        root, baseline, default_baseline_name, reject_outside_root=True
+    )
+    if resolved == Path(""):
+        print(
+            f"Refusing a --baseline outside the repository root: {baseline}. "
+            "The ratchet only owns the artifact git tracks.",
+            file=sys.stderr,
+        )
+        return None
+    if refuse_undiffable_baseline(root, resolved):
+        return None
+    return resolved
 
 
 def write_baseline(

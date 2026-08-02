@@ -117,8 +117,17 @@ def _committed_sections(repo_root: Path, path: Path) -> tuple[Sections | None, s
 
     Every other witness to the old debt lives in the working tree, where the
     same run that wants the ratchet lowered can rewrite it first. `git show`
-    reads the committed object instead, which cannot change without a commit,
-    and a commit is reviewable.
+    reads the committed object instead, which cannot change without a commit.
+
+    What that buys, stated exactly, because it is narrower than it sounds. The
+    floor makes a lowering land in a diff. It is not an authorization boundary.
+    `--allow-baseline-shrink` lowers the count deliberately and is meant to, and
+    anyone who can run this can also run that, so local git state is trusted
+    here: HEAD, the object database, and `.git` generally. Forging them costs
+    more than the documented flag and produces the same reviewable diff.
+
+    The diff is therefore the whole asset, which is why
+    `refuse_undiffable_baseline` guards it separately. Refs #4244.
     """
     blob, problem = committed_blob(repo_root, path)
     if problem:

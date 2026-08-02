@@ -33,6 +33,7 @@ from scripts.validation.portability_floor import (
     Sections,
     read_previous_sections,
 )
+from scripts.validation.portability_git import run_git
 
 __all__ = [
     "COUNTED_SECTIONS",
@@ -40,6 +41,7 @@ __all__ = [
     "read_previous_sections",
     "refuse_dropped_entries",
     "refuse_symlinked_baseline",
+    "refuse_undiffable_baseline",
     "write_baseline_json",
 ]
 
@@ -187,6 +189,74 @@ def refuse_symlinked_baseline(repo_root: Path, baseline_path: Path) -> bool:
             f"Refusing to write a baseline outside the repository: {escaped}. "
             "The ratchet only owns the artifact git tracks, and a path that "
             "leaves the tree is not that artifact.",
+            file=sys.stderr,
+        )
+        return True
+
+    return False
+
+
+def refuse_undiffable_baseline(repo_root: Path, baseline_path: Path) -> bool:
+    """Refuse when git has been told not to produce a diff for the baseline.
+
+    Everything else in this guard rests on one claim, written down in
+    `portability_floor`: the committed copy cannot change without a commit, and
+    a commit is reviewable. One line in `.gitattributes` retires the second
+    half. `-diff`, or the `binary` macro that expands to it, makes git and the
+    forges built on it render the file as binary. The bytes are untouched, so
+    this checker still parses the lowered count and agrees with it, while review
+    is shown `Binary files differ` and never sees the number move.
+
+    That is worth refusing rather than trusting review to catch, because the
+    attack is two commits and only the first one shows anything. The attribute
+    lands once, worded as diff-noise housekeeping, and every later lowering is
+    invisible with nothing further to notice.
+
+    Only `unset` is refused. An absent attribute reports `unspecified`, an
+    explicit one reports `set`, and a named driver reports its own name; all
+    three still render a textual diff. Git failing to answer is refused too,
+    because a guard that cannot read the attribute cannot promise the diff.
+
+    Outside a git repository the answer is neither, and the honest verdict is
+    to allow. The asset here is a diff somebody reviews; where there is no
+    repository there is no diff to suppress and no branch to land a number on,
+    so refusing would block vendored copies, unpacked tarballs, and fixtures
+    while protecting nothing. Every path that can carry the attack, CI above
+    all, runs inside a checkout where this resolves and the guard is live.
+    """
+    toplevel = run_git(repo_root, "rev-parse", "--show-toplevel")
+    if toplevel is None or toplevel.returncode != 0:
+        return False
+
+    proc = run_git(repo_root, "check-attr", "-z", "diff", "--", str(baseline_path))
+    if proc is None or proc.returncode != 0:
+        print(
+            f"Refusing to trust the baseline {baseline_path}: git could not report "
+            "whether it is diffable. The ratchet's only guarantee is that a lowered "
+            "count shows up in review, and that cannot be confirmed here.",
+            file=sys.stderr,
+        )
+        return True
+
+    # `-z` emits NUL-separated (path, attribute, value) triples, so a path
+    # containing a colon cannot be misread as the separator the plain format
+    # uses. The value is the third field.
+    fields = proc.stdout.split(b"\0")
+    if len(fields) < 3:
+        print(
+            f"Refusing to trust the baseline {baseline_path}: git reported no diff "
+            "attribute for it, so whether a lowered count would appear in review "
+            "cannot be confirmed.",
+            file=sys.stderr,
+        )
+        return True
+
+    if fields[2] == b"unset":
+        print(
+            f"Refusing to use a baseline git has been told not to diff: {baseline_path}. "
+            "A `-diff` or `binary` attribute renders it as binary in review, so a "
+            "lowered count would land unseen while this checker still reads it. "
+            "Remove the attribute, or record the debt somewhere reviewable.",
             file=sys.stderr,
         )
         return True
