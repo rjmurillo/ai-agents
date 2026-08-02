@@ -35,6 +35,22 @@ Key requirements:
 - Evidence-based explanations
 - Text status indicators: [DONE], [WIP], [WONTFIX]
 
+## Comment Map Status Vocabulary
+
+Every comment in `comments.md` carries exactly one status from this table. Gates and
+completion checks use only these values.
+
+| Status | Meaning | Terminal |
+|--------|---------|---------|
+| `[NEW]` | Fetched, not yet acknowledged | No |
+| `[ACKNOWLEDGED]` | Reaction posted, fix not yet committed | No |
+| `[COMPLETE]` | Fix committed and pushed | Yes |
+| `[WONTFIX]` | Explicitly decided not to change | Yes |
+
+Non-terminal statuses (`[NEW]`, `[ACKNOWLEDGED]`) count as pending. Any unrecognized
+status also counts as pending (fail closed). Both counts use the same grep pattern:
+`grep -Ec "Status: \[NEW\]|Status: \[ACKNOWLEDGED\]|Status: pending"`.
+
 ## Prose Self-Check
 
 Before emitting any prose artifact (reply body, comment response, summary, PR or issue body), run the prose-self-check skill (`.claude/skills/prose-self-check/SKILL.md`). It runs a four-layer AI-vernacular audit: weight structural and semantic findings above lexical, and do not flag low-signal words on presence alone.
@@ -359,7 +375,7 @@ if [ ! -f "$COMMENT_MAP" ]; then
   echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
   exit 1
 fi
-PENDING=$(grep -Ec "Status: \[ACKNOWLEDGED\]|Status: pending" "$COMMENT_MAP" || true)
+PENDING=$(grep -Ec "Status: \[NEW\]|Status: \[ACKNOWLEDGED\]|Status: pending" "$COMMENT_MAP" || true)
 
 # Count unresolved review threads separately
 UNRESOLVED_API=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
@@ -389,7 +405,7 @@ if [ ! -f "$COMMENT_MAP" ]; then
   echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
   exit 1
 fi
-PENDING=$(grep -Ec "Status: pending|Status: \[ACKNOWLEDGED\]" "$COMMENT_MAP" || true)
+PENDING=$(grep -Ec "Status: \[NEW\]|Status: \[ACKNOWLEDGED\]|Status: pending" "$COMMENT_MAP" || true)
 
 if [ "$REMAINING" -ne 0 ] || [ "$PENDING" -ne 0 ]; then
   echo "[BLOCKED] API unresolved: $REMAINING, Artifact pending: $PENDING"
@@ -1327,9 +1343,9 @@ TOTAL=$TOTAL_COMMENTS
 echo "Verification: $((ADDRESSED + WONTFIX)) / $TOTAL comments addressed"
 
 if [ "$((ADDRESSED + WONTFIX))" -lt "$TOTAL" ]; then
-  echo "[WARNING] INCOMPLETE: $((TOTAL - ADDRESSED - WONTFIX)) comments remaining"
-  grep -E -B 5 "Status: \[ACKNOWLEDGED\]|Status: pending" "$COMMENT_MAP" || true
-  # Return to Phase 3 for unaddressed comments
+  echo "[BLOCKED] INCOMPLETE: $((TOTAL - ADDRESSED - WONTFIX)) comments remaining"
+  grep -E -B 5 "Status: \[NEW\]|Status: \[ACKNOWLEDGED\]|Status: pending" "$COMMENT_MAP" || true
+  exit 1
 fi
 ```
 
