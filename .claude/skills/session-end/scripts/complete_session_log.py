@@ -105,6 +105,32 @@ def _get_current_branch() -> str | None:
     return branch or None
 
 
+def _read_log_branch(full: str) -> str | None:
+    """Return the branch field from a session log file, or None on error."""
+    try:
+        data = json.loads(Path(full).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    session = data.get("session")
+    if isinstance(session, dict):
+        branch = session.get("branch")
+        if branch is not None:
+            return branch
+    return data.get("branch")
+
+
+def _match_log_for_branch(
+    candidates: list[tuple[float, str, str]], branch: str
+) -> str | None:
+    """Return the path of the first candidate whose branch field matches."""
+    for _, full, _ in sorted(candidates, key=lambda x: x[2]):
+        if _read_log_branch(full) == branch:
+            return full
+    return None
+
+
 def _find_current_session_log(sessions_dir: str) -> str | None:
     """Find the session log for the current branch, falling back to newest by mtime.
 
@@ -134,21 +160,9 @@ def _find_current_session_log(sessions_dir: str) -> str | None:
 
     branch = _get_current_branch()
     if branch is not None:
-        for _, full, _ in sorted(candidates, key=lambda x: x[2]):
-            try:
-                data = json.loads(Path(full).read_text(encoding="utf-8"))
-            except (OSError, ValueError):
-                continue
-            if not isinstance(data, dict):
-                continue
-            log_branch: str | None = None
-            session = data.get("session")
-            if isinstance(session, dict):
-                log_branch = session.get("branch")
-            if log_branch is None:
-                log_branch = data.get("branch")
-            if log_branch == branch:
-                return full
+        matched = _match_log_for_branch(candidates, branch)
+        if matched is not None:
+            return matched
 
     candidates.sort(key=lambda x: x[0], reverse=True)
 

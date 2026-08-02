@@ -170,13 +170,14 @@
     ],
     "session-end/scripts/complete_session_log.py": [
       79,
-      122,
-      136,
-      154,
-      170,
+      95,
       177,
-      197,
-      214
+      191,
+      209,
+      225,
+      232,
+      252,
+      269
     ],
     "session-end/scripts/rework_warning.py": [
       82
