@@ -128,7 +128,10 @@ def test_mutation_disabling_explicit_refspec_quiet_path_is_caught() -> None:
     """Replacing the local_ref != remote_ref guard with False must cause
     test_push_files_warning_is_quiet_for_explicit_refspec_push to fail."""
     old = "        if ref.local_ref != ref.remote_ref:\n            return\n"
-    new = "        if False:  # mutation: explicit-refspec quiet path disabled\n            return\n"
+    new = (
+        "        if False:  # mutation: explicit-refspec quiet path disabled\n"
+        "            return\n"
+    )
     with _mutated(old, new) as count:
         assert count > 0, f"DID-NOT-APPLY: {old!r} not found in {_POLICY}"
         result = _run_targeted(
