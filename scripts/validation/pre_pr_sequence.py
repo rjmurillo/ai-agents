@@ -17,7 +17,7 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
@@ -27,10 +27,6 @@ from active_plan_closeout import validate_active_plan_closeout
 from check_doc_interpreter_portability import (  # noqa: E402
     validate_doc_interpreter_portability,
 )
-from check_duplicate_test_helpers import validate_duplicate_test_helpers
-from check_nested_tests import validate_no_nested_tests
-from check_test_tree_writes import validate_test_tree_writes
-from check_unreachable_code import validate_unreachable_code
 from checks_coverage import (  # noqa: E402
     validate_review_marker,
 )
@@ -44,7 +40,6 @@ from checks_plugin import (  # noqa: E402
     validate_shipped_skill_routes,
     validate_workflow_local_run,
 )
-from checks_ratchet import validate_count_ratchets  # noqa: E402
 from checks_spec import (  # noqa: E402
     validate_agent_catalog,
     validate_build_gates,
@@ -74,29 +69,22 @@ from checks_tooling import (  # noqa: E402
     validate_workflow_yaml,
     validate_yaml_style,
 )
+from pre_pr_sequence_fast import (  # noqa: E402
+    ValidationStateLike as _ValidationStateLike,
+)
+from pre_pr_sequence_fast import (  # noqa: E402
+    run_fast_gates,
+)
 from stale_script_refs import validate_stale_script_refs  # noqa: E402
 from validate_argument_hint import validate_argument_hint  # noqa: E402
 from validate_design_review import validate_design_review_frontmatter  # noqa: E402
 from validate_no_orphaned_build_deferrals import (  # noqa: E402
     validate_no_orphaned_build_deferrals,
 )
-from validate_python_syntax import validate_python_syntax  # noqa: E402
 
 if TYPE_CHECKING:
     import argparse
     from collections.abc import Callable
-
-
-class _ValidationStateLike(Protocol):
-    """Structural view of ``pre_pr.ValidationState`` the sequence writes to.
-
-    Typed structurally rather than imported from ``pre_pr`` so this module never
-    references ``pre_pr``. ``pre_pr`` imports this module; a back-reference would
-    make mypy resolve ``pre_pr`` under two module names (Issue #3073).
-    """
-
-    total: int
-    skipped: int
 
 
 def run_all_validations(
@@ -113,52 +101,7 @@ def run_all_validations(
     """
     quick = args.quick
 
-    # 0. Python Syntax (issue #2655). Blocking parse gate over every tracked
-    # .py file. A SyntaxError in a hook module wedges the CLI (PreToolUse
-    # dispatcher fails closed on import), and ruff/pytest never caught PR #2640
-    # because ruff is advisory and nothing imports those modules. Runs first
-    # and fast so the cheapest, highest-impact defect is caught before anything
-    # slower.
-    run_validation(
-        "Python Syntax (compile gate)",
-        state,
-        lambda: validate_python_syntax(repo_root),
-    )
-
-    # 0.5. Count ratchets (issue #4251). Four sub-second checks that gate the
-    # push. Before this ran here, a contributor saw pre_pr.py pass, pushed, and
-    # learned 674 seconds later that a 0.21 second ratchet had failed, because
-    # the ratchets ran only in the pre-push group alongside the full suite.
-    # Placed second so the cheapest push-blocking signal arrives first.
-    run_validation(
-        "Count Ratchets",
-        state,
-        lambda: validate_count_ratchets(repo_root),
-    )
-
-    run_validation(
-        "Nested Test Detection",
-        state,
-        lambda: validate_no_nested_tests(repo_root),
-    )
-
-    run_validation(
-        "Duplicate Test Helper Detection",
-        state,
-        lambda: validate_duplicate_test_helpers(repo_root),
-    )
-
-    run_validation(
-        "Unreachable Code Detection",
-        state,
-        lambda: validate_unreachable_code(repo_root),
-    )
-
-    run_validation(
-        "Test Working Tree Writes",
-        state,
-        lambda: validate_test_tree_writes(repo_root),
-    )
+    run_fast_gates(repo_root, state, run_validation)
 
     # 1. Session End
     run_validation(

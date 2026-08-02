@@ -27,6 +27,8 @@ Coverage:
 
 from __future__ import annotations
 
+import inspect
+import re
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -47,6 +49,7 @@ if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
 import checks_ratchet  # noqa: E402
 import pre_pr_sequence  # noqa: E402
+import pre_pr_sequence_fast  # noqa: E402
 
 _GATE_NAME = "Count Ratchets"
 
@@ -193,6 +196,52 @@ class TestWiredIntoTheSequence:
         """
         recorded = self._recorded_names()
         assert recorded[1] == _GATE_NAME, recorded[:4]
+
+    def test_the_fast_gates_lead_the_sequence(self) -> None:
+        """The extracted group is a contiguous prefix, not a scattered set.
+
+        ``run_fast_gates`` was split out of ``run_all_validations`` when that
+        module crossed the 500-line taste ceiling. The split is only honest if
+        the grouping means something: these six are the whole-tree sub-second
+        gates, and their value is that they report before anything slower. A
+        later edit that appends a slow check to ``run_fast_gates``, or that
+        interleaves a sequence step between two of them, keeps every other
+        assertion green while destroying the property the group names.
+        """
+        expected = self._fast_gate_names()
+        assert len(expected) == 6, expected
+        assert self._recorded_names()[: len(expected)] == expected
+
+    def test_moving_a_fast_gate_later_is_detected(self) -> None:
+        """The group's membership is pinned, so a gate cannot quietly leave it.
+
+        The prefix assertion above reads its expectation from the production
+        source, which makes it blind to a reorder *inside* the group (both
+        sides move together). That blindness is deliberate: ordering inside the
+        group is covered by ``test_gate_runs_second``. What source-reading
+        cannot catch is a gate being moved out of ``run_fast_gates`` into the
+        slower tail of the sequence, or a slow gate being added to the group.
+        Pinning the membership here catches both. A deliberate change to the
+        group must edit this list, which is the point.
+        """
+        assert self._fast_gate_names() == [
+            "Python Syntax (compile gate)",
+            "Count Ratchets",
+            "Nested Test Detection",
+            "Duplicate Test Helper Detection",
+            "Unreachable Code Detection",
+            "Test Working Tree Writes",
+        ]
+
+    @staticmethod
+    def _fast_gate_names() -> list[str]:
+        """Gate names ``run_fast_gates`` emits, read from the module it lives in.
+
+        Read from source rather than hard-coded here so this test cannot drift
+        into asserting a stale list that the production module no longer emits.
+        """
+        source = inspect.getsource(pre_pr_sequence_fast.run_fast_gates)
+        return re.findall(r'\n\s+"([^"]+)",\n\s+state,', source)
 
 
 class TestValidatorBehaviour:
