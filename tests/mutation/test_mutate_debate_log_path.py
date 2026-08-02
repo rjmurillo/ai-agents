@@ -188,14 +188,22 @@ def test_m3_missing_debate_log_gate_removed_is_detected() -> None:
 # ---------------------------------------------------------------------------
 
 _IC_ORIGINAL = (
-    b"    # Canonical debate-log directory matches the adr-review skill and its\n"
-    b"    # references/artifacts.md. Issue #4250: the hook previously searched\n"
-    b"    # .agents/analysis/, but the skill writes to .agents/critique/.\n"
+    b"    # Canonical debate-log directory per:\n"
+    b"    #   .claude/skills/adr-review/references/artifacts.md line 3:\n"
+    b'    #     "Save debate artifacts to `.agents/critique/`."\n'
+    b"    #   .claude/skills/adr-review/references/artifacts.md line 7:\n"
+    b'    #     "Save to: `.agents/critique/ADR-NNN-debate-log.md`"\n'
+    b"    # Issue #4250: the hook previously searched .agents/analysis/ but the\n"
+    b"    # skill writes to .agents/critique/.\n"
 )
 _IC_MUTANT = (
-    b"    # Canonical debate-log directory matches the adr-review skill and its\n"
-    b"    # references/artifacts.md. Issue #4250: the hook previously searched\n"
-    b"    # .agents/analysis/, but the skill writes to .agents/critique/.  # IC mutant\n"
+    b"    # Canonical debate-log directory per:\n"
+    b"    #   .claude/skills/adr-review/references/artifacts.md line 3:\n"
+    b'    #     "Save debate artifacts to `.agents/critique/`."\n'
+    b"    #   .claude/skills/adr-review/references/artifacts.md line 7:\n"
+    b'    #     "Save to: `.agents/critique/ADR-NNN-debate-log.md`"\n'
+    b"    # Issue #4250: the hook previously searched .agents/analysis/ but the\n"
+    b"    # skill writes to .agents/critique/.  # IC mutant\n"
 )
 
 
