@@ -41,6 +41,7 @@ from checks_plugin import (  # noqa: E402
     validate_shipped_skill_routes,
     validate_workflow_local_run,
 )
+from checks_ratchet import validate_count_ratchets  # noqa: E402
 from checks_spec import (  # noqa: E402
     validate_agent_catalog,
     validate_build_gates,
@@ -119,6 +120,17 @@ def run_all_validations(
         "Python Syntax (compile gate)",
         state,
         lambda: validate_python_syntax(repo_root),
+    )
+
+    # 0.5. Count ratchets (issue #4251). Four sub-second checks that gate the
+    # push. Before this ran here, a contributor saw pre_pr.py pass, pushed, and
+    # learned 674 seconds later that a 0.21 second ratchet had failed, because
+    # the ratchets ran only in the pre-push group alongside the full suite.
+    # Placed second so the cheapest push-blocking signal arrives first.
+    run_validation(
+        "Count Ratchets",
+        state,
+        lambda: validate_count_ratchets(repo_root),
     )
 
     run_validation(
