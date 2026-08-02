@@ -160,7 +160,7 @@ class TestProcScan:
             def is_dir(self):
                 return False
 
-        with patch("scripts.maintenance.gc_worktrees.pathlib.Path", return_value=_NoProc()):
+        with patch("scripts.maintenance.worktree_occupancy.pathlib.Path", return_value=_NoProc()):
             assert occupied_paths() == Occupancy(frozenset(), 0)
 
     def test_the_live_scan_finds_this_process_own_directory(self):
@@ -205,9 +205,9 @@ def _scan(entries, *, uid=1000) -> Occupancy:
         return entry.cwd
 
     with (
-        patch("scripts.maintenance.gc_worktrees.pathlib.Path", return_value=_Proc()),
-        patch("scripts.maintenance.gc_worktrees.os.readlink", side_effect=_readlink),
-        patch("scripts.maintenance.gc_worktrees.os.getuid", return_value=uid),
+        patch("scripts.maintenance.worktree_occupancy.pathlib.Path", return_value=_Proc()),
+        patch("scripts.maintenance.worktree_occupancy.os.readlink", side_effect=_readlink),
+        patch("scripts.maintenance.worktree_occupancy.os.getuid", return_value=uid),
     ):
         return occupied_paths()
 

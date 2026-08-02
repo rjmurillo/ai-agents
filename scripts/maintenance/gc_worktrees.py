@@ -45,17 +45,34 @@ Related: Issue #2761 (worktree accumulation starves markdown LSP), #2759
 from __future__ import annotations
 
 import argparse
-import errno
 import json
-import os
-import pathlib
 import subprocess
 import sys
 import time
 from collections.abc import Callable
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict
 from datetime import UTC, datetime
-from typing import NamedTuple
+
+from scripts.maintenance.worktree_occupancy import (
+    Occupancy,
+    is_occupied,
+    occupied_paths,
+)
+from scripts.maintenance.worktree_report import (
+    KEEP_BARE,
+    KEEP_DETACHED,
+    KEEP_DIRTY,
+    KEEP_GIT_ERROR,
+    KEEP_LOCKED,
+    KEEP_MAIN,
+    KEEP_OCCUPIED,
+    KEEP_TIME_BUDGET,
+    KEEP_UNPUSHED,
+    Decision,
+    GcReport,
+    Worktree,
+    format_report,
+)
 
 _DEFAULT_BASE = "origin/main"
 _GIT_TIMEOUT_SECONDS = 30
@@ -68,79 +85,6 @@ _GIT_TIMEOUT_SECONDS = 30
 # lefthook.yml; tests/ci/test_worktree_gc_wiring.py pins the two together so
 # neither can drift into a push-rejecting pair.
 _DEFAULT_TIME_BUDGET_SECONDS = 90.0
-
-# Reasons a worktree is kept (never removed). Stable strings for tests/automation.
-KEEP_MAIN = "main-or-current worktree"
-KEEP_BARE = "bare worktree"
-KEEP_LOCKED = "locked"
-KEEP_DIRTY = "uncommitted changes"
-KEEP_DETACHED = "detached HEAD (no branch to evaluate)"
-KEEP_UNPUSHED = "unpushed commits and not merged to base"
-KEEP_GIT_ERROR = "git inspection failed"
-KEEP_TIME_BUDGET = "not inspected (time budget exhausted)"
-KEEP_OCCUPIED = "in use by a running process"
-
-
-@dataclass
-class Worktree:
-    """A single registered git worktree parsed from porcelain output."""
-
-    path: str
-    branch: str | None = None
-    head: str | None = None
-    locked: bool = False
-    bare: bool = False
-    detached: bool = False
-
-
-@dataclass
-class Decision:
-    """The GC decision for one worktree."""
-
-    path: str
-    branch: str | None
-    remove: bool
-    reason: str
-
-    @property
-    def kept(self) -> bool:
-        """True when this worktree is kept rather than removed."""
-        return not self.remove
-
-
-@dataclass
-class GcReport:
-    """Complete garbage-collection plan across all worktrees."""
-
-    timestamp: str
-    base_ref: str
-    apply: bool
-    main_worktree: str
-    total_worktrees: int = 0
-    occupancy_unreadable: int = 0
-    decisions: list[Decision] = field(default_factory=list)
-    removed: list[str] = field(default_factory=list)
-    remove_errors: list[str] = field(default_factory=list)
-
-    @property
-    def candidates(self) -> list[Decision]:
-        """Decisions marked for removal."""
-        return [d for d in self.decisions if d.remove]
-
-    @property
-    def kept(self) -> list[Decision]:
-        """Decisions kept with a reason."""
-        return [d for d in self.decisions if d.kept]
-
-    @property
-    def needs_disposition(self) -> list[Decision]:
-        """Kept branches that need a human disposition before they can shrink."""
-        return [d for d in self.kept if d.reason == KEEP_UNPUSHED]
-
-    @property
-    def unevaluated(self) -> list[Decision]:
-        """Worktrees the time budget stopped this run from inspecting."""
-        return [d for d in self.decisions if d.reason == KEEP_TIME_BUDGET]
 
 
 def _run_git(args: list[str], cwd: str | None = None) -> str:
@@ -250,81 +194,6 @@ def is_merged_to_base(path: str, base_ref: str) -> bool:
         return False
     msg = f"git merge-base in {path} failed: {result.stderr.strip()}"
     raise RuntimeError(msg)
-
-
-class Occupancy(NamedTuple):
-    """Live-process working directories, plus the size of the blind spot.
-
-    ``unreadable`` counts processes this scan could not resolve but could not
-    rule out either. It is reported so the gap is visible instead of silently
-    counted as vacancy.
-    """
-
-    cwds: frozenset[str]
-    unreadable: int
-
-
-#: ``/proc/<pid>`` entries that disappear mid-scan are genuinely gone, so their
-#: working directory cannot hold a worktree. Every other failure means the
-#: process is alive and its directory is unknown.
-_PROCESS_GONE = frozenset({errno.ENOENT, errno.ESRCH})
-
-
-def occupied_paths() -> Occupancy:
-    """Working directories of live processes, read from ``/proc``.
-
-    A worktree can be fully merged, fully pushed and clean while an agent is
-    still sitting in it. Removing it pulls the directory out from under that
-    process.
-
-    Two failure kinds are not the same and are not treated the same. A
-    ``/proc/<pid>`` entry that vanishes mid-scan belongs to a process that has
-    exited, so it cannot hold a worktree and is ignored. A cwd that cannot be
-    read while the process is still alive is unknown, not vacant, and is
-    counted in ``Occupancy.unreadable``.
-
-    Known residual risk. Only unreadable processes owned by this user are
-    counted, because the guard exists to protect this user's own agent shells
-    and a process owned by another user does not chdir into their worktrees.
-    Measured on the development machine this was written for: 332 readable
-    cwds, 691 permission denied, of which 3 were owned by this user, and all
-    three were hardened session daemons (a password-manager helper, the user
-    ``systemd``, and ``sd-pam``) that never enter a worktree. Failing closed on
-    that set would refuse every removal forever, so the gap is disclosed rather
-    than escalated. An interactive shell or agent process is always readable by
-    its own owner, which is the case this guard is for.
-
-    Where ``/proc`` is unavailable the scan returns nothing readable and marks
-    the whole result unknown, so occupancy contributes no false vacancy.
-    """
-    proc = pathlib.Path("/proc")
-    if not proc.is_dir():
-        return Occupancy(frozenset(), 0)
-    uid = os.getuid()
-    found: set[str] = set()
-    unreadable = 0
-    for entry in proc.iterdir():
-        if not entry.name.isdigit():
-            continue
-        try:
-            found.add(os.readlink(entry / "cwd"))
-            continue
-        except OSError as exc:
-            if exc.errno in _PROCESS_GONE:
-                continue
-        try:
-            owned_by_us = entry.stat().st_uid == uid
-        except OSError:
-            continue
-        if owned_by_us:
-            unreadable += 1
-    return Occupancy(frozenset(found), unreadable)
-
-
-def is_occupied(path: str, cwds: frozenset[str]) -> bool:
-    """True when a live process sits in ``path`` or below it."""
-    prefix = path.rstrip("/") + "/"
-    return any(cwd == path or cwd.startswith(prefix) for cwd in cwds)
 
 
 def decide(
@@ -475,86 +344,6 @@ def apply_removals(report: GcReport) -> None:
         prune_worktrees()
     except RuntimeError as exc:
         report.remove_errors.append(f"prune: {exc}")
-
-
-def _append_decision_group(
-    lines: list[str],
-    title: str,
-    decisions: list[Decision],
-    formatter: Callable[[Decision], str],
-) -> None:
-    """Append a titled decision group when there is anything to report."""
-    if not decisions:
-        return
-    lines.append(title)
-    for decision in decisions:
-        lines.append(formatter(decision))
-
-
-def _append_disposition_group(lines: list[str], decisions: list[Decision]) -> None:
-    """Append kept branches that need human cleanup disposition."""
-    if not decisions:
-        return
-    lines.append("  Needs disposition:")
-    lines.append("    Review branch and issue state, then push, merge, lock, or delete.")
-    for decision in decisions:
-        lines.append(f"    - {decision.path} [{decision.branch}] unpushed and unmerged")
-
-
-def _append_apply_result(lines: list[str], report: GcReport) -> None:
-    """Append removal results from apply mode."""
-    lines.append(f"  removed: {len(report.removed)}")
-    for path in report.removed:
-        lines.append(f"    - removed {path}")
-    if report.remove_errors:
-        lines.append(f"  errors: {len(report.remove_errors)}")
-        for err in report.remove_errors:
-            lines.append(f"    - {err}")
-
-
-def format_report(report: GcReport) -> str:
-    """Human-readable summary of the GC plan or result."""
-    mode = "APPLY" if report.apply else "DRY-RUN"
-    lines = [
-        f"Worktree GC [{mode}] base={report.base_ref}",
-        f"  total worktrees: {report.total_worktrees}",
-        f"  removal candidates: {len(report.candidates)}",
-        f"  kept: {len(report.kept)}",
-    ]
-    if report.occupancy_unreadable:
-        lines.append(
-            f"  occupancy blind spot: {report.occupancy_unreadable} live "
-            f"process(es) owned by this user would not report a working "
-            f"directory, so they were not checked against any worktree."
-        )
-    if report.unevaluated:
-        lines.append(
-            f"  PARTIAL: time budget stopped this run after inspecting "
-            f"{report.total_worktrees - len(report.unevaluated)} of "
-            f"{report.total_worktrees}; the remaining {len(report.unevaluated)} "
-            f"are kept unread. Raise --time-budget (0 disables) for a full pass."
-        )
-    _append_decision_group(
-        lines,
-        "  Candidates:",
-        report.candidates,
-        lambda d: f"    - {d.path} [{d.branch}] ({d.reason})",
-    )
-    _append_disposition_group(lines, report.needs_disposition)
-    _append_decision_group(
-        lines,
-        "  Kept:",
-        report.kept,
-        lambda d: f"    - {d.path} [{d.branch}] KEEP: {d.reason}",
-    )
-    if report.apply:
-        _append_apply_result(lines, report)
-    else:
-        lines.append(
-            f"  DRY-RUN: removed nothing. Pass --apply to remove "
-            f"{len(report.candidates)} candidate(s)."
-        )
-    return "\n".join(lines)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
