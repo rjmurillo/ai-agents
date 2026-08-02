@@ -354,6 +354,8 @@ def main(argv: list[str] | None = None) -> int:
                 "increases before committing."
             ),
             "refs",
+            root,
+            args.allow_baseline_shrink,
         )
 
     try:
