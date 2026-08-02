@@ -222,14 +222,38 @@ class TestSectionsNobodyGuardsAreRefusedByName:
     ) -> None:
         """`_comment` is a string and every real baseline carries one."""
         root = _repo(tmp_path)
-        path = _commit_baseline(
-            root, {"_comment": "why", "_meta": {"tool": "x"}, "files": {"a.md": 1}}
-        )
+        path = _commit_baseline(root, {"_comment": "why", "files": {"a.md": 1}})
 
         previous, problem = read_previous_sections(root, path)
 
         assert problem is None
         assert previous == {"files": {"a.md": 1}}
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"tool": "x"},
+            {"schema_version": 2},
+            {"enabled": True},
+            {},
+        ],
+        ids=["strings", "integers", "booleans", "empty"],
+    )
+    def test_an_unknown_object_is_refused_whatever_it_holds(
+        self, tmp_path: Path, payload: dict[str, object]
+    ) -> None:
+        """The write rebuilds the payload from the scan, so every unknown object
+        is erased by it, not only the ones whose values are integers. A guard
+        that only noticed integers would let the next author pick another shape,
+        and an empty object is the cheapest shape of all."""
+        root = _repo(tmp_path)
+        path = _commit_baseline(root, {"_meta": payload, "files": {"a.md": 1}})
+
+        previous, problem = read_previous_sections(root, path)
+
+        assert previous is None
+        assert problem is not None
+        assert "_meta" in problem
 
 
 class TestTheWriteCannotBeRedirectedOffThePathGitTracks:
@@ -313,3 +337,133 @@ def test_a_healthy_rewrite_is_unaffected_by_any_of_it(
 
     assert rc == 0
     assert json.loads(path.read_text(encoding="utf-8")) == same
+
+
+class TestALookupThatFailsIsNotAnAbsentFloor:
+    """`git show` returning nonzero used to mean "no committed floor".
+
+    That reading makes the floor optional: anything an attacker can do to break
+    the lookup removes the only witness the guard cannot reach. Absence has to
+    be proven by git answering, not inferred from git failing.
+    """
+
+    def test_a_repository_with_no_git_directory_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        """The cheapest way to silence the floor is to make git itself fail."""
+        root = _repo(tmp_path)
+        path = _commit_baseline(root, {"files": {"a.md": 4}})
+        path.write_text("{}", encoding="utf-8")
+        (root / ".git").rename(root.parent / "git-elsewhere")
+
+        previous, problem = read_previous_sections(root, path)
+
+        assert previous is None
+        assert problem is not None
+
+    def test_a_corrupt_object_store_is_refused(self, tmp_path: Path) -> None:
+        """A blob git lists but cannot read is a failure, not an empty floor."""
+        root = _repo(tmp_path)
+        path = _commit_baseline(root, {"files": {"a.md": 4}})
+        path.write_text("{}", encoding="utf-8")
+        objects = root / ".git" / "objects"
+        for blob in objects.rglob("*"):
+            if blob.is_file() and blob.parent.name != "info":
+                blob.unlink()
+
+        previous, problem = read_previous_sections(root, path)
+
+        assert previous is None
+        assert problem is not None
+
+    def test_a_baseline_git_tracks_under_another_case_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        """On a case-insensitive filesystem the pathspec misses and the floor
+        would vanish, even though the same bytes are on disk."""
+        root = _repo(tmp_path)
+        _commit_baseline(root, {"files": {"a.md": 4}})
+
+        previous, problem = read_previous_sections(
+            root, root / "scripts" / "validation" / "B.json"
+        )
+
+        assert previous is None
+        assert problem is not None
+        assert "case" in problem
+
+    def test_a_directory_where_the_baseline_should_be_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        root = _repo(tmp_path)
+        nested = root / "scripts" / "validation" / "b.json"
+        nested.mkdir()
+        (nested / "inner.txt").write_text("x", encoding="utf-8")
+        _git(root, "add", "-A")
+        _git(root, "commit", "-qm", "seed")
+
+        previous, problem = read_previous_sections(root, nested)
+
+        assert previous is None
+        assert problem is not None
+
+    def test_a_genuinely_new_baseline_still_has_no_floor(
+        self, tmp_path: Path
+    ) -> None:
+        """The refusals above are only correct if this stays permitted."""
+        root = _repo(tmp_path)
+        _commit_baseline(root, {"files": {"a.md": 4}})
+        fresh = root / "scripts" / "validation" / "brand-new.json"
+        fresh.write_text('{"files": {"c.md": 1}}', encoding="utf-8")
+
+        previous, problem = read_previous_sections(root, fresh)
+
+        assert problem is None
+        assert previous == {"files": {"c.md": 1}}
+
+    def test_a_repository_with_no_commits_has_no_floor(self, tmp_path: Path) -> None:
+        """No HEAD is the one honest way to have nothing committed."""
+        root = _repo(tmp_path)
+        path = root / "scripts" / "validation" / "b.json"
+        path.write_text('{"files": {"a.md": 1}}', encoding="utf-8")
+
+        previous, problem = read_previous_sections(root, path)
+
+        assert problem is None
+        assert previous == {"files": {"a.md": 1}}
+
+    def test_a_baseline_outside_the_repository_has_no_floor(
+        self, tmp_path: Path
+    ) -> None:
+        """`check_skill_portability.py` permits this, so it must not refuse."""
+        root = _repo(tmp_path)
+        _commit_baseline(root, {"files": {"a.md": 4}})
+        outside = tmp_path / "outside.json"
+        outside.write_text('{"files": {"z.md": 1}}', encoding="utf-8")
+
+        previous, problem = read_previous_sections(root, outside)
+
+        assert problem is None
+        assert previous == {"files": {"z.md": 1}}
+
+    def test_a_listed_blob_that_cannot_be_read_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        """Deleting every object makes the listing fail first, which leaves the
+        read itself unproven. Removing only the blob keeps the tree intact, so
+        git still names the baseline and then cannot hand it over."""
+        root = _repo(tmp_path)
+        path = _commit_baseline(root, {"files": {"a.md": 4}})
+        path.write_text("{}", encoding="utf-8")
+        blob = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD:scripts/validation/b.json"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        (root / ".git" / "objects" / blob[:2] / blob[2:]).unlink()
+
+        previous, problem = read_previous_sections(root, path)
+
+        assert previous is None
+        assert problem is not None

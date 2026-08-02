@@ -9,6 +9,7 @@ baseline (the CI ratchet that blocks new upstream-path references).
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -142,10 +143,15 @@ RUNTIME_PATH = ".claude/skills/runtime"
         self._skill_script(tmp_path, "gamma", "Path('.agents/architecture')\n")
         original_read_text = Path.read_text
 
-        def read_text(path: Path, *args: object, **kwargs: object) -> str:
+        def read_text(
+            path: Path,
+            encoding: str | None = None,
+            errors: str | None = None,
+            newline: str | None = None,
+        ) -> str:
             if path.name == "run.py":
                 raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "bad byte")
-            return original_read_text(path, *args, **kwargs)
+            return original_read_text(path, encoding, errors, newline)
 
         monkeypatch.setattr(Path, "read_text", read_text)
 
@@ -255,10 +261,15 @@ class TestRepoRatchet:
         baseline.write_text('{"files": {}}\n', encoding="utf-8")
         original_read_text = Path.read_text
 
-        def read_text(path: Path, *args: object, **kwargs: object) -> str:
+        def read_text(
+            path: Path,
+            encoding: str | None = None,
+            errors: str | None = None,
+            newline: str | None = None,
+        ) -> str:
             if path.name == "run.py":
                 raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "bad byte")
-            return original_read_text(path, *args, **kwargs)
+            return original_read_text(path, encoding, errors, newline)
 
         monkeypatch.setattr(Path, "read_text", read_text)
 
@@ -285,6 +296,19 @@ class TestRepoRatchet:
         baseline_path.write_text(
             '{"files": {"skills/alpha/scripts/run.py": 5}}\n', encoding="utf-8"
         )
+        # The floor now comes from the committed copy, so the fixture has to be
+        # a real repository. A directory with no git in it cannot answer what
+        # was already forgiven, and the guard refuses rather than guess.
+        for command in (
+            ["init", "-q"],
+            ["config", "user.email", "t@example.com"],
+            ["config", "user.name", "t"],
+            ["add", "-A"],
+            ["commit", "-qm", "seed"],
+        ):
+            subprocess.run(
+                ["git", "-C", str(tmp_path), *command], check=True, capture_output=True
+            )
         args = [
             "--repo-root",
             str(tmp_path),
