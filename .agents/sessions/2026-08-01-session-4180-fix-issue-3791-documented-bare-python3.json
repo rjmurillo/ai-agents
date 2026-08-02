@@ -99,7 +99,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run ruff check on all changed Python: All checks passed. ruff format --check: clean. uv run pytest tests/test_check_doc_interpreter_portability.py: 32 passed. validate_python_syntax.py (3.10 floor): exit 0. check_doc_interpreter_portability.py: OK. The 3 pre-existing test_validation_scripts_are_reachable failures reproduce identically on a stashed clean tree, so they are not from this change."
+        "Evidence": "uv run ruff check on all changed Python: All checks passed. uv run pytest tests/test_check_doc_interpreter_portability.py: 35 passed. Full suite at the branch tip in a clean scratch checkout: 21096 passed, 30 skipped, 0 failed. check_doc_interpreter_portability.py: OK. build_all.py --check, generate_agents.py --validate, and generate_agent_catalog.py --check all pass. Round 1 recorded 3 test_validation_scripts_are_reachable failures as pre-existing without naming a cause; the cause is now measured: tests/ci/test_validation_scripts_are_reachable.py:110 filters rglob results on absolute path parts, and every checkout under .claude/worktrees/ carries a 'worktrees' component, so _python_sources() returns empty and 114 of 143 tests in that file fail there. The same commits pass in a checkout outside that prefix. Test-environment defect, not this change; flagged, not fixed here."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -147,6 +147,7 @@
   "nextSteps": [
     "Issues #3806 and #4210 carry the same defect class in CI and workflow surfaces; both remain open.",
     "CONTRIBUTING.md:466-474 documents an AUTO-GENERATED banner that exists in zero generated files and that no agent generator emits; stale block, not fixed here.",
-    "build/generate_agent_catalog.py:239 carries a pre-existing E501 and a ruff-format diff, both on a line this change did not touch; left alone to keep the diff minimal."
+    "build/generate_agent_catalog.py:239 carries a pre-existing E501 and a ruff-format diff, both on a line this change did not touch; left alone to keep the diff minimal.",
+    "tests/ci/test_validation_scripts_are_reachable.py:110 skips any rglob hit whose absolute path parts include 'worktrees', so the guard is vacuous in every .claude/worktrees/ checkout. Filter on the repo-relative parts instead. Worth its own issue."
   ]
 }
