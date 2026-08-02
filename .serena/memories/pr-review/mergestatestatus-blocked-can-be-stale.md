@@ -203,6 +203,24 @@ intervention:
 
 Four for four. `BLOCKED` was stale in every case.
 
+Extended to the rest of the backlog the same day. Of the 28 open PRs reading
+`BLOCKED`, **24 merged on the first attempt**. All 4 refusals returned the same
+precise, actionable reason:
+
+```
+REFUSED #4328 :: Pull Request has merge conflicts
+REFUSED #4208 :: Pull Request has merge conflicts
+REFUSED #4117 :: Pull Request has merge conflicts
+REFUSED #4102 :: Pull Request has merge conflicts
+```
+
+Not one refusal cited a failing or missing check. The earlier reconciliation of
+that same set, taken from the truncated rollup, had classified 24 of them as
+genuinely red and 4 as clean. The true split was the inverse. A reduction over a
+truncated list did not merely lose detail, it produced a confidently wrong
+answer for 24 of 28 cases, and the field it was reducing was advisory to begin
+with.
+
 This does not soften the boundary recorded above. A merge that succeeds still
 does not prove the PR was mergeable at some earlier moment, because GitHub
 recomputes on the call. The two statements answer different questions. "Was it
