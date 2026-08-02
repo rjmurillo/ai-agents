@@ -69,6 +69,15 @@
       "caused_by": [],
       "leads_to": [],
       "_source_session": "2026-08-01-session-3791-3936-4190-script-entrypoints-and-pins"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 2e0f2c554",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-3791-3936-4190-script-entrypoints-and-pins"
     }
   ],
   "metrics": {
@@ -76,7 +85,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 4
   },
   "lessons": []
