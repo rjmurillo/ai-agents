@@ -18,8 +18,8 @@ Scripts under `scripts/validation/`, `build/`, and `.github/workflows/` gate eve
 
 ## MUST
 
-1. **Local run before commit**. CI-critical scripts MUST be exercised locally before commit. Use `gh act` for workflows, direct `python3` invocation for validation scripts, and the actual test suite for helpers.
-2. **Shift-left validation**. Before pushing, MUST run `python3 scripts/validation/pre_pr.py` and resolve any failures.
+1. **Local run before commit**. CI-critical scripts MUST be exercised locally before commit. Use `gh act` for workflows, direct `uv run python` invocation for validation scripts, and the actual test suite for helpers.
+2. **Shift-left validation**. Before pushing, MUST run `uv run python scripts/validation/pre_pr.py` and resolve any failures.
 3. **Python for new scripts**. New scripts MUST be Python per ADR-042. MUST NOT create new `*.sh` bash scripts.
 4. **Exit codes**. Scripts MUST follow the exit code contract: `0`=ok, `1`=logic, `2`=config, `3`=external, `4`=auth (`AGENTS.md`).
 5. **Tests required**. New validation scripts MUST ship with pytest or Pester coverage in `tests/` or `.claude/skills/<name>/tests/`.
