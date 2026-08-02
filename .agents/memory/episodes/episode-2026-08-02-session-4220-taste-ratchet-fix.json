@@ -48,8 +48,21 @@
       "timestamp": "2026-08-02T00:00:00+00:00",
       "type": "test",
       "content": "All ratchets OK. 21612 passed, 0 failed.",
-      "caused_by": [],
+      "caused_by": [
+        "e006"
+      ],
       "leads_to": [],
+      "_source_session": "2026-08-02-session-4220-taste-ratchet-fix"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 636042664c",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
       "_source_session": "2026-08-02-session-4220-taste-ratchet-fix"
     }
   ],
@@ -58,7 +71,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 3
   },
   "lessons": []
