@@ -1,0 +1,80 @@
+{
+  "id": "episode-2026-07-30-session-4011-memory-cluster",
+  "session": "2026-07-30-session-4011-memory-cluster",
+  "timestamp": "2026-07-30T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix #4010 (search/verify ID mismatch) and #4011 (memory hooks unregistered)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added memory_id_from_path() canonical function to serena_integration.py; updated load_memory() and search._score_memory_file() to use it. Both search emitter and verify consumer now use same ID format.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated .agents/specs/hook-protocol.md: Reference Implementations section now states hooks are not currently registered and documents activation path.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 0b0250e9",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 065b12dfd",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-30-session-4011-memory-cluster"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 143c572c2",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-30-session-4011-memory-cluster"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: ae9959e02",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-30-session-4011-memory-cluster"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 7a386fb57",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-30-session-4011-memory-cluster"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 5,
+    "files_changed": 8
+  },
+  "lessons": []
+}

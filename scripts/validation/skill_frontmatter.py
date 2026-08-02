@@ -119,6 +119,15 @@ _SKILL_FILE_PATTERN: re.Pattern[str] = re.compile(
     re.IGNORECASE,
 )
 
+# The two skill trees `_SKILL_FILE_PATTERN` matches. A default full scan covers
+# both, so all three discovery paths (staged, changed-files, full scan) answer
+# the same question. Before issue #4015 the full scan fell through to a single
+# `--path` default of `.claude/skills` and measured 98 of 209 SKILL.md bodies,
+# then printed "All skill frontmatter validated successfully!", a sentence about
+# a corpus it never opened. This script has no lefthook or workflow caller, so
+# the default full scan is its only invocation path.
+_SKILL_TREE_PREFIXES: tuple[str, ...] = (".claude/skills", "src/copilot-cli/skills")
+
 # Copilot CLI rejects non-string values for this skill field at load time.
 STRING_ONLY_FIELDS: frozenset[str] = frozenset({"argument-hint"})
 
@@ -395,14 +404,49 @@ def get_staged_skill_files() -> list[Path]:
     return files
 
 
+def default_corpus_files() -> list[Path]:
+    """Return every SKILL.md under the trees named in ``_SKILL_TREE_PREFIXES``.
+
+    Roots are anchored on ``_PROJECT_ROOT`` rather than the working directory so
+    the audit reports the same corpus from any subdirectory
+    (``.claude/rules/ci-scripts.md`` MUST-8). An absent tree is skipped, not an
+    error: a vendored install legitimately ships one tree and not the other.
+    """
+    files: list[Path] = []
+    for prefix in _SKILL_TREE_PREFIXES:
+        root = _PROJECT_ROOT / prefix
+        if root.is_dir():
+            files.extend(root.rglob("SKILL.md"))
+    return sorted(files)
+
+
+def default_corpus_summary() -> str:
+    """One line naming the trees a default full scan measures, and any absent.
+
+    Printed so the corpus behind the summary sentence is stated rather than
+    assumed. An absent tree is named too: silence there is what let the
+    single-tree scan read as a whole-repository result.
+    """
+    present = [p for p in _SKILL_TREE_PREFIXES if (_PROJECT_ROOT / p).is_dir()]
+    absent = [p for p in _SKILL_TREE_PREFIXES if p not in present]
+    line = f"Scanning skill trees: {', '.join(present) if present else '(none present)'}"
+    if absent:
+        line += f"; absent, not scanned: {', '.join(absent)}"
+    return line
+
+
 def get_skill_files(
-    path: str,
+    path: str | None,
     staged_only: bool = False,
     changed_files: list[str] | None = None,
 ) -> list[Path]:
-    """Get list of SKILL.md files to validate based on parameters."""
+    """Get list of SKILL.md files to validate based on parameters.
+
+    ``path`` is the explicit narrowing override. When it is None (the default),
+    the scan covers every tree in ``_SKILL_TREE_PREFIXES``.
+    """
     if changed_files:
-        root = Path(path)
+        root = Path(path) if path else None
         skill_files = [f for f in changed_files if _is_skill_file_path(f, root)]
         if not skill_files:
             print("No SKILL.md files in changed files list. Skipping frontmatter validation.")
@@ -415,6 +459,9 @@ def get_skill_files(
         if not files:
             print("No SKILL.md files staged. Skipping frontmatter validation.")
         return files
+
+    if path is None:
+        return default_corpus_files()
 
     target = Path(path)
     if not target.exists():
@@ -435,12 +482,24 @@ def get_skill_files(
 # ---------------------------------------------------------------------------
 
 
+def _relative_display(file_path: Path) -> Path:
+    """Repo-relative path for display; cwd-relative, then absolute, as fallbacks.
+
+    ``_PROJECT_ROOT`` comes first because the default corpus is anchored there,
+    so a run from a subdirectory would otherwise print absolute paths, and a run
+    from ``/`` would print a slash-stripped path that resolves to nothing.
+    """
+    for base in (_PROJECT_ROOT, Path.cwd()):
+        try:
+            return file_path.relative_to(base)
+        except ValueError:
+            continue
+    return file_path
+
+
 def validate_skill_file(file_path: Path) -> FileValidationResult:
     """Validate a single SKILL.md file's frontmatter."""
-    try:
-        relative = file_path.relative_to(Path.cwd())
-    except ValueError:
-        relative = file_path
+    relative = _relative_display(file_path)
 
     print(f"  Checking: {relative}")
 
@@ -493,8 +552,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--path",
-        default=os.environ.get("SKILL_PATH", ".claude/skills"),
-        help="Path to SKILL.md file or directory (env: SKILL_PATH, default: .claude/skills)",
+        default=os.environ.get("SKILL_PATH"),
+        help=(
+            "Narrow the scan to one SKILL.md file or directory "
+            "(env: SKILL_PATH, default: every tree in _SKILL_TREE_PREFIXES)"
+        ),
     )
     parser.add_argument(
         "--ci",
@@ -523,6 +585,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     print("Validating skill frontmatter...")
+    if args.path is None and not args.staged_only and not args.changed_files:
+        print(default_corpus_summary())
 
     files_to_check = get_skill_files(
         path=args.path,

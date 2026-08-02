@@ -1,6 +1,6 @@
 ---
 name: implementation-008-spec-schema-validation
-description: Constraints for writing spec artifacts (REQ/DESIGN/TASK) — read spec-schemas.md first; validate enums before committing
+description: Constraints for writing spec artifacts (REQ/DESIGN/TASK): read spec-schemas.md first; validate enums before committing
 type: feedback
 ---
 
@@ -21,7 +21,7 @@ Source: 3 bots (devin, copilot, coderabbit) converged within minutes of PR #1995
 - `priority`: must be `P0` / `P1` / `P2` (never `medium`, `high`, `low`)
 - `status`: requirement/design uses `draft|review|approved|implemented|rejected`; task uses `todo|in-progress|blocked|done|cancelled` (never `ready`)
 - `category` (requirement only): `functional|non-functional|constraint` (never `tooling`, `security`, etc.)
-- `complexity` (task only): `XS|S|M|L|XL`; XS=1-2h, S=2-4h, M=4-8h, L=8-16h, XL=16+h — must match `estimate` field
+- `complexity` (task only): `XS|S|M|L|XL`; XS=1-2h, S=2-4h, M=4-8h, L=8-16h, XL=16+h; must match `estimate` field
 Source: Every spec PR since REQ-009 has had schema violations on first push. Issue #2001 tracks the fix.
 
 ---
@@ -30,7 +30,7 @@ Source: Every spec PR since REQ-009 has had schema violations on first push. Iss
 
 **PR description validator flags inline file paths as claimed changes.**
 Any `.agents/...` or `scripts/...` path in the PR body's prose or "Refs" sections triggers "file mentioned but not in diff" CRITICAL failures. Use "see tracking issue" or "see commit history" instead of raw paths in the body.
-Source: PR #1995 first CI run FAIL — 3 CRITICAL on retro/memory file paths in the original body, 2026-05-10.
+Source: PR #1995 first CI run FAIL, 3 CRITICAL on retro/memory file paths in the original body, 2026-05-10.
 
 **Table-format false positive.** Bots sometimes claim `||` double-pipe table rows when the real issue is `|---|---|---|` separator lines being parsed. Verify with `grep -n "||"` before modifying.
 Source: PR #1995 copilot thread PRRT_kwDOQoWRls6A74Rd, 2026-05-10.

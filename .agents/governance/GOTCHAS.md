@@ -311,3 +311,36 @@ constant was emptied somewhere and every per-file assertion is vacuously true.
 `tests/test_workspace_limits.py` runs via the standard `pytest` suite. It imports
 constants from `scripts/validate_workspace_budget.py` directly, so the test and
 the enforcer always agree (fixed by issue #3951).
+
+## Concurrent pushes: use a per-branch lock, not a global one
+
+The race a push lock exists to prevent is a lost ref update: two writers push
+to the same remote ref and one overwrites the other. Git takes its lock per ref.
+Two pushes to two different branches cannot race for the same lock on the server.
+
+A global `flock /tmp/aiagents-push.lock` wrapping `git push` serializes the
+entire fleet including the 7 to 15 minute pre-push hook. Five concurrent pushes
+to five distinct branches costs 5 x 15 = 75 minutes instead of 15.
+
+Use a per-branch lock keyed on the exact branch name:
+
+```bash
+BR=$(git branch --show-current)
+SLUG=$(printf '%s' "$BR" | tr '/' '-')
+flock "/home/richard/src/GitHub/rjmurillo/ai-agents-pushpol2-push-${SLUG}.lock" \
+  git push --force-with-lease origin HEAD:"$BR"
+```
+
+Notes:
+- `tr '/' '-'` is required: a branch like `fix/foo` would otherwise create a
+  lock file with a `/` in its name, which the shell reads as a directory path.
+- Use an absolute path for the lock file and keep it outside `/tmp` (not durable
+  on this machine).
+- `--force-with-lease` already fails safely on a lost update. The lock prevents
+  the git-object-packing overhead of a concurrent same-branch push, not data loss.
+- Two distinct branches never contend for the same lock file, so their pre-push
+  hooks run in parallel. Measured throughput: four concurrent pushes to four
+  distinct branches finish in approximately one hook duration, not four.
+
+Issue #4283 documents the measured 28-waiter convoy produced by the global lock
+and the first-principles analysis of why the race is per-ref.
