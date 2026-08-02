@@ -51,6 +51,7 @@
 |CI CD workflow actions runner ARM: [skills-ci-infrastructure-index](skills-ci-infrastructure-index.md) (845)
 |workflow pattern composite matrix artifact verdict report: [skills-workflow-patterns-index](skills-workflow-patterns-index.md) (284)
 |dorny paths-filter checkout base ref PR changes: [ci/ci-infrastructure-dorny-paths-filter-checkout](ci/ci-infrastructure-dorny-paths-filter-checkout.md) (930)
+|lefthook group parallel serial summary sum arithmetic config authoritative derive: [decision-read-the-config-not-the-run-summary](decision-read-the-config-not-the-run-summary.md) (580)
 
 [Documentation and Planning]
 |documentation PRD spec user-facing migration self-contained: [skills-documentation-index](skills-documentation-index.md) (311)
