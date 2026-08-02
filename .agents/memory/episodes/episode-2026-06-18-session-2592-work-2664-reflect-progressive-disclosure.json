@@ -35,7 +35,10 @@
       "timestamp": "2026-06-18T00:00:00+00:00",
       "type": "error",
       "content": "Validated     pre_pr Passed 25 Failed 0",
-      "caused_by": [],
+      "caused_by": [
+        "e005",
+        "e006"
+      ],
       "leads_to": []
     },
     {
@@ -44,7 +47,9 @@
       "type": "commit",
       "content": "Commit: 1ad8252a4",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e004"
+      ]
     },
     {
       "id": "e006",
@@ -52,7 +57,9 @@
       "type": "commit",
       "content": "Commit: 2bd82dee",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e004"
+      ]
     }
   ],
   "metrics": {
@@ -63,5 +70,7 @@
     "commits": 1,
     "files_changed": 6
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 2"
 }

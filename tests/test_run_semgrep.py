@@ -176,3 +176,72 @@ class TestRunSemgrepFailClosed:
         assert "Semgrep JSON parse failed" in findings[0].message
         assert "stderr=semgrep warning" in findings[0].message
         assert "stdout=not json" in findings[0].message
+
+
+class TestCompatibilityRuleExclusion:
+    """The python36 and python37 compatibility rules must be excluded.
+
+    requires-python = ">=3.14" (pyproject.toml). Those families produce
+    guaranteed false positives on every compliant subprocess call in this repo
+    and block pushes that satisfy tests/test_subprocess_text_encoding.py
+    (issue #4223).
+    """
+
+    def test_cmd_excludes_python36_compatibility_family(
+        self, scanner: SemgrepScanner
+    ) -> None:
+        with patch(
+            "scripts.security.run_semgrep.subprocess.run",
+            return_value=_completed(0, stdout='{"results": []}'),
+        ) as run_mock:
+            scanner._run_semgrep([Path("/repo/a.py")])
+
+        cmd = run_mock.call_args.args[0]
+        assert "--exclude-rule" in cmd, "semgrep command must carry --exclude-rule"
+        # There may be multiple --exclude-rule flags; gather all values.
+        exclusions = [
+            cmd[i + 1]
+            for i, flag in enumerate(cmd)
+            if flag == "--exclude-rule" and i + 1 < len(cmd)
+        ]
+        assert any(
+            e.startswith("python.lang.compatibility.python36") for e in exclusions
+        ), (
+            f"python36 compatibility family not excluded. Got exclusions: {exclusions}. "
+            "The family produces guaranteed false positives on a 3.14+ floor (issue #4223)."
+        )
+
+    def test_cmd_excludes_python37_compatibility_family(
+        self, scanner: SemgrepScanner
+    ) -> None:
+        with patch(
+            "scripts.security.run_semgrep.subprocess.run",
+            return_value=_completed(0, stdout='{"results": []}'),
+        ) as run_mock:
+            scanner._run_semgrep([Path("/repo/a.py")])
+
+        cmd = run_mock.call_args.args[0]
+        exclusions = [
+            cmd[i + 1]
+            for i, flag in enumerate(cmd)
+            if flag == "--exclude-rule" and i + 1 < len(cmd)
+        ]
+        assert any(
+            e.startswith("python.lang.compatibility.python37") for e in exclusions
+        ), (
+            f"python37 compatibility family not excluded. Got exclusions: {exclusions}. "
+            "The family produces guaranteed false positives on a 3.14+ floor (issue #4223)."
+        )
+
+    def test_exclusions_do_not_remove_security_config(
+        self, scanner: SemgrepScanner
+    ) -> None:
+        """Excluding compatibility rules must not remove the security config."""
+        with patch(
+            "scripts.security.run_semgrep.subprocess.run",
+            return_value=_completed(0, stdout='{"results": []}'),
+        ) as run_mock:
+            scanner._run_semgrep([Path("/repo/a.py")])
+
+        cmd = run_mock.call_args.args[0]
+        assert "--config" in cmd, "semgrep command must still carry --config"
