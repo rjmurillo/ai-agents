@@ -153,9 +153,7 @@ def test_a_stale_branch_message_is_not_baseline_raised(tmp_path, monkeypatch, ca
     assert "Fix the violations" not in captured.err
 
 
-def test_a_real_raised_baseline_still_reports_baseline_raised(
-    tmp_path, monkeypatch, capsys
-):
+def test_a_real_raised_baseline_still_reports_baseline_raised(tmp_path, monkeypatch, capsys):
     baseline = _write_baseline(tmp_path, "700")
     monkeypatch.setattr(subprocess, "run", _fake_scan(10, 650, base_baseline="615"))
     rc = ratchet.main(_base_ref_argv(baseline, tmp_path))

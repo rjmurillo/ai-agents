@@ -152,12 +152,14 @@ def list_violations(repo_root: Path) -> list[str] | None:
             report = json.loads(proc.stdout)
         except json.JSONDecodeError:
             return None
-        for finding in report.get("findings", []):
+        # taste_lints.py emits {"violations": [...]} with a "file" key per item.
+        # Reading "findings"/"path" here silently produced an empty diagnostic.
+        for finding in report.get("violations", []):
             if not isinstance(finding, dict):
                 continue
             if finding.get("severity") != "error":
                 continue
-            path = finding.get("path", "?")
+            path = finding.get("file", "?")
             rule = finding.get("rule", "?")
             msg = finding.get("message", "")
             lines.append(f"{path}: [{rule}] {msg}")
