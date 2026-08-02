@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Five atomic commits through c0e556183; each touched five or fewer files."
+        "Evidence": "Seven atomic commits through fa6972685; each touched five or fewer files."
       },
       "validationPassed": {
         "level": "MUST",
@@ -137,10 +137,10 @@
     {
       "step": 4,
       "action": "Ran local release gates",
-      "result": "Taste count equals baseline 601. pre_pr.py reports 43 passed, 0 failed, 4 skipped."
+      "result": "Taste count is 600 against baseline 601. pre_pr.py reports 43 passed, 0 failed, 4 skipped."
     }
   ],
-  "endingCommit": "c0e556183",
+  "endingCommit": "fa6972685",
   "nextSteps": [
     "Push the branch and open the follow-up pull request.",
     "Resolve CI and review findings before merge."

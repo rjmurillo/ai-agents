@@ -47,7 +47,7 @@
       "id": "e005",
       "timestamp": "2026-08-02T00:00:00+00:00",
       "type": "test",
-      "content": "Ran local release gates   4   Taste count equals baseline 601. pre_pr.py reports 43 passed, 0 failed, 4 skipped.",
+      "content": "Ran local release gates   4   Taste count is 600 against baseline 601. pre_pr.py reports 43 passed, 0 failed, 4 skipped.",
       "caused_by": [
         "e006"
       ],
@@ -58,7 +58,7 @@
       "id": "e006",
       "timestamp": "2026-08-02T00:00:00+00:00",
       "type": "commit",
-      "content": "Commit: c0e556183",
+      "content": "Commit: fa6972685",
       "caused_by": [],
       "leads_to": [
         "e005"
