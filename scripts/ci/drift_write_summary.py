@@ -32,14 +32,17 @@ def build_summary(drift_detected: str) -> str:
         ]
     else:
         lines.append(
-            ":white_check_mark: **No drift detected**"
-            " - All Claude agents are in sync with templates"
+            ":white_check_mark: **No new drift**"
+            " - every compared pair scored at or above the similarity"
+            " threshold, or stayed at or above a recorded baseline floor."
+            " Baselined pairs are still drifted; they are tracked, not in sync."
         )
     lines += [
         "",
-        "### Files Checked",
-        "- Claude agents: `src/claude/`",
-        "- Shared templates: `templates/agents/`",
+        "### Pairs Compared",
+        "- `src/claude/` vs `src/vs-code-agents/`",
+        "- `.claude/agents/` vs `.github/agents/`,"
+        + " scoped to agents whose prose comes from `templates/agents/`",
     ]
     return "\n".join(lines) + "\n"
 
