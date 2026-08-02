@@ -1,0 +1,74 @@
+{
+  "id": "episode-2026-08-01-session-3791-3936-4190-script-entrypoints-and-pins",
+  "session": "2026-08-01-session-3791-3936-4190-script-entrypoints-and-pins",
+  "timestamp": "2026-08-01T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix python3 entrypoint docs (#3791), fix context-optimizer inverted heuristic (#3936), pin semgrep in run_semgrep.py (#4190)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified issue premises against HEAD (914d8248f)",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-3791-3936-4190-script-entrypoints-and-pins"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #3791: updated CONTRIBUTING.md and SESSION-PROTOCOL.md python3 -> uv run python",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-3791-3936-4190-script-entrypoints-and-pins"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #3936: replaced inverted always_needed heuristic with repo-specific signal detection",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-3791-3936-4190-script-entrypoints-and-pins"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #4190: pinned semgrep executable resolution in run_semgrep.py",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-3791-3936-4190-script-entrypoints-and-pins"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran mutation harness",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-3791-3936-4190-script-entrypoints-and-pins"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Pre-PR validation",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-3791-3936-4190-script-entrypoints-and-pins"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 4
+  },
+  "lessons": []
+}
