@@ -70,6 +70,42 @@ def test_validate_model_pins_fails_on_config_error(
     assert checks_spec.validate_model_pins(REPO_ROOT) is False
 
 
+def test_validate_skill_md_portability_passes_resolved_base_ref(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Issue #4195: the semantic-conflict guard needs the branch base ref."""
+    captured: dict[str, list[str]] = {}
+    monkeypatch.setattr(checks_spec, "_resolve_branch_base_ref", lambda _root: "origin/main")
+
+    def fake_run_subprocess(args: list[str], *_a: object, **_k: object) -> tuple[int, str, str]:
+        captured["args"] = args
+        return 0, "No Markdown vendor-portability drift", ""
+
+    monkeypatch.setattr(checks_spec, "_run_subprocess", fake_run_subprocess)
+
+    assert checks_spec.validate_skill_md_portability(REPO_ROOT) is True
+    assert "--base-ref" in captured["args"]
+    idx = captured["args"].index("--base-ref")
+    assert captured["args"][idx + 1] == "origin/main"
+
+
+def test_validate_skill_md_portability_omits_base_ref_when_unresolved(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Detached or offline checkouts still run the underlying ratchet."""
+    captured: dict[str, list[str]] = {}
+    monkeypatch.setattr(checks_spec, "_resolve_branch_base_ref", lambda _root: None)
+
+    def fake_run_subprocess(args: list[str], *_a: object, **_k: object) -> tuple[int, str, str]:
+        captured["args"] = args
+        return 0, "No Markdown vendor-portability drift", ""
+
+    monkeypatch.setattr(checks_spec, "_run_subprocess", fake_run_subprocess)
+
+    assert checks_spec.validate_skill_md_portability(REPO_ROOT) is True
+    assert "--base-ref" not in captured["args"]
+
+
 def test_validate_model_pins_prints_new_violations_past_backlog(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

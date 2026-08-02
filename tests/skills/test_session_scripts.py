@@ -508,3 +508,143 @@ class TestGetValidationErrors:
             import get_validation_errors as mod
             mod.main()
         assert exc.value.code == 0
+
+
+# ---------------------------------------------------------------------------
+# complete_session_log branch-aware selection (issue #4161)
+# ---------------------------------------------------------------------------
+
+class TestCompleteSessionLogBranchAware:
+    """_find_current_session_log selects by branch field before falling back to mtime."""
+
+    def _import(self):
+        import importlib
+
+        import complete_session_log as mod
+        importlib.reload(mod)
+        return mod
+
+    def _make_session(self, branch: str = "main") -> dict:
+        return {
+            "session": {"number": 1, "date": "2024-01-01", "branch": branch},
+            "workLog": [],
+            "endingCommit": "",
+        }
+
+    def test_branch_match_wins_over_mtime(self, tmp_path):
+        """Returns the log whose branch field matches current branch, not the mtime winner."""
+        mod = self._import()
+        from datetime import UTC, datetime
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        import os
+
+        # Older log for our branch
+        mine = tmp_path / f"{today}-session-1.json"
+        mine.write_text(json.dumps(self._make_session("feature/x")))
+        os.utime(mine, (1_000_000_000.0, 1_000_000_000.0))
+
+        # Newer log for another branch (has mtime 2^31 in the future from epoch, still today)
+        other = tmp_path / f"{today}-session-2.json"
+        other.write_text(json.dumps(self._make_session("feature/other")))
+        os.utime(other, (2_000_000_000.0, 2_000_000_000.0))
+
+        with patch.object(mod, "_get_current_branch", return_value="feature/x"):
+            result = mod._find_current_session_log(str(tmp_path))
+
+        assert result == str(mine), (
+            f"Expected branch-matching log {mine.name}, got {result}"
+        )
+
+    def test_newest_branch_match_wins_when_branch_has_multiple_logs(self, tmp_path):
+        """Returns the newest matching branch log, not the first filename."""
+        mod = self._import()
+        from datetime import UTC, datetime
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        import os
+
+        older = tmp_path / f"{today}-session-1.json"
+        older.write_text(json.dumps(self._make_session("feature/x")))
+        os.utime(older, (1_000_000_000.0, 1_000_000_000.0))
+
+        newer = tmp_path / f"{today}-session-2.json"
+        newer.write_text(json.dumps(self._make_session("feature/x")))
+        os.utime(newer, (2_000_000_000.0, 2_000_000_000.0))
+
+        with patch.object(mod, "_get_current_branch", return_value="feature/x"):
+            result = mod._find_current_session_log(str(tmp_path))
+
+        assert result == str(newer), (
+            f"Expected newest branch-matching log {newer.name}, got {result}"
+        )
+
+    def test_fallback_to_mtime_when_no_branch_log(self, tmp_path):
+        """Falls back to mtime ordering when no log matches the current branch."""
+        mod = self._import()
+        from datetime import UTC, datetime
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        import os
+
+        log_old = tmp_path / f"{today}-session-1.json"
+        log_old.write_text(json.dumps(self._make_session("feature/other-a")))
+        os.utime(log_old, (1_000_000_000.0, 1_000_000_000.0))
+
+        log_new = tmp_path / f"{today}-session-2.json"
+        log_new.write_text(json.dumps(self._make_session("feature/other-b")))
+        os.utime(log_new, (2_000_000_000.0, 2_000_000_000.0))
+
+        with patch.object(mod, "_get_current_branch", return_value="feature/no-log"):
+            result = mod._find_current_session_log(str(tmp_path))
+
+        assert result == str(log_new), "Should return mtime winner when no branch match"
+
+    def test_fallback_to_mtime_when_branch_unavailable(self, tmp_path):
+        """Falls back to mtime when _get_current_branch returns None."""
+        mod = self._import()
+        from datetime import UTC, datetime
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+
+        log = tmp_path / f"{today}-session-1.json"
+        log.write_text(json.dumps(self._make_session("feature/x")))
+
+        with patch.object(mod, "_get_current_branch", return_value=None):
+            result = mod._find_current_session_log(str(tmp_path))
+
+        assert result == str(log)
+
+    def test_legacy_top_level_branch_field_is_matched(self, tmp_path):
+        """A log with top-level 'branch' (legacy schema) is also matched by branch."""
+        mod = self._import()
+        from datetime import UTC, datetime
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+
+        legacy_log = tmp_path / f"{today}-session-1.json"
+        legacy_log.write_text(json.dumps({"branch": "feature/legacy"}))
+
+        with patch.object(mod, "_get_current_branch", return_value="feature/legacy"):
+            result = mod._find_current_session_log(str(tmp_path))
+
+        assert result == str(legacy_log), "Legacy top-level branch field should be matched"
+
+    def test_get_current_branch_returns_none_on_failure(self):
+        """_get_current_branch returns None when git fails."""
+        mod = self._import()
+        proc = make_proc(returncode=128, stderr="not a git repository")
+        with patch("subprocess.run", return_value=proc):
+            result = mod._get_current_branch()
+        assert result is None
+
+    def test_get_current_branch_returns_none_on_detached_head(self):
+        """_get_current_branch returns None when output is empty (detached HEAD)."""
+        mod = self._import()
+        proc = make_proc(stdout="", returncode=0)
+        with patch("subprocess.run", return_value=proc):
+            result = mod._get_current_branch()
+        assert result is None
+
+    def test_get_current_branch_returns_branch_name(self):
+        """_get_current_branch returns the branch name on success."""
+        mod = self._import()
+        proc = make_proc(stdout="feature/my-work\n", returncode=0)
+        with patch("subprocess.run", return_value=proc):
+            result = mod._get_current_branch()
+        assert result == "feature/my-work"

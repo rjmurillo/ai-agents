@@ -86,7 +86,7 @@ def _run_shim(
             ["python3", path],
             input=json.dumps(payload),
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=15,
         )
     finally:
@@ -938,7 +938,7 @@ def _run_shim_with_env(
             ["python3", path],
             input=json.dumps(payload),
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=15,
             env=merged,
         )
@@ -998,7 +998,7 @@ def test_inject_shim_exits_2_on_malformed_json_stdin():
             ["python3", p],
             input="not json {",
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=10,
         )
     finally:
@@ -1233,7 +1233,7 @@ def test_generated_skill_owner_imports_companion_portably(
         [sys.executable, str(owner)],
         cwd=tmp_path,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=False,
         timeout=30,
     )

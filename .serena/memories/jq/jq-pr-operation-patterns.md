@@ -15,13 +15,16 @@ Validated JQ patterns for PR operations (tested, working):
 ### Filter BLOCKED PRs
 
 ```bash
-gh pr list --json number,mergeStateStatus | jq '.[] | select(.mergeStateStatus == "BLOCKED")'
+# `mergeable` is not decoration: without it GitHub leaves mergeStateStatus at
+# UNKNOWN for most PRs, and this select silently misses them. See
+# .serena/memories/ci/ci-mergeability-is-not-computed-until-you-ask.md
+gh pr list --json number,mergeable,mergeStateStatus | jq '.[] | select(.mergeStateStatus == "BLOCKED")'
 ```
 
 ### Extract PR numbers from status
 
 ```bash
-gh pr list --json number,mergeStateStatus | jq -r '.[] | select(.mergeStateStatus == "BLOCKED") | .number'
+gh pr list --json number,mergeable,mergeStateStatus | jq -r '.[] | select(.mergeStateStatus == "BLOCKED") | .number'
 ```
 
 ### Count PRs by status

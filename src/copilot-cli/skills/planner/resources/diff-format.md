@@ -152,6 +152,7 @@ Location directive leaked into comment - line numbers become stale.
 </example>
 
 <example type="CORRECT" category="location_directive">
+
 ```diff
 @@ -714,6 +714,10 @@ def put(self, ctx, tags):
     for tag in tags:
@@ -165,6 +166,7 @@ Location directive leaked into comment - line numbers become stale.
         for attempt in range(max_retries):
 
 ```
+
 Context lines (`for tag in tags`, `# Retry loop`) are stable anchors that survive line number drift.
 </example>
 
@@ -198,4 +200,3 @@ Before finalizing code changes in a plan:
 - [ ] No location directives in comments
 - [ ] No hidden baselines (test: "[adjective] compared to what?")
 - [ ] 2-3 context lines for reliable anchoring
-```

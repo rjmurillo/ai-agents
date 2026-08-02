@@ -1,0 +1,153 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4180,
+    "date": "2026-08-01",
+    "branch": "fix/issue-3791",
+    "startingCommit": "e8ddb8ad8",
+    "objective": "Fix issue #3791: documented bare-python3 invocations of scripts importing third-party deps; add interpreter-portability ratchet"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP reachable in this worktree; list_memories returned the project memory index (770+ entries), confirming the project is active."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions called and read; symbolic-tools-first guidance applied."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read. Status: ACTIVE, READ-ONLY since 2025-12-22; session context goes to .agents/sessions/ and Serena memory. Not edited."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ls .claude/skills counted 99 skill directories."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory `usage-mandatory` read: skill-first incident log; ADR-085 retired the blocking hook, the MUST convention stands in AGENTS.md prose."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read: canonical source of truth, retrieval-led reasoning."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__list_memories enumerated the index; `usage-mandatory` read in full. Wrote `decision-doc-interpreter-portability-guard`."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/issue-3791"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/issue-3791"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status verified clean on branch entry; branch fix/issue-3791"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "e8ddb8ad8"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session-start MUSTs evidenced above; quality checks below run and recorded."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read only, never written (ADR-014). `git status` shows it unmodified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote Serena memory `decision-doc-interpreter-portability-guard` recording the docs-not-code decision, the CI carve-out, and the two false-positive classes the guard must keep avoiding."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 run on CONTRIBUTING.md and the debate log: 0 issues. Pre-commit markdown-autofix and markdown-check passed on every commit."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "e8ddb8ad8 fix(docs) CONTRIBUTING.md; this commit carries .agents/SESSION-PROTOCOL.md plus adr-review evidence; the validator, baseline, tests, and pre-PR wiring follow in separate atomic commits."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run ruff check on all changed Python: All checks passed. uv run pytest tests/test_check_doc_interpreter_portability.py: 35 passed. Full suite at the branch tip in a clean scratch checkout: 21096 passed, 30 skipped, 0 failed. check_doc_interpreter_portability.py: OK. build_all.py --check, generate_agents.py --validate, and generate_agent_catalog.py --check all pass. Round 1 recorded 3 test_validation_scripts_are_reachable failures as pre-existing without naming a cause; the cause is now measured: tests/ci/test_validation_scripts_are_reachable.py:110 filters rglob results on absolute path parts, and every checkout under .claude/worktrees/ carries a 'worktrees' component, so _python_sources() returns empty and 114 of 143 tests in that file fail there. The same commits pass in a checkout outside that prefix. Test-environment defect, not this change; flagged, not fixed here."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Remaining migration work recorded in nextSteps and in the guard baseline."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "adr-review skill run on the SESSION-PROTOCOL.md change; debate log at .agents/critique/SESSION-PROTOCOL-interpreter-portability-debate-log.md."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Reproduce issue #3791 against current HEAD",
+      "outcome": "Confirmed. `python3 -S scripts/sync_adr_protocol.py` exits ModuleNotFoundError: No module named 'yaml' at line 24. Same failure at build/scripts/yaml_loader.py:25 via build/generate_agents.py, and at scripts/validate_session_json.py:39 on jsonschema."
+    },
+    {
+      "task": "Measure the defect class repo-wide",
+      "outcome": "302 documented bare-interpreter invocations across 128 tracked Markdown files; 156 across 56 files in the live source surface after excluding frozen history and generated mirrors."
+    },
+    {
+      "task": "adr-review skill on the .agents/SESSION-PROTOCOL.md change",
+      "outcome": "ADR Review Protocol applied, 6/6 Accept with one P2 reservation. Debate log at .agents/critique/SESSION-PROTOCOL-interpreter-portability-debate-log.md. Phase 0 found canonical guidance at .claude/skills/ai-agents-generation-and-release/SKILL.md:84 prescribing this exact fix. Counter-evidence issue #3085 (uv run fetching from PyPI offline) was tested and did not reproduce: UV_OFFLINE=1 uv run python -c 'import yaml, jsonschema' prints offline OK."
+    },
+    {
+      "task": "Fix documented invocations in CONTRIBUTING.md and .agents/SESSION-PROTOCOL.md",
+      "outcome": "16 lines in CONTRIBUTING.md and 4 in SESSION-PROTOCOL.md now name `uv run python`. Both files hold at zero under the new ratchet."
+    },
+    {
+      "task": "Add scripts/validation/check_doc_interpreter_portability.py ratchet plus tests",
+      "outcome": "32 tests pass. Load-bearing proven by reverting each fix and observing failure: docs revert gives guard exit 1 plus a failing regression test; ambiguity-fix revert returns the pytest false positive; module-level-walk revert returns the anthropic false positive."
+    },
+    {
+      "task": "Round 2, adversarial review rejection: fix every sibling instead of grandfathering them",
+      "outcome": "Review rejected round 1 for leaving the sibling class in a baseline. Migrated all 112 remaining invocations across 47 files (21 non-plugin docs, 22 .claude sources, 1 generator emitter, plus regenerated mirrors), emptied doc_interpreter_baseline.json, and added test_repository_has_no_documented_bare_interpreter_invocations. Five historical citations of what PR #2871 did were reworded to drop the interpreter token rather than rewritten, so the record stays true."
+    },
+    {
+      "task": "Fix the guard's own dot-path blind spot",
+      "outcome": "INVOCATION_PATTERN required the operand to start with a word character, so `python3 .claude/skills/adr-review/scripts/detect_adr_changes.py` (import yaml) and every `./scripts/<name>.py` form were invisible, and the `./` strip in find_offenses was dead code. Seven offenses across four files hid behind that character class. Fixed with a `\\.{0,2}/?` prefix; two new unit tests fail without it."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Issues #3806 and #4210 carry the same defect class in CI and workflow surfaces; both remain open.",
+    "CONTRIBUTING.md:466-474 documents an AUTO-GENERATED banner that exists in zero generated files and that no agent generator emits; stale block, not fixed here.",
+    "build/generate_agent_catalog.py:239 carries a pre-existing E501 and a ruff-format diff, both on a line this change did not touch; left alone to keep the diff minimal.",
+    "tests/ci/test_validation_scripts_are_reachable.py:110 skips any rglob hit whose absolute path parts include 'worktrees', so the guard is vacuous in every .claude/worktrees/ checkout. Filter on the repo-relative parts instead. Worth its own issue."
+  ]
+}
