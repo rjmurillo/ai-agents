@@ -165,8 +165,8 @@ def main() -> int:
             "#4161 branch-match",
             REPO_ROOT
             / ".claude/skills/session-end/scripts/complete_session_log.py",
-            "if log_branch == branch:\n                return full",
-            "if log_branch == branch:\n                pass  # mutant: skip branch return",
+            "if _read_log_branch(full) == branch:",
+            "if _read_log_branch(full) != branch:  # mutant: invert branch match",
             [
                 "tests/skills/test_session_scripts.py",
             ],
