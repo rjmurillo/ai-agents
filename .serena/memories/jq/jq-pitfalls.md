@@ -1,18 +1,34 @@
 # jq: Common Pitfalls
 
-## Pitfall-JQ-001: Forgetting Raw Mode
+## Pitfall-JQ-001: Raw Mode Belongs to External jq, Not `--jq`
 
-**Problem**: Quotes in output break shell scripts.
+**Problem**: Quotes in output break shell scripts, but the fix depends on which
+jq is doing the work.
+
+`gh`'s built-in `--jq` already emits raw output for string results, and it takes
+exactly one argument, so passing `-r` to it is a syntax error rather than an
+improvement. External `jq` is the one that quotes strings by default and needs
+`-r`.
 
 ```bash
-# BAD
+# gh's built-in --jq: already raw
 TITLE=$(gh pr view 123 --json title --jq '.title')
-# TITLE="My PR" (with quotes)
+# TITLE=My PR
 
-# GOOD
-TITLE=$(gh pr view 123 --json title --jq -r '.title')
-# TITLE=My PR (without quotes)
+# ...and -r is a syntax error, not a fix
+gh pr view 123 --json title --jq -r '.title'
+# accepts at most 1 arg(s), received 2
+
+# External jq: quotes by default
+gh pr view 123 --json title | jq '.title'
+# "My PR"
+
+# External jq: -r strips them
+gh pr view 123 --json title | jq -r '.title'
+# My PR
 ```
+
+All four forms measured against gh 2.96.0.
 
 ## Pitfall-JQ-002: Null Values in Pipelines
 
