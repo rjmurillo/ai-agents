@@ -4568,6 +4568,69 @@ def test_push_files_warning_emits_for_new_branch(
     assert "quality coverage may be incomplete" in capsys.readouterr().err
 
 
+def test_push_files_warning_is_quiet_for_explicit_refspec_push(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """HEAD pushed to a differently-named remote branch must not warn.
+
+    Reproduces issue #4236: autofix worktrees push checked-out HEAD to the PR's
+    branch using 'git push origin HEAD:pr-branch'. The local ref and remote ref
+    differ, but the local commit IS the checked-out HEAD, so {push_files} covers
+    the pushed files. The warning should be silent.
+    """
+    head = "1" * 40
+
+    def run_git(_repo_root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+        if args == ["rev-parse", "HEAD"]:
+            return _completed(0, f"{head}\n")
+        if args == ["rev-parse", "--verify", "@{push}"]:
+            return _completed(128, "", "no upstream configured\n")
+        raise AssertionError(args)
+
+    monkeypatch.setattr(policy, "_run_git", run_git)
+
+    refs = [
+        policy.PushRef(
+            "refs/heads/local-repair",
+            head,
+            "refs/heads/pr-target-branch",
+            "0" * 40,
+        )
+    ]
+    policy.warn_if_push_files_incomplete(refs, tmp_path)
+
+    assert capsys.readouterr().err == ""
+
+
+def test_push_files_warning_emits_for_multi_ref_with_explicit_refspec(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Multiple refs still warn even if one is a HEAD explicit-refspec push."""
+    head = "1" * 40
+    other = "2" * 40
+
+    def run_git(_repo_root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+        if args == ["rev-parse", "HEAD"]:
+            return _completed(0, f"{head}\n")
+        if args == ["rev-parse", "--verify", "@{push}"]:
+            return _completed(128, "", "no upstream\n")
+        raise AssertionError(args)
+
+    monkeypatch.setattr(policy, "_run_git", run_git)
+
+    refs = [
+        policy.PushRef("refs/heads/local-a", head, "refs/heads/pr-target", "0" * 40),
+        policy.PushRef("refs/heads/local-b", other, "refs/heads/local-b", "0" * 40),
+    ]
+    policy.warn_if_push_files_incomplete(refs, tmp_path)
+
+    assert "quality coverage may be incomplete" in capsys.readouterr().err
+
+
 def test_push_policy_allows_deletion_only_input(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
@@ -6870,6 +6933,48 @@ def test_history_integrity_rejects_shallow_or_unknown_state(
     monkeypatch.setattr(policy, "_check_no_grafts", lambda _root: 0)
 
     assert policy._check_history_integrity(tmp_path) == expected
+
+
+def test_history_integrity_shallow_message_names_remedy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Shallow clone error must name the fix command (issue #4086)."""
+    monkeypatch.setattr(
+        policy,
+        "_run_git",
+        lambda *_args: _completed(0, "true\n"),
+    )
+
+    assert policy._check_history_integrity(tmp_path) == 2
+
+    err = capsys.readouterr().err
+    assert "git fetch --unshallow origin" in err
+
+
+def test_history_integrity_shallow_message_names_pin_sha(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Shallow message includes the pinning SHA from .git/shallow (issue #4086)."""
+    pin = "a" * 40
+    shallow_file = tmp_path / ".git" / "shallow"
+    shallow_file.parent.mkdir(parents=True, exist_ok=True)
+    shallow_file.write_text(f"{pin}\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        policy,
+        "_run_git",
+        lambda *_args: _completed(0, "true\n"),
+    )
+
+    assert policy._check_history_integrity(tmp_path) == 2
+
+    err = capsys.readouterr().err
+    assert pin in err
+    assert "git fetch --unshallow origin" in err
 
 
 def test_push_update_defense_blocks_protected_destination(

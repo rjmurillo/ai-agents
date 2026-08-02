@@ -2368,8 +2368,18 @@ def _check_history_integrity(repo_root: Path) -> int:
         print(f"ERROR: unexpected shallow repository state: {shallow_state}", file=sys.stderr)
         return 2
     if shallow_state == "true":
+        shallow_file = repo_root / ".git" / "shallow"
+        pin_sha = ""
+        if shallow_file.is_file():
+            first_line = shallow_file.read_text(encoding="utf-8").splitlines()
+            pin_sha = first_line[0].strip() if first_line else ""
+        pin_detail = f"  .git/shallow pins history at {pin_sha}." if pin_sha else ""
         print(
-            "ERROR: push validation requires complete Git history; fetch the full history",
+            "ERROR: push validation requires complete Git history."
+            + (f"\n  {pin_detail}" if pin_detail else "")
+            + "\n  A `git fetch --depth=<n>` made this clone shallow,"
+            " most likely while reproducing a CI step locally."
+            "\n  Fix: git fetch --unshallow origin",
             file=sys.stderr,
         )
         return 2
@@ -4964,13 +4974,17 @@ def warn_if_push_files_incomplete(
         return
     checked_out_head = head_result.stdout.strip()
     push_base = _run_git(repo_root, ["rev-parse", "--verify", "@{push}"])
-    if (
-        len(push_refs) == 1
-        and push_refs[0].local_sha == checked_out_head
-        and push_base.returncode == 0
-        and push_refs[0].remote_sha == push_base.stdout.strip()
-    ):
-        return
+    if len(push_refs) == 1 and push_refs[0].local_sha == checked_out_head:
+        ref = push_refs[0]
+        # Quiet path 1: configured push target matches the remote SHA.
+        if push_base.returncode == 0 and ref.remote_sha == push_base.stdout.strip():
+            return
+        # Quiet path 2: explicit refspec push (HEAD -> differently-named remote
+        # branch). The local commit is checked-out HEAD, so Lefthook {push_files}
+        # does cover the pushed files. The @{push} target is irrelevant here
+        # because the caller named the destination explicitly.
+        if ref.local_ref != ref.remote_ref:
+            return
     print(
         "WARNING: Lefthook {push_files} quality coverage may be incomplete because "
         "the pushed ref set does not match checked-out HEAD and its configured push "
