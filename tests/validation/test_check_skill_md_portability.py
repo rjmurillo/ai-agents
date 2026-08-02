@@ -990,23 +990,23 @@ class TestMainCli:
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
         assert rc == 1
 
-    def test_baseline_path_traversal_returns_empty(self, tmp_path: Path) -> None:
-        # A --baseline argument escaping the repo root must resolve to Path("")
-        # and cause a config error (exit 2), not read an arbitrary file.
+    def test_baseline_path_traversal_is_refused(self, tmp_path: Path) -> None:
+        # A --baseline argument escaping the repo root must be refused and
+        # cause a config error (exit 2), not read an arbitrary file.
         root = tmp_path / "repo"
         root.mkdir()
         (root / ".claude" / "skills").mkdir(parents=True)
         traversal = Path("../../etc/passwd")
         result = cmp._resolve_baseline_path(root, traversal)
-        assert result == Path(""), "path traversal must return empty Path"
+        assert result is None, "path traversal must be refused"
 
-    def test_absolute_baseline_outside_root_returns_empty(self, tmp_path: Path) -> None:
+    def test_absolute_baseline_outside_root_is_refused(self, tmp_path: Path) -> None:
         root = tmp_path / "repo"
         root.mkdir()
         outside = tmp_path / "outside.json"
         outside.write_text("{}", encoding="utf-8")
         result = cmp._resolve_baseline_path(root, outside)
-        assert result == Path(""), "absolute path outside root must return empty Path"
+        assert result is None, "absolute path outside root must be refused"
 
 
 class TestUnexpectedScanException:
