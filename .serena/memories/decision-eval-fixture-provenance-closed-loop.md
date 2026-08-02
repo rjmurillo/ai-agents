@@ -8,26 +8,25 @@ only on prompts the repository's own author wrote?
 
 ## Conventional answer
 
-The corpus is fine. It carries a `provenance` field on every fixture, the field
-is typed against a closed vocabulary, and a reviewer can see at a glance that
-provenance was considered. A corpus that tracks provenance is a corpus that has
-handled the provenance problem.
+The corpus is fine. It carries a `provenance` field, the field is typed against
+a closed vocabulary, and a reviewer can see at a glance that provenance was
+considered. A corpus that tracks provenance has handled the provenance problem.
 
 ## First-principles position
 
 Tracking provenance and having independent provenance are different properties.
-This corpus has the first and not the second. The vocabulary was even built with
-an externally sourced value in it, and that value is used zero times, so the gap
-is not an oversight in the schema. It is visible in the data the schema records.
+This corpus has the first and not the second. The vocabulary was built with an
+externally sourced value in it, and that value is used zero times, so the gap is
+not an oversight in the schema. It is visible in the data the schema records.
 
-The distinction matters specifically for trigger and routing evals, where the
-wording of the prompt is the thing under test. When the person who wrote the
-skill also writes the prompt that is supposed to fire it, both sides share one
-vocabulary, and the score measures self-consistency rather than reach.
+The one suite where prompt wording is the thing under test carries no provenance
+field at all, and its prompts were written to contain the trigger phrases the
+change under test had just added. That is the closed loop in its strongest form:
+the eval and the thing it scores were authored together from the same word list.
 
 ## Evidence
 
-Measured on `c02f61ddd2`, all commands run against a clean worktree.
+Measured on `c02f61ddd2` against a clean worktree.
 
 Vocabulary, at `scripts/eval/_eval_agent_types.py:19`, annotated "per REQ-004
 AC-4":
@@ -36,7 +35,7 @@ AC-4":
 ProvenanceLiteral = Literal["synthetic", "public-cve", "paraphrased-from-public"]
 ```
 
-Corpus, counted over `evals/**/*.json` with a top-level `provenance` key:
+Fixtures under `evals/` carrying a top-level `provenance` key:
 
 | provenance | fixtures |
 | --- | --- |
@@ -45,50 +44,78 @@ Corpus, counted over `evals/**/*.json` with a top-level `provenance` key:
 | `public-cve` | 0 |
 
 189 fixtures across 20 suites. `public-cve` is the one value in the vocabulary
-that names an artifact the author did not write, and no fixture uses it. The two
+naming an artifact the author did not write, and no fixture uses it. The two
 values in use are both author-worded: `synthetic` is written outright, and
 `paraphrased-from-public` is public material restated in the author's phrasing.
-No fixture is drawn from a session transcript.
 
-The constraint is static only. `Fixture` is a plain dataclass, so the `Literal`
-is a type-checker hint with no runtime gate. Confirmed with both controls:
+The constraint is static only. `Fixture` is a plain dataclass with no
+`__post_init__`, so the `Literal` is a type-checker hint with no runtime gate.
+Confirmed with both controls: a bogus value and a declared value are both
+accepted at construction.
 
-```text
-Fixture(provenance="totally-invalid-value")  -> accepted at runtime
-Fixture(provenance="public-cve")             -> accepted at runtime
-```
+### The router suite carries no provenance at all
 
-The repository already knows how to anchor a fixture to an artifact it did not
-author, in a different file under a free-form schema. Four of the seven items in
-`scripts/eval/examples/e2e-delivery-fixtures.json` carry values of the form
+`evals/skill-router-spike/fixtures.json` is a bare list of 21 items whose keys
+are `candidates`, `correct`, `id`, `query`. There is no `provenance` key, so
+these 21 sit outside the 189 counted above and outside the typed vocabulary.
+
+`scripts/eval/eval_skill_router.py` scores them. It measures whether the SKIP
+clauses issue #2127 added to skill descriptions improve sibling disambiguation,
+by showing a model 2 to 4 candidate descriptions plus one query and asking which
+candidate matches.
+
+Its docstring calls each query "a verbatim user request". That means phrased the
+way a user would phrase it, not taken from a user. The fixture ids are a
+constructed taxonomy, one per sibling in tidy families: `memory-01-recall`,
+`memory-02-citation-hygiene`, `memory-03-documentary`,
+`memory-04-forgetful-guidance`. Each query also carries the trigger phrase that
+issue #2127 had just written into the target's description, so
+`memory-02-citation-hygiene` asks to "check the memory's health" against a
+description rewritten to claim health checking.
+
+So the suite measures whether descriptions containing phrase P match queries
+containing phrase P, on prompts written after the descriptions they score, with
+the field set narrowed to a handful of pre-chosen siblings rather than the full
+skill list.
+
+### Prior art in this repository
+
+`.serena/memories/eval-harness-observations.md:21` already records that no true
+router or trigger eval exists, meaning one that answers whether an arbitrary
+query loads a given skill out of the whole catalog, and it names
+`eval_skill_router.py` as a first attempt. That entry is accurate. Do not cite it
+as saying the file does not exist.
+
+The repository also already knows how to anchor a fixture to an artifact it did
+not author, in a different file under a free-form schema. Four of the seven items
+in `scripts/eval/examples/e2e-delivery-fixtures.json` carry values of the form
 `merged-pr:https://github.com/rjmurillo/moq.analyzers/pull/1004`. That is a real
-external artifact, cited by URL. Nothing in the typed corpus does this.
+external artifact cited by URL. Nothing in the typed corpus does this.
 
-`.serena/memories/eval-harness-observations.md` records that no skill router or
-trigger eval exists in this repository at all, so the closed loop has never been
-measured here.
+### External evidence, not measured here
 
-External evidence for the size of the effect, not measured in this repository:
-a practitioner's self-authored skill-trigger benchmark scored 93% precision on
+A practitioner's self-authored skill-trigger benchmark scored 93% precision on
 prompts he wrote and 27% on prompts mined from his own session transcripts. Cited
-because it sets the expected direction and rough magnitude of the inflation, not
-as a number this repository has reproduced.
+because it sets the expected direction and rough magnitude, not as a number this
+repository has reproduced.
 
 ## Decision
 
 Treat every current eval score as an upper bound, not an estimate. The corpus
 cannot distinguish "the agent handles this task" from "the agent handles this
-task the way its author phrases it."
+task the way its author phrases it." Treat the router numbers as the loosest
+bound of the set, since that suite has no provenance record and its prompts
+postdate the descriptions they score.
 
-Do not fix this by adding a vocabulary value. `public-cve` already proves that a
-value alone changes nothing. The binding constraint is that no fixture is sourced
-from text the author did not write, and the supply of such text already exists in
-the local session histories under `~/.copilot/` and `~/.claude/`.
+Do not fix this by adding a vocabulary value. `public-cve` already proves a value
+alone changes nothing. The binding constraint is that no fixture is sourced from
+text the author did not write, and the supply of such text already exists in the
+local session histories under `~/.copilot/` and `~/.claude/`.
 
 Two consequences to carry:
 
 - A new eval suite that scores its own author's phrasing inherits this ceiling.
   Say so in the suite's own notes rather than reporting the number bare.
-- Any claim that a routing or trigger change improved matching is unfalsifiable
-  against this corpus, because the corpus contains no prompt the change could
-  fail to match in the way a real user would phrase it.
+- A routing or trigger improvement measured only against these fixtures is close
+  to unfalsifiable, because the corpus contains no prompt phrased the way a user
+  who had never read the description would phrase it.
