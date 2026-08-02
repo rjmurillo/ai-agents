@@ -46,6 +46,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import pathlib
 import subprocess
 import sys
 import time
@@ -74,6 +76,7 @@ KEEP_DETACHED = "detached HEAD (no branch to evaluate)"
 KEEP_UNPUSHED = "unpushed commits and not merged to base"
 KEEP_GIT_ERROR = "git inspection failed"
 KEEP_TIME_BUDGET = "not inspected (time budget exhausted)"
+KEEP_OCCUPIED = "in use by a running process"
 
 
 @dataclass
@@ -246,6 +249,34 @@ def is_merged_to_base(path: str, base_ref: str) -> bool:
     raise RuntimeError(msg)
 
 
+def occupied_paths() -> frozenset[str]:
+    """Working directories of live processes, read from ``/proc``.
+
+    A worktree can be fully merged, fully pushed and clean while an agent is
+    still sitting in it. Removing it pulls the directory out from under that
+    process. Returns an empty set where ``/proc`` is unavailable, in which case
+    occupancy is simply unknown and the remaining guards still apply.
+    """
+    proc = pathlib.Path("/proc")
+    if not proc.is_dir():
+        return frozenset()
+    found: set[str] = set()
+    for entry in proc.iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            found.add(os.readlink(entry / "cwd"))
+        except OSError:
+            continue
+    return frozenset(found)
+
+
+def is_occupied(path: str, cwds: frozenset[str]) -> bool:
+    """True when a live process sits in ``path`` or below it."""
+    prefix = path.rstrip("/") + "/"
+    return any(cwd == path or cwd.startswith(prefix) for cwd in cwds)
+
+
 def decide(
     worktree: Worktree,
     main_path: str,
@@ -253,6 +284,7 @@ def decide(
     *,
     current_path: str | None = None,
     inspect: bool = True,
+    cwds: frozenset[str] = frozenset(),
 ) -> Decision:
     """Decide whether a worktree is safe to remove. KEEP on any doubt.
 
@@ -272,6 +304,9 @@ def decide(
 
     if worktree.locked:
         return Decision(worktree.path, worktree.branch, remove=False, reason=KEEP_LOCKED)
+
+    if is_occupied(worktree.path, cwds):
+        return Decision(worktree.path, worktree.branch, remove=False, reason=KEEP_OCCUPIED)
 
     if worktree.detached or worktree.branch is None:
         return Decision(worktree.path, worktree.branch, remove=False, reason=KEEP_DETACHED)
@@ -308,6 +343,7 @@ def build_report(
     *,
     time_budget: float | None = None,
     clock: Callable[[], float] = time.monotonic,
+    cwds: frozenset[str] | None = None,
 ) -> GcReport:
     """Inspect all worktrees and build the GC plan (no mutation here).
 
@@ -317,8 +353,14 @@ def build_report(
     timeout. A budget of ``None`` or a non-positive number means unlimited.
     Keeping the leftovers preserves the fail-safe invariant: a worktree this
     run never looked at can never be proposed for removal.
+
+    ``cwds`` overrides live-process detection, for tests. By default the working
+    directories of running processes are read once and any worktree holding one
+    is kept, because a clean, merged, fully pushed worktree can still be the
+    home of a running agent.
     """
     worktrees = list_worktrees()
+    live_cwds = occupied_paths() if cwds is None else cwds
     main_path = worktrees[0].path if worktrees else ""
     current_path = _run_git(["rev-parse", "--show-toplevel"])
     report = GcReport(
@@ -339,6 +381,7 @@ def build_report(
                 base_ref,
                 current_path=current_path,
                 inspect=inspect,
+                cwds=live_cwds,
             )
         )
     report.decisions = decisions
