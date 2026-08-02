@@ -1077,7 +1077,9 @@ class TestAdrReviewPolicyMergeScope:
     def test_non_merge_adr_without_review_evidence_is_blocked(self, tmp_path, monkeypatch, capsys):
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
         monkeypatch.setattr(policy, "_merge_in_progress", lambda root: False)
-        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        monkeypatch.setattr(
+            policy, "_session_log_for_current_branch", lambda sessions_dir, repo_root: None
+        )
 
         result = policy.check_adr_review_policy(
             [".agents/architecture/ADR-999-test.md"],
@@ -1136,7 +1138,9 @@ class TestAdrReviewPolicyMergeScope:
             lambda root, commit, relative_path: b"main adr",
             raising=False,
         )
-        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        monkeypatch.setattr(
+            policy, "_session_log_for_current_branch", lambda sessions_dir, repo_root: None
+        )
 
         result = policy.check_adr_review_policy(
             [path],
@@ -1156,7 +1160,9 @@ class TestAdrReviewPolicyMergeScope:
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
         monkeypatch.setattr(policy, "_merge_in_progress", lambda root: True)
         monkeypatch.setattr(policy, "_read_index_blob", lambda root, relative_path: None)
-        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        monkeypatch.setattr(
+            policy, "_session_log_for_current_branch", lambda sessions_dir, repo_root: None
+        )
 
         result = policy.check_adr_review_policy(
             [path],
@@ -1311,7 +1317,9 @@ class TestAdrReviewPolicyMergeScope:
         assert policy._merge_authored_adr_paths([relative], repo) == [relative]
 
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
-        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        monkeypatch.setattr(
+            policy, "_session_log_for_current_branch", lambda sessions_dir, repo_root: None
+        )
         assert policy.check_adr_review_policy([relative], repo) == 1
         assert "ADR changes require adr-review evidence" in capsys.readouterr().err
 
@@ -1357,7 +1365,9 @@ class TestAdrReviewPolicyMergeScope:
         assert policy._merge_authored_adr_paths([relative], repo) == [relative]
 
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
-        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        monkeypatch.setattr(
+            policy, "_session_log_for_current_branch", lambda sessions_dir, repo_root: None
+        )
         assert policy.check_adr_review_policy([relative], repo) == 1
         assert "ADR changes require adr-review evidence" in capsys.readouterr().err
 
@@ -1454,7 +1464,9 @@ class TestAdrReviewPolicyMergeScope:
         assert policy._merge_authored_adr_paths([relative], repo) == [relative]
 
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
-        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        monkeypatch.setattr(
+            policy, "_session_log_for_current_branch", lambda sessions_dir, repo_root: None
+        )
         assert policy.check_adr_review_policy([relative], repo) == 1
         assert "ADR changes require adr-review evidence" in capsys.readouterr().err
 
@@ -1503,7 +1515,9 @@ class TestAdrReviewPolicyMergeScope:
         assert policy._merge_authored_adr_paths([relative], repo) == [relative]
 
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
-        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        monkeypatch.setattr(
+            policy, "_session_log_for_current_branch", lambda sessions_dir, repo_root: None
+        )
         assert policy.check_adr_review_policy([relative], repo) == 1
         assert "ADR changes require adr-review evidence" in capsys.readouterr().err
 
@@ -1561,7 +1575,9 @@ class TestAdrReviewPolicyMergeScope:
         assert policy._merge_authored_adr_paths([relative], repo) == []
 
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
-        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        monkeypatch.setattr(
+            policy, "_session_log_for_current_branch", lambda sessions_dir, repo_root: None
+        )
         assert policy.check_adr_review_policy([relative], repo) == 0
 
     def test_a_real_merge_still_gates_an_adr_the_author_wrote_on_the_branch(
@@ -1617,7 +1633,9 @@ class TestAdrReviewPolicyMergeScope:
         assert policy._merge_authored_adr_paths([relative], repo) == [relative]
 
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
-        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        monkeypatch.setattr(
+            policy, "_session_log_for_current_branch", lambda sessions_dir, repo_root: None
+        )
         assert policy.check_adr_review_policy([relative], repo) == 1
         assert "ADR changes require adr-review evidence" in capsys.readouterr().err
 
@@ -1658,7 +1676,9 @@ class TestAdrReviewPolicyMergeScope:
             lambda root, commit, relative_path: blobs.get(commit),
             raising=False,
         )
-        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        monkeypatch.setattr(
+            policy, "_session_log_for_current_branch", lambda sessions_dir, repo_root: None
+        )
 
         assert policy.check_adr_review_policy([path], tmp_path) == 1
         assert "ADR changes require adr-review evidence" in capsys.readouterr().err
@@ -1690,7 +1710,9 @@ class TestAdrReviewPolicyMergeScope:
         assert policy._merge_authored_adr_paths([relative], repo) == [relative]
 
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
-        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        monkeypatch.setattr(
+            policy, "_session_log_for_current_branch", lambda sessions_dir, repo_root: None
+        )
         assert policy.check_adr_review_policy([relative], repo) == 1
         assert "ADR changes require adr-review evidence" in capsys.readouterr().err
 
@@ -1720,7 +1742,9 @@ class TestAdrReviewPolicyMergeScope:
         assert policy._merge_authored_adr_paths([relative], repo) == [relative]
 
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
-        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        monkeypatch.setattr(
+            policy, "_session_log_for_current_branch", lambda sessions_dir, repo_root: None
+        )
         assert policy.check_adr_review_policy([relative], repo) == 1
         assert "ADR changes require adr-review evidence" in capsys.readouterr().err
 
@@ -1846,7 +1870,9 @@ class TestAdrReviewPolicyMergeScope:
 
         assert policy._merge_authored_adr_paths([relative], repo) == [relative]
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
-        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        monkeypatch.setattr(
+            policy, "_session_log_for_current_branch", lambda sessions_dir, repo_root: None
+        )
         assert policy.check_adr_review_policy([relative], repo) == 1
         assert "ADR changes require adr-review evidence" in capsys.readouterr().err
 
@@ -1904,7 +1930,9 @@ class TestAdrReviewPolicyMergeScope:
         assert policy._merge_authored_adr_paths([new_name], repo) == []
 
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
-        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        monkeypatch.setattr(
+            policy, "_session_log_for_current_branch", lambda sessions_dir, repo_root: None
+        )
         assert policy.check_adr_review_policy([new_name], repo) == 0
 
     def test_a_conflict_main_resolved_in_a_merge_is_a_state_main_has_carried(
