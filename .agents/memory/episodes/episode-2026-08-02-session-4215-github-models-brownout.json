@@ -1,0 +1,63 @@
+{
+  "id": "episode-2026-08-02-session-4215-github-models-brownout",
+  "session": "2026-08-02-session-4215-github-models-brownout",
+  "timestamp": "2026-08-02T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix issue #4215 so GitHub Models HTTP 410 retirement brownout failures are treated as neutral eval provider skips.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Loaded kanban task context and relevant project constraints. Copilot CLI delegation produced no changes due quota exhaustion, so implementation continued directly.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added failing regression coverage for GitHub Models HTTP 410 retirement brownout handling.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added brownout signatures to _is_provider_outage and verified targeted tests passed.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran eval tests, full tests, ruff, dry-run eval validation, and full pre_pr.py successfully.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 2
+  },
+  "lessons": []
+}

@@ -89,6 +89,17 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from scripts.validation.portability_common import (
+    build_portability_parser,
+    refuse_unsafe_baseline_write,
+    write_baseline_json,
+)
+from scripts.validation.portability_common import (
+    resolve_checked_baseline as _resolve_checked_baseline,
+)
+
 # Shipped skill trees to scan. Both carry SKILL.md files that agents execute:
 # .claude/skills is the canonical tree; src/copilot-cli/skills holds the
 # generated twins plus copilot-cli-native skills (e.g. pr-autofix).
@@ -205,6 +216,15 @@ def scan_skill_execs(repo_root: Path) -> dict[str, int]:
     return counts
 
 
+def scanned_files_by_root(repo_root: Path) -> dict[str, int]:
+    """Return per-root skill-file counts, absent roots as zero.
+
+    A sum hides one starved root behind a positive total.
+    """
+    dirs = {"/".join(p): repo_root.joinpath(*p) for p in SCAN_ROOTS}
+    return {n: len(_iter_skill_files(d)) if d.is_dir() else 0 for n, d in dirs.items()}
+
+
 def scan_marker_suppressions(repo_root: Path) -> dict[str, int]:
     """Return marker-suppressed invocation counts across every scan root."""
     counts: dict[str, int] = {}
@@ -305,30 +325,8 @@ def diff_marker_baseline(
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--repo-root",
-        type=Path,
-        default=None,
-        help="Repository root (default: walk up for .claude/skills).",
-    )
-    parser.add_argument(
-        "--baseline",
-        type=Path,
-        default=None,
-        help=f"Baseline JSON (default: scripts/validation/{_DEFAULT_BASELINE_NAME}).",
-    )
-    parser.add_argument(
-        "--update-baseline",
-        action="store_true",
-        help="Rewrite the baseline to the current state and exit 0.",
-    )
-    parser.add_argument(
-        "--output-format",
-        choices=("human", "json"),
-        default="human",
-    )
-    return parser
+    """Delegate to the shared parser; both ratchets take the same flags."""
+    return build_portability_parser(__doc__, _DEFAULT_BASELINE_NAME)
 
 
 def _resolve_root(repo_root: Path | None) -> Path:
@@ -338,26 +336,26 @@ def _resolve_root(repo_root: Path | None) -> Path:
 
 
 def _resolve_baseline_path(root: Path, baseline: Path | None) -> Path | None:
-    if baseline is None:
-        return root / "scripts" / "validation" / _DEFAULT_BASELINE_NAME
-    resolved = baseline.expanduser()
-    if not resolved.is_absolute():
-        resolved = root / resolved
-    resolved = resolved.resolve()
-    if not resolved.is_relative_to(root.resolve()):
-        return None
-    return resolved
+    """Locate the baseline, refusing anything out of root or hidden from review."""
+    return _resolve_checked_baseline(root, baseline, _DEFAULT_BASELINE_NAME)
 
 
 def _write_baseline(
-    baseline_path: Path, current: dict[str, int], marker_current: dict[str, int]
+    root: Path,
+    baseline_path: Path,
+    current: dict[str, int],
+    marker_current: dict[str, int],
+    allow_shrink: bool,
 ) -> int:
     total = sum(current.values())
     marker_total = sum(marker_current.values())
-    baseline_path.write_text(
-        json.dumps(
-            {
-                "_comment": (
+    entries = dict(sorted(current.items()))
+    marker_entries = dict(sorted(marker_current.items()))
+    rc = write_baseline_json(
+        root,
+        baseline_path,
+        {
+            "_comment": (
                     "Exec-path vendor-portability ratchet baseline for skill "
                     "Markdown files (issues #2838, #4013, #4156). The files "
                     "object counts bare '.claude/skills/...', 'build/...', or "
@@ -376,14 +374,15 @@ def _write_baseline(
                     "form: drop the invocation or declare it with a "
                     "'<!-- vendor-portability-exec: ... -->' marker."
                 ),
-                "files": dict(sorted(current.items())),
-                "marker_files": dict(sorted(marker_current.items())),
-            },
-            indent=2,
-        )
-        + "\n",
-        encoding="utf-8",
+            "files": entries,
+            "marker_files": marker_entries,
+        },
+        {"files": entries, "marker_files": marker_entries},
+        "skill files",
+        allow_shrink,
     )
+    if rc:
+        return rc
     print(
         f"Baseline written: {len(current)} files, {total} invocations; "
         f"{len(marker_current)} marker files, {marker_total} suppressed invocations."
@@ -446,21 +445,29 @@ def main(argv: list[str] | None = None) -> int:
 
     baseline_path = _resolve_baseline_path(root, args.baseline)
     if baseline_path is None:
-        print(
-            f"--baseline path is outside the repository root, rejecting: {args.baseline}",
-            file=sys.stderr,
-        )
         return 2
 
     try:
         current = scan_skill_execs(root)
         marker_current = scan_marker_suppressions(root)
+        scanned_by_root = scanned_files_by_root(root)
     except OSError as exc:
         print(f"Could not scan skill files under {root}: {exc}", file=sys.stderr)
         return 2
 
     if args.update_baseline:
-        return _write_baseline(baseline_path, current, marker_current)
+        if refuse_unsafe_baseline_write(
+            root,
+            scanned_by_root,
+            baseline_path,
+            {"files": current, "marker_files": marker_current},
+            "skill files",
+            args.allow_baseline_shrink,
+        ):
+            return 2
+        return _write_baseline(
+            root, baseline_path, current, marker_current, args.allow_baseline_shrink
+        )
 
     try:
         baseline = _load_baseline(baseline_path)
