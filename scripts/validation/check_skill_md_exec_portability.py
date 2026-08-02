@@ -460,6 +460,7 @@ def main(argv: list[str] | None = None) -> int:
             scanned_by_root,
             baseline_path,
             current,
+            marker_current,
             "skill files",
             args.allow_baseline_shrink,
         ):

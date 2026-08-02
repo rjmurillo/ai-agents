@@ -348,14 +348,14 @@ def refuse_uncovered_scan(root: Path, scanned_by_root: Mapping[str, int], unit: 
     return True
 
 
-def _previous_entries(path: Path) -> dict[str, int] | None:
-    """Read the baseline being replaced, None when there is nothing to protect."""
+def _previous_entries(path: Path, key: str) -> dict[str, int] | None:
+    """Read one baseline map, None when there is nothing to protect."""
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
-    files = data.get("files") if isinstance(data, dict) else None
-    return files if isinstance(files, dict) else None
+    entries = data.get(key) if isinstance(data, dict) else None
+    return entries if isinstance(entries, dict) else None
 
 
 def refuse_unsafe_baseline_write(
@@ -363,6 +363,7 @@ def refuse_unsafe_baseline_write(
     scanned_by_root: Mapping[str, int],
     baseline_path: Path,
     current: Mapping[str, int],
+    marker_current: Mapping[str, int],
     unit: str,
     allow_shrink: bool,
 ) -> bool:
@@ -373,6 +374,13 @@ def refuse_unsafe_baseline_write(
     """
     if refuse_uncovered_scan(root, scanned_by_root, unit):
         return True
-    return refuse_dropped_entries(_previous_entries(baseline_path), current, unit, allow_shrink)
-
-
+    if refuse_dropped_entries(
+        _previous_entries(baseline_path, "files"), current, unit, allow_shrink
+    ):
+        return True
+    return refuse_dropped_entries(
+        _previous_entries(baseline_path, "marker_files"),
+        marker_current,
+        f"{unit} marker entries",
+        allow_shrink,
+    )
