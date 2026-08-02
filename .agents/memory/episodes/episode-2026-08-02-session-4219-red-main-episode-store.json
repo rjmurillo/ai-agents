@@ -13,7 +13,9 @@
       "type": "milestone",
       "content": "Bisected the failing test. c7a401c7a8~1 passes in 0.24s, c7a401c7a8 (PR #4219) fails in 5.15s, so #4219 merged red and every branch that merges main inherits the failure.",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e006"
+      ],
       "_source_session": "2026-08-02-session-4219-red-main-episode-store"
     },
     {
@@ -22,7 +24,9 @@
       "type": "milestone",
       "content": "Triaged the 14 violations before repairing rather than baselining them. The validator docstring names the root cause: the pre-#3638 linker chained commits by list position while _collect_shas put the session's last commit first, so an episode recorded an effect as its own cause.",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e006"
+      ],
       "_source_session": "2026-08-02-session-4219-red-main-episode-store"
     },
     {
@@ -31,7 +35,9 @@
       "type": "milestone",
       "content": "Measured the repair against git ground truth. 64 of 64 original commit timestamps were synthetic midnight placeholders; 63 of 63 repaired timestamps equal git's committer instant. The 64th SHA belongs to a squash-merged branch and no longer resolves, which the validator documents and skips.",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e006"
+      ],
       "_source_session": "2026-08-02-session-4219-red-main-episode-store"
     },
     {
@@ -40,7 +46,9 @@
       "type": "milestone",
       "content": "Proved non-destructiveness field by field: 0 events added or dropped, 0 id sequences changed, 0 narrative content fields rewritten, 0 leads_to edges lost, top-level metadata identical. Only caused_by, leads_to, and timestamp differ.",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e006"
+      ],
       "_source_session": "2026-08-02-session-4219-red-main-episode-store"
     },
     {
@@ -49,39 +57,22 @@
       "type": "milestone",
       "content": "Ran extract_session_episode.py --validate --fix, then re-validated: 381 validated, 0 violations, 12 repaired.",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e006"
+      ],
       "_source_session": "2026-08-02-session-4219-red-main-episode-store"
     },
     {
       "id": "e006",
-      "timestamp": "2026-08-02T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: c7a401c7a8",
-      "caused_by": [],
-      "leads_to": [
-        "e007",
-        "e008"
-      ],
-      "_source_session": "2026-08-02-session-4219-red-main-episode-store"
-    },
-    {
-      "id": "e007",
-      "timestamp": "2026-08-02T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 74896f00463e",
-      "caused_by": [
-        "e006"
-      ],
-      "leads_to": [],
-      "_source_session": "2026-08-02-session-4219-red-main-episode-store"
-    },
-    {
-      "id": "e008",
-      "timestamp": "2026-08-02T00:00:00+00:00",
+      "timestamp": "2026-08-02T17:16:19+00:00",
       "type": "commit",
       "content": "Commit: 77e305c6ed",
       "caused_by": [
-        "e006"
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
       ],
       "leads_to": [],
       "_source_session": "2026-08-02-session-4219-red-main-episode-store"
@@ -92,8 +83,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
-    "files_changed": 14
+    "commits": 1,
+    "files_changed": 12
   },
   "lessons": []
 }

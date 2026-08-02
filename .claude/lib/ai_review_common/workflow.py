@@ -1,4 +1,4 @@
-"""Canonical: scripts/ai_review_common/workflow.py. Sync via scripts/sync_plugin_lib.py."""
+"""Initialization, environment validation, PR files, and workflow run analysis."""
 
 from __future__ import annotations
 

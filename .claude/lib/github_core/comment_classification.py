@@ -1,4 +1,4 @@
-"""Canonical: scripts/github_core/comment_classification.py. Sync via scripts/sync_plugin_lib.py.
+"""Domain classification for GitHub PR/review comments.
 
 Shared, single-source-of-truth for the keyword-based triage that sorts a
 comment body into one of five domains (security, bug, style, summary,
