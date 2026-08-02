@@ -31,8 +31,46 @@ Exercise the contract independently. Run the artifact under the real runtime con
 
 The replacement for the PR #2205 test is `tests/build_scripts/test_generate_hooks_runtime_contract.py`, which runs the generated commands under the verified contract (cwd != plugin root; var = install dir) with a bare-path negative control, instead of string-matching the generator output.
 
+## The inverse shape: deriving the expectation from production source
+
+Added 2026-08-02 from `.agents/retrospective/2026-08-02-wrong-fix-before-search.md`.
+
+The sections above describe a test that fails by pinning a hard-coded string the generator also
+produces. The same defect has an opposite-looking costume, and a reader who takes "hard-code it"
+as the lesson will build it.
+
+I wrote `test_moving_a_fast_gate_later_is_detected` to catch a gate being demoted out of the
+fast group. Rather than hard-code the gate list (which felt brittle and duplicative), the test
+read it out of the production module with `inspect.getsource`, then compared it against the
+sequence that same module emitted. Both sides moved together under any reorder, so the test
+could never fail. It was self-referential while containing no hard-coded string at all.
+
+The fix was to pin an explicit membership list in the test file. The same act that caused the
+#2205 defect cured this one.
+
+## The invariant
+
+The property is not hard-coded-or-derived. It is **different authority**.
+
+An assertion is sound when its expected value traces to an authority other than the code under
+test: the target runtime's observed behavior, a published contract, a spec document, a
+deliberately maintained fixture, or a human decision recorded in the test file itself. An
+assertion is self-referential when the expected value traces back to the producer, no matter
+whether it got there by a literal, a helper, an import, or reflection.
+
+Hard-coding is neither the disease nor the cure. It is one way to introduce a second authority
+(a human wrote the literal down) and one way to launder the first (the human copied it out of
+the generator's output). Ask where the expectation *came from*, not what shape it has on the
+page.
+
+The negative control settles it either way: mutate the production code so the behavior is wrong,
+and confirm the test goes red. A test that survives the mutation had only one authority.
+
 ## How to apply
 
-Before trusting a test that guards a generated artifact, ask: does the assertion compare the output against the producer, or against the canonical contract? If both sides trace to the generator, the test is self-referential. Replace it with a runtime-contract test plus a negative control.
+Before trusting a test that guards a generated artifact, ask: does the assertion compare the
+output against the producer, or against the canonical contract? If both sides trace to the
+generator, the test is self-referential, whether the expectation is a literal or derived.
+Replace it with a runtime-contract test plus a negative control.
 
 Related: `mem:feedback-generated-artifact-runtime-verification`, `mem:decision-copilot-cli-hook-plugin-root-contract`, `.claude/rules/canonical-source-mirror.md`, `.claude/rules/generated-artifacts.md`.
