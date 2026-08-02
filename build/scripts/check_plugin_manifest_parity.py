@@ -1,19 +1,14 @@
 #!/usr/bin/env python3
 """Validate the plugin manifests against the marketplace listings.
 
-Two independent invariants are checked.
+RETIRED: VERSION PARITY
+-----------------------
 
-VERSION PARITY
---------------
-
-The two project-toolkit manifests must carry identical version strings:
-
-    .claude/.claude-plugin/plugin.json         (Claude plugin)
-    src/copilot-cli/.claude-plugin/plugin.json (Copilot CLI plugin)
-
-When a PR bumps the version on one but not the other, the installed plugins
-report different versions to the host. This check gates that drift in CI
-(fix for #2222).
+This module used to require the two project-toolkit manifests to carry
+identical version strings (#2222). ADR-092 removed the ``version`` field from
+all three manifests, so there is no value left to hold equal. The parity check
+is gone; ``build/scripts/validate_plugin_version_bump.py`` now fails when any
+manifest carries the field at all.
 
 NO COMPONENT COUNTS IN DESCRIPTIONS
 -----------------------------------
@@ -53,8 +48,7 @@ rule survives because #2187 is a real, cited decision with a commit behind it.
 
 Exit codes (ADR-035):
     0 - All checks pass
-    1 - Staleness: the manifests disagree on version, or a description embeds a
-        component count
+    1 - Staleness: a description embeds a component count
     2 - Configuration error: a file is missing, unreadable, or not the expected
         JSON shape
 """
@@ -103,46 +97,6 @@ def _read_manifest(path: Path) -> dict[str, Any] | None:
         print(f"ERROR: {_rel(path)} is not a JSON object", file=sys.stderr)
         return None
     return data
-
-
-def _read_version(path: Path) -> str | None:
-    """Return the version field or None on parse error."""
-    data = _read_manifest(path)
-    if data is None:
-        return None
-    version = data.get("version")
-    if not isinstance(version, str) or not version.strip():
-        print(f"ERROR: {_rel(path)} has no valid 'version' field", file=sys.stderr)
-        return None
-    return version
-
-
-def check_version_parity(manifests: tuple[Path, ...] = _MANIFESTS) -> int:
-    """Both project-toolkit manifests must report the same version."""
-    versions: dict[str, str] = {}
-
-    for manifest in manifests:
-        if not manifest.exists():
-            print(f"ERROR: manifest not found: {_rel(manifest)}", file=sys.stderr)
-            return _CONFIG_ERROR
-        version = _read_version(manifest)
-        if version is None:
-            return _CONFIG_ERROR
-        versions[_rel(manifest)] = version
-
-    unique = set(versions.values())
-    if len(unique) == 1:
-        print(f"Plugin manifest versions match: {next(iter(unique))}")
-        return _OK
-
-    print("PLUGIN MANIFEST VERSION MISMATCH", file=sys.stderr)
-    for path, ver in sorted(versions.items()):
-        print(f"  {path}: {ver}", file=sys.stderr)
-    print(
-        "\nFix: bump both manifests to the same version and commit together.",
-        file=sys.stderr,
-    )
-    return _STALENESS
 
 
 # Every file in this repository that publishes a user-visible plugin description.
@@ -245,12 +199,7 @@ def check_description_counts(files: tuple[Path, ...] = _DESCRIBED_FILES) -> int:
 
 
 def main() -> int:
-    results = (check_version_parity(), check_description_counts())
-    if _CONFIG_ERROR in results:
-        return _CONFIG_ERROR
-    if _STALENESS in results:
-        return _STALENESS
-    return _OK
+    return check_description_counts()
 
 
 if __name__ == "__main__":

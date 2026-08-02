@@ -93,23 +93,28 @@ Session-end QA can be skipped only with one of these exact verdict strings in th
 
 Mixed sessions do not qualify; split the commit. Claiming investigation-only with a code file staged is exactly what the CI backstop exists to catch.
 
-## Plugin Version Bump Rule
+## Plugin Manifest Version Prohibition
 
-Not a flag, but the config obligation most often tripped over. Any content change under a packaged plugin source dir requires a strictly-greater SemVer bump of that tree's `.claude-plugin/plugin.json` (installed caches key off the version; PR #1942 shipped a deleted skill until PR #2114 caught it by hand; incident home: `ai-agents-failure-archaeology`).
+Not a flag, but the config obligation most often tripped over. No packaged
+plugin manifest may carry a `version` field, and neither may a marketplace
+entry. Claude Code resolves freshness from the first version it finds, so a
+committed version pins consumers to a hand-bumped string instead of the git
+commit SHA (ADR-092, which supersedes ADR-079; issue #4080).
 
-| Tree | plugin.json | Version source |
-|---|---|---|
-| `.claude/` | `.claude/.claude-plugin/plugin.json` | Read this manifest |
-| `src/claude/` | `src/claude/.claude-plugin/plugin.json` | Read this manifest |
-| `src/copilot-cli/` | `src/copilot-cli/.claude-plugin/plugin.json` | Read this manifest |
+| File | Must not carry |
+|---|---|
+| `.claude/.claude-plugin/plugin.json` | `version` |
+| `src/claude/.claude-plugin/plugin.json` | `version` |
+| `src/copilot-cli/.claude-plugin/plugin.json` | `version` |
+| `.claude-plugin/marketplace.json` (per entry) | `version` |
+| `.github/plugin/marketplace.json` (per entry) | `version` |
 
-Current values are intentionally not copied into this skill. Read each manifest
-at execution time. Enforced locally by the `pre-pr-validation` job in
-`lefthook.yml`, which runs
+Enforced locally by the `pre-pr-validation` job in `lefthook.yml`, which runs
 `scripts/validation/pre_pr.py`; that runner invokes
 `build/scripts/validate_plugin_version_bump.py`. CI also enforces it through
-`.github/workflows/validate-plugin-version-bump.yml`. A `plugin.json`-only edit
-needs no bump; any other file in the tree does.
+`.github/workflows/validate-plugin-version-bump.yml`, which fires on a plugin
+source dir or a marketplace file. A content change needs no manifest edit at
+all.
 
 ## Hook Registration Surfaces
 
@@ -135,7 +140,7 @@ repository-controlled code, so command-name matching is not a safe approval boun
 - [ ] Make every activation observable: print a WARN/SKIP line or emit `EVENT=` telemetry (`guard-maturity` consumes these). A silent bypass is the session 1187 pattern.
 - [ ] Scope it to one check. Global bypasses (`SKIP_PREPUSH`) are banned by precedent.
 - [ ] Add tests: positive (flag honored), negative (flag absent = enforced), edge (bad value), per TESTING-RIGOR.
-- [ ] If the flag lives under `.claude/` or `src/copilot-cli/`, bump that tree's plugin.json.
+- [ ] If the flag lives under `.claude/`, regenerate the `src/copilot-cli/` mirror. Do not touch plugin.json; it carries no version.
 - [ ] Add a row to this catalog and a re-verify one-liner to Provenance below.
 - [ ] Route the change through `ai-agents-change-control` classification (a new escape hatch is never docs-only).
 
@@ -169,11 +174,11 @@ Audited 2026-07-03 against the working tree. Sources: files and line numbers cit
 | investigation allowlist | `grep -n "agents/" scripts/modules/investigation_allowlist.py` |
 | docs-only verdict | `grep -n "SKIPPED: docs-only" .agents/SESSION-PROTOCOL.md` |
 | plugin bump validator | `uv run python build/scripts/validate_plugin_version_bump.py --help` |
-| plugin versions | `grep -n "\"version\"" .claude/.claude-plugin/plugin.json src/claude/.claude-plugin/plugin.json src/copilot-cli/.claude-plugin/plugin.json` |
+| no version in any manifest or marketplace entry | `uv run python build/scripts/validate_plugin_version_bump.py` |
 | GIT_CONFIG_COUNT injection | `grep -n "GIT_CONFIG_COUNT" tests/conftest.py` |
 | pytest markers | `grep -n -A 5 "^markers" pyproject.toml` |
-| .env keys | `grep -n "API_KEY\|COMPRESS_TOKENIZER" .env.example` |
+| .env keys | `grep -n -e "API_KEY" -e "COMPRESS_TOKENIZER" .env.example` |
 | hook registration surfaces | `python3 -c "import json; s=json.load(open('.claude/settings.json'))['hooks']; print({k: len(v) for k, v in s.items()})"` |
-| removed flags absent from CONTRIBUTING | `grep -n "SKIP_PREPUSH\|SKIP_TESTS" CONTRIBUTING.md` (expect no matches) |
+| removed flags absent from CONTRIBUTING | `grep -n -e "SKIP_PREPUSH" -e "SKIP_TESTS" CONTRIBUTING.md` (expect no matches) |
 
 `COMPRESS_TOKENIZER` consumer not located; verify before documenting it as live.

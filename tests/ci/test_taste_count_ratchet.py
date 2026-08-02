@@ -61,9 +61,7 @@ def _fake_scan(
             return subprocess.CompletedProcess(cmd, 0, stdout=stdout, stderr="")
         if cmd[0] == "git" and "show" in cmd:
             rc = 0 if base_baseline is not None else 128
-            return subprocess.CompletedProcess(
-                cmd, rc, stdout=(base_baseline or ""), stderr=""
-            )
+            return subprocess.CompletedProcess(cmd, rc, stdout=(base_baseline or ""), stderr="")
         if cmd[0] == "git":
             stdout = "\0".join(tracked) + ("\0" if tracked else "")
             return subprocess.CompletedProcess(cmd, git_returncode, stdout=stdout, stderr="")
@@ -98,20 +96,20 @@ def test_count_above_baseline_is_a_regression(tmp_path, monkeypatch):
     assert rc == ratchet.EXIT_REGRESSION
 
 
-def test_count_below_baseline_is_regression_without_update(tmp_path, monkeypatch):
+def test_count_below_baseline_blocks_without_update(tmp_path, monkeypatch):
+    # ADR-092: the post-merge bot that owned this write was removed with the
+    # plugin version field, so an unrecorded improvement leaves slack and blocks.
     baseline = _write_baseline(tmp_path, "615")
     monkeypatch.setattr(subprocess, "run", _fake_scan(10, 600))
     rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path)])
     assert rc == ratchet.EXIT_REGRESSION
-    assert baseline.read_text(encoding="utf-8").strip() == "615"
+    assert baseline.read_text(encoding="utf-8").strip() == "615"  # baseline unchanged
 
 
 def test_update_lowers_the_baseline(tmp_path, monkeypatch):
     baseline = _write_baseline(tmp_path, "615")
     monkeypatch.setattr(subprocess, "run", _fake_scan(10, 600))
-    rc = ratchet.main(
-        ["--baseline", str(baseline), "--repo-root", str(tmp_path), "--update"]
-    )
+    rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path), "--update"])
     assert rc == ratchet.EXIT_OK
     assert baseline.read_text(encoding="utf-8").strip() == "600"
 
@@ -121,9 +119,7 @@ def test_update_cannot_raise_the_baseline(tmp_path, monkeypatch):
     # regression, and writing the higher number would launder the debt.
     baseline = _write_baseline(tmp_path, "615")
     monkeypatch.setattr(subprocess, "run", _fake_scan(10, 700))
-    rc = ratchet.main(
-        ["--baseline", str(baseline), "--repo-root", str(tmp_path), "--update"]
-    )
+    rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path), "--update"])
     assert rc == ratchet.EXIT_REGRESSION
     assert baseline.read_text(encoding="utf-8").strip() == "615"
 
@@ -144,6 +140,29 @@ def test_a_raised_baseline_fails_against_the_base_ref(tmp_path, monkeypatch):
         ]
     )
     assert rc == ratchet.EXIT_REGRESSION
+
+
+def test_a_stale_branch_message_is_not_baseline_raised(tmp_path, monkeypatch, capsys):
+    baseline = _write_baseline(tmp_path, "700")
+    monkeypatch.setattr(subprocess, "run", _fake_scan(10, 600, base_baseline="615"))
+    rc = ratchet.main(_base_ref_argv(baseline, tmp_path))
+    captured = capsys.readouterr()
+    assert rc == ratchet.EXIT_REGRESSION
+    assert "BRANCH BEHIND" in captured.err
+    assert "BASELINE RAISED" not in captured.err
+    assert "Fix the violations" not in captured.err
+
+
+def test_a_real_raised_baseline_still_reports_baseline_raised(
+    tmp_path, monkeypatch, capsys
+):
+    baseline = _write_baseline(tmp_path, "700")
+    monkeypatch.setattr(subprocess, "run", _fake_scan(10, 650, base_baseline="615"))
+    rc = ratchet.main(_base_ref_argv(baseline, tmp_path))
+    captured = capsys.readouterr()
+    assert rc == ratchet.EXIT_REGRESSION
+    assert "BASELINE RAISED" in captured.err
+    assert "BRANCH BEHIND" not in captured.err
 
 
 def test_a_lowered_baseline_passes_against_the_base_ref(tmp_path, monkeypatch):
@@ -189,9 +208,7 @@ def _base_ref_argv(baseline: Path, tmp_path: Path) -> list[str]:
     ]
 
 
-def test_a_base_ref_without_a_baseline_yet_is_the_bootstrap_case(
-    tmp_path, monkeypatch, capsys
-):
+def test_a_base_ref_without_a_baseline_yet_is_the_bootstrap_case(tmp_path, monkeypatch, capsys):
     """The PR that introduces a ratchet is the PR that adds its baseline.
 
     Its base branch therefore has no baseline file, so the one-directional
@@ -251,12 +268,9 @@ def test_an_unresolvable_base_ref_is_not_read_as_bootstrap(tmp_path, monkeypatch
     assert rc == ratchet.EXIT_EXTERNAL
 
 
-
 def test_missing_baseline_is_a_config_error(tmp_path, monkeypatch):
     monkeypatch.setattr(subprocess, "run", _fake_scan(10, 615))
-    rc = ratchet.main(
-        ["--baseline", str(tmp_path / "absent.txt"), "--repo-root", str(tmp_path)]
-    )
+    rc = ratchet.main(["--baseline", str(tmp_path / "absent.txt"), "--repo-root", str(tmp_path)])
     assert rc == ratchet.EXIT_CONFIG
 
 
@@ -308,9 +322,7 @@ def test_a_clean_exit_is_a_real_zero(tmp_path, monkeypatch):
     # never lower the baseline.
     baseline = _write_baseline(tmp_path, "615")
     monkeypatch.setattr(subprocess, "run", _fake_scan(0, 0))
-    rc = ratchet.main(
-        ["--baseline", str(baseline), "--repo-root", str(tmp_path), "--update"]
-    )
+    rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path), "--update"])
     assert rc == ratchet.EXIT_OK
     assert baseline.read_text(encoding="utf-8").strip() == "0"
 
@@ -368,7 +380,6 @@ def test_every_tracked_path_is_offered_to_the_linter(tmp_path, monkeypatch):
     assert seen[1][-2:] == ["a.md", "b.py"]
 
 
-
 def test_a_baseline_path_git_refuses_is_not_read_as_bootstrap(tmp_path, monkeypatch):
     """A path git will not look up is an error, never a first run.
 
@@ -387,7 +398,6 @@ def test_a_baseline_path_git_refuses_is_not_read_as_bootstrap(tmp_path, monkeypa
     )
     rc = ratchet.main(_base_ref_argv(baseline, tmp_path))
     assert rc == ratchet.EXIT_EXTERNAL
-
 
 
 def test_a_git_that_cannot_be_launched_is_not_bootstrap(tmp_path, monkeypatch):

@@ -273,7 +273,7 @@ def _run_validation(session_log_path: str, repo_root: str) -> bool:
     print("Running validation...", file=sys.stderr)
     sys.stdout.flush()
     result = subprocess.run(
-        [sys.executable, validation_script, "--existing-log", session_log_path],
+        [sys.executable, validation_script, "--creation-mode", session_log_path],
         capture_output=False,
         timeout=60,
         check=False,
@@ -344,7 +344,7 @@ def main(argv: list[str] | None = None) -> int:
                 f"\nSession log created but schema validation FAILED.\n"
                 f"  File: {filepath}\n"
                 f"Fix issues and re-validate:\n"
-                f'  python3 scripts/validate_session_json.py --existing-log "{filepath}"',
+                f'  python3 scripts/validate_session_json.py --creation-mode "{filepath}"',
                 file=sys.stderr,
             )
             return 4

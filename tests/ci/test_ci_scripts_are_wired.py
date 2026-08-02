@@ -53,6 +53,11 @@ _NOT_WORKFLOW_INVOKED: dict[str, str] = {
         "main() and no shebang; tests/ci/test_count_ratchet.py covers it "
         "directly (issue #3779)."
     ),
+    "parse_drift_results.py": (
+        "Subprocess helper called by drift_collect_details.py (ADR-006 extraction "
+        "batch 6). drift_collect_details.py is the workflow-invoked entry point; "
+        "parse_drift_results.py is its implementation detail."
+    ),
 }
 
 

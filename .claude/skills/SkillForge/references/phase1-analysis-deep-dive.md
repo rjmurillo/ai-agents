@@ -1,4 +1,6 @@
-### 1A: Input Expansion
+# Phase 1: Analysis Deep Dive
+
+## 1A: Input Expansion
 
 Transform user's goal into comprehensive requirements:
 
@@ -41,7 +43,7 @@ ls ~/.claude/skills/
 | 5-7/10 | Clarify distinction before proceeding |
 | <5/10 | Proceed with new skill |
 
-### 1B: Multi-Lens Analysis
+## 1B: Multi-Lens Analysis
 
 Apply all 11 thinking models systematically:
 
@@ -63,7 +65,7 @@ Apply all 11 thinking models systematically:
 
 See: [multi-lens-framework.md](multi-lens-framework.md)
 
-### 1C: Regression Questioning
+## 1C: Regression Questioning
 
 Iterative self-questioning until no new insights emerge:
 
@@ -93,7 +95,7 @@ ROUND N:
 
 See: [regression-questions.md](regression-questions.md)
 
-### 1D: Automation Analysis
+## 1D: Automation Analysis
 
 Identify opportunities for scripts that enable agentic operation:
 
@@ -126,7 +128,7 @@ FOR EACH operation in the skill:
 | Can the skill run overnight autonomously? | All categories |
 | How will Claude verify correct execution? | Verification |
 
-**Decision: Script vs No Script**
+## Decision: Script vs No Script
 
 | Create Script When | Skip Script When |
 |-------------------|------------------|

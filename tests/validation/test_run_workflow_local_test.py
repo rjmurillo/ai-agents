@@ -1231,6 +1231,28 @@ def test_act_limitation_hint_matches_known_patterns() -> None:
     assert w._act_limitation_hint("Error: job 'build' exited 2") is None
 
 
+def test_act_limitation_hint_matches_action_cache_copy_failure() -> None:
+    """dockerd refusing act's action staging path is transport, not a defect."""
+    text = (
+        "[Validate Plugin Version Bump/Check Changed Paths] failed to copy content "
+        "to container: Error response from daemon: statat "
+        "var/run/act/actions/dorny-paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706"
+        ": path escapes from parent"
+    )
+    hint = w._act_limitation_hint(text)
+    assert hint is not None
+    assert "local transport" in hint
+
+
+def test_act_limitation_hint_ignores_a_real_copy_failure_elsewhere() -> None:
+    """Only the act staging path is excused; other copy failures still block."""
+    text = (
+        "failed to copy content to container: Error response from daemon: statat "
+        "home/runner/work/repo/artifact.tar: path escapes from parent"
+    )
+    assert w._act_limitation_hint(text) is None
+
+
 def test_act_limitation_hint_matches_empty_pr_env_patterns() -> None:
     # Empty PR-context env-var manifestations (#3265), event-scoped to
     # pull_request; workflow_dispatch keeps them blocking.
