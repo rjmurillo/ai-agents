@@ -237,6 +237,7 @@ class TestRunExitCode:
             ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             env={
                 **__import__("os").environ,
                 # Point git to a tmp dir that is not a real repo so _find_repo_root
