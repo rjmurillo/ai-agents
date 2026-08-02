@@ -143,14 +143,23 @@ def write_baseline(
     current: dict[str, int],
     comment: str,
     label: str,
-    repo_root: Path | None = None,
-    allow_shrink: bool = False,
+    *,
+    repo_root: Path,
+    allow_shrink: bool,
 ) -> int:
-    """Write a sorted portability baseline and print a standard summary."""
+    """Write a sorted portability baseline and print a standard summary.
+
+    `repo_root` and `allow_shrink` are required and keyword-only on purpose.
+    Both were optional once, and a checker that forgot them got a guard which
+    looked for the committed baseline in the wrong directory and an escape
+    hatch its own `--allow-baseline-shrink` flag could not reach. Nothing
+    failed; the protection just quietly was not there. Required arguments turn
+    the same omission into a TypeError at the call site.
+    """
     total = sum(current.values())
     entries = dict(sorted(current.items()))
     rc = write_baseline_json(
-        repo_root or baseline_path.parent,
+        repo_root,
         baseline_path,
         {"_comment": comment, "files": entries},
         {"files": entries},
@@ -344,7 +353,7 @@ def refuse_unsafe_baseline_write(
     """
     if refuse_uncovered_scan(root, scanned_by_root, unit):
         return True
-    if refuse_symlinked_baseline(baseline_path):
+    if refuse_symlinked_baseline(root, baseline_path):
         return True
     previous, problem = read_previous_sections(root, baseline_path)
     return refuse_dropped_entries(previous, current, unit, allow_shrink, problem)

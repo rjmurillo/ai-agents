@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import json
 import subprocess
 from pathlib import Path
@@ -76,3 +77,75 @@ def test_git_lines_strips_git_overrides_case_insensitively(
     assert "git_index_file" not in captured_env
     assert "Git_Dir" not in captured_env
     assert captured_env["PORTABILITY_TEST_SENTINEL"] == "kept"
+
+
+class TestTheGuardCannotBeSkippedByForgettingAnArgument:
+    """`write_baseline` used to default its way out of its own protection.
+
+    `repo_root` defaulted to None and was then read as `baseline_path.parent`,
+    which is the directory the baseline sits in rather than the repository. The
+    committed copy is looked up by a repository-relative path, so that default
+    silently found nothing and the guard lost its floor. `allow_shrink`
+    defaulted to False, which meant a checker that forgot to forward its own
+    `--allow-baseline-shrink` flag left contributors with no way through.
+
+    Neither failure announced itself. The signature is the fix: both arguments
+    are required and keyword-only, so the same omission is a TypeError at the
+    call site instead of a guard that quietly stops guarding.
+    """
+
+    @pytest.mark.parametrize("name", ["repo_root", "allow_shrink"])
+    def test_the_argument_is_required(self, name: str) -> None:
+        parameter = inspect.signature(common.write_baseline).parameters[name]
+
+        assert parameter.default is inspect.Parameter.empty
+
+    @pytest.mark.parametrize("name", ["repo_root", "allow_shrink"])
+    def test_the_argument_cannot_be_passed_positionally(self, name: str) -> None:
+        """Positional passing is how the required-ness gets refactored away.
+
+        The signature is asserted rather than a TypeError caught, because a
+        call written to raise is a call a type checker is right to reject, and
+        silencing it there would hide the same class of mistake elsewhere.
+        """
+        parameter = inspect.signature(common.write_baseline).parameters[name]
+
+        assert parameter.kind is inspect.Parameter.KEYWORD_ONLY
+
+    def test_the_repository_root_actually_reaches_the_committed_lookup(
+        self, tmp_path: Path
+    ) -> None:
+        """Forwarding the root is what gives the write its committed floor.
+
+        Passing the baseline's own directory, which is what the old default
+        computed, must not be enough to satisfy the guard: the shrink below is
+        only visible to a lookup rooted at the repository.
+        """
+        root = tmp_path / "repo"
+        (root / "scripts" / "validation").mkdir(parents=True)
+        for args in (
+            ["init", "-q"],
+            ["config", "user.email", "t@example.com"],
+            ["config", "user.name", "t"],
+        ):
+            subprocess.run(
+                ["git", "-C", str(root), *args], check=True, capture_output=True
+            )
+        path = root / "scripts" / "validation" / "b.json"
+        path.write_text(json.dumps({"files": {"a.py": 4, "b.py": 2}}), encoding="utf-8")
+        subprocess.run(
+            ["git", "-C", str(root), "add", "-A"], check=True, capture_output=True
+        )
+        subprocess.run(
+            ["git", "-C", str(root), "commit", "-qm", "seed"],
+            check=True,
+            capture_output=True,
+        )
+        path.write_text("{}", encoding="utf-8")
+
+        rc = common.write_baseline(
+            path, {"a.py": 1}, "c", "refs", repo_root=root, allow_shrink=False
+        )
+
+        assert rc == 2
+        assert path.read_text(encoding="utf-8") == "{}"

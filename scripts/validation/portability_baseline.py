@@ -86,40 +86,39 @@ def _coerce_counts(section: object, name: str) -> tuple[dict[str, int] | None, s
     return counts, None
 
 
-def read_previous_sections(
-    repo_root: Path, path: Path
-) -> tuple[Sections | None, str | None]:
-    """Read every counted section of the baseline being replaced.
+def _unguarded_count_sections(data: Mapping[str, Any]) -> list[str]:
+    """Name any count-shaped section this module does not know how to guard.
 
-    Returns `(sections, problem)`. A problem is a reason to refuse the write.
-    `(None, None)` means there is genuinely nothing to protect, which is true
-    for exactly one case: a baseline that is neither on disk nor in git, so no
-    debt has ever been recorded.
-
-    Every other unreadable state fails closed. An absent-but-tracked baseline
-    has been deleted, a corrupt one may be mid-merge, and an unreadable one is
-    a mystery. Treating any of them as "no predecessor" would let the guard be
-    disabled by damaging the very file it protects, which inverts it into a
-    tool for laundering a wipe.
+    The replacement payload is rebuilt from the scan, so a section absent from
+    `COUNTED_SECTIONS` is not merely left uncompared, it is deleted by the very
+    write that ignores it. Refusing by name turns a silent erasure into a build
+    failure that says which section needs guarding.
     """
-    try:
-        raw = path.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        recorded = _was_recorded(repo_root, path)
-        if recorded is None:
-            return None, "git could not determine whether branch history recorded the baseline"
-        if recorded:
-            return None, "git history records the baseline but it is absent from disk"
-        return None, None
-    except OSError as exc:
-        return None, f"the baseline could not be read ({exc.strerror or exc})"
+    unguarded = []
+    for name, value in data.items():
+        if name in COUNTED_SECTIONS or not isinstance(value, dict):
+            continue
+        if value and all(isinstance(count, int) for count in value.values()):
+            unguarded.append(name)
+    return sorted(unguarded)
 
+
+def _sections_from_text(raw: str) -> tuple[Sections | None, str | None]:
+    """Parse one baseline document into its counted sections."""
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as exc:
         return None, f"the baseline is not valid JSON ({exc.msg}, line {exc.lineno})"
     if not isinstance(data, dict):
         return None, "the baseline is not a JSON object"
+
+    unguarded = _unguarded_count_sections(data)
+    if unguarded:
+        return None, (
+            "the baseline records counts this guard does not know how to protect "
+            f"({', '.join(unguarded)}); the replacement would delete them, so add "
+            "them to COUNTED_SECTIONS before writing"
+        )
 
     if "files" not in data:
         # The legacy flat schema is a bare path-to-count object. It is still
@@ -139,6 +138,104 @@ def read_previous_sections(
             return None, problem
         sections[name] = counts or {}
     return sections, None
+
+
+def _committed_sections(repo_root: Path, path: Path) -> tuple[Sections | None, str | None]:
+    """Read the baseline as HEAD records it, the one copy an edit cannot reach.
+
+    Every other witness to the old debt lives in the working tree, where the
+    same run that wants the ratchet lowered can rewrite it first. `git show`
+    reads the committed object instead, which cannot change without a commit,
+    and a commit is reviewable.
+    """
+    try:
+        rel = path.resolve().relative_to(repo_root.resolve())
+    except (OSError, ValueError):
+        return None, None
+
+    proc = _run_git(repo_root, "show", f"HEAD:{rel.as_posix()}")
+    if proc is None:
+        return None, "git could not be run to read the committed baseline"
+    if proc.returncode != 0:
+        # Either HEAD has no such path, which is a genuinely new baseline, or
+        # there is no HEAD at all. Neither leaves a committed floor to apply.
+        # The deleted-but-tracked case is already refused by `_was_recorded`.
+        return None, None
+
+    try:
+        raw = proc.stdout.decode("utf-8")
+    except UnicodeDecodeError:
+        return None, "the committed baseline is not valid UTF-8"
+
+    sections, problem = _sections_from_text(raw)
+    if problem:
+        return None, f"the committed copy of the baseline could not be read: {problem}"
+    return sections, None
+
+
+def _strongest(disk: Sections | None, committed: Sections | None) -> Sections | None:
+    """Merge two readings of the predecessor, keeping the higher count per path.
+
+    Weakening either copy has to buy something for an attack on it to be worth
+    mounting. Taking the maximum means it buys nothing: the emptied worktree
+    copy loses to the committed one, and a committed copy that predates honest
+    progress loses to the worktree. A genuine reduction still has the documented
+    `--allow-baseline-shrink` way through.
+    """
+    if disk is None:
+        return committed
+    if committed is None:
+        return disk
+
+    merged: Sections = {name: dict(counts) for name, counts in disk.items()}
+    for name, counts in committed.items():
+        target = merged.setdefault(name, {})
+        for entry, count in counts.items():
+            target[entry] = max(target.get(entry, 0), count)
+    return merged
+
+
+def read_previous_sections(
+    repo_root: Path, path: Path
+) -> tuple[Sections | None, str | None]:
+    """Read every counted section of the baseline being replaced.
+
+    Returns `(sections, problem)`. A problem is a reason to refuse the write.
+    `(None, None)` means there is genuinely nothing to protect, which is true
+    for exactly one case: a baseline that is neither on disk nor in git, so no
+    debt has ever been recorded.
+
+    Every other unreadable state fails closed. An absent-but-tracked baseline
+    has been deleted, a corrupt one may be mid-merge, and an unreadable one is
+    a mystery. Treating any of them as "no predecessor" would let the guard be
+    disabled by damaging the very file it protects, which inverts it into a
+    tool for laundering a wipe.
+
+    The reading on disk is only ever half the answer. It sits in the working
+    tree, so the run asking for the ratchet to move can edit it first, and an
+    emptied predecessor agrees to anything. The committed copy is read as well
+    and the stronger of the two is what the replacement must beat.
+    """
+    committed, committed_problem = _committed_sections(repo_root, path)
+    if committed_problem:
+        return None, committed_problem
+
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        recorded = _was_recorded(repo_root, path)
+        if recorded is None:
+            return None, "git could not determine whether branch history recorded the baseline"
+        if recorded:
+            return None, "git history records the baseline but it is absent from disk"
+        return committed, None
+    except OSError as exc:
+        return None, f"the baseline could not be read ({exc.strerror or exc})"
+
+    disk, problem = _sections_from_text(raw)
+    if problem:
+        return None, problem
+    return _strongest(disk, committed), None
 
 
 def _regressions(previous: Mapping[str, int], current: Mapping[str, int]) -> list[str]:
@@ -208,22 +305,82 @@ def refuse_dropped_entries(
     return False
 
 
-def refuse_symlinked_baseline(baseline_path: Path) -> bool:
-    """Refuse to write through a symlink at the baseline path.
+def _resolved(path: Path) -> Path | None:
+    """Resolve a path without raising, None when the filesystem will not say."""
+    try:
+        return path.resolve()
+    except OSError:
+        return None
 
-    Following one writes outside the path git tracks. The target is not the
-    ratchet's to overwrite, and a checkout that produced a symlink here is not
-    a checkout whose scan can be trusted.
+
+def _linked_component(baseline_path: Path, repo_root: Path) -> Path | None:
+    """Return the first symlink between the repository root and the baseline.
+
+    Checking only the leaf misses the cheaper attack. A symlinked *directory*
+    anywhere on the way down redirects the write just as effectively, and it
+    leaves the leaf looking like an ordinary file.
     """
-    if not baseline_path.is_symlink():
-        return False
-    print(
-        f"Refusing to write a baseline through a symlink: {baseline_path}. "
-        "Following it would write outside the path git tracks, and the file it "
-        "points at is not the ratchet's to overwrite.",
-        file=sys.stderr,
-    )
-    return True
+    root = _resolved(repo_root)
+    current = baseline_path
+    for _ in range(64):
+        if current.is_symlink():
+            return current
+        parent = current.parent
+        if parent == current:
+            return None
+        if root is not None and _resolved(parent) == root:
+            return None
+        current = parent
+    return None
+
+
+def _escaping_parent(baseline_path: Path, repo_root: Path) -> Path | None:
+    """Return the resolved destination when it lands outside the repository.
+
+    A path can leave the tree without a symlink anywhere on it, by climbing
+    with `..`. The symlink walk cannot see that, so the destination is checked
+    on its own terms as well.
+    """
+    root = _resolved(repo_root)
+    target = _resolved(baseline_path.parent)
+    if root is None or target is None:
+        return None
+    if target == root or root in target.parents:
+        return None
+    return target
+
+
+def refuse_symlinked_baseline(repo_root: Path, baseline_path: Path) -> bool:
+    """Refuse to write a baseline anywhere but the real path git tracks.
+
+    Following a symlink writes outside the path git tracks. The target is not
+    the ratchet's to overwrite, and a checkout that produced a symlink here is
+    not a checkout whose scan can be trusted. The whole chain from the baseline
+    up to the repository root is checked, not just the final component, and a
+    destination that escapes the repository is refused even when nothing on the
+    way to it is a link.
+    """
+    linked = _linked_component(baseline_path, repo_root)
+    if linked is not None:
+        print(
+            f"Refusing to write a baseline through a symlink: {linked}. "
+            "Following it would write outside the path git tracks, and the file it "
+            "points at is not the ratchet's to overwrite.",
+            file=sys.stderr,
+        )
+        return True
+
+    escaped = _escaping_parent(baseline_path, repo_root)
+    if escaped is not None:
+        print(
+            f"Refusing to write a baseline outside the repository: {escaped}. "
+            "The ratchet only owns the artifact git tracks, and a path that "
+            "leaves the tree is not that artifact.",
+            file=sys.stderr,
+        )
+        return True
+
+    return False
 
 
 @contextmanager
@@ -290,7 +447,7 @@ def write_baseline_json(
     lock_path = baseline_path.with_name(f".{baseline_path.name}.write-lock")
     try:
         with _baseline_write_lock(lock_path):
-            if refuse_symlinked_baseline(baseline_path):
+            if refuse_symlinked_baseline(repo_root, baseline_path):
                 return 2
 
             previous, problem = read_previous_sections(repo_root, baseline_path)
