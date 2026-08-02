@@ -2515,17 +2515,23 @@ class TestBackwardsCommitOrder:
         assert by_content[f"Commit: {older}"]["leads_to"] == [by_content[f"Commit: {newer}"]["id"]]
         assert extract_session_episode.validate_commit_order(repaired) == []
 
-    def test_fix_restamps_commit_events_from_git(self, tmp_path, monkeypatch):
-        """Midnight is what made the chain unorderable; the repair removes it."""
-        _, episodes, events, _, _ = self._reversed_pair(tmp_path, monkeypatch)
+    def test_fix_restamps_every_commit_event_from_git(self, tmp_path, monkeypatch):
+        """Midnight is what made the chain unorderable; the repair removes it.
+
+        Keyed by content, one assertion per event. Keying by ``type`` collapses
+        both commits onto whichever one comes last, so a repair that restamped
+        one of the two and left the other at midnight still passed.
+        """
+        _, episodes, events, older, newer = self._reversed_pair(tmp_path, monkeypatch)
         target = self._write(episodes / "episode-bad.json", events)
 
         extract_session_episode.main([str(episodes), "--validate", "--fix"])
 
         repaired = json.loads(target.read_text(encoding="utf-8"))["events"]
-        stamps = {evt["type"]: evt["timestamp"] for evt in repaired}
-        assert stamps["commit"] != "2026-07-19T00:00:00+00:00"
-        assert stamps["milestone"] == "2026-07-19T00:00:00+00:00"
+        stamps = {evt["content"]: evt["timestamp"] for evt in repaired}
+        assert stamps[f"Commit: {older}"] == "2026-07-19T10:00:00+00:00"
+        assert stamps[f"Commit: {newer}"] == "2026-07-19T11:00:00+00:00"
+        assert stamps["did the work"] == "2026-07-19T00:00:00+00:00"
 
     def test_fix_preserves_every_field_outside_events(self, tmp_path, monkeypatch):
         _, episodes, events, _, _ = self._reversed_pair(tmp_path, monkeypatch)
@@ -2626,6 +2632,36 @@ class TestBackwardsCommitOrder:
 
         assert rc == 2
         assert "--fix requires --validate" in capsys.readouterr().err
+
+
+class TestUnreadableEpisodeReportedOnce:
+    """`--fix` runs repair then validation, and both read the file the same way.
+
+    Reporting the read failure from both printed the identical line twice for
+    every unusable episode, so a directory of them doubled the noise a reader
+    has to scan without naming one extra defect.
+    """
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        ("body", "fragment"),
+        [
+            ("not json", "unreadable:"),
+            ("[1, 2]", "top level must be an object"),
+        ],
+        ids=["invalid-json", "top-level-not-an-object"],
+    )
+    def test_a_read_failure_prints_one_line_under_fix(tmp_path, capsys, body, fragment):
+        episodes = tmp_path / "episodes"
+        episodes.mkdir()
+        (episodes / "broken.json").write_text(body, encoding="utf-8")
+
+        rc = extract_session_episode.run_validate(episodes, fix=True)
+
+        err = capsys.readouterr().err
+        assert rc == 2
+        assert err.count(fragment) == 1
+        assert '"Violations": 1' in err
 
 
 class TestSourceSessionStamping:

@@ -2016,10 +2016,15 @@ def repair_episode_file(path: Path) -> tuple[bool, list[str]]:
     that defect only, and rewriting a sound episode would churn timestamps no
     check objects to. That decision lives here rather than in the caller so one
     read of the file answers both questions.
+
+    An unreadable file yields no message. ``run_validate`` calls
+    ``validate_episode_file`` on the same path straight after, and that reports
+    the identical ``_read_episode`` text; returning it here too printed the line
+    twice under ``--validate --fix`` and told the reader nothing new.
     """
-    data, failure = _read_episode(path)
+    data, _ = _read_episode(path)
     if data is None:
-        return False, [f"{path}: {failure}"]
+        return False, []
     events = data.get("events")
     if not isinstance(events, list) or not validate_commit_order(events):
         return False, []
