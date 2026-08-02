@@ -64,6 +64,8 @@ class GcReport:
     decisions: list[Decision] = field(default_factory=list)
     removed: list[str] = field(default_factory=list)
     remove_errors: list[str] = field(default_factory=list)
+    remote_head_lookup_failed: bool = False
+    remote_head_lookup_error: str | None = None
 
     @property
     def candidates(self) -> list[Decision]:
@@ -130,6 +132,10 @@ def format_report(report: GcReport) -> str:
         f"  removal candidates: {len(report.candidates)}",
         f"  kept: {len(report.kept)}",
     ]
+    if report.remote_head_lookup_failed:
+        lines.append("  remote head lookup failed, using ancestry-only merge checks")
+        if report.remote_head_lookup_error:
+            lines.append(f"    {report.remote_head_lookup_error}")
     if report.occupancy_unreadable:
         lines.append(
             f"  occupancy blind spot: {report.occupancy_unreadable} live "

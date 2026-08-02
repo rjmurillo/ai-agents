@@ -50,8 +50,18 @@ import subprocess
 import sys
 import time
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from scripts.maintenance import _gc_remote
+else:
+    try:
+        from scripts.maintenance import _gc_remote
+    except ModuleNotFoundError:
+        import _gc_remote
 
 from scripts.maintenance.worktree_occupancy import (
     Occupancy,
@@ -76,6 +86,7 @@ from scripts.maintenance.worktree_report import (
 
 _DEFAULT_BASE = "origin/main"
 _GIT_TIMEOUT_SECONDS = 30
+_DECIDE_WORKERS = 8
 
 # Inspecting one worktree costs up to three git subprocesses, so the wall clock
 # grows with the worktree count while the caller's patience does not. The
@@ -206,6 +217,8 @@ def decide(
     current_path: str | None = None,
     inspect: bool = True,
     cwds: frozenset[str] = frozenset(),
+    remote_head_refs: frozenset[str] | None = None,
+    origin_upstreams: dict[str, str] | None = None,
 ) -> Decision:
     """Decide whether a worktree is safe to remove. KEEP on any doubt.
 
@@ -214,7 +227,11 @@ def decide(
 
     ``inspect=False`` stops before the git-state checks and keeps the worktree
     with ``KEEP_TIME_BUDGET``. The structural checks above that point cost no
-    subprocess, so they still run and still report the real reason.
+    subprocess, so they still run and still report the real reason. Detachment
+    is not one of them: deciding a detached worktree needs its merge status, so
+    it sits below the gate and a spent budget reports ``KEEP_TIME_BUDGET``
+    rather than ``KEEP_DETACHED``. Both keep the worktree, so the fail-safe
+    invariant holds either way.
     """
     protected_paths = {main_path}
     if current_path:
@@ -229,9 +246,6 @@ def decide(
     if is_occupied(worktree.path, cwds):
         return Decision(worktree.path, worktree.branch, remove=False, reason=KEEP_OCCUPIED)
 
-    if worktree.detached or worktree.branch is None:
-        return Decision(worktree.path, worktree.branch, remove=False, reason=KEEP_DETACHED)
-
     if not inspect:
         return Decision(worktree.path, worktree.branch, remove=False, reason=KEEP_TIME_BUDGET)
 
@@ -239,12 +253,28 @@ def decide(
         if has_uncommitted_changes(worktree.path):
             return Decision(worktree.path, worktree.branch, remove=False, reason=KEEP_DIRTY)
         merged = is_merged_to_base(worktree.path, base_ref)
+        reason = "merged to base"
+        if worktree.detached or worktree.branch is None:
+            if merged:
+                return Decision(worktree.path, worktree.branch, remove=True, reason=reason)
+            return Decision(worktree.path, worktree.branch, remove=False, reason=KEEP_DETACHED)
+        if (
+            not merged
+            and remote_head_refs is not None
+            and _gc_remote.is_merged_by_deleted_upstream(
+                worktree.branch,
+                remote_head_refs,
+                origin_upstreams or {},
+            )
+        ):
+            merged = True
+            reason = "merged by deleted upstream"
         if not merged and has_unpushed_commits(worktree.path):
             return Decision(worktree.path, worktree.branch, remove=False, reason=KEEP_UNPUSHED)
     except RuntimeError:
         return Decision(worktree.path, worktree.branch, remove=False, reason=KEEP_GIT_ERROR)
 
-    pushed = "merged to base" if merged else "fully pushed"
+    pushed = reason if merged else "fully pushed"
     return Decision(worktree.path, worktree.branch, remove=True, reason=pushed)
 
 
@@ -274,13 +304,19 @@ def build_report(
     unlimited. Keeping the leftovers preserves the fail-safe invariant: a
     worktree this run never looked at can never be proposed for removal.
 
-    The budget is checked between worktrees, so it bounds how many are
-    inspected, not the wall clock. One inspection can still be in flight when
-    the deadline passes, and ``subprocess.run(timeout=...)`` starts its clock
-    only once the child exists, so a loaded machine can stall in process
-    creation for longer than the per-call cap. Treat the budget as a strong
-    bound on work attempted and a soft one on elapsed time; size the caller's
-    timeout with headroom rather than against an arithmetic sum.
+    The budget is checked when a worker picks up a worktree, so it bounds how
+    many are inspected, not the wall clock. Decisions run on a pool of
+    ``_DECIDE_WORKERS`` threads, so up to that many inspections can be in
+    flight when the deadline passes and the inspected set is not a strict
+    prefix of the worktree list. Every value the workers read is fixed before
+    the pool starts and none of them write shared state, so the concurrency
+    adds no race; ``executor.map`` also returns in input order, so the report
+    stays deterministic in ordering even though the cutoff is not.
+    ``subprocess.run(timeout=...)`` starts its clock only once the child
+    exists, so a loaded machine can stall in process creation for longer than
+    the per-call cap. Treat the budget as a strong bound on work attempted and
+    a soft one on elapsed time; size the caller's timeout with headroom rather
+    than against an arithmetic sum.
 
     ``cwds`` overrides live-process detection, for tests. By default the working
     directories of running processes are read once and any worktree holding one
@@ -298,6 +334,18 @@ def build_report(
     live_cwds = occupancy.cwds
     main_path = worktrees[0].path if worktrees else ""
     current_path = _run_git(["rev-parse", "--show-toplevel"])
+    remote_head_refs: frozenset[str] | None
+    remote_head_lookup_failed = False
+    remote_head_lookup_error = None
+    try:
+        remote_head_refs = _gc_remote.load_remote_head_refs(_run_git)
+    except RuntimeError as exc:
+        remote_head_refs = None
+        remote_head_lookup_failed = True
+        remote_head_lookup_error = str(exc)
+    origin_upstreams = (
+        _gc_remote.try_load_origin_upstreams(_run_git) if remote_head_refs is not None else {}
+    )
     report = GcReport(
         timestamp=datetime.now(UTC).isoformat(),
         base_ref=base_ref,
@@ -305,21 +353,25 @@ def build_report(
         main_worktree=main_path,
         total_worktrees=len(worktrees),
         occupancy_unreadable=occupancy.unreadable,
+        remote_head_lookup_failed=remote_head_lookup_failed,
+        remote_head_lookup_error=remote_head_lookup_error,
     )
-    decisions: list[Decision] = []
-    for worktree in worktrees:
-        inspect = deadline is None or clock() < deadline
-        decisions.append(
-            decide(
-                worktree,
-                main_path,
-                base_ref,
-                current_path=current_path,
-                inspect=inspect,
-                cwds=live_cwds,
-            )
+
+    def decide_one(worktree: Worktree) -> Decision:
+        return decide(
+            worktree,
+            main_path,
+            base_ref,
+            current_path=current_path,
+            inspect=deadline is None or clock() < deadline,
+            cwds=live_cwds,
+            remote_head_refs=remote_head_refs,
+            origin_upstreams=origin_upstreams,
         )
-    report.decisions = decisions
+
+    workers = min(_DECIDE_WORKERS, len(worktrees)) or 1
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        report.decisions = list(executor.map(decide_one, worktrees))
     return report
 
 

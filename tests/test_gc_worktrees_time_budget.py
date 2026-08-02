@@ -14,6 +14,7 @@ Related: Issue #2761 (worktree accumulation), ADR-035 (exit codes)
 
 from __future__ import annotations
 
+import threading
 from unittest.mock import patch
 
 from scripts.maintenance.gc_worktrees import (
@@ -46,16 +47,27 @@ def _worktrees(count: int) -> list[Worktree]:
 
 
 class _Clock:
-    """A fake monotonic clock that advances a fixed step per reading."""
+    """A fake monotonic clock that advances a fixed step per reading.
+
+    Readings are serialized because the reporter now decides worktrees on a
+    thread pool, so several workers call this concurrently. Without the lock
+    the read-modify-write below loses increments under interleaving and the
+    tests that count how many worktrees fell inside the deadline fail on a
+    sample of runs rather than all of them. Measured before the lock: 7 of 12
+    runs failed. The production clock is ``time.monotonic``, which needs no
+    such protection; this is a fixture concern only.
+    """
 
     def __init__(self, step: float = 0.0) -> None:
         self.now = 0.0
         self.step = step
+        self._lock = threading.Lock()
 
     def __call__(self) -> float:
-        current = self.now
-        self.now += self.step
-        return current
+        with self._lock:
+            current = self.now
+            self.now += self.step
+            return current
 
 
 def _build(worktrees, *, time_budget, clock, apply=False):
@@ -91,12 +103,23 @@ class TestTimeBudget:
         ]
 
     def test_a_spent_budget_keeps_the_remaining_worktrees_unread(self):
-        # Readings run 1, 2, 3 against a deadline of 3: main and wt0 land
-        # inside it, wt1 does not.
+        # Readings run 1, 2, 3 against a deadline of 3, so exactly one of the
+        # two real worktrees lands inside it. Which one is not determinate:
+        # decisions run on a thread pool, so the readings are handed out in
+        # whatever order the workers pick items up. The budget still bounds the
+        # work, and an unread worktree is still kept, which is what the caller
+        # depends on. Asserting the identity here would pin an artifact of the
+        # old serial loop and fail on roughly half of runs.
         report = _build(_worktrees(2), time_budget=3.0, clock=_Clock(step=1.0))
-        assert [d.path for d in report.candidates] == ["/repo/wt0"]
-        assert [d.path for d in report.unevaluated] == ["/repo/wt1"]
+        assert len(report.candidates) == 1
+        assert len(report.unevaluated) == 1
         assert report.unevaluated[0].reason == KEEP_TIME_BUDGET
+        assert report.unevaluated[0].remove is False
+        assert report.candidates[0].path != report.unevaluated[0].path
+        assert {d.path for d in report.candidates} | {d.path for d in report.unevaluated} == {
+            "/repo/wt0",
+            "/repo/wt1",
+        }
 
     def test_the_main_worktree_keeps_its_real_reason_past_the_deadline(self):
         # Structural checks cost no subprocess, so the budget must not blur
