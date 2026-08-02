@@ -236,12 +236,15 @@ jobs:
         run: uv run --frozen python3 scripts/validate_workflows.py
 
       # Issue #2967: ADR-006 forbids business logic in workflow `run:` blocks.
-      # The burn-down count (93 at audit time, 87 today) had no gate, so it could
-      # climb back silently between extraction PRs. This freezes it: the scanner
-      # exits 1 when the count exceeds --max. Lower --max after each extraction.
-      # Issue #4151: moved here (unconditional) so bot actors -- Renovate and
-      # Dependabot both open workflow-file PRs for action-pin bumps -- cannot
-      # add run blocks and escape the ratchet simply because they are bots.
+      # The burn-down count started at 93 at audit time. This freezes the
+      # current ratchet ceiling at 58: the scanner exits 1 when the count
+      # exceeds --max. Lower --max after each extraction.
+      #
+      # Unconditional (Issue #4151): Renovate and Dependabot open workflow-only
+      # PRs (action SHA bumps), which are exactly the PRs that could smuggle a
+      # new run block past this gate if it were skip-guarded. A gate that exempts
+      # the actors who author workflow changes is weaker than the hook it
+      # backstops, not equal to it.
       - name: Run ADR-006 run-block ratchet
         run: python3 scripts/ci/adr006_run_block_scanner.py --max 58
 
@@ -254,10 +257,9 @@ jobs:
       # learned to ignore, which is the same training signal that teaches people
       # to ignore the naming and complexity rules in the same output.
       #
-      # Existing debt is recorded in scripts/ci/taste_count_baseline.txt.
-      # The committed baseline must match the current total exactly.
-      # Record a lower count after cleanup with
-      # `python scripts/ci/taste_count_ratchet.py --update`.
+      # Existing debt is capped by scripts/ci/taste_count_baseline.txt.
+      # Lower counts pass without rewriting that shared line. Use --update
+      # only when intentionally lowering the ceiling.
       #
       # This job hosts it for the same reason it hosts the workflow-YAML and
       # model-pin gates: taste-lints scans Markdown, YAML, JSON, shell, and

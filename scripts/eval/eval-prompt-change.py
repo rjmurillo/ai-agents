@@ -7,24 +7,24 @@ security-critical tier, and flakiness protocol from ADR-057.
 
 Usage:
     # Compare working copy against base branch:
-    python3 scripts/eval/eval-prompt-change.py \\
+    uv run python scripts/eval/eval-prompt-change.py \\
         --prompt .claude/commands/research.md \\
         --scenarios tests/evals/research-scenarios.json \\
         --base-ref main
 
     # Explicit before/after files:
-    python3 scripts/eval/eval-prompt-change.py \\
+    uv run python scripts/eval/eval-prompt-change.py \\
         --before prompt-old.md --after prompt-new.md \\
         --scenarios tests/evals/research-scenarios.json
 
     # Security-critical prompt (5 runs, 100% pass):
-    python3 scripts/eval/eval-prompt-change.py \\
+    uv run python scripts/eval/eval-prompt-change.py \\
         --prompt .agents/security/prompts/security-review.md \\
         --scenarios tests/evals/security-review-scenarios.json \\
         --base-ref main --security-critical
 
     # Dry run (validate scenario file, no API calls):
-    python3 scripts/eval/eval-prompt-change.py \\
+    uv run python scripts/eval/eval-prompt-change.py \\
         --prompt .claude/commands/research.md \\
         --scenarios tests/evals/research-scenarios.json \\
         --dry-run
@@ -715,6 +715,9 @@ def _is_provider_outage(exc: Exception) -> bool:
         "usage limit",        # budget/quota exhausted (HTTP 400 usage limits)
         "rate limit",
         "too many requests",  # 429
+        "github_models_retirement_brownout",
+        "retirement brownout",
+        "github models is temporarily unavailable",
         "timed out",
         "network error",
         "returned http 408",

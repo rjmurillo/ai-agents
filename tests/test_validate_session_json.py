@@ -1005,7 +1005,7 @@ class TestScriptIntegration:
         result = subprocess.run(
             [sys.executable, str(script_path), "--help"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -1026,7 +1026,7 @@ class TestScriptIntegration:
         result = subprocess.run(
             [sys.executable, str(script_path), str(session_files[0])],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -2011,10 +2011,11 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         ).read_text(encoding="utf-8")
         assert "--scope-from-git" in script
 
-    def test_the_workflow_does_not_shell_out_to_uv(self) -> None:
-        """The validate job installs no dependencies; uv is not on PATH there."""
-        workflow = Path(__file__).resolve().parents[1] / ".github/workflows/ai-session-protocol.yml"
-        assert "uv run" not in workflow.read_text(encoding="utf-8")
+    # Issue #3806 retired the whole-file `"uv run" not in workflow` assertion
+    # that used to sit here. The validate job now installs uv on purpose, and a
+    # substring over the whole file cannot tell that job from the three that
+    # still install nothing. The per-job successor lives in
+    # tests/ci/test_validate_session_protocol_wiring.py::TestEachJobInstallsWhatItsScriptsNeed.
 
     def test_the_shared_module_imports_no_third_party_package(self) -> None:
         """It runs under the workflow's bare python3, which has no PyYAML."""
@@ -2390,7 +2391,8 @@ class TestEndingCommitReachability:
 
         def git(*args: str) -> str:
             return subprocess.run(
-                ["git", *args], cwd=repo, capture_output=True, text=True, check=True
+                ["git", *args], cwd=repo, capture_output=True, text=True,
+                encoding="utf-8", check=True
             ).stdout.strip()
 
         git("init", "-q", "-b", "main")
@@ -2436,7 +2438,7 @@ class TestEndingCommitReachability:
         subprocess.run(
             ["git", "clone", "-q", "--depth", "1", repo.as_uri(), str(shallow)],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             check=True,
         )
         assert (
@@ -2444,7 +2446,7 @@ class TestEndingCommitReachability:
                 ["git", "rev-parse", "--is-shallow-repository"],
                 cwd=shallow,
                 capture_output=True,
-                text=True,
+                text=True, encoding="utf-8",
                 check=True,
             ).stdout.strip()
             == "true"

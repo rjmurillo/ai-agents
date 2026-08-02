@@ -1,37 +1,48 @@
-"""Ratchet gate: jobs must not inherit workflow-level write permissions (issue #3964).
+"""A job with no ``permissions:`` block silently inherits the workflow-level one.
 
-A job without its own ``permissions:`` block silently inherits the
-workflow-level block. When the workflow grants write scopes, every job in it
-holds write whether it uses it or not. The ADR-006 extraction campaign is
-converting jobs from "inline shell, no checkout" into "checkout + repo script",
-which turns a dormant inherited over-grant into a live one.
+38 jobs hold a write scope they never asked for. A ``debounce`` job that only
+computes an output carries ``pull-requests: write``; ``claude.yml``'s
+authorization check carries seven write scopes including ``id-token``. Nothing
+in the job body says so, so a reviewer reading the job cannot see it (CWE-269).
 
-This gate freezes the current offenders. A new job without ``permissions:``
-that lands in a write-scoped workflow fails immediately (the live set is a
-strict superset of the grandfathered set). A job that gains its own block is
-removed from the live set, which also fails (set shrank without removing the
-literal from _GRANDFATHERED). Both failure modes force an explicit code change,
-so the count only ratchets down.
+``scripts/validate_workflows.py`` ``validate_permissions`` does not close this.
+It errors only when a workflow declares permissions nowhere; one top-level block
+satisfies it and per-job least privilege is never checked. Every job in this
+repository therefore resolves a permission set, which is why a workflow with no
+top-level block contributes no offenders here: its jobs each carry their own.
 
-Set equality rather than subset: see scripts/ci/count_ratchet.py for the same
-"unrecorded decrease fails" policy stated there.
+The ADR-006 run-block extraction campaign (#2967, 93 blocks left) is what makes
+this worth a gate now. Extraction converts "inline bash, no checkout" into
+"check out the repo and run a script from it," so each pass is a fresh chance to
+give an over-granted job attacker-reachable code. That happened once already:
+``post-pr-retrospective.yml:prepare`` gained a checkout while inheriting
+``pull-requests``, ``issues``, and ``id-token`` write. A manual review caught it
+(PR #3967) and scoped it to ``contents: read``. Manual review is the only
+control this repository has for it.
 
-CWE-269: improper privilege management. See also #2967 (ADR-006 extraction).
+The 38 stay frozen below rather than scoped by hand: each needs per-job
+knowledge of what it calls, and a wrong guess breaks CI. The gate stops the
+bleeding, and the burn-down rides the extraction PRs.
+
+Comparison is set equality, not a subset check. A stale entry would re-permit
+the exact regression this gate exists to block: scope a job, leave its line
+here, and a later PR deleting that ``permissions:`` block passes. So fixing a
+job means deleting its line in the same PR.
+
+Implementer note: ``permissions: {}`` breaks ``actions/checkout``. The floor for
+a read-only job is ``contents: read``.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 import yaml
 
 WORKFLOW_DIR = Path(__file__).resolve().parents[2] / ".github/workflows"
 
-# Snapshot of over-granted jobs on origin/main at the time of this test's
-# creation. Each entry is (workflow_filename, job_name). Jobs that gain their
-# own ``permissions:`` block MUST be removed from this set in the same PR.
-# New jobs with the same problem MUST NOT be added; the test will fail.
+# (workflow filename, job name) for every job inheriting a write scope today.
+# Delete a line when you give that job its own permissions block.
 _GRANDFATHERED: frozenset[tuple[str, str]] = frozenset(
     {
         ("ai-issue-triage.yml", "ai-issue-triage"),
@@ -72,51 +83,8 @@ _GRANDFATHERED: frozenset[tuple[str, str]] = frozenset(
         ("update-reviewer-stats.yml", "update-stats"),
         ("velocity-accelerator.yml", "detect-opportunities"),
         ("velocity-accelerator.yml", "post-summary"),
-        ("workflow-coalescing-metrics.yml", "collect-metrics"),
     }
 )
-
-
-def write_scopes(perms: object) -> list[str]:
-    """Return write-granted scope names for a permissions value.
-
-    ``perms`` is the value of a ``permissions:`` YAML key. Three forms exist:
-
-    - string ``"write-all"`` or ``"read-all"``
-    - mapping ``{scope: level, ...}``
-    - missing / ``{}`` (no write)
-
-    Returns the sorted list of scope names whose level is ``"write"``, or
-    ``["ALL"]`` for the ``"write-all"`` string shorthand, or ``[]`` for any
-    read-only or absent value.
-    """
-    if perms == "write-all":
-        return ["ALL"]
-    if not isinstance(perms, dict):
-        return []
-    return sorted(k for k, v in perms.items() if v == "write")
-
-
-def over_granted(doc: object) -> list[tuple[str, list[str]]]:
-    """Yield (job_name, write_scopes) for jobs inheriting workflow write.
-
-    A job is over-granted when it has no ``permissions:`` key of its own AND
-    the workflow-level ``permissions:`` grants at least one write scope.
-    Jobs that carry their own block (even an empty one) are not returned.
-    """
-    if not isinstance(doc, dict):
-        return []
-    wf_write = write_scopes(doc.get("permissions"))
-    if not wf_write:
-        return []
-    result = []
-    for name, job in (doc.get("jobs") or {}).items():
-        if not isinstance(job, dict):
-            continue
-        if "permissions" in job:
-            continue
-        result.append((name, wf_write))
-    return result
 
 
 def _workflows() -> list[Path]:
@@ -132,131 +100,123 @@ def _jobs(doc: object) -> dict[str, dict]:
     return {name: job for name, job in jobs.items() if isinstance(job, dict)}
 
 
-# ---- ratchet gate -------------------------------------------------------
+def write_scopes(permissions: object) -> list[str]:
+    """Return the scopes a ``permissions:`` value grants at write level.
 
-
-def test_over_granted_jobs_match_grandfathered_set() -> None:
-    """Live set of over-granted jobs must equal the frozen snapshot exactly.
-
-    - A new offender grows the live set above the snapshot -> test fails.
-    - A fixed job shrinks the live set below the snapshot -> test fails
-      (forces the literal out of _GRANDFATHERED so there is no slack).
+    ``write-all`` is the string shorthand for every scope, so it reports as
+    ``["ALL"]`` rather than an enumeration nobody would keep current. ``{}``,
+    ``read-all``, and a missing key grant no writes.
     """
-    live: set[tuple[str, str]] = set()
-    for wf in _workflows():
-        try:
-            doc = yaml.safe_load(wf.read_text(encoding="utf-8"))
-        except yaml.YAMLError:
-            continue
-        for job_name, _ in over_granted(doc):
-            live.add((wf.name, job_name))
+    if isinstance(permissions, str):
+        return ["ALL"] if permissions == "write-all" else []
+    if isinstance(permissions, dict):
+        return sorted(str(scope) for scope, level in permissions.items() if level == "write")
+    return []
 
-    new_offenders = live - _GRANDFATHERED
-    assert not new_offenders, (
-        "New over-granted jobs detected (add explicit permissions: or extend "
-        "_GRANDFATHERED and document why):\n"
-        + "\n".join(f"  {f}:{j}" for f, j in sorted(new_offenders))
+
+def jobs_inheriting_write(doc: object) -> dict[str, list[str]]:
+    """Map job name to the write scopes it inherits by declaring none itself.
+
+    A job that declares any ``permissions:`` block is clean regardless of what
+    that block contains. The value is the author's call, made where a reviewer
+    can see it. This gate is about the jobs where nobody made a call at all.
+    """
+    inherited = write_scopes(doc.get("permissions") if isinstance(doc, dict) else None)
+    if not inherited:
+        return {}
+    return {name: inherited for name, job in _jobs(doc).items() if "permissions" not in job}
+
+
+def _offenders() -> set[tuple[str, str]]:
+    found: set[tuple[str, str]] = set()
+    for workflow in _workflows():
+        doc = yaml.safe_load(workflow.read_text(encoding="utf-8"))
+        for name in jobs_inheriting_write(doc):
+            found.add((workflow.name, name))
+    return found
+
+
+def test_no_job_silently_inherits_a_new_write_scope() -> None:
+    found = _offenders()
+    added = sorted(found - _GRANDFATHERED)
+    removed = sorted(_GRANDFATHERED - found)
+    assert found == _GRANDFATHERED, (
+        "Jobs inheriting a workflow-level write scope changed.\n"
+        f"New offenders (give each an explicit `permissions:` block; "
+        f"`contents: read` is the floor for a job that only reads code): {added}\n"
+        f"Fixed, so delete these lines from _GRANDFATHERED: {removed}"
     )
-
-    fixed_not_removed = _GRANDFATHERED - live
-    assert not fixed_not_removed, (
-        "Jobs in _GRANDFATHERED no longer over-granted -- remove them from "
-        "the frozen set to keep the ratchet tight:\n"
-        + "\n".join(f"  {f}:{j}" for f, j in sorted(fixed_not_removed))
-    )
-
-
-# ---- unit tests for helpers ---------------------------------------------
 
 
 class TestWriteScopes:
-    def test_write_all_string_returns_all_sentinel(self) -> None:
+    def test_reports_only_the_write_entries(self) -> None:
+        assert write_scopes({"contents": "read", "issues": "write"}) == ["issues"]
+
+    def test_sorts_multiple_write_entries(self) -> None:
+        assert write_scopes({"pull-requests": "write", "id-token": "write"}) == [
+            "id-token",
+            "pull-requests",
+        ]
+
+    def test_write_all_shorthand_reports_all(self) -> None:
         assert write_scopes("write-all") == ["ALL"]
 
-    def test_read_all_string_returns_empty(self) -> None:
+    def test_read_all_shorthand_grants_nothing(self) -> None:
         assert write_scopes("read-all") == []
 
-    def test_mapping_extracts_write_keys(self) -> None:
-        perms = {"contents": "write", "issues": "read", "pull-requests": "write"}
-        assert write_scopes(perms) == ["contents", "pull-requests"]
-
-    def test_all_read_mapping_returns_empty(self) -> None:
-        assert write_scopes({"contents": "read"}) == []
-
-    def test_empty_mapping_returns_empty(self) -> None:
+    def test_empty_block_grants_nothing(self) -> None:
         assert write_scopes({}) == []
 
-    def test_none_returns_empty(self) -> None:
+    def test_read_only_block_grants_nothing(self) -> None:
+        assert write_scopes({"contents": "read"}) == []
+
+    def test_missing_key_grants_nothing(self) -> None:
         assert write_scopes(None) == []
 
-    def test_missing_value_returns_empty(self) -> None:
-        # permissions: key absent
-        assert write_scopes(object()) == []
+    def test_non_mapping_value_grants_nothing(self) -> None:
+        assert write_scopes(["contents: read"]) == []
 
 
-class TestOverGranted:
-    def _make_doc(self, wf_perms: object, jobs: dict) -> dict:
-        doc: dict = {"jobs": jobs}
-        if wf_perms is not None:
-            doc["permissions"] = wf_perms
-        return doc
+class TestJobsInheritingWrite:
+    def test_a_job_with_no_block_inherits(self) -> None:
+        doc = {"permissions": {"issues": "write"}, "jobs": {"debounce": {"steps": []}}}
+        assert jobs_inheriting_write(doc) == {"debounce": ["issues"]}
 
-    def test_job_without_own_block_is_returned(self) -> None:
-        doc = self._make_doc(
-            {"issues": "write"}, {"my-job": {"runs-on": "ubuntu-latest"}}
-        )
-        result = over_granted(doc)
-        assert result == [("my-job", ["issues"])]
+    def test_a_job_with_its_own_block_is_clean(self) -> None:
+        doc = {
+            "permissions": {"issues": "write"},
+            "jobs": {"debounce": {"permissions": {"contents": "read"}, "steps": []}},
+        }
+        assert jobs_inheriting_write(doc) == {}
 
-    def test_job_with_own_block_is_excluded(self) -> None:
-        doc = self._make_doc(
-            {"issues": "write"},
-            {
-                "my-job": {
-                    "runs-on": "ubuntu-latest",
-                    "permissions": {"contents": "read"},
-                }
+    def test_a_job_with_an_empty_own_block_is_clean(self) -> None:
+        """Declaring ``permissions: {}`` is a decision a reviewer can see."""
+        doc = {
+            "permissions": {"issues": "write"},
+            "jobs": {"debounce": {"permissions": {}, "steps": []}},
+        }
+        assert jobs_inheriting_write(doc) == {}
+
+    def test_a_read_only_workflow_level_block_inherits_nothing(self) -> None:
+        doc = {"permissions": {"contents": "read"}, "jobs": {"debounce": {"steps": []}}}
+        assert jobs_inheriting_write(doc) == {}
+
+    def test_only_the_undeclared_jobs_are_reported(self) -> None:
+        doc = {
+            "permissions": {"issues": "write"},
+            "jobs": {
+                "scoped": {"permissions": {"contents": "read"}},
+                "unscoped": {"steps": []},
             },
-        )
-        assert over_granted(doc) == []
+        }
+        assert jobs_inheriting_write(doc) == {"unscoped": ["issues"]}
 
-    def test_job_with_empty_own_block_is_excluded(self) -> None:
-        doc = self._make_doc(
-            {"issues": "write"},
-            {"my-job": {"runs-on": "ubuntu-latest", "permissions": {}}},
-        )
-        assert over_granted(doc) == []
+    def test_a_workflow_with_no_jobs_is_clean(self) -> None:
+        assert jobs_inheriting_write({"permissions": {"issues": "write"}}) == {}
 
-    def test_read_only_workflow_perms_returns_empty(self) -> None:
-        doc = self._make_doc(
-            {"contents": "read"},
-            {"my-job": {"runs-on": "ubuntu-latest"}},
-        )
-        assert over_granted(doc) == []
+    def test_non_mapping_jobs_are_skipped(self) -> None:
+        doc = {"permissions": {"issues": "write"}, "jobs": {"oops": "not-a-mapping"}}
+        assert jobs_inheriting_write(doc) == {}
 
-    def test_no_workflow_permissions_block_returns_empty(self) -> None:
-        doc = self._make_doc(None, {"my-job": {"runs-on": "ubuntu-latest"}})
-        assert over_granted(doc) == []
-
-    def test_write_all_string_is_detected(self) -> None:
-        doc = self._make_doc(
-            "write-all", {"my-job": {"runs-on": "ubuntu-latest"}}
-        )
-        result = over_granted(doc)
-        assert result == [("my-job", ["ALL"])]
-
-    def test_non_dict_doc_returns_empty(self) -> None:
-        assert over_granted("not a dict") == []
-        assert over_granted(None) == []
-        assert over_granted([]) == []
-
-    def test_non_dict_job_entry_is_skipped(self) -> None:
-        doc = self._make_doc({"issues": "write"}, {"bad-job": "string"})
-        assert over_granted(doc) == []
-
-
-@pytest.mark.parametrize("workflow", _workflows(), ids=lambda p: p.name)
-def test_workflow_parses_as_yaml(workflow: Path) -> None:
-    """Each workflow file must be parseable. Catches syntax regressions early."""
-    doc = yaml.safe_load(workflow.read_text(encoding="utf-8"))
-    assert doc is not None
+    def test_a_non_mapping_document_is_clean(self) -> None:
+        assert jobs_inheriting_write("---") == {}
