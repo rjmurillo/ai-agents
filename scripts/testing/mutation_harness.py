@@ -254,6 +254,7 @@ def _purge_pycache(root: Path) -> None:
 
 def _find_containment_root() -> Path:
     command = ["git", "rev-parse", "--show-toplevel"]
+    cwd = Path.cwd().resolve()
     try:
         result = subprocess.run(
             command,
@@ -267,10 +268,15 @@ def _find_containment_root() -> Path:
     except subprocess.TimeoutExpired as exc:
         raise MutationTimeoutError(command, GIT_ROOT_TIMEOUT_SECONDS) from exc
     except OSError:
-        return Path.cwd().resolve()
+        return cwd
     if result.returncode == 0 and result.stdout.strip():
-        return Path(result.stdout.strip()).resolve()
-    return Path.cwd().resolve()
+        root = Path(result.stdout.strip()).resolve()
+        if not cwd.is_relative_to(root):
+            raise BatteryConfigError(
+                f"current directory {cwd} is outside git top-level {root}"
+            )
+        return root
+    return cwd
 
 
 def _resolve_entry_path(base: Path, raw_path: str, containment_root: Path) -> Path:

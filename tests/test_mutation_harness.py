@@ -202,16 +202,17 @@ class TestMutationResults:
         with pytest.raises(MutationTimeoutError) as exc_info:
             runner._run_command(("python", "-c", "pass"), timeout_seconds=7)
 
-        assert "command timed out after 7s: python -c pass" in str(exc_info.value)
-        assert observed["timeout"] == 7
+        assert "command timed out after 7s: python -c pass" in str(
+            exc_info.value
+        ), "timeout diagnostic should name the command and limit"
+        assert observed["timeout"] == 7, "subprocess timeout should use entry limit"
         assert observed["encoding"] == "utf-8"
-        assert observed["errors"] == "replace"
+        assert observed["errors"] == "replace", "subprocess decode errors should be replaced"
 
     def test_find_containment_root_replaces_decode_errors(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        workspace = _case_dir("decode")
         observed: dict[str, object] = {}
 
         def fake_run(
@@ -219,16 +220,41 @@ class TestMutationResults:
             **kwargs: object,
         ) -> subprocess.CompletedProcess[str]:
             observed.update(kwargs)
-            return subprocess.CompletedProcess(command, 0, stdout=str(workspace.resolve()))
+            return subprocess.CompletedProcess(command, 0, stdout=str(Path.cwd().resolve()))
 
         monkeypatch.setattr(subprocess, "run", fake_run)
 
         root = _find_containment_root()
 
-        assert root == workspace.resolve()
+        assert root == Path.cwd().resolve()
         assert observed["timeout"] == GIT_ROOT_TIMEOUT_SECONDS
         assert observed["encoding"] == "utf-8"
-        assert observed["errors"] == "replace"
+        assert observed["errors"] == "replace", "git decode errors should be replaced"
+
+    def test_find_containment_root_rejects_redirected_worktree(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        workspace = _case_dir("redirected_root")
+
+        def fake_run(
+            command: Sequence[str],
+            **kwargs: object,
+        ) -> subprocess.CompletedProcess[str]:
+            return subprocess.CompletedProcess(command, 0, stdout=str(workspace.resolve()))
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+
+        try:
+            _find_containment_root()
+        except BatteryConfigError as exc:
+            message = str(exc)
+        else:
+            pytest.fail("redirected git roots should fail before mutations can write")
+
+        assert "is outside git top-level" in message, (
+            "redirected git roots should fail before mutations can write"
+        )
 
     def test_find_containment_root_reports_timeout(
         self,
@@ -249,7 +275,7 @@ class TestMutationResults:
 
         assert "command timed out after 10s: git rev-parse --show-toplevel" in str(
             exc_info.value
-        )
+        ), "git timeout diagnostic should name the command and limit"
 
 
 class TestRestoreSafety:
@@ -421,8 +447,41 @@ class TestCli:
 
         exit_code = main([str(battery)])
 
-        assert exit_code == EXIT_EXTERNAL_ERROR
+        assert exit_code == EXIT_EXTERNAL_ERROR, "timeout should map to external error"
         assert "EXTERNAL_ERROR command timed out after 7s" in capsys.readouterr().err
+
+    def test_real_timeout_has_external_error_exit_code(
+        self,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        workspace = _case_dir("cli_real_timeout")
+        source = workspace / "subject.py"
+        original = "def guard() -> bool:\n    return True\n"
+        source.write_text(original, encoding="utf-8")
+        battery = workspace / "battery.json"
+        battery.write_text(
+            json.dumps(
+                {
+                    "command": [sys.executable, "-c", "import time; time.sleep(1)"],
+                    "timeout_seconds": 0.01,
+                    "entries": [
+                        {
+                            "name": "real-timeout",
+                            "path": "subject.py",
+                            "old": "return True",
+                            "new": "return False",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        exit_code = main([str(battery)])
+
+        assert exit_code == EXIT_EXTERNAL_ERROR, "real timeout should map to exit 3"
+        assert "EXTERNAL_ERROR command timed out after 0.01s" in capsys.readouterr().err
+        assert source.read_text(encoding="utf-8") == original
 
     def test_valid_battery_runs_without_config_error(self) -> None:
         workspace = _case_dir("cli_valid")
