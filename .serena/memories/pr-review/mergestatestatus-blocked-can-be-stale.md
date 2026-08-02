@@ -88,102 +88,90 @@ merge first and infer the state from the outcome.
   BLOCKED from CI state directly. That derivation is the correct direction and
   this memory explains why the API field cannot substitute for it.
 
-## The other BLOCKED: a required context that never reported
+## The rollup truncates, so do not reduce over it
 
-The stale-BLOCKED case above is a PR whose checks went green after the field was
-computed. There is a second, opposite case that the same jq cannot see, and it
-is the one that strands PRs indefinitely.
-
-A PR can read `BLOCKED` with a full board of green checks and **zero failures**.
-The per-check reduction returns an empty non-success list, which reads as "this
-is just stale, merge it", and the merge then fails. The cause is not a red
-check. It is a **required context that produced no check run at all**. An absent
-context cannot appear in a rollup, so every reduction over the rollup, including
-the union-safe one above, is blind to it by construction.
-
-## Do not measure this with statusCheckRollup: it truncates
-
-This is the trap that made my first pass at this section wrong, so it is
-recorded before the result rather than after it.
+This is the most expensive trap in this file, because it manufactures findings
+that look precise. It cost me two false conclusions in a row on the same PR.
 
 `gh pr view N --json statusCheckRollup` does **not** return every check run. On
 PR #4003 it returned 77 rows. The REST check-runs endpoint on the same head SHA
-reported `total_count` **133**, across 86 distinct names. The rollup silently
-dropped 56 runs, and the names it dropped were not random: they included the six
+reports `total_count` **133**, across 103 distinct names. The rollup dropped 56
+runs, and the names it dropped were not a random sample: they included the six
 agent-review jobs and their aggregator.
 
-Reducing over that truncated set produced a confident, specific, and entirely
-false finding: that seven required contexts were missing on four PRs. Every one
-of those seven was in fact present on the head SHA. The number 77 was real; the
-population it was drawn from was not the population I claimed.
+Reducing over that truncated set produced a confident, specific, false finding:
+that seven required contexts had never reported on four PRs. Every one of the
+seven was present on every head SHA.
 
-Use REST, and check the count against what you received:
+The second attempt used REST, which is the right endpoint, with `per_page=100`
+against a `total_count` of 133. That returned the first page only and produced a
+second false finding: that `Validate PR title` was missing. The workflow run
+list showed it had completed successfully on that exact SHA. It was on page two.
+
+Both errors have the same shape. A number was attached to a population that was
+never checked. Absence in a truncated list is indistinguishable from absence in
+the repository, and only one of those two readings invents a blocker.
+
+Always paginate, and always reconcile the count you received against the count
+the API reports:
 
 ```bash
 S=$(gh api "repos/$O/$R/pulls/$N" --jq .head.sha)
 gh api "repos/$O/$R/commits/$S/check-runs?per_page=100" --jq '.total_count'
-gh api "repos/$O/$R/commits/$S/check-runs?per_page=100" \
-  --jq '[.check_runs[].name]|unique[]' | sort -u > present.txt
+gh api --paginate "repos/$O/$R/commits/$S/check-runs?per_page=100" \
+  --jq '.check_runs[]|{name,status,conclusion,started_at}' > runs.jsonl
+wc -l < runs.jsonl   # must equal total_count
 ```
 
-If `total_count` exceeds the rows you received, paginate before concluding
-anything. A check that is merely on page two is indistinguishable from a check
-that never ran, and the second reading is the one that invents a blocker.
+## The correct per-check reduction
 
-## Diagnose it by difference
-
-The rollup tells you what ran. The block is about what did not. So compare the
-two sets, taking the present set from REST:
+Take the latest run per name, then compare against the required set. Presence is
+not success: a required context that reported and failed blocks just as hard as
+one that never reported, and a presence-only check will miss it.
 
 ```bash
+jq -s 'group_by(.name)|map(sort_by(.started_at)|last)' runs.jsonl > latest.json
 gh api "repos/$O/$R/rules/branches/main" \
   --jq '[.[]|select(.type=="required_status_checks")
          |.parameters.required_status_checks[].context]|sort' > required.txt
 
 while IFS= read -r r; do
-  grep -Fxq "$r" present.txt || echo "MISSING: $r"
+  v=$(jq -r --arg n "$r" '.[]|select(.name==$n)|.conclusion' latest.json)
+  [ "$v" = "success" ] || [ "$v" = "skipped" ] || echo "BLOCKER: $r = ${v:-ABSENT}"
 done < required.txt
 ```
 
-A non-empty result names the block precisely. An empty result means the required
-set did report, and the block is coming from somewhere other than status checks.
-
 There are 17 required contexts on `main` as of 2026-08-01. `Add Bot Reviewer` is
-**not** one of them, so its failure never blocks a merge. Check membership in
-the required set before calling any red check a blocker.
+**not** one of them, so its failure never blocks a merge. Check membership in the
+required set before calling any red check a blocker.
 
-## What the corrected measurement actually showed
+## What the corrected measurement showed
 
-Same four PRs, same day, measured through REST instead of the rollup:
+PR #4003, measured with pagination on 2026-08-02:
 
-| PR | distinct check names | required contexts missing |
-|---|---|---|
-| #4003 | 86 | `Validate PR title` |
-| #3984 | 82 | none |
-| #4260 | 81 | `Validate PR`, `Validate PR title` |
-| #4296 | 83 | `Validate PR title` |
+| Signal | Value |
+|---|---|
+| check runs on head SHA | 133 rows, 103 distinct names |
+| required contexts absent | none |
+| required contexts not `success` | none, all 17 `completed/success` |
+| review threads | 5 total, **0 unresolved** |
+| `mergeable` | `MERGEABLE` |
+| `mergeStateStatus` | **`BLOCKED`** |
 
-So the real recurring gap is one context, `Validate PR title`, not seven. Why it
-did not report is **not established**; do not assert a cause without reading the
-run list for the head SHA.
+Nothing failing, nothing missing, nothing unresolved, and still `BLOCKED`. That
+is this memory's original thesis, reached the hard way: the field is stale. It
+is not evidence of a second failure mode, and I should not have proposed one
+before the population was verified.
 
-#3984 is the more interesting row. Nothing is failing and nothing required is
-missing, yet it still reads `BLOCKED`. Status checks are only one of the
-requirements in this repo's ruleset, which also demands **conversation
-resolution**. A PR with unresolved review threads blocks with a clean, complete
-check board. When the set difference comes back empty, look at
-`reviewThreads(isResolved: false)` before assuming the field is stale.
+Approvals are not the explanation either. `reviewDecision` reads null or `none`
+on these PRs, and it reads the same on PRs that have already merged, so it is
+not the gate. A field that reads identically on merged and open PRs cannot be
+what distinguishes them.
 
-## Why this matters more than the stale case
+## workflow_dispatch cannot clear a check requirement
 
-A stale BLOCKED resolves itself on the next recomputation. A missing required
-context does not resolve at all: there is no red check to re-run, no failure to
-fix, and the PR board looks green. Nothing in the UI or in `mergeStateStatus`
-distinguishes the two.
-
-`workflow_dispatch` does not fix it. A dispatched run checks out the ref you
-dispatched, so its check runs attach to that SHA. Dispatching the quality gate
-for PR #4003 produced run `30767761170` with `headSha` equal to `origin/main`,
-not the PR head. Check runs on main cannot satisfy a requirement evaluated
-against the PR's head commit. The event that re-runs a workflow against a PR
-head is a push to the PR branch.
+A dispatched run checks out the ref you dispatched, so its check runs attach to
+that SHA. Dispatching the AI quality gate for PR #4003 produced run
+`30767761170` with `headSha` equal to `origin/main`, not the PR head. Check runs
+on main cannot satisfy a requirement evaluated against the PR's head commit. The
+event that re-runs a workflow against a PR head is a push to the PR branch.
