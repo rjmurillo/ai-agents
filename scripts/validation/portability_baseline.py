@@ -254,7 +254,14 @@ def refuse_diff_suppressed_baseline(repo_root: Path, baseline_path: Path) -> boo
     suppression observable before it can be exploited.
     """
     attr = _diff_attribute(repo_root, baseline_path)
-    if attr is None or attr != "unset":
+    if attr is None:
+        print(
+            f"Refusing to write a baseline: git check-attr failed for {baseline_path}. "
+            "Cannot confirm the baseline is visible in code review diffs.",
+            file=sys.stderr,
+        )
+        return True
+    if attr != "unset":
         return False
     print(
         f"Refusing to write a baseline whose diff attribute is 'unset': "
@@ -285,23 +292,41 @@ def _baseline_write_lock(lock_path: Path) -> Iterator[None]:
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR, 0o600)
     try:
-        import fcntl
-
         deadline = time.monotonic() + 10.0
-        while True:
+        if sys.platform == "win32":
+            import msvcrt
+
+            while True:
+                try:
+                    msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+                    break
+                except OSError:
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError(
+                            f"timed out waiting for baseline lock {lock_path}"
+                        ) from None
+                    time.sleep(0.05)
             try:
-                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                break
-            except BlockingIOError:
-                if time.monotonic() >= deadline:
-                    raise TimeoutError(
-                        f"timed out waiting for baseline lock {lock_path}"
-                    ) from None
-                time.sleep(0.05)
-        try:
-            yield
-        finally:
-            fcntl.flock(fd, fcntl.LOCK_UN)
+                yield
+            finally:
+                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            while True:
+                try:
+                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError(
+                            f"timed out waiting for baseline lock {lock_path}"
+                        ) from None
+                    time.sleep(0.05)
+            try:
+                yield
+            finally:
+                fcntl.flock(fd, fcntl.LOCK_UN)
     finally:
         os.close(fd)
 

@@ -96,7 +96,7 @@ def mutant_m1_bool_check(tmp_path: Path) -> str:
 def mutant_m2_diff_attr_guard(tmp_path: Path) -> str:
     """M2: swap 'unset' for 'set' in the diff-attribute guard."""
     target = SCRIPTS / "portability_baseline.py"
-    pattern = 'if attr is None or attr != "unset":'
+    pattern = 'if attr != "unset":'
     count = _count_occurrences(target, pattern)
     if count == 0:
         return "DID-NOT-APPLY: pattern absent"
@@ -105,8 +105,29 @@ def mutant_m2_diff_attr_guard(tmp_path: Path) -> str:
 
     backup = tmp_path / "portability_baseline.py.bak"
     applied = _apply_mutation(
-        target, pattern, 'if attr is None or attr != "set":', backup
+        target, pattern, 'if attr != "set":', backup
     )
+    if not applied:
+        return "DID-NOT-APPLY: replace had no effect"
+
+    proc = _run_suite()
+    result = _classify(proc)
+    _restore(target, backup)
+    return result
+
+
+def mutant_m2b_diff_attr_none_guard(tmp_path: Path) -> str:
+    """M2b: flip None check to fail-open (contradicts fail-closed spec)."""
+    target = SCRIPTS / "portability_baseline.py"
+    pattern = "    if attr is None:\n"
+    count = _count_occurrences(target, pattern)
+    if count == 0:
+        return "DID-NOT-APPLY: pattern absent"
+    if count > 1:
+        return f"DID-NOT-APPLY: ambiguous, {count} occurrences"
+
+    backup = tmp_path / "portability_baseline_none.py.bak"
+    applied = _apply_mutation(target, pattern, "    if attr is not None:\n", backup)
     if not applied:
         return "DID-NOT-APPLY: replace had no effect"
 
@@ -180,6 +201,7 @@ def main() -> int:
         tmp_path = Path(tmp)
         results["M1-bool-check"] = mutant_m1_bool_check(tmp_path)
         results["M2-diff-attr-guard"] = mutant_m2_diff_attr_guard(tmp_path)
+        results["M2b-diff-attr-none-guard"] = mutant_m2b_diff_attr_none_guard(tmp_path)
         results["M3-scan-all-roots"] = mutant_m3_scan_all_roots(tmp_path)
         results["M4-inverted-ctrl"] = mutant_m4_inverted_control_benign(tmp_path)
 

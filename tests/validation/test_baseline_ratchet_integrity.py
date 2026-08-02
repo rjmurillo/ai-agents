@@ -160,13 +160,13 @@ class TestRefuseDiffSuppressed:
             result = baseline_mod.refuse_diff_suppressed_baseline(tmp_path, baseline)
         assert result is False
 
-    def test_git_failure_is_allowed(self, tmp_path: Path) -> None:
-        # When git cannot answer, do not block (fail-open on unavailable git).
+    def test_git_failure_is_refused(self, tmp_path: Path) -> None:
+        # When git cannot answer, fail closed (refuse the write).
         baseline = tmp_path / "baseline.json"
         baseline.write_text("{}")
         with patch.object(baseline_mod, "_run_git", return_value=None):
             result = baseline_mod.refuse_diff_suppressed_baseline(tmp_path, baseline)
-        assert result is False
+        assert result is True
 
     def test_inverted_control_set_attr_is_not_refused(self, tmp_path: Path) -> None:
         # Inverted control: a "set" attribute must SURVIVE (not be blocked).
