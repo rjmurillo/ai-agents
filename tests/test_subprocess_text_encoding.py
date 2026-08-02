@@ -73,8 +73,6 @@ _TESTS_DIR = _REPO_ROOT / "tests"
 _TESTS_SCAN_EXCLUDES: frozenset[str] = frozenset(
     {
         "tests/test_subprocess_text_encoding.py",
-        "tests/test_new_pr.py",
-        "tests/integration/test_e2e_install.py",
     }
 )
 
@@ -4312,13 +4310,12 @@ def test_depth_bound_reports_over_deep_expression(source: str, why: str) -> None
 
 
 def test_utf8_encoding_arg_changes_actual_decode_behavior() -> None:
-    """Pinning encoding="utf-8" changes the decoded output on a non-UTF-8 locale.
+    """Pinning encoding="utf-8" changes decoded output versus another codec.
 
     This test runs a child process that emits a known non-ASCII byte sequence
     (U+00E9, LATIN SMALL LETTER E WITH ACUTE, encoded as 0xC3 0xA9 in UTF-8 and
-    0xE9 in latin-1). Under LC_ALL=en_US.ISO-8859-1 the locale codec is latin-1.
-    With no explicit encoding the bytes decode to the wrong character. With
-    encoding="utf-8" they round-trip correctly.
+    0xE9 in latin-1). Decoding the same bytes as latin-1 produces mojibake.
+    Decoding them with encoding="utf-8" round-trips correctly.
 
     A test that only asserts the argument is present in the source is a substring
     test in disguise: it passes even if the argument is ignored at runtime. This
@@ -4338,31 +4335,24 @@ def test_utf8_encoding_arg_changes_actual_decode_behavior() -> None:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
     )
     assert result_pinned.returncode == 0
     assert result_pinned.stdout.strip() == "\u00e9", (
         f"UTF-8 pinned decode produced wrong character: {result_pinned.stdout!r}"
     )
 
-    # Under latin-1 the same bytes decode differently. Verify this on the current
-    # machine: if latin-1 is available AND produces a different result, the
-    # encoding argument is load-bearing. Skip the check if the system cannot
-    # produce the mojibake (e.g. strict locale rejecting invalid sequences).
-    try:
-        result_locale = subprocess.run(
-            [sys.executable, "-c", child_script],
-            capture_output=True,
-            text=True,
-            encoding="latin-1",
-        )
-        if result_locale.returncode == 0:
-            latin1_decoded = result_locale.stdout.strip()
-            # 0xC3 0xA9 under latin-1 is two separate characters, not one.
-            assert latin1_decoded != "\u00e9", (
-                "latin-1 decode should not round-trip the UTF-8 byte sequence"
-                f" as U+00E9; got {latin1_decoded!r}"
-            )
-    except Exception:  # noqa: BLE001
-        # Any error from the latin-1 run means the check cannot be completed,
-        # not that the UTF-8 pin is wrong.
-        pass
+    result_latin1 = subprocess.run(
+        [sys.executable, "-c", child_script],
+        capture_output=True,
+        text=True,
+        encoding="latin-1",
+        errors="replace",
+    )
+    assert result_latin1.returncode == 0
+    latin1_decoded = result_latin1.stdout.strip()
+    # 0xC3 0xA9 under latin-1 is two separate characters, not one.
+    assert latin1_decoded != "\u00e9", (
+        "latin-1 decode should not round-trip the UTF-8 byte sequence"
+        f" as U+00E9; got {latin1_decoded!r}"
+    )
