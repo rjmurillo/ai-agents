@@ -105,7 +105,7 @@
       "result": "Backwards edges e005->e006 and e007->e008 fixed. test_the_committed_episode_store_is_clean passes."
     }
   ],
-  "endingCommit": "23f044d47fc0f9d5d2b59eaec49a97c47f62b9fb",
+  "endingCommit": "ca128726f48deb32e373f5ef0aef611c61c298ff",
   "nextSteps": [
     "Push branch fix/parity-torn-main to remote",
     "Create PR closing #4168"
