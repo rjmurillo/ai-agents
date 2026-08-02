@@ -60,11 +60,11 @@ ADR_REVIEW_PATH_RE = re.compile(
 ADR_ID_RE = re.compile(r"ADR-\d+", re.IGNORECASE)
 FRONTMATTER_FIELD_RE = re.compile(r"^([A-Za-z0-9_-]+):(.*)$")
 ADR_REVIEW_PATTERNS = (
-    re.compile(r"/adr-review"),
-    re.compile(r"adr-review skill"),
-    re.compile(r"ADR Review Protocol"),
-    re.compile(r"multi-agent consensus.{0,200}\bADR\b", re.DOTALL),
-    re.compile(r"\barchitect\b.{0,80}\bplanner\b.{0,80}\bqa\b", re.DOTALL),
+    # Matches /adr-review, adr-review, adr review, ADR Review Protocol, etc.
+    # Case-insensitive; dot matches the hyphen or space separator (Issue #4135).
+    re.compile(r"\badr.review\b", re.IGNORECASE),
+    re.compile(r"multi-agent consensus.{0,200}\bADR\b", re.DOTALL | re.IGNORECASE),
+    re.compile(r"\barchitect\b.{0,80}\bplanner\b.{0,80}\bqa\b", re.DOTALL | re.IGNORECASE),
 )
 RETROSPECTIVE_EVIDENCE_PATTERNS = (
     re.compile(r"(?i)(##\s*retrospective|retrospective\s*section|learnings?\s*captured)"),

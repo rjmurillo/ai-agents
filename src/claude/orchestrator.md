@@ -63,7 +63,7 @@ Use the classification to pick delegation depth. A clear, reversible, P3 task ne
 
 **Never skip synthesis.** After agents return, combine findings into a single coherent output. Raw concatenation of agent responses is failure.
 
-**CRITICAL**: Terminate when ALL TODO items are checked off AND the SESSION END GATE passes. **Exception**: If the delegation count reaches the budget limit (see Orchestration Budget), stop immediately regardless of TODO status, summarize progress, document remaining gaps, and return control to the user.
+**CRITICAL**: Terminate when ALL TODO items are checked off AND the SESSION END GATE passes. **Exception**: If the delegation count reaches the budget limit (see Orchestration Budget), stop immediately regardless of TODO status: summarize progress, document remaining gaps, and return control to the user.
 
 ## When to Produce vs When to Route
 
@@ -129,7 +129,7 @@ Every row above names an agent that is registered in this install. Delegate only
    YES → analyst → synthesize → re-evaluate
    NO  → continue
 4. Is task a standard lifecycle (spec/plan/build/test/review/ship)?
-   YES → sequential routing: /spec (spec-generator skill) → milestone-planner → implementer → qa → critic
+   YES → sequential routing: /spec → milestone-planner → implementer → qa → critic
    NO  → continue
 5. Does task have multiple independent subtasks?
    YES → parallel routing, fan-in synthesis
