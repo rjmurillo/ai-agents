@@ -17,6 +17,8 @@ from __future__ import annotations
 import threading
 from unittest.mock import patch
 
+import pytest
+
 from scripts.maintenance.gc_worktrees import (
     _DEFAULT_TIME_BUDGET_SECONDS,
     KEEP_MAIN,
@@ -300,3 +302,45 @@ class TestPartialReportsRefuseToMutate:
         assert [c.args[0] for c in remove.call_args_list] == ["/repo/a"]
         prune.assert_called_once()
         assert report.remove_errors == []
+
+
+class TestWorkerFailuresAbortTheReport:
+    """A worker exception aborts the run instead of yielding a short list.
+
+    ``build_report`` decides on a thread pool and materializes the results with
+    ``list(executor.map(...))``. Iterating re-raises the first worker exception,
+    so the run dies before ``report.decisions`` is assigned and no caller ever
+    sees a partial decision list. That matters because a short list is
+    indistinguishable from a complete one at the point of use: ``apply_removals``
+    would read the missing worktrees as "nothing further to consider" rather than
+    as "never inspected", which is the one reading the fail-safe invariant exists
+    to prevent. ``unevaluated`` cannot cover it either, because a worktree that
+    raised was neither decided nor deferred.
+
+    The property belongs to ``map``, not to any code written here, which is
+    exactly why it needs pinning. Refactoring to ``submit`` with
+    ``as_completed`` and a per-future ``except`` is a natural way to add
+    progress reporting or per-item error handling, and it would swallow the
+    failure and hand back the short list with every other test in this file
+    still green.
+    """
+
+    def test_a_worker_exception_aborts_instead_of_returning_a_partial_report(self):
+        with (
+            patch(
+                "scripts.maintenance.gc_worktrees.decide",
+                side_effect=RuntimeError("worker boom"),
+            ),
+            pytest.raises(RuntimeError, match="worker boom"),
+        ):
+            _build(_worktrees(4), time_budget=10.0, clock=_Clock(step=0.0))
+
+    def test_the_same_run_completes_when_no_worker_raises(self):
+        """Inverted control: the run above must fail for the reason claimed.
+
+        Without this, a defect that makes ``_build`` raise for an unrelated
+        reason would read as a passing test above.
+        """
+        report = _build(_worktrees(4), time_budget=10.0, clock=_Clock(step=0.0))
+        assert len(report.decisions) == 5
+        assert report.unevaluated == []
