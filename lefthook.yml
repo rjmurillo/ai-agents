@@ -378,10 +378,6 @@ pre-push:
             env:
               SKIP_AUTOFIX: "1"
 
-          - name: worktree-gc-report
-            timeout: 2m
-            run: uv run --frozen python scripts/maintenance/gc_worktrees.py
-
           - name: python-tests
             timeout: 30m
             run: uv run --frozen python scripts/validation/git_hook_policy.py pytest
