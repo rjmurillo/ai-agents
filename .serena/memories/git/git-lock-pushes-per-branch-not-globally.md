@@ -121,5 +121,47 @@ Two details that get "simplified" back into bugs:
   first, and the loser reports a conflict while the work HAS landed. Diagnose
   with `git rev-parse HEAD` against `git ls-remote origin "$BR"` before
   relaunching anything.
-- A push log ending `Ready to create pull request!` means the hook passed, not
-  the push. Confirm against the remote ref.
+- A push log ending `Ready to create pull request!` does **not** mean the hook
+  passed. It is `pre_pr.py` finishing one lefthook job, and it lands about 4%
+  of the way through the run. Measured on three separate push logs from this
+  repo, all three identical:
+
+  ```
+   995  RESULT: All validations passed
+   997  Ready to create pull request!
+  1000  ┃  group (2) ❯ python-tests ❯
+  ...
+  23286  ✔️ pre-pr-validation (60.07 seconds)
+  ```
+
+  `pre-pr-validation` takes about 60s. `python-tests` starts *after* the banner
+  and takes about 866s, and the log runs to roughly 23,300 lines. So a log
+  sitting at that banner has roughly 14 minutes still to go and is working
+  normally.
+
+  This is a trap with teeth, because the banner is the last human-readable
+  sentence in the log and everything after it is pytest noise. Reading the tail
+  gives you a confident and wrong "the hook is done, so the delay must be the
+  network." That misdiagnosis cost a real session: it produced a push-stall
+  hypothesis, a GitHub Status check, an events-API survey, and a killed process,
+  none of which were relevant.
+
+  Do not judge liveness from the log either. lefthook buffers each job's output
+  and flushes it when the job ends, so the file sticks at roughly 1000 lines for
+  the entire 14 minute `python-tests` run and then jumps to about 23,300 at
+  once. A frozen log is the normal appearance of a healthy push, which is why
+  the two signals confuse each other.
+
+  The liveness signal that works is accumulated CPU on the pytest descendant:
+
+  ```bash
+  desc() { for c in $(pgrep -P "$1"); do echo "$c"; desc "$c"; done; }
+  for p in $(desc <push-pid>); do
+    ps -o pid=,time=,comm= -p "$p"
+  done | grep -i pytest
+  ```
+
+  A healthy run shows the time column climbing (measured 00:04:07 at nine
+  minutes elapsed). Zero and unmoving means hung. The direct child of the push
+  always reads 00:00:00 because it sleeps while the hook runs, so read the
+  descendant, not the child. Confirm the push itself with `git ls-remote`.
