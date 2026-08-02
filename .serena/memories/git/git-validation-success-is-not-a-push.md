@@ -50,21 +50,35 @@ for the branch while three sibling branches from the same batch appeared.
 
 ## Remedy
 
-Capture the remote SHA on both sides of a push and compare against local:
+Capture the remote SHA on both sides of a push and compare against the branch:
 
 ```bash
 before=$(git ls-remote origin "refs/heads/$b" | awk '{print $1}')
 git push -u origin "$b"
 after=$(git ls-remote origin "refs/heads/$b" | awk '{print $1}')
-[ "$after" = "$(git rev-parse HEAD)" ] || echo "MISMATCH"
+[ "$after" = "$(git rev-parse "$b")" ] || echo "MISMATCH"
 ```
 
+Compare against `$b`, not `HEAD`. The shell running the push is often checked out
+to a different branch, in which case `git rev-parse HEAD` names that branch and
+the check reports a mismatch on a push that actually succeeded.
+
 `git ls-remote` exits 0 for a ref that does not exist, so test the captured
-string, never the exit code.
+string, never the exit code. For the same reason do not read `$?` after a
+pipeline such as `git push ... | tail`: that reports the exit status of `tail`.
+This is how the original failure stayed hidden. The pipeline reported exit 0
+while `git push` printed `error: failed to push some refs`.
 
 ## Scope
 
 Applies to any success message whose wording names a later step than the one that
-printed it. The same shape appears in the markdown autofix hook, whose `PASS`
-means "this file was not linted" rather than "this file is clean". Read the
+printed it. The same shape appears in markdown lint selection, which carries its
+own disclaimer at `scripts/validation/checks_tooling.py`, in `_report_selection`:
+
+```
+[WARNING] Markdown linting selected 0 of N target(s)...
+This PASS means 'not linted', not 'clean'.
+```
+
+That warning exists because the mistake was already made there once. Read a
 message as a claim about the emitting command only.
