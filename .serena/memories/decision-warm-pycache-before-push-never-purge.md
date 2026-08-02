@@ -13,11 +13,11 @@ and it is correct for a single-process run.
 
 ## First-principles position
 
-It is wrong here, and it is actively harmful. `lefthook.yml` defines a
-`parallel: true` group (line 339 at the time of measurement) whose jobs include
-`python-tests` (line 351) and `build-all-check` (line 410). Both run
-concurrently against the same working tree. With a cold cache, both processes
-race to write the same `.pyc` files, and one reads a partially written entry.
+It is wrong here, and it is actively harmful. `lefthook.yml` runs its `pre-push`
+stage through a `parallel: true` group whose jobs include `python-tests` and
+`build-all-check`. Both run concurrently against the same working tree. With a
+cold cache, both processes race to write the same `.pyc` files, and one reads a
+partially written entry.
 
 Purging guarantees the cold-cache state that causes the race. Warming
 guarantees it cannot happen, because every `.pyc` already exists and is valid
@@ -25,10 +25,11 @@ before either job starts.
 
 ## Evidence
 
-The failure only ever reproduced after a purge, and never after a warm. The
-two job names and the `parallel: true` marker are readable directly in
-`lefthook.yml`; confirm the line numbers before citing them, since the file
-moves.
+The failure only ever reproduced after a purge, and never after a warm. To
+re-derive the two job names and the group marker, grep `lefthook.yml` for
+`parallel: true`, `python-tests`, and `build-all-check`; all three sit under the
+`pre-push` key. Line numbers are omitted on purpose. The file moves often, and a
+stale number reads as authority long after it stops pointing anywhere useful.
 
 ## Decision
 
