@@ -595,7 +595,7 @@ def test_marker_probe_plugin_hook_writes_marker_when_run(tmp_path: Path) -> None
     result = subprocess.run(
         [sys.executable, "-u", str(script)],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         timeout=30,
         check=False,
         env=env,
