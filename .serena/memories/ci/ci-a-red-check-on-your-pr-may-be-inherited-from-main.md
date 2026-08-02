@@ -73,6 +73,39 @@ tree was red, rather than the six PRs each being at fault.
 before. After #4290 merged as `c02f61ddd2`, both checks went green with no
 change to any of the six PRs.
 
+## Fixing `main` does not fix your PR until the merge ref moves
+
+CI for a `pull_request` event checks out `refs/pull/N/merge`, a ref GitHub
+computes by merging your branch into the base. That ref is cached. When `main`
+gains a fix, your PR keeps running against the pre-fix tree until something
+forces a recompute, so the same check keeps failing for a cause that no longer
+exists on `main`.
+
+Three ways of forcing it were measured on 2026-08-02 after `c02f61ddd2` landed.
+All three failed:
+
+| Attempt | Result |
+| --- | --- |
+| `gh run rerun` / `--failed` | Replays the original event payload. Same tree. |
+| `gh pr edit --body-file` (fires `edited`) | New run, merge ref unchanged. |
+| `gh api repos/O/R/pulls/N` | Returns the cached `merge_commit_sha` when `mergeable` is already `true`. |
+
+What worked was a push to the branch, which fires `synchronize`. #4284 pushed a
+`Merge origin/main` commit 51 seconds after the fix landed and got a fresh ref.
+#4271, #4274, and #4102 had not pushed since before the fix and all three were
+still stale over fifteen minutes later.
+
+Verify rather than assume, because the check name will not tell you:
+
+```bash
+git fetch origin refs/pull/<N>/merge:refs/tmp/m<N> -f
+git merge-base --is-ancestor <fix-sha> refs/tmp/m<N> && echo FRESH || echo STALE
+```
+
+Do not use `gh run view --json headSha` for this. On a `pull_request` run that
+field is the branch tip, not the merge commit, so it is unchanged by a rerun and
+unchanged by a base move. It cannot distinguish the two cases.
+
 ## Anti-Pattern
 
 Editing a baseline, adding an unrelated suppression to a file you happen to be
