@@ -493,27 +493,42 @@ def _fetch_unresolved_threads(owner: str, repo: str, pull_request: int) -> list[
 def _resolve_lib_dir() -> str:
     """Locate the plugin ``lib`` directory for github_core imports.
 
-    Resolution order: ``COPILOT_PLUGIN_ROOT`` env, ``CLAUDE_PLUGIN_ROOT`` env,
-    ``GITHUB_WORKSPACE`` env, then a path relative to this file. Exits 2
-    (config error per ADR-035) when no candidate directory exists, so a
-    misconfigured install fails loudly rather than importing nothing.
+    Resolution order: each candidate is tried in turn; the first whose
+    ``lib/`` subdirectory exists is returned.
+
+    1. ``COPILOT_PLUGIN_ROOT`` env (set by the Copilot CLI host, may point
+       to whichever plugin triggered the context-mode hook, not this one).
+    2. ``CLAUDE_PLUGIN_ROOT`` env.
+    3. ``GITHUB_WORKSPACE`` env.
+    4. Path relative to this file (the installed-plugin fallback).
+
+    Each candidate is validated before use so that a wrong ``COPILOT_PLUGIN_ROOT``
+    (e.g. the context-mode plugin path instead of the ai-agents plugin path)
+    falls through to the next candidate rather than exiting 2.
+
+    Exits 2 (config error per ADR-035) only when every candidate fails.
     """
     import os
 
-    plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
     workspace = os.environ.get("GITHUB_WORKSPACE")
-    if plugin_root:
-        lib_dir = os.path.join(plugin_root, "lib")
-    elif workspace:
-        lib_dir = os.path.join(workspace, ".claude", "lib")
-    else:
-        lib_dir = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "..", "..", "..", "lib")
-        )
-    if not os.path.isdir(lib_dir):
-        print(f"Plugin lib directory not found: {lib_dir}", file=sys.stderr)
-        sys.exit(2)
-    return lib_dir
+    relative = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "..", "lib")
+    )
+    candidates = []
+    for env_var in ("COPILOT_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT"):
+        plugin_root = os.environ.get(env_var)
+        if plugin_root:
+            candidates.append(os.path.join(plugin_root, "lib"))
+    if workspace:
+        candidates.append(os.path.join(workspace, ".claude", "lib"))
+    candidates.append(relative)
+
+    for lib_dir in candidates:
+        if os.path.isdir(lib_dir):
+            return lib_dir
+
+    print(f"Plugin lib directory not found: {relative}", file=sys.stderr)
+    sys.exit(2)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -541,9 +556,9 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _project_root() -> "Path":
-    from pathlib import Path
+def _project_root():
     import os
+    from pathlib import Path
 
     workspace = os.environ.get("GITHUB_WORKSPACE")
     if workspace:
