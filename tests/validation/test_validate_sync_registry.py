@@ -166,7 +166,7 @@ def test_missing_repo_root_returns_config_error(tmp_path: Path) -> None:
     result = subprocess.run(
         [sys.executable, str(SCRIPT), "--repo-root", str(missing)],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=False,
     )
     assert result.returncode == 2, result.stdout + result.stderr
@@ -192,7 +192,7 @@ def test_cli_passes_on_registered_tree(tmp_path: Path) -> None:
     result = subprocess.run(
         [sys.executable, str(SCRIPT), "--repo-root", str(tmp_path)],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
@@ -208,7 +208,7 @@ def test_cli_fails_on_unregistered_lib(tmp_path: Path) -> None:
     result = subprocess.run(
         [sys.executable, str(SCRIPT), "--repo-root", str(tmp_path)],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=False,
     )
     assert result.returncode == 1, result.stdout + result.stderr
@@ -223,7 +223,7 @@ def test_real_repo_registry_is_complete() -> None:
     result = subprocess.run(
         [sys.executable, str(SCRIPT), "--repo-root", str(REPO_ROOT)],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=False,
     )
     assert result.returncode == 0, (

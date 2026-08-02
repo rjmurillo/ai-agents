@@ -3,12 +3,12 @@
 > [!NOTE]
 > Generated file. Do not edit by hand.
 > Source: `templates/agents/*.shared.md`.
-> Regenerate: `python3 build/generate_agent_catalog.py`.
+> Regenerate: `uv run python build/generate_agent_catalog.py`.
 > Validated by: `scripts/validation/validate_agent_catalog.py`.
 
 Auto-generated index of every agent template under `templates/agents/`.
 Each row links the agent name to its tier, line count, and description.
-Run `python3 build/generate_agent_catalog.py` to refresh after a template
+Run `uv run python build/generate_agent_catalog.py` to refresh after a template
 change; CI fails if this file drifts from the templates.
 
 | Agent | Tier | LOC | Description |
@@ -34,7 +34,7 @@ change; CI fails if this file drifts from the templates.
 | [orchestrator](../templates/agents/orchestrator.shared.md) | manager | 337 | Enterprise task orchestrator who autonomously coordinates specialized agents end-to-end, routing work, managing handoffs, and synthesizing results. Classifies complexity, triages delegation, and sequences workflows. Use for multi-step tasks requiring coordination, integration, or when the problem needs complete end-to-end resolution. |
 | [pr-comment-responder](../templates/agents/pr-comment-responder.shared.md) | manager | 1543 | PR review coordinator who gathers comment context, acknowledges every piece of feedback, and ensures all reviewer comments are addressed systematically. Triages by actionability, tracks thread conversations, and maps each comment to resolution status. Use when handling PR feedback, review threads, or bot comments. |
 | [pr-test-analyzer](../templates/agents/pr-test-analyzer.shared.md) | builder | 121 | Use this agent when you need to review a pull request for test coverage quality and completeness. This agent should be invoked after a PR is created or updated to ensure tests adequately cover new functionality and edge cases. |
-| [qa](../templates/agents/qa.shared.md) | builder | 791 | Quality assurance specialist who verifies implementations work correctly for real users, not just passing tests. Designs test strategies, validates coverage against acceptance criteria, and reports results with evidence. Use when you need confidence through verification, regression testing, edge-case coverage, or user-scenario validation. |
+| [qa](../templates/agents/qa.shared.md) | builder | 801 | Quality assurance specialist who verifies implementations work correctly for real users, not just passing tests. Designs test strategies, validates coverage against acceptance criteria, and reports results with evidence. Use when you need confidence through verification, regression testing, edge-case coverage, or user-scenario validation. |
 | [quality-auditor](../templates/agents/quality-auditor.shared.md) | integration | 104 | Periodically scans and grades product domains across architectural layers (agents, skills, scripts, tests, docs, workflows). Produces quality reports with gap tracking and trend analysis. Use when you need a systematic quality audit across the entire repository or specific domains. Use for repo-wide A-F domain grading and trend tracking. For the skill form use quality-grades. Do NOT use for single-file maintainability scoring (use code-qualities-assessment) or a pre-merge review (use review). |
 | [retrospective](../templates/agents/retrospective.shared.md) | integration | 1421 | Reflective analyst who extracts learnings through structured retrospective frameworks, diagnosing agent performance, identifying error patterns, and documenting success strategies. Uses Five Whys, timeline analysis, and learning matrices. Use when you need root-cause analysis, atomicity scoring, or to transform experience into institutional knowledge. |
 | [roadmap](../templates/agents/roadmap.shared.md) | expert | 174 | CEO of the product, strategic product owner who defines what to build and why with outcome-focused vision. Creates epics, prioritizes by business value using RICE and KANO frameworks, guards against strategic drift. Use when you need direction, outcomes over outputs, sequencing by dependencies, or user-value validation. |

@@ -184,7 +184,7 @@ After structural and technical review, apply strategic lenses:
 
 ```bash
 # Basic detection from repo root
-python3 .claude/skills/adr-review/scripts/detect_adr_changes.py
+uv run python .claude/skills/adr-review/scripts/detect_adr_changes.py
 
 # Skill-relative detection from the Claude skill directory
 cd .claude/skills/adr-review
@@ -192,13 +192,13 @@ python3 scripts/detect_adr_changes.py --base-path ../../..
 cd ../../..
 
 # Compare to specific commit
-python3 .claude/skills/adr-review/scripts/detect_adr_changes.py --since-commit abc123
+uv run python .claude/skills/adr-review/scripts/detect_adr_changes.py --since-commit abc123
 
 # Include untracked ADR files
-python3 .claude/skills/adr-review/scripts/detect_adr_changes.py --include-untracked
+uv run python .claude/skills/adr-review/scripts/detect_adr_changes.py --include-untracked
 
 # Copilot CLI mirror from repo root
-python3 src/copilot-cli/skills/adr-review/scripts/detect_adr_changes.py --include-untracked
+uv run python src/copilot-cli/skills/adr-review/scripts/detect_adr_changes.py --include-untracked
 
 # Skill-relative detection from the Copilot CLI mirror
 cd src/copilot-cli/skills/adr-review
@@ -211,7 +211,7 @@ cd ../../../..
 Before marking complete, run the bundled detector to check for pending ADR changes:
 
 ```bash
-python3 .claude/skills/adr-review/scripts/detect_adr_changes.py --include-untracked
+uv run python .claude/skills/adr-review/scripts/detect_adr_changes.py --include-untracked
 echo "exit=$?"   # must be 0; non-zero means git error or I/O failure
 ```
 

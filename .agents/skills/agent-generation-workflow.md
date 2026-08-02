@@ -7,13 +7,13 @@
 
 ## Skill Statement
 
-When modifying agent behavior in this repository, always update the shared templates in `templates/agents/*.shared.md` FIRST, then run `python3 build/generate_agents.py` to regenerate platform-specific agents.
+When modifying agent behavior in this repository, always update the shared templates in `templates/agents/*.shared.md` FIRST, then run `uv run python build/generate_agents.py` to regenerate platform-specific agents.
 
 ## Pattern
 
 ```
 1. Edit templates/agents/[agent].shared.md
-2. Run: python3 build/generate_agents.py
+2. Run: uv run python build/generate_agents.py
 3. Verify: Check src/copilot-cli/, src/vs-code-agents/
 4. If needed: Manually update src/claude/ (separate platform)
 5. Commit all changes together
@@ -32,13 +32,13 @@ Phase 2 changes were initially made only to `src/claude/` files. This caused dri
 
 ```bash
 # Check for drift before making changes
-python3 build/generate_agents.py --validate
+uv run python build/generate_agents.py --validate
 
 # Regenerate all agents
-python3 build/generate_agents.py
+uv run python build/generate_agents.py
 
 # Preview what would be generated
-python3 build/generate_agents.py --what-if
+uv run python build/generate_agents.py --what-if
 ```
 
 ## Anti-Pattern
@@ -50,6 +50,6 @@ python3 build/generate_agents.py --what-if
 ## Correct Pattern
 
 ✅ Edit `templates/agents/*.shared.md`  
-✅ Run `python3 build/generate_agents.py`  
+✅ Run `uv run python build/generate_agents.py`  
 ✅ Update `src/claude/` manually if needed  
 ✅ Commit all changes together  

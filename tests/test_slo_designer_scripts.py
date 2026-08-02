@@ -415,7 +415,7 @@ class TestCalculateErrorBudgetCLI:
         result = subprocess.run(
             [sys.executable, str(script_path), "--help"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -438,7 +438,7 @@ class TestCalculateErrorBudgetCLI:
         result = subprocess.run(
             [sys.executable, str(script_path), "--target", "99.9"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -450,7 +450,7 @@ class TestCalculateErrorBudgetCLI:
         result = subprocess.run(
             [sys.executable, str(script_path), "--target", "99.9", "--format", "json"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -463,7 +463,7 @@ class TestCalculateErrorBudgetCLI:
         result = subprocess.run(
             [sys.executable, str(script_path), "--target", "99.9", "--format", "markdown"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -475,7 +475,7 @@ class TestCalculateErrorBudgetCLI:
         result = subprocess.run(
             [sys.executable, str(script_path), "--target", "99.9", "--period", "weekly"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -487,7 +487,7 @@ class TestCalculateErrorBudgetCLI:
         result = subprocess.run(
             [sys.executable, str(script_path), "--target", "150"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -499,7 +499,7 @@ class TestCalculateErrorBudgetCLI:
         result = subprocess.run(
             [sys.executable, str(script_path)],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -986,7 +986,7 @@ slos:
         result = subprocess.run(
             [sys.executable, str(script_path), "--help"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -1001,7 +1001,7 @@ slos:
         result = subprocess.run(
             [sys.executable, str(script_path), "--sample-config"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -1014,7 +1014,7 @@ slos:
         result = subprocess.run(
             [sys.executable, str(script_path), "--config", str(valid_config_file)],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -1040,7 +1040,7 @@ slos:
                 str(output_file),
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -1058,7 +1058,7 @@ slos:
         result = subprocess.run(
             [sys.executable, str(script_path)],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -1075,7 +1075,7 @@ slos:
                 str(tmp_path / "nonexistent.yaml"),
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -1090,7 +1090,7 @@ slos:
         result = subprocess.run(
             [sys.executable, str(script_path), "--config", str(invalid_config)],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -1139,7 +1139,7 @@ class TestPathTraversalSecurity:
                 "../../etc/passwd",
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -1194,7 +1194,7 @@ slos:
                 "../../etc/malicious.md",
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
