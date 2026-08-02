@@ -29,9 +29,9 @@ import urllib.parse
 from collections import Counter
 from typing import Any
 
-_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
-if _plugin_root:
+if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
     _lib_dir = os.path.join(_plugin_root, "lib")
 elif _workspace:
     _lib_dir = os.path.join(_workspace, ".claude", "lib")
@@ -745,7 +745,10 @@ def main(argv: list[str] | None = None) -> int:
             if issue_count > 0:
                 review_text = "review comment" if review_count == 1 else "review comments"
                 issue_text = "issue comment" if issue_count == 1 else "issue comments"
-                print(f"PR #{args.pull_request}: {review_count} {review_text} + {issue_count} {issue_text}")
+                print(
+                    f"PR #{args.pull_request}: {review_count} {review_text}"
+                    f" + {issue_count} {issue_text}"
+                )
             else:
                 review_text = "review comment" if review_count == 1 else "review comments"
                 print(f"PR #{args.pull_request}: {review_count} {review_text}")
