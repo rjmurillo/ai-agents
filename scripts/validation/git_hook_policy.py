@@ -1092,9 +1092,13 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
         )
         return 1
 
-    # Canonical debate-log directory matches the adr-review skill and its
-    # references/artifacts.md. Issue #4250: the hook previously searched
-    # .agents/analysis/, but the skill writes to .agents/critique/.
+    # Canonical debate-log directory per:
+    #   .claude/skills/adr-review/references/artifacts.md line 3:
+    #     "Save debate artifacts to `.agents/critique/`."
+    #   .claude/skills/adr-review/references/artifacts.md line 7:
+    #     "Save to: `.agents/critique/ADR-NNN-debate-log.md`"
+    # Issue #4250: the hook previously searched .agents/analysis/ but the
+    # skill writes to .agents/critique/.
     critique_dir = repo_root / ".agents" / "critique"
     try:
         debate_logs = list(critique_dir.glob("*debate*.md"))

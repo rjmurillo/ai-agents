@@ -320,12 +320,13 @@ def test_adr_review_policy_blocks_stale_debate_reference(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    # Canonical debate-log dir is .agents/critique/ (Issue #4250).
-    # A log in .agents/analysis/ (old wrong path) does NOT satisfy the gate.
+    # A debate log exists in the correct dir (.agents/critique/) but references
+    # a DIFFERENT ADR (ADR-042), not the staged ADR (ADR-062). This exercises
+    # the stale-reference branch, not the missing-log branch.
     _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
-    wrong_dir = tmp_path / ".agents" / "analysis"
-    wrong_dir.mkdir(parents=True)
-    _write_lf(wrong_dir / "old-debate.md", "ADR-042 review")
+    critique = tmp_path / ".agents" / "critique"
+    critique.mkdir(parents=True)
+    _write_lf(critique / "adr-042-debate.md", "ADR-042 review")
 
     result = policy.check_adr_review_policy(
         [".agents/architecture/ADR-062-navigation.md"],
@@ -333,7 +334,7 @@ def test_adr_review_policy_blocks_stale_debate_reference(
     )
 
     assert result == 1
-    assert ".agents/critique" in capsys.readouterr().err
+    assert "ADR-062" in capsys.readouterr().err
 
 
 def test_adr_review_policy_allows_fresh_evidence_and_no_adr_change(tmp_path: Path) -> None:
