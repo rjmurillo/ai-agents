@@ -100,7 +100,10 @@ class TestGetSkillContent:
         from path_validation import validate_path_within_repo as _orig
 
         def _validate_in_tmp(path: Path, repo_root: Path | None = None) -> Path:
-            return _orig(path, repo_root=root)
+            # path_validation ships untyped, so the call is Any. Rebuild a Path
+            # rather than suppressing: it is idempotent on a Path and gives the
+            # annotation something real to stand on.
+            return Path(_orig(path, repo_root=root))
 
         monkeypatch.setattr(
             "analyze_skill_placement.validate_path_within_repo", _validate_in_tmp
@@ -385,10 +388,14 @@ class TestGetClassification:
 
     def test_rejects_removed_always_needed_argument(self) -> None:
         """The removed parameter is gone from the signature, not ignored."""
+        # Passed dynamically on purpose. The assertion is a runtime TypeError,
+        # and spelling the keyword inline would make mypy reject the call for the
+        # very reason under test, which a suppression would then have to hide.
+        removed = {"always_needed": 5}
         with pytest.raises(TypeError):
             get_classification(
                 tool_calls=0, action_verbs=0, reference_ratio=0.5,
-                user_triggers=0, always_needed=5,
+                user_triggers=0, **removed,
             )
 
 
