@@ -10,6 +10,7 @@ import pytest
 
 from scripts.validation.check_doc_interpreter_portability import (
     INVOCATION_PATTERN,
+    find_offenses,
     is_in_scope,
     main,
     scan,
@@ -131,11 +132,10 @@ def test_class_body_import_runs_at_import_time_and_is_flagged(tmp_path: Path) ->
 def test_the_uv_flag_group_does_not_backtrack_exponentially() -> None:
     """CodeQL flagged the uv flag group for exponential backtracking.
 
-    The old form let `\\S*` swallow the following flag, so `uv run --=--=--=...`
-    had exponentially many parses. Measured on the old pattern: 12 repetitions
-    took 1.1 ms, 16 took 16.8 ms, 20 took 272 ms. This bound is generous by three
-    orders of magnitude against that curve, so it fails loudly on a regression
-    without being flaky on a slow machine.
+    The old form parsed the optional `uv run` prefix inside the same regex that
+    found Python invocations. That let the flag group split one long flag string
+    many ways before giving up. The matcher now finds Python invocations only,
+    and the `uv run` prefix check runs in normal Python token logic.
     """
     import time
 
@@ -156,13 +156,15 @@ def test_the_uv_flag_group_does_not_backtrack_exponentially() -> None:
         "uv run --with pyyaml python3 scripts/x.py",
     ],
 )
-def test_every_uv_form_in_the_corpus_still_matches(command: str) -> None:
-    """The rewrite must not narrow what it recognises.
+def test_every_uv_form_in_the_corpus_is_skipped(command: str, tmp_path: Path) -> None:
+    """The rewrite must still recognize fixed invocations as fixed.
 
     These four are the only `uv run ... python` shapes present in the tree, by
     frequency: bare, --frozen, --frozen --extra dev, and --with pyyaml.
     """
-    assert INVOCATION_PATTERN.search(command) is not None
+    repo = make_repo(tmp_path, {"scripts/x.py": "import yaml\n"})
+
+    assert find_offenses(command, repo, {"scripts/x.py"}) == []
 
 
 def test_uv_run_prefix_is_not_flagged(tmp_path: Path) -> None:

@@ -163,9 +163,7 @@ FIXTURE_ROOTS: tuple[str, ...] = ("tests/",)
 # opt-out is exactly what the `src/claude/` entry above used to be.
 DECLARATION = "doc-interpreter-portability:"
 
-# `uv run [flags] python[3] [short opts] <tracked>.py`
-# The optional `uv` group is captured so an already-fixed invocation can be
-# recognized and skipped rather than reported.
+# `python[3] [short opts] <tracked>.py`
 #
 # The `\.{0,2}/?` prefix on the path is load-bearing. Without it the operand had
 # to start with a word character, so every documented invocation of a script
@@ -175,18 +173,13 @@ DECLARATION = "doc-interpreter-portability:"
 # code. Seven offenses across four files hid behind that one character class.
 INVOCATION_PATTERN = re.compile(
     r"(?<![\w./-])"
-    # Each iteration must start with whitespace then a dash, and a flag value may
-    # not start with one, so at any position the next token is unambiguously a flag
-    # or a value. The previous form allowed \S* to swallow the following flag, which
-    # gave the outer star exponentially many parses of input like `uv run --=--=--=`
-    # (CodeQL: inefficient regular expression).
-    r"(?P<uv>uv[ \t]+run(?:[ \t]+--?[\w-]+(?:[ \t]+(?!python3?\b)[\w.][\w./-]*)?)*[ \t]+)?"
     r"python3?"
     r"(?:[ \t]+-[\w-]+)*"
     r"[ \t]+"
     r"(?P<path>\.{0,2}/?[A-Za-z0-9_][A-Za-z0-9_./-]*\.py)"
     r"(?![\w./-])"
 )
+TOKEN_PATTERN = re.compile(r"(?<![\w./-])[\w./-]+(?![\w./-])")
 
 
 def _run_git(repo_root: Path, *args: str) -> str:
@@ -280,6 +273,26 @@ def _local_modules(name: str, importer: str, tracked_py: set[str]) -> list[str] 
     return candidates if len(candidates) == 1 else []
 
 
+def _tokens_are_uv_run_options(tokens: list[str]) -> bool:
+    index = 0
+    while index < len(tokens):
+        if not tokens[index].startswith("-"):
+            return False
+        index += 1
+        if index < len(tokens) and not tokens[index].startswith("-"):
+            index += 1
+    return True
+
+
+def is_uv_run_prefixed(prefix: str) -> bool:
+    """Return whether the text before ``python`` is an immediate ``uv run`` prefix."""
+    tokens = TOKEN_PATTERN.findall(prefix)
+    for index in range(len(tokens) - 2, -1, -1):
+        if tokens[index : index + 2] == ["uv", "run"]:
+            return _tokens_are_uv_run_options(tokens[index + 2 :])
+    return False
+
+
 def third_party_imports(
     rel_path: str,
     repo_root: Path,
@@ -313,7 +326,7 @@ def find_offenses(line: str, repo_root: Path, tracked_py: set[str]) -> list[tupl
     """Return (script, third-party modules) for each unportable invocation on ``line``."""
     offenses: list[tuple[str, list[str]]] = []
     for match in INVOCATION_PATTERN.finditer(line):
-        if match.group("uv"):
+        if is_uv_run_prefixed(line[: match.start()]):
             continue
         script = match.group("path")
         while script.startswith("./"):
