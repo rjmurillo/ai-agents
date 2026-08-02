@@ -235,6 +235,9 @@ jobs:
       - name: Validate workflow YAML
         run: uv run --frozen python3 scripts/validate_workflows.py
 
+      - name: Check bare-python3 documentation entrypoints
+        run: uv run --frozen python3 scripts/validation/check_python3_entrypoints.py
+
       # Issue #2967: ADR-006 forbids business logic in workflow `run:` blocks.
       # The burn-down count started at 93 at audit time. This freezes the
       # current ratchet ceiling at 58: the scanner exits 1 when the count
@@ -273,6 +276,12 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
+          # CI-only: --depth=1 keeps this disposable checkout shallow to save
+          # bandwidth. Do NOT copy these two lines into a working clone; the
+          # fetch writes .git/shallow and every subsequent push will fail with
+          # "push validation requires complete Git history". In a working clone
+          # use: git fetch origin && uv run --frozen python3
+          # scripts/ci/taste_count_ratchet.py --base-ref origin/"$BASE_REF"
           git fetch --depth=1 origin "$BASE_REF"
           uv run --frozen python3 scripts/ci/taste_count_ratchet.py --base-ref FETCH_HEAD
       # Issue #4039: type: ignore suppressions bypass the mypy ratchet by inflating
@@ -282,6 +291,7 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
+          # CI-only: see taste-lint ratchet step above for the --depth=1 caveat.
           git fetch --depth=1 origin "$BASE_REF"
           uv run --frozen python3 scripts/ci/type_ignore_count_ratchet.py --base-ref FETCH_HEAD
       # Issue #3770: `conflict-marker-policy` runs only at pre-commit over the

@@ -1,5 +1,15 @@
 #!/usr/bin/env python3
-# taste-lint: ignore file-size -- registration list, not logic. Issue #4285.
+# taste-lint: ignore file-size
+#
+# file-size suppression rationale: this module is a registration sequence, not
+# logic. It holds one function whose body is 48 ordered ``run_validation``
+# calls, so its line count tracks how many gates the project has, not how hard
+# the module is to read. The rule's own remediation (extract helpers) does not
+# apply: the docstring below records that this file was itself extracted from
+# ``pre_pr.py`` for the same ceiling, which reset the count without reducing
+# anything. A second extraction would do the same. The real fix is a
+# table-driven registry (issue #4285), which is out of scope for the change
+# that crossed the line.
 """Ordered pre-PR validation sequence (extracted from ``pre_pr.py``, Issue #3073).
 
 Holds ``run_all_validations``: the ordered list of ``run_validation`` calls that
@@ -37,6 +47,7 @@ from checks_coverage import (  # noqa: E402
 )
 from checks_dash import validate_dash_prohibition  # noqa: E402
 from checks_plugin import (  # noqa: E402
+    validate_agent_content_parity,
     validate_copilot_agent_frontmatter,
     validate_hook_anchoring,
     validate_install_parity,
@@ -126,11 +137,8 @@ def run_all_validations(
         lambda: validate_python_syntax(repo_root),
     )
 
-    # 0.5. Count ratchets (issue #4251). Four sub-second checks that gate the
-    # push. Before this ran here, a contributor saw pre_pr.py pass, pushed, and
-    # learned 674 seconds later that a 0.21 second ratchet had failed, because
-    # the ratchets ran only in the pre-push group alongside the full suite.
-    # Placed second so the cheapest push-blocking signal arrives first.
+    # Placed second so the cheapest push-blocking signal arrives first. See the
+    # checks_ratchet module docstring for why these run here (issue #4251).
     run_validation(
         "Count Ratchets",
         state,
@@ -442,6 +450,16 @@ def run_all_validations(
         "Install Parity (agents and rules)",
         state,
         lambda: validate_install_parity(repo_root),
+    )
+
+    # 6b2. Agent Content Parity (.claude/agents/ vs src/claude/ byte comparison)
+    # validate_install_parity checks co-change; it does not compare on-disk
+    # content. This gate catches drift that already exists regardless of what
+    # changed in the current PR. Issue #4082.
+    run_validation(
+        "Agent Content Parity (.claude/agents vs src/claude)",
+        state,
+        lambda: validate_agent_content_parity(repo_root),
     )
 
     # 6c. Plugin Version Bump (source change requires a plugin.json bump; #2118)

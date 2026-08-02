@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size
+# run_semgrep.py is a single-responsibility scanner; splitting it would scatter
+# the scan orchestration across files. The file grew past 500 lines when pinned
+# resolution helpers were added in issue #4190. File size is monitored but
+# splitting is not warranted until the scan logic itself becomes multi-concern.
 """
 Semgrep Security Scanner for Local Pre-Push Validation
 
@@ -26,6 +31,9 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
+import re
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -109,6 +117,100 @@ def _semgrep_failure_context(stdout: str, stderr: str) -> str:
     )
 
 
+class _SemgrepExecutableError(RuntimeError):
+    """Raised when the pinned semgrep executable cannot be resolved.
+
+    A scanner that silently falls back to a wrong version is worse than one
+    that is absent: it reports green against rules from the wrong ruleset.
+    Fail loudly so the caller knows the gate did not run.
+    """
+
+
+def _semgrep_pinned_version(repo_root: Path) -> str:
+    """Read the semgrep version pin from pyproject.toml.
+
+    Fails loudly if the pin is missing or ambiguous: a scanner whose
+    version is unknown has no reproducibility guarantee.
+    """
+    pyproject = repo_root / "pyproject.toml"
+    try:
+        text = pyproject.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise _SemgrepExecutableError(
+            f"cannot read semgrep pin from {pyproject}: {exc}"
+        ) from exc
+    matches: list[str] = re.findall(
+        r'^\s*"semgrep==([^"]+)",\s*$',
+        text,
+        re.MULTILINE,
+    )
+    versions = set(matches)
+    if len(versions) != 1:
+        raise _SemgrepExecutableError(
+            f"pyproject.toml must declare exactly one semgrep pin, "
+            f"found: {sorted(versions)!r}"
+        )
+    return versions.pop()
+
+
+def _probe_semgrep_version(executable: str) -> str:
+    """Return the version string reported by the semgrep binary."""
+    try:
+        result = subprocess.run(
+            [executable, "--version"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=30,
+        )
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        raise _SemgrepExecutableError(
+            f"semgrep version probe failed for {executable}: {exc}"
+        ) from exc
+    if result.returncode != 0:
+        raise _SemgrepExecutableError(
+            f"semgrep version probe exited {result.returncode} "
+            f"for {executable}: {result.stderr.strip()}"
+        )
+    version = result.stdout.strip().splitlines()[0] if result.stdout.strip() else ""
+    if not version:
+        raise _SemgrepExecutableError(
+            f"semgrep version probe returned no output for {executable}"
+        )
+    return version
+
+
+def _resolve_semgrep_executable(repo_root: Path) -> str:
+    """Return the path to a pinned semgrep binary.
+
+    Preference order:
+    1. A ``semgrep`` sibling of the current interpreter (inside the venv).
+    2. The first ``semgrep`` on PATH, verified against the pyproject.toml pin.
+
+    Raises ``_SemgrepExecutableError`` if no matching binary is found, and
+    ``FileNotFoundError`` if semgrep is not on PATH at all.  Both map to a
+    loud failure rather than a silent fallback.
+    """
+    sibling_name = "semgrep.exe" if os.name == "nt" else "semgrep"
+    sibling = Path(sys.executable).parent / sibling_name
+    if sibling.is_file() and os.access(sibling, os.X_OK):
+        return str(sibling)
+
+    resolved = shutil.which("semgrep")
+    if resolved is None:
+        raise FileNotFoundError("semgrep not found on PATH")
+
+    version = _probe_semgrep_version(resolved)
+    pinned = _semgrep_pinned_version(repo_root)
+    if version != pinned:
+        raise _SemgrepExecutableError(
+            f"semgrep version mismatch: pyproject.toml pins {pinned!r}, "
+            f"but {resolved} reports {version!r}"
+        )
+    return resolved
+
+
 class SemgrepScanner:
     """Orchestrates semgrep security scanning."""
 
@@ -154,17 +256,25 @@ class SemgrepScanner:
         return root
 
     def _check_semgrep_installed(self) -> bool:
-        """Check if semgrep is installed and accessible."""
+        """Check if the pinned semgrep binary is resolvable.
+
+        Resolves via ``_resolve_semgrep_executable``, which verifies the version
+        against the pyproject.toml pin. Returns False (with a logged error) for
+        any resolution failure so the caller can report the exact reason.
+        """
         try:
-            result = subprocess.run(
-                ["semgrep", "--version"],
-                capture_output=True,
-                encoding="utf-8",
-                errors="replace",
-                check=False,
-            )
-            return result.returncode == 0
+            _resolve_semgrep_executable(self.repo_root)
+            return True
         except FileNotFoundError:
+            logger.error("ERROR: semgrep not found on PATH")
+            logger.error("")
+            logger.error("Install with:")
+            logger.error("  pip install semgrep")
+            logger.error("  OR")
+            logger.error("  python3 scripts/Install-Semgrep.py")
+            return False
+        except _SemgrepExecutableError as exc:
+            logger.error("ERROR: semgrep resolution failed: %s", exc)
             return False
 
     def _get_changed_files(self) -> list[Path]:
@@ -212,17 +322,34 @@ class SemgrepScanner:
             return []
 
     def _run_semgrep(self, files: list[Path]) -> list[SemgrepFinding]:
-        """Run semgrep on the specified files."""
+        """Run semgrep on the specified files using the pinned executable."""
         if not files:
             return []
 
+        try:
+            executable = _resolve_semgrep_executable(self.repo_root)
+        except (FileNotFoundError, _SemgrepExecutableError) as exc:
+            return [_scan_failure_finding(f"semgrep resolution failed: {exc}")]
+
         cmd = [
-            "semgrep",
+            executable,
             "scan",
             "--config",
             self.config,
             "--json",
             "--no-git-ignore",
+            # requires-python = ">=3.14" (pyproject.toml). The python36 and
+            # python37 compatibility families warn about arguments unavailable
+            # before those versions, which are eight and seven minor versions
+            # below the project floor. Every finding they produce is a
+            # guaranteed false positive here, and their own metadata classifies
+            # them as "compatibility", not security. Excluding the family keeps
+            # them from blocking PRs that comply with the encoding convention
+            # that tests/test_subprocess_text_encoding.py mandates (issue #4223).
+            "--exclude-rule",
+            "python.lang.compatibility.python36",
+            "--exclude-rule",
+            "python.lang.compatibility.python37",
         ]
 
         if self.severity:
@@ -309,12 +436,6 @@ class SemgrepScanner:
     def run(self) -> int:
         """Execute the semgrep scan workflow."""
         if not self._check_semgrep_installed():
-            logger.error("ERROR: semgrep not installed")
-            logger.error("")
-            logger.error("Install with:")
-            logger.error("  pip install semgrep")
-            logger.error("  OR")
-            logger.error("  python3 scripts/Install-Semgrep.py")
             return 2
 
         logger.info("Semgrep security scan starting")

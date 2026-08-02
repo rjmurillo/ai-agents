@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -174,3 +175,26 @@ def test_workflow_local_run_fast_skips_when_no_change(
     assert checks_plugin.validate_workflow_local_run(tmp_path) is True
     assert captured["files"] is None
     assert "No changed workflow files" in capsys.readouterr().out
+
+
+def test_agent_content_parity_decodes_subprocess_output_with_replacement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    script = tmp_path / "build" / "scripts" / "check_agent_content_parity.py"
+    script.parent.mkdir(parents=True)
+    script.write_text("print('stub')\n", encoding="utf-8")
+
+    captured: dict[str, object] = {}
+
+    def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        captured.update(kwargs)
+        return subprocess.CompletedProcess(
+            args=["check_agent_content_parity.py"], returncode=0, stdout="", stderr=""
+        )
+
+    monkeypatch.setattr(checks_plugin.subprocess, "run", fake_run)
+
+    assert checks_plugin.validate_agent_content_parity(tmp_path) is True
+    assert captured["encoding"] == "utf-8"
+    assert captured["errors"] == "replace"

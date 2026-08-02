@@ -87,6 +87,6 @@ Token cost visibility enables informed ROI decisions:
 
 > "Display token counts for each item so agents can decide whether expensive retrieval is worth the cost."
 
-See: [Context Engineering Analysis](/.agents/analysis/context-engineering.md)
+See `.agents/analysis/context-engineering.md` in the `rjmurillo/ai-agents` repository. It does not ship with this skill; a consumer install cannot resolve it.
 
 <!-- vendor-portability: declared. This README links .agents/analysis/context-engineering.md as background. It is a documentation citation; the count-tokens script runs without it and a vendored install loses only the link. Issue #2050. -->

@@ -377,7 +377,7 @@ def _classify_check_contexts(
     of OK appends to nothing (caller computes passed_checks from the
     surviving names minus blocked minus skipped). A verdict of SKIP
     (CANCELLED-only, no opinion) appends to ``skipped_names`` so the
-    passed-checks count can subtract it out — without that subtraction,
+    passed-checks count can subtract it out. Without that subtraction,
     a debounce-cancelled rollup would be counted as passed.
 
     Closes the false-FAIL class on CANCELLED+SUCCESS dedupe AND the
