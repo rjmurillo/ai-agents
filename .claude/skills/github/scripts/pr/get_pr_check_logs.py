@@ -188,16 +188,13 @@ def _write_merge_ref_error(payload: dict[str, object], fmt: str) -> None:
     )
 
 
-
 def _rank_matches(log_lines: list[str]) -> list[int]:
     """Return failure-matching line indices, most authoritative first.
 
     Authoritative markers rank before weak word matches; within a tier the
     later line wins, so a tail verdict beats echoed setup source (#3113).
     """
-    matches = [
-        i for i, line in enumerate(log_lines) if _COMBINED_PATTERN.search(line)
-    ]
+    matches = [i for i, line in enumerate(log_lines) if _COMBINED_PATTERN.search(line)]
     return sorted(
         matches,
         key=lambda i: (0 if _AUTHORITATIVE_PATTERN.search(log_lines[i]) else 1, -i),
@@ -205,7 +202,10 @@ def _rank_matches(log_lines: list[str]) -> list[int]:
 
 
 def _claim_lines(
-    ranked: list[int], line_count: int, context_lines: int, max_lines: int,
+    ranked: list[int],
+    line_count: int,
+    context_lines: int,
+    max_lines: int,
 ) -> set[int]:
     """Claim context windows around ranked matches until the budget fills."""
     claimed: set[int] = set()
@@ -238,19 +238,13 @@ def _group_runs(sorted_lines: list[int]) -> list[tuple[int, int]]:
 
 def _run_has_authoritative(run: tuple[int, int], log_lines: list[str]) -> bool:
     start, end = run
-    return any(
-        _AUTHORITATIVE_PATTERN.search(log_lines[n]) for n in range(start, end + 1)
-    )
+    return any(_AUTHORITATIVE_PATTERN.search(log_lines[n]) for n in range(start, end + 1))
 
 
 def _run_to_snippet(start: int, end: int, log_lines: list[str]) -> dict[str, object]:
     """Build a snippet dict for a claimed run, keyed on its best match line."""
-    matches = [
-        n for n in range(start, end + 1) if _COMBINED_PATTERN.search(log_lines[n])
-    ]
-    authoritative = [
-        n for n in matches if _AUTHORITATIVE_PATTERN.search(log_lines[n])
-    ]
+    matches = [n for n in range(start, end + 1) if _COMBINED_PATTERN.search(log_lines[n])]
+    authoritative = [n for n in matches if _AUTHORITATIVE_PATTERN.search(log_lines[n])]
     rep = authoritative[0] if authoritative else (matches[0] if matches else start)
     return {
         "LineNumber": rep + 1,
@@ -262,7 +256,9 @@ def _run_to_snippet(start: int, end: int, log_lines: list[str]) -> dict[str, obj
 
 
 def get_failure_snippets(
-    log_lines: list[str], context_lines: int, max_lines: int,
+    log_lines: list[str],
+    context_lines: int,
+    max_lines: int,
 ) -> list[dict[str, object]]:
     """Extract failure snippets, prioritizing authoritative verdicts.
 
@@ -284,7 +280,10 @@ def get_failure_snippets(
 
 
 def fetch_workflow_run_logs(
-    owner: str, repo: str, run_id: str, job_id: str | None,
+    owner: str,
+    repo: str,
+    run_id: str,
+    job_id: str | None,
 ) -> dict:
     """Fetch logs for a GitHub Actions workflow run."""
     # Try job-specific logs first
@@ -401,19 +400,26 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--pull-request", type=int, default=0,
+        "--pull-request",
+        type=int,
+        default=0,
         help="PR number (standalone mode)",
     )
     parser.add_argument(
-        "--checks-input", default="",
+        "--checks-input",
+        default="",
         help="JSON string from get_pr_checks.py output (pipeline mode). Use '-' for stdin.",
     )
     parser.add_argument(
-        "--max-lines", type=int, default=160,
+        "--max-lines",
+        type=int,
+        default=160,
         help="Maximum lines to extract per failure snippet (default: 160)",
     )
     parser.add_argument(
-        "--context-lines", type=int, default=30,
+        "--context-lines",
+        type=int,
+        default=30,
         help="Lines of context before/after failure markers (default: 30)",
     )
     add_output_format_arg(parser)
@@ -431,6 +437,7 @@ def main(argv: list[str] | None = None) -> int:
     fmt = get_output_format(args.output_format)
     pr_number = args.pull_request
     failing_checks: list[dict] = []
+    merge_ref_warning: str | None = None
 
     checks_input = args.checks_input
     if checks_input == "-":
@@ -478,12 +485,12 @@ def main(argv: list[str] | None = None) -> int:
         if payload.get("Number") and pr_number == 0:
             pr_number = payload["Number"]
 
-        if _merge_ref_unusable(payload):
-            _write_merge_ref_error(payload, fmt)
-            return 1
-
+        merge_ref_unusable = _merge_ref_unusable(payload)
         checks_list = _coerce_checks_list(payload)
         if checks_list is None:
+            if merge_ref_unusable:
+                _write_merge_ref_error(payload, fmt)
+                return 1
             write_skill_error(
                 "Checks response contains malformed Checks payload",
                 1,
@@ -493,20 +500,31 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 1
 
-        failing_checks = [
-            c for c in checks_list
-            if _is_failing(c)
-        ]
+        failing_checks = [c for c in checks_list if _is_failing(c)]
+        if merge_ref_unusable:
+            if not any(c.get("DetailsUrl") for c in failing_checks):
+                _write_merge_ref_error(payload, fmt)
+                return 1
+            merge_ref_warning = (
+                str(payload.get("MergeStateWarning") or "")
+                or "PR merge ref unusable; logs may be incomplete"
+            )
 
     elif pr_number > 0:
         # Standalone mode - fetch checks first
         checks_script = os.path.join(os.path.dirname(__file__), "get_pr_checks.py")
         result = subprocess.run(
             [
-                sys.executable, checks_script,
-                "--owner", owner, "--repo", repo,
-                "--pull-request", str(pr_number),
-                "--output-format", "json",
+                sys.executable,
+                checks_script,
+                "--owner",
+                owner,
+                "--repo",
+                repo,
+                "--pull-request",
+                str(pr_number),
+                "--output-format",
+                "json",
             ],
             capture_output=True,
             text=True,
@@ -547,11 +565,12 @@ def main(argv: list[str] | None = None) -> int:
                 script_name="get_pr_check_logs.py",
             )
             return 3
-        if _merge_ref_unusable(payload):
-            _write_merge_ref_error(payload, fmt)
-            return 1
+        merge_ref_unusable = _merge_ref_unusable(payload)
         checks_list = _coerce_checks_list(payload)
         if checks_list is None:
+            if merge_ref_unusable:
+                _write_merge_ref_error(payload, fmt)
+                return 1
             write_skill_error(
                 "Checks response contains malformed Checks payload",
                 1,
@@ -561,10 +580,15 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 1
 
-        failing_checks = [
-            c for c in checks_list
-            if _is_failing(c)
-        ]
+        failing_checks = [c for c in checks_list if _is_failing(c)]
+        if merge_ref_unusable:
+            if not any(c.get("DetailsUrl") for c in failing_checks):
+                _write_merge_ref_error(payload, fmt)
+                return 1
+            merge_ref_warning = (
+                str(payload.get("MergeStateWarning") or "")
+                or "PR merge ref unusable; logs may be incomplete"
+            )
     else:
         write_skill_error(
             "Either --pull-request or --checks-input is required",
@@ -596,7 +620,11 @@ def main(argv: list[str] | None = None) -> int:
 
     # Fetch logs
     check_logs = get_check_logs(
-        owner, repo, failing_checks, args.max_lines, args.context_lines,
+        owner,
+        repo,
+        failing_checks,
+        args.max_lines,
+        args.context_lines,
     )
 
     output = {
@@ -606,6 +634,8 @@ def main(argv: list[str] | None = None) -> int:
         "FailingChecks": len(failing_checks),
         "CheckLogs": check_logs,
     }
+    if merge_ref_warning:
+        output["MergeRefWarning"] = merge_ref_warning
 
     logs_found = sum(1 for cl in check_logs if cl.get("Snippets"))
     external = sum(1 for cl in check_logs if cl.get("LogSource") == "external")

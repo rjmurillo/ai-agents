@@ -1,5 +1,4 @@
 {
-  "version": 1,
   "corpus_root": ".claude/skills",
   "description": "Pinned findings for the differential gate. Edit only when removing a detection deliberately; explain why in the commit message.",
   "findings": {
@@ -58,17 +57,17 @@
       278
     ],
     "github/scripts/pr/get_pr_check_logs.py": [
-      292,
-      302,
-      312
+      291,
+      301,
+      311
     ],
     "github/scripts/pr/get_pr_comments_by_reviewer.py": [
       69
     ],
     "github/scripts/pr/get_pr_context.py": [
-      96,
-      145,
-      152
+      104,
+      171,
+      182
     ],
     "github/scripts/pr/get_pr_review_comments.py": [
       136,
@@ -93,7 +92,7 @@
       96
     ],
     "github/scripts/pr/resolve_pr_review_thread.py": [
-      102
+      115
     ],
     "github/scripts/pr/run_completion_gate.py": [
       655
@@ -165,9 +164,6 @@
     "security-scan/scripts/scan_vulnerabilities.py": [
       166
     ],
-    "session/scripts/test_investigation_eligibility.py": [
-      56
-    ],
     "session-end/scripts/complete_session_log.py": [
       79,
       95,
@@ -199,8 +195,12 @@
       50,
       133
     ],
+    "session/scripts/test_investigation_eligibility.py": [
+      56
+    ],
     "style-enforcement/scripts/check_style.py": [
       476
     ]
-  }
+  },
+  "version": 1
 }
