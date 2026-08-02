@@ -67,6 +67,14 @@ def test_empty_trees_pass(tmp_path: Path) -> None:
     assert rc == 0
 
 
+def test_check_flag_is_not_supported(tmp_path: Path) -> None:
+    _make_trees(tmp_path)
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--repo-root", str(tmp_path), "--check"])
+
+    assert exc_info.value.code == 2
+
+
 # ---------------------------------------------------------------------------
 # Negative: drift -> exit 1
 # ---------------------------------------------------------------------------

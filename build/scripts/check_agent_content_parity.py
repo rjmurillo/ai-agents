@@ -18,7 +18,6 @@ Files listed in ALLOWED_ONLY_IN_CLAUDE or ALLOWED_ONLY_IN_SRC are exempt
 CLI::
 
     python3 build/scripts/check_agent_content_parity.py
-    python3 build/scripts/check_agent_content_parity.py --check        # same as default
     python3 build/scripts/check_agent_content_parity.py --format json
 
 EXIT CODES
@@ -129,7 +128,6 @@ def _resolve_dirs(repo_root: Path) -> tuple[Path, Path, int]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--check", action="store_true", help="Exit 1 on any drift (default).")
     parser.add_argument("--format", choices=["text", "json"], default="text")
     parser.add_argument("--repo-root", type=Path, default=None)
     args = parser.parse_args(argv)
