@@ -2741,3 +2741,154 @@ class TestTheSchemaNamesEveryRequiredRootField:
             "session",
             "protocolCompliance",
         }
+
+
+class TestPytestSummaryContextAnchoredToClause:
+    """CRITICAL 1: pytest-summary escape must only excuse the 'skipped' in its own clause.
+
+    Post-#4001 adversarial review: _has_contradiction("354 passed; markdownlint step skipped")
+    returned False because _PYTEST_SUMMARY_CONTEXT searched the entire evidence string.
+    The escape hatch must only apply to 'skipped' tokens that appear in the same
+    clause (bounded by ';' and newline) as the pytest summary pattern.
+    """
+
+    @staticmethod
+    def _item(evidence: str) -> dict:
+        return {"complete": True, "evidence": evidence, "level": "MUST"}
+
+    @staticmethod
+    def _warn(item: dict) -> bool:
+        result = ValidationResult()
+        validate_checklist_section({"x": item}, frozenset(), "sessionStart", result)
+        return any("Evidence contradiction" in w for w in result.warnings)
+
+    def test_cross_clause_skipped_still_flags(self) -> None:
+        """354 passed in one clause must not excuse 'skipped' in a different clause."""
+        evidence = "354 passed; markdownlint step skipped"
+        assert self._warn(self._item(evidence)), (
+            f"Expected contradiction for {evidence!r} -- 'skipped' is in a different clause"
+        )
+
+    def test_cross_clause_newline_still_flags(self) -> None:
+        """Same bug via newline separator: pytest summary on one line, skip on the next."""
+        evidence = "Tests: 17 passed 3 skipped\nmarkdownlint: skipped"
+        # The second 'skipped' is in a different clause from "17 passed"
+        assert self._warn(self._item(evidence)), (
+            f"Expected contradiction for second 'skipped' in {evidence!r}"
+        )
+
+    def test_same_clause_numeric_still_passes(self) -> None:
+        """17 passed 3 skipped in a single clause must remain a false-positive exclusion."""
+        evidence = "17 passed 3 skipped"
+        assert not self._warn(self._item(evidence)), f"False positive for {evidence!r}"
+
+    def test_comma_separated_summary_still_passes(self) -> None:
+        """14434 passed, 21 skipped, 45 xfailed must still be excused (existing test parity)."""
+        evidence = "uv run pytest tests/ -q: 14434 passed, 21 skipped, 45 xfailed"
+        assert not self._warn(self._item(evidence)), f"False positive for {evidence!r}"
+
+    def test_legitimate_pytest_tallies_still_pass(self) -> None:
+        """The 27 real evidence fields with pytest tallies must not become false contradictions."""
+        tallies = [
+            "94 passed plus 1 skipped",
+            "103 passed, 2 errors, 5 skipped",
+            "uv run pytest tests/ -q: 14434 passed, 21 skipped, 45 xfailed",
+            "21 skipped",
+            "0 skipped",
+        ]
+        for evidence in tallies:
+            assert not self._warn(self._item(evidence)), (
+                f"False positive regression for {evidence!r}"
+            )
+
+    def test_isolating_negative_control(self) -> None:
+        """Bare 'skipped' with no preceding digit and no pytest context still flags."""
+        evidence = "markdownlint step skipped"
+        assert self._warn(self._item(evidence)), f"Expected contradiction for {evidence!r}"
+
+
+class TestCreationMode:
+    """CRITICAL 2: --creation-mode skips protocol-compliance but keeps full schema.
+
+    A fresh log cannot satisfy 'Incomplete MUST' checks for items that only exist
+    after the session ends. But the schema (required fields, types, date, branch)
+    still fully binds at creation time.  post-#4001 adversarial review.
+    """
+
+    def test_fresh_log_passes_creation_mode(self) -> None:
+        """A freshly created log with all items complete=False passes creation-mode."""
+        log = _make_valid_log()
+        # Set all items to incomplete (as new_session_log.py creates them)
+        for section in ("sessionStart", "sessionEnd"):
+            for item in log["protocolCompliance"][section].values():
+                item["complete"] = False
+                item["evidence"] = ""
+        result = validate_session_log(log, creation_mode=True)
+        assert result.errors == [], result.errors
+
+    def test_fresh_log_fails_normal_mode(self) -> None:
+        """The same log fails normal (non-creation) mode due to Incomplete MUSTs."""
+        log = _make_valid_log()
+        for section in ("sessionStart", "sessionEnd"):
+            for item in log["protocolCompliance"][section].values():
+                item["complete"] = False
+                item["evidence"] = ""
+        result = validate_session_log(log, creation_mode=False)
+        incomplete = [e for e in result.errors if "Incomplete MUST" in e]
+        assert incomplete, "Expected Incomplete MUST errors in normal mode"
+
+    def test_schema_still_enforced_in_creation_mode(self) -> None:
+        """Required schema fields (session.number, branch, etc.) still bind in creation-mode."""
+        log = _make_valid_log()
+        del log["session"]["number"]
+        result = validate_session_log(log, creation_mode=True)
+        assert any("number" in e and e.startswith("Schema:") for e in result.errors), (
+            "Schema check for session.number must still run in creation-mode"
+        )
+
+    def test_creation_mode_skips_evidence_agreement(self) -> None:
+        """creation_mode also skips evidence-agreement checks (nothing to agree yet)."""
+        log = _make_valid_log()
+        # Insert a branch mismatch: evidence names a different feature branch
+        log["protocolCompliance"]["sessionStart"]["branchVerified"] = {
+            "complete": True,
+            "evidence": "verified on fix/old-session-branch",
+            "level": "MUST",
+        }
+        # Session is on a different branch entirely
+        log["session"]["branch"] = "fix/other-branch"
+        result_normal = validate_session_log(log, creation_mode=False)
+        branch_errors = [e for e in result_normal.errors if "different branch" in e]
+        assert branch_errors, "Normal mode should flag branch mismatch"
+        result_creation = validate_session_log(log, creation_mode=True)
+        creation_branch_errors = [e for e in result_creation.errors if "different branch" in e]
+        assert not creation_branch_errors, "creation_mode must skip evidence-agreement checks"
+
+    def test_existing_log_wins_when_both_set(self) -> None:
+        """existing_log=True wins when creation_mode is also True (documented precedence)."""
+        log = _make_valid_log()
+        for field in _RELAXED_FOR_EXISTING_LOGS:
+            log.pop(field, None)
+        # With existing_log=True, the four relaxed fields are not required
+        result = validate_session_log(log, existing_log=True, creation_mode=True)
+        assert not any(e.startswith("Schema:") for e in result.errors), result.errors
+
+    def test_cli_creation_mode_flag(self, scratch: Path) -> None:
+        """--creation-mode flag accepted by the CLI and produces PASS for a fresh log."""
+        log = _make_valid_log(number=9001)
+        for section in ("sessionStart", "sessionEnd"):
+            for item in log["protocolCompliance"][section].values():
+                item["complete"] = False
+                item["evidence"] = ""
+        path = scratch / "2026-07-31-session-9001-test.json"
+        path.write_text(json.dumps(log))
+
+        r = subprocess.run(
+            [sys.executable, "scripts/validate_session_json.py", "--creation-mode", str(path)],
+            cwd=_REPO_ROOT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        assert r.returncode == 0, f"Expected PASS, got:\n{r.stdout}"

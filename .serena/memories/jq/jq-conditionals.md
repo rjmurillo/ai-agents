@@ -6,8 +6,8 @@
 
 ```bash
 # If-then-else
-gh pr list --json number,draft \
-  --jq '.[] | {number, status: (if .draft then "Draft" else "Ready" end)}'
+gh pr list --json number,isDraft \
+  --jq '.[] | {number, status: (if .isDraft then "Draft" else "Ready" end)}'
 
 # Default values (null coalescing)
 gh issue list --json number,milestone \

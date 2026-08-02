@@ -12,7 +12,7 @@ canonical owners, not consumer-runtime dependencies. Issue #2050. -->
 
 This skill changes hooks. `agent-harness-reference` owns hook facts.
 `ai-agents-empirical-probe-toolkit` owns probe design.
-`ai-agents-generation-and-release` owns mirror generation and version bumps.
+`ai-agents-generation-and-release` owns mirror generation and the release path.
 
 ## Triggers
 
