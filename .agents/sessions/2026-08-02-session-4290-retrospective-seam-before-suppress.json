@@ -79,7 +79,7 @@
       "serenaMemoryUpdated": {
         "level": "SHOULD",
         "complete": false,
-        "evidence": "Three learnings extracted and scored in the artifact. Persistence to Serena deferred because no MCP write tool is available in this session, so the learnings are carried in the retrospective instead of being lost."
+        "evidence": "Three learnings extracted and scored in the artifact, then persisted as committed markdown under .serena/memories/. Learning 1 and 2 combined into agent-behavior/self-blame-still-needs-evidence.md; learning 3 applied as a scope tag on validation/validation-ratchet-command-paths.md rather than a new file; the measured instruction budget headroom added as validation/instruction-budget-always-on-headroom.md."
       }
     }
   },
@@ -104,7 +104,7 @@
     }
   ],
   "nextSteps": [
-    "Persist the three scored learnings to Serena memory when an MCP write tool is available.",
+    "Open the PR referencing #4285 and #4290 so the corrected record is reviewable.",
     "Leave the PR #4290 suppression on main; issue #4285 tracks the table-driven registry that replaces the sequence.",
     "Add the test-file scope tag to the ratchet memory's split-not-suppress guidance."
   ],

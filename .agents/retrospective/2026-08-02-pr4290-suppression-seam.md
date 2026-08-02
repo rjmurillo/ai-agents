@@ -28,7 +28,7 @@ Then I checked the one thing I had not checked. PR #4302 is CLOSED.
 | E4 | PR #4302 closing comment | "The suppression's rationale is correct on the merits, not just expedient." |
 | E5 | PR #4302 closing comment | "It moves 57 lines into a new module and the counter drops below the ceiling. Nothing got simpler." |
 | E6 | PR #4302 closing comment | `run_all_validations` is 408 lines and would be 350 after the split, still about 6x the repository's 60 line method rule. |
-| E7 | `.serena/memories/validation/validation-ratchet-command-paths.md:72` | The split-not-suppress guidance is scoped to "an existing 470 line test file", not to a registration module. |
+| E7 | `.serena/memories/validation/validation-ratchet-command-paths.md:73` | The split-not-suppress guidance is scoped to "an existing 470 line test file", not to a registration module. |
 | E8 | Issue #4285 title | "extraction only resets the counter." The repository already held the position my rationale took. |
 | E9 | `scripts/ci/taste_count_ratchet.py` on `ede9fd1fe` | `OK (count == baseline 601)`, exit 0. Main is green under the suppression. |
 
@@ -173,4 +173,5 @@ restates an existing rule under `.claude/rules/`.
 | R1 | Revert the rule change and both mirrors | this branch | done in this commit |
 | R2 | Keep the #4290 suppression on main | none needed | E4 settles it |
 | R3 | Table-driven registry replaces the sequence | issue #4285 | open, owner picking it up |
-| R4 | Scope tag on the ratchet memory | issue #4285 follow-up | pending a Serena write tool |
+| R4 | Scope tag on the ratchet memory | this branch | done in this commit |
+| R5 | Persist learnings 1 and 2 as memories | this branch | done in this commit |
