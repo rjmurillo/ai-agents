@@ -30,11 +30,10 @@ What it does NOT flag (Issue #2510, false-positive guards):
     The literal has no I/O semantics and cannot be migrated through ``paths.py``.
     Using any metachar as the signal (not only ``\\.``) covers prefixes that
     contain no dot, such as ``scripts/`` (Issue #4046).
-  * Prose strings. A literal whose body contains a space reads as natural-language
-    text, not a file-system path. Recommendation strings, template text, and
-    error messages that mention a path prefix as a concept are exempt on this
-    basis. Real paths passed to ``open()`` or ``subprocess`` do not contain
-    spaces (Issue #4046).
+  * Prose strings. CLI descriptions, diagnostic calls, multi-line template
+    text, and sentence-like literals may mention a path prefix as a concept.
+    Spaces alone are not enough: shell commands also contain spaces and must
+    remain visible to the gate (Issue #4046).
   * CLI prose. A literal that lives inside a keyword argument named
     ``help``, ``description``, ``epilog``, ``metavar``, or ``usage`` (the
     argparse / Click / Typer conventions) is rendered to stderr by the CLI
@@ -117,6 +116,9 @@ _HELPER_FUNCTIONS: frozenset[str] = frozenset(
 # be migrated through the portability helper and must not be flagged.
 # Issue #2510.
 _PROSE_KWARGS: frozenset[str] = frozenset({"help", "description", "epilog", "metavar", "usage"})
+_PROSE_CALLS: frozenset[str] = frozenset(
+    {"check", "debug", "error", "exception", "info", "print", "warning"}
+)
 
 # Directories scanned for vendor-shipped scripts.
 _SCAN_ROOTS: tuple[str, ...] = (".claude/skills",)
@@ -219,8 +221,26 @@ def _docstring_lines(content: str) -> set[int]:
     return lines
 
 
+def _call_name(node: ast.Call) -> str | None:
+    """Return the direct or attribute name of an AST call."""
+    if isinstance(node.func, ast.Name):
+        return node.func.id
+    if isinstance(node.func, ast.Attribute):
+        return node.func.attr
+    return None
+
+
+def _node_lines(node: ast.AST) -> range:
+    """Return the inclusive source-line range occupied by an AST node."""
+    start = getattr(node, "lineno", None)
+    if start is None:
+        return range(0)
+    end = getattr(node, "end_lineno", start) or start
+    return range(start, end + 1)
+
+
 def _prose_lines(content: str) -> set[int]:
-    """Return line numbers occupied by CLI prose keyword-arg values.
+    """Return line numbers occupied by known prose expression contexts.
 
     Walks the AST for every ``ast.Call`` and records the line range of any
     keyword whose name is in ``_PROSE_KWARGS`` (``help``, ``description``,
@@ -234,6 +254,10 @@ def _prose_lines(content: str) -> set[int]:
     ``parser.add_argument("--out", help="...")`` are the primary motivators;
     Click ``@click.option(..., help=...)`` and Typer follow the same
     convention and are exempted by the same rule.
+
+    Positional arguments to diagnostic calls such as ``print()``,
+    ``logger.warning()``, and validator ``check()`` methods are also prose.
+    Command execution APIs are intentionally absent from ``_PROSE_CALLS``.
     """
     try:
         tree = ast.parse(content)
@@ -244,14 +268,13 @@ def _prose_lines(content: str) -> set[int]:
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
+        if _call_name(node) in _PROSE_CALLS:
+            for arg in node.args:
+                lines.update(_node_lines(arg))
         for kw in node.keywords:
             if kw.arg is None or kw.arg not in _PROSE_KWARGS:
                 continue
-            start = getattr(kw.value, "lineno", None)
-            end = getattr(kw.value, "end_lineno", start)
-            if start is None:
-                continue
-            lines.update(range(start, (end or start) + 1))
+            lines.update(_node_lines(kw.value))
     return lines
 
 
@@ -309,19 +332,15 @@ def _is_raw_string_regex(
 
 
 def _is_prose_string(token_text: str) -> bool:
-    """True when the string body reads as natural-language prose, not a path.
+    """True for multi-line templates and sentence-like string literals.
 
-    Real file-system paths passed to ``open()``, ``Path()``, or
-    ``subprocess`` do not contain spaces.  A string like ``"Extract
-    procedural logic to scripts/ subdirectory."`` or a multi-line README
-    template that mentions ``scripts/`` as a structural concept clearly is
-    not a path the program opens.  Exempting space-containing strings avoids
-    false positives for recommendation strings, error messages, and template
-    constants that name banned prefixes as concepts rather than targets.
+    A string like ``"Extract procedural logic to scripts/ subdirectory."``
+    or a multi-line README template names a structural concept, not a target
+    the program opens. Shell commands also contain spaces, so whitespace alone
+    cannot distinguish prose from executable input.
 
-    The check strips the string prefix (``r``, ``b``, ``f``, etc.) and outer
-    quotes before testing for a space, so it handles all literal forms.
-    Issue #4046.
+    The check strips the string prefix and outer quotes before testing for a
+    newline or sentence-ending punctuation. Issue #4046.
     """
     body = token_text.lstrip("ruRUbBfF")
     for q in ('"""', "'''", '"', "'"):
@@ -330,7 +349,7 @@ def _is_prose_string(token_text: str) -> bool:
             if body.endswith(q):
                 body = body[: -len(q)]
             break
-    return " " in body
+    return "\n" in body or body.rstrip().endswith((".", "!", "?"))
 
 
 def _first_banned_line(content: str) -> tuple[int, str] | None:
@@ -379,9 +398,10 @@ def collect_offenders(repo_root: Path) -> list[Offender]:
     offenders: list[Offender] = []
     for root in scan_roots(repo_root):
         for py_file in sorted(root.rglob("*.py")):
-            if "__pycache__" in py_file.parts:
+            relative_path = py_file.relative_to(repo_root)
+            if "__pycache__" in relative_path.parts:
                 continue
-            if "tests" in py_file.parts:
+            if "tests" in relative_path.parts:
                 # Test files run only in the development checkout where all
                 # upstream paths exist.  A hard-coded path in a test fixture
                 # cannot fail a consumer install, so these are excluded from
@@ -397,8 +417,7 @@ def collect_offenders(repo_root: Path) -> list[Offender]:
             if hit is None:
                 continue
             line_no, excerpt = hit
-            relpath = py_file.relative_to(repo_root).as_posix()
-            offenders.append(Offender(relpath, line_no, excerpt))
+            offenders.append(Offender(relative_path.as_posix(), line_no, excerpt))
     return offenders
 
 

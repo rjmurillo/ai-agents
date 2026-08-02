@@ -767,7 +767,7 @@ class TestRegexMetacharExemption:
 
 
 class TestProseStringExemption:
-    """Strings whose body contains spaces are treated as prose, not paths.
+    """Sentence-like and multi-line literals are treated as prose, not paths.
 
     Recommendation strings, error messages, and template constants that
     mention ``scripts/`` as a concept (not a path to open) should not be
@@ -784,12 +784,12 @@ class TestProseStringExemption:
         )
         assert cvp.collect_offenders(fake_repo) == []
 
-    def test_error_message_with_space_is_exempt(self, fake_repo: Path) -> None:
-        """An error message that mentions scripts/ as a concept is exempt."""
+    def test_diagnostic_message_without_punctuation_is_exempt(self, fake_repo: Path) -> None:
+        """A validator diagnostic may mention scripts/ without punctuation."""
         _write(
             fake_repo,
             ".claude/skills/foo/validate.py",
-            '"SKILL.md references scripts/ but no scripts directory exists"\n',
+            'self.check("presence", False, "scripts/ directory does not exist")\n',
         )
         assert cvp.collect_offenders(fake_repo) == []
 
@@ -806,6 +806,45 @@ class TestProseStringExemption:
             'result = open("scripts/run.py")\n',
         )
         offenders = cvp.collect_offenders(fake_repo)
+        assert len(offenders) == 1
+        assert offenders[0].relpath == ".claude/skills/foo/bad.py"
+
+    def test_shell_command_with_spaces_is_offender(self, fake_repo: Path) -> None:
+        """Spaces do not exempt a path passed to a shell command."""
+        _write(
+            fake_repo,
+            ".claude/skills/foo/bad.py",
+            'subprocess.run(".claude/lib/paths.py --check", shell=True)\n',
+        )
+
+        offenders = cvp.collect_offenders(fake_repo)
+
+        assert len(offenders) == 1
+        assert offenders[0].relpath == ".claude/skills/foo/bad.py"
+
+    def test_os_system_command_with_spaces_is_offender(self, fake_repo: Path) -> None:
+        """A command prefix before scripts/ remains visible to the gate."""
+        _write(
+            fake_repo,
+            ".claude/skills/foo/bad.py",
+            'os.system("python scripts/session_log.py")\n',
+        )
+
+        offenders = cvp.collect_offenders(fake_repo)
+
+        assert len(offenders) == 1
+        assert offenders[0].relpath == ".claude/skills/foo/bad.py"
+
+    def test_fstring_command_with_spaces_is_offender(self, fake_repo: Path) -> None:
+        """An f-string command does not become prose because it has spaces."""
+        _write(
+            fake_repo,
+            ".claude/skills/foo/bad.py",
+            'cmd = f"cat .agents/HANDOFF.md {mode}"\n',
+        )
+
+        offenders = cvp.collect_offenders(fake_repo)
+
         assert len(offenders) == 1
         assert offenders[0].relpath == ".claude/skills/foo/bad.py"
 
@@ -852,5 +891,19 @@ class TestTestsDirectoryExclusion:
             'path = "scripts/session_log.py"\n',
         )
         offenders = cvp.collect_offenders(fake_repo)
+        assert len(offenders) == 1
+        assert offenders[0].relpath == ".claude/skills/foo/scripts/worker.py"
+
+    def test_tests_ancestor_does_not_disable_scan(self, tmp_path: Path) -> None:
+        """Only repo-relative tests directories are excluded."""
+        repo_root = tmp_path / "tests" / "repo"
+        _write(
+            repo_root,
+            ".claude/skills/foo/scripts/worker.py",
+            'path = "scripts/session_log.py"\n',
+        )
+
+        offenders = cvp.collect_offenders(repo_root)
+
         assert len(offenders) == 1
         assert offenders[0].relpath == ".claude/skills/foo/scripts/worker.py"
