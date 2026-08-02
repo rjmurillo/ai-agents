@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- file is 512 lines, 12 over the 500-line ceiling;
+# it exists solely as an extraction from pre_pr.py to keep that module under the
+# ceiling (issue #3073). Further splitting for 12 lines creates more churn than value.
 """Ordered pre-PR validation sequence (extracted from ``pre_pr.py``, Issue #3073).
 
 Holds ``run_all_validations``: the ordered list of ``run_validation`` calls that

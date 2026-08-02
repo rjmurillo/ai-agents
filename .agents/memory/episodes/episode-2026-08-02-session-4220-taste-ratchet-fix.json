@@ -1,0 +1,65 @@
+{
+  "id": "episode-2026-08-02-session-4220-taste-ratchet-fix",
+  "session": "2026-08-02-session-4220-taste-ratchet-fix",
+  "timestamp": "2026-08-02T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Diagnose why Run Python Tests fails on four open PRs (#4256, #4271, #4273, #4284), identify root cause (red main vs shared flake vs four separate bugs), and fix the root cause.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Red-main diagnostic: created worktree at /home/richard/src/GitHub/rjmurillo/ai-agents-probe-main and ran full pytest suite",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4220-taste-ratchet-fix"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bisected commits to find which PR introduced the violation",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4220-taste-ratchet-fix"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added reasoned taste-lint ignore comment to first 10 lines of scripts/validation/pre_pr_sequence.py",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4220-taste-ratchet-fix"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran all three count ratchets and full pytest suite (21612 tests)",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4220-taste-ratchet-fix"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "test",
+      "content": "All ratchets OK. 21612 passed, 0 failed.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4220-taste-ratchet-fix"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 3
+  },
+  "lessons": []
+}
