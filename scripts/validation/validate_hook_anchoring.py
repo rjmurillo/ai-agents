@@ -339,7 +339,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  - {msg}")
         print()
         print("Fix: anchor every plugin hook to the plugin root.")
-        print("  Copilot: python3 build/scripts/build_all.py --platform copilot-cli")
+        print("  Copilot: uv run python build/scripts/build_all.py --platform copilot-cli")
         print("  Claude:  use ${CLAUDE_PLUGIN_ROOT}/hooks/... in .claude/hooks/hooks.json")
         return 1
     for msg in messages:

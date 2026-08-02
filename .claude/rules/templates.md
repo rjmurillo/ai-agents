@@ -10,7 +10,7 @@ priority: high
 
 ## MUST
 
-1. **Regenerate after edits**. Changes MUST be followed by running `python3 build/generate_agents.py` before commit. Uncommitted generator output is a protocol failure.
+1. **Regenerate after edits**. Changes MUST be followed by running `uv run python build/generate_agents.py` before commit. Uncommitted generator output is a protocol failure.
 2. **Commit generated output**. Regenerated files under `src/copilot-cli/agents/` and `src/vs-code-agents/` MUST be committed in the same PR as the template change. Those two are the only trees `build/generate_agents.py` writes; `src/claude/`, `.claude/agents/`, and `.github/agents/` are hand-maintained and the generator does not touch them (see `.agents/governance/GENERATOR-FILES.md`).
 3. **Toolset integrity**. Changes that add or remove tools MUST update `templates/toolsets.yaml` consistently.
 4. **Frontmatter fields**. Agent templates MUST keep required YAML frontmatter fields (`name`, `description`, `model`) present and valid per ADR-002.
