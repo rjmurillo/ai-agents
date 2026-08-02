@@ -13,9 +13,7 @@
       "type": "milestone",
       "content": "Reproduced the wrapper dependency gap on current main",
       "caused_by": [],
-      "leads_to": [
-        "e006"
-      ],
+      "leads_to": [],
       "_source_session": "2026-08-02-session-4234-fix-wrapper-interpreter-portability-4235"
     },
     {
@@ -24,9 +22,7 @@
       "type": "milestone",
       "content": "Added reachable sys.executable child tracing and exact diagnostics",
       "caused_by": [],
-      "leads_to": [
-        "e006"
-      ],
+      "leads_to": [],
       "_source_session": "2026-08-02-session-4234-fix-wrapper-interpreter-portability-4235"
     },
     {
@@ -35,9 +31,7 @@
       "type": "milestone",
       "content": "Ran the adr-review skill for SESSION-PROTOCOL.md",
       "caused_by": [],
-      "leads_to": [
-        "e006"
-      ],
+      "leads_to": [],
       "_source_session": "2026-08-02-session-4234-fix-wrapper-interpreter-portability-4235"
     },
     {
@@ -46,9 +40,7 @@
       "type": "milestone",
       "content": "Ran local release gates",
       "caused_by": [],
-      "leads_to": [
-        "e006"
-      ],
+      "leads_to": [],
       "_source_session": "2026-08-02-session-4234-fix-wrapper-interpreter-portability-4235"
     },
     {
@@ -56,25 +48,34 @@
       "timestamp": "2026-08-02T00:00:00+00:00",
       "type": "test",
       "content": "Ran local release gates   4   Taste count equals baseline 601. pre_pr.py reports 43 passed, 0 failed, 4 skipped.",
-      "caused_by": [],
-      "leads_to": [
-        "e006"
+      "caused_by": [
+        "e007"
       ],
+      "leads_to": [],
       "_source_session": "2026-08-02-session-4234-fix-wrapper-interpreter-portability-4235"
     },
     {
       "id": "e006",
-      "timestamp": "2026-08-02T17:56:48+00:00",
+      "timestamp": "2026-08-02T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 7d13d9848",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-02-session-4234-fix-wrapper-interpreter-portability-4235"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 4aacb3df3",
       "caused_by": [
-        "e001",
-        "e002",
-        "e003",
-        "e004",
+        "e006"
+      ],
+      "leads_to": [
         "e005"
       ],
-      "leads_to": [],
       "_source_session": "2026-08-02-session-4234-fix-wrapper-interpreter-portability-4235"
     }
   ],
@@ -83,7 +84,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 5
   },
   "lessons": []

@@ -74,12 +74,12 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All required session fields completed before commit."
+        "Evidence": "All MUST items verified and validation passed"
       },
       "handoffPreserved": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/HANDOFF.md remained unchanged as required by ADR-014."
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
@@ -89,17 +89,17 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Pre-commit markdown checks and pre_pr.py completed."
+        "Evidence": "No markdown files changed"
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Code commit 7d13d9848 created; protocol artifacts staged atomically."
+        "Evidence": "Five atomic commits through 4aacb3df3; each touched five or fewer files."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "58 targeted tests passed; pre_pr.py reports 43 passed and 0 failed."
+        "Evidence": "validate_session_json.py passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -110,6 +110,11 @@
         "level": "SHOULD",
         "Complete": false,
         "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
       }
     }
   },
@@ -135,7 +140,7 @@
       "result": "Taste count equals baseline 601. pre_pr.py reports 43 passed, 0 failed, 4 skipped."
     }
   ],
-  "endingCommit": "7d13d9848",
+  "endingCommit": "4aacb3df3",
   "nextSteps": [
     "Push the branch and open the follow-up pull request.",
     "Resolve CI and review findings before merge."
