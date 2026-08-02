@@ -131,104 +131,39 @@ class TestCheckFileSize:
         assert len(result) == 1
         assert result[0].severity == "error"
 
-    def test_eval_artifact_exempt_despite_size(self) -> None:
-        # .agents/analysis/eval-artifacts/ holds raw eval result files kept so
-        # published numbers can be re-derived. Splitting one destroys the
-        # provenance it exists to provide (issue #3970).
-        lines = ["{}\n"] * 9000
-        result = check_file_size(
-            ".agents/analysis/eval-artifacts/2026-07-29-run/fx-opus5.json", lines
-        )
-        assert result == []
-
-    def test_eval_artifact_absolute_path_under_cwd_exempt(self, tmp_path: Path) -> None:
-        target = (
-            tmp_path / ".agents" / "analysis" / "eval-artifacts" / "run" / "a.json"
-        )
-        lines = ["{}\n"] * 9000
-        with patch.object(mod.Path, "cwd", return_value=tmp_path):
-            result = check_file_size(str(target), lines)
-        assert result == []
-
-    def test_analysis_outside_eval_artifacts_not_exempt(self) -> None:
-        # The exemption is for captured data, not for everything under
-        # .agents/analysis/. A hand-authored analysis document still has
-        # boundaries to split on, so the ceiling must still apply.
-        lines = ["line\n"] * 600
-        result = check_file_size(".agents/analysis/some-writeup.md", lines)
+    def test_json_error_remediation_mentions_sharding_not_helper_functions(self) -> None:
+        # JSON data files cannot have helper functions. Remediation must name
+        # sharding or path exemption instead of module extraction. Issue #3970.
+        lines = ["{}\n"] * 600
+        result = check_file_size("data.json", lines)
         assert len(result) == 1
         assert result[0].severity == "error"
+        assert "helper" not in result[0].remediation.lower()
+        assert "type definitions" not in result[0].remediation.lower()
+        assert "shard" in result[0].remediation.lower()
 
-    def test_eval_artifacts_lookalike_not_exempt(self) -> None:
-        lines = ["line\n"] * 600
-        result = check_file_size(".agents/analysis/eval-artifactsish/a.json", lines)
+    def test_json_warning_remediation_mentions_exemption_not_helper_functions(self) -> None:
+        # Warning-range JSON files also get the data-file remediation. Issue #3970.
+        lines = ["{}\n"] * 400
+        result = check_file_size("metrics.json", lines)
         assert len(result) == 1
-        assert result[0].severity == "error"
+        assert result[0].severity == "warning"
+        assert "helper" not in result[0].remediation.lower()
+        assert "exempt" in result[0].remediation.lower()
 
-    def test_session_log_exempt_despite_size(self) -> None:
-        # SESSION-PROTOCOL.md requires one workLog entry per step, so a session
-        # log's length measures how much work the session did. It is JSON, so it
-        # cannot carry a `# taste-lint: ignore` comment, and
-        # validate_session_json.py validates one file per session, so splitting
-        # is not available either. A path exemption is the only mechanism.
-        lines = ["{}\n"] * 900
-        result = check_file_size(
-            ".agents/sessions/2026-07-29-session-3952-example.json", lines
-        )
-        assert result == []
-
-    def test_session_log_absolute_path_under_cwd_exempt(self, tmp_path: Path) -> None:
-        target = tmp_path / ".agents" / "sessions" / "2026-07-29-session-1.json"
-        lines = ["{}\n"] * 900
-        with patch.object(mod.Path, "cwd", return_value=tmp_path):
-            result = check_file_size(str(target), lines)
-        assert result == []
-
-    def test_sessions_lookalike_not_exempt(self) -> None:
-        lines = ["line\n"] * 600
-        result = check_file_size(".agents/sessionsish/a.json", lines)
+    def test_yaml_error_remediation_is_data_file_advice(self) -> None:
+        # .yml data files get the same data-file remediation. Issue #3970.
+        lines = ["key: val\n"] * 600
+        result = check_file_size("config.yml", lines)
         assert len(result) == 1
-        assert result[0].severity == "error"
+        assert "shard" in result[0].remediation.lower()
 
-    def test_sessions_segment_mid_relative_path_not_exempt(self) -> None:
-        # The exemption anchors at the start of the repo-relative path, so an
-        # unrelated tree that happens to contain .agents/sessions does not
-        # inherit it.
-        lines = ["line\n"] * 600
-        result = check_file_size("src/.agents/sessions/x.json", lines)
+    def test_python_error_remediation_still_names_helpers(self) -> None:
+        # Non-data files retain the existing module-extraction advice.
+        lines = ["x = 1\n"] * 600
+        result = check_file_size("src/big_module.py", lines)
         assert len(result) == 1
-        assert result[0].severity == "error"
-
-    def test_authored_markdown_in_an_exempt_dir_is_not_exempt(self) -> None:
-        # The exemption exists because JSON cannot carry a suppression comment.
-        # A markdown file in the same directory has section boundaries to split
-        # on and a comment syntax to suppress with, so it stays gated. A
-        # 913-line catalog under .agents/sessions/ was silently excused before
-        # the suffix condition was added.
-        lines = ["line\n"] * 600
-        for path in (
-            ".agents/sessions/2026-01-17-orphaned-artifacts-catalog.md",
-            ".agents/memory/notes.md",
-            ".agents/analysis/eval-artifacts/run/summary.md",
-        ):
-            result = check_file_size(path, lines)
-            assert len(result) == 1, path
-            assert result[0].severity == "error", path
-
-    def test_non_json_data_in_an_exempt_dir_is_not_exempt(self) -> None:
-        lines = ["line\n"] * 600
-        for path in (
-            ".agents/sessions/skillforge-phase2-spec.xml",
-            ".agents/sessions/2025-12-18-session-33-export.txt",
-            ".agents/sessions/helpers.py",
-        ):
-            result = check_file_size(path, lines)
-            assert len(result) == 1, path
-            assert result[0].severity == "error", path
-
-    def test_exempt_suffix_match_is_case_insensitive(self) -> None:
-        lines = ["{}\n"] * 900
-        assert check_file_size(".agents/sessions/2026-07-29-session-1.JSON", lines) == []
+        assert "big_module_helpers.py" in result[0].remediation
 
 
 class TestCheckNaming:

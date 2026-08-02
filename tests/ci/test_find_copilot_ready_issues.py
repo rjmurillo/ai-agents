@@ -107,20 +107,16 @@ def test_single_issue_writes_one_number(monkeypatch: pytest.MonkeyPatch, tmp_pat
 # ---------------------------------------------------------------------------
 
 
-def test_gh_failure_degrades_to_zero_issues(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """When gh fails, script exits 0 and writes count=0 (matches original pipeline behavior)."""
+def test_gh_failure_returns_exit_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """When gh fails the step must fail (match bash set -eo pipefail original)."""
     output_file = tmp_path / "output"
     output_file.write_text("")
     monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
     rec = _GhRecorder(returncode=1)
     _install(monkeypatch, rec)
-    assert main() == 0
-    # count=0 and issues= written on gh failure
-    content = output_file.read_text()
-    assert "count=0" in content
-    assert "issues=" in content
+    assert main() == find_copilot_ready_issues.EXIT_FAILURE
+    # No output should be written on failure
+    assert output_file.read_text() == ""
 
 
 # ---------------------------------------------------------------------------
@@ -172,3 +168,16 @@ def test_count_matches_number_list(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
     issues_val = issues_line[len("issues=") :]
     count_val = int(count_line[len("count=") :])
     assert count_val == len(issues_val.split())
+
+
+def test_gh_failure_exit_code_propagated(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Mutant guard: swallowing the gh error (returning EXIT_SUCCESS) must die."""
+    output_file = tmp_path / "output"
+    output_file.write_text("")
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
+    # gh exits 2 (auth failure); must propagate as EXIT_FAILURE
+    rec = _GhRecorder(returncode=2)
+    _install(monkeypatch, rec)
+    rc = main()
+    assert rc == find_copilot_ready_issues.EXIT_FAILURE
+    assert rc != find_copilot_ready_issues.EXIT_SUCCESS

@@ -10,7 +10,7 @@
     "Provider is copilot-cli, which needs no API key and reaches both ids",
     "through the operator's existing Copilot authentication. Model ids were",
     "verified live against the CLI, not copied from a catalog.",
-    "Usage: eval-model-panel.py --panel-config scripts/eval/panels/owner-copilot-cli.json"
+    "Usage: eval-model-panel.py --agents orchestrator --panel-config scripts/eval/panels/owner-copilot-cli.json"
   ],
   "tiers": [
     {

@@ -254,10 +254,9 @@ jobs:
       # learned to ignore, which is the same training signal that teaches people
       # to ignore the naming and complexity rules in the same output.
       #
-      # Enforcing outright is not viable: 613 error-severity violations exist.
-      # The total in scripts/ci/taste_count_baseline.txt must match exactly.
-      # Record a lower count after cleanup with
-      # `python scripts/ci/taste_count_ratchet.py --update`.
+      # Existing debt is capped by scripts/ci/taste_count_baseline.txt.
+      # Lower counts pass without rewriting that shared line. Use --update
+      # only when intentionally lowering the ceiling.
       #
       # This job hosts it for the same reason it hosts the workflow-YAML and
       # model-pin gates: taste-lints scans Markdown, YAML, JSON, shell, and

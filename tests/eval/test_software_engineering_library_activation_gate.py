@@ -352,3 +352,40 @@ class TestTheAlertBodyIsScratchAndNotRepositoryState:
         ci.alert_issue()
 
         assert paths and not paths[0].exists()
+
+
+class TestAMeasurementFailureDoesNotCountAsRuleUnderperformance:
+    """Only a verdict about the rule may advance the rollback streak.
+
+    `FAIL_ROUTE_MISSED_TARGET` says the run never opened the target reference,
+    so it carries no evidence about the rule at all. Counting it would retire a
+    rule for the harness's routing imprecision. The same reasoning already
+    keeps the coverage and over-activation verdicts out of the set.
+    """
+
+    MEASUREMENT_VERDICTS = (
+        "FAIL_ROUTE_MISSED_TARGET",
+        "FAIL_POSITIVE_INCOMPLETE",
+        "FAIL_NEGATIVE_INCOMPLETE",
+        "FAIL_OVER_ACTIVATION",
+        "FAIL_JUDGE_ERRORS",
+        # Asymmetric with NO_POSITIVE_CASES on purpose, and the asymmetry is
+        # the rollback action rather than the verdict shape. Rollback restores
+        # the always-on rule. That remediates "we cannot show the skill
+        # activates". It cannot remediate "we cannot show the skill restrains",
+        # because an always-on rule fires on everything and is the least
+        # restrained state available. Counting it would retire a skill for a
+        # missing scenario, in the direction that makes the concern worse.
+        "NO_NEGATIVE_CASES",
+    )
+
+    @pytest.mark.parametrize("verdict", MEASUREMENT_VERDICTS)
+    def test_a_measurement_verdict_never_advances_the_streak(self, verdict):
+        gate = _load_gate_module()
+        assert verdict not in gate.ROLLBACK_VERDICTS
+
+    def test_a_verdict_about_the_rule_still_advances_the_streak(self):
+        """Guard against a fix that empties the set instead of scoping it."""
+        gate = _load_gate_module()
+        assert {"FAIL_THRESHOLD", "FAIL_NO_DELTA"} <= gate.ROLLBACK_VERDICTS
+

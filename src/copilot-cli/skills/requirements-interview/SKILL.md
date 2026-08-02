@@ -23,7 +23,6 @@ When this skill activates, you become an adversarial requirements interviewer. T
 | `grill me on the requirements` | Refining a vague spec |
 | `walk the design tree` | Surfacing dependent decisions |
 | `stress-test this idea` | Pre-implementation validation |
-| Auto-invoked from `/spec` | Default front door for new work |
 
 ## Inputs
 

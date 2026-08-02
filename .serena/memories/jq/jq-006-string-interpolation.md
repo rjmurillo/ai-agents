@@ -9,24 +9,24 @@
 ```bash
 # Basic interpolation
 gh pr list --json number,title \
-  --jq -r '.[] | "#\(.number): \(.title)"'
+  --jq '.[] | "#\(.number): \(.title)"'
 # Output: #123: Fix bug
 
 # Multi-field formatting
 gh issue list --json number,title,state \
-  --jq -r '.[] | "[\(.state)] #\(.number) - \(.title)"'
+  --jq '.[] | "[\(.state)] #\(.number) - \(.title)"'
 
 # With conditionals
-gh pr list --json number,draft \
-  --jq -r '.[] | "#\(.number) \(if .draft then "(DRAFT)" else "" end)"'
+gh pr list --json number,isDraft \
+  --jq '.[] | "#\(.number) \(if .isDraft then "(DRAFT)" else "" end)"'
 
 # Building URLs
 gh pr list --json number \
-  --jq -r '.[] | "https://github.com/owner/repo/pull/\(.number)"'
+  --jq '.[] | "https://github.com/owner/repo/pull/\(.number)"'
 
 # Tab-separated for shell parsing
 gh issue list --json number,title,state \
-  --jq -r '.[] | "\(.number)\t\(.title)\t\(.state)"'
+  --jq '.[] | "\(.number)\t\(.title)\t\(.state)"'
 ```
 
 **Atomicity**: 93%
