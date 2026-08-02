@@ -12,7 +12,10 @@ that both fail loudly at commit time.
 Scoped to `.agents/**` rather than `**` on purpose. Both rules fire only when a
 change touches that tree, and the always-on instruction ceiling
 (`scripts/validation/instruction_budget.py`) has under 500 bytes of headroom, so
-a universally scoped copy would block the next contributor's rule.
+a universally scoped copy would block the next contributor's rule. Note that the
+generator currently ships this rule to the plugin with `applyTo: '**'`, because
+`.agents/**` is filtered as internal-only and the empty scope is backfilled as
+universal; that is issue #4317, not a property of this rule.
 
 ## MUST
 
@@ -23,13 +26,17 @@ a universally scoped copy would block the next contributor's rule.
    `ERROR: staged .agents changes require a JSON session log` otherwise. It runs
    on every `.agents/**` path, not only on work long enough to feel like a
    session. Writing the log afterwards does not clear the rejection; the log and
-   the change must land together.
+   the change must land together. One exception: a merge in progress skips the
+   check, both at the hook (`lefthook.yml`, `skip: [merge]`) and in the checker
+   (`check_sessions` returns 0 when `_merge_in_progress`).
 
 2. **Record `endingCommit` in a follow-up commit, never by amending.** Amending
    replaces the commit whose SHA the log names, so `validate_session_json.py`
    then reports the recorded SHA as unreachable (issue #3618). Commit the work
    with `endingCommit` empty, which is only a warning, then commit the SHA in a
-   second commit.
+   second commit. The reachability check returns no finding in a shallow clone
+   (`session_scope.py` short-circuits when `--is-shallow-repository` is true), so
+   a green CI run on a shallow checkout is not evidence the SHA is reachable.
 
 ## References
 
