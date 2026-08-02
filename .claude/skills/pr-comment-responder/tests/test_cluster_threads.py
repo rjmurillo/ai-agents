@@ -21,9 +21,9 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 
 _SCRIPT = os.path.join(
     os.path.dirname(__file__), "..", "scripts", "cluster_threads.py",
@@ -557,3 +557,60 @@ class TestResolveLibDir:
             assert exc.code == 3
         else:
             raise AssertionError("expected SystemExit")
+
+    def test_falls_through_when_copilot_plugin_root_lib_missing(self, monkeypatch):
+        """When COPILOT_PLUGIN_ROOT/lib does not exist, fall through to next candidate.
+
+        Regression guard for issue #4270: when the Copilot CLI host sets
+        COPILOT_PLUGIN_ROOT to the context-mode plugin path, its lib/ does not
+        exist. The function must not exit 2 at that point; it must continue to
+        CLAUDE_PLUGIN_ROOT or the relative-path fallback.
+        """
+        mod = _load_module()
+        monkeypatch.setenv("COPILOT_PLUGIN_ROOT", "/wrong/context-mode/plugin")
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", "claude-root")
+        monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
+        monkeypatch.setattr(
+            os.path,
+            "isdir",
+            lambda path: path == "claude-root/lib",
+        )
+        assert mod._resolve_lib_dir() == "claude-root/lib"
+
+    def test_falls_through_to_relative_path_when_all_env_vars_missing(
+        self, monkeypatch, tmp_path
+    ):
+        """Falls through to relative-path candidate when no env vars are set."""
+        mod = _load_module()
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+        monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
+        monkeypatch.setattr(os.path, "isdir", lambda path: path == str(tmp_path))
+        import importlib.util as ilu
+
+        script_path = (
+            Path(__file__).resolve().parents[1]
+            / "scripts"
+            / "cluster_threads.py"
+        )
+        spec = ilu.spec_from_file_location("_ct_fresh", script_path)
+        fresh_mod = ilu.module_from_spec(spec)
+        expected = os.path.abspath(
+            os.path.join(str(script_path.parent), "..", "..", "..", "lib")
+        )
+        monkeypatch.setattr(os.path, "isdir", lambda path: path == expected)
+        assert mod._resolve_lib_dir() == expected
+
+    def test_exits_2_when_no_candidate_exists(self, monkeypatch):
+        """Exits 2 when every candidate lib directory is absent."""
+        mod = _load_module()
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+        monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
+        monkeypatch.setattr(os.path, "isdir", lambda path: False)
+        try:
+            mod._resolve_lib_dir()
+        except SystemExit as exc:
+            assert exc.code == 2
+        else:
+            raise AssertionError("expected SystemExit(2)")
