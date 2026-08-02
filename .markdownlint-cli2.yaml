@@ -113,7 +113,14 @@ ignores:
   - "ai_agents.egg-info/**"
   - "dist/**"
   # Worktrees are duplicate working copies, not unique source.
+  # All gitignored root shapes must be listed here; see .gitignore and issue #4248.
   - ".claude/worktrees/**"
+  - "worktree-*/**"
+  - "worktree--/**"
+  - "wt_*/**"
+  - ".wt/**"
+  - ".worktrees/**"
+  - ".work-*/**"
   # Internal tooling outputs and provider caches: not authored .md.
   - ".agents/**"
   - ".serena/**"
