@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Ten atomic commits through 2347c45ea; each touched five or fewer files."
+        "Evidence": "Eleven atomic commits through ce3ae7ca3; each touched five or fewer files."
       },
       "validationPassed": {
         "level": "MUST",
@@ -140,7 +140,7 @@
       "result": "Taste count matches baseline 600. pre_pr.py reports 43 passed, 0 failed, 4 skipped."
     }
   ],
-  "endingCommit": "2347c45ea",
+  "endingCommit": "ce3ae7ca3",
   "nextSteps": [
     "Push the branch and open the follow-up pull request.",
     "Resolve CI and review findings before merge."
