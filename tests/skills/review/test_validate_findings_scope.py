@@ -248,7 +248,7 @@ class TestCLISubprocess:
             [sys.executable, str(SCRIPT_PATH), "--base-branch", "nonexistent-branch-xyz"],
             input="No findings. Verdict: PASS\n",
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
         )
         # git diff will fail for a nonexistent branch -> graceful degrade -> exit 0
         assert result.returncode == 0
@@ -257,7 +257,7 @@ class TestCLISubprocess:
         result = subprocess.run(
             [sys.executable, str(SCRIPT_PATH), "--help"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
         )
         assert result.returncode == 0
         assert "validate" in result.stdout.lower() or "worktree" in result.stdout.lower()

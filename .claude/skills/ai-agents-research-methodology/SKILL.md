@@ -71,7 +71,7 @@ made after seeing the data is a description, not a test. Concretely:
 2. Validate the setup with zero spend first:
 
    ```bash
-   python3 scripts/eval/eval-prompt-change.py \
+   uv run python scripts/eval/eval-prompt-change.py \
      --prompt templates/agents/analyst.shared.md \
      --scenarios tests/evals/analyst-scenarios.json \
      --base-ref main --dry-run
@@ -185,8 +185,7 @@ memory, eval numbers, ADR (if governance), calibrated gate, monitoring hook.
 
 Retirement gets recorded, never silenced. The exemplar is issue #2230: a
 launcher-level fail-open wrapper was proposed, evaluated, and REJECTED as a
-silent-failure anti-pattern; the rejection is recorded with rationale in the
-`#2205` retro decision table
+silent-failure anti-pattern; the rejection is recorded with rationale in the #2205 retro decision table
 (.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:411) and
 the binding principle lives in `.claude/rules/generated-artifacts.md`. Because
 the rejection was written down, nobody re-proposes it. An unrecorded rejection
@@ -206,11 +205,11 @@ is a future duplicate proposal.
 
 ## Where Good Ideas Historically Came From
 
-- **Retro mining.** `.agents/retrospective/` is the
+- **Retro mining.** `.agents/retrospective/` (95 files as of 2026-07-03) is the
   richest vein; `ai-agents-failure-archaeology` indexes the major ones.
-  Current squash-only merge policy leaves most PR-branch SHAs off `main`.
-  Verify ancestry first, then use retros and memories as the archaeology
-  surface.
+  Retro-cited short SHAs do not resolve locally even with full history present
+  (~1471 commits as of 2026-07-03), so retros and memories, not `git log`,
+  are the archaeology surface.
 - **User corrections.** Every "no" or "wrong" is a candidate pattern; the
   `reflect` skill captures them with confidence levels.
 - **Incident postmortems.** The `retrospective` skill turns an incident into
@@ -267,14 +266,14 @@ volatile facts:
 | Fact | Source | Re-verify |
 |---|---|---|
 | Verification-based enforcement wording | `.agents/SESSION-PROTOCOL.md:30-37` | `sed -n '30,40p' .agents/SESSION-PROTOCOL.md` |
-| #1989 false premise, calibration rule, M4 numbers | `.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:20,72-73,149-157` | `sed -n '20p;72,73p;149,157p' .agents/retrospective/2026-05-10-pr-1989-recursive-failure.md` |
+| #1989 false premise, calibration rule, M4 numbers | `.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:20,72-73,149-157` | `grep -n "calibrat" .agents/retrospective/2026-05-10-pr-1989-recursive-failure.md` |
 | #2230 rejection record | `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:411` | `grep -n 2230 .agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` |
 | adr-review auto-fire + 6-agent debate | AGENTS.md "ADR Review"; `.claude/skills/adr-review/SKILL.md` | `grep -n "debate" .claude/skills/adr-review/SKILL.md` |
-| buy-vs-build Quick tier gate + 13wk prune | `AGENTS.md:39`; `.claude/skills/buy-vs-build-framework/SKILL.md:65` | `grep -n "13" AGENTS.md` |
-| eval scripts and `--dry-run` | `scripts/eval/eval-prompt-change.py:572`; `scripts/eval/` listing | `ls scripts/eval/ && grep -n "dry-run" scripts/eval/eval-prompt-change.py` |
+| buy-vs-build Quick tier gate + 13wk prune | `AGENTS.md:40`; `.claude/skills/buy-vs-build-framework/SKILL.md:66` | `grep -n "13" AGENTS.md` |
+| eval scripts and `--dry-run` | `scripts/eval/eval-prompt-change.py:567`; `scripts/eval/` listing | `ls scripts/eval/ && grep -n "dry-run" scripts/eval/eval-prompt-change.py` |
 | Contradiction log format | `.claude/rules/search-before-building.md` | `grep -n "decision-" .claude/rules/search-before-building.md` |
 | ADR-069 still proposed | `.agents/architecture/ADR-069-context-corpus-is-the-product.md:2` | `head -5 .agents/architecture/ADR-069-context-corpus-is-the-product.md` |
-| Retro corpus size (121 files as of 2026-07-30) | `.agents/retrospective/` | `set -- .agents/retrospective/*.md; echo $#` |
+| Retro corpus size (95 files) | `.agents/retrospective/` | `ls .agents/retrospective/ \| wc -l` |
 | guard-maturity tiers | `.claude/skills/guard-maturity/SKILL.md` | `grep -n "Budding" .claude/skills/guard-maturity/SKILL.md` |
 
 Uncertainty flag: the `EVENT=` telemetry consumer pipeline beyond the

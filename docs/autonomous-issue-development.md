@@ -246,10 +246,21 @@ git checkout -b feat/{number}-description
 gh pr list --search "{number} in:title" --state all --json number,title,state
 
 # Create PR referencing issue
-# DANGER: If the PR title is constructed from untrusted input (like a GitHub issue title),
-# it can lead to command injection if it contains shell metacharacters like `$(...)`.
-# Use `read -r` to safely read the title into a variable.
-read -r pr_title < <(gh issue view {number} --json title --jq -r .title)
+# The issue title is untrusted input. The control is passing it as one quoted
+# argument and never routing it through eval or sh -c: expanding a variable
+# does not re-run command substitution, so $(...) and backticks in a title
+# reach gh as literal text. Dropping the quotes word-splits the title rather
+# than executing it. read -r only stops backslash mangling; it is not the
+# injection control. Capture the command status and reject an empty title
+# before creating the PR.
+if ! pr_title=$(gh issue view {number} --json title --jq '.title'); then
+  echo "ERROR: could not read issue #{number}" >&2
+  exit 1
+fi
+if [[ -z "$pr_title" ]]; then
+  echo "ERROR: issue #{number} has an empty title" >&2
+  exit 1
+fi
 gh pr create --title "feat: ${pr_title}" --body "Fixes #{number}"
 
 # Run PR review after creation
@@ -424,10 +435,12 @@ git push
 
 **Resolution**:
 
-1. Run `python3 scripts/validate_session_json.py .agents/sessions/[log].json`
+1. Run `uv run python scripts/validate_session_json.py .agents/sessions/[log].json`
 2. Address each validation error (QA report, evidence, etc.)
 3. For documentation-only changes, ensure no code file patterns detected
-4. If false positive, document justification and use `--no-verify` with explanation
+4. If it is a false positive, fix the validator rather than the symptom, and say so in the
+   PR. Do not reach for `--no-verify`: `.claude/rules/universal.md` MUST NOT #2 forbids
+   skipping hooks, and a gate that is wrong for one contributor is wrong for all of them.
 
 ## Prerequisites
 

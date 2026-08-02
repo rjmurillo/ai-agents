@@ -6,7 +6,7 @@ When an ADR file is deleted, this skill triggers a special workflow.
 
 ```bash
 # Script detects deleted ADR files
-python3 .claude/skills/adr-review/scripts/detect_adr_changes.py
+uv run python .claude/skills/adr-review/scripts/detect_adr_changes.py
 
 # Output includes:
 # - Deleted file path

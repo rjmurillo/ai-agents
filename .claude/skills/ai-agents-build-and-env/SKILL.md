@@ -17,9 +17,9 @@ license: MIT
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
 Recreate a working dev environment for this repository from a fresh clone, verify
 it actually works, and avoid the traps that have cost prior contributors real
-time. Audience: a zero-context mid-level engineer or Sonnet-class model. Authored
-2026-07-03, with commands re-executed read-only against the repo on 2026-07-30.
-The Provenance section gives a re-verification one-liner for each volatile fact.
+time. Audience: a zero-context mid-level engineer or Sonnet-class model. Every
+command below was verified against the repo on 2026-07-03; the Provenance section
+gives a re-verification one-liner for each volatile fact.
 
 ## Triggers
 
@@ -36,7 +36,7 @@ siblings:
 
 | You want | Use instead |
 |----------|-------------|
-| Regenerate mirrors, bump plugin versions, release | `ai-agents-generation-and-release` |
+| Regenerate mirrors, run the drift gates, release | `ai-agents-generation-and-release` |
 | Understand what counts as test evidence, run CI-equivalent gates | `ai-agents-validation-and-qa` |
 | Full catalog of env vars, skip markers, escape hatches | `ai-agents-config-catalog` |
 | Triage a failing hook, gate, or test | `ai-agents-debugging-playbook` |
@@ -104,7 +104,7 @@ uv run pytest tests/test_paths.py --collect-only -q
 # expect: "28 tests collected" (count as of 2026-07-03)
 
 uv run python -c "import yaml; print(yaml.__version__)"
-# expect: 6.0.3 (PyYAML pin in pyproject.toml:14)
+# expect: 6.0.3 (PyYAML pin in pyproject.toml:13)
 ```
 
 ### Phase 4: MCP Layer
@@ -116,7 +116,7 @@ and fill keys (`ANTHROPIC_API_KEY`, `PERPLEXITY_API_KEY`, `TAVILY_API_KEY`,
 
 | Server | Transport | Role | When absent |
 |--------|-----------|------|-------------|
-| serena | stdio, `uvx --from git+https://github.com/oraios/serena` (port 24282, context claude-code) | Canonical memory (ADR-007) plus LSP symbol navigation | Memories stay readable as plain files under `.serena/memories/`. The LSP read gate that could misfire on code files was retired in #3216 |
+| serena | stdio, `uvx --from git+https://github.com/oraios/serena` (port 24282, context claude-code) | Canonical memory (ADR-007) plus LSP symbol navigation | Memories stay readable as plain files under `.serena/memories/` (122 files as of 2026-07-03). The LSP read gate that could misfire on code files was retired in #3216 |
 | forgetful | stdio, `uvx forgetful-ai` | Supplementary semantic memory search | ADR-007 fallback: use the Serena `memory-index` memory for keyword discovery. MUST NOT block work or skip memory retrieval because Forgetful is down (ADR-007 "Graceful degradation") |
 | deepwiki | http, `https://mcp.deepwiki.com/mcp` | External GitHub repo documentation | No local impact; fall back to web search |
 
@@ -141,7 +141,7 @@ Each row verified 2026-07-03. Longer stories live with the sibling skills
 
 | Trap | Symptom | Fix |
 |------|---------|-----|
-| CONTRIBUTING.md build commands were DEAD before PR #2871 | `CONTRIBUTING.md:155` said `build/Generate-Agents.ps1` PowerShell invocation until PR #2871 repointed it to `python3 build/generate_agents.py`; zero `.ps1` files exist in the repo (ADR-042) | Real commands: `python3 build/generate_agents.py` and `python3 build/scripts/build_all.py` |
+| CONTRIBUTING.md build commands were DEAD before PR #2871 | `CONTRIBUTING.md:155` said `build/Generate-Agents.ps1` PowerShell invocation until PR #2871 repointed it to `build/generate_agents.py`; zero `.ps1` files exist in the repo (ADR-042) | Real commands: `uv run python build/generate_agents.py` and `uv run python build/scripts/build_all.py` |
 | PEP 668: bare pip fails | `pip install X` errors with externally-managed-environment on uv-managed interpreters | Everything goes through uv: `uv sync`, `uv add`, `uv run` (`scripts/bootstrap-vm.sh:118-123`) |
 | Skill scripts need the project venv | `.claude/skills/github/scripts/pr/*.py` import `github_core`, which imports `yaml` at load; bare `python3` throws `ModuleNotFoundError: No module named 'yaml'` unless `.venv/bin` is first on PATH (bootstrap-vm.sh arranges that; a manual setup usually does not) | Run skill scripts with `uv run python`, which resolves the venv deterministically |
 | Moving a worktree leaves the uv shebangs stale | Direct `.venv/bin/pytest` fails with "bad interpreter" after `mv`; the shebangs in `.venv/bin/*` (POSIX) or `.venv/Scripts/*` (Windows) still name the old worktree path (issue #3170) | Run `scripts/maintenance/repair_worktree_venv.py` with `uv run python` (or `uv sync --frozen --extra dev --reinstall`: `--reinstall` recreates the launchers a bare `--frozen` sync would leave stale, `--extra dev` keeps pytest/ruff/mypy, `--frozen` matches CI); prefer `uv run python -m pytest` for move-safe validation |
@@ -183,30 +183,30 @@ The 15-minute smoke checklist. All boxes checked means the environment works.
 
 ## Provenance and Maintenance
 
-Authored 2026-07-03. All commands in this file were re-executed read-only
-against the repo on 2026-07-30. Re-verify volatile facts before trusting them:
+Authored 2026-07-03. All commands in this file were executed read-only against
+the repo on that date. Re-verify volatile facts before trusting them:
 
 | Fact | Source | Re-verify |
 |------|--------|-----------|
 | Python pin 3.14.6 | `.python-version` | `cat .python-version` |
 | `requires-python >=3.14` install floor | `pyproject.toml:6` | `grep -n requires-python pyproject.toml` |
 | Syntax-gate hook floor 3.10 (separate from install floor) | `scripts/validation/validate_python_syntax.py` `_SUPPORT_FLOOR` | `grep -n _SUPPORT_FLOOR scripts/validation/validate_python_syntax.py` |
-| PyYAML 6.0.3 pin | `pyproject.toml:14` | `grep -n PyYAML pyproject.toml` |
-| `uv sync --frozen --extra dev` is the canonical sync | `scripts/bootstrap-vm.sh:113` | `grep -n "uv sync --frozen" scripts/bootstrap-vm.sh` |
+| PyYAML 6.0.3 pin | `pyproject.toml:13` | `grep -n PyYAML pyproject.toml` |
+| `uv sync --frozen --extra dev` is the canonical sync | `scripts/bootstrap-vm.sh:114` | `grep -n "uv sync --frozen" scripts/bootstrap-vm.sh` |
 | Node 22 LTS | `scripts/bootstrap-vm.sh:40` | `grep -n NODE_MAJOR scripts/bootstrap-vm.sh` |
-| PowerShell 7.5+, gh 2.60+ floors | AGENTS.md Stack section | `grep -n "floor:" AGENTS.md` prints every floor on one line |
+| pwsh 7.5.4+, gh 2.60+ floors | AGENTS.md Stack section | `grep -n "gh 2.60" AGENTS.md` |
 | Zero .ps1 files (ADR-042) | repo tree | `git ls-files "*.ps1"` prints nothing |
-| No pwsh commands left in CONTRIBUTING (removed in b320f4ac1) | `CONTRIBUTING.md` | `grep -c pwsh CONTRIBUTING.md` prints 0 |
+| Stale pwsh commands | `CONTRIBUTING.md:155,741` | `grep -n pwsh CONTRIBUTING.md` |
 | Git hook jobs, filters, and validators | `lefthook.yml` | `uv run --frozen lefthook validate` |
 | MCP servers serena/deepwiki/forgetful | `.mcp.json` | `cat .mcp.json` |
 | .env key names | `.env.example` | `cat .env.example` |
 | Forgetful fallback table | `ADR-007` (`.agents/architecture/ADR-007-memory-first-architecture.md:108-130`) | `grep -n "Graceful degradation" .agents/architecture/ADR-007-memory-first-architecture.md` |
 | LF enforcement rationale | `.gitattributes:59` and header comments | `grep -n "eol=lf" .gitattributes` |
-| Serena Markdown memory file count (879 as of 2026-07-30) | `.serena/memories/` | `python3 -c "from pathlib import Path; print(sum(1 for p in Path('.serena/memories').rglob('*.md') if p.is_file()))"` |
+| Serena memory file count (122) | `.serena/memories/` | `ls .serena/memories/ \| wc -l` |
 | tests/test_paths.py count (28) | pytest | `uv run pytest tests/test_paths.py --collect-only -q` |
-| uv TLS var rename | uv 0.11.26 runtime warning | `UV_NATIVE_TLS=1 uv run python -c pass 2>&1` prints a deprecation warning naming UV_SYSTEM_CERTS |
+| uv TLS var rename | uv 0.11.26 runtime warning | `uv run python -c pass` under `UV_NATIVE_TLS` |
 
 Maintenance rule: if any re-verify command disagrees with this file, the repo
-won. Update this skill in the same PR that changes the underlying fact, and bump
-`.claude-plugin/plugin.json` per the plugin version rule (see
+won. Update this skill in the same PR that changes the underlying fact. Do not
+touch `.claude-plugin/plugin.json`: the manifests carry no version (ADR-092, see
 `ai-agents-change-control`).

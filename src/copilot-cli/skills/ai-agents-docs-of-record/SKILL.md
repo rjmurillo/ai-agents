@@ -121,16 +121,14 @@ artifact (timeline, Five Whys, learning matrix) in `.agents/retrospective/`.
 
 Retrospectives are written on demand: `/retro` here, plus the Post-PR
 Retrospective workflow in CI. Until #3349 a Stop hook also wrote a skeleton
-at session end stamped `<!-- RETRO-STATE: skeleton-pending-fill -->` (Issue
-`#2079`); that hook is deleted, but skeletons it already wrote are still
+at session end stamped `<!-- RETRO-STATE: skeleton-pending-fill -->` (Issue #2079); that hook is deleted, but skeletons it already wrote are still
 placeholders rather than records, so fill them with `/retro fill YYYY-MM-DD`.
 
-`INDEX.md` was auto-appended by that hook (Issue #1703) and is incomplete: 9
-rows against 121 retro files as of 2026-07-30. Nothing appends to it now.
-Never treat INDEX.md as the catalog; list the directory. Under the current
-squash-only policy, PR-branch SHAs do not land on `main`. One merge commit
-predates that policy (`0f13c85ab`, PR #1, 2025-12-13), so verify ancestry.
-Retros and memories, not git archaeology, are the durable history (depth in
+`INDEX.md` was auto-appended by that hook (Issue #1703) and is incomplete: 5
+rows against 95 retro files as of 2026-07-03. Nothing appends to it now.
+Never treat INDEX.md as the catalog; list the directory. Also note retro-cited short SHAs do not resolve
+locally even with full history present (~1471 commits as of 2026-07-03), so
+retros and memories, not git archaeology, are the durable history (depth in
 `ai-agents-failure-archaeology`).
 
 Retro learnings MUST be persisted to Serena in the same session, not left as
@@ -217,7 +215,7 @@ on confident-incorrectness claims.
 
 Fix stale docs on contact. Worked example from before PR #2871:
 `CONTRIBUTING.md` line 155 said `build/Generate-Agents.ps1` PowerShell invocation until PR #2871
-repointed it to `python3 build/generate_agents.py`. Zero `.ps1` build scripts
+repointed it to `build/generate_agents.py`. Zero `.ps1` build scripts
 exist (ADR-042 Python migration). When you touch a stale doc: fix the lines on
 your path, quote the canonical source per FM-9, and flag (do not silently expand
 into) the rest. Behavioral claims in docs are verified with `doc-accuracy`.
@@ -233,7 +231,7 @@ into) the rest. Behavioral claims in docs are verified with `doc-accuracy`.
 | Bundling memory changes with skill code in one PR | Violates `claude-agents.md` MUST NOT 2; scope explosion | PR #908 retro |
 | "Matches X" without a verbatim quote | FM-9 confident-incorrectness; 7 fix commits on PR #1887 | FAILURE-MODES.md section 9 |
 | Leaving learnings only in the retro artifact | Never read by future sessions | `retrospective-accuracy` memory |
-| Treating INDEX.md or `git log` as complete history | 9 index rows vs 121 retro files as of 2026-07-30; retro-cited SHAs are not reachable from `main` | Phase 4 |
+| Treating INDEX.md or `git log` as complete history | 5 index rows vs 95 retro files; retro-cited SHAs do not resolve locally | Phase 4 |
 | `git checkout --ours` on session-log conflicts | Corrupted the main session log once | session 1187 incident |
 | Em/en dashes, banned vocab, generated headers | One bot thread per dash, every PR | universal.md MUST NOT 5 and 6 |
 
@@ -269,7 +267,7 @@ relying on them:
 | Handoff tiers, HANDOFF.md 5K cap | `.agents/sessions/handoffs/README.md` tier table; ADR-014 | `grep -n "5K hard cap" .agents/sessions/handoffs/README.md` |
 | FM-9 verbatim-quote rule | `.agents/governance/FAILURE-MODES.md:284-307` | `grep -n "character-for-character" .agents/governance/FAILURE-MODES.md` |
 | PR #908 lint scope story | `.agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md:281-296` | `grep -n "markdownlint" .agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md` |
-| CONTRIBUTING.md pre-PR #2871 staleness example | PR #2871 repointed `CONTRIBUTING.md` to `python3 build/generate_agents.py` | `git show b320f4ac1 -- CONTRIBUTING.md` |
+| CONTRIBUTING.md pre-PR #2871 staleness example | PR #2871 repointed `CONTRIBUTING.md` to `build/generate_agents.py` | `git show b320f4ac1 -- CONTRIBUTING.md` |
 | Serena canonical, Forgetful supplementary | `.agents/architecture/ADR-007-memory-first-architecture.md:83-102` | `grep -n "Canonical" .agents/architecture/ADR-007-memory-first-architecture.md` |
 
 Maintenance: when a validator, template path, or protocol phase changes, update

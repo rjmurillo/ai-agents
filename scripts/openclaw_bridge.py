@@ -6,9 +6,10 @@ and generates an OpenClaw workspace with AGENTS.md routing table and
 per-agent SOUL.md skill stubs.
 
 Usage:
-    python3 scripts/openclaw_bridge.py --agents-dir src/claude --output-dir ./openclaw-workspace
-    python3 scripts/openclaw_bridge.py --dry-run
-    python3 scripts/openclaw_bridge.py --format json
+    uv run python scripts/openclaw_bridge.py \\
+        --agents-dir src/claude --output-dir ./openclaw-workspace
+    uv run python scripts/openclaw_bridge.py --dry-run
+    uv run python scripts/openclaw_bridge.py --format json
 
 Exit Codes:
     0: Success
@@ -28,9 +29,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 import frontmatter
+import yaml
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -211,7 +211,9 @@ def generate_skill_md(agent: AgentDefinition) -> str:
         "",
         f"- **Model**: `{model}`",
         f"- **Role**: {_TIER_TO_OPENCLAW_ROLE.get(agent.tier, agent.tier)}",
-        f"- **Source**: ai-agents (`{agent.source_path}`)" if agent.source_path else f"- **Source**: ai-agents ({agent.name})",
+        f"- **Source**: ai-agents (`{agent.source_path}`)"
+        if agent.source_path
+        else f"- **Source**: ai-agents ({agent.name})",
         "",
     ]
 

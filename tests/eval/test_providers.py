@@ -145,6 +145,7 @@ def test_openai_provider_folds_system_into_leading_message(
     )
 
     sent = captured[0].recorder[0]["messages"]
+    assert isinstance(sent, list)
     assert sent[0] == {"role": "system", "content": "be terse"}
     assert sent[1] == {"role": "user", "content": "hello"}
 
@@ -154,9 +155,7 @@ def test_openai_provider_returns_message_content(
 ) -> None:
     provider = _providers.resolve_provider("openai")
 
-    result = provider.complete(
-        messages=[{"role": "user", "content": "hi"}], model="gpt-4o"
-    )
+    result = provider.complete(messages=[{"role": "user", "content": "hi"}], model="gpt-4o")
 
     assert result == "answer-for-gpt-4o"
 
@@ -214,9 +213,7 @@ def test_openai_provider_captures_system_fingerprint(
 def test_openai_provider_tolerates_missing_system_fingerprint(
     fake_openai: type[_FakeOpenAI], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def _return_without_fingerprint(
-        self: _FakeCompletions, **kwargs: object
-    ) -> _FakeResponse:
+    def _return_without_fingerprint(self: _FakeCompletions, **kwargs: object) -> _FakeResponse:
         self._recorder.append(kwargs)
         return _FakeResponse("answer", system_fingerprint=None)
 
@@ -354,6 +351,96 @@ class TestAStatusOutranksATextHint:
 
         assert _eval_api_adapter._categorize_error(exc) == "rate_limit"
 
+    def test_subprocess_auth_hint_is_narrow_and_status_still_wins(self) -> None:
+        exc = RuntimeError(
+            "Copilot CLI exited with code 1: authentication failed: token expired"
+        )
+
+        category = _eval_api_adapter._categorize_error(exc)
+
+        assert category == "auth"
+        assert not _eval_api_adapter._is_transient(category)
+        status_exc = RuntimeError("Anthropic API returned HTTP 500: authentication failed")
+        unrelated_exc = RuntimeError(
+            "Copilot CLI exited with code 1: authorization cache failed"
+        )
+        assert _eval_api_adapter._categorize_error(status_exc) == "server_error"
+        assert _eval_api_adapter._categorize_error(unrelated_exc) == "server_error"
+
+
+class TestSubprocessAuthFailureIsPermanent:
+    def test_call_model_does_not_retry_a_subprocess_auth_failure(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        attempts = 0
+        sleeps: list[float] = []
+
+        def _raise_auth(_prompt: str, _model_id: str, _system: str) -> str:
+            nonlocal attempts
+            attempts += 1
+            raise RuntimeError("Copilot CLI exited with code 1: authentication failed")
+
+        monkeypatch.setattr(
+            _eval_api_adapter, "_backoff_delay_seconds", lambda attempt: 0.0
+        )
+        adapter = _eval_api_adapter.AnthropicAPIAdapter(
+            transport=_raise_auth,
+            sleep=sleeps.append,
+        )
+
+        result = adapter.call_model("prompt", "model", "fixture", "variant", 0)
+
+        assert result.error_category == "auth"
+        assert result.attempts == 1
+        assert attempts == 1
+        assert sleeps == []
+
+
+class TestEvalLogSchema:
+    def test_emit_log_accepts_the_closed_schema_and_rejects_payload_fields(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        _eval_api_adapter._emit_log(
+            {
+                "fixture_id": "fx",
+                "variant": "baseline",
+                "run_index": 0,
+                "model_id": "model",
+                "attempt": 1,
+                "outcome": "success",
+                "latency_ms": 12.3,
+                "tokens_in": 4,
+                "tokens_out": 5,
+                "error_category": None,
+            }
+        )
+
+        logged = json.loads(capsys.readouterr().err)
+
+        assert logged["fixture_id"] == "fx"
+        assert set(logged) == _eval_api_adapter._ALLOWED_LOG_FIELDS
+        record = {
+            "fixture_id": "fx",
+            "variant": "baseline",
+            "run_index": 0,
+            "model_id": "model",
+            "attempt": 1,
+            "outcome": "error",
+            "latency_ms": 0.0,
+            "tokens_in": 0,
+            "tokens_out": 0,
+            "error_category": "server_error",
+            "payload": {"prompt": "secret"},
+        }
+
+        with pytest.raises(ValueError) as exc_info:
+            _eval_api_adapter._emit_log(record)
+
+        message = str(exc_info.value)
+        assert "payload" in message
+        assert "banned fields" in message
+        assert capsys.readouterr().err == ""
+
 
 def test_call_api_routes_to_resolve_provider_for_openai(
     monkeypatch: pytest.MonkeyPatch,
@@ -399,17 +486,13 @@ def test_call_api_default_uses_urllib_not_provider(
         def __enter__(self) -> _Resp:
             return self
 
-        def __exit__(self, *_: object) -> bool:
-            return False
+        def __exit__(self, *_: object) -> None:
+            return None
 
     payload = json.dumps({"content": [{"type": "text", "text": "URLLIB"}]}).encode()
-    monkeypatch.setattr(
-        "urllib.request.urlopen", lambda req, timeout=None: _Resp(payload)
-    )
+    monkeypatch.setattr("urllib.request.urlopen", lambda req, timeout=None: _Resp(payload))
 
-    result = _anthropic_api.call_api(
-        "key", [{"role": "user", "content": "x"}], model="claude"
-    )
+    result = _anthropic_api.call_api("key", [{"role": "user", "content": "x"}], model="claude")
 
     assert result == "URLLIB"
 
@@ -430,13 +513,11 @@ def test_call_api_anthropic_name_uses_urllib(
         def __enter__(self) -> _Resp:
             return self
 
-        def __exit__(self, *_: object) -> bool:
-            return False
+        def __exit__(self, *_: object) -> None:
+            return None
 
     payload = json.dumps({"content": [{"type": "text", "text": "URLLIB"}]}).encode()
-    monkeypatch.setattr(
-        "urllib.request.urlopen", lambda req, timeout=None: _Resp(payload)
-    )
+    monkeypatch.setattr("urllib.request.urlopen", lambda req, timeout=None: _Resp(payload))
 
     result = _anthropic_api.call_api(
         "key", [{"role": "user", "content": "x"}], model="claude", provider="anthropic"
@@ -462,7 +543,7 @@ def test_read_env_key_strips_only_matching_env_file_quotes(
     fake_module.write_text("# fake", encoding="utf-8")
     repo_root = fake_module.parents[2]
     (repo_root / ".env").write_text(
-        "MATCHED=\"matched-value\"\n"
+        'MATCHED="matched-value"\n'
         "LEADING='keeps-leading-double-quote\n"
         "TRAILING=keeps-trailing-single-quote'\n",
         encoding="utf-8",
@@ -662,10 +743,7 @@ def test_strip_footer_keeps_prose_that_merely_starts_with_a_footer_word() -> Non
     """Single-spaced prose is not the CLI's 2+-space column format."""
     raw = "Tokens are the unit of billing.\n\nChanges    +0 -0\n"
 
-    assert (
-        _providers._CopilotCLIProvider._strip_footer(raw)
-        == "Tokens are the unit of billing."
-    )
+    assert _providers._CopilotCLIProvider._strip_footer(raw) == "Tokens are the unit of billing."
 
 
 def test_strip_footer_keeps_prose_opening_with_a_long_footer_label() -> None:
@@ -695,28 +773,39 @@ def test_strip_footer_returns_empty_when_output_is_only_a_footer() -> None:
     assert _providers._CopilotCLIProvider._strip_footer(raw) == ""
 
 
-@pytest.mark.parametrize(
-    ("raw", "kept"),
-    [
-        ("Model answer:\nTokens     42\n\nTokens     1.2k\n", "Model answer:"),
-        ("The count is:\nTokens     42\n", "The count is:"),
-    ],
-    ids=["footer-follows-the-lost-line", "no-footer-present-at-all"],
-)
-def test_strip_footer_truncates_an_answer_that_ends_in_a_stats_shaped_line(
-    raw: str, kept: str
-) -> None:
-    """Record the truncation this stripper cannot avoid. Refs #4125.
+class TestAmbiguousFooterIsRefused:
+    @pytest.mark.parametrize(
+        ("raw", "kept"),
+        [
+            (
+                "Model answer:\nTokens     42\n\nTokens     1.2k\n",
+                "Model answer:\nTokens     42",
+            ),
+            (
+                "The count is:\nTokens     42\n\nChanges    +0 -0\n",
+                "The count is:\nTokens     42",
+            ),
+        ],
+        ids=["footer-follows-the-stats-shaped-answer-line", "footer-follows-answer"],
+    )
+    def test_strip_footer_keeps_a_stats_shaped_answer_line_when_footer_is_separated(
+        self, raw: str, kept: str
+    ) -> None:
+        assert _providers._CopilotCLIProvider._strip_footer(raw) == kept
 
-    Both inputs end in a line the model wrote. The second carries no CLI
-    chrome at all, so nothing was there to strip. The stripper removes the
-    line anyway, because a short stats-shaped value is indistinguishable
-    from the chrome it imitates once it sits at the end of the output.
-
-    This pins the loss so a change in it is visible, not because the loss is
-    wanted. The issue holds the options for removing it.
-    """
-    assert _providers._CopilotCLIProvider._strip_footer(raw) == kept
+    @pytest.mark.parametrize(
+        "raw",
+        [
+            "The count is:\nTokens     42\n",
+            "Model answer:\nChanges    +0 -0\n",
+        ],
+        ids=["single-stats-shaped-line", "changes-shaped-line"],
+    )
+    def test_strip_footer_refuses_a_stats_shaped_answer_line_without_separator(
+        self, raw: str
+    ) -> None:
+        with pytest.raises(RuntimeError, match="stats-shaped line"):
+            _providers._CopilotCLIProvider._strip_footer(raw)
 
 
 class _FakeCompleted:
@@ -778,18 +867,20 @@ def test_copilot_complete_returns_stripped_answer(
     assert prompt == "be terse\n\nthe question"
 
 
-def test_copilot_complete_drops_roles_when_folding_a_conversation(
+def test_copilot_complete_refuses_ambiguous_footer_shaped_stdout(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Characterization, not endorsement. See #4128.
+    _allow_unverified_model(monkeypatch)
+    _capture_run(monkeypatch, _FakeCompleted(stdout="The count is:\nTokens     42\n"))
+    provider = _providers._CopilotCLIProvider()
 
-    The CLI has one prompt channel, so a conversation can only be folded flat.
-    Nothing in the fold records who spoke, so an assistant turn reaches the
-    model as user-authored instruction text. No caller sends one today: the
-    eval adapter builds a single user message, which is what the test above
-    covers. This pins the loss so whoever adds a role guard is told the
-    behaviour moved, instead of finding out from a changed eval score.
-    """
+    with pytest.raises(RuntimeError, match="stats-shaped line"):
+        provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
+
+
+def test_copilot_complete_folds_supported_roles_into_one_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     _allow_unverified_model(monkeypatch)
     seen = _capture_run(monkeypatch, _FakeCompleted(stdout="ok\n"))
     provider = _providers._CopilotCLIProvider()
@@ -797,14 +888,14 @@ def test_copilot_complete_drops_roles_when_folding_a_conversation(
     provider.complete(
         messages=[
             {"role": "user", "content": "Question"},
-            {"role": "assistant", "content": "Prior assistant answer"},
+            {"role": "system", "content": "Extra constraints"},
             {"role": "user", "content": "Follow-up"},
         ],
         model="m",
     )
 
     prompt = seen["argv"][seen["argv"].index("--prompt") + 1]
-    assert prompt == "Question\n\nPrior assistant answer\n\nFollow-up"
+    assert prompt == "Question\n\nExtra constraints\n\nFollow-up"
 
 
 def test_copilot_complete_isolates_cwd_and_disables_builtin_mcps(
@@ -847,6 +938,51 @@ def test_copilot_complete_raises_on_empty_prompt() -> None:
 
     with pytest.raises(RuntimeError, match="non-empty prompt"):
         provider.complete(messages=[{"role": "user", "content": "  "}], model="m")
+
+
+def test_copilot_complete_allows_system_role_messages(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _allow_unverified_model(monkeypatch)
+    seen = _capture_run(monkeypatch, _FakeCompleted(stdout="ok\n"))
+    provider = _providers._CopilotCLIProvider()
+
+    provider.complete(
+        messages=[
+            {"role": "system", "content": "extra constraints"},
+            {"role": "user", "content": "question"},
+        ],
+        system="primary constraints",
+        model="claude-opus-5",
+    )
+
+    argv = seen["argv"]
+    prompt = argv[argv.index("--prompt") + 1]
+    assert prompt == "primary constraints\n\nextra constraints\n\nquestion"
+
+
+def test_copilot_complete_rejects_assistant_role(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Copilot CLI can only accept user and system messages when folding into
+    a single prompt. Non-user roles must fail visibly before subprocess.run."""
+    seen = _capture_run(monkeypatch, _FakeCompleted(stdout="should not reach"))
+    provider = _providers._CopilotCLIProvider()
+
+    with pytest.raises(
+        RuntimeError,
+        match="Copilot CLI can only fold user/system messages into its single prompt channel",
+    ) as exc_info:
+        provider.complete(
+            messages=[
+                {"role": "user", "content": "first"},
+                {"role": "assistant", "content": "response"},
+            ],
+            model="claude-opus-5",
+        )
+
+    assert "assistant" in str(exc_info.value)
+    assert "argv" not in seen
 
 
 def test_copilot_complete_nonzero_exit_reports_the_exit_code_not_an_http_status(
@@ -1072,9 +1208,7 @@ def test_copilot_prefers_the_session_transcript_over_stdout(
     )
     provider = _providers._CopilotCLIProvider()
 
-    out = provider.complete(
-        messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-    )
+    out = provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
     assert out == "the real answer"
 
@@ -1090,9 +1224,7 @@ def test_copilot_transcript_joins_multiple_assistant_messages(
     )
     provider = _providers._CopilotCLIProvider()
 
-    out = provider.complete(
-        messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-    )
+    out = provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
     assert out == "first part\n\nsecond part"
 
@@ -1109,9 +1241,7 @@ def test_copilot_transcript_skips_tool_only_messages(
     )
     provider = _providers._CopilotCLIProvider()
 
-    out = provider.complete(
-        messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-    )
+    out = provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
     assert out == "only real content"
 
@@ -1143,9 +1273,7 @@ def test_copilot_refuses_a_transcript_carrying_content_that_is_not_text(
     provider = _providers._CopilotCLIProvider()
 
     with pytest.raises(RuntimeError) as excinfo:
-        provider.complete(
-            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-        )
+        provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
     message = str(excinfo.value)
     assert "malformed" in message
@@ -1174,9 +1302,7 @@ def test_the_malformed_transcript_refusal_survives_the_unverified_opt_in(
     provider = _providers._CopilotCLIProvider()
 
     with pytest.raises(RuntimeError) as excinfo:
-        provider.complete(
-            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-        )
+        provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
     message = str(excinfo.value)
     assert "malformed" in message
@@ -1189,7 +1315,9 @@ def test_copilot_transcript_ignores_sessions_from_other_sandboxes(
 ) -> None:
     def fake_run(argv: list[str], **kwargs: object) -> _FakeCompleted:
         _write_session(
-            tmp_path, "/tmp/some-other-sandbox", model="claude-opus-5",
+            tmp_path,
+            "/tmp/some-other-sandbox",
+            model="claude-opus-5",
             contents=["someone else's answer"],
         )
         return _FakeCompleted(stdout="my stdout answer\n")
@@ -1199,9 +1327,7 @@ def test_copilot_transcript_ignores_sessions_from_other_sandboxes(
     monkeypatch.setenv("COPILOT_SESSION_STATE_DIR", str(tmp_path))
     provider = _providers._CopilotCLIProvider()
 
-    out = provider.complete(
-        messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-    )
+    out = provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
     assert out == "my stdout answer"
 
@@ -1254,9 +1380,7 @@ def test_copilot_falls_back_to_stdout_when_session_root_is_missing(
     monkeypatch.setenv("COPILOT_SESSION_STATE_DIR", str(tmp_path / "absent"))
     provider = _providers._CopilotCLIProvider()
 
-    out = provider.complete(
-        messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-    )
+    out = provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
     assert out == "stdout answer"
 
@@ -1288,18 +1412,14 @@ def test_copilot_transcript_survives_malformed_lines(
                 }
             ),
         ]
-        (session_dir / "events.jsonl").write_text(
-            "\n".join(lines) + "\n", encoding="utf-8"
-        )
+        (session_dir / "events.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
         return _FakeCompleted(stdout="stdout answer\n")
 
     monkeypatch.setattr(_copilot_cli.subprocess, "run", fake_run)
     monkeypatch.setenv("COPILOT_SESSION_STATE_DIR", str(tmp_path))
     provider = _providers._CopilotCLIProvider()
 
-    out = provider.complete(
-        messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-    )
+    out = provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
     assert out == "survived"
 
@@ -1318,9 +1438,7 @@ def test_copilot_raises_when_the_session_ran_a_different_model(
     provider = _providers._CopilotCLIProvider()
 
     with pytest.raises(RuntimeError, match="ran gpt-5.6-sol instead"):
-        provider.complete(
-            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-        )
+        provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
 
 def test_copilot_ignores_session_logs_written_before_this_call(
@@ -1345,9 +1463,7 @@ def test_copilot_ignores_session_logs_written_before_this_call(
             },
             {"type": "assistant.message", "data": {"content": "stale answer"}},
         ]
-        path.write_text(
-            "\n".join(json.dumps(e) for e in payload) + "\n", encoding="utf-8"
-        )
+        path.write_text("\n".join(json.dumps(e) for e in payload) + "\n", encoding="utf-8")
         # Backdate well past the `since` window this call uses.
         os.utime(path, (1_000_000, 1_000_000))
 
@@ -1356,9 +1472,7 @@ def test_copilot_ignores_session_logs_written_before_this_call(
     monkeypatch.setenv("COPILOT_SESSION_STATE_DIR", str(tmp_path))
     provider = _providers._CopilotCLIProvider()
 
-    out = provider.complete(
-        messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-    )
+    out = provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
     assert out == "stdout answer"
 
@@ -1390,22 +1504,16 @@ class TestTheStdoutFallbackWillNotGradeHarnessOutput:
         )
 
         with pytest.raises(RuntimeError, match="trace marker"):
-            provider.complete(
-                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-            )
+            provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
     @pytest.mark.parametrize("prefix", ["\u25cf", "\u2502", "\u251c", "\u2514"])
     def test_every_trace_prefix_the_cli_emits_is_refused(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path, prefix: str
     ) -> None:
-        provider = self._fallback(
-            monkeypatch, tmp_path, f"{prefix} trace\nMODEL ANSWER\n"
-        )
+        provider = self._fallback(monkeypatch, tmp_path, f"{prefix} trace\nMODEL ANSWER\n")
 
         with pytest.raises(RuntimeError, match="trace marker"):
-            provider.complete(
-                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-            )
+            provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
     def test_an_indented_trace_is_still_a_trace(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path
@@ -1423,21 +1531,15 @@ class TestTheStdoutFallbackWillNotGradeHarnessOutput:
         )
 
         with pytest.raises(RuntimeError, match="trace marker"):
-            provider.complete(
-                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-            )
+            provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
     def test_the_refusal_says_how_to_get_the_structured_transcript(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path
     ) -> None:
-        provider = self._fallback(
-            monkeypatch, tmp_path, "\u25cf trace\nMODEL ANSWER\n"
-        )
+        provider = self._fallback(monkeypatch, tmp_path, "\u25cf trace\nMODEL ANSWER\n")
 
         with pytest.raises(RuntimeError) as excinfo:
-            provider.complete(
-                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-            )
+            provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
         assert "COPILOT_SESSION_STATE_DIR" in str(excinfo.value)
 
@@ -1447,9 +1549,7 @@ class TestTheStdoutFallbackWillNotGradeHarnessOutput:
         """The refusal is scoped to traced output; graceful degradation stays."""
         provider = self._fallback(monkeypatch, tmp_path, "a clean answer\n")
 
-        out = provider.complete(
-            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-        )
+        out = provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
         assert out == "a clean answer"
 
@@ -1461,9 +1561,7 @@ class TestTheStdoutFallbackWillNotGradeHarnessOutput:
             monkeypatch, tmp_path, "Use the box char \u2502 to draw a table.\n"
         )
 
-        out = provider.complete(
-            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-        )
+        out = provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
         assert out == "Use the box char \u2502 to draw a table."
 
@@ -1501,9 +1599,7 @@ class TestAReplyIsNotGradedForAModelNobodyConfirmed:
         provider = self._fallback(monkeypatch, tmp_path)
 
         with pytest.raises(RuntimeError, match="could not confirm which model"):
-            provider.complete(
-                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-            )
+            provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
     def test_the_refusal_names_both_ways_out(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path
@@ -1512,9 +1608,7 @@ class TestAReplyIsNotGradedForAModelNobodyConfirmed:
         provider = self._fallback(monkeypatch, tmp_path)
 
         with pytest.raises(RuntimeError) as excinfo:
-            provider.complete(
-                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-            )
+            provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
         message = str(excinfo.value)
         assert "COPILOT_SESSION_STATE_DIR" in message
@@ -1526,9 +1620,7 @@ class TestAReplyIsNotGradedForAModelNobodyConfirmed:
         monkeypatch.setenv("EVAL_COPILOT_ALLOW_UNVERIFIED_MODEL", "1")
         provider = self._fallback(monkeypatch, tmp_path)
 
-        out = provider.complete(
-            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-        )
+        out = provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
         assert out == "an answer"
 
@@ -1545,9 +1637,7 @@ class TestAReplyIsNotGradedForAModelNobodyConfirmed:
         )
         provider = _providers._CopilotCLIProvider()
 
-        out = provider.complete(
-            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-        )
+        out = provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
         assert out == "the real answer"
 
@@ -1574,9 +1664,7 @@ class TestAReplyIsNotGradedForAModelNobodyConfirmed:
         provider = _providers._CopilotCLIProvider()
 
         with pytest.raises(RuntimeError, match="could not confirm which model"):
-            provider.complete(
-                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-            )
+            provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
     @pytest.mark.parametrize("value", ["1", "true", "TRUE", "yes", "on", " 1 "])
     def test_an_affirmative_value_opts_in(
@@ -1587,16 +1675,12 @@ class TestAReplyIsNotGradedForAModelNobodyConfirmed:
         assert _providers._CopilotCLIProvider._unverified_model_allowed() is True
 
     @pytest.mark.parametrize("value", ["", "0", "false", "no", "off", "maybe"])
-    def test_anything_else_fails_closed(
-        self, monkeypatch: pytest.MonkeyPatch, value: str
-    ) -> None:
+    def test_anything_else_fails_closed(self, monkeypatch: pytest.MonkeyPatch, value: str) -> None:
         monkeypatch.setenv("EVAL_COPILOT_ALLOW_UNVERIFIED_MODEL", value)
 
         assert _providers._CopilotCLIProvider._unverified_model_allowed() is False
 
-    def test_an_absent_variable_fails_closed(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_an_absent_variable_fails_closed(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("EVAL_COPILOT_ALLOW_UNVERIFIED_MODEL", raising=False)
 
         assert _providers._CopilotCLIProvider._unverified_model_allowed() is False
@@ -1611,9 +1695,7 @@ class TestAReplyIsNotGradedForAModelNobodyConfirmed:
         )
         provider = _providers._CopilotCLIProvider()
 
-        provider.complete(
-            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-        )
+        provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
         assert provider.system_fingerprint == "claude-opus-5"
 
@@ -1624,9 +1706,7 @@ class TestAReplyIsNotGradedForAModelNobodyConfirmed:
         monkeypatch.setenv("EVAL_COPILOT_ALLOW_UNVERIFIED_MODEL", "1")
         provider = self._fallback(monkeypatch, tmp_path)
 
-        out = provider.complete(
-            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-        )
+        out = provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
         assert out == "an answer"
         assert provider.system_fingerprint is None
@@ -1640,16 +1720,12 @@ class TestAReplyIsNotGradedForAModelNobodyConfirmed:
             monkeypatch, tmp_path, model="claude-opus-5", contents=["the real answer"]
         )
         provider = _providers._CopilotCLIProvider()
-        provider.complete(
-            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-        )
+        provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
         assert provider.system_fingerprint == "claude-opus-5"
 
         monkeypatch.setenv("EVAL_COPILOT_ALLOW_UNVERIFIED_MODEL", "1")
         self._fallback(monkeypatch, tmp_path / "second")
-        provider.complete(
-            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-        )
+        provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
         assert provider.system_fingerprint is None
 
@@ -1706,9 +1782,7 @@ class TestTheModelIsReadFromTheMessageThatAnswered:
         )
         provider = _providers._CopilotCLIProvider()
 
-        out = provider.complete(
-            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-        )
+        out = provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
         assert out == "the answer"
 
@@ -1729,9 +1803,7 @@ class TestTheModelIsReadFromTheMessageThatAnswered:
         provider = _providers._CopilotCLIProvider()
 
         with pytest.raises(RuntimeError, match="ran gpt-5.6-sol instead"):
-            provider.complete(
-                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-            )
+            provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
     def test_a_midsession_model_change_is_caught_through_the_message(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path
@@ -1753,9 +1825,7 @@ class TestTheModelIsReadFromTheMessageThatAnswered:
         provider = _providers._CopilotCLIProvider()
 
         with pytest.raises(RuntimeError, match="ran gpt-5.6-sol instead"):
-            provider.complete(
-                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-            )
+            provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
     def test_two_models_in_one_answer_confirm_nothing(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path
@@ -1773,9 +1843,7 @@ class TestTheModelIsReadFromTheMessageThatAnswered:
         provider = _providers._CopilotCLIProvider()
 
         with pytest.raises(RuntimeError, match="could not confirm which model"):
-            provider.complete(
-                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-            )
+            provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
     def test_a_message_that_names_no_model_confirms_nothing(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path
@@ -1786,9 +1854,7 @@ class TestTheModelIsReadFromTheMessageThatAnswered:
         provider = _providers._CopilotCLIProvider()
 
         with pytest.raises(RuntimeError, match="could not confirm which model"):
-            provider.complete(
-                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-            )
+            provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
     def test_a_message_holding_no_text_contributes_no_model(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path
@@ -1807,9 +1873,7 @@ class TestTheModelIsReadFromTheMessageThatAnswered:
         )
         provider = _providers._CopilotCLIProvider()
 
-        out = provider.complete(
-            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-        )
+        out = provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
         assert out == "the answer"
 
@@ -1827,9 +1891,7 @@ class TestTheModelIsReadFromTheMessageThatAnswered:
         )
         provider = _providers._CopilotCLIProvider()
 
-        out = provider.complete(
-            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-        )
+        out = provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
         assert out == "first\n\nsecond"
 
@@ -1851,9 +1913,7 @@ class TestTheModelIsReadFromTheMessageThatAnswered:
         provider = _providers._CopilotCLIProvider()
 
         with pytest.raises(RuntimeError, match="could not confirm which model"):
-            provider.complete(
-                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-            )
+            provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
     def test_an_unattributed_empty_message_does_not_taint_confirmation(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path
@@ -1872,9 +1932,7 @@ class TestTheModelIsReadFromTheMessageThatAnswered:
         )
         provider = _providers._CopilotCLIProvider()
 
-        out = provider.complete(
-            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-        )
+        out = provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
         assert out == "the answer"
 
@@ -1895,9 +1953,7 @@ class TestTheModelIsReadFromTheMessageThatAnswered:
         provider = _providers._CopilotCLIProvider()
 
         with pytest.raises(RuntimeError, match="could not confirm which model"):
-            provider.complete(
-                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-            )
+            provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
     @pytest.mark.parametrize("bad", [123, None, "", {"name": "opus"}, ["opus"]])
     def test_a_message_whose_model_is_not_a_name_is_unattributed(
@@ -1915,9 +1971,7 @@ class TestTheModelIsReadFromTheMessageThatAnswered:
         provider = _providers._CopilotCLIProvider()
 
         with pytest.raises(RuntimeError, match="could not confirm which model"):
-            provider.complete(
-                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-            )
+            provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
 
 # ---------------------------------------------------------------------------
@@ -1934,9 +1988,7 @@ class TestSubAgentOutputIsNotTheModelsAnswer:
     """Only the primary interaction is the reply the judge should score."""
 
     @staticmethod
-    def _sub(
-        content: str, *, model: str, by_agent_id: bool = False
-    ) -> dict[str, object]:
+    def _sub(content: str, *, model: str, by_agent_id: bool = False) -> dict[str, object]:
         data: dict[str, object] = {"content": content, "model": model}
         event: dict[str, object] = {"type": "assistant.message", "data": data}
         if by_agent_id:
@@ -1959,9 +2011,7 @@ class TestSubAgentOutputIsNotTheModelsAnswer:
         )
         provider = _providers._CopilotCLIProvider()
 
-        out = provider.complete(
-            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-        )
+        out = provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
         assert out == "PRIMARY USER-FACING ANSWER"
 
@@ -1981,9 +2031,7 @@ class TestSubAgentOutputIsNotTheModelsAnswer:
         )
         provider = _providers._CopilotCLIProvider()
 
-        out = provider.complete(
-            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-        )
+        out = provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
         assert out == "the answer"
 
@@ -2001,9 +2049,7 @@ class TestSubAgentOutputIsNotTheModelsAnswer:
         )
         provider = _providers._CopilotCLIProvider()
 
-        out = provider.complete(
-            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-        )
+        out = provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
         assert out == "the answer"
 
@@ -2026,9 +2072,7 @@ class TestSubAgentOutputIsNotTheModelsAnswer:
         )
         provider = _providers._CopilotCLIProvider()
 
-        out = provider.complete(
-            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-        )
+        out = provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
         assert out == "the answer"
 
@@ -2048,9 +2092,7 @@ class TestSubAgentOutputIsNotTheModelsAnswer:
         provider = _providers._CopilotCLIProvider()
 
         with pytest.raises(RuntimeError, match="could not confirm which model"):
-            provider.complete(
-                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-            )
+            provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
 
 class TestTheTraceRefusalIsDeliberatelyConservative:
@@ -2075,9 +2117,7 @@ class TestTheTraceRefusalIsDeliberatelyConservative:
         provider = self._fallback(monkeypatch, tmp_path, "\u25cf a real answer\n")
 
         with pytest.raises(RuntimeError, match="trace marker"):
-            provider.complete(
-                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-            )
+            provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
     def test_the_same_answer_without_the_marker_is_graded(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path
@@ -2086,9 +2126,7 @@ class TestTheTraceRefusalIsDeliberatelyConservative:
         # fallback path itself. Without this the test above proves nothing.
         provider = self._fallback(monkeypatch, tmp_path, "a real answer\n")
 
-        out = provider.complete(
-            messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-        )
+        out = provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
         assert out == "a real answer"
 
@@ -2100,9 +2138,7 @@ class TestTheTraceRefusalIsDeliberatelyConservative:
         provider = self._fallback(monkeypatch, tmp_path, "\u25cf a real answer\n")
 
         with pytest.raises(RuntimeError) as caught:
-            provider.complete(
-                messages=[{"role": "user", "content": "q"}], model="claude-opus-5"
-            )
+            provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
         assert "carries tool-call traces" not in str(caught.value)
         assert "opens with a CLI trace marker" in str(caught.value)

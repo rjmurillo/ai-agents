@@ -90,8 +90,59 @@ def _get_repo_root() -> str:
     return result.stdout.strip()
 
 
+def _get_current_branch() -> str | None:
+    """Return the current git branch, or None when it cannot be determined."""
+    result = subprocess.run(
+        ["git", "branch", "--show-current"],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+    branch = result.stdout.strip()
+    return branch or None
+
+
+def _read_log_branch(full: str) -> str | None:
+    """Return the branch field from a session log file, or None on error."""
+    try:
+        data = json.loads(Path(full).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    session = data.get("session")
+    if isinstance(session, dict):
+        branch = session.get("branch")
+        if isinstance(branch, str):
+            return branch
+    branch = data.get("branch")
+    return branch if isinstance(branch, str) else None
+
+
+def _match_log_for_branch(
+    candidates: list[tuple[float, str, str]], branch: str
+) -> str | None:
+    """Return the newest candidate whose branch field matches."""
+    for _, full, _ in sorted(candidates, key=lambda x: (x[0], x[2]), reverse=True):
+        if _read_log_branch(full) == branch:
+            return full
+    return None
+
+
 def _find_current_session_log(sessions_dir: str) -> str | None:
-    """Find the most recent session log, preferring today's sessions."""
+    """Find the session log for the current branch, falling back to newest by mtime.
+
+    Scans recent session logs and returns the first whose ``session.branch``
+    (or legacy top-level ``branch``) field matches the current git branch.
+    Falls back to mtime ordering (preferring today over older dates) so callers
+    fail open rather than hard-blocking when no branch-specific log exists yet.
+
+    This replaces the previous purely-mtime-based selection that would silently
+    pick another agent's session log on a different branch (issue #4161).
+    """
     from datetime import datetime
 
     today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
@@ -108,9 +159,14 @@ def _find_current_session_log(sessions_dir: str) -> str | None:
     if not candidates:
         return None
 
+    branch = _get_current_branch()
+    if branch is not None:
+        matched = _match_log_for_branch(candidates, branch)
+        if matched is not None:
+            return matched
+
     candidates.sort(key=lambda x: x[0], reverse=True)
 
-    # Prefer today's sessions
     for _, full, name in candidates:
         if name.startswith(today):
             return full
@@ -455,8 +511,11 @@ def main(argv: list[str] | None = None) -> int:
         session_end["reworkWarning"] = {}
     # Schema requires Evidence as a string (checklistItem shape). Join list entries
     # with newline so the full rework output is preserved (issue #3929, #3954).
+    # Complete derives from whether the step actually ran: a "skipped" summary
+    # means the sibling module was absent or threw a runtime error (post-#4001).
+    rework_ran = "skipped" not in rework_summary.lower()
     session_end["reworkWarning"]["level"] = "SHOULD"
-    session_end["reworkWarning"]["Complete"] = True
+    session_end["reworkWarning"]["Complete"] = rework_ran
     session_end["reworkWarning"]["Evidence"] = (
         "\n".join(rework_evidence) if isinstance(rework_evidence, list) else str(rework_evidence)
     )

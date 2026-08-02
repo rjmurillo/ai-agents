@@ -318,7 +318,7 @@ fi
 REMAINING=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
 
 # Artifact state
-PENDING=$(grep -c "Status: pending\|Status: \[ACKNOWLEDGED\]" .agents/pr-comments/PR-[number]/comments.md)
+PENDING=$(grep -c "^\*\*Status\*\*: pending\|^\*\*Status\*\*: \[ACKNOWLEDGED\]\|^\*\*Status\*\*: \[NEW\]" .agents/pr-comments/PR-[number]/comments.md)
 
 if [ "$REMAINING" -ne 0 ] || [ "$PENDING" -ne 0 ]; then
   echo "[BLOCKED] API unresolved: $REMAINING, Artifact pending: $PENDING"
@@ -1082,15 +1082,15 @@ gh pr edit [number] --body "[updated body]"
 
 ```bash
 # Count addressed vs total
-ADDRESSED=$(grep -c "Status: \[COMPLETE\]" .agents/pr-comments/PR-[number]/comments.md)
-WONTFIX=$(grep -c "Status: \[WONTFIX\]" .agents/pr-comments/PR-[number]/comments.md)
+ADDRESSED=$(grep -c "^\*\*Status\*\*: \[COMPLETE\]" .agents/pr-comments/PR-[number]/comments.md)
+WONTFIX=$(grep -c "^\*\*Status\*\*: \[WONTFIX\]" .agents/pr-comments/PR-[number]/comments.md)
 TOTAL=$TOTAL_COMMENTS
 
 echo "Verification: $((ADDRESSED + WONTFIX)) / $TOTAL comments addressed"
 
 if [ "$((ADDRESSED + WONTFIX))" -lt "$TOTAL" ]; then
   echo "[WARNING] INCOMPLETE: $((TOTAL - ADDRESSED - WONTFIX)) comments remaining"
-  grep -B5 "Status: \[ACKNOWLEDGED\]\|Status: pending" .agents/pr-comments/PR-[number]/comments.md
+  grep -B5 "^\*\*Status\*\*: \[ACKNOWLEDGED\]\|^\*\*Status\*\*: pending\|^\*\*Status\*\*: \[NEW\]" .agents/pr-comments/PR-[number]/comments.md
   # Return to Phase 3 for unaddressed comments
 fi
 ```
@@ -1217,7 +1217,7 @@ echo "[PASS] All CI checks passing ($passed checks)"
 
 | Criterion | Check | Status |
 |-----------|-------|--------|
-| All comments resolved | `grep -c "Status: \[COMPLETE\]\|\[WONTFIX\]"` equals total | [ ] |
+| All comments resolved | `grep -c -e "^\*\*Status\*\*: \[COMPLETE\]" -e "^\*\*Status\*\*: \[WONTFIX\]" "$COMMENT_MAP"` equals total | [ ] |
 | No new comments | Re-check returned 0 new | [ ] |
 | CI checks pass | `get_pr_checks.py --pull-request [number]` MergeRefUsable = true and AllPassing = true | [ ] |
 | No unresolved threads | `gh pr view --json reviewThreads` all resolved | [ ] |

@@ -6571,6 +6571,15 @@ class TestALiveRunReportsWhatItAccumulated:
         assert code == 1
         assert out.is_file()
 
+    def test_writing_the_artifact_records_the_schema_version(
+        self, monkeypatch, tmp_path
+    ):
+        out = tmp_path / "results.json"
+        code = self._main_live(monkeypatch, tmp_path, "PASS", output=out)
+        data = json.loads(out.read_text(encoding="utf-8"))
+        assert code == 0
+        assert data["schema_version"] == eval_mod.RESULTS_SCHEMA_VERSION
+
     def test_the_dry_run_and_live_run_agree_on_a_clean_result(
         self, monkeypatch, tmp_path
     ):
@@ -7336,17 +7345,15 @@ class TestAStoredRunStillRenders:
         assert summary["delta_description_vs_baseline_measured"] == 1.01
         assert "+1.01" in eval_mod.render_table("some-rule", summary)
 
-    def test_every_stored_run_that_records_its_coverage_renders(self):
+    def test_every_stored_run_renders(self):
         """The real records, not a fixture shaped like one."""
         rendered = 0
         for path in sorted(_ARCHIVE_DIR.glob("*.json")):
             if path.name == _RECOVERED_PAYLOADS.name:
                 continue
             data = json.loads(path.read_text(encoding="utf-8"))
-            for rule_id, rule in (data.get("rules") or {}).items():
+            for rule_id, rule in eval_mod._results_artifact_rules(data).items():
                 summary = rule["summary"]
-                if "graded_count" not in summary["per_mechanism"]["description"]:
-                    continue
                 assert "delta_full_vs_baseline_measured" not in summary
                 table = eval_mod.render_table(rule_id, summary)
                 for mech in ("description", "full"):
@@ -7354,7 +7361,7 @@ class TestAStoredRunStillRenders:
                     if recorded is not None:
                         assert f"{recorded:+}" in table
                 rendered += 1
-        assert rendered == 7
+        assert rendered == 8
 
 
 class TestAPoolMarkerMustSayWhichPoolItMeans:
@@ -7433,19 +7440,13 @@ class TestEveryReaderOfAStoredRunIsExercisedAgainstOne:
     #: Readers that can be handed a stored summary and nothing else.
     READERS = ("_render_caveats", "render_table")
 
-    #: The one stored record no reader can fully read, and why. It was written
-    #: before per mechanism coverage counts existed, so the table cannot say
-    #: how many scenarios each average rests on. Printing an average without
-    #: that count would assert a coverage the record does not record.
-    PREDATES_COVERAGE_COUNTS = "t-sol56.json"
-
     @staticmethod
     def _stored_summaries():
         for path in sorted(_ARCHIVE_DIR.glob("*.json")):
             if path.name == _RECOVERED_PAYLOADS.name:
                 continue
             data = json.loads(path.read_text(encoding="utf-8"))
-            for rule_id, rule in (data.get("rules") or {}).items():
+            for rule_id, rule in eval_mod._results_artifact_rules(data).items():
                 yield path.name, rule_id, rule["summary"]
 
     @staticmethod
@@ -7454,7 +7455,7 @@ class TestEveryReaderOfAStoredRunIsExercisedAgainstOne:
             if path.name == _RECOVERED_PAYLOADS.name:
                 continue
             data = json.loads(path.read_text(encoding="utf-8"))
-            for rule_id, rule in (data.get("rules") or {}).items():
+            for rule_id, rule in eval_mod._results_artifact_rules(data).items():
                 yield path.name, rule_id, rule
 
     def test_a_summary_reader_is_either_replayed_or_exercised_here(self, monkeypatch):
@@ -7513,24 +7514,42 @@ class TestEveryReaderOfAStoredRunIsExercisedAgainstOne:
         for _name, _rule_id, summary in self._stored_summaries():
             eval_mod._render_caveats(summary)
 
-    def test_the_table_reads_every_record_that_states_its_coverage(self):
+    def test_the_table_reads_every_stored_record(self):
         read = []
         for name, rule_id, summary in self._stored_summaries():
-            if name == self.PREDATES_COVERAGE_COUNTS:
-                continue
             eval_mod.render_table(rule_id, summary)
             read.append(name)
-        assert len(read) == 7
+        assert len(read) == 8
 
-    def test_the_one_unreadable_record_fails_for_the_pinned_reason(self):
-        """If this stops raising, the exclusion above is stale and must go."""
+    def test_the_pre_coverage_count_record_renders_with_full_coverage(self):
         name, rule_id, summary = next(
             r for r in self._stored_summaries()
-            if r[0] == self.PREDATES_COVERAGE_COUNTS
+            if r[0] == "t-sol56.json"
         )
         assert "graded_count" not in summary["per_mechanism"]["description"]
-        with pytest.raises(KeyError, match="graded_count"):
-            eval_mod.render_table(rule_id, summary)
+        table = eval_mod.render_table(rule_id, summary)
+        assert name == "t-sol56.json"
+        assert rule_id in table
+        assert "3/3" in table
+
+    def test_a_current_results_artifact_records_its_schema_version(self):
+        assert eval_mod.RESULTS_SCHEMA_VERSION == 1
+        data = {"schema_version": eval_mod.RESULTS_SCHEMA_VERSION, "rules": {}}
+        assert eval_mod._results_artifact_rules(data) == {}
+
+    def test_a_legacy_results_artifact_without_schema_version_still_reads(self):
+        data = {"rules": {"r": {"summary": {}}}}
+        assert set(eval_mod._results_artifact_rules(data)) == {"r"}
+
+    def test_an_unknown_results_artifact_schema_fails_loudly(self):
+        data = {"schema_version": eval_mod.RESULTS_SCHEMA_VERSION + 1, "rules": {}}
+        with pytest.raises(ValueError, match="unsupported eval results schema_version"):
+            eval_mod._results_artifact_rules(data)
+
+    def test_a_schema_checked_artifact_must_still_have_rules(self):
+        data = {"schema_version": eval_mod.RESULTS_SCHEMA_VERSION}
+        with pytest.raises(ValueError, match="must contain a rules object"):
+            eval_mod._results_artifact_rules(data)
 
 
 class TestARouteResultMustSayWhetherItMatched:
@@ -7689,19 +7708,29 @@ class TestAMechanismTheTargetCannotReachIsNotMeasured:
         system = eval_mod.build_system_prompt("full", rule, "t")
         assert eval_mod._prompt_collapses_to_baseline("full", system, rule, "t") is False
 
-    def test_an_empty_body_does_not_collapse_full(self):
-        """The known limit of this check, measured rather than assumed.
-
-        An empty body still yields a `full` prompt carrying the preamble, so
-        it is a different string from baseline and passes here even though it
-        puts no rule in front of the model. Declining it is not safe from this
-        position: for a routed target the `full` prompt is replaced after
-        routing resolves a reference, so a decline would discard a
-        measurement the run did make. Filed as issue 4103.
-        """
+    def test_an_empty_body_collapses_full(self):
+        """No body means the full mechanism carries no rule content."""
         rule = self._rule(description="d", body="")
         system = eval_mod.build_system_prompt("full", rule, "t")
-        assert system != eval_mod.build_system_prompt("baseline", rule, "t")
+        assert system == eval_mod.build_system_prompt("baseline", rule, "t")
+        assert eval_mod._prompt_collapses_to_baseline("full", system, rule, "t") is True
+
+    def test_a_whitespace_body_collapses_full(self):
+        rule = self._rule(description="d", body="\n  \t")
+        system = eval_mod.build_system_prompt("full", rule, "t")
+        assert eval_mod._prompt_collapses_to_baseline("full", system, rule, "t") is True
+
+    def test_an_empty_body_reuses_the_baseline_prompt(self, monkeypatch):
+        monkeypatch.setattr(
+            eval_mod, "_baseline_system_prompt", lambda _rule, _rule_id: "BASE"
+        )
+        rule = self._rule(description="d", body="")
+        assert eval_mod.build_system_prompt("baseline", rule, "t") == "BASE"
+        assert eval_mod.build_system_prompt("full", rule, "t") == "BASE"
+
+    def test_a_routed_empty_body_does_not_collapse_before_resolution(self):
+        rule = {**self._rule(description="d", body=""), "skill_name": "s"}
+        system = eval_mod.build_system_prompt("full", rule, "t")
         assert eval_mod._prompt_collapses_to_baseline("full", system, rule, "t") is False
 
     def test_a_declined_cell_carries_no_measurement(self):
@@ -7769,7 +7798,7 @@ class TestAMechanismTheTargetCannotReachIsNotMeasured:
             )
         assert eval_mod.aggregate(scenarios)["verdict"] == "PASS"
 
-    def test_the_runner_declines_the_cell_without_calling_the_model(self, monkeypatch):
+    def test_the_runner_declines_the_description_cell_without_calling_the_model(self, monkeypatch):
         called: list[str] = []
         monkeypatch.setattr(eval_mod, "RATE_LIMIT_SLEEP_SEC", 0)
         monkeypatch.setattr(
@@ -7796,6 +7825,35 @@ class TestAMechanismTheTargetCannotReachIsNotMeasured:
         assert result["mechanisms"]["description"]["declined"]
         assert "scores" in result["mechanisms"]["full"]
         assert len(called) == 2, "one call each for baseline and full, none for description"
+
+    def test_the_runner_declines_empty_full_without_calling_the_model(self, monkeypatch):
+        called: list[str] = []
+        monkeypatch.setattr(eval_mod, "RATE_LIMIT_SLEEP_SEC", 0)
+        monkeypatch.setattr(
+            eval_mod, "_call_api", lambda *a, **k: called.append("api") or "response"
+        )
+        monkeypatch.setattr(
+            eval_mod,
+            "score_response",
+            lambda *a, **k: {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "judge_failed": False,
+            },
+        )
+        result = eval_mod.eval_one_scenario(
+            "key",
+            self._rule(description="d", body=""),
+            "rule",
+            {"id": "S1", "desc": "d", "input": "x", "expected_gate": "apply-rule"},
+            "model",
+            dry_run=False,
+        )
+        assert "scores" in result["mechanisms"]["baseline"]
+        assert "scores" in result["mechanisms"]["description"]
+        assert result["mechanisms"]["full"]["declined"]
+        assert len(called) == 2, "one call each for baseline and description, none for full"
 
     def test_the_motivating_case_is_still_reachable_in_this_repository(self):
         """If this fails, every rule gained a description and the check idles."""

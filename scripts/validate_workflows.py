@@ -10,10 +10,10 @@ This script validates:
 5. Required fields and common issues
 
 Usage:
-    python scripts/validate_workflows.py                    # Validate all workflows
-    python scripts/validate_workflows.py path/to/file.yml   # Validate specific file
-    python scripts/validate_workflows.py --changed          # Validate only changed files
-    python scripts/validate_workflows.py --act              # Run with act (if installed)
+    uv run python scripts/validate_workflows.py                    # Validate all workflows
+    uv run python scripts/validate_workflows.py path/to/file.yml   # Validate specific file
+    uv run python scripts/validate_workflows.py --changed          # Validate only changed files
+    uv run python scripts/validate_workflows.py --act              # Run with act (if installed)
 
 Exit codes:
     0: All validations passed

@@ -238,7 +238,7 @@ def _run_git(cwd: Path, *args: str) -> None:
         ["git", *args],
         cwd=cwd,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         timeout=15,
         check=False,
     )
@@ -380,7 +380,7 @@ def _run_hook_case(
         process = subprocess.run(
             [sys.executable, "-u", str(hook_script.path)],
             input=json.dumps(case.payload),
-            text=True,
+            text=True, encoding="utf-8",
             capture_output=True,
             cwd=fixture,
             env=env,

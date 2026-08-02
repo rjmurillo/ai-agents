@@ -62,7 +62,7 @@ def _ruff_format(source: str, *, target: str | None = None) -> str:
         cmd,
         input=source,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         cwd=REPO_ROOT,
         check=True,
     )

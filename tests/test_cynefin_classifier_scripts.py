@@ -406,7 +406,7 @@ class TestMainFunction:
         result = subprocess.run(
             [sys.executable, str(script_path)],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -418,7 +418,7 @@ class TestMainFunction:
         result = subprocess.run(
             [sys.executable, str(script_path), "--problem", ""],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -430,7 +430,7 @@ class TestMainFunction:
         result = subprocess.run(
             [sys.executable, str(script_path), "--problem", "   "],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -441,7 +441,7 @@ class TestMainFunction:
         result = subprocess.run(
             [sys.executable, str(script_path), "--problem", "Fix a typo"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -454,7 +454,7 @@ class TestMainFunction:
         result = subprocess.run(
             [sys.executable, str(script_path), "--problem", "Fix a typo", "--json"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -477,7 +477,7 @@ class TestMainFunction:
                 "Fix typo in docs, simple fix, obvious solution, best practice",
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -493,7 +493,7 @@ class TestMainFunction:
                 "Analyze root cause of memory leak, investigate performance, assess trade-offs",
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -509,7 +509,7 @@ class TestMainFunction:
                 "Unpredictable user behavior, need experiment, emergent patterns, A/B test",
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -525,7 +525,7 @@ class TestMainFunction:
                 "Production down! Urgent outage! Customers affected! Emergency!",
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -541,7 +541,7 @@ class TestMainFunction:
                 "Something is happening",  # Vague, no strong indicators
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -559,7 +559,7 @@ class TestMainFunction:
                 "This is a well-documented trivial fix following best practice",
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -570,7 +570,7 @@ class TestMainFunction:
         result = subprocess.run(
             [sys.executable, str(script_path), "--help"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -764,7 +764,7 @@ class TestJsonOutputFormat:
                 "--json",
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -797,7 +797,7 @@ class TestJsonOutputFormat:
                 "--json",
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -816,7 +816,7 @@ class TestJsonOutputFormat:
                 "--json",
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -846,7 +846,7 @@ class TestMarkdownOutputFormat:
                 "Fix typo",
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -864,7 +864,7 @@ class TestMarkdownOutputFormat:
                 "Fix typo",
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 

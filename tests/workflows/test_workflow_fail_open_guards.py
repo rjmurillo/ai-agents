@@ -294,11 +294,16 @@ class TestMemoryValidation:
 
 
 class TestDriftDetection:
-    """drift-detection.yml JSON re-run must surface crashes, not swallow them."""
+    """drift-detection.yml collect-details step must invoke the Python script.
+
+    Crash-safe patterns (exit-code propagation, no stderr swallowing, no
+    blanket-true suppression) are now in scripts/ci/drift_collect_details.py
+    and verified by tests/ci/test_drift_collect_details.py.
+    """
 
     def _collect_step(self) -> dict[str, Any]:
         steps = _job_steps(_load_workflow("drift-detection.yml"), "detect-drift")
-        step = _find_step_by_run(steps, "--output-format json")
+        step = _find_step_by_run(steps, "drift_collect_details.py")
         assert step is not None
         return step
 
@@ -309,13 +314,11 @@ class TestDriftDetection:
         assert "|| true" not in _command_text(self._collect_step()["run"])
 
     def test_fails_only_on_config_or_crash(self) -> None:
+        # Logic is now in scripts/ci/drift_collect_details.py (ADR-006 batch 6).
+        # tests/ci/test_drift_collect_details.py::test_detection_crash_rc2_returns_2
+        # verifies the rc>=2 propagation. Assert the YAML step delegates correctly.
         run = self._collect_step()["run"]
-        # exit 1 is the expected drift path for this step; only >=2 fails.
-        assert "set +e" in run
-        assert "rc=$?" in run
-        assert "set -e" in run
-        assert 'if [ "$rc" -ge 2 ]' in run
-        assert 'exit "$rc"' in run
+        assert "drift_collect_details.py" in run
 
 
 if __name__ == "__main__":  # pragma: no cover
