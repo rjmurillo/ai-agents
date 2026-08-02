@@ -279,6 +279,24 @@ class TestRepoRatchet:
         )
         assert csp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline_path)]) == 1
 
+    def test_baseline_shrink_requires_the_explicit_override(self, tmp_path: Path) -> None:
+        self._repo_with_clean_skill(tmp_path)
+        baseline_path = tmp_path / "baseline.json"
+        baseline_path.write_text(
+            '{"files": {"skills/alpha/scripts/run.py": 5}}\n', encoding="utf-8"
+        )
+        args = [
+            "--repo-root",
+            str(tmp_path),
+            "--baseline",
+            str(baseline_path),
+            "--update-baseline",
+        ]
+
+        assert csp.main(args) == 2
+        assert csp.main([*args, "--allow-baseline-shrink"]) == 0
+        assert json.loads(baseline_path.read_text(encoding="utf-8"))["files"] == {}
+
     def test_regression_still_triggers_failure(self, tmp_path: Path) -> None:
         """Regressions (current > baseline) must still exit 1."""
         skills = tmp_path / ".claude" / "skills" / "beta" / "scripts"
