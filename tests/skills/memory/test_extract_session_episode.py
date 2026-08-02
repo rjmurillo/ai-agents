@@ -2634,6 +2634,155 @@ class TestBackwardsCommitOrder:
         assert "--fix requires --validate" in capsys.readouterr().err
 
 
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
+class TestCommitReachabilityGuard:
+    """``_commit_event_dates`` requires reachability, not just resolvability.
+
+    Issue #4240: a SHA that resolves via a dangling object (clone residue from a
+    squash-merged branch) produces clone-dependent validation results. The guard
+    must require ``git for-each-ref --contains`` to return at least one ref
+    before treating a commit date as evidence. An unreachable SHA is treated the
+    same as an absent one: unknown, not a position.
+
+    The negative control constructs a scratch repo with one commit, notes the
+    SHA, deletes the branch so the commit is dangling, and asserts the validator
+    does not flag the edge. The same edge with a reachable SHA IS flagged.
+    """
+
+    @staticmethod
+    def _repo(tmp_path: Path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-q", "-b", "main")
+        _git(repo, "config", "user.email", "t@example.com")
+        _git(repo, "config", "user.name", "T")
+        return repo
+
+    def test_dangling_sha_is_treated_as_absent(self, tmp_path, monkeypatch):
+        """A backwards edge whose SHAs are unreachable from any ref is not reported.
+
+        Negative control: the commit exists in the object store but is reachable
+        from zero refs. The check must return the same result as if the SHA were
+        absent entirely.
+        """
+        repo = self._repo(tmp_path)
+        env = {
+            **os.environ,
+            "GIT_AUTHOR_DATE": "2026-07-19T11:00:00+00:00",
+            "GIT_COMMITTER_DATE": "2026-07-19T11:00:00+00:00",
+        }
+        # Create a commit on a side branch.
+        _git(repo, "checkout", "-b", "side")
+        (repo / "f.txt").write_text("x", encoding="utf-8")
+        _git(repo, "add", "f.txt")
+        subprocess.run(
+            ["git", "-C", str(repo), "commit", "-m", "side commit"],
+            env=env, capture_output=True, encoding="utf-8", check=True,
+        )
+        sha_r = subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "--short", "HEAD"],
+            capture_output=True, encoding="utf-8", check=True,
+        )
+        dangling_sha = sha_r.stdout.strip()
+
+        # Delete the branch; the commit is now unreachable from any ref.
+        _git(repo, "checkout", "-b", "main2")
+        _git(repo, "branch", "-D", "side")
+
+        monkeypatch.chdir(repo)
+        # Invalidate the lru_cache so the monkeypatched cwd takes effect.
+        extract_session_episode._sha_is_reachable.cache_clear()
+        extract_session_episode._commit_datetime.cache_clear()
+
+        # Build two events where the newer one leads_to the older (backwards),
+        # but both SHAs are dangling. The check must return [] (no findings).
+        events = [
+            {
+                "id": "e001",
+                "type": "commit",
+                "timestamp": "2026-07-19T00:00:00+00:00",
+                "content": f"Commit: {dangling_sha}",
+                "leads_to": ["e002"],
+                "caused_by": [],
+            },
+            {
+                "id": "e002",
+                "type": "commit",
+                "timestamp": "2026-07-19T00:00:00+00:00",
+                "content": "Commit: deadbeef",
+                "leads_to": [],
+                "caused_by": ["e001"],
+            },
+        ]
+        assert extract_session_episode.validate_commit_order(events) == []
+
+    def test_reachable_backwards_sha_is_reported(self, tmp_path, monkeypatch):
+        """A backwards edge whose SHAs ARE reachable is still flagged.
+
+        This is the positive control: the guard must not suppress legitimate
+        backwards edges that are provable from a named ref.
+        """
+        repo = self._repo(tmp_path)
+        older_env = {
+            **os.environ,
+            "GIT_AUTHOR_DATE": "2026-07-19T10:00:00+00:00",
+            "GIT_COMMITTER_DATE": "2026-07-19T10:00:00+00:00",
+        }
+        newer_env = {
+            **os.environ,
+            "GIT_AUTHOR_DATE": "2026-07-19T11:00:00+00:00",
+            "GIT_COMMITTER_DATE": "2026-07-19T11:00:00+00:00",
+        }
+        (repo / "a.txt").write_text("a", encoding="utf-8")
+        _git(repo, "add", "a.txt")
+        subprocess.run(
+            ["git", "-C", str(repo), "commit", "-m", "older"],
+            env=older_env, capture_output=True, encoding="utf-8", check=True,
+        )
+        older_sha = subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "--short", "HEAD"],
+            capture_output=True, encoding="utf-8", check=True,
+        ).stdout.strip()
+
+        (repo / "b.txt").write_text("b", encoding="utf-8")
+        _git(repo, "add", "b.txt")
+        subprocess.run(
+            ["git", "-C", str(repo), "commit", "-m", "newer"],
+            env=newer_env, capture_output=True, encoding="utf-8", check=True,
+        )
+        newer_sha = subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "--short", "HEAD"],
+            capture_output=True, encoding="utf-8", check=True,
+        ).stdout.strip()
+
+        monkeypatch.chdir(repo)
+        extract_session_episode._sha_is_reachable.cache_clear()
+        extract_session_episode._commit_datetime.cache_clear()
+
+        # newer leads_to older: backwards.
+        events = [
+            {
+                "id": "e001",
+                "type": "commit",
+                "timestamp": "2026-07-19T00:00:00+00:00",
+                "content": f"Commit: {newer_sha}",
+                "leads_to": ["e002"],
+                "caused_by": [],
+            },
+            {
+                "id": "e002",
+                "type": "commit",
+                "timestamp": "2026-07-19T00:00:00+00:00",
+                "content": f"Commit: {older_sha}",
+                "leads_to": [],
+                "caused_by": ["e001"],
+            },
+        ]
+        problems = extract_session_episode.validate_commit_order(events)
+        assert len(problems) == 1
+        assert "e001 -> e002 runs backwards" in problems[0]
+
+
 class TestUnreadableEpisodeReportedOnce:
     """`--fix` runs repair then validation, and both read the file the same way.
 
