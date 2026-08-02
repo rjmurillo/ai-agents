@@ -116,7 +116,7 @@ def _read_log_branch(full: str) -> str | None:
     session = data.get("session")
     if isinstance(session, dict):
         branch = session.get("branch")
-        if branch is not None:
+        if isinstance(branch, str):
             return branch
     branch = data.get("branch")
     return branch if isinstance(branch, str) else None
