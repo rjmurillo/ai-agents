@@ -515,10 +515,12 @@ def _resolve_lib_dir() -> str:
         os.path.join(os.path.dirname(__file__), "..", "..", "..", "lib")
     )
     candidates = []
-    for env_var in ("COPILOT_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT"):
-        plugin_root = os.environ.get(env_var)
-        if plugin_root:
-            candidates.append(os.path.join(plugin_root, "lib"))
+    copilot_root = os.environ.get("COPILOT_PLUGIN_ROOT")
+    claude_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+    if copilot_root:
+        candidates.append(os.path.join(copilot_root, "lib"))
+    if claude_root:
+        candidates.append(os.path.join(claude_root, "lib"))
     if workspace:
         candidates.append(os.path.join(workspace, ".claude", "lib"))
     candidates.append(relative)
