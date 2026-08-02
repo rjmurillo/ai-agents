@@ -169,9 +169,10 @@ jobs:
 
       # Issue #2993 acceptance criterion 2 (regression guard, option C). The
       # diff-scoped ratchet above cannot see debt a PR adds to a file it does
-      # not otherwise touch, so the whole-tree total is frozen in
-      # scripts/ci/ruff_count_baseline.txt. Record a lower count with
-      # `python scripts/ci/ruff_count_ratchet.py --update` after a cleanup.
+      # not otherwise touch, so the whole-tree total is capped by
+      # scripts/ci/ruff_count_baseline.txt. A lower count passes without
+      # rewriting that shared line; use --update only when intentionally
+      # lowering the ceiling.
       # `uv run --frozen` pins ruff to the lockfile. The dev extra declares an
       # open-ended `ruff>=`, so a `uv pip install` resolves whatever is newest
       # and a future ruff rule change could fail this baseline on an unrelated
