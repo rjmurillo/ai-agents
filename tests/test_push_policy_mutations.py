@@ -44,6 +44,7 @@ def _run_targeted(test_filter: str) -> subprocess.CompletedProcess[str]:
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         cwd=_REPO,
     )
 
