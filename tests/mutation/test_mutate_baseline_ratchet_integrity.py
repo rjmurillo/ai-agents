@@ -38,6 +38,7 @@ def _run_suite(*extra_paths: str) -> subprocess.CompletedProcess[str]:
         ["uv", "run", "--frozen", "python", "-m", "pytest", *paths, "-q", "--tb=short"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         cwd=str(REPO_ROOT),
     )
 
