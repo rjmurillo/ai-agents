@@ -1231,6 +1231,28 @@ def test_act_limitation_hint_matches_known_patterns() -> None:
     assert w._act_limitation_hint("Error: job 'build' exited 2") is None
 
 
+def test_act_limitation_hint_matches_action_cache_copy_failure() -> None:
+    """dockerd refusing act's action staging path is transport, not a defect."""
+    text = (
+        "[Validate Plugin Version Bump/Check Changed Paths] failed to copy content "
+        "to container: Error response from daemon: statat "
+        "var/run/act/actions/dorny-paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706"
+        ": path escapes from parent"
+    )
+    hint = w._act_limitation_hint(text)
+    assert hint is not None
+    assert "local transport" in hint
+
+
+def test_act_limitation_hint_ignores_a_real_copy_failure_elsewhere() -> None:
+    """Only the act staging path is excused; other copy failures still block."""
+    text = (
+        "failed to copy content to container: Error response from daemon: statat "
+        "home/runner/work/repo/artifact.tar: path escapes from parent"
+    )
+    assert w._act_limitation_hint(text) is None
+
+
 def test_act_limitation_hint_matches_empty_pr_env_patterns() -> None:
     # Empty PR-context env-var manifestations (#3265), event-scoped to
     # pull_request; workflow_dispatch keeps them blocking.
@@ -1605,3 +1627,166 @@ def test_act_full_no_repo_context_warns(monkeypatch, tmp_path) -> None:
     assert res.ok is True
     assert "[WARN]" in res.detail
     assert "repository context" in res.detail
+
+
+# ---------------------------------------------------------------------------
+# Cold action cache and the stage timeout (issue #3949)
+# ---------------------------------------------------------------------------
+
+_CLONE_LINE = (
+    "*DRYRUN* [CodeQL Analysis/Analyze (actions)-1]   git clone "
+    "'https://github.com/github/codeql-action' # ref=f205ea1c3313d32999d8d6a48b4f6530d4437b38"
+)
+
+
+def _hang_after(text: str) -> list[str]:
+    """Command that writes ``text`` to stdout, flushes, then sleeps 30 seconds.
+
+    The sleep only has to outlive the budget its caller passes to ``_run`` (2
+    seconds today), so the child is still running when the kill lands.
+    """
+    script = f"import sys, time; sys.stdout.write({text!r}); sys.stdout.flush(); time.sleep(30)"
+    return [sys.executable, "-c", script]
+
+
+def test_dryrun_budget_covers_a_cold_action_cache() -> None:
+    # act clones every referenced action before it can plan, so the dry run needs
+    # the same budget as the full run. Measured on codeql-analysis.yml: 17s warm,
+    # still cloning at 130s with 787M pulled on an empty --action-cache-path.
+    # Equality, not >=: the module derives one constant from the other, and a
+    # future edit that re-splits them into independent literals fails here in
+    # both directions instead of only when the dry run is made smaller.
+    assert w._ACT_DRYRUN_TIMEOUT == w._ACT_FULL_TIMEOUT
+
+
+def test_run_keeps_partial_stdout_on_timeout() -> None:
+    # Positive: the child's pre-kill output is the only evidence of what the run
+    # was doing. Before the fix _run returned "" here and the cause was lost.
+    rc, out, err = w._run(_hang_after(_CLONE_LINE + "\n"), timeout=2)
+
+    assert rc == -1
+    assert _CLONE_LINE in out
+    assert "TimeoutExpired" in err
+
+
+def test_run_returns_empty_output_when_timeout_child_wrote_nothing() -> None:
+    # Edge: TimeoutExpired carries None for a stream the child never wrote to.
+    # Decoding must yield "" rather than raising or leaking "None".
+    rc, out, err = w._run([sys.executable, "-c", "import time; time.sleep(30)"], timeout=2)
+
+    assert rc == -1
+    assert out == ""
+    assert err.startswith("TimeoutExpired: ")
+
+
+def test_decode_partial_handles_bytes_str_and_none() -> None:
+    # subprocess builds TimeoutExpired from the raw pipe buffers, so the partial
+    # output arrives as bytes even though _run passes text=True.
+    assert w._decode_partial(b"clone\n") == "clone\n"
+    assert w._decode_partial("clone\n") == "clone\n"
+    assert w._decode_partial(None) == ""
+    assert w._decode_partial(b"\xff") == "�"
+
+
+def test_timeout_hint_names_the_cold_cache_when_clones_are_present() -> None:
+    # Positive: clone lines in the partial output identify the cache, not the
+    # workflow, as the cause, and name the re-run as the remedy.
+    combined = f"{_CLONE_LINE}\n{_CLONE_LINE}\nTimeoutExpired: timed out after 120 seconds"
+
+    hint = w._stage_timeout_hint(combined)
+
+    assert hint is not None
+    assert "2 'git clone' line(s)" in hint
+    assert "cold gh act action cache" in hint
+    assert "Re-run" in hint
+
+
+def test_timeout_hint_does_not_blame_the_cache_without_clone_activity() -> None:
+    # Negative: a timeout with no clone traffic is a slow run. Claiming a cold
+    # cache there would point the operator at the wrong suspect.
+    combined = "[Build/Compile]   running tests\nTimeoutExpired: timed out after 600 seconds"
+
+    hint = w._stage_timeout_hint(combined)
+
+    assert hint is not None
+    assert "cold gh act action cache is not the cause" in hint
+    assert "git clone" not in hint
+
+
+def test_timeout_hint_is_absent_without_a_timeout() -> None:
+    # Negative: an ordinary nonzero exit gets no timeout cause line, even when
+    # the output happens to carry clone activity.
+    assert w._stage_timeout_hint(f"{_CLONE_LINE}\n::error::step failed") is None
+
+
+def test_timeout_hint_survives_the_detail_truncation() -> None:
+    # Edge: the cap trims the raw output, and the timeout marker sits at its
+    # tail. Deriving the hint from the full text keeps the cause visible.
+    combined = ("noise\n" * 2000) + _CLONE_LINE + "\nTimeoutExpired: timed out after 120 seconds"
+
+    detail = w._with_timeout_hint(combined)
+
+    assert len(combined) > 4000
+    assert "TimeoutExpired" not in detail[:4000]
+    assert "cold gh act action cache" in detail
+
+
+def test_act_dryrun_timeout_fails_with_the_cause(monkeypatch, tmp_path) -> None:
+    # Integration: the stage still blocks, but the operator now reads why.
+    wf = _write_wf(tmp_path, "name: x\non: workflow_dispatch\njobs: {}\n")
+    monkeypatch.setattr(
+        w,
+        "_run",
+        lambda cmd, *, timeout, cwd=None, env=None: (
+            -1,
+            _CLONE_LINE + "\n",
+            "TimeoutExpired: Command '['gh', 'act', '-n']' timed out after 120 seconds",
+        ),
+    )
+
+    res = w._act_dryrun_stage([wf.name], tmp_path)
+
+    assert res.ok is False
+    assert "cold gh act action cache" in res.detail
+    assert "1 'git clone' line(s)" in res.detail
+
+
+def test_act_timeout_does_not_downgrade_on_a_limitation_signature(monkeypatch, tmp_path) -> None:
+    # Regression guard for the partial-output change: a run killed mid-flight
+    # never validated the workflow, so a limitation signature in what it managed
+    # to emit must not turn the timeout into a passing WARN.
+    wf = _write_wf(tmp_path, "name: x\non: workflow_dispatch\njobs: {}\n")
+    monkeypatch.setattr(
+        w,
+        "_run",
+        lambda cmd, *, timeout, cwd=None, env=None: (
+            -1,
+            "fatal: not a git repository\n" + _CLONE_LINE + "\n",
+            "TimeoutExpired: Command '['gh', 'act', '-n']' timed out after 120 seconds",
+        ),
+    )
+
+    res = w._act_dryrun_stage([wf.name], tmp_path)
+
+    assert res.ok is False
+    assert "[WARN]" not in res.detail
+
+
+def test_actionlint_timeout_fails_with_the_cause(monkeypatch, tmp_path) -> None:
+    # Sibling call site: actionlint routes through the same _run, so its timeout
+    # detail gets the same cause line instead of a bare TimeoutExpired.
+    wf = _write_wf(tmp_path, "name: x\non: workflow_dispatch\njobs: {}\n")
+    monkeypatch.setattr(
+        w,
+        "_run",
+        lambda cmd, *, timeout, cwd=None, env=None: (
+            -1,
+            "",
+            "TimeoutExpired: Command '['actionlint']' timed out after 60 seconds",
+        ),
+    )
+
+    res = w._actionlint_stage([wf.name], tmp_path)
+
+    assert res.ok is False
+    assert "killed by the stage timeout" in res.detail

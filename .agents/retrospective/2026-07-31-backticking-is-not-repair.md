@@ -48,18 +48,22 @@ MUST 1 took under a minute and produced an unambiguous violation.
 
 ## Detection gap
 
-No gate catches this. Measured on this branch, with the broken path
-deliberately reintroduced into both trees:
+No gate catches this. Measured on this branch by adding the matched path
+`.agents/this-path-does-not-exist.md` to both shipped copies of a declared
+skill:
 
 | Gate | Exit code with a nonexistent declared path |
 |---|---|
 | `check_vendor_portability` | 0 |
+| `check_skill_portability` | 0 |
 | `check_skill_md_portability` | 0 |
 | `check_skill_md_exec_portability` | 0 |
 | `check_plugin_frontmatter_self_containment` | 0 |
 
-All four validate that a declaration is *present* and that its shape is
-well-formed. None validates that the paths a declaration names *exist*. A
+All five returned 0. Only `check_skill_md_portability` matched the body citation,
+then suppressed the declared file. The other four inspect skill scripts,
+Python, executable paths, or frontmatter, not body prose. None validates that the paths a
+declaration names *exist*. A
 declaration is therefore a claim the toolchain accepts without checking, which
 is the same category of trust failure the declarations were introduced to
 close.
@@ -73,7 +77,7 @@ which is a human-scale control, not an automated one.
 |---|---|---|
 | Consumer-facing docs | Medium | A vendored install would follow a citation to a file that does not exist in any repository. |
 | Rule artifacts | Medium | A `vendor-portability` declaration named a nonexistent path, so the artifact asserting portability was itself wrong. |
-| Trust in gate output | Medium | Four green gates coexisted with the defect, which makes green a weaker signal than it appeared. |
+| Trust in gate output | Medium | Five green gates coexisted with the defect, which makes green a weaker signal than it appeared. |
 | Review load | Low | Two adversarial rounds were needed on one PR. |
 
 ## Remediation
