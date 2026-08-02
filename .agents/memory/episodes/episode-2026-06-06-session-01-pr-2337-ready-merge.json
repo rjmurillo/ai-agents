@@ -51,7 +51,13 @@
       "timestamp": "2026-06-06T00:00:00+00:00",
       "type": "test",
       "content": "Retrospective tests passed: 63 passed in local Python 3.14 venv",
-      "caused_by": [],
+      "caused_by": [
+        "e007",
+        "e008",
+        "e009",
+        "e010",
+        "e011"
+      ],
       "leads_to": []
     },
     {
@@ -60,7 +66,9 @@
       "type": "commit",
       "content": "Commit: 9b53fd6f0f7e35ccd0bcbfd6ced3d589d3469dc6",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e008",
@@ -68,7 +76,9 @@
       "type": "commit",
       "content": "Commit: 6a3fdc5ee636c6b6eedcf984301960f0eb0e0ad1",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e009",
@@ -76,7 +86,9 @@
       "type": "commit",
       "content": "Commit: c5ae51df9cde23ec5cf18fea45cc9b94e84c0715",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e010",
@@ -84,7 +96,9 @@
       "type": "commit",
       "content": "Commit: 8f615117d14a3381aee72fe60b71359291932ca9",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e011",
@@ -92,7 +106,9 @@
       "type": "commit",
       "content": "Commit: ed410f687928eee1b2c64c2bc409be009d802c74",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     }
   ],
   "metrics": {
@@ -103,5 +119,7 @@
     "commits": 1,
     "files_changed": 0
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 5"
 }
