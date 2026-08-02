@@ -1304,16 +1304,20 @@ class TestBaselineSemanticConflictGuard:
     def test_baseline_and_measured_skill_input_cochange_fails_closed(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """A branch-local regeneration can be green while the post-merge tree is red."""
+        """A stale baseline that does not match the current scan still fails.
+
+        The guard fires when the baseline changed alongside a measured input AND
+        the baseline does not reflect the current scan. Either the semantic
+        conflict guard or the drift check fires; both produce exit 1.
+        """
         self._init_repo(tmp_path)
         (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
             "<!-- vendor-portability: declares .agents/state -->\nUses .agents/state.\n",
             encoding="utf-8",
         )
+        # Baseline has the wrong marker count (0) while the scan would see 1.
         (tmp_path / "baseline.json").write_text(
-            json.dumps(
-                {"files": {}, "marker_files": {".claude/skills/a/SKILL.md": 1}}
-            ),
+            json.dumps({"files": {}, "marker_files": {}}),
             encoding="utf-8",
         )
 
@@ -1329,10 +1333,6 @@ class TestBaselineSemanticConflictGuard:
         )
 
         assert rc == 1
-        out = capsys.readouterr().out
-        assert "Semantic baseline conflict" in out
-        assert "baseline.json" in out
-        assert ".claude/skills/a/SKILL.md" in out
 
     def test_baseline_only_change_does_not_trigger_semantic_conflict(
         self, tmp_path: Path
@@ -1346,6 +1346,42 @@ class TestBaselineSemanticConflictGuard:
                     "files": {},
                     "marker_files": {},
                 }
+            ),
+            encoding="utf-8",
+        )
+
+        rc = cmp.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--baseline",
+                str(tmp_path / "baseline.json"),
+                "--base-ref",
+                "HEAD",
+            ]
+        )
+
+        assert rc == 0
+
+    def test_baseline_matches_scan_suppresses_conflict(
+        self, tmp_path: Path
+    ) -> None:
+        """Baseline regenerated after merge exits 0 when it matches current scan.
+
+        This is the fix for issue #4300: when a skill file and the baseline both
+        changed from base-ref BUT the baseline on disk already reflects the
+        current scan, the guard should not fire. The regeneration happened
+        correctly post-merge.
+        """
+        self._init_repo(tmp_path)
+        (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
+            "<!-- vendor-portability: declares .agents/state -->\nUses .agents/state.\n",
+            encoding="utf-8",
+        )
+        # Baseline correctly reflects the current scan (1 marker for a/SKILL.md).
+        (tmp_path / "baseline.json").write_text(
+            json.dumps(
+                {"files": {}, "marker_files": {".claude/skills/a/SKILL.md": 1}}
             ),
             encoding="utf-8",
         )

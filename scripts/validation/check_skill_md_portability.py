@@ -525,6 +525,12 @@ def _is_measured_input(rel_path: str) -> bool:
     )
 
 
+def _is_skill_markdown(rel_path: str) -> bool:
+    return rel_path.endswith(".md") and any(
+        rel_path.startswith(f"{root}/skills/") for root in PLUGIN_ROOTS
+    )
+
+
 def _changed_files_against_base(root: Path, base_ref: str) -> list[str] | None:
     """List files changed in the working tree relative to ``base_ref``.
 
@@ -552,8 +558,31 @@ def _changed_files_against_base(root: Path, base_ref: str) -> list[str] | None:
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 
+def _baseline_matches_scan(
+    baseline_path: Path,
+    current: dict[str, int],
+    marker_current: dict[str, int],
+) -> bool:
+    """Return True when the baseline on disk reflects the current scan result.
+
+    When it does, the semantic-conflict guard is unnecessary: the baseline was
+    regenerated against the exact tree being validated, so there is no stale
+    data risk (issue #4300).
+    """
+    try:
+        on_disk_files = _load_baseline(baseline_path)
+        on_disk_markers = _load_marker_baseline(baseline_path)
+    except (OSError, ValueError):
+        return False
+    return on_disk_files == current and on_disk_markers == marker_current
+
+
 def check_semantic_baseline_conflict(
-    root: Path, base_ref: str, baseline_path: Path
+    root: Path,
+    base_ref: str,
+    baseline_path: Path,
+    current: dict[str, int] | None = None,
+    marker_current: dict[str, int] | None = None,
 ) -> list[str] | None:
     """Return measured inputs that changed alongside the baseline (issue #4195).
 
@@ -564,6 +593,14 @@ def check_semantic_baseline_conflict(
     will not actually have; the two changes must be re-validated together
     instead of trusted independently. Returns an empty list when there is no
     such conflict (including baseline-only changes, which remain allowed).
+
+    When ``current`` and ``marker_current`` are provided and the baseline on
+    disk already reflects that scan result, skill-file-only conflicts are
+    suppressed: the baseline accurately represents the current tree so the
+    conflict is a false positive from baseline regeneration post-merge
+    (issue #4300). Counter-code changes (scanner script modifications) always
+    fire even when the scan result matches, because the semantics of the
+    baseline changed.
     """
     changed = _changed_files_against_base(root, base_ref)
     if changed is None:
@@ -576,7 +613,24 @@ def check_semantic_baseline_conflict(
         return []
     if baseline_rel not in changed:
         return []
-    return [rel for rel in changed if rel != baseline_rel and _is_measured_input(rel)]
+    measured_changed = [
+        rel for rel in changed if rel != baseline_rel and _is_measured_input(rel)
+    ]
+    if not measured_changed:
+        return []
+    # Suppress skill-file-only conflicts when the baseline accurately reflects
+    # the current scan -- this is the post-merge regeneration case (#4300).
+    if (
+        current is not None
+        and marker_current is not None
+        and _baseline_matches_scan(baseline_path, current, marker_current)
+    ):
+        counter_code_changed = [
+            rel for rel in measured_changed if not _is_skill_markdown(rel)
+        ]
+        if not counter_code_changed:
+            return []
+    return measured_changed
 
 
 def _report_semantic_conflict(
@@ -779,7 +833,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.base_ref:
         conflicting_inputs = check_semantic_baseline_conflict(
-            root, args.base_ref, baseline_path
+            root, args.base_ref, baseline_path, current, marker_current
         )
         if conflicting_inputs is None:
             return 2
