@@ -9509,9 +9509,9 @@ def test_semgrep_command_excludes_python36_compat_family() -> None:
     exclude_values = [
         cmd[i + 1] for i, arg in enumerate(cmd) if arg == "--exclude-rule"
     ]
-    assert any(v.startswith("python.lang.compatibility.python36") for v in exclude_values), (
-        f"python36 compat family not excluded. --exclude-rule values: {exclude_values}"
-    )
+    assert any(
+        "python.lang.compatibility.python36" in v for v in exclude_values
+    ), f"python36 compat family not excluded. --exclude-rule values: {exclude_values}"
 
 
 def test_semgrep_command_excludes_python37_compat_family() -> None:
@@ -9520,6 +9520,6 @@ def test_semgrep_command_excludes_python37_compat_family() -> None:
     exclude_values = [
         cmd[i + 1] for i, arg in enumerate(cmd) if arg == "--exclude-rule"
     ]
-    assert any(v.startswith("python.lang.compatibility.python37") for v in exclude_values), (
-        f"python37 compat family not excluded. --exclude-rule values: {exclude_values}"
-    )
+    assert any(
+        "python.lang.compatibility.python37" in v for v in exclude_values
+    ), f"python37 compat family not excluded. --exclude-rule values: {exclude_values}"

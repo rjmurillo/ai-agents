@@ -3539,11 +3539,16 @@ def _semgrep_command(
     # subprocess Popen(encoding=, errors=) that are valid on Python 3.6+.
     # This repo requires Python 3.14 (pyproject.toml python_requires >=3.14),
     # so those compatibility warnings are false positives here.
+    # Full rule IDs required: prefix matching does not suppress with --exclude-rule.
     exclude_compat_rules = [
         "--exclude-rule",
-        "python.lang.compatibility.python36",
+        "python.lang.compatibility.python36.python36-compatibility-Popen1",
         "--exclude-rule",
-        "python.lang.compatibility.python37",
+        "python.lang.compatibility.python36.python36-compatibility-Popen2",
+        "--exclude-rule",
+        "python.lang.compatibility.python37.python37-compatibility-Popen1",
+        "--exclude-rule",
+        "python.lang.compatibility.python37.python37-compatibility-Popen2",
     ]
     return [
         _resolve_semgrep_executable(repo_root),
