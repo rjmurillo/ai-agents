@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-28T05:18:53.542312+00:00",
+  "updated": "2026-08-02T00:47:45.772189+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -23320,6 +23320,69 @@
         "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
       ],
       "created": "2026-07-28T05:06:51.357047+00:00"
+    },
+    {
+      "id": "cbd18ec9e69e",
+      "type": "milestone",
+      "label": "milestone: Read repository docs, rules, and relevant ADRs. Ran baseline full suite with durations: 16025 passed, 25 skipped; slowest healthy test 23.25s.",
+      "episodes": [
+        "episode-2026-08-01-session-4184-pytest-timeout"
+      ],
+      "created": "2026-08-02T00:47:45.758535+00:00"
+    },
+    {
+      "id": "0a3440b54eb9",
+      "type": "test",
+      "label": "test: Read repository docs, rules, and relevant ADRs. Ran baseline full suite with durations: 16025 passed, 25 skipped; slowest healthy test 23.25s.",
+      "episodes": [
+        "episode-2026-08-01-session-4184-pytest-timeout"
+      ],
+      "created": "2026-08-02T00:47:45.758741+00:00"
+    },
+    {
+      "id": "4f4124fea7b5",
+      "type": "milestone",
+      "label": "milestone: Attempted Copilot CLI delegation; it failed due monthly quota. Continued in degraded mode with direct TDD.",
+      "episodes": [
+        "episode-2026-08-01-session-4184-pytest-timeout"
+      ],
+      "created": "2026-08-02T00:47:45.758937+00:00"
+    },
+    {
+      "id": "20ca535dcef5",
+      "type": "milestone",
+      "label": "milestone: Added pytest-timeout dependency, configured --timeout=120, updated uv.lock, and added regression tests.",
+      "episodes": [
+        "episode-2026-08-01-session-4184-pytest-timeout"
+      ],
+      "created": "2026-08-02T00:47:45.759120+00:00"
+    },
+    {
+      "id": "e4a208a00772",
+      "type": "milestone",
+      "label": "milestone: Targeted tests, ruff, full pytest suite, and pre_pr.py passed.",
+      "episodes": [
+        "episode-2026-08-01-session-4184-pytest-timeout"
+      ],
+      "created": "2026-08-02T00:47:45.759300+00:00"
+    },
+    {
+      "id": "57b9b1206202",
+      "type": "commit",
+      "label": "commit: Commit: dbe32ca7",
+      "episodes": [
+        "episode-2026-08-01-session-4184-pytest-timeout"
+      ],
+      "created": "2026-08-02T00:47:45.759486+00:00"
+    },
+    {
+      "id": "4c8b64f46f33",
+      "type": "outcome",
+      "label": "Outcome: success - Fix issue #4184 by adding pytest-timeout and a default bare pytest timeout.",
+      "episodes": [
+        "episode-2026-08-01-session-4184-pytest-timeout"
+      ],
+      "created": "2026-08-02T00:47:45.759673+00:00"
     }
   ],
   "patterns": [

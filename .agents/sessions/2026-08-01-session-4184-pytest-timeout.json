@@ -1,0 +1,139 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4184,
+    "date": "2026-08-01",
+    "branch": "wt/t_441032db",
+    "startingCommit": "87b1176674a8",
+    "objective": "Fix issue #4184 by adding pytest-timeout and a default bare pytest timeout."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Hermes worker environment supplied project context; Serena tools were not exposed in this profile."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Repository AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, and relevant ADRs were read before editing."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read as read-only reference."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub PR workflow, kanban-worker, build, TDD, and GitHub URL intercept skills loaded."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Repository rules for universal, Python, testing, and security contexts were read."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ADR-042 Python-first and ADR-049 pre-PR validation gates read."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Injected Hermes memory and task handoff context used."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Working branch wt/t_441032db verified."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Work performed in isolated worktree /home/richard/repos/ai-agents/.worktrees/t_441032db."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Clean branch before edits."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "87b1176674a8"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation, tests, validation, and commit completed."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md unchanged."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No durable memory needed; this is issue-specific test infrastructure work."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files modified."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Commit dbe32ca7: fix(testing): add default pytest timeout."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Targeted tests pass, ruff on touched files passes, full pytest suite passes, pre_pr.py passes."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Kanban task will be completed with queued follow-up review after PR creation."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "## Retrospective\n\nLearnings captured:\n1. For pytest plugin defaults, combine static pyproject assertions with a bounded subprocess test that exercises the plugin using a short override.\n2. When adding dev tools in this repo, update both [project.optional-dependencies].dev and [dependency-groups].dev because separate uv install paths read separate tables.\n3. Copilot CLI can be unavailable due to quota, so implementation must fall back to direct TDD while documenting the degraded mode."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-08-02T00:20:00Z",
+      "entry": "Read repository docs, rules, and relevant ADRs. Ran baseline full suite with durations: 16025 passed, 25 skipped; slowest healthy test 23.25s."
+    },
+    {
+      "time": "2026-08-02T00:32:00Z",
+      "entry": "Attempted Copilot CLI delegation; it failed due monthly quota. Continued in degraded mode with direct TDD."
+    },
+    {
+      "time": "2026-08-02T00:38:00Z",
+      "entry": "Added pytest-timeout dependency, configured --timeout=120, updated uv.lock, and added regression tests."
+    },
+    {
+      "time": "2026-08-02T00:39:00Z",
+      "entry": "Targeted tests, ruff, full pytest suite, and pre_pr.py passed."
+    }
+  ],
+  "endingCommit": "dbe32ca7",
+  "nextSteps": [
+    "Push branch and open PR for #4184.",
+    "Queue security review because the change adds a dependency."
+  ]
+}

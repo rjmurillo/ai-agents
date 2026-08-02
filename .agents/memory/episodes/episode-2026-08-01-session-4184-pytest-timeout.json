@@ -1,0 +1,79 @@
+{
+  "id": "episode-2026-08-01-session-4184-pytest-timeout",
+  "session": "2026-08-01-session-4184-pytest-timeout",
+  "timestamp": "2026-08-01T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix issue #4184 by adding pytest-timeout and a default bare pytest timeout.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read repository docs, rules, and relevant ADRs. Ran baseline full suite with durations: 16025 passed, 25 skipped; slowest healthy test 23.25s.",
+      "caused_by": [],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "test",
+      "content": "Read repository docs, rules, and relevant ADRs. Ran baseline full suite with durations: 16025 passed, 25 skipped; slowest healthy test 23.25s.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Attempted Copilot CLI delegation; it failed due monthly quota. Continued in degraded mode with direct TDD.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added pytest-timeout dependency, configured --timeout=120, updated uv.lock, and added regression tests.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Targeted tests, ruff, full pytest suite, and pre_pr.py passed.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: dbe32ca7",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}
