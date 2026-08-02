@@ -1,0 +1,42 @@
+{
+  "id": "episode-2026-08-02-session-9001-rbd-4260-merge",
+  "session": "2026-08-02-session-9001-rbd-4260-merge",
+  "timestamp": "2026-08-02T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Merge origin/main into fix/script-entrypoints-and-pins, restore corrected episode file",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merge origin/main into fix/script-entrypoints-and-pins",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-02-session-9001-rbd-4260-merge"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-02T01:00:00+00:00",
+      "type": "milestone",
+      "content": "Restore episode-2026-07-26-session-3423 from origin/main",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-9001-rbd-4260-merge"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 3
+  },
+  "lessons": []
+}

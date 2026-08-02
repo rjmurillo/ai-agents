@@ -1,0 +1,130 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 9001,
+    "date": "2026-08-02",
+    "branch": "fix/script-entrypoints-and-pins",
+    "startingCommit": "d9863c5fb",
+    "objective": "Merge origin/main into fix/script-entrypoints-and-pins, restore corrected episode file"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file exists"
+      },
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "N/A - merge session"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "N/A - merge session"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "N/A - merge session"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "N/A - merge session"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "N/A - merge session"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "N/A - merge session"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "N/A - merge session"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Branch: fix/script-entrypoints-and-pins"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On branch fix/script-entrypoints-and-pins"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status checked"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "SHA: d9863c5fb"
+      }
+    },
+    "sessionEnd": {
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Episode file restored from origin/main (backward commit edges)"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All tests pass after restore"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "N/A - merge session"
+      },
+      "handoffNotUpdated": {
+        "level": "MUST NOT",
+        "Complete": false,
+        "Evidence": "HANDOFF.md not modified"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files changed"
+      },
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST requirements complete"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "N/A - merge session"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "N/A - merge session"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "action": "Merge origin/main into fix/script-entrypoints-and-pins",
+      "details": "Merged main to resolve conflicts; restored pre_pr_sequence.py from origin/main"
+    },
+    {
+      "timestamp": "2026-08-02T01:00:00+00:00",
+      "action": "Restore episode-2026-07-26-session-3423 from origin/main",
+      "details": "PR branch carried old episode version with backward commit edges e005->e006. Restored from origin/main which has the fix from commit 77e305c6e (PR #4282)."
+    }
+  ],
+  "nextSteps": [],
+  "endingCommit": ""
+}
