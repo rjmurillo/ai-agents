@@ -1,3 +1,4 @@
+# Architecture Patterns
 
 Select based on task complexity:
 
@@ -11,7 +12,7 @@ Select based on task complexity:
 | **Multi-Agent Sequential** | Dependent subtasks | Agent 1 → Agent 2 → Agent 3 |
 | **Orchestrator** | Coordinating multiple skills | Meta-skill chains |
 
-### Selection Decision Tree
+## Selection Decision Tree
 
 ```
 Is it a simple procedure?

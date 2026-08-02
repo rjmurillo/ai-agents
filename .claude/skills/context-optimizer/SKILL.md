@@ -20,7 +20,7 @@ Tooling suite for optimizing Claude Code context placement. Passive context (AGE
 - `compress markdown` - reduce token count for context files
 - `optimize context` - lower API costs and improve agent performance
 - `extract and index` - split markdown into detail files with compact index
-- `audit always-on rules` - eval-gated procedure for whether a rule earns its slot, and the doctrine behind it, in [rule-audit-procedure.md](references/rule-audit-procedure.md) and [model-context-doctrine.md](references/model-context-doctrine.md). Also the entry point when a new model ships
+- `audit always-on rules` - eval-gated procedure for whether a rule earns its slot, and the doctrine behind it, in [rule-audit-procedure.md](references/rule-audit-procedure.md) and [model-context-doctrine.md](references/model-context-doctrine.md). Also the entry point when a new model ships. **Requires a full rjmurillo/ai-agents checkout**: the procedure runs this repo's eval harness and rule generator, neither of which ships in a plugin install. The doctrine and the instrument write-ups are readable anywhere; only the commands need the checkout
 
 ## Process
 
@@ -85,7 +85,7 @@ The first question is not "skill or passive context." It is: **does the model al
 
 - Knowledge in passive context (routing, classification)
 - Actions in skill (script execution, state changes)
-- Example: pr-comment-responder has routing in SKILL-QUICK-REF.md, scripts in skill
+- Example: pr-comment-responder is routed from the always-on AGENTS.md skill table, and its scripts stay in the skill
 
 ## Why This Matters
 
@@ -116,14 +116,14 @@ The pass-rate table has no cost column. Passive context is paid on every request
 ## References
 
 - [model-context-doctrine.md](references/model-context-doctrine.md) - What the current doctrine is, why Vercel and Shihipar do not conflict, per-model levers, and how to update when a new model ships. **Read this before arguing about always-on content.**
-- [rule-audit-procedure.md](references/rule-audit-procedure.md) - Repeatable procedure for deciding whether an always-on rule earns its slot, including the eval commands, the noise floor, and known instrument gotchas
+- [rule-audit-procedure.md](references/rule-audit-procedure.md) - Repeatable procedure for deciding whether an always-on rule earns its slot, including the eval commands and the decision table. Contributor-only: its commands invoke this repo's eval harness and rule generator
+- [rule-audit-instrument.md](references/rule-audit-instrument.md) - What the eval can and cannot resolve, the noise floor, and the known instrument gotchas. Read before believing any number the eval prints
 - [rule-audit-evidence.md](references/rule-audit-evidence.md) - Forensics behind the published table: which judge samples were lost, what recovering them changed, and what the loss does to the headline claim. Read before citing a cell
 - [rule-audit-parser-forensics.md](references/rule-audit-parser-forensics.md) - Repair history of the parser that produced the table: what more than twenty rounds of adversarial review found, and which fixes were themselves wrong. Read before writing a new instrument that parses judge output
 - [rule-audit-measurement-discipline.md](references/rule-audit-measurement-discipline.md) - How the checks themselves went wrong: false negative controls, numbers read off the wrong population, and edits that silently deleted what they anchored on. Read before quoting a figure from a one-off command
 - [Vercel: AGENTS.md outperforms skills](https://vercel.com/blog/agents-md-outperforms-skills-in-our-agent-evals)
 - Analysis: `.agents/analysis/vercel-passive-context-vs-skills-research.md`
 - Memory: `passive-context-vs-skills-vercel-research`
-- Decision framework: `SKILL-QUICK-REF.md` (see the "Decision Framework" section)
 - [vibe-engineering.md](references/vibe-engineering.md) - 7-step agent interaction protocol for structured context optimization
 - [claude-code-productivity-patterns.md](references/claude-code-productivity-patterns.md) - Cost control, context management, and quality gates
 
@@ -138,11 +138,10 @@ The pass-rate table has no cost column. Passive context is paid on every request
 
 Analyzes skill content and recommends Skill, Passive Context, or Hybrid placement.
 
-> The script's `always_needed` heuristic predates the Decision Framework above
-> and disagrees with it: it reads "always", "mandatory", and "framework
-> knowledge" as reasons to make content passive, where the framework reads them
-> as reasons to scrutinize it. **The Decision Framework wins.** Use the script
-> for size and duplication, not for admission. Tracked in #3936.
+> The script reports shape, not admission. It cannot tell whether the model
+> already knows the content, and that is the question the Decision Framework
+> above turns on. Use it for size and duplication; the Decision Framework
+> decides what earns an always-on slot.
 
 **Classification Logic**:
 
@@ -150,7 +149,6 @@ Analyzes skill content and recommends Skill, Passive Context, or Hybrid placemen
 - **Action Verbs**: create, update, delete, execute, run -> Skill
 - **Reference Content**: Tables, lists, code blocks -> Passive
 - **User Triggers**: "when user", slash commands, explicit requests -> Skill
-- **Always-Needed**: "always", "mandatory", "framework knowledge" -> Passive
 
 **Usage**:
 
@@ -328,17 +326,16 @@ python3 scripts/test_skill_passive_compliance.py --path .claude/skills/github --
 
 **Input**: GitHub skill with gh pr create, gh issue close commands
 
+```json
 {"classification": "Skill", "confidence": 85, "reasoning": "High tool execution (8 calls); Many action verbs (12)"}
-
 ```
 
 ### Clear Passive Classification
 
-**Input**: Memory hierarchy reference with tables and always-needed patterns
+**Input**: Memory hierarchy reference, tables and lists, no commands
 
 ```json
-
-{"classification": "PassiveContext", "confidence": 90, "reasoning": "High reference content ratio (0.85); Always-needed information (5 indicators)"}
+{"classification": "PassiveContext", "confidence": 80, "reasoning": "High reference content ratio (0.85)"}
 ```
 
 ### Hybrid Classification

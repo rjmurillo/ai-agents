@@ -32,7 +32,7 @@ _REMEDIATION_GUIDE = """\
        templates/agents/<agent-name>.shared.md
 
   2. Regenerate platform-specific files:
-       python3 build/generate_agents.py
+       uv run python build/generate_agents.py
 
   3. Commit the regenerated files:
        git add src/vs-code-agents/ src/copilot-cli/

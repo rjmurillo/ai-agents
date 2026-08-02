@@ -165,7 +165,7 @@ def run_claude(prompt: str) -> tuple[str, str]:
     result = subprocess.run(
         ["claude", "-p", prompt],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         timeout=120,
     )
     return result.stdout, result.stderr
@@ -176,7 +176,7 @@ def run_copilot(prompt: str) -> tuple[str, str]:
     result = subprocess.run(
         ["gh", "copilot", "suggest", "--yolo", prompt],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         timeout=120,
     )
     return result.stdout, result.stderr

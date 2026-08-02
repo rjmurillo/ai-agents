@@ -48,11 +48,23 @@ import argparse
 import json
 import subprocess
 import sys
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from scripts.maintenance import _gc_remote
+else:
+    try:
+        from scripts.maintenance import _gc_remote
+    except ModuleNotFoundError:
+        import _gc_remote
 
 _DEFAULT_BASE = "origin/main"
 _GIT_TIMEOUT_SECONDS = 30
+_DECIDE_WORKERS = 8
 
 # Reasons a worktree is kept (never removed). Stable strings for tests/automation.
 KEEP_MAIN = "main-or-current worktree"
@@ -103,6 +115,8 @@ class GcReport:
     decisions: list[Decision] = field(default_factory=list)
     removed: list[str] = field(default_factory=list)
     remove_errors: list[str] = field(default_factory=list)
+    remote_head_lookup_failed: bool = False
+    remote_head_lookup_error: str | None = None
 
     @property
     def candidates(self) -> list[Decision]:
@@ -113,6 +127,11 @@ class GcReport:
     def kept(self) -> list[Decision]:
         """Decisions kept with a reason."""
         return [d for d in self.decisions if d.kept]
+
+    @property
+    def needs_disposition(self) -> list[Decision]:
+        """Kept branches that need a human disposition before they can shrink."""
+        return [d for d in self.kept if d.reason == KEEP_UNPUSHED]
 
 
 def _run_git(args: list[str], cwd: str | None = None) -> str:
@@ -230,6 +249,8 @@ def decide(
     base_ref: str,
     *,
     current_path: str | None = None,
+    remote_head_refs: frozenset[str] | None = None,
+    origin_upstreams: dict[str, str] | None = None,
 ) -> Decision:
     """Decide whether a worktree is safe to remove. KEEP on any doubt.
 
@@ -246,19 +267,32 @@ def decide(
     if worktree.locked:
         return Decision(worktree.path, worktree.branch, remove=False, reason=KEEP_LOCKED)
 
-    if worktree.detached or worktree.branch is None:
-        return Decision(worktree.path, worktree.branch, remove=False, reason=KEEP_DETACHED)
-
     try:
         if has_uncommitted_changes(worktree.path):
             return Decision(worktree.path, worktree.branch, remove=False, reason=KEEP_DIRTY)
         merged = is_merged_to_base(worktree.path, base_ref)
+        reason = "merged to base"
+        if worktree.detached or worktree.branch is None:
+            if merged:
+                return Decision(worktree.path, worktree.branch, remove=True, reason=reason)
+            return Decision(worktree.path, worktree.branch, remove=False, reason=KEEP_DETACHED)
+        if (
+            not merged
+            and remote_head_refs is not None
+            and _gc_remote.is_merged_by_deleted_upstream(
+                worktree.branch,
+                remote_head_refs,
+                origin_upstreams or {},
+            )
+        ):
+            merged = True
+            reason = "merged by deleted upstream"
         if not merged and has_unpushed_commits(worktree.path):
             return Decision(worktree.path, worktree.branch, remove=False, reason=KEEP_UNPUSHED)
     except RuntimeError:
         return Decision(worktree.path, worktree.branch, remove=False, reason=KEEP_GIT_ERROR)
 
-    pushed = "merged to base" if merged else "fully pushed"
+    pushed = reason if merged else "fully pushed"
     return Decision(worktree.path, worktree.branch, remove=True, reason=pushed)
 
 
@@ -277,16 +311,41 @@ def build_report(base_ref: str, apply: bool) -> GcReport:
     worktrees = list_worktrees()
     main_path = worktrees[0].path if worktrees else ""
     current_path = _run_git(["rev-parse", "--show-toplevel"])
+    remote_head_refs: frozenset[str] | None
+    remote_head_lookup_failed = False
+    remote_head_lookup_error = None
+    try:
+        remote_head_refs = _gc_remote.load_remote_head_refs(_run_git)
+    except RuntimeError as exc:
+        remote_head_refs = None
+        remote_head_lookup_failed = True
+        remote_head_lookup_error = str(exc)
+    origin_upstreams = (
+        _gc_remote.try_load_origin_upstreams(_run_git) if remote_head_refs is not None else {}
+    )
     report = GcReport(
         timestamp=datetime.now(UTC).isoformat(),
         base_ref=base_ref,
         apply=apply,
         main_worktree=main_path,
         total_worktrees=len(worktrees),
+        remote_head_lookup_failed=remote_head_lookup_failed,
+        remote_head_lookup_error=remote_head_lookup_error,
     )
-    report.decisions = [
-        decide(wt, main_path, base_ref, current_path=current_path) for wt in worktrees
-    ]
+
+    def decide_one(wt: Worktree) -> Decision:
+        return decide(
+            wt,
+            main_path,
+            base_ref,
+            current_path=current_path,
+            remote_head_refs=remote_head_refs,
+            origin_upstreams=origin_upstreams,
+        )
+
+    workers = min(_DECIDE_WORKERS, len(worktrees)) or 1
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        report.decisions = list(executor.map(decide_one, worktrees))
     return report
 
 
@@ -309,6 +368,41 @@ def apply_removals(report: GcReport) -> None:
         report.remove_errors.append(f"prune: {exc}")
 
 
+def _append_decision_group(
+    lines: list[str],
+    title: str,
+    decisions: list[Decision],
+    formatter: Callable[[Decision], str],
+) -> None:
+    """Append a titled decision group when there is anything to report."""
+    if not decisions:
+        return
+    lines.append(title)
+    for decision in decisions:
+        lines.append(formatter(decision))
+
+
+def _append_disposition_group(lines: list[str], decisions: list[Decision]) -> None:
+    """Append kept branches that need human cleanup disposition."""
+    if not decisions:
+        return
+    lines.append("  Needs disposition:")
+    lines.append("    Review branch and issue state, then push, merge, lock, or delete.")
+    for decision in decisions:
+        lines.append(f"    - {decision.path} [{decision.branch}] unpushed and unmerged")
+
+
+def _append_apply_result(lines: list[str], report: GcReport) -> None:
+    """Append removal results from apply mode."""
+    lines.append(f"  removed: {len(report.removed)}")
+    for path in report.removed:
+        lines.append(f"    - removed {path}")
+    if report.remove_errors:
+        lines.append(f"  errors: {len(report.remove_errors)}")
+        for err in report.remove_errors:
+            lines.append(f"    - {err}")
+
+
 def format_report(report: GcReport) -> str:
     """Human-readable summary of the GC plan or result."""
     mode = "APPLY" if report.apply else "DRY-RUN"
@@ -318,22 +412,25 @@ def format_report(report: GcReport) -> str:
         f"  removal candidates: {len(report.candidates)}",
         f"  kept: {len(report.kept)}",
     ]
-    if report.candidates:
-        lines.append("  Candidates:")
-        for d in report.candidates:
-            lines.append(f"    - {d.path} [{d.branch}] ({d.reason})")
-    if report.kept:
-        lines.append("  Kept:")
-        for d in report.kept:
-            lines.append(f"    - {d.path} [{d.branch}] KEEP: {d.reason}")
+    if report.remote_head_lookup_failed:
+        lines.append("  remote head lookup failed, using ancestry-only merge checks")
+        if report.remote_head_lookup_error:
+            lines.append(f"    {report.remote_head_lookup_error}")
+    _append_decision_group(
+        lines,
+        "  Candidates:",
+        report.candidates,
+        lambda d: f"    - {d.path} [{d.branch}] ({d.reason})",
+    )
+    _append_disposition_group(lines, report.needs_disposition)
+    _append_decision_group(
+        lines,
+        "  Kept:",
+        report.kept,
+        lambda d: f"    - {d.path} [{d.branch}] KEEP: {d.reason}",
+    )
     if report.apply:
-        lines.append(f"  removed: {len(report.removed)}")
-        for path in report.removed:
-            lines.append(f"    - removed {path}")
-        if report.remove_errors:
-            lines.append(f"  errors: {len(report.remove_errors)}")
-            for err in report.remove_errors:
-                lines.append(f"    - {err}")
+        _append_apply_result(lines, report)
     else:
         lines.append(
             f"  DRY-RUN: removed nothing. Pass --apply to remove "
