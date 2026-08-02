@@ -1,8 +1,8 @@
-# Skill: Invoking the count ratchet scripts from other code (95%)
+# Skill: Invoking the ratchet scripts from other code (95%)
 
 ## Statement
 
-Two of the four count ratchets shell out to a **bare `ruff` executable**, not to
+Two of the four ratchets shell out to a **bare `ruff` executable**, not to
 a Python module. Run them with `sys.executable` from a venv without the `dev`
 extra and they report `command not found`. That reads as a ratchet failure but
 is really a missing dependency, so a gate built on top of them fails a clean

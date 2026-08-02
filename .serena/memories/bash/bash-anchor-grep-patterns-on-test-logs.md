@@ -13,7 +13,7 @@ Anchor every pattern to the position the real line occupies.
 ## Recipe
 
 ```bash
-grep -E "^REAL_EXIT|^error:|^ ! \[remote rejected\]|\* \[new branch\]|^ [0-9a-f]{7,}\.\.[0-9a-f]{7,}" "$LOG"
+grep -E "^REAL_EXIT|^error:|^ ! \[remote rejected\]|^[[:space:]]*\* \[new branch\]|^ [0-9a-f]{7,}\.\.[0-9a-f]{7,}" "$LOG"
 ```
 
 Each alternative is pinned: `REAL_EXIT` and `error:` at column zero, git's
