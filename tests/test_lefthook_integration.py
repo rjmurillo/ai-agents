@@ -9491,3 +9491,35 @@ def test_the_tracked_scan_reports_a_git_failure_as_a_config_error(
     not_a_repo.mkdir()
 
     assert policy.check_tracked_conflict_markers(not_a_repo) == 2
+
+
+# ---------------------------------------------------------------------------
+# _semgrep_command excludes python36/37 compatibility families (#4217 unblock)
+# ---------------------------------------------------------------------------
+
+
+def test_semgrep_command_excludes_python36_compat_family() -> None:
+    """_semgrep_command must exclude the python36 compatibility rule family.
+
+    pyproject.toml sets python_requires >= 3.14. The python36 compatibility
+    rules flag valid patterns such as subprocess.Popen(encoding=, errors=) as
+    errors, producing false positives that block legitimate pushes.
+    """
+    cmd = policy._semgrep_command("auto", ["path/to/file.py"])
+    exclude_values = [
+        cmd[i + 1] for i, arg in enumerate(cmd) if arg == "--exclude-rule"
+    ]
+    assert any(v.startswith("python.lang.compatibility.python36") for v in exclude_values), (
+        f"python36 compat family not excluded. --exclude-rule values: {exclude_values}"
+    )
+
+
+def test_semgrep_command_excludes_python37_compat_family() -> None:
+    """_semgrep_command must exclude the python37 compatibility rule family."""
+    cmd = policy._semgrep_command("auto", ["path/to/file.py"])
+    exclude_values = [
+        cmd[i + 1] for i, arg in enumerate(cmd) if arg == "--exclude-rule"
+    ]
+    assert any(v.startswith("python.lang.compatibility.python37") for v in exclude_values), (
+        f"python37 compat family not excluded. --exclude-rule values: {exclude_values}"
+    )

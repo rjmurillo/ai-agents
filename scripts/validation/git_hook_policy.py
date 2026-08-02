@@ -3535,6 +3535,16 @@ def _semgrep_command(
     targets: Sequence[str],
     repo_root: Path = REPO_ROOT,
 ) -> list[str]:
+    # python.lang.compatibility.python3{6,7} rules flag arguments like
+    # subprocess Popen(encoding=, errors=) that are valid on Python 3.6+.
+    # This repo requires Python 3.14 (pyproject.toml python_requires >=3.14),
+    # so those compatibility warnings are false positives here.
+    _EXCLUDE_COMPAT_RULES = [
+        "--exclude-rule",
+        "python.lang.compatibility.python36",
+        "--exclude-rule",
+        "python.lang.compatibility.python37",
+    ]
     return [
         _resolve_semgrep_executable(repo_root),
         "scan",
@@ -3549,6 +3559,7 @@ def _semgrep_command(
         "--max-target-bytes=0",
         "--no-exclude-binary-files",
         "--json",
+        *_EXCLUDE_COMPAT_RULES,
         "--",
         *targets,
     ]
