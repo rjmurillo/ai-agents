@@ -87,3 +87,65 @@ merge first and infer the state from the outcome.
 - `pr-review/pr-status-001.md`. The agent's own status vocabulary, which derives
   BLOCKED from CI state directly. That derivation is the correct direction and
   this memory explains why the API field cannot substitute for it.
+
+## The other BLOCKED: a required context that never reported
+
+The stale-BLOCKED case above is a PR whose checks went green after the field was
+computed. There is a second, opposite case that the same jq cannot see, and it
+is the one that strands PRs indefinitely.
+
+A PR can read `BLOCKED` with **76 checks present and zero of them failing**. The
+per-check reduction returns an empty non-success list, which reads as "this is
+just stale, merge it", and the merge then fails. The cause is not a red check.
+It is a **required context that produced no check run at all**. An absent
+context cannot appear in a rollup, so every reduction over the rollup, including
+the union-safe one above, is blind to it by construction.
+
+Measured on 2026-08-01 across the 49 open PRs: 28 read `BLOCKED`, and 4 of those
+(#3984, #4003, #4260, #4296) had zero non-success checks. All four were missing
+the **same seven** required contexts:
+
+```
+Aggregate Results, Analyst Review, Architect Review,
+DevOps Review, QA Review, Roadmap Review, Security Review
+```
+
+Six are the agent-review jobs in `.github/workflows/ai-pr-quality-gate.yml`; the
+seventh is their aggregator. Why they never reported on those four head SHAs is
+**not established**. Do not assert a cause without checking the run list for the
+head SHA; a plausible story is not a measurement.
+
+## Diagnose it by difference, not by reading the rollup
+
+The rollup tells you what ran. The block is about what did not. So compare the
+two sets:
+
+```bash
+# what the ruleset demands
+gh api "repos/$O/$R/rules/branches/main" \
+  --jq '[.[]|select(.type=="required_status_checks")
+         |.parameters.required_status_checks[].context]|sort' > /tmp/required.json
+
+# what actually reported on this PR's head SHA
+gh pr view "$N" --repo "$O/$R" --json statusCheckRollup \
+  --jq '[.statusCheckRollup[]|.name // .context]|unique' > /tmp/present.json
+
+# the block is the difference
+jq -n --slurpfile r /tmp/required.json --slurpfile p /tmp/present.json \
+  '$r[0] - $p[0]'
+```
+
+A non-empty result names the block precisely. An empty result means the required
+set did report, and the stale-BLOCKED reading above applies instead.
+
+There are 17 required contexts on `main` as of 2026-08-01. `Add Bot Reviewer` is
+**not** one of them, so its failure never blocks a merge. Check membership in
+the required set before calling any red check a blocker.
+
+## Why this matters more than the stale case
+
+A stale BLOCKED resolves itself on the next recomputation. A missing required
+context does not resolve at all: there is no red check to re-run, no failure to
+fix, and the PR board looks fully green. Nothing in the UI or in
+`mergeStateStatus` distinguishes the two. Without the set difference above, the
+only signal is a merge that keeps failing for no visible reason.
