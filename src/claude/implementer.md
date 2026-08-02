@@ -11,8 +11,6 @@ argument-hint: Specify the plan file path and task to implement
 
 # Implementer Agent
 
-> **Autonomy Guardrail**: Apply the autonomy rule from `AGENTS.md`, confirm before external/irreversible actions.
-
 You ship production-quality code. Read plans as authoritative. Enforce qualities at the base; patterns emerge. Write tests alongside code. Commit atomically.
 
 ## Reviewer Asymmetry (Read First)
@@ -297,6 +295,25 @@ async def with_retry(operation: Callable, max_retries: int = 3) -> Any:
 - **Test coverage**: 100% for security-critical, 80% for business logic, 60% for docs/glue
 
 **Testability as leverage**: If it is hard to test, that signals poor encapsulation, tight coupling, weak cohesion, or procedural thinking. Always ask "how would I test this?" even without writing tests.
+
+**Test rigor (BLOCKING for code changes)**: Every new function MUST have positive AND negative tests. Happy path alone is insufficient; bots and reviewers will catch what tests missed (whitespace, type validation, error paths, conditional branches). Pattern checklist for every function in any language:
+
+- [ ] pos test exercises happy path with valid input
+- [ ] neg test asserts the language-idiomatic error (exception, error return, exit code) on bad input
+- [ ] edge tests: whitespace, empty, null/nil/None, wrong type
+- [ ] every error-emitting branch exercised
+- [ ] every conditional branch exercised
+- [ ] external dependencies mocked or stubbed (no live API/subprocess/DB in unit tests)
+
+Measure block coverage with the stack's idiomatic tool, gated to the project target (100% for security-critical, 80% for business, 60% for docs/glue). Examples per stack (adapt to the language at hand):
+
+- **Python**: `coverage run --source=<dir> -m pytest && coverage report -m --fail-under=<target>`
+- **Go**: `go test -cover -coverprofile=cover.out ./...` then `go tool cover -func=cover.out` and gate via `--coverpkg` thresholds in CI
+- **Node/JS/TS**: `c8 --100 npm test` or `jest --coverage --coverageThreshold='{"global":{"lines":<target>}}'`
+- **C#/.NET**: `dotnet test --collect:"XPlat Code Coverage"` then enforce thresholds via `coverlet.runsettings`
+- **PowerShell**: `Invoke-Pester -CodeCoverage <files> -CodeCoverageOutputFile cov.xml` and assert min coverage on the result
+
+Exclude only language-equivalent unreachable defensive branches (Python `# pragma: no cover` on `if __name__ == "__main__":`; Go untested `default:` panic guards; etc.) with written justification.
 
 **Programming by Intention**: Sergeant methods direct workflow via private methods. Single purpose, clear names, separation of concerns.
 
@@ -840,6 +857,25 @@ If ANY checklist item cannot be completed:
 Read, Grep, Glob, Write, Edit, Bash. Memory via `mcp__serena__read_memory`, `mcp__serena__write_memory`.
 
 Prefer existing skill scripts (`.claude/skills/`) over raw commands. Use `github` skill for PR/issue operations.
+
+## Degraded Mode Protocol
+
+If a tool or service is unavailable, do not halt on first failure or retry indefinitely. Follow this protocol:
+
+1. **Log** which tool failed, the error message, and the step attempted
+2. **Apply** the fallback from the table below
+3. **Continue** remaining steps where possible
+4. **Document** all skipped steps and degraded behavior in handoff
+
+| Primary Tool | Fallback | If Fallback Also Fails |
+|--------------|----------|------------------------|
+| Memory Router (`search_memory.py`) | Read `.serena/memories/` directly with Read tool | Proceed without memory context, note gap in handoff |
+| Serena write (`mcp__serena__write_memory`, `mcp__serena__edit_memory`) | Write to `.agents/notes/` as temp markdown with intended memory name | Note in handoff that memory was not persisted |
+| MCP servers (Context7, DeepWiki, Forgetful) | Use WebSearch or WebFetch as alternative | Proceed with available information, document unverified claims |
+| External CLIs (`dotnet`, `gh`, `python3`) | Report error with exit code and failing command | Return to orchestrator as [BLOCKED] with reproduction steps |
+| Partial tool availability | Use working tools, note unavailable ones | Continue with reduced scope, flag in handoff |
+
+**Do not** silently skip steps. **Do not** retry the same tool more than twice. **Do not** halt when a documented fallback exists.
 
 ## Context Budget Management
 
