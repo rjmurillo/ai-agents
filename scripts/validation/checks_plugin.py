@@ -172,6 +172,7 @@ def validate_agent_content_parity(repo_root: Path) -> bool:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
     )
     output = (result.stdout + result.stderr).strip()
     if output:
