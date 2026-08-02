@@ -40,7 +40,7 @@ def _run_tests(extra_args: list[str] | None = None) -> subprocess.CompletedProce
         "-k", PYTEST_K,
         *(extra_args or []),
     ]
-    return subprocess.run(cmd, cwd=str(REPO_ROOT), capture_output=True, text=True)
+    return subprocess.run(cmd, cwd=str(REPO_ROOT), capture_output=True, text=True, encoding="utf-8")
 
 
 def test_mutant_detected() -> None:
