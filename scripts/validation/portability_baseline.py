@@ -231,6 +231,36 @@ def refuse_undiffable_baseline(repo_root: Path, baseline_path: Path) -> bool:
     """
     toplevel = run_git(repo_root, "rev-parse", "--show-toplevel")
     if toplevel is None or toplevel.returncode != 0:
+        # Two distinct states collapse into a non-zero exit from run_git:
+        #
+        # 1. "Not a repository": git answered, the path is outside any checkout,
+        #    and refusal would block vendored copies and unpacked tarballs.
+        #
+        # 2. "Prevented from answering": the caller's environment contained
+        #    GIT_DIR (or a sibling pointer variable) and run_git's GIT_* scrub
+        #    removed the only thing that made the worktree discoverable. Git
+        #    then reports no repository, but the repository exists and the guard
+        #    is not live. Refs #4258.
+        #
+        # Distinguish them by checking whether the scrub removed a pointer.
+        # The variables are still readable in os.environ; they were just not
+        # forwarded to git.
+        _GIT_POINTER_VARS = (
+            "GIT_DIR",
+            "GIT_WORK_TREE",
+            "GIT_COMMON_DIR",
+        )
+        if any(v in os.environ for v in _GIT_POINTER_VARS):
+            print(
+                f"Refusing to trust the baseline {baseline_path}: "
+                "the environment contains GIT_DIR or a sibling pointer variable "
+                "that run_git strips before calling git. "
+                "Git reported no repository, but the scrub hid the one the pointer named. "
+                "The guard cannot confirm the baseline is diffable without that context. "
+                "Refs #4258.",
+                file=sys.stderr,
+            )
+            return True
         return False
 
     proc = run_git(repo_root, "check-attr", "-z", "diff", "--", str(baseline_path))
