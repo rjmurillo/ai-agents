@@ -12,10 +12,10 @@
       "type": "milestone",
       "content": "Ran the live-state gate and created an isolated worktree at remote head 9f1e0b949a.",
       "caused_by": [
-        "e017"
+        "e007"
       ],
       "leads_to": [
-        "e002"
+        "e008"
       ]
     },
     {
@@ -24,10 +24,10 @@
       "type": "milestone",
       "content": "Corrected session 3351 evidence, regenerated its episode and graph contribution, and fixed the collision claim.",
       "caused_by": [
-        "e001"
+        "e007"
       ],
       "leads_to": [
-        "e003"
+        "e008"
       ]
     },
     {
@@ -36,10 +36,10 @@
       "type": "milestone",
       "content": "Stopped the first push when the remote SHA changed from 9f1e0b949a to e503aaff56.",
       "caused_by": [
-        "e002"
+        "e007"
       ],
       "leads_to": [
-        "e004"
+        "e008"
       ]
     },
     {
@@ -48,10 +48,10 @@
       "type": "milestone",
       "content": "Replied to and resolved all three current review threads.",
       "caused_by": [
-        "e003"
+        "e007"
       ],
       "leads_to": [
-        "e005"
+        "e008"
       ]
     },
     {
@@ -60,56 +60,72 @@
       "type": "milestone",
       "content": "Completed local and remote validation.",
       "caused_by": [
-        "e004"
-      ],
-      "leads_to": [
-        "e010"
-      ]
-    },
-    {
-      "id": "e006",
-      "timestamp": "2026-07-26T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 6610eb791f6ca5429d4a7266aba11d8fdb58f438",
-      "caused_by": [],
-      "leads_to": [
         "e007"
-      ]
-    },
-    {
-      "id": "e007",
-      "timestamp": "2026-07-26T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: b2c8a534",
-      "caused_by": [
-        "e006"
       ],
       "leads_to": [
         "e008"
       ]
     },
     {
-      "id": "e008",
-      "timestamp": "2026-07-26T00:00:00+00:00",
+      "id": "e006",
+      "timestamp": "2026-07-26T05:24:58+00:00",
       "type": "commit",
-      "content": "Commit: e503aaff56",
+      "content": "Commit: 6610eb791f6ca5429d4a7266aba11d8fdb58f438",
       "caused_by": [
-        "e007"
+        "e008"
       ],
       "leads_to": [
         "e009"
       ]
     },
     {
+      "id": "e007",
+      "timestamp": "2026-07-25T07:09:37+00:00",
+      "type": "commit",
+      "content": "Commit: b2c8a534",
+      "caused_by": [],
+      "leads_to": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e010",
+        "e011",
+        "e014",
+        "e016"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-26T05:12:18+00:00",
+      "type": "commit",
+      "content": "Commit: e503aaff56",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e010",
+        "e011",
+        "e014",
+        "e016"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
       "id": "e009",
-      "timestamp": "2026-07-26T00:00:00+00:00",
+      "timestamp": "2026-07-26T05:24:58+00:00",
       "type": "commit",
       "content": "Commit: 6610eb791f",
       "caused_by": [
-        "e008"
+        "e006"
       ],
       "leads_to": [
-        "e012"
+        "e013"
       ]
     },
     {
@@ -118,10 +134,10 @@
       "type": "milestone",
       "content": "Stopped a second push when the remote SHA changed to 2781ce15e3.",
       "caused_by": [
-        "e005"
+        "e007"
       ],
       "leads_to": [
-        "e011"
+        "e008"
       ]
     },
     {
@@ -130,34 +146,34 @@
       "type": "milestone",
       "content": "Removed the duplicate nested ending commit and completed review round 3.",
       "caused_by": [
-        "e010"
+        "e007"
       ],
       "leads_to": [
-        "e014"
+        "e008"
       ]
     },
     {
       "id": "e012",
-      "timestamp": "2026-07-26T00:00:00+00:00",
+      "timestamp": "2026-07-26T06:30:51+00:00",
       "type": "commit",
       "content": "Commit: 48d32a4e47a668fed0dec221cd439d620c532745",
       "caused_by": [
-        "e009"
+        "e013"
       ],
       "leads_to": [
-        "e013"
+        "e015"
       ]
     },
     {
       "id": "e013",
-      "timestamp": "2026-07-26T00:00:00+00:00",
+      "timestamp": "2026-07-26T06:05:26+00:00",
       "type": "commit",
       "content": "Commit: 2781ce15e3",
       "caused_by": [
-        "e012"
+        "e009"
       ],
       "leads_to": [
-        "e015"
+        "e012"
       ]
     },
     {
@@ -166,19 +182,19 @@
       "type": "milestone",
       "content": "Handled valid non-object graph JSON in review round 4.",
       "caused_by": [
-        "e011"
+        "e007"
       ],
       "leads_to": [
-        "e016"
+        "e008"
       ]
     },
     {
       "id": "e015",
-      "timestamp": "2026-07-26T00:00:00+00:00",
+      "timestamp": "2026-07-26T07:15:22+00:00",
       "type": "commit",
       "content": "Commit: 5e1cc81eedff747d075c6fa9e48d3c4e02693700",
       "caused_by": [
-        "e013"
+        "e012"
       ],
       "leads_to": [
         "e017"
@@ -190,21 +206,21 @@
       "type": "milestone",
       "content": "Closed malformed-JSON data loss and memory scope findings in review round 5.",
       "caused_by": [
-        "e014"
+        "e007"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e017",
-      "timestamp": "2026-07-26T00:00:00+00:00",
+      "timestamp": "2026-07-26T07:59:14+00:00",
       "type": "commit",
       "content": "Commit: 0c0298d127e14253ce9a83d0d75370cf7d819aae",
       "caused_by": [
         "e015"
       ],
-      "leads_to": [
-        "e001"
-      ]
+      "leads_to": []
     }
   ],
   "metrics": {
