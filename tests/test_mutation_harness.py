@@ -1,3 +1,5 @@
+# taste-lint: ignore file-size -- PR #4181 keeps the harness and tests paired.
+
 from __future__ import annotations
 
 import json
@@ -5,16 +7,21 @@ import os
 import shutil
 import subprocess
 import sys
-from collections.abc import Generator
+from collections.abc import Generator, Sequence
 from pathlib import Path
 
 import pytest
 
 from scripts.testing.mutation_harness import (
+    EXIT_EXTERNAL_ERROR,
+    GIT_ROOT_TIMEOUT_SECONDS,
     BatteryConfigError,
     MutationEntry,
     MutationRunner,
+    MutationTimeoutError,
+    _find_containment_root,
     _resolve_entry_path,
+    main,
     validate_battery,
 )
 
@@ -43,8 +50,9 @@ def _entry(
     old: str = "return True",
     new: str = "return False",
     command: tuple[str, ...] = (sys.executable, "-c", "raise SystemExit(1)"),
+    timeout_seconds: int | float = 300,
 ) -> MutationEntry:
-    return MutationEntry("case", source, old, new, command)
+    return MutationEntry("case", source, old, new, command, timeout_seconds)
 
 
 def _write_module(path: Path, return_value: str) -> None:
@@ -62,9 +70,27 @@ def _prime_cache(module_path: Path) -> float:
     )
     env = os.environ.copy()
     env.pop("PYTHONDONTWRITEBYTECODE", None)
-    subprocess.run([sys.executable, "-c", probe], capture_output=True, env=env, check=True)
+    subprocess.run(
+        [sys.executable, "-c", probe],
+        capture_output=True,
+        env=env,
+        check=True,
+        timeout=30,
+    )
     assert (module_path.parent / "__pycache__").exists()
     return original_mtime
+
+
+def _run_cli(battery: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, "-m", "scripts.testing.mutation_harness", str(battery)],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        timeout=30,
+    )
 
 
 class TestBatteryValidation:
@@ -154,6 +180,73 @@ class TestMutationResults:
         assert results[0].caught is False
         assert "MISSED case returncode=0" in capsys.readouterr().out
 
+    def test_run_command_reports_timeout_with_command_and_limit(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        workspace = _case_dir("timeout")
+        runner = MutationRunner(cwd=workspace)
+        observed: dict[str, object] = {}
+
+        def timeout_run(
+            command: Sequence[str],
+            **kwargs: object,
+        ) -> subprocess.CompletedProcess[str]:
+            observed.update(kwargs)
+            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+        monkeypatch.setattr(subprocess, "run", timeout_run)
+
+        with pytest.raises(MutationTimeoutError) as exc_info:
+            runner._run_command(("python", "-c", "pass"), timeout_seconds=7)
+
+        assert "command timed out after 7s: python -c pass" in str(exc_info.value)
+        assert observed["timeout"] == 7
+        assert observed["encoding"] == "utf-8"
+        assert observed["errors"] == "replace"
+
+    def test_find_containment_root_replaces_decode_errors(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        workspace = _case_dir("decode")
+        observed: dict[str, object] = {}
+
+        def fake_run(
+            command: Sequence[str],
+            **kwargs: object,
+        ) -> subprocess.CompletedProcess[str]:
+            observed.update(kwargs)
+            return subprocess.CompletedProcess(command, 0, stdout=str(workspace.resolve()))
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+
+        root = _find_containment_root()
+
+        assert root == workspace.resolve()
+        assert observed["timeout"] == GIT_ROOT_TIMEOUT_SECONDS
+        assert observed["encoding"] == "utf-8"
+        assert observed["errors"] == "replace"
+
+    def test_find_containment_root_reports_timeout(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        def timeout_run(
+            command: Sequence[str],
+            **kwargs: object,
+        ) -> subprocess.CompletedProcess[str]:
+            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+        monkeypatch.setattr(subprocess, "run", timeout_run)
+
+        with pytest.raises(MutationTimeoutError) as exc_info:
+            _find_containment_root()
+
+        assert "command timed out after 10s: git rev-parse --show-toplevel" in str(
+            exc_info.value
+        )
+
 
 class TestRestoreSafety:
     def test_restores_source_after_normal_run(self) -> None:
@@ -185,7 +278,10 @@ class TestRestoreSafety:
         source.write_text(original, encoding="utf-8")
         runner = MutationRunner(cwd=workspace)
 
-        def interrupt(command: tuple[str, ...]) -> subprocess.CompletedProcess[str]:
+        def interrupt(
+            command: tuple[str, ...],
+            timeout_seconds: int | float = 300,
+        ) -> subprocess.CompletedProcess[str]:
             raise KeyboardInterrupt
 
         monkeypatch.setattr(runner, "_run_command", interrupt)
@@ -202,7 +298,10 @@ class TestRestoreSafety:
         source.write_text(original, encoding="utf-8")
         runner = MutationRunner(cwd=workspace)
 
-        def fail(command: tuple[str, ...]) -> subprocess.CompletedProcess[str]:
+        def fail(
+            command: tuple[str, ...],
+            timeout_seconds: int | float = 300,
+        ) -> subprocess.CompletedProcess[str]:
             raise OSError("process failed before exit code")
 
         monkeypatch.setattr(runner, "_run_command", fail)
@@ -280,6 +379,47 @@ class TestStreaming:
 
 
 class TestCli:
+    def test_timeout_has_external_error_exit_code(
+        self,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        workspace = _case_dir("cli_timeout")
+        source = workspace / "subject.py"
+        source.write_text("def guard() -> bool:\n    return True\n", encoding="utf-8")
+        battery = workspace / "battery.json"
+        battery.write_text(
+            json.dumps(
+                {
+                    "command": [sys.executable, "-c", "pass"],
+                    "timeout_seconds": 7,
+                    "entries": [
+                        {
+                            "name": "timeout",
+                            "path": "subject.py",
+                            "old": "return True",
+                            "new": "return False",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        def timeout(
+            self: MutationRunner,
+            command: Sequence[str],
+            timeout_seconds: int | float = 300,
+        ) -> subprocess.CompletedProcess[str]:
+            raise MutationTimeoutError(command, timeout_seconds)
+
+        monkeypatch.setattr(MutationRunner, "_run_command", timeout)
+
+        exit_code = main([str(battery)])
+
+        assert exit_code == EXIT_EXTERNAL_ERROR
+        assert "EXTERNAL_ERROR command timed out after 7s" in capsys.readouterr().err
+
     def test_valid_battery_runs_without_config_error(self) -> None:
         workspace = _case_dir("cli_valid")
         source = workspace / "subject.py"
@@ -302,12 +442,7 @@ class TestCli:
             encoding="utf-8",
         )
 
-        result = subprocess.run(
-            [sys.executable, "-m", "scripts.testing.mutation_harness", str(battery)],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        result = _run_cli(battery)
 
         assert result.returncode == 0
 
@@ -333,12 +468,7 @@ class TestCli:
             encoding="utf-8",
         )
 
-        result = subprocess.run(
-            [sys.executable, "-m", "scripts.testing.mutation_harness", str(battery)],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        result = _run_cli(battery)
 
         assert result.returncode == 2
         assert "CONFIG_ERROR" in result.stderr
@@ -348,12 +478,7 @@ class TestCli:
         battery = workspace / "battery.json"
         battery.write_text('{"entries": [', encoding="utf-8")
 
-        result = subprocess.run(
-            [sys.executable, "-m", "scripts.testing.mutation_harness", str(battery)],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        result = _run_cli(battery)
 
         assert result.returncode == 2
 
@@ -362,12 +487,7 @@ class TestCli:
         battery = workspace / "battery.json"
         battery.write_text("", encoding="utf-8")
 
-        result = subprocess.run(
-            [sys.executable, "-m", "scripts.testing.mutation_harness", str(battery)],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        result = _run_cli(battery)
 
         assert result.returncode == 2
 
@@ -376,12 +496,7 @@ class TestCli:
         battery = workspace / "battery.json"
         battery.write_text("[]", encoding="utf-8")
 
-        result = subprocess.run(
-            [sys.executable, "-m", "scripts.testing.mutation_harness", str(battery)],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        result = _run_cli(battery)
 
         assert result.returncode == 2
 
@@ -405,11 +520,6 @@ class TestCli:
             encoding="utf-8",
         )
 
-        result = subprocess.run(
-            [sys.executable, "-m", "scripts.testing.mutation_harness", str(battery)],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        result = _run_cli(battery)
 
         assert result.returncode == 2

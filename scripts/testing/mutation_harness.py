@@ -16,9 +16,9 @@ Battery file format:
 }
 ```
 
-Each entry may override ``command``. A mutation is ``CAUGHT`` when the command
-fails, because the test suite detected the mutant. It is ``MISSED`` when the
-command succeeds, because the mutant survived.
+Each entry may override ``command`` and ``timeout_seconds``. A mutation is
+``CAUGHT`` when the command fails, because the test suite detected the mutant.
+It is ``MISSED`` when the command succeeds, because the mutant survived.
 
 Exit codes:
     0 - Success: all mutations were caught
@@ -33,6 +33,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -46,10 +47,23 @@ EXIT_MUTATION_MISSED = 1
 EXIT_CONFIG_ERROR = 2
 EXIT_EXTERNAL_ERROR = 3
 EXIT_INTERRUPTED = 130
+DEFAULT_COMMAND_TIMEOUT_SECONDS = 300
+GIT_ROOT_TIMEOUT_SECONDS = 10
 
 
 class BatteryConfigError(ValueError):
     """Raised when a battery can produce a false result."""
+
+
+class MutationTimeoutError(RuntimeError):
+    """Raised when a child command exceeds its time budget."""
+
+    def __init__(self, command: Sequence[str], timeout_seconds: int | float) -> None:
+        self.command = tuple(command)
+        self.timeout_seconds = timeout_seconds
+        super().__init__(
+            f"command timed out after {timeout_seconds:g}s: {_format_command(command)}"
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,6 +75,7 @@ class MutationEntry:
     old: str
     new: str
     command: tuple[str, ...]
+    timeout_seconds: int | float = DEFAULT_COMMAND_TIMEOUT_SECONDS
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,6 +109,11 @@ def load_battery(path: Path) -> list[MutationEntry]:
 
     repo_root = _find_containment_root()
     default_command = _read_command(raw.get("command"), "battery command")
+    default_timeout = _read_timeout(
+        raw.get("timeout_seconds"),
+        "battery timeout_seconds",
+        default=DEFAULT_COMMAND_TIMEOUT_SECONDS,
+    )
     raw_entries = raw.get("entries")
     if not isinstance(raw_entries, list) or not raw_entries:
         raise BatteryConfigError("battery must contain a non-empty entries list")
@@ -103,6 +123,11 @@ def load_battery(path: Path) -> list[MutationEntry]:
         if not isinstance(raw_entry, dict):
             raise BatteryConfigError(f"entry {index} must be a JSON object")
         command = _read_command(raw_entry.get("command"), f"entry {index} command")
+        timeout = _read_timeout(
+            raw_entry.get("timeout_seconds"),
+            f"entry {index} timeout_seconds",
+            default=None,
+        )
         entries.append(
             MutationEntry(
                 name=_read_string(raw_entry, "name", index),
@@ -114,6 +139,7 @@ def load_battery(path: Path) -> list[MutationEntry]:
                 old=_read_string(raw_entry, "old", index),
                 new=_read_string(raw_entry, "new", index),
                 command=command or default_command,
+                timeout_seconds=timeout if timeout is not None else default_timeout,
             )
         )
 
@@ -182,17 +208,33 @@ class MutationRunner:
         try:
             _purge_pycache(entry.path.parent)
             entry.path.write_text(mutated, encoding="utf-8")
-            completed = self._run_command(entry.command)
+            completed = self._run_command(entry.command, entry.timeout_seconds)
             return MutationResult(entry=entry, returncode=completed.returncode)
         finally:
             entry.path.write_text(original, encoding="utf-8")
             _purge_pycache(entry.path.parent)
 
-    def _run_command(self, command: Sequence[str]) -> subprocess.CompletedProcess[str]:
+    def _run_command(
+        self,
+        command: Sequence[str],
+        timeout_seconds: int | float = DEFAULT_COMMAND_TIMEOUT_SECONDS,
+    ) -> subprocess.CompletedProcess[str]:
         env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
         sys.stderr.flush()
         sys.stdout.flush()
-        return subprocess.run(command, cwd=self.cwd, env=env, text=True, check=False)
+        try:
+            return subprocess.run(
+                command,
+                cwd=self.cwd,
+                env=env,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+                timeout=timeout_seconds,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise MutationTimeoutError(command, timeout_seconds) from exc
 
 
 def format_validation_problems(problems: Sequence[ValidationProblem]) -> str:
@@ -209,14 +251,19 @@ def _purge_pycache(root: Path) -> None:
 
 
 def _find_containment_root() -> Path:
+    command = ["git", "rev-parse", "--show-toplevel"]
     try:
         result = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
+            command,
             capture_output=True,
             text=True,
             encoding="utf-8",
+            errors="replace",
             check=False,
+            timeout=GIT_ROOT_TIMEOUT_SECONDS,
         )
+    except subprocess.TimeoutExpired as exc:
+        raise MutationTimeoutError(command, GIT_ROOT_TIMEOUT_SECONDS) from exc
     except OSError:
         return Path.cwd().resolve()
     if result.returncode == 0 and result.stdout.strip():
@@ -252,6 +299,25 @@ def _read_command(raw_command: object, field_name: str) -> tuple[str, ...]:
     return tuple(raw_command)
 
 
+def _read_timeout(
+    raw_timeout: object,
+    field_name: str,
+    *,
+    default: int | float | None,
+) -> int | float | None:
+    if raw_timeout is None:
+        return default
+    if isinstance(raw_timeout, bool) or not isinstance(raw_timeout, int | float):
+        raise BatteryConfigError(f"{field_name} must be a positive number")
+    if raw_timeout <= 0:
+        raise BatteryConfigError(f"{field_name} must be a positive number")
+    return raw_timeout
+
+
+def _format_command(command: Sequence[str]) -> str:
+    return shlex.join(command)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("battery", type=Path, help="JSON battery file")
@@ -263,6 +329,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     except BatteryConfigError as exc:
         print(str(exc), file=sys.stderr, flush=True)
         return EXIT_CONFIG_ERROR
+    except MutationTimeoutError as exc:
+        print(f"EXTERNAL_ERROR {exc}", file=sys.stderr, flush=True)
+        return EXIT_EXTERNAL_ERROR
     except KeyboardInterrupt:
         print("INTERRUPTED mutation battery restored source", file=sys.stderr, flush=True)
         return EXIT_INTERRUPTED
