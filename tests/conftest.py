@@ -76,15 +76,37 @@ def _default_project_repo(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AI_AGENTS_PROJECT_REPO", "1")
 
 
+_GIT_POINTER_VARS = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_COMMON_DIR",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+)
+
+
 @pytest.fixture(autouse=True)
 def _isolate_tmp_path_from_parent_git_repo(
     request: pytest.FixtureRequest,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Prevent repo-local pytest temp dirs from discovering the parent checkout."""
+    """Prevent repo-local pytest temp dirs from discovering the parent checkout.
+
+    ``GIT_CEILING_DIRECTORIES`` only bounds git's upward discovery walk. It is
+    inert when ``GIT_DIR`` is already set in the environment, because an
+    explicit ``GIT_DIR`` bypasses discovery entirely. Any git command run with
+    only the ceiling and an inherited ``GIT_DIR`` operates on the repository
+    that ``GIT_DIR`` names, not on the temp tree. This fixture unsets every
+    pointer variable before setting the ceiling so that a hostile caller
+    environment cannot silently redirect git operations away from ``tmp_path``.
+    Refs #4287.
+    """
     if "tmp_path" not in request.fixturenames:
         return
     tmp_path = request.getfixturevalue("tmp_path")
+    for name in _GIT_POINTER_VARS:
+        monkeypatch.delenv(name, raising=False)
     existing = os.environ.get("GIT_CEILING_DIRECTORIES")
     ceiling = str(tmp_path.parent)
     value = ceiling if not existing else f"{ceiling}{os.pathsep}{existing}"
