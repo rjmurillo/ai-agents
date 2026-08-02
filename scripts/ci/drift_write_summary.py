@@ -42,7 +42,7 @@ def build_summary(drift_detected: str) -> str:
         "### Pairs Compared",
         "- `src/claude/` vs `src/vs-code-agents/`",
         "- `.claude/agents/` vs `.github/agents/`,"
-        " scoped to agents whose prose comes from `templates/agents/`",
+        + " scoped to agents whose prose comes from `templates/agents/`",
     ]
     return "\n".join(lines) + "\n"
 
