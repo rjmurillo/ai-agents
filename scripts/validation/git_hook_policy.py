@@ -1113,13 +1113,20 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
         )
         return 1
 
-    analysis_dir = repo_root / ".agents" / "analysis"
+    # Canonical debate-log directory per:
+    #   .claude/skills/adr-review/references/artifacts.md line 3:
+    #     "Save debate artifacts to `.agents/critique/`."
+    #   .claude/skills/adr-review/references/artifacts.md line 7:
+    #     "Save to: `.agents/critique/ADR-NNN-debate-log.md`"
+    # Issue #4250: the hook previously searched .agents/analysis/ but the
+    # skill writes to .agents/critique/.
+    critique_dir = repo_root / ".agents" / "critique"
     try:
-        debate_logs = list(analysis_dir.glob("*debate*.md"))
+        debate_logs = list(critique_dir.glob("*debate*.md"))
     except OSError:
         debate_logs = []
     if not debate_logs:
-        print("ERROR: ADR changes require a debate log in .agents/analysis", file=sys.stderr)
+        print("ERROR: ADR changes require a debate log in .agents/critique", file=sys.stderr)
         return 1
 
     adr_ids = _extract_adr_ids(gated_paths)
