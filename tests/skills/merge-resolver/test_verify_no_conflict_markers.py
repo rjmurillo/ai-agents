@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- each test constructs a real git repo from scratch
+# with multiple commits and branches; size reflects bidirectional integration coverage.
 """Tests for verify_no_conflict_markers.py.
 
 Covers:
@@ -54,7 +56,7 @@ def _git(cwd: Path, *args: str, check: bool = True) -> subprocess.CompletedProce
         ["git", *args],
         cwd=str(cwd),
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=check,
     )
 
@@ -277,6 +279,203 @@ class TestRealConflictsFlagged:
         assert exit_code == 0
         assert report["ok"] is True
         assert find_leftover_markers(repo_with_intentional_fenced_marker) == []
+
+    def test_merge_head_docs_marker_is_not_a_false_positive(self, empty_repo: Path) -> None:
+        """Issue #4058: intentional conflict-marker syntax in incoming docs must not fail.
+
+        Reproduction: ``main`` commits a documentation file containing ``<<<<<<<``
+        (an intentional example, as in merge-resolver's strategies.md). ``feature``
+        makes an unrelated change. After ``git merge main --no-commit``, the staged
+        index has that file. ``git diff HEAD --check`` flags its ``<<<<<<<`` lines as
+        "leftover conflict marker" (false positive). The fix uses
+        ``git diff --cached --check MERGE_HEAD``: the marker was already in MERGE_HEAD,
+        so the diff is empty and no false positive fires.
+        """
+        docs = empty_repo / "docs" / "examples.md"
+        docs.parent.mkdir(parents=True, exist_ok=True)
+
+        # Common ancestor: no docs yet
+        readme = empty_repo / "README.md"
+        readme.write_text("project\n")
+        _git(empty_repo, "add", "README.md")
+        _git(empty_repo, "commit", "-q", "-m", "init")
+
+        # Feature branch: unrelated change
+        _git(empty_repo, "checkout", "-q", "-b", "feature")
+        feature_file = empty_repo / "feature.txt"
+        feature_file.write_text("feature work\n")
+        _git(empty_repo, "add", "feature.txt")
+        _git(empty_repo, "commit", "-q", "-m", "feature: add feature.txt")
+
+        # Main branch: add documentation with intentional conflict-marker examples
+        _git(empty_repo, "checkout", "-q", "main")
+        docs.write_text(
+            "# Merge Examples\n\n"
+            "Example conflict:\n"
+            "<<<<<<< branch-a\n"
+            "content from branch a\n"
+            "=======\n"
+            "content from branch b\n"
+            ">>>>>>> branch-b\n"
+        )
+        _git(empty_repo, "add", str(docs.relative_to(empty_repo)))
+        _git(empty_repo, "commit", "-q", "-m", "docs: add conflict resolution examples")
+
+        # Merge main into feature without committing (auto-resolves, no conflict)
+        _git(empty_repo, "checkout", "-q", "feature")
+        _git(empty_repo, "merge", "main", "--no-commit", "--no-ff", check=True)
+
+        # Confirm MERGE_HEAD is active
+        assert (empty_repo / ".git" / "MERGE_HEAD").exists(), (
+            "MERGE_HEAD must exist during an in-progress merge"
+        )
+
+        # The fix: the incoming doc's markers must NOT be flagged
+        markers = find_leftover_markers(empty_repo)
+        assert markers == [], (
+            f"got unexpected markers: {markers!r}. "
+            "Issue #4058: intentional conflict-marker syntax in an incoming documentation "
+            "file is a false positive when diff compares against HEAD instead of MERGE_HEAD."
+        )
+
+        exit_code, report = verify(empty_repo)
+        assert exit_code == 0, (
+            f"verify() returned {exit_code}; report={report!r}. "
+            "Incoming docs with intentional markers must not block merge."
+        )
+
+    def test_real_leftover_marker_during_merge_is_still_caught(self, empty_repo: Path) -> None:
+        """A genuine leftover marker staged during a merge must still be flagged.
+
+        This is the isolating negative control: the MERGE_HEAD fix must not
+        suppress REAL unresolved markers. If the resolver accidentally stages
+        a file containing ``<<<<<<< HEAD``, the verifier must catch it even
+        when MERGE_HEAD is active.
+        """
+        shared = empty_repo / "shared.txt"
+
+        # Common ancestor
+        shared.write_text("original\n")
+        _git(empty_repo, "add", "shared.txt")
+        _git(empty_repo, "commit", "-q", "-m", "init")
+
+        # Feature branch: change shared.txt
+        _git(empty_repo, "checkout", "-q", "-b", "feature")
+        shared.write_text("feature version\n")
+        _git(empty_repo, "add", "shared.txt")
+        _git(empty_repo, "commit", "-q", "-m", "feature: update shared.txt")
+
+        # Main branch: change shared.txt differently to force a conflict
+        _git(empty_repo, "checkout", "-q", "main")
+        shared.write_text("main version\n")
+        _git(empty_repo, "add", "shared.txt")
+        _git(empty_repo, "commit", "-q", "-m", "main: update shared.txt")
+
+        # Merge main into feature; expect a conflict
+        _git(empty_repo, "checkout", "-q", "feature")
+        proc = subprocess.run(
+            ["git", "merge", "main", "--no-ff"],
+            cwd=str(empty_repo),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        # Merge returns non-zero when a conflict occurs
+        assert proc.returncode != 0, "expected a merge conflict"
+
+        # Confirm MERGE_HEAD is active
+        assert (empty_repo / ".git" / "MERGE_HEAD").exists(), (
+            "MERGE_HEAD must exist during a conflicted merge"
+        )
+
+        # Simulate a BAD resolve: manually write conflict markers into the file
+        # and stage it. A real resolver accidentally doing this is the failure mode.
+        shared.write_text("<<<<<<< HEAD\nfeature version\n=======\nmain version\n>>>>>>> main\n")
+        _git(empty_repo, "add", "shared.txt")
+
+        # The verifier MUST catch this: it's a real unresolved marker staged in
+        # the resolver's work, NOT content that came from MERGE_HEAD.
+        markers = find_leftover_markers(empty_repo)
+        assert markers, (
+            "A staged file with leftover conflict markers must be caught "
+            "even during an in-progress merge."
+        )
+
+    def test_unstaged_marker_during_merge_is_caught(self, empty_repo: Path) -> None:
+        """Markers left in the working tree (not staged) are caught during a merge.
+
+        Reproduces the gap fixed in thread PRRT_kwDOQoWRls6VXCuu: the staged
+        check (MERGE_HEAD) only sees staged files; a second git diff --check
+        (working tree vs index) catches markers that were not yet staged.
+        """
+        shared = empty_repo / "shared.txt"
+
+        # Initial commit on main
+        shared.write_text("original content\n")
+        _git(empty_repo, "add", "shared.txt")
+        _git(empty_repo, "commit", "-q", "-m", "base: add shared.txt")
+
+        # Diverge on feature branch
+        _git(empty_repo, "checkout", "-q", "-b", "feature")
+        shared.write_text("feature content\n")
+        _git(empty_repo, "add", "shared.txt")
+        _git(empty_repo, "commit", "-q", "-m", "feature: update shared.txt")
+
+        # Diverge on main too
+        _git(empty_repo, "checkout", "-q", "main")
+        shared.write_text("main content\n")
+        _git(empty_repo, "add", "shared.txt")
+        _git(empty_repo, "commit", "-q", "-m", "main: update shared.txt")
+
+        # Merge feature into main -- this conflicts
+        proc = subprocess.run(
+            ["git", "merge", "feature", "--no-ff"],
+            cwd=str(empty_repo),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        assert proc.returncode != 0, "expected a merge conflict"
+        assert (empty_repo / ".git" / "MERGE_HEAD").exists()
+
+        # Write markers into the working tree but do NOT stage -- simulates a
+        # resolver that started editing but hasn't run git add yet.
+        shared.write_text(
+            "<<<<<<< HEAD\nmain content\n=======\nfeature content\n>>>>>>> feature\n"
+        )
+        # shared.txt is NOT staged at this point.
+
+        markers = find_leftover_markers(empty_repo)
+        assert markers, "Unstaged conflict markers must be caught during an in-progress merge."
+
+    def test_merge_head_absence_uses_head_check(self, empty_repo: Path) -> None:
+        """Outside a merge, MERGE_HEAD is absent and the HEAD form is used.
+
+        Verifies the non-merge path still catches real leftover markers that
+        a resolver staged without committing (the original use-case).
+        """
+        shared = empty_repo / "shared.txt"
+        shared.write_text("original\n")
+        _git(empty_repo, "add", "shared.txt")
+        _git(empty_repo, "commit", "-q", "-m", "init")
+
+        # No merge in progress
+        assert not (empty_repo / ".git" / "MERGE_HEAD").exists(), (
+            "MERGE_HEAD must not exist outside a merge"
+        )
+
+        # Stage a file that contains leftover conflict markers
+        shared.write_text("<<<<<<< HEAD\nmy version\n=======\ntheir version\n>>>>>>> other\n")
+        _git(empty_repo, "add", "shared.txt")
+
+        # HEAD form must catch this
+        markers = find_leftover_markers(empty_repo)
+        assert markers, (
+            "Outside a merge, staged leftover conflict markers must be caught "
+            "by the git diff HEAD --check path."
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -551,7 +551,7 @@ class TestCLI:
                 "--sessions-dir", str(tmp_path / "sessions"),
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
         )
         assert result.returncode == 0
         data = json.loads(result.stdout)
@@ -568,7 +568,7 @@ class TestCLI:
                 "--sessions-dir", str(tmp_path / "nonexistent"),
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
         )
         assert result.returncode == 0
         assert "Health Status Report" in result.stdout
@@ -583,7 +583,7 @@ class TestCLI:
                 "--sessions-dir", str(tmp_path / "nonexistent"),
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
         )
         assert result.returncode == 0
         assert "Health Status" in result.stdout
@@ -603,7 +603,7 @@ class TestCLI:
                 "--sessions-dir", str(tmp_path / "sessions"),
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
         )
         assert result.returncode == 1
 
@@ -619,6 +619,6 @@ class TestCLI:
                 "--memories-dir", str(outside),
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
         )
         assert result.returncode == 2

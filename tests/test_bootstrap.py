@@ -142,7 +142,7 @@ print(m.resolve_plugin_lib_dir())
         [sys.executable, str(runner)],
         check=True,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         env={k: v for k, v in os.environ.items() if k != "CLAUDE_PLUGIN_ROOT"},
     )
 
