@@ -120,11 +120,19 @@ def current_count(repo_root: Path) -> int | None:
     return total
 
 
-def list_violations(repo_root: Path) -> list[str] | None:
+def list_violations(
+    repo_root: Path, priority_paths: frozenset[str] = frozenset()
+) -> list[str] | None:
     """Return a human-readable line per error-severity violation, or None.
 
     Used by the ratchet to show WHICH violations are present on regression so
     contributors do not need a separate run to find them (issue #3902).
+
+    Violations in ``priority_paths`` come first. The ratchet caps the printed
+    list at 40 lines and this repository carries 601 tracked violations, so
+    emission order alone buries the branch's own violation: on issue #3902's PR
+    the one added violation was at index 596 and never printed. Ordering is
+    stable within each group, so the rest of the list keeps scan order.
     """
     files = tracked_files(repo_root, ("*",))
     if files is None:
@@ -133,6 +141,7 @@ def list_violations(repo_root: Path) -> list[str] | None:
         return []
 
     lines: list[str] = []
+    deferred: list[str] = []
     for batch in chunk(files):
         try:
             proc = subprocess.run(
@@ -152,16 +161,19 @@ def list_violations(repo_root: Path) -> list[str] | None:
             report = json.loads(proc.stdout)
         except json.JSONDecodeError:
             return None
-        for finding in report.get("findings", []):
+        # taste_lints.py emits {"violations": [...]} with a "file" key per item.
+        # Reading "findings"/"path" here silently produced an empty diagnostic.
+        for finding in report.get("violations", []):
             if not isinstance(finding, dict):
                 continue
             if finding.get("severity") != "error":
                 continue
-            path = finding.get("path", "?")
+            path = finding.get("file", "?")
             rule = finding.get("rule", "?")
             msg = finding.get("message", "")
-            lines.append(f"{path}: [{rule}] {msg}")
-    return lines
+            target = lines if path in priority_paths else deferred
+            target.append(f"{path}: [{rule}] {msg}")
+    return lines + deferred
 
 
 def main(argv: Sequence[str] | None = None) -> int:
