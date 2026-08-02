@@ -23,6 +23,7 @@ shapes not yet imagined and the four direct fixes are defense in depth.
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -200,6 +201,39 @@ class TestDroppedEntryGuard:
         assert _update(tmp_path, module, "--allow-baseline-shrink") == 0
         after = json.loads(baseline.read_text(encoding="utf-8"))["files"]
         assert len(after) == count - 2
+
+    @pytest.mark.parametrize("module", [cmp, cep])
+    def test_staging_the_deletion_is_no_longer_enough_to_permit_it(
+        self, tmp_path: Path, module: ModuleType
+    ) -> None:
+        """`git add -A` used to relabel an accidental wipe as intentional.
+
+        The root keeps a readable file, so every coverage layer is satisfied and
+        git agrees the tree matches its index. Only the artifact comparison is
+        left to object, and the removal now has to be named rather than staged.
+        """
+        _repo(tmp_path)
+        baseline, before, _ = _seed_baseline(tmp_path, module)
+        for skill in ("beta", "gamma"):
+            (tmp_path / ROOT_NAMES[1] / skill / "SKILL.md").unlink()
+        _git(tmp_path, "add", "-A")
+
+        assert _update(tmp_path, module) == 2
+        assert baseline.read_bytes() == before
+
+    @pytest.mark.parametrize("module", [cmp, cep])
+    def test_a_declared_root_leaving_disk_and_index_is_still_refused(
+        self, tmp_path: Path, module: ModuleType
+    ) -> None:
+        """A root absent from disk is never enumerated, so no coverage layer asks."""
+        _repo(tmp_path)
+        baseline, before, _ = _seed_baseline(tmp_path, module)
+        _git(tmp_path, "rm", "-r", "-q", "--cached", "--", ROOT_NAMES[1])
+        shutil.rmtree(tmp_path / ROOT_NAMES[1])
+        _git(tmp_path, "commit", "-qm", "root leaves the tree")
+
+        assert _update(tmp_path, module) == 2
+        assert baseline.read_bytes() == before
 
     def test_a_first_write_has_no_predecessor_to_regress_against(self) -> None:
         assert refuse_dropped_entries(None, {"a": 1}, "skill files", False) is False

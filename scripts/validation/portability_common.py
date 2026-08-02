@@ -266,8 +266,10 @@ def _refuse_partial_worktree(root: Path, scanned_by_root: Mapping[str, int]) -> 
         f"Refusing to write a baseline from an incomplete checkout: {detail}. Git "
         "tracks files under those roots that are not on disk, so the scan read a "
         "subset and writing now would drop every absent file from the ratchet and "
-        "silently forgive its violations. Restore the working tree, or stage the "
-        "deletions so git agrees they are gone, then rerun.",
+        "silently forgive its violations. Restore the working tree, then rerun. A "
+        "removal that is genuinely intended is declared with --allow-baseline-shrink, "
+        "not by staging it: a reflexive `git add -A` would otherwise relabel an "
+        "accidental wipe as intentional.",
         file=sys.stderr,
     )
     return True
