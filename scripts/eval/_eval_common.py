@@ -23,15 +23,25 @@ MODEL_PRICING_RATES_USD_PER_1K_TOKENS: dict[str, dict[str, float]] = {
     # id (HTTP 404) and MUST NOT be used as a default (issue #2858).
     "claude-sonnet-4-20250514": {"input": 0.003, "output": 0.015},
     # Verified rates from platform.claude.com/docs/en/about-claude/pricing
-    # (retrieved 2026-07-08). Rates are per-1K tokens = base MTok rate / 1000.
-    # Sonnet 4.6: $3/$15 per MTok. Opus 4.6 and 4.8: $5/$25 per MTok. Haiku
-    # 4.5: $1/$5 per MTok. These are the live pins enumerated in issue #2840.
+    # (retrieved 2026-08-01, every row below re-read from that table on that
+    # date). Rates are per-1K tokens = base MTok rate / 1000. Sonnet 4.6:
+    # $3/$15 per MTok. Opus 5, 4.6, and 4.8: $5/$25 per MTok. Haiku 4.5:
+    # $1/$5 per MTok. These are the live pins enumerated in issue #2840, plus
+    # claude-opus-5, which scripts/eval/panels/owner-copilot-cli.json
+    # dispatches and which had no rate until issue #3905.
     "claude-sonnet-4-6": {"input": 0.003, "output": 0.015},
     "claude-opus-4-6": {"input": 0.005, "output": 0.025},
     "claude-opus-4-8": {"input": 0.005, "output": 0.025},
+    "claude-opus-5": {"input": 0.005, "output": 0.025},
     "claude-haiku-4-5": {"input": 0.001, "output": 0.005},
+    # No row for gpt-5.6-sol on purpose (issue #3905). That id is reachable
+    # only through the copilot-cli provider, which meters premium requests
+    # rather than tokens, so no published per-token rate exists. A made-up
+    # number here would put a fabricated figure in an operator cost report,
+    # which is the failure issue #3786 records. Its cost basis is tracked in
+    # PR #4005.
 }
-PRICING_RATE_AS_OF = "2026-07-08"
+PRICING_RATE_AS_OF = "2026-08-01"
 
 
 def aggregate_multi_run_scores(

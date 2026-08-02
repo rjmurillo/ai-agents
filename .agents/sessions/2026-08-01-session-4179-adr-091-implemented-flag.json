@@ -1,0 +1,119 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4179,
+    "date": "2026-08-01",
+    "branch": "rjmurillo/fix-adr-091-implemented-flag",
+    "startingCommit": "25ee6eb7b",
+    "objective": "Correct the ADR-091 implemented flag on main. PR #4179 merged carrying implemented: true while deleting both artifacts that implemented the decision."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Copilot CLI harness; Serena MCP tools are not exposed in this session"
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not reachable without Serena activation"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md read-only; git status shows it unmodified per ADR-014"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file, staged with the commit it documents"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned rjmurillo/fix-adr-091-implemented-flag"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Commit made from the linked worktree wt-adr091, not from the shared main checkout"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Frontmatter claim tested against the tree before and after the change"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git status shows no modification to .agents/HANDOFF.md"
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena not available in this harness"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdown-autofix and markdown-check run in the pre-commit hook group"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ADR-091 frontmatter fix committed with this log"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Verified both implementing artifacts absent on main with git cat-file -e before changing the flag"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #4202 records the operational half of this finding"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Single-line governance correction; no separate retrospective"
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Third occurrence of this same incoherent state. It reached main because the fix was prepared on a branch that merged before the fix landed on it."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": 1,
+      "action": "Checked ADR-091 frontmatter on main after #4179 merged",
+      "result": "implemented: true alongside status: superseded and superseded-by: ADR-092. Both implementing artifacts, .github/workflows/post-merge-version-bump.yml and scripts/ci/auto_bump_plugin_version.py, are absent from main, so the flag is false."
+    },
+    {
+      "step": 2,
+      "action": "Traced why the fix did not land with the PR",
+      "result": "I prepared the correction on the PR branch, but the PR merged at its previous tip while the pre-push suite was still running. The push then recreated an already-deleted branch instead of updating an open PR. Verified by PR state MERGED at headOid 1a2bd3fe8f6a while my push reported a new branch."
+    },
+    {
+      "step": 3,
+      "action": "Reproduced the underlying merge behaviour",
+      "result": "The incoherent state arrives through clean auto-merges. Two sides edit different lines of the same frontmatter block, so git has nothing to flag and neither reviewer sees a conflict."
+    },
+    {
+      "step": 4,
+      "action": "Confirmed ADR-092 itself landed correctly",
+      "result": "The version key is absent from both parity manifests on main, which is what ADR-092 requires."
+    }
+  ],
+  "endingCommit": "a5017d74df4daa5a733e750f2813ac70ad176fe6",
+  "nextSteps": [
+    "Close #4202 once this lands: the workflow it describes is deleted from main by ADR-092, so the direct-push failure cannot recur",
+    "Correct the public causal account in #4195: both the original account (fenced-block stripping) and the adversarial replacement (prose and table edits) located the movement in the files map, which PR #4197 never touched. Regenerating files from PR #4182's own tree gives 0 disagreements; the three moved entries are in marker_files. Both accounts partitioned the JSON diff with a text filter, which cannot separate two maps whose keys share the same shape",
+    "Consider a validator that rejects implemented: true when a decision record is superseded and its named artifacts are absent"
+  ]
+}

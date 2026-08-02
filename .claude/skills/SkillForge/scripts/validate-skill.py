@@ -604,6 +604,11 @@ class SkillValidator:
         scripts_path = self.skill_path / "scripts"
 
         if not scripts_path.exists():
+            # Skills tagged vendor-portability intentionally reference upstream repo
+            # paths (scripts/, build/) for contributors, not plugin consumers.
+            if "vendor-portability" in self.content:
+                return
+
             # Scripts are optional - only warn if skill has bash examples suggesting scripts
             bash_example_count = len(re.findall(r'```bash', self.content))
             python_example_count = len(re.findall(r'python\s+scripts/', self.content))
