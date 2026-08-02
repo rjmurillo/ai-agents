@@ -115,8 +115,8 @@ _WORKFLOW_SUFFIXES = (".yml", ".yaml")
 # Renovate digest bump re-cold-starts one action at a time, so this is not a
 # once-per-machine cost.
 _ACTIONLINT_TIMEOUT = 60
-_ACT_DRYRUN_TIMEOUT = 600
 _ACT_FULL_TIMEOUT = 600
+_ACT_DRYRUN_TIMEOUT = _ACT_FULL_TIMEOUT
 
 # actionlint shells out to shellcheck for ``run:`` scripts. The info and style
 # tiers are advisory (SC2086 quoting advice, SC2129 grouped redirects) and are

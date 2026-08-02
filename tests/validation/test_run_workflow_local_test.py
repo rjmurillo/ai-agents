@@ -1640,7 +1640,11 @@ _CLONE_LINE = (
 
 
 def _hang_after(text: str) -> list[str]:
-    """Command that writes ``text`` to stdout, flushes, then outlives any timeout."""
+    """Command that writes ``text`` to stdout, flushes, then sleeps 30 seconds.
+
+    The sleep only has to outlive the budget its caller passes to ``_run`` (2
+    seconds today), so the child is still running when the kill lands.
+    """
     script = f"import sys, time; sys.stdout.write({text!r}); sys.stdout.flush(); time.sleep(30)"
     return [sys.executable, "-c", script]
 
@@ -1649,7 +1653,10 @@ def test_dryrun_budget_covers_a_cold_action_cache() -> None:
     # act clones every referenced action before it can plan, so the dry run needs
     # the same budget as the full run. Measured on codeql-analysis.yml: 17s warm,
     # still cloning at 130s with 787M pulled on an empty --action-cache-path.
-    assert w._ACT_DRYRUN_TIMEOUT >= w._ACT_FULL_TIMEOUT
+    # Equality, not >=: the module derives one constant from the other, and a
+    # future edit that re-splits them into independent literals fails here in
+    # both directions instead of only when the dry run is made smaller.
+    assert w._ACT_DRYRUN_TIMEOUT == w._ACT_FULL_TIMEOUT
 
 
 def test_run_keeps_partial_stdout_on_timeout() -> None:
