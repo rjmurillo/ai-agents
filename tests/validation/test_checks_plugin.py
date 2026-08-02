@@ -189,7 +189,9 @@ def test_agent_content_parity_decodes_subprocess_output_with_replacement(
 
     def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
         captured.update(kwargs)
-        return subprocess.CompletedProcess(args=["check_agent_content_parity.py"], returncode=0, stdout="", stderr="")
+        return subprocess.CompletedProcess(
+            args=["check_agent_content_parity.py"], returncode=0, stdout="", stderr=""
+        )
 
     monkeypatch.setattr(checks_plugin.subprocess, "run", fake_run)
 
