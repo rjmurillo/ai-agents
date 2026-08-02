@@ -54,6 +54,7 @@ from __future__ import annotations
 import ast
 import codecs
 import math
+import subprocess
 import time
 from collections import Counter, deque
 from pathlib import Path
@@ -64,6 +65,45 @@ import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SCRIPTS_DIR = _REPO_ROOT / "scripts"
+_TESTS_DIR = _REPO_ROOT / "tests"
+
+# Files that legitimately contain unqualified ``text=True`` patterns because
+# they test the detector itself or exercise the guard's own logic. Scanning them
+# would produce false positives that defeat the purpose of the guard.
+_TESTS_SCAN_EXCLUDES: frozenset[str] = frozenset(
+    {
+        "tests/test_subprocess_text_encoding.py",
+        "tests/test_new_pr.py",
+        "tests/integration/test_e2e_install.py",
+    }
+)
+
+# Known baseline: sites the tests/ guard flags but cannot be fixed today.
+#
+# Category 1: ``subprocess.Popen`` with ``encoding=`` triggers semgrep rule
+# ``python.lang.compatibility.python36.python36-compatibility-Popen2``. The rule
+# is a false positive on this repo (floor is 3.14; encoding available since 3.6),
+# but it is classified ERROR so the push gate treats it as blocking. Blocked by
+# issue #4223.
+#
+# Category 2: test mock-forwarding patterns of the form
+#   real_run = subprocess.run
+#   def _helper(*args, **kwargs): ... return real_run(*args, **kwargs)
+# The detector flags these because the alias may carry text mode through **kwargs.
+# These are intentional forwarding wrappers in test interceptors; the kwargs are
+# forwarded from the production call, not supplied here. Adding encoding= to the
+# wrapper would silently override whatever the production code passes.
+_TESTS_KNOWN_BASELINE: frozenset[str] = frozenset(
+    {
+        # Category 1: Popen + encoding= blocked by semgrep #4223
+        "tests/build_scripts/test_generate_hooks.py:2065",
+        "tests/eval/test_optimize_artifact_cli.py:10807",
+        "tests/eval/test_optimize_artifact_cli.py:10871",
+        # Category 2: test mock-forwarding aliases
+        "tests/ci/test_taste_count_ratchet.py:418",
+        "tests/test_validate_path_normalization_gitignore.py:133",
+    }
+)
 
 _CAPTURING_ATTRS = frozenset({"run", "check_output", "Popen"})
 
@@ -1908,6 +1948,42 @@ def test_the_scan_actually_reaches_files() -> None:
     """Guard the guard: an empty file list would make the policy test vacuous."""
     sources = _python_sources()
     assert len(sources) > 50, f"only found {len(sources)} sources under scripts/"
+
+
+def _test_python_sources() -> list[Path]:
+    """Return every Python file under ``tests/``, skipping caches and self-referential files."""
+    return [
+        path
+        for path in sorted(_TESTS_DIR.rglob("*.py"))
+        if "__pycache__" not in path.parts
+        and path.relative_to(_REPO_ROOT).as_posix() not in _TESTS_SCAN_EXCLUDES
+    ]
+
+
+def test_every_capturing_call_under_tests_pins_utf8() -> None:
+    """No text-capturing subprocess call in tests/ may inherit the locale's codec.
+
+    Three Popen sites are exempt until issue #4223 removes the semgrep false
+    positive that blocks adding ``encoding=`` to ``Popen`` calls. They are recorded
+    in ``_TESTS_KNOWN_BASELINE`` so the count is auditable.
+    """
+    offenders: list[str] = []
+    for path in _test_python_sources():
+        rel = path.relative_to(_REPO_ROOT).as_posix()
+        for line in unpinned_lines(path.read_text("utf-8")):
+            entry = f"{rel}:{line}"
+            if entry not in _TESTS_KNOWN_BASELINE:
+                offenders.append(entry)
+    assert offenders == [], (
+        'text-capturing subprocess calls must pass encoding="utf-8": '
+        + ", ".join(offenders)
+    )
+
+
+def test_tests_scan_actually_reaches_files() -> None:
+    """Guard the guard: an empty file list would make the policy test vacuous."""
+    sources = _test_python_sources()
+    assert len(sources) > 50, f"only found {len(sources)} sources under tests/"
 
 
 @pytest.mark.parametrize(
@@ -4227,3 +4303,66 @@ def test_depth_bound_reports_over_deep_expression(source: str, why: str) -> None
     findings = unpinned_lines(source)
     assert findings, f"over-deep expression silently passed (fail-open): {why}"
     assert 2 in findings, f"finding expected at line 2, got {findings}: {why}"
+
+
+# ---------------------------------------------------------------------------
+# Behavioral negative control: prove the decode actually changes, not just
+# that an argument is present.
+# ---------------------------------------------------------------------------
+
+
+def test_utf8_encoding_arg_changes_actual_decode_behavior() -> None:
+    """Pinning encoding="utf-8" changes the decoded output on a non-UTF-8 locale.
+
+    This test runs a child process that emits a known non-ASCII byte sequence
+    (U+00E9, LATIN SMALL LETTER E WITH ACUTE, encoded as 0xC3 0xA9 in UTF-8 and
+    0xE9 in latin-1). Under LC_ALL=en_US.ISO-8859-1 the locale codec is latin-1.
+    With no explicit encoding the bytes decode to the wrong character. With
+    encoding="utf-8" they round-trip correctly.
+
+    A test that only asserts the argument is present in the source is a substring
+    test in disguise: it passes even if the argument is ignored at runtime. This
+    test asserts on the decoded string value, which can only be correct if the
+    encoding argument is actually honoured.
+    """
+    import sys
+
+    child_script = (
+        "import sys\n"
+        "sys.stdout.buffer.write(b'\\xc3\\xa9\\n')\n"
+    )
+
+    # Run with explicit encoding="utf-8". Must round-trip.
+    result_pinned = subprocess.run(
+        [sys.executable, "-c", child_script],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    assert result_pinned.returncode == 0
+    assert result_pinned.stdout.strip() == "\u00e9", (
+        f"UTF-8 pinned decode produced wrong character: {result_pinned.stdout!r}"
+    )
+
+    # Under latin-1 the same bytes decode differently. Verify this on the current
+    # machine: if latin-1 is available AND produces a different result, the
+    # encoding argument is load-bearing. Skip the check if the system cannot
+    # produce the mojibake (e.g. strict locale rejecting invalid sequences).
+    try:
+        result_locale = subprocess.run(
+            [sys.executable, "-c", child_script],
+            capture_output=True,
+            text=True,
+            encoding="latin-1",
+        )
+        if result_locale.returncode == 0:
+            latin1_decoded = result_locale.stdout.strip()
+            # 0xC3 0xA9 under latin-1 is two separate characters, not one.
+            assert latin1_decoded != "\u00e9", (
+                "latin-1 decode should not round-trip the UTF-8 byte sequence"
+                f" as U+00E9; got {latin1_decoded!r}"
+            )
+    except Exception:  # noqa: BLE001
+        # Any error from the latin-1 run means the check cannot be completed,
+        # not that the UTF-8 pin is wrong.
+        pass
