@@ -23,6 +23,7 @@ from scripts.validation.skill_size import (
     SKILL_SIZE_WARNING,
     StagedBlobError,
     StagedDiscoveryError,
+    build_parser,
     check_skill_size,
     get_skill_files,
     get_staged_skill_files,
@@ -1120,34 +1121,37 @@ class TestGetSkillFilesDefaultScansAllTrees:
             f"Default scan must include {_SKILL_TREE_PREFIXES[1]}"
         )
 
-    def test_main_with_no_path_arg_scans_both_trees(self, tmp_path: Path) -> None:
+    @pytest.mark.parametrize("skill_path_env", [None, ""])
+    def test_main_with_no_path_arg_scans_both_trees(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        skill_path_env: str | None,
+    ) -> None:
         # main() with no --path argument must also scan both trees.
         # This test catches regressions in build_parser's default value.
+        # SKILL_PATH="" must behave exactly like SKILL_PATH unset: an empty
+        # string would otherwise become Path("") -> "." and scan the whole repo.
         for prefix in _SKILL_TREE_PREFIXES:
             skill_dir = tmp_path / prefix / "my-skill"
             skill_dir.mkdir(parents=True)
             (skill_dir / "SKILL.md").write_text("# skill", encoding="utf-8")
 
-        import os
-        original_cwd = Path.cwd()
-        os.chdir(tmp_path)
-        try:
-            # No --path arg; if the default reverts to single-tree, only 1 file is found.
-            # We capture this by patching print and checking Found N SKILL.md.
-            captured: list[str] = []
-            import builtins
-            original_print = builtins.print
-            def capturing_print(*args: object, **kwargs: object) -> None:  # type: ignore[misc]
-                captured.append(" ".join(str(a) for a in args))
-                original_print(*args, **kwargs)  # type: ignore[call-overload]
+        if skill_path_env is None:
+            monkeypatch.delenv("SKILL_PATH", raising=False)
+        else:
+            monkeypatch.setenv("SKILL_PATH", skill_path_env)
+        monkeypatch.chdir(tmp_path)
 
-            builtins.print = capturing_print
-            try:
-                main([])
-            finally:
-                builtins.print = original_print
-        finally:
-            os.chdir(original_cwd)
+        # No --path arg; if the default reverts to single-tree, only 1 file is found.
+        # We capture this by patching print and checking Found N SKILL.md.
+        captured: list[str] = []
+
+        def capturing_print(*args: object, **kwargs: object) -> None:
+            captured.append(" ".join(str(a) for a in args))
+
+        monkeypatch.setattr("builtins.print", capturing_print)
+        main([])
 
         found_lines = [line for line in captured if "Found" in line and "SKILL.md" in line]
         assert found_lines, "main() must print a 'Found N SKILL.md' summary"
@@ -1155,6 +1159,26 @@ class TestGetSkillFilesDefaultScansAllTrees:
         assert int(count_str) == 2, (
             f"main() with no --path must find skills in both trees (expected 2, got {count_str})"
         )
+
+    def test_empty_skill_path_env_parses_the_same_as_unset(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # An empty SKILL_PATH must not reach argparse as "": Path("") resolves
+        # to "." and turns the default two-tree scan into a full-repo scan.
+        monkeypatch.delenv("SKILL_PATH", raising=False)
+        unset_default = build_parser().parse_args([]).path
+
+        monkeypatch.setenv("SKILL_PATH", "")
+        empty_default = build_parser().parse_args([]).path
+
+        assert unset_default is None
+        assert empty_default == unset_default
+
+    def test_non_empty_skill_path_env_still_wins(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("SKILL_PATH", "src/copilot-cli/skills")
+        assert build_parser().parse_args([]).path == "src/copilot-cli/skills"
 
     def test_explicit_path_scans_only_that_tree(self, tmp_path: Path) -> None:
         # An explicit --path must not expand to both trees.

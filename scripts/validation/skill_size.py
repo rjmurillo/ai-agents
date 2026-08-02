@@ -500,7 +500,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--path",
-        default=os.environ.get("SKILL_PATH"),
+        # `or None` treats SKILL_PATH="" as unset. CI env sanitization commonly
+        # exports empty strings, and an empty --path becomes Path("") -> ".",
+        # which scans the whole repository instead of the two skill trees.
+        default=os.environ.get("SKILL_PATH") or None,
         help=(
             "Path to SKILL.md file or directory. "
             "Defaults to scanning both .claude/skills and src/copilot-cli/skills."
