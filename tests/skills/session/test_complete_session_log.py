@@ -52,11 +52,15 @@ class TestFindCurrentSessionLog:
         assert complete_session_log._find_current_session_log(str(tmp_path)) is None
 
     def test_finds_most_recent(self, tmp_path):
-        f1 = tmp_path / "2026-01-01-session-1.json"
-        f2 = tmp_path / "2026-01-02-session-2.json"
-        f1.write_text("{}")
-        f2.write_text("{}")
-        result = complete_session_log._find_current_session_log(str(tmp_path))
+        today = __import__("datetime").datetime.now().strftime("%Y-%m-%d")
+        f1 = tmp_path / f"{today}-session-1.json"
+        f2 = tmp_path / f"{today}-session-2.json"
+        import json
+        branch = "feature/test"
+        f1.write_text(json.dumps({"session": {"branch": branch}}))
+        f2.write_text(json.dumps({"session": {"branch": branch}}))
+        with patch("complete_session_log._get_current_branch", return_value=branch):
+            result = complete_session_log._find_current_session_log(str(tmp_path))
         assert result is not None
 
 
