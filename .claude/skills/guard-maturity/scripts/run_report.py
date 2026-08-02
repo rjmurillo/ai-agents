@@ -42,7 +42,7 @@ _SCRIPT_NAMES = (
 
 
 def _resolve_repo_root() -> Path:
-    """Locate the repo root from ``__file__`` only — no env-var input.
+    """Locate the repo root from ``__file__`` only, with no env-var input.
 
     The same source file lives at two different depths:
     - canonical: ``.claude/skills/guard-maturity/scripts/run_report.py`` →

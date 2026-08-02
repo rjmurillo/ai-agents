@@ -43,7 +43,9 @@
       "timestamp": "2026-07-15T00:00:00+00:00",
       "type": "test",
       "content": "Ran serena print-system-prompt . --only-instructions and confirmed the project.yml hash stayed unchanged. Security detection found no sensitive paths. PYTHONPATH=. uv run --frozen python -m scripts.validation.pre_pr completed with 29 passed, 0 failed, and 4 skipped.",
-      "caused_by": [],
+      "caused_by": [
+        "e012"
+      ],
       "leads_to": []
     },
     {
@@ -100,7 +102,9 @@
       "type": "commit",
       "content": "Commit: bc39fe416",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e005"
+      ]
     }
   ],
   "metrics": {
@@ -111,5 +115,7 @@
     "commits": 4,
     "files_changed": 3
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 1"
 }
