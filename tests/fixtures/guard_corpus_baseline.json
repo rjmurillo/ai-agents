@@ -138,8 +138,8 @@
       593
     ],
     "orphan-ref-validator/tests/test_scan.py": [
-      2307,
-      2314
+      2317,
+      2324
     ],
     "pr-comment-responder/tests/test_cluster_threads.py": [
       322
@@ -171,13 +171,13 @@
     "session-end/scripts/complete_session_log.py": [
       79,
       95,
-      177,
-      191,
-      209,
-      225,
-      232,
-      252,
-      269
+      178,
+      192,
+      210,
+      226,
+      233,
+      253,
+      270
     ],
     "session-end/scripts/rework_warning.py": [
       82
