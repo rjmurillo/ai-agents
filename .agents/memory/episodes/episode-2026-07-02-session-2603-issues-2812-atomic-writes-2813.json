@@ -67,7 +67,9 @@
       "timestamp": "2026-07-02T00:00:00+00:00",
       "type": "test",
       "content": "Verification: `uv run pytest tests/test_atomic_writes_2812.py` => 15 passed; `uv run pytest tests/test_memory_sync ...` => 191 passed; mypy => no issues in 15 source files.",
-      "caused_by": [],
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": []
     },
     {
@@ -76,7 +78,9 @@
       "type": "commit",
       "content": "Commit: f13f73f",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     }
   ],
   "metrics": {
@@ -87,5 +91,7 @@
     "commits": 1,
     "files_changed": 15
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 1"
 }
