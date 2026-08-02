@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -53,3 +54,25 @@ def test_resolve_baseline_rejects_path_outside_repo(tmp_path: Path) -> None:
         )
         == Path("")
     )
+
+
+def test_git_lines_strips_git_overrides_case_insensitively(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured_env: dict[str, str] = {}
+
+    def run_git(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        env = kwargs["env"]
+        assert isinstance(env, dict)
+        captured_env.update(env)
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setenv("git_index_file", "/wrong/index")
+    monkeypatch.setenv("Git_Dir", "/wrong/repo")
+    monkeypatch.setenv("PORTABILITY_TEST_SENTINEL", "kept")
+    monkeypatch.setattr(common.subprocess, "run", run_git)
+
+    assert common._git_lines(tmp_path, ["status"]) == []
+    assert "git_index_file" not in captured_env
+    assert "Git_Dir" not in captured_env
+    assert captured_env["PORTABILITY_TEST_SENTINEL"] == "kept"
