@@ -1277,6 +1277,65 @@ class TestValidateReviewMarker:
         monkeypatch.setenv("REVIEW_MARKER_ENFORCED", "1")
         assert validate_review_marker(repo) is True
 
+    def test_no_marker_advisory_output_contains_no_fail(
+        self, tmp_path: Path, monkeypatch: Any, capsys: Any  # noqa: ANN401
+    ) -> None:
+        """Advisory failure must not print [FAIL]; [FAIL] is for enforced failures
+        only. Before #4315 the function printed [FAIL] regardless and then
+        returned True, so humans saw FAIL while the pipeline saw pass (issue #4315).
+        """
+        repo = self._make_repo(tmp_path, with_script=True)
+        monkeypatch.delenv("REVIEW_MARKER_ENFORCED", raising=False)
+        result = validate_review_marker(repo)
+        captured = capsys.readouterr()
+        assert result is True
+        assert "[FAIL]" not in captured.out, (
+            "advisory failure must not print [FAIL]; it should use [WARN] (issue #4315)"
+        )
+
+    def test_no_marker_advisory_output_contains_warn(
+        self, tmp_path: Path, monkeypatch: Any, capsys: Any  # noqa: ANN401
+    ) -> None:
+        """Advisory failure should print [WARN] so the human understands the
+        check is informational, not blocking (issue #4315).
+        """
+        repo = self._make_repo(tmp_path, with_script=True)
+        monkeypatch.delenv("REVIEW_MARKER_ENFORCED", raising=False)
+        validate_review_marker(repo)
+        captured = capsys.readouterr()
+        assert "[WARN]" in captured.out, (
+            "advisory failure should print [WARN] (issue #4315)"
+        )
+
+    def test_no_marker_enforced_output_contains_fail(
+        self, tmp_path: Path, monkeypatch: Any, capsys: Any  # noqa: ANN401
+    ) -> None:
+        """Enforced failure must keep [FAIL] so the human knows it is blocking
+        (issue #4315).
+        """
+        repo = self._make_repo(tmp_path, with_script=True)
+        monkeypatch.setenv("REVIEW_MARKER_ENFORCED", "1")
+        result = validate_review_marker(repo)
+        captured = capsys.readouterr()
+        assert result is False
+        assert "[FAIL]" in captured.out, (
+            "enforced failure must print [FAIL] (issue #4315)"
+        )
+
+    def test_valid_marker_output_contains_no_fail(
+        self, tmp_path: Path, monkeypatch: Any, capsys: Any  # noqa: ANN401
+    ) -> None:
+        """A passing check must not print [FAIL] regardless of enforcement mode."""
+        repo = self._make_repo(tmp_path, with_script=True)
+        self._add_marker(repo)
+        monkeypatch.setenv("REVIEW_MARKER_ENFORCED", "1")
+        result = validate_review_marker(repo)
+        captured = capsys.readouterr()
+        assert result is True
+        assert "[FAIL]" not in captured.out, (
+            "a passing check must never print [FAIL]"
+        )
+
 
 class TestValidateCiDependencyPinsSkipsBeforeImporting:
     """The skip path must survive a tree that cannot import the checker.

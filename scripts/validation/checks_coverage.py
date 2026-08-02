@@ -22,6 +22,12 @@ if str(_SCRIPT_DIR) not in sys.path:
 from checks_common import _run_subprocess  # noqa: E402
 
 
+def _print_output(output: str, rewrite_fail_to_warn: bool = False) -> None:
+    """Print up to 20 lines of subprocess output, optionally rewriting [FAIL] to [WARN]."""
+    for line in output.strip().splitlines()[:20]:
+        print(line.replace("[FAIL]", "[WARN]", 1) if rewrite_fail_to_warn else line)
+
+
 def validate_review_marker(repo_root: Path) -> bool:
     """Advisory check for a SHA-bound ``Reviewed-By: /review@...`` marker on HEAD.
 
@@ -49,16 +55,24 @@ def validate_review_marker(repo_root: Path) -> bool:
         [sys.executable, str(script), "--repo-root", str(repo_root)]
     )
     output = (stdout or "") + (stderr or "")
-    if output.strip():
-        for line in output.strip().splitlines()[:20]:
-            print(line)
 
     if exit_code == 0:
+        if output.strip():
+            _print_output(output)
         return True
 
     if enforced:
         # exit 1 (no/stale marker) and exit 2 (config) both block in enforced mode.
+        # Pass the script's output verbatim: [FAIL] is accurate here.
+        if output.strip():
+            _print_output(output)
         return False
+
+    # Advisory path: the check did not pass, but the caller will still return
+    # True. Printing [FAIL] here is misleading because the overall run succeeds.
+    # Rewrite [FAIL] tokens to [WARN] so the severity label matches the outcome.
+    if output.strip():
+        _print_output(output, rewrite_fail_to_warn=True)
     print(
         "  Note: advisory only (default). /ship blocks on this; pre_pr does not. "
         "Set REVIEW_MARKER_ENFORCED=1 to make it BLOCKING here. See Issue #1938."
