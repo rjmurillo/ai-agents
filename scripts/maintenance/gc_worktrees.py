@@ -48,6 +48,7 @@ import argparse
 import json
 import subprocess
 import sys
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 
@@ -113,6 +114,11 @@ class GcReport:
     def kept(self) -> list[Decision]:
         """Decisions kept with a reason."""
         return [d for d in self.decisions if d.kept]
+
+    @property
+    def needs_disposition(self) -> list[Decision]:
+        """Kept branches that need a human disposition before they can shrink."""
+        return [d for d in self.kept if d.reason == KEEP_UNPUSHED]
 
 
 def _run_git(args: list[str], cwd: str | None = None) -> str:
@@ -309,6 +315,41 @@ def apply_removals(report: GcReport) -> None:
         report.remove_errors.append(f"prune: {exc}")
 
 
+def _append_decision_group(
+    lines: list[str],
+    title: str,
+    decisions: list[Decision],
+    formatter: Callable[[Decision], str],
+) -> None:
+    """Append a titled decision group when there is anything to report."""
+    if not decisions:
+        return
+    lines.append(title)
+    for decision in decisions:
+        lines.append(formatter(decision))
+
+
+def _append_disposition_group(lines: list[str], decisions: list[Decision]) -> None:
+    """Append kept branches that need human cleanup disposition."""
+    if not decisions:
+        return
+    lines.append("  Needs disposition:")
+    lines.append("    Review branch and issue state, then push, merge, lock, or delete.")
+    for decision in decisions:
+        lines.append(f"    - {decision.path} [{decision.branch}] unpushed and unmerged")
+
+
+def _append_apply_result(lines: list[str], report: GcReport) -> None:
+    """Append removal results from apply mode."""
+    lines.append(f"  removed: {len(report.removed)}")
+    for path in report.removed:
+        lines.append(f"    - removed {path}")
+    if report.remove_errors:
+        lines.append(f"  errors: {len(report.remove_errors)}")
+        for err in report.remove_errors:
+            lines.append(f"    - {err}")
+
+
 def format_report(report: GcReport) -> str:
     """Human-readable summary of the GC plan or result."""
     mode = "APPLY" if report.apply else "DRY-RUN"
@@ -318,22 +359,21 @@ def format_report(report: GcReport) -> str:
         f"  removal candidates: {len(report.candidates)}",
         f"  kept: {len(report.kept)}",
     ]
-    if report.candidates:
-        lines.append("  Candidates:")
-        for d in report.candidates:
-            lines.append(f"    - {d.path} [{d.branch}] ({d.reason})")
-    if report.kept:
-        lines.append("  Kept:")
-        for d in report.kept:
-            lines.append(f"    - {d.path} [{d.branch}] KEEP: {d.reason}")
+    _append_decision_group(
+        lines,
+        "  Candidates:",
+        report.candidates,
+        lambda d: f"    - {d.path} [{d.branch}] ({d.reason})",
+    )
+    _append_disposition_group(lines, report.needs_disposition)
+    _append_decision_group(
+        lines,
+        "  Kept:",
+        report.kept,
+        lambda d: f"    - {d.path} [{d.branch}] KEEP: {d.reason}",
+    )
     if report.apply:
-        lines.append(f"  removed: {len(report.removed)}")
-        for path in report.removed:
-            lines.append(f"    - removed {path}")
-        if report.remove_errors:
-            lines.append(f"  errors: {len(report.remove_errors)}")
-            for err in report.remove_errors:
-                lines.append(f"    - {err}")
+        _append_apply_result(lines, report)
     else:
         lines.append(
             f"  DRY-RUN: removed nothing. Pass --apply to remove "
