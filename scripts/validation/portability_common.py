@@ -170,7 +170,11 @@ def _git_lines(repo_root: Path, args: list[str]) -> list[str] | None:
     index that agrees with a truncated disk, which is the one input that makes
     the probe confirm what it is supposed to test.
     """
-    env = {k: v for k, v in os.environ.items() if k not in _GIT_ENV_OVERRIDES}
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if key.upper() not in _GIT_ENV_OVERRIDES
+    }
     try:
         proc = subprocess.run(
             ["git", "-C", str(repo_root), *args],
