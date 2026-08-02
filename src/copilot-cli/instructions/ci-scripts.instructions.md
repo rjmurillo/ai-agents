@@ -9,7 +9,7 @@ Scripts under `scripts/validation/`, `build/`, and `.github/workflows/` gate eve
 ## MUST
 
 1. **Local run before commit**. CI-critical scripts MUST be exercised locally before commit. Use `gh act` for workflows, direct `python3` invocation for validation scripts, and the actual test suite for helpers.
-2. **Shift-left validation**. Before pushing, MUST run `uv run python scripts/validation/pre_pr.py` and resolve any failures.
+2. **Shift-left validation**. Before pushing, MUST run `python3 scripts/validation/pre_pr.py` and resolve any failures.
 3. **Python for new scripts**. New scripts MUST be Python per ADR-042. MUST NOT create new `*.sh` bash scripts.
 4. **Exit codes**. Scripts MUST follow the exit code contract: `0`=ok, `1`=logic, `2`=config, `3`=external, `4`=auth (`AGENTS.md`).
 5. **Tests required**. New validation scripts MUST ship with pytest or Pester coverage in `tests/` or `.claude/skills/<name>/tests/`.
@@ -29,6 +29,21 @@ Scripts under `scripts/validation/`, `build/`, and `.github/workflows/` gate eve
 1. MUST NOT put branching logic inside YAML workflow steps (ADR-006).
 2. MUST NOT commit changes that silently change validator behavior without an ADR; validators are authoritative.
 3. MUST NOT skip pre-push validation when touching CI paths.
+4. MUST NOT raise a count baseline (`scripts/ci/*_count_baseline.txt`) to clear a blocked push. Those ratchets exist to refuse a new error-severity violation; raising the number defeats the gate rather than satisfying it. Fix the violation, split the file, or use the rule's documented escape (`# taste-lint: ignore <rule>` with a reason, issue #3779).
+
+## Count ratchets
+
+A count ratchet may only fall. Two consequences follow, and both bite in practice.
+
+**A real improvement MUST be recorded.** An unrecorded improvement leaves slack, so the next regression up to the stale number passes silently. Lower it with the per-ratchet updater, not the shared module:
+
+```bash
+uv run --frozen --extra dev python scripts/ci/ruff_count_ratchet.py --update
+```
+
+`scripts/ci/count_ratchet.py --update <name>` reports success and changes nothing. Verify the file afterwards rather than trusting the message.
+
+**The failure never names the offending file.** It reports a delta, and the remediation command it suggests prints the same aggregate. Locate the offender by diffing per-file counts against `origin/main`; the linter needs `--format json -- <files>` because with no file arguments it scans nothing and reports zero, which reads as a clean tree. Prove attribution instead of inferring it: `git rm --cached <suspect>` and re-run; if the ratchet returns OK, that file was the whole delta.
 
 ## References
 
