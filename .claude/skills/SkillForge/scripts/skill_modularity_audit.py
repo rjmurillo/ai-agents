@@ -60,6 +60,12 @@ LINE_WARNING: int = 300
 # Modularity thresholds
 MAX_H2_SECTIONS: int = 10
 IDEAL_MAX_LINES: int = 300
+# SkillsBench (Feb 2026) measured standard-length skills at +21.5 pp versus compact at
+# +19.0 pp.  The scoring curve now has a floor at IDEAL_MIN_LINES: skills below this
+# threshold are penalised symmetrically to skills above IDEAL_MAX_LINES.  The boundary
+# is calibrated against this repo's own distribution (98 skills, p25=154, mean=238)
+# rather than against the study's named buckets, which carry no numeric thresholds.
+IDEAL_MIN_LINES: int = 100
 
 
 @dataclass
@@ -99,16 +105,23 @@ def _score_modularity(
     """Calculate modularity score (0-100).
 
     Higher score means better modularity. Factors:
-    - Size penalty: lines above IDEAL_MAX_LINES reduce score
+    - Size band: full marks inside [IDEAL_MIN_LINES, IDEAL_MAX_LINES]; penalty on both sides
     - Section focus: too many h2 sections reduce score
     - Progressive disclosure bonus: subdirectories add score
     """
     score = 100
 
-    # Size penalty: -1 point per 10 lines above ideal
+    # Size penalty above ideal: -1 point per 10 lines above IDEAL_MAX_LINES
     if line_count > IDEAL_MAX_LINES:
         overage = line_count - IDEAL_MAX_LINES
         score -= min(overage // 10, 40)
+
+    # Size penalty below ideal: -1 point per 10 lines below IDEAL_MIN_LINES.
+    # SkillsBench measured standard length (+21.5 pp) above compact (+19.0 pp),
+    # so very short skills should not score at par with standard-length ones.
+    if line_count < IDEAL_MIN_LINES:
+        shortfall = IDEAL_MIN_LINES - line_count
+        score -= min(shortfall // 10, 40)
 
     # Section focus penalty: -3 per h2 above threshold
     if h2_count > MAX_H2_SECTIONS:
