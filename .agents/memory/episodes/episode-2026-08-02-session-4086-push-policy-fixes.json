@@ -1,0 +1,54 @@
+{
+  "id": "episode-2026-08-02-session-4086-push-policy-fixes",
+  "session": "2026-08-02-session-4086-push-policy-fixes",
+  "timestamp": "2026-08-02T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Close issues #4086 (shallow-clone error message), #4236 (explicit-refspec push warning), #4283 (push lock scoped per-ref), and triage #3110 (repair-push policy derivation)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #4086 and #4236 in git_hook_policy.py with tests and mutation harness",
+      "caused_by": [],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-02-session-4086-push-policy-fixes"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Documented #4283 in GOTCHAS.md and corrected retrospective; workflow CI-only caveat",
+      "caused_by": [],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-02-session-4086-push-policy-fixes"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-02T18:22:39+00:00",
+      "type": "commit",
+      "content": "Commit: b949abd17",
+      "caused_by": [
+        "e001",
+        "e002"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4086-push-policy-fixes"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 6
+  },
+  "lessons": []
+}

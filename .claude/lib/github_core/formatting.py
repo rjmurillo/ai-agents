@@ -1,4 +1,4 @@
-"""Canonical: scripts/github_core/formatting.py. Sync via scripts/sync_plugin_lib.py."""
+"""Formatting utilities: emoji mappings for priorities and reactions."""
 
 from __future__ import annotations
 
