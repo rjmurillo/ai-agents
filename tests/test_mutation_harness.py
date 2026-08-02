@@ -193,7 +193,9 @@ class TestMutationResults:
             **kwargs: object,
         ) -> subprocess.CompletedProcess[str]:
             observed.update(kwargs)
-            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+            timeout = kwargs["timeout"]
+            assert isinstance(timeout, int | float)
+            raise subprocess.TimeoutExpired(command, timeout)
 
         monkeypatch.setattr(subprocess, "run", timeout_run)
 
@@ -236,7 +238,9 @@ class TestMutationResults:
             command: Sequence[str],
             **kwargs: object,
         ) -> subprocess.CompletedProcess[str]:
-            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+            timeout = kwargs["timeout"]
+            assert isinstance(timeout, int | float)
+            raise subprocess.TimeoutExpired(command, timeout)
 
         monkeypatch.setattr(subprocess, "run", timeout_run)
 

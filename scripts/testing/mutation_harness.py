@@ -114,6 +114,8 @@ def load_battery(path: Path) -> list[MutationEntry]:
         "battery timeout_seconds",
         default=DEFAULT_COMMAND_TIMEOUT_SECONDS,
     )
+    if default_timeout is None:
+        raise AssertionError("default timeout is required")
     raw_entries = raw.get("entries")
     if not isinstance(raw_entries, list) or not raw_entries:
         raise BatteryConfigError("battery must contain a non-empty entries list")
