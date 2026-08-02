@@ -439,7 +439,9 @@ class TestPlanRunner:
         # Issue #3905: claude-opus-5 had no pricing row, so every plan naming
         # it raised UnsupportedModelError. The expected value is derived from
         # the published $5/$25 per MTok rather than copied from the table, so
-        # an order-of-magnitude typo in the row fails here.
+        # an order-of-magnitude typo in the row fails here. Do not also assert
+        # a fixed dollar total: that reds on any EST_TOKENS_PER_CALL or 70/30
+        # split refinement, which _plan_runner.py says to expect.
         plan = PlanRunner.build_plan(
             fixtures=_make_fixtures(1),
             model_id="claude-opus-5",
@@ -450,7 +452,6 @@ class TestPlanRunner:
             plan.estimated_tokens_in * 5.0 + plan.estimated_tokens_out * 25.0
         ) / 1_000_000
         assert plan.estimated_cost_usd == pytest.approx(expected_usd)
-        assert plan.estimated_cost_usd == pytest.approx(0.077)
 
     def test_cost_line_format(self):
         plan = PlanRunner.build_plan(
