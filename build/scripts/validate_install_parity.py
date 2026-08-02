@@ -4,11 +4,14 @@
 Many artifacts in this repo live in multiple trees that the build pipeline does
 NOT auto-generate end-to-end. The shared-agent family is the canonical
 example: ``templates/agents/X.shared.md`` is the source of truth that the
-``generate_agents`` script propagates to ``src/claude/``,
-``src/copilot-cli/agents/``, and ``src/vs-code-agents/``. The Claude-Code
-self-host copy ``.claude/agents/X.md`` and the GitHub-Copilot self-host copy
-``.github/agents/X.agent.md`` are hand-maintained and are NOT touched by the
-generator (REQ-003-010 forbids generators from writing under ``.claude/``).
+``generate_agents`` script propagates to ``src/copilot-cli/agents/`` and
+``src/vs-code-agents/``. Those two are the only generator outputs, enforced
+by the ``allowed_output_dirs`` allowlist at ``generate_agents.py:269-272``.
+Three copies are hand-maintained and are NOT touched by the generator: the
+Claude prompt source ``src/claude/X.md``, the Claude-Code self-host copy
+``.claude/agents/X.md``, and the GitHub-Copilot self-host copy
+``.github/agents/X.agent.md`` (REQ-003-010 forbids generators from writing
+under ``.claude/``).
 
 When an author updates the template but forgets to refresh the install copies,
 ``main`` ends up in a state where the published vendored copies and the
@@ -205,6 +208,213 @@ def _shared_agent_is_hand_maintained(member: str) -> bool:
     )
 
 
+_H2_RE = re.compile(r"^## ")
+_FENCE_RE = re.compile(r"^ {0,3}(?P<marker>`{3,}|~{3,})")
+
+
+def _git_show(base: str, path: str, root: Path) -> str | None:
+    """Return ``path`` content at ``base``, or None when unavailable.
+
+    ``UnicodeDecodeError`` is caught alongside ``OSError`` because it is a
+    ``ValueError``, not an ``OSError``: ``text=True`` decodes git's stdout
+    with the locale codec and strict errors, so a base revision holding
+    undecodable bytes raised out of here even when the current file was
+    clean UTF-8. That crashed the run with a traceback instead of failing
+    closed, which is what every caller is written to expect.
+    """
+    try:
+        proc = subprocess.run(
+            ["git", "show", f"{base}:{path}"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (OSError, UnicodeDecodeError):
+        return None
+    return proc.stdout if proc.returncode == 0 else None
+
+
+def _split_document(text: str) -> tuple[str, dict[str, str]] | None:
+    """Split into (preamble, H2 sections), or None if it cannot be modelled.
+
+    Frontmatter is dropped: sibling agent copies legitimately differ there
+    (each harness carries its own ``name``/``model`` keys), so whole-file
+    equality is the wrong comparison. The shared prompt lives in the H2
+    sections, and everything before the first H2 is the preamble.
+
+    ``## `` inside a fenced code block is sample text, not a heading. Agent
+    prompts are full of it (242 to 258 fenced ``## `` lines per agent tree
+    as of Issue #4157), so a fence-blind parser invents sections that do not
+    exist and, worse, lets a fenced heading shadow a real one.
+
+    Returns None when a heading repeats, because a flat map would silently
+    keep only the last occurrence and hide a real change in the earlier one.
+    Callers treat None as "cannot vouch" and fail closed.
+    """
+    body = text
+    if body.startswith("---\n"):
+        end = body.find("\n---\n", 4)
+        if end != -1:
+            body = body[end + 5 :]
+
+    preamble: list[str] = []
+    order: list[str] = []
+    blocks: dict[str, list[str]] = {}
+    current: str | None = None
+    fence: str | None = None
+
+    for line in body.splitlines():
+        match = _FENCE_RE.match(line)
+        if match:
+            marker = match.group("marker")
+            if fence is None:
+                fence = marker
+            elif marker[0] == fence[0] and len(marker) >= len(fence):
+                fence = None
+        elif fence is None and _H2_RE.match(line):
+            heading = line.strip()
+            if heading in blocks:
+                return None
+            order.append(heading)
+            blocks[heading] = []
+            current = heading
+            continue
+        (preamble if current is None else blocks[current]).append(line)
+
+    if fence is not None:
+        # Unterminated fence: the rest of the document was swallowed, so the
+        # section map is not trustworthy.
+        return None
+    sections = {h: (h + "\n" + "\n".join(blocks[h])).strip() for h in order}
+    return "\n".join(preamble).strip(), sections
+
+
+def _added_sections(
+    root: Path, base: str, rel: str
+) -> dict[str, str] | None:
+    """The H2 sections ``rel`` ADDS relative to ``base``, or None if unsafe.
+
+    Returns None whenever the delta is anything other than pure addition, so
+    every caller fails closed. That covers: a file absent, unreadable, or not
+    decodable as UTF-8; a document the section parser cannot model (repeated
+    or fenced-shadowed headings, unterminated fence); a preamble edit; a
+    deleted or renamed section; or a body edit to a section that already
+    existed at base.
+
+    An empty dict means the file changed nothing this check can vouch for.
+    """
+    try:
+        after_doc = _split_document((root / rel).read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError):
+        return None
+
+    before_text = _git_show(base, rel, root)
+    if before_text is None:
+        return None
+    before_doc = _split_document(before_text)
+    if before_doc is None or after_doc is None:
+        return None
+    before_preamble, before = before_doc
+    after_preamble, after = after_doc
+
+    if before_preamble != after_preamble:
+        # A preamble edit is a real change this carve-out cannot verify
+        # against the missing siblings, because it lives outside the section
+        # model. Fail closed rather than let it ride along with a repair.
+        return None
+    if set(before) - set(after):
+        # A removed or renamed section is likewise unverifiable.
+        return None
+    if any(heading in before and before[heading] != block
+           for heading, block in after.items()):
+        # A body edit to a section that already existed at base can move the
+        # file *backwards* onto whatever the missing siblings already say,
+        # which would launder a regression as a repair. Only a section that
+        # is absent at base is safe to vouch for: there is no prior text for
+        # it to regress to.
+        return None
+
+    return {
+        heading: block for heading, block in after.items() if heading not in before
+    }
+
+
+def _missing_siblings_already_current(
+    root: Path,
+    base: str | None,
+    members_touched: Iterable[str],
+    missing: Iterable[str],
+) -> bool:
+    """True when this diff's content already exists in the missing siblings.
+
+    A parity group can be left torn on ``main`` when an earlier PR used the
+    hand-maintained carve-out above to move only some members. Once torn,
+    the repair PR touches the remaining members and legitimately does NOT
+    touch the ones that are already correct. Co-change alone cannot tell
+    that repair apart from the bug this validator exists to catch, so for
+    exactly this case we look at content (Issue #4157).
+
+    The comparison is scoped to the H2 sections THIS diff ADDS, not the
+    whole file and not sections it edits. Sibling copies carry unrelated
+    pre-existing drift (Issue #4082 counts 16 such files); demanding
+    whole-file agreement would force every PR to also repair drift it did
+    not cause, and would make this carve-out unreachable in practice.
+    Restricting to additions is what makes the content check safe to trust:
+    an edit to a section that already existed at base could move a file
+    backwards onto stale sibling text and pass as a "repair", while an added
+    section has no prior text to regress to.
+
+    EVERY touched member must carry that identical addition, not just the
+    reference. Auditing the reference alone let a non-reference member
+    smuggle an unverified body edit, or skip the repair entirely, while the
+    reference's clean additive delta vouched for the whole group.
+
+    Returns False whenever the answer cannot be established, so the gate
+    fails closed. See ``_added_sections`` for the per-file conditions.
+    """
+    if base is None:
+        # Explicit at the boundary. ``_git_show`` also returns None for an
+        # unusable ref, so this is redundant defense and a mutation here
+        # survives; end-to-end behavior is pinned by test_no_base_fails_closed.
+        return False
+    touched = sorted(members_touched)
+    if not touched:
+        return False
+    # Prefer the shared template as reference; it is the canonical body.
+    reference = next(
+        (m for m in touched if m.startswith("templates/agents/")), touched[0]
+    )
+    changed = _added_sections(root, base, reference)
+    if not changed:
+        # Either the delta was unverifiable (None) or nothing was added, so
+        # this carve-out cannot vouch for the missing siblings. Fail closed.
+        return False
+
+    for member in touched:
+        if member == reference:
+            continue
+        # Every touched member must carry the SAME addition and nothing else.
+        # Checking only the reference would let a non-reference member smuggle
+        # an unverified body edit, or skip the repair entirely, while the
+        # reference's clean additive delta vouched for the whole group.
+        if _added_sections(root, base, member) != changed:
+            return False
+
+    for member in missing:
+        try:
+            member_doc = _split_document((root / member).read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError):
+            return False
+        if member_doc is None:
+            return False
+        member_sections = member_doc[1]
+        for heading, block in changed.items():
+            if member_sections.get(heading) != block:
+                return False
+    return True
+
+
 # --- Path normalization -------------------------------------------------
 
 
@@ -329,6 +539,7 @@ def _expected_members(
 def find_violations(
     touched: Iterable[str],
     repo_root: Path | None = None,
+    base: str | None = None,
 ) -> list[Violation]:
     """Return parity violations across the touched-file set.
 
@@ -388,6 +599,18 @@ def find_violations(
         # RULE groups have no hand-maintained-only role and are always strict.
         if kind == "SHARED_AGENT" and all(
             _shared_agent_is_hand_maintained(m) for m in members_touched
+        ):
+            continue
+
+        # Repair of a torn group. The carve-out above lets a PR move only
+        # the hand-maintained members, which can leave `main` torn. The
+        # PR that repairs the remaining members legitimately does not
+        # touch the ones already correct. Co-change cannot distinguish
+        # that repair from a forgotten install copy, so check content for
+        # this case only: no drift when every missing sibling already
+        # carries the reference member's sections (Issue #4157).
+        if kind == "SHARED_AGENT" and _missing_siblings_already_current(
+            root, base, members_touched, missing
         ):
             continue
         violations.append(
@@ -519,6 +742,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
     touched: list[str]
+    # None when the caller supplied an explicit file list: without a base
+    # there is no "before" to diff against, so the content carve-out in
+    # find_violations stays disabled and the gate fails closed.
+    resolved_base: str | None = None
     if args.files is not None:
         touched = list(args.files)
     else:
@@ -539,6 +766,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             files, rc, err = _git_diff_files(base, repo_root)
             if rc == 0:
                 touched = files
+                resolved_base = base
                 success = True
                 break
             errors.append(err)
@@ -551,7 +779,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"error: {err}", file=sys.stderr)
             return 2
 
-    violations = find_violations(touched, repo_root=repo_root)
+    violations = find_violations(
+        touched, repo_root=repo_root, base=resolved_base
+    )
     output = _format_json(violations) if args.format == "json" else _format_text(violations)
     print(output)
     return 1 if violations else 0

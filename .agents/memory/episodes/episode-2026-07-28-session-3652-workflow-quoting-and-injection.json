@@ -13,7 +13,7 @@
       "content": "Scanned every file under .github/workflows for plain scalars truncated by an unquoted comment marker. Found ten, not the five reported on issue #3652. The five the issue missed each wrap a matrix expression, so every parallel job in backlog-triage and pr-maintenance rendered under the same name in the Actions UI.",
       "caused_by": [],
       "leads_to": [
-        "e002"
+        "e010"
       ]
     },
     {
@@ -21,11 +21,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Quoted all ten values and confirmed the re-scan reports zero.",
-      "caused_by": [
-        "e001"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e003"
+        "e010"
       ]
     },
     {
@@ -33,11 +31,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Threat-modelled issue #3664. Attack surface: the workflow_dispatch input 'days' in agent-metrics.yml, declared type string with no constraint, interpolated straight into a run block. Actor: anyone able to dispatch the workflow, which includes the autonomous agents in this repository that hold tokens. Impact: arbitrary command execution on the runner with the job token and any runner-scoped secret. CWE-78. The same shape appears in copilot-context-synthesis.yml.",
-      "caused_by": [
-        "e002"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e004"
+        "e010"
       ]
     },
     {
@@ -45,11 +41,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Traced the taint past the first hop. Both workflows write the input to $GITHUB_OUTPUT and re-interpolate it in a later step, so binding only the first hop through env: would have left the hole open. Bound every hop and added a digit check at each boundary.",
-      "caused_by": [
-        "e003"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e005"
+        "e010"
       ]
     },
     {
@@ -57,11 +51,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Replaced _DANGEROUS_PATTERNS in scripts/validate_workflows.py with an allowlist. The blocklist is why #3664 existed: it enumerated dangerous contexts, so every context nobody had listed defaulted to safe. Classification now enumerates the context references inside an expression rather than its leading token, which keeps hashFiles safe while flagging fromJSON of an input.",
-      "caused_by": [
-        "e004"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e006"
+        "e010"
       ]
     },
     {
@@ -69,11 +61,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Added one-hop taint propagation. A step that reads an unsafe expression and writes to $GITHUB_OUTPUT marks its own outputs unsafe for the rest of the job. Running it against the pre-fix tree reproduced all nine injection findings at both hops; running it against the repaired tree reports zero.",
-      "caused_by": [
-        "e005"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e007"
+        "e010"
       ]
     },
     {
@@ -81,11 +71,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Added a name-truncation check operating on raw text, because by the time the YAML loader runs the truncation has already happened and left nothing to compare.",
-      "caused_by": [
-        "e006"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e008"
+        "e010"
       ]
     },
     {
@@ -93,28 +81,35 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Inverted one pre-existing test that asserted inputs.* was safe, which was the vulnerable behavior written down. Added 40 tests covering the allowlist, taint propagation, truncation detection, and two live-tree regression pins with a did-the-scan-actually-run control. 80 pass, ruff clean.",
-      "caused_by": [
-        "e007"
-      ],
-      "leads_to": []
-    },
-    {
-      "id": "e009",
-      "timestamp": "2026-07-28T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 9e34893ba",
       "caused_by": [],
       "leads_to": [
         "e010"
       ]
     },
     {
+      "id": "e009",
+      "timestamp": "2026-07-28T23:49:28+00:00",
+      "type": "commit",
+      "content": "Commit: 9e34893ba",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": []
+    },
+    {
       "id": "e010",
-      "timestamp": "2026-07-28T00:00:00+00:00",
+      "timestamp": "2026-07-28T16:06:14+00:00",
       "type": "commit",
       "content": "Commit: 43ac3fdb2",
       "caused_by": [
-        "e009"
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008"
       ],
       "leads_to": [
         "e011"
@@ -122,7 +117,7 @@
     },
     {
       "id": "e011",
-      "timestamp": "2026-07-28T00:00:00+00:00",
+      "timestamp": "2026-07-28T16:25:04+00:00",
       "type": "commit",
       "content": "Commit: 239c17fb0",
       "caused_by": [
@@ -134,7 +129,7 @@
     },
     {
       "id": "e012",
-      "timestamp": "2026-07-28T00:00:00+00:00",
+      "timestamp": "2026-07-28T16:25:04+00:00",
       "type": "commit",
       "content": "Commit: 3737267b5",
       "caused_by": [
@@ -146,7 +141,7 @@
     },
     {
       "id": "e013",
-      "timestamp": "2026-07-28T00:00:00+00:00",
+      "timestamp": "2026-07-28T16:34:53+00:00",
       "type": "commit",
       "content": "Commit: fdb9e04da",
       "caused_by": [
@@ -158,13 +153,15 @@
     },
     {
       "id": "e014",
-      "timestamp": "2026-07-28T00:00:00+00:00",
+      "timestamp": "2026-07-28T23:48:00+00:00",
       "type": "commit",
       "content": "Commit: 4299eff34",
       "caused_by": [
         "e013"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     }
   ],
   "metrics": {

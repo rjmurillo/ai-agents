@@ -11,31 +11,31 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Both improvements are on a branch off main rather than lost with their deleted source branches",
-      "caused_by": [
-        "e003"
-      ],
-      "leads_to": []
-    },
-    {
-      "id": "e002",
-      "timestamp": "2026-07-26T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: af7c0a453b",
       "caused_by": [],
       "leads_to": [
         "e003"
       ]
     },
     {
+      "id": "e002",
+      "timestamp": "2026-07-26T21:21:19+00:00",
+      "type": "commit",
+      "content": "Commit: af7c0a453b",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": []
+    },
+    {
       "id": "e003",
-      "timestamp": "2026-07-26T00:00:00+00:00",
+      "timestamp": "2026-07-26T21:20:59+00:00",
       "type": "commit",
       "content": "Commit: 5b69d082cb",
       "caused_by": [
-        "e002"
+        "e001"
       ],
       "leads_to": [
-        "e001"
+        "e002"
       ]
     }
   ],

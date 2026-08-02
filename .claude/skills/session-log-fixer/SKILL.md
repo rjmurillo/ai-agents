@@ -175,7 +175,7 @@ The detailed results tell you **exactly** which MUST requirements failed.
 Validate locally before pushing:
 
 ```bash
-python3 scripts/validate_session_json.py ".agents/sessions/<session-file>.json"
+uv run python scripts/validate_session_json.py ".agents/sessions/<session-file>.json"
 ```
 
 This uses the **same script** as CI, so results match exactly.

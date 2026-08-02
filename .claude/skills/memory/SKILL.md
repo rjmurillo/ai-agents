@@ -244,7 +244,7 @@ The router owns the canonical memory scripts. Sub-skills delegate to these paths
 | `count_memory_tokens.py` | Token counting with tiktoken caching | 0=success, 1=error |
 | `test_memory_size.py` | Memory atomicity validation | 0=pass, 1=violations |
 | `test_memory_health.py` | System health dashboard | 0=success |
-| `extract_session_episode.py` | Episode extraction from session logs | 0=success, 1=error |
+| `extract_session_episode.py` | Episode extraction; `--validate` checks the store at rest, `--fix` repairs backwards commit order | 0=success, 1=error, 2=violation or bad flag |
 | `measure_memory_performance.py` | Serena and Forgetful benchmark | 0=success, 1=error |
 | `improve_memory_graph_density.py` | Graph density improvement | 0=success, 1=error |
 | `convert_index_table_links.py` | Index table link conversion | 0=success, 1=error |

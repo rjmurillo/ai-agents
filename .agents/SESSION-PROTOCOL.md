@@ -720,7 +720,7 @@ The agent MUST run quality checks before ending.
    - Session objective explicitly includes "format all files"
    - Creating a dedicated formatting cleanup PR
 
-2. The agent SHOULD run validation scripts if available (e.g., `python3 scripts/validation/pre_pr.py`)
+2. The agent SHOULD run validation scripts if available (e.g., `uv run python scripts/validation/pre_pr.py`)
 3. The agent SHOULD check memory sizes if `.serena/memories/` files were created or modified:
 
    ```bash
@@ -821,7 +821,7 @@ The agent MUST run pre-PR validation before creating a pull request. This is a *
 1. The agent MUST run the PR readiness validation script:
 
    ```bash
-   python3 scripts/validation/pre_pr.py
+   uv run python scripts/validation/pre_pr.py
    ```
 
 2. The script validates:
@@ -917,7 +917,7 @@ Copy this checklist to each session log and verify completion:
 | MUST | Update Serena memory (cross-session context) | [ ] | Memory write confirmed |
 | MUST | Run markdown lint | [ ] | Lint output clean |
 | MUST | Route to qa agent (feature implementation) | [ ] | QA report: `.agents/qa/[report].md` OR `SKIPPED: investigation-only` |
-| MUST | Run pre-PR validation: `python3 scripts/validation/pre_pr.py` | [ ] | Exit code 0 |
+| MUST | Run pre-PR validation: `uv run python scripts/validation/pre_pr.py` | [ ] | Exit code 0 |
 | MUST | Commit all changes (including .serena/memories) | [ ] | Commit SHA: _______ |
 | MUST | Preserve `.agents/HANDOFF.md` (read-only) | [ ] | HANDOFF.md unchanged |
 | MUST | Write per-issue handoff to `.agents/sessions/handoffs/{date}-{issue}-handoff.md` (if issue incomplete) | [ ] | File path: _______ (or "SKIPPED: issue closed / no issue") |
@@ -958,7 +958,7 @@ python3 .claude/skills/session-init/scripts/new_session_log.py
 
 ```bash
 # Validation (structural schema + business rules)
-python3 scripts/validate_session_json.py [session].json
+uv run python scripts/validate_session_json.py [session].json
 ```
 
 For detailed schema structure, load `.agents/schemas/session-log.schema.json` when needed.
@@ -1108,7 +1108,7 @@ The `validate_session_json.py` script checks session protocol compliance:
 
 ```bash
 # Validate current session
-python3 scripts/validate_session_json.py .agents/sessions/2025-12-17-session-01.json
+uv run python scripts/validate_session_json.py .agents/sessions/2025-12-17-session-01.json
 ```
 
 ### What Validation Checks
@@ -1162,7 +1162,7 @@ These documents reference this protocol but MUST NOT duplicate it:
 
 ADRs define governance decisions that may introduce enforceable requirements
 (MUST, SHOULD, MAY per RFC 2119). This section lists ADRs with requirements
-that affect session protocol. Run `python3 scripts/sync_adr_protocol.py` to
+that affect session protocol. Run `uv run python scripts/sync_adr_protocol.py` to
 audit sync coverage.
 
 | ADR | Requirement Summary | Protocol Section |
