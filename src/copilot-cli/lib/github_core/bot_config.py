@@ -1,4 +1,4 @@
-"""Canonical: scripts/github_core/bot_config.py. Sync via scripts/sync_plugin_lib.py."""
+"""Bot authors configuration: loading, caching, and lookup."""
 
 from __future__ import annotations
 

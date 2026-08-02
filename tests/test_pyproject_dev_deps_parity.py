@@ -44,6 +44,7 @@ REQUIRED_DEV_TOOLS = frozenset(
         "pip-audit",
         "pytest",
         "pytest-cov",
+        "pytest-timeout",
         "ruff",
         "semgrep",
     }
@@ -187,6 +188,7 @@ def test_missing_required_tools_empty_when_all_present() -> None:
     complete = [
         "pytest>=9.0.3",
         "pytest-cov>=7.1.0",
+        "pytest-timeout>=2.4.0",
         "bandit[sarif]>=1.9.4",
         "lefthook==2.1.10",
         "pip-audit>=2.10.0",

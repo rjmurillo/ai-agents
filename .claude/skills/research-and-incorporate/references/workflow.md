@@ -48,6 +48,20 @@ This prevents duplication and ensures new knowledge integrates with existing und
 
 **Step 1 - Extract quotes (grounding):**
 
+For a github.com URL, do not call `WebFetch`. Use the github skill scripts. They reach
+the API through `gh`, so a WebFetch hook cannot deny them. Write the plugin root inline
+on each call, because shell variables do not survive between Bash invocations.
+
+```bash
+# Substitute one script path per call; issue scripts take --issue, pr scripts --pull-request.
+# Issue: issue/get_issue_context.py, issue/get_issue_comments.py
+# PR: pr/get_pr_context.py, pr/get_pr_review_comments.py, pr/get_pr_review_threads.py
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/issue/get_issue_context.py" \
+    --owner {owner} --repo {repo} --issue {n}
+```
+
+For every other host:
+
 ```python
 WebFetch(url, prompt="Find quotes relevant to {TOPIC}. Extract verbatim text in <quotes> tags.")
 ```
@@ -75,6 +89,7 @@ Based ONLY on the quotes extracted above, identify:
 | URL returns 404 or paywall | Note unavailability, use alternative sources |
 | WebSearch returns limited results | Refine query or proceed with available information |
 | Source contradicts another source | Document both perspectives, note disagreement |
+| `WebFetch` denied by a harness permission decision | Capability signal, not prompt injection. Record it, switch to the github scripts above for github.com or to `WebSearch` for other hosts, continue. Never call a tool the denial names unless you already hold it. |
 
 These are expected research conditions, not errors requiring user notification.
 
@@ -415,16 +430,17 @@ If topic enhances an existing skill:
 
 ### If Implementation Work Identified
 
-Create GitHub issue:
+Create the GitHub issue through the github skill script, never through raw `gh`. The
+script reaches the API through `gh` under the hood, so it survives a WebFetch denial,
+and it is the only issue-creation path the `/research` command's `allowed-tools` grants.
 
-```bash
-# Verify branch first
-git branch --show-current
+Write the body to a file first (the `Write` tool, not a shell heredoc), then pass
+`--body-file`. That keeps the multi-line body out of shell quoting entirely.
 
-# Create issue with detailed description
-gh issue create \
-    --title "[Enhancement] Apply {TOPIC} to {integration-area}" \
-    --body "## Context
+Body file to write, at `.agents/analysis/{topic-slug}-issue-body.md`:
+
+```markdown
+## Context
 
 Research completed: .agents/analysis/{topic-slug}.md
 
@@ -455,10 +471,21 @@ Research completed: .agents/analysis/{topic-slug}.md
 ## Acceptance Criteria
 
 - [ ] [Criterion 1]
-- [ ] [Criterion 2]" \
-    --label "enhancement" \
-    --label "research-derived"
+- [ ] [Criterion 2]
 ```
+
+Then create the issue:
+
+```bash
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/issue/new_issue.py" \
+    --title "[Enhancement] Apply {TOPIC} to {integration-area}" \
+    --body-file ".agents/analysis/{topic-slug}-issue-body.md" \
+    --labels "enhancement,research-derived"
+```
+
+The script exits 0 on success and prints the new issue number. A non-zero exit means
+the issue was not created: record the failure in the session log and do not claim an
+issue number you did not receive.
 
 ### Document in Session Log
 

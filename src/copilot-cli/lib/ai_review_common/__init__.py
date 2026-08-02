@@ -1,4 +1,4 @@
-"""Canonical: scripts/ai_review_common/__init__.py. Sync via scripts/sync_plugin_lib.py."""
+"""AI Review Common module: shared helpers for AI-powered review workflows."""
 
 from __future__ import annotations
 

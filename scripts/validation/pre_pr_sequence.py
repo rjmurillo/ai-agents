@@ -451,6 +451,16 @@ def run_all_validations(
         lambda: validate_install_parity(repo_root),
     )
 
+    # 6b2. Agent Content Parity (.claude/agents/ vs src/claude/ byte comparison)
+    # validate_install_parity checks co-change; it does not compare on-disk
+    # content. This gate catches drift that already exists regardless of what
+    # changed in the current PR. Issue #4082.
+    run_validation(
+        "Agent Content Parity (.claude/agents vs src/claude)",
+        state,
+        lambda: validate_agent_content_parity(repo_root),
+    )
+
     # 6c. Plugin Version Bump (source change requires a plugin.json bump; #2118)
     run_validation(
         "Plugin Version Bump",

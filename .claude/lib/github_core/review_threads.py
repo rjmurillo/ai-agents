@@ -1,4 +1,4 @@
-"""Canonical: scripts/github_core/review_threads.py. Sync via scripts/sync_plugin_lib.py.
+"""GitHub PR review-thread helpers: thread shape, predicates, paginated fetch.
 
 Extracted from ``scripts/github_core/api.py`` (Issue #1910) as a cohesive
 module. ``api.py`` re-exports every public and private name defined here so

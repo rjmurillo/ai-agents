@@ -10,7 +10,8 @@ Usage:
     python3 planner.py --step-number 1 --total-steps 4 --thoughts "Design auth system"
 
     # Review phase (after plan is written)
-    python3 planner.py --phase review --step-number 1 --total-steps 2 --thoughts "Plan written to plans/auth.md"
+    python3 planner.py --phase review --step-number 1 --total-steps 2 \
+        --thoughts "Plan written to plans/auth.md"
 """
 
 import argparse
@@ -32,7 +33,7 @@ def get_planning_step_guidance(step_number: int, total_steps: int) -> dict:
     if is_complete:
         return {
             "actions": [
-                "FINAL VERIFICATION — complete each section before writing.",
+                "FINAL VERIFICATION: complete each section before writing.",
                 "",
                 "<planning_context_verification>",
                 "TW and QR consume this section VERBATIM. Quality here =",
@@ -227,7 +228,8 @@ def get_planning_step_guidance(step_number: int, total_steps: int) -> dict:
                 "",
                 "  | Decision | Backing | Citation |",
                 "  |----------|---------|----------|",
-                "  | [choice] | user-specified / doc-derived / default-derived / assumption | [source] |",
+                "  | [choice] | user-specified / doc-derived / default-derived "
+                "/ assumption | [source] |",
                 "",
                 "Backing tiers (higher overrides lower):",
                 "  1. user-specified: 'User said X' -> cite the instruction",
@@ -258,7 +260,10 @@ def get_planning_step_guidance(step_number: int, total_steps: int) -> dict:
                 "  - Map dependencies (circular = design problem)",
                 "</step_2_milestones>",
             ],
-            "next": f"Invoke step {next_step} with your chosen approach (include state evaluation summary), architecture, and milestone structure."
+            "next": (
+                f"Invoke step {next_step} with your chosen approach "
+                "(include state evaluation summary), architecture, and milestone structure."
+            )
         }
 
     if step_number == 3:
@@ -305,19 +310,19 @@ def get_planning_step_guidance(step_number: int, total_steps: int) -> dict:
                 "<step_3_refine_milestones>",
                 "Verify EACH milestone has:",
                 "",
-                "FILES — exact paths:",
+                "FILES, exact paths:",
                 "  CORRECT: src/auth/handler.py",
                 "  WRONG:   'auth files'",
                 "",
-                "REQUIREMENTS — specific behaviors:",
+                "REQUIREMENTS, specific behaviors:",
                 "  CORRECT: 'retry 3x with exponential backoff, max 30s'",
                 "  WRONG:   'handle errors'",
                 "",
-                "ACCEPTANCE CRITERIA — testable pass/fail:",
+                "ACCEPTANCE CRITERIA, testable pass/fail:",
                 "  CORRECT: 'Returns 429 after 3 failed attempts within 60s'",
                 "  WRONG:   'Handles errors correctly'",
                 "",
-                "CODE CHANGES — diff format for non-trivial logic.",
+                "CODE CHANGES: diff format for non-trivial logic.",
                 "</step_3_refine_milestones>",
                 "",
                 "<step_3_file_classification>",
@@ -343,7 +348,10 @@ def get_planning_step_guidance(step_number: int, total_steps: int) -> dict:
                 "Cross-check: Does the plan address ALL original requirements?",
                 "</step_3_validate>",
             ],
-            "next": f"Invoke step {next_step} with refined milestones, risks, and uncertainty flags."
+            "next": (
+                f"Invoke step {next_step} with refined milestones, risks, "
+                "and uncertainty flags."
+            )
         }
 
     # Steps 4+
@@ -381,7 +389,10 @@ def get_planning_step_guidance(step_number: int, total_steps: int) -> dict:
             "If gaps remain, address them. If complete, reduce total_steps.",
             "</developer_walkthrough>",
         ],
-        "next": f"Invoke step {next_step}. {remaining} step(s) remaining until completion. (Or invoke earlier step if backtracking.)"
+        "next": (
+            f"Invoke step {next_step}. {remaining} step(s) remaining until completion. "
+            "(Or invoke earlier step if backtracking.)"
+        )
     }
 
 
@@ -496,10 +507,12 @@ Examples:
   python3 planner.py --step-number 2 --total-steps 4 --thoughts "..."
 
   # Backtrack to earlier step if needed
-  python3 planner.py --step-number 2 --total-steps 4 --thoughts "New constraint invalidates approach, reconsidering..."
+  python3 planner.py --step-number 2 --total-steps 4 \
+      --thoughts "New constraint invalidates approach, reconsidering..."
 
   # Start review (after plan written)
-  python3 planner.py --phase review --step-number 1 --total-steps 2 --thoughts "Plan at plans/auth.md"
+  python3 planner.py --phase review --step-number 1 --total-steps 2 \
+      --thoughts "Plan at plans/auth.md"
 """
     )
 
