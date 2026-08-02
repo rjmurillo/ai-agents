@@ -21,7 +21,7 @@ on:
 
 concurrency:
   group: validate-agents-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   # Check if relevant files changed using paths-filter
@@ -198,16 +198,14 @@ jobs:
           echo "Running sync_plugin_lib.py --check..."
           uv run python scripts/sync_plugin_lib.py --check
 
-      - name: "Plugin manifest parity and description count check (Issues #2222, #3651)"
+      - name: "Plugin manifest description count check (Issue #3651)"
         if: steps.should-run.outputs.skip != 'true'
-        # Two invariants, one script:
-        # 1. Version parity: `.claude/.claude-plugin/plugin.json` and
-        #    `src/copilot-cli/.claude-plugin/plugin.json` must declare
-        #    identical `version` fields.
-        # 2. No component counts: no description in either marketplace file or
-        #    any plugin manifest may embed a count, because nothing recomputes
-        #    it and it goes stale on the next component change (PR #2187).
-        # Exits 1 on staleness, 2 on malformed input, 0 when both hold.
+        # One invariant: no description in either marketplace file or any plugin
+        # manifest may embed a component count, because nothing recomputes it and
+        # it goes stale on the next component change (PR #2187).
+        # The version-parity half (Issue #2222) was retired with ADR-092: the
+        # manifests carry no version, so there is nothing to hold in parity.
+        # Exits 1 on staleness, 2 on malformed input, 0 when it holds.
         run: |
           echo "Running check_plugin_manifest_parity.py..."
           uv run python build/scripts/check_plugin_manifest_parity.py

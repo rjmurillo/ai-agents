@@ -24,10 +24,10 @@ This skill is the map of design decisions that hold this repository up: what is 
 
 The generation seam is ASYMMETRIC. There is no single "templates in, everything out" pipeline. Two seams coexist (ADR-072, status Proposed, corrected this premise explicitly: "the seam is asymmetric"):
 
-1. Agents: `templates/agents/*.shared.md` is canonical; the outputs under `src/` are generated.
+1. Agents: `templates/agents/*.shared.md` is canonical for the Copilot CLI and VS Code copies only; `src/copilot-cli/agents/` and `src/vs-code-agents/` are generated from it. `src/claude/*.md` is NOT: it is hand-written canonical (see the table row below).
 2. Rules, skills, commands, hooks: `.claude/` itself is canonical (Claude Code consumes it directly); generators emit mirrors for other harnesses.
 
-Source-of-truth table (verified against `.agents/governance/GENERATOR-FILES.md` and `build/scripts/build_all.py` GENERATORS list at line 426; 7 generators: agents, agent-catalog, skills, commands, rules, lib, hooks):
+Source-of-truth table (verified against `.agents/governance/GENERATOR-FILES.md` and `build/scripts/build_all.py` GENERATORS list at line 435; 7 generators: agents, agent-catalog, skills, commands, rules, lib, hooks):
 
 | Artifact class | Canonical source (edit here) | Generated or mirrored output (never edit) | Mechanism |
 |---|---|---|---|
@@ -41,9 +41,9 @@ Source-of-truth table (verified against `.agents/governance/GENERATOR-FILES.md` 
 | Shared Python libs | `scripts/hook_utilities`, `scripts/github_core`, `scripts/ai_review_common` | `.claude/lib/{hook_utilities,github_core,ai_review_common}` (imports rewritten to relative) | `scripts/sync_plugin_lib.py` (SYNC_PAIRS at lines 27-31); `--check` is the CI dry-run |
 | Self-host agent copies | the sources above | `.claude/agents/<name>.md`, `.github/agents/<name>.agent.md` | hand-synced, guarded by `build/scripts/validate_install_parity.py` |
 
-Direction rule: generators read canonical, write mirrors. They NEVER write `.claude/`. That invariant is enforced in code: `build/scripts/build_all.py:962` ("REQ-003-010: enforce .claude/ no-write invariant"); any generator write under `.claude/` prints `REQ-003-010 VIOLATION` and exits 2. When a drift check goes red, the output shows a difference, not a direction. Always answer "which side is canonical?" from the table above before editing either side. An agent once "fixed" drift by editing the source to match the generated tree (2025-12-15 incident, commit reverted); the archaeology lives in `ai-agents-failure-archaeology`.
+Direction rule: generators read canonical, write mirrors. They NEVER write `.claude/`. That invariant is enforced in code: `build/scripts/build_all.py:1171` ("REQ-003-010: enforce .claude/ no-write invariant"); any generator write under `.claude/` prints `REQ-003-010 VIOLATION` and exits 2. When a drift check goes red, the output shows a difference, not a direction. Always answer "which side is canonical?" from the table above before editing either side. An agent once "fixed" drift by editing the source to match the generated tree (2025-12-15 incident, commit reverted); the archaeology lives in `ai-agents-failure-archaeology`.
 
-`src/claude/` semantic drift against templates is measured separately by `build/scripts/detect_agent_drift.py` (similarity floor, exit 1 on drift; `.github/workflows/agent-drift-detection.yml`).
+`build/scripts/detect_agent_drift.py` measures something else again, and NOT against templates: it scores `src/claude` against `src/vs-code-agents`, and `.claude/agents` against `.github/agents`, over an 18-section allowlist. It is a similarity floor (default 80), not an equality check, and it is a weekly audit rather than a merge gate: `.github/workflows/drift-detection.yml` triggers only on `schedule` (Mondays 09:00 UTC) and `workflow_dispatch`, and opens an issue on drift. The PR-time workflow `agent-drift-detection.yml` runs `generate_agents.py --validate` instead and never invokes this detector. Template bodies are never a comparison input, and for four agents the allowlist matches nothing so the score is hardcoded to 100.0 and the check cannot fail. See `.claude/rules/claude-agents.md` for the measured trip point and what its green does and does not prove.
 
 ### Phase 2: Load the load-bearing decisions
 
@@ -66,7 +66,7 @@ Two meta-patterns bind these together:
 
 **Name-based dispatch everywhere.** Nothing static-imports an agent, skill, command, or hook. Agents are invoked by `subagent_type` string, skills by frontmatter `name`, commands by filename, hooks by command-path strings inside `.claude/settings.json`, and the Copilot dispatcher resolves shims from `hooks.json` order ("the authoritative registered set, NOT a directory listing", `generate_dispatcher.py` docstring). Consequence: "no caller found" does NOT mean dead code. Grep and LSP reference searches will show zero callers for live, load-bearing files. Before deleting anything, check string references (settings.json, hooks.json, frontmatter, prose) and run `orphan-ref-validator`; for history, use `chestertons-fence`.
 
-**Verification-based governance.** Every rule that matters is paired with a gate that produces an inspectable artifact: no-write invariant (exit 2 plus audit entry in `build/audit/GENERATION-AUDIT.md`), drift (`build_all.py --check`, `generate_agents.py --validate`), lib sync (`sync_plugin_lib.py --check`), plugin bumps (`build/scripts/validate_plugin_version_bump.py`), install parity (`validate_install_parity.py`), hook anchoring (`scripts/validation/validate_hook_anchoring.py`). `SESSION-PROTOCOL.md:30` states the doctrine and adds: labels like MANDATORY are insufficient; each requirement MUST have a verification mechanism. When you add a rule, add its gate; a rule without a gate is a wish. `ai-agents-change-control` covers how gates sequence into the change process.
+**Verification-based governance.** Every rule that matters is paired with a gate that produces an inspectable artifact: no-write invariant (exit 2 plus audit entry in `build/audit/GENERATION-AUDIT.md`), drift (`build_all.py --check`, `generate_agents.py --validate`), lib sync (`sync_plugin_lib.py --check`), plugin version-field prohibition (`build/scripts/validate_plugin_version_bump.py`), install parity (`validate_install_parity.py`), hook anchoring (`scripts/validation/validate_hook_anchoring.py`). `SESSION-PROTOCOL.md:30` states the doctrine and adds: labels like MANDATORY are insufficient; each requirement MUST have a verification mechanism. When you add a rule, add its gate; a rule without a gate is a wish. `ai-agents-change-control` covers how gates sequence into the change process.
 
 ### Phase 3: Understand the hook runtime and its failure policy
 
@@ -99,19 +99,20 @@ Architectural consequence: memories are load-bearing runtime inputs, not documen
 
 ### Phase 5: Know the plugin and product surfaces
 
-Three `plugin.json` trees are independently versioned:
+Three `plugin.json` trees ship, and none of them carries a version:
 
-| Tree | Plugin name | Version source | Role |
-|---|---|---|---|
-| `.claude/.claude-plugin/plugin.json` | `project-toolkit` | Read this manifest | the repo's own Claude Code surface, canonical for rules/skills/hooks/commands |
-| `src/copilot-cli/.claude-plugin/plugin.json` | `project-toolkit` | Read this manifest | generated Copilot CLI mirror of the same plugin |
-| `src/claude/.claude-plugin/plugin.json` | `claude-agents` | Read this manifest | hand-written Claude agent pack |
+| Tree | Plugin name | Role |
+|---|---|---|
+| `.claude/.claude-plugin/plugin.json` | `project-toolkit` | the repo's own Claude Code surface, canonical for rules/skills/hooks/commands |
+| `src/copilot-cli/.claude-plugin/plugin.json` | `project-toolkit` | generated Copilot CLI mirror of the same plugin |
+| `src/claude/.claude-plugin/plugin.json` | `claude-agents` | hand-written Claude agent pack |
 
-Current values are intentionally not copied into this skill. Read each manifest
-at execution time. Any content change under one of those trees requires a
-strictly-greater semver bump of THAT tree's plugin.json (enforced by push hook
-plus `.github/workflows/validate-plugin-version-bump.yml`; motivation: stale
-plugin cache, PR #1942). Marketplaces: `.claude-plugin/marketplace.json` (lists
+No manifest may carry a `version` field, and neither may a marketplace entry.
+With the field absent, Claude Code resolves freshness from the git commit SHA,
+which moves on every merge; with it present, freshness pins to the string until
+someone hand-bumps it. Enforced by the push hook plus
+`.github/workflows/validate-plugin-version-bump.yml` (ADR-092, which supersedes
+ADR-079; issue #4080). Marketplaces: `.claude-plugin/marketplace.json` (lists
 `claude-agents` and `project-toolkit`) and `.github/plugin/marketplace.json`;
 parity checked by `build/scripts/check_plugin_manifest_parity.py`. The npm
 surface is `packages/ai-agents-cli` (package `@rjmurillo/ai-agents`, bin
@@ -122,14 +123,14 @@ belong to `ai-agents-generation-and-release`.
 
 | Invariant | Enforced by | Breaks what if violated |
 |---|---|---|
-| Generators never write `.claude/` | `build_all.py:962` REQ-003-010 check, exit 2 | Canonical tree gets silently overwritten by its own mirror; source of truth inverts |
+| Generators never write `.claude/` | `build_all.py:1171` REQ-003-010 check, exit 2 | Canonical tree gets silently overwritten by its own mirror; source of truth inverts |
 | Generated trees match sources | `build_all.py --check`, `generate_agents.py --validate`, drift CI | Harness mirrors ship stale behavior; the two fix paths diverge |
 | `.claude/lib/` matches `scripts/` packages | `sync_plugin_lib.py --check` | Plugin-distributed hooks import different code than the tested originals |
-| Plugin content change implies version bump | push hook plus `validate-plugin-version-bump.yml` | Installed users run stale cached plugins (PR #1942) |
+| No `version` field in any manifest or marketplace entry | push hook plus `validate-plugin-version-bump.yml` | Freshness pins to a hand-bumped string instead of the commit SHA, and the line conflicts across every concurrent plugin PR (ADR-092, issue #4080) |
 | Generated hooks anchor to repo root, never cwd | `scripts/validation/validate_hook_anchoring.py`, runtime-contract tests | #2205 class: hooks silently no-op in every customer install |
 | HANDOFF.md is read-only | ADR-014, AGENTS.md Never list | Merge-conflict storm returns |
 | No em/en dashes, block-style YAML arrays, no generated-file headers | `universal.md` MUST NOT 5/6, dash guards, bot reviewers | One review thread per violation, every PR |
-| Hand-synced siblings stay identical | `validate_install_parity.py` | Self-hosted copies diverge from shipped ones |
+| Hand-synced siblings change together | `validate_install_parity.py` (co-change, one direction: a solo `src/claude/` edit is exempt) | Self-hosted copies diverge from shipped ones |
 | Retrieval precedes reasoning | ADR-007, session-protocol gates | Agents re-fight settled battles (see `ai-agents-failure-archaeology`) |
 
 ### Phase 7: Account for the known-weak points
@@ -153,7 +154,7 @@ State these plainly when working near them; do not design as if they were sound.
 - Citing a Proposed ADR (069, 072) as settled architecture, or dismissing a live enforcement mechanism because an older ADR status is stale.
 - Treating `.serena/memories/` as inert docs. The advisory correction-applier and topical-memory-injection hooks were deleted (issue #3184; see the Phase 4 observation-loop entry above); they were never active runtime inputs. Explicit retrieval through the `memory` or `memory-search` skill is what makes memories load-bearing, not an automatic hook.
 - Adding a rule without a gate. Verification-based governance means prose without enforcement is dead on arrival (route new rules through `ai-agents-change-control`).
-- Bumping the wrong plugin.json, or none. The bump belongs to the tree whose content changed, strictly greater.
+- Adding a `version` back to a plugin.json or marketplace entry. ADR-092 deleted it; the gate fails on its presence.
 
 ## Verification
 
@@ -163,7 +164,7 @@ Before relying on or amending this contract:
 - [ ] Confirmed the canonical side of any file you plan to edit against the Phase 1 table (and `GENERATOR-FILES.md`, minding its known `src/claude` row error)
 - [ ] Confirmed event counts still match: local settings print `3 4`, vendored source prints `2 2`, and generated Copilot config prints `2 2`
 - [ ] Checked the ADR status header of any decision you cite (statuses drift; content beats number, and ADR numbers have collided historically)
-- [ ] If you touched `.claude/`, `src/claude/`, or `src/copilot-cli/`: bumped that tree's plugin.json strictly greater
+- [ ] If you touched `.claude/`, `src/claude/`, or `src/copilot-cli/`: left the manifests version-free (`python3 build/scripts/validate_plugin_version_bump.py` exits 0)
 
 ## Provenance and Maintenance
 

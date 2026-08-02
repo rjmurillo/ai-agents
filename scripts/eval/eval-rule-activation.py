@@ -90,6 +90,7 @@ MAX_RUBRIC_SCORE = 5.0
 DEFAULT_SEED = 0
 DEFAULT_JUDGE_REPEATS = 3
 DEFAULT_JUDGE_REDUCER = "median"
+RESULTS_SCHEMA_VERSION = 1
 _SCORE_KEYS = ("activation_score", "citation_score", "behavior_score")
 _SCORE_REDUCERS: dict[str, Callable[[list[float]], float]] = {
     "mean": statistics.fmean,
@@ -154,10 +155,15 @@ def parse_skill_reference(skill_path: Path, reference_path: Path) -> dict[str, s
     }
 
 
+def _baseline_system_prompt(_rule: dict[str, str], _rule_id: str) -> str:
+    """Construct the baseline prompt shared by collapsed mechanisms."""
+    return ""
+
+
 def build_system_prompt(mechanism: str, rule: dict[str, str], rule_id: str) -> str:
     """Construct the system prompt for a given activation mechanism."""
     if mechanism == "baseline":
-        return ""
+        return _baseline_system_prompt(rule, rule_id)
     if mechanism == "description":
         if not rule["description"]:
             return ""
@@ -176,6 +182,8 @@ def build_system_prompt(mechanism: str, rule: dict[str, str], rule_id: str) -> s
             "and apply them when relevant."
         )
     if mechanism == "full":
+        if not rule["body"].strip() and not rule.get("skill_name"):
+            return _baseline_system_prompt(rule, rule_id)
         return (
             "The following project rule applies to your work. "
             "Apply it when relevant.\n\n"
@@ -208,6 +216,35 @@ def _is_negative_gate(value: object) -> bool:
     wrong and the population it joins is wrong.
     """
     return _normalize_gate(value) == NEGATIVE_GATE
+
+
+def _validate_results_artifact_schema(data: dict[str, Any]) -> None:
+    """Refuse stored result artifacts written by an unknown schema."""
+    schema_version = data.get("schema_version")
+    if schema_version is None:
+        return
+    if schema_version != RESULTS_SCHEMA_VERSION:
+        raise ValueError(
+            "unsupported eval results schema_version "
+            f"{schema_version!r}; expected {RESULTS_SCHEMA_VERSION}"
+        )
+
+
+def _results_artifact_rules(data: dict[str, Any]) -> dict[str, Any]:
+    """Return stored result rules after checking the artifact schema."""
+    _validate_results_artifact_schema(data)
+    rules = data.get("rules")
+    if isinstance(rules, dict):
+        return rules
+    raise ValueError("eval results artifact must contain a rules object")
+
+
+def _graded_count(cell: dict[str, Any]) -> int:
+    """Read coverage from current and pre-coverage stored result cells."""
+    graded_count = cell.get("graded_count")
+    if graded_count is not None:
+        return int(graded_count)
+    return int(cell["scenario_count"])
 
 
 # Calibrated against the shipped corpus: the 32 distinct real positive gate
@@ -1546,13 +1583,10 @@ def _prompt_collapses_to_baseline(
     Written as a comparison against the baseline prompt rather than a test for
     emptiness so it keeps holding if baseline ever carries text.
 
-    This sees only what `build_system_prompt` produced. A rule with an empty
-    body still yields a `full` prompt carrying the preamble and nothing else,
-    which is a different string from baseline and so passes here, and for a
-    routed target the `full` prompt is replaced after routing resolves a
-    reference. Declining `full` on an empty body would therefore discard a
-    measurement the routed path did make. That case is filed separately
-    rather than guessed at here. See issue 4103.
+    This sees only what `build_system_prompt` produced. A non-routed rule with
+    an empty body produces an empty `full` prompt, so it declines here. A routed
+    target has `skill_name` and can still resolve real reference content, so the
+    prompt builder preserves that path.
     """
     if mechanism == "baseline":
         return False
@@ -1849,7 +1883,7 @@ def _incomplete_mechanisms(
     over. That is the defect this instrument keeps re-growing, so the check
     lives in one place and both pools call it.
     """
-    return sorted(m for m in mechs if per_mech[m]["graded_count"] < pool_size)
+    return sorted(m for m in mechs if _graded_count(per_mech[m]) < pool_size)
 
 
 def _mechanism_summary(
@@ -2136,10 +2170,10 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     ]
     summary["negative_floor_partial"] = not summary[
         "negative_floor_mechanisms"
-    ] and any(gate_cells[m]["graded_count"] > 0 for m in gate_mechs)
+    ] and any(_graded_count(gate_cells[m]) > 0 for m in gate_mechs)
     summary["worst_negative_mechanism"] = worst_neg_mech
     summary["worst_negative_graded"] = (
-        gate_cells[worst_neg_mech]["graded_count"] if worst_neg_mech else 0
+        _graded_count(gate_cells[worst_neg_mech]) if worst_neg_mech else 0
     )
 
     # The positive verdict is read off `description` and `baseline`, so those
@@ -2231,7 +2265,7 @@ def _fully_graded(cell: dict[str, Any]) -> bool:
     """Whether a cell's average covers every scenario in its pool."""
     return (
         cell.get("avg_score") is not None
-        and cell.get("graded_count") == cell.get("scenario_count")
+        and _graded_count(cell) == cell.get("scenario_count")
     )
 
 
@@ -2493,10 +2527,12 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
         # score: low on the positive side it looks like the mechanism failed,
         # and low on the negative side it looks like total over-activation.
         # Both columns report the absence instead.
-        pos = pos_stats["avg_score"] if pos_stats["graded_count"] else "-"
-        neg = neg_stats["avg_score"] if neg_stats["graded_count"] else "-"
-        pos_graded = f"{pos_stats['graded_count']}/{pos_stats['scenario_count']}"
-        neg_graded = f"{neg_stats['graded_count']}/{neg_stats['scenario_count']}"
+        pos_count = _graded_count(pos_stats)
+        neg_count = _graded_count(neg_stats)
+        pos = pos_stats["avg_score"] if pos_count else "-"
+        neg = neg_stats["avg_score"] if neg_count else "-"
+        pos_graded = f"{pos_count}/{pos_stats['scenario_count']}"
+        neg_graded = f"{neg_count}/{neg_stats['scenario_count']}"
         # Read the published value rather than deriving a third one here: the
         # number on the screen and the number in the record must not drift. A
         # record written before the measured gap existed carries only the
@@ -2973,7 +3009,10 @@ def main() -> int:
             print(f"ERROR: {e}", file=sys.stderr)
             return 2
 
-    all_results: dict[str, Any] = {"rules": {}}
+    all_results: dict[str, Any] = {
+        "schema_version": RESULTS_SCHEMA_VERSION,
+        "rules": {},
+    }
     state = _RunState()
 
     for scenario_file in args.scenarios:

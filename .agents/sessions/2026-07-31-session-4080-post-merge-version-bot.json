@@ -5,7 +5,7 @@
     "date": "2026-07-31",
     "branch": "fix/plugin-version-derived",
     "startingCommit": "372de0c341040b51b084747ee64aeec731f06e08",
-    "objective": "Fix issue #4080: post-merge bot owns parity plugin versions, eliminating the O(N^2) version-conflict class. Write ADR-091, implement bot script, update gate logic, fix count ratchet, add tests."
+    "objective": "Fix issue #4080: post-merge bot owns parity plugin versions, eliminating the O(N^2) version-conflict class. Write ADR-092, implement bot script, update gate logic, fix count ratchet, add tests."
   },
   "protocolCompliance": {
     "sessionStart": {
@@ -32,7 +32,7 @@
       "skillScriptsListed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Skill catalog reviewed via AGENTS.md; adr-review skill invoked for ADR-091"
+        "Evidence": "Skill catalog reviewed via AGENTS.md; adr-review skill invoked for ADR-092"
       },
       "usageMandatoryRead": {
         "level": "MUST",
@@ -79,7 +79,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Pre-commit hook ran scoped markdownlint on ADR-091 and debate log"
+        "Evidence": "Pre-commit hook ran scoped markdownlint on ADR-092 and debate log"
       },
       "changesCommitted": {
         "level": "MUST",
@@ -121,7 +121,7 @@
     },
     {
       "step": 3,
-      "action": "adr-review skill: authored ADR-091 superseding ADR-079; 6-role review logged in .agents/analysis/ADR-091-debate-log.md",
+      "action": "adr-review skill: authored ADR-092 superseding ADR-079; 6-role review logged in .agents/analysis/ADR-092-debate-log.md",
       "result": "ADR-091 written at .agents/architecture/ADR-091-post-merge-version-bot.md; outcome: post-merge bot chosen"
     },
     {
@@ -137,7 +137,7 @@
     {
       "step": 6,
       "action": "Updated scripts/ci/count_ratchet.py: count < baseline without --update now passes",
-      "result": "ADR-091: bot owns lowering; PRs that improve count are no longer blocked"
+      "result": "ADR-092: bot owns lowering; PRs that improve count are no longer blocked"
     },
     {
       "step": 7,
@@ -150,13 +150,13 @@
       "result": "New rule: do NOT bump parity manifests manually; bot handles it after merge"
     }
   ],
-  "endingCommit": "bc5365dde4b36805679a46f15eff1e587c53bbb1",
+  "endingCommit": "edecb8e8510241c24e26b9176010c391e1887028",
   "nextSteps": [
     "Issue #4080 closed by PR merge",
     "The 11 manifest-only conflicting PRs can rebase and remove their manual version bumps"
   ],
   "retrospective": {
-    "summary": "## Retrospective: post-merge version bot (ADR-091)",
+    "summary": "## Retrospective: post-merge version bot (ADR-092)",
     "what_worked": [
       "Bot-managed version approach correctly removes O(N^2) conflict class",
       "Removing setup-code-env from workflow fixed act local runner failures",

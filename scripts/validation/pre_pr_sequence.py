@@ -24,6 +24,7 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 from active_plan_closeout import validate_active_plan_closeout
+from check_duplicate_test_helpers import validate_duplicate_test_helpers
 from check_nested_tests import validate_no_nested_tests
 from check_test_tree_writes import validate_test_tree_writes
 from check_unreachable_code import validate_unreachable_code
@@ -124,6 +125,12 @@ def run_all_validations(
         "Nested Test Detection",
         state,
         lambda: validate_no_nested_tests(repo_root),
+    )
+
+    run_validation(
+        "Duplicate Test Helper Detection",
+        state,
+        lambda: validate_duplicate_test_helpers(repo_root),
     )
 
     run_validation(

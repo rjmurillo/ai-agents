@@ -27,7 +27,7 @@ jobs:
     name: Analyze PR Metrics
     # ADR-025: ARM runner for cost optimization
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 15
+    timeout-minutes: 22
 
     steps:
       - name: Checkout repository

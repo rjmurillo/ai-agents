@@ -1,10 +1,10 @@
 ---
 id: ADR-091
-status: accepted
+status: superseded
 date: 2026-07-31
 decision-makers: [rjmurillo]
 supersedes: [ADR-079]
-superseded-by: null
+superseded-by: ADR-092
 explainer: null
 implemented: false
 ---
@@ -12,6 +12,8 @@ implemented: false
 # ADR-091: Post-Merge Bot Owns Plugin Version and Count Baselines
 
 ## Status
+
+Superseded by ADR-092 (2026-08-01), which deletes the `version` field from all three manifests instead of automating its maintenance. The conflict measurement below is not contested; ADR-092 reuses it. What failed is the mechanism, verified against this ADR's own merged commit `edecb8e85`: the bot tore `main` on its own merge (packaged plugin source changed, version unchanged from `edecb8e85^`), never ran (its squashed merge message quotes its own commit template, so the commit body carries a literal `[skip ci]`), could not have pushed if it had run (ruleset 11104075's sole bypass actor is `RepositoryRole id=5`, and `github-actions[bot]` is not one), and could not be repaired by hand (this ADR marked both manifests `bot_managed`, so a manual bump failed a required check). A bot that never fires produces no red check, which is why all four failures were silent.
 
 Accepted (2026-07-31). Supersedes ADR-079 (Plugin Version Bump Stays at PR Time).
 

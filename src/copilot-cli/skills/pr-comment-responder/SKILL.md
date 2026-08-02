@@ -280,7 +280,7 @@ See [references/bots.md](references/bots.md) for:
 | Prompting user for PR number already in prompt | Redundant and frustrating | Use `extract_github_context.py` to parse from input |
 | Splicing URL-sourced PR numbers or repo slugs into a shell string | argv injection (see Agentic CLI Argument Injection) | Pass extracted values as separate quoted arguments to the Python scripts, never concatenated into a command |
 
-## Scripts
+## Cluster Scripts
 
 | Script | Purpose | Exit codes |
 |--------|---------|------------|

@@ -455,8 +455,11 @@ def main(argv: list[str] | None = None) -> int:
         session_end["reworkWarning"] = {}
     # Schema requires Evidence as a string (checklistItem shape). Join list entries
     # with newline so the full rework output is preserved (issue #3929, #3954).
+    # Complete derives from whether the step actually ran: a "skipped" summary
+    # means the sibling module was absent or threw a runtime error (post-#4001).
+    rework_ran = "skipped" not in rework_summary.lower()
     session_end["reworkWarning"]["level"] = "SHOULD"
-    session_end["reworkWarning"]["Complete"] = True
+    session_end["reworkWarning"]["Complete"] = rework_ran
     session_end["reworkWarning"]["Evidence"] = (
         "\n".join(rework_evidence) if isinstance(rework_evidence, list) else str(rework_evidence)
     )
