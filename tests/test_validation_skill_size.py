@@ -13,7 +13,6 @@ import pytest
 
 from scripts.validation import skill_size as _skill_size_mod
 from scripts.validation.skill_size import (
-    _SKILL_TREE_PREFIXES,
     RATIONALE_MIN_CHARS,
     RATIONALE_SEARCH_LINES,
     SKILL_BYTE_LIMIT,
@@ -25,7 +24,6 @@ from scripts.validation.skill_size import (
     StagedDiscoveryError,
     build_parser,
     check_skill_size,
-    get_skill_files,
     get_staged_skill_files,
     has_exception_rationale,
     has_size_exception,
@@ -256,13 +254,26 @@ class TestCheckSkillSizeBytes:
         # decide to decompose the skill or re-seed the constant. Mirrors the
         # instruction-budget anchor test. Reads raw bytes directly so it pins the
         # byte dimension without coupling to the line check.
+        #
+        # Both trees, not just .claude/skills (issue #4015): the generated
+        # Copilot mirror ships skills too, and measuring one tree while claiming
+        # the corpus is the reporting bug this test would otherwise repeat.
+        # Bodies with a declared size-exception are skipped because the
+        # validator downgrades them to a warning by design;
+        # src/copilot-cli/skills/spec/SKILL.md is the live case at 69,383 bytes.
         repo_root = Path(__file__).resolve().parents[1]
-        skills = sorted((repo_root / ".claude" / "skills").rglob("SKILL.md"))
-        assert skills, "expected shipped skills under .claude/skills"
+        skills = sorted(
+            skill
+            for prefix in _skill_size_mod._SKILL_TREE_PREFIXES
+            for skill in (repo_root / prefix).rglob("SKILL.md")
+        )
+        assert skills, "expected shipped skills under the skill trees"
         oversized = [
-            (str(skill), len(skill.read_bytes()))
+            (str(skill), len(raw))
             for skill in skills
-            if len(skill.read_bytes()) > SKILL_BYTE_LIMIT
+            for raw in [skill.read_bytes()]
+            if len(raw) > SKILL_BYTE_LIMIT
+            and not has_size_exception(raw.decode("utf-8", errors="replace"))
         ]
         assert not oversized, (
             f"ratchet seed too low: these bodies exceed "
@@ -1095,76 +1106,43 @@ class TestExceptionRequiresRationale:
             assert has_exception_rationale(content), relative
 
 
-class TestGetSkillFilesDefaultScansAllTrees:
-    """Issue #4015: full-scan default must cover both skill trees, not just one."""
+class TestDefaultScanCorpus:
+    """The full scan measures every tree the staged scan matches (issue #4015).
 
-    def test_default_path_returns_files_from_both_trees(self, tmp_path: Path) -> None:
-        # Create SKILL.md in both tree locations under a temp root.
-        for prefix in _SKILL_TREE_PREFIXES:
-            skill_dir = tmp_path / prefix / "my-skill"
-            skill_dir.mkdir(parents=True)
-            (skill_dir / "SKILL.md").write_text("# skill", encoding="utf-8")
+    Before this, `--path` defaulted to `.claude/skills` and a full audit opened
+    98 of 209 SKILL.md bodies, then printed "All skill files within size
+    limits", a sentence about a corpus it had never read. The staged branch was
+    already correct, so the gate never under-counted; the audit path did.
 
-        import os
-        original_cwd = Path.cwd()
-        os.chdir(tmp_path)
-        try:
-            files = get_skill_files(path=None)
-        finally:
-            os.chdir(original_cwd)
+    These tests build a fake project root and point the module's `_PROJECT_ROOT`
+    at it, so discovery runs against a controlled two-tree corpus with no git,
+    no network, and no dependence on the live repository's contents.
+    """
 
-        paths_str = [f.as_posix() for f in files]
-        assert any(_SKILL_TREE_PREFIXES[0] in p for p in paths_str), (
-            f"Default scan must include {_SKILL_TREE_PREFIXES[0]}"
-        )
-        assert any(_SKILL_TREE_PREFIXES[1] in p for p in paths_str), (
-            f"Default scan must include {_SKILL_TREE_PREFIXES[1]}"
-        )
+    @staticmethod
+    def _write_skill(root: Path, prefix: str, name: str, body: str) -> Path:
+        target = root / prefix / name / "SKILL.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(body, encoding="utf-8")
+        return target
 
-    @pytest.mark.parametrize("skill_path_env", [None, ""])
-    def test_main_with_no_path_arg_scans_both_trees(
-        self,
-        tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
-        skill_path_env: str | None,
-    ) -> None:
-        # main() with no --path argument must also scan both trees.
-        # This test catches regressions in build_parser's default value.
-        # SKILL_PATH="" must behave exactly like SKILL_PATH unset: an empty
-        # string would otherwise become Path("") -> "." and scan the whole repo.
-        for prefix in _SKILL_TREE_PREFIXES:
-            skill_dir = tmp_path / prefix / "my-skill"
-            skill_dir.mkdir(parents=True)
-            (skill_dir / "SKILL.md").write_text("# skill", encoding="utf-8")
+    @staticmethod
+    def _small() -> str:
+        return "---\nname: test\n---\nSmall skill\n"
 
-        if skill_path_env is None:
-            monkeypatch.delenv("SKILL_PATH", raising=False)
-        else:
-            monkeypatch.setenv("SKILL_PATH", skill_path_env)
-        monkeypatch.chdir(tmp_path)
+    @staticmethod
+    def _oversized() -> str:
+        return "---\nname: test\n---\n" + "line\n" * 600
 
-        # No --path arg; if the default reverts to single-tree, only 1 file is found.
-        # We capture this by patching print and checking Found N SKILL.md.
-        captured: list[str] = []
-
-        def capturing_print(*args: object, **kwargs: object) -> None:
-            captured.append(" ".join(str(a) for a in args))
-
-        monkeypatch.setattr("builtins.print", capturing_print)
-        main([])
-
-        found_lines = [line for line in captured if "Found" in line and "SKILL.md" in line]
-        assert found_lines, "main() must print a 'Found N SKILL.md' summary"
-        count_str = found_lines[0].split()[1]
-        assert int(count_str) == 2, (
-            f"main() with no --path must find skills in both trees (expected 2, got {count_str})"
-        )
+    def _fake_root(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+        monkeypatch.delenv("SKILL_PATH", raising=False)
+        monkeypatch.setattr(_skill_size_mod, "_PROJECT_ROOT", tmp_path)
+        return tmp_path
 
     def test_empty_skill_path_env_parses_the_same_as_unset(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        # An empty SKILL_PATH must not reach argparse as "": Path("") resolves
-        # to "." and turns the default two-tree scan into a full-repo scan.
+        # An empty SKILL_PATH must not become Path("") and scan the whole repo.
         monkeypatch.delenv("SKILL_PATH", raising=False)
         unset_default = build_parser().parse_args([]).path
 
@@ -1174,18 +1152,119 @@ class TestGetSkillFilesDefaultScansAllTrees:
         assert unset_default is None
         assert empty_default == unset_default
 
-    def test_non_empty_skill_path_env_still_wins(
-        self, monkeypatch: pytest.MonkeyPatch
+    def test_default_scan_covers_both_trees(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        monkeypatch.setenv("SKILL_PATH", "src/copilot-cli/skills")
-        assert build_parser().parse_args([]).path == "src/copilot-cli/skills"
+        root = self._fake_root(tmp_path, monkeypatch)
+        self._write_skill(root, ".claude/skills", "alpha", self._small())
+        self._write_skill(root, "src/copilot-cli/skills", "beta", self._small())
 
-    def test_explicit_path_scans_only_that_tree(self, tmp_path: Path) -> None:
-        # An explicit --path must not expand to both trees.
-        skill_dir = tmp_path / "my-skill"
-        skill_dir.mkdir()
-        (skill_dir / "SKILL.md").write_text("# skill", encoding="utf-8")
+        exit_code = main([])
 
-        files = get_skill_files(path=str(tmp_path))
-        assert len(files) == 1
-        assert files[0].name == "SKILL.md"
+        assert exit_code == 0
+        out = capsys.readouterr().out
+        assert "Found 2 SKILL.md file(s)" in out
+        assert "  Total:    2" in out
+
+    def test_oversized_body_in_mirror_tree_only_fails_ci(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The regression guard. Against the single-tree default this returned 0
+        # because the mirror body was never opened.
+        root = self._fake_root(tmp_path, monkeypatch)
+        self._write_skill(root, ".claude/skills", "alpha", self._small())
+        self._write_skill(root, "src/copilot-cli/skills", "big", self._oversized())
+
+        assert main(["--ci"]) == 1
+
+    def test_explicit_path_still_narrows_the_scan(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # --path stays the narrowing override: the oversized mirror body is out
+        # of scope when the caller names one tree.
+        root = self._fake_root(tmp_path, monkeypatch)
+        self._write_skill(root, ".claude/skills", "alpha", self._small())
+        self._write_skill(root, "src/copilot-cli/skills", "big", self._oversized())
+
+        assert main(["--ci", "--path", str(root / ".claude" / "skills")]) == 0
+
+    def test_skill_path_env_var_still_narrows_the_scan(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        root = self._fake_root(tmp_path, monkeypatch)
+        self._write_skill(root, ".claude/skills", "alpha", self._small())
+        self._write_skill(root, "src/copilot-cli/skills", "big", self._oversized())
+        monkeypatch.setenv("SKILL_PATH", str(root / ".claude" / "skills"))
+
+        assert main(["--ci"]) == 0
+
+    def test_absent_tree_is_named_and_survivor_is_still_measured(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # A vendored install legitimately ships one tree, so an absent prefix is
+        # not a failure. It is named, because silence about an unscanned tree is
+        # what let the single-tree scan read as a whole-repository result.
+        root = self._fake_root(tmp_path, monkeypatch)
+        self._write_skill(root, ".claude/skills", "alpha", self._small())
+
+        exit_code = main(["--ci"])
+
+        assert exit_code == 0
+        out = capsys.readouterr().out
+        assert "Scanning skill trees: .claude/skills" in out
+        assert "absent, not scanned: src/copilot-cli/skills" in out
+        assert "  Total:    1" in out
+
+    def test_no_trees_present_reports_nothing_found(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        self._fake_root(tmp_path, monkeypatch)
+
+        exit_code = main(["--ci"])
+
+        assert exit_code == 0
+        out = capsys.readouterr().out
+        assert "(none present)" in out
+        assert "No SKILL.md files found to validate." in out
+
+    def test_default_corpus_files_is_anchored_on_project_root(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # cwd-independence (.claude/rules/ci-scripts.md MUST-8): running the
+        # audit from a subdirectory must not change which corpus it measures.
+        root = self._fake_root(tmp_path, monkeypatch)
+        self._write_skill(root, ".claude/skills", "alpha", self._small())
+        self._write_skill(root, "src/copilot-cli/skills", "beta", self._small())
+        monkeypatch.chdir(root / "src")
+
+        found = _skill_size_mod.default_corpus_files()
+
+        assert [path.name for path in found] == ["SKILL.md", "SKILL.md"]
+        assert {path.parent.name for path in found} == {"alpha", "beta"}
+
+    def test_display_path_is_repo_relative_from_a_subdirectory(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # The corpus is _PROJECT_ROOT-anchored and absolute, so a cwd-only
+        # display fell back to the absolute path from any subdirectory, and
+        # from `/` produced a slash-stripped path that resolves to nothing.
+        root = self._fake_root(tmp_path, monkeypatch)
+        self._write_skill(root, ".claude/skills", "alpha", self._oversized())
+        (root / "src").mkdir(parents=True, exist_ok=True)
+        monkeypatch.chdir(root / "src")
+
+        main([])
+
+        out = capsys.readouterr().out.replace("\\", "/")
+        assert ".claude/skills/alpha/SKILL.md" in out
+        assert str(root) not in out
+
+    def test_display_path_falls_back_to_absolute_outside_both_roots(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Edge case: a file under neither _PROJECT_ROOT nor cwd keeps its
+        # absolute path rather than being mangled into a relative one.
+        monkeypatch.setattr(_skill_size_mod, "_PROJECT_ROOT", tmp_path / "elsewhere")
+        outside = tmp_path / "outside" / "SKILL.md"
+        assert _skill_size_mod._relative_display(outside) == str(outside)
+        assert _skill_size_mod._relative_display(outside) == str(outside)

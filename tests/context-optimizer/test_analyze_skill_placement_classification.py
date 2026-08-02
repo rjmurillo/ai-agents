@@ -90,6 +90,17 @@ class TestGetClassification:
         assert classification == "Skill"
         assert confidence > 60
 
+    def test_classifies_six_tool_calls_as_skill(self) -> None:
+        """tool_calls=6 alone (just above the >5 threshold) must classify as Skill.
+
+        Guards the tool_calls > 5 threshold in get_classification. If the threshold is
+        weakened to > 999, skill_score stays at 0 and the result falls to Hybrid.
+        """
+        classification, confidence, _ = get_classification(
+            tool_calls=6, action_verbs=0, reference_ratio=0.0, user_triggers=0
+        )
+        assert classification == "Skill"
+
     def test_classifies_reference_heavy_as_passive(self) -> None:
         """Reference shape alone still reaches PassiveContext (#3936 coverage)."""
         classification, confidence, reasons = get_classification(
