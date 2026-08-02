@@ -876,8 +876,58 @@ class TestBotSkipGuardClassification:
         return [
             step
             for step in cls._host_steps()
-            if step.get("if") == cls.BOT_SKIP_GUARD
+            if cls._has_bot_skip_guard_component(step.get("if"))
         ]
+
+    @classmethod
+    def _has_bot_skip_guard_component(cls, condition: object) -> bool:
+        if not isinstance(condition, str):
+            return False
+
+        expression = condition.strip()
+        if expression.startswith("${{") and expression.endswith("}}"):
+            expression = expression[3:-2].strip()
+
+        return any(
+            component.strip().strip("()").strip() == cls.BOT_SKIP_GUARD
+            for component in expression.split("&&")
+        )
+
+    def test_skip_guard_classifier_detects_compound_conditions(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Positive: a step can add a condition and still stay bot-skipped."""
+        guarded_step = {
+            "name": "Compound guarded step",
+            "if": f"{self.BOT_SKIP_GUARD} && github.event_name == 'push'",
+        }
+        monkeypatch.setattr(type(self), "_host_steps", classmethod(lambda cls: [guarded_step]))
+
+        assert self._skip_guarded_steps() == [guarded_step]
+
+    def test_skip_guard_classifier_rejects_negated_conditions(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Negative: a negated occurrence is not a skip guard."""
+        unguarded_step = {
+            "name": "Negated guarded step",
+            "if": f"!({self.BOT_SKIP_GUARD}) && github.event_name == 'push'",
+        }
+        monkeypatch.setattr(type(self), "_host_steps", classmethod(lambda cls: [unguarded_step]))
+
+        assert self._skip_guarded_steps() == []
+
+    def test_skip_guard_classifier_accepts_wrapped_expression(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Edge: GitHub expressions may carry the optional wrapper."""
+        guarded_step = {
+            "name": "Wrapped guarded step",
+            "if": f"${{{{ ({self.BOT_SKIP_GUARD}) && github.event_name == 'push' }}}}",
+        }
+        monkeypatch.setattr(type(self), "_host_steps", classmethod(lambda cls: [guarded_step]))
+
+        assert self._skip_guarded_steps() == [guarded_step]
 
     # Exactly these step names are permitted behind the skip guard.
     # If this set grows, the new step must be justified as throughput-motivated.

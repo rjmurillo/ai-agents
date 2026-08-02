@@ -236,6 +236,10 @@ jobs:
         run: uv run --frozen python3 scripts/validate_workflows.py
 
       # Issue #2967: ADR-006 forbids business logic in workflow `run:` blocks.
+      # The burn-down count started at 93 at audit time. This freezes the
+      # current ratchet ceiling at 58: the scanner exits 1 when the count
+      # exceeds --max. Lower --max after each extraction.
+      #
       # Unconditional (Issue #4151): Renovate and Dependabot open workflow-only
       # PRs (action SHA bumps), which are exactly the PRs that could smuggle a
       # new run block past this gate if it were skip-guarded. A gate that exempts
