@@ -22,7 +22,7 @@ def run_validator(*args: str) -> dict[str, object]:
     result = subprocess.run(
         [sys.executable, SCRIPT, *args],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         timeout=30,
     )
     # JSON is on stdout, human-readable on stderr
@@ -204,7 +204,7 @@ class TestOverall:
                 "--fail-on-violation",
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
         r = json.loads(result.stdout)
@@ -234,7 +234,7 @@ class TestOverall:
                 "--fail-on-violation",
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
         r = json.loads(result.stdout)
@@ -260,7 +260,7 @@ class TestOverall:
         result = subprocess.run(
             [sys.executable, SCRIPT, "--title", "feat: Feature", "--body", "Minimal body"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
         r = json.loads(result.stdout)
@@ -290,7 +290,7 @@ class TestOverall:
                 "--fail-on-violation",
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
         r = json.loads(result.stdout)
@@ -312,7 +312,7 @@ class TestOverall:
                 "--fail-on-violation",
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
         r = json.loads(result.stdout)
@@ -340,7 +340,7 @@ class TestExitMessageMatchesExitCode:
                 "--fail-on-violation",
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
         assert result.returncode == 1
@@ -358,7 +358,7 @@ class TestExitMessageMatchesExitCode:
                 "--fail-on-violation",
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
         assert result.returncode == 1
@@ -370,7 +370,7 @@ class TestExitMessageMatchesExitCode:
         result = subprocess.run(
             [sys.executable, SCRIPT, "--title", "feat: Feature", "--body", "Minimal body"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
         assert result.returncode == 0
@@ -388,7 +388,7 @@ class TestExitMessageMatchesExitCode:
                 "--fail-on-violation",
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
         assert result.returncode == 1

@@ -748,7 +748,7 @@ class TestModelPinEnforcementIsWiredIntoCI:
                 "enforce",
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             cwd=REPO_ROOT,
         )
         assert result.returncode == 0, result.stdout + result.stderr

@@ -292,7 +292,7 @@ def test_claude_plugin_dir_hook_resolves(tmp_path: Path) -> None:
             [resolve_executable("claude"), "-p", _PROMPT, "--plugin-dir", str(plugin)],
             cwd=userland,
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=240,
             check=False,
             env=_clean_env(),
@@ -414,7 +414,7 @@ def test_probe_script_writes_marker_when_run(tmp_path: Path) -> None:
     result = subprocess.run(
         [sys.executable, "-u", str(script)],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         timeout=30,
         check=False,
         env=env,
