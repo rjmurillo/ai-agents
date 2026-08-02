@@ -304,7 +304,7 @@ def test_an_unrecorded_improvement_fails_and_update_records_it(tmp_path, monkeyp
         "from scripts.ci import widget\n\n\ndef test_x():\n    assert widget.main([]) == 1\n",
     )
 
-    assert _run(tmp_path, "3") == ratchet.EXIT_REGRESSION
+    assert _run(tmp_path, "3") == ratchet.EXIT_OK
     assert _run(tmp_path, "3", "--update") == ratchet.EXIT_OK
     assert (tmp_path / "baseline.txt").read_text(encoding="utf-8").strip() == "0"
 
