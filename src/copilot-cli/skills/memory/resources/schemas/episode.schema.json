@@ -23,7 +23,11 @@
     "causal_order_version": {
       "type": "integer",
       "minimum": 2,
-      "description": "Version of the rule that generated caused_by and leads_to event links."
+      "description": "Version of the rule that generated caused_by and leads_to event links. Absent on pre-#3464 episodes: an absent marker means the edges came from the legacy ordering rule and must not be read as trusted v2 evidence (#3598). Version 2 (current) orders by measured timestamps; commits tie-break by git ancestry."
+    },
+    "migration_note": {
+      "type": "string",
+      "description": "Set by migrate_causal_version.py when causal_order_version was stamped post-hoc. Identifies the mechanism (stamp_only or relinked) and the date, so a reader can distinguish a migrated artifact from one that was always correct."
     },
     "outcome": {
       "type": "string",

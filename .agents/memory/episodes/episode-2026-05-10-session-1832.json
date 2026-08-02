@@ -198,5 +198,7 @@
     "spec-generator scores 4/4 on the discriminator (only agent to do so), validating the issue #2003 hypothesis. The 7 other skill candidates score 2-3/4, mostly via c1+c2+c3 (reference-heavy bodies invoked from slash commands with sibling skills).",
     "Heuristic c2 scoring over-counts reasoning-focused agents because all-bullets are flagged as structured. Manual review needed for borderline cases per PRD \u00a711 count rule.",
     "11 of 23 agents have c1=No (12 of 23 agents are NOT invoked from any slash command was the round-2 number; round 3 moved roadmap from c1=No to c1=Yes via the descriptive Task() form in review.md, bringing the count back to 11; verified against the 23-row audit table: 12 agents show c1=1 and 11 show c1=0). These either represent peer-only invocations, dead code, or genuine but undiscoverable agents. Out of #2003 scope; recommend follow-up triage."
-  ]
+  ],
+  "causal_order_version": 2,
+  "migration_note": "stamp_only by migrate_causal_version.py on 2026-08-02: v2 edge rebuild agrees with stored edges"
 }
