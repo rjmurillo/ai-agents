@@ -100,15 +100,39 @@ RUFF_COUNT_RATCHET = REPO_ROOT / "scripts" / "ci" / "ruff_count_ratchet.py"
 BANDIT_SUFFIXES = frozenset({".py", ".pyw"})
 TEXTUAL_DIFF_FLAGS = ("--no-ext-diff", "--no-textconv", "--text")
 EMPTY_TREE_SHA1 = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
-ACTIVE_GIT_OPERATION_FILES = (
-    ("MERGE_HEAD", "merge", "git commit to finish the merge or git merge --abort"),
-    ("REBASE_HEAD", "rebase", "git rebase --continue or git rebase --abort"),
+# Git deletes MERGE_HEAD and CHERRY_PICK_HEAD when those operations finish, so
+# their presence means the operation is still open. REBASE_HEAD is not usable
+# the same way: measured on git 2.43.0, it survives a conflicted rebase that has
+# already been continued to completion, so a gate keyed on it blocks every push
+# afterwards. Git's own code calls delete_ref on REBASE_HEAD (builtin/rebase.c
+# and sequencer.c in v2.43.0), so treat this as a cleanup gap rather than a
+# documented guarantee, and re-measure before relying on it in another version.
+# Rebase state lives in the rebase-merge and rebase-apply directories, which git
+# does remove on completion, so those are what this table tracks. The kind field
+# keeps a stray directory named MERGE_HEAD from reading as an open merge.
+ACTIVE_GIT_OPERATION_PATHS = (
+    (
+        "MERGE_HEAD",
+        "file",
+        "merge",
+        "git commit to finish the merge or git merge --abort",
+    ),
+    ("rebase-merge", "dir", "rebase", "git rebase --continue or git rebase --abort"),
+    ("rebase-apply", "dir", "rebase", "git rebase --continue or git rebase --abort"),
     (
         "CHERRY_PICK_HEAD",
+        "file",
         "cherry-pick",
         "git cherry-pick --continue or git cherry-pick --abort",
     ),
 )
+# git am and the apply-backend rebase both use the rebase-apply directory, and a
+# marker file inside it says which one is running. The remedies are not
+# interchangeable: git rebase --continue during a git am exits 128 with
+# "It looks like 'git am' is in progress. Cannot rebase."
+GIT_AM_MARKER = "applying"
+GIT_AM_OPERATION = "git am"
+GIT_AM_REMEDY = "git am --continue or git am --abort"
 SEMGREP_POWERSHELL_RULES = frozenset(
     {
         "yaml.github-actions.security.curl-eval.curl-eval",
@@ -1476,10 +1500,18 @@ def _git_path(repo_root: Path, path_name: str) -> Path | None:
 
 
 def _active_git_operation(repo_root: Path) -> tuple[str, str] | None:
-    for path_name, operation, remedy in ACTIVE_GIT_OPERATION_FILES:
+    for path_name, kind, operation, remedy in ACTIVE_GIT_OPERATION_PATHS:
         git_path = _git_path(repo_root, path_name)
-        if git_path is not None and git_path.is_file():
-            return operation, remedy
+        if git_path is None:
+            continue
+        if kind == "dir":
+            if not git_path.is_dir():
+                continue
+            if (git_path / GIT_AM_MARKER).is_file():
+                return GIT_AM_OPERATION, GIT_AM_REMEDY
+        elif not git_path.is_file():
+            continue
+        return operation, remedy
     return None
 
 
@@ -2595,6 +2627,126 @@ def _staged_full_content_suppression_violations(
     return violations
 
 
+def _diff_notebook_suppression_violations(
+    base_ref: str,
+    paths: Sequence[str],
+    repo_root: Path,
+) -> list[str] | None:
+    violations: list[str] = []
+    for path in paths:
+        head_text = _commit_text_or_none("HEAD", path, repo_root)
+        if head_text is None:
+            return None
+        base_text = _commit_text_for_base(base_ref, path, repo_root)
+        if base_text is None:
+            return None
+        violations.extend(
+            _notebook_suppression_violations_for_text("HEAD", path, base_text, head_text)
+        )
+    return violations
+
+
+def _diff_full_content_suppression_violations(
+    paths: Sequence[str],
+    repo_root: Path,
+) -> list[str] | None:
+    violations: list[str] = []
+    for path in paths:
+        text = _commit_text_or_none("HEAD", path, repo_root)
+        if text is None:
+            return None
+        violations.extend(_full_content_suppression_violations("HEAD", path, text))
+    return violations
+
+
+def _added_suppression_violations_for_range(
+    range_spec: str,
+    base_ref: str,
+    scan_paths: Sequence[str],
+    repo_root: Path,
+) -> list[str] | None:
+    """Suppression-violation finder for a git range without a PushUpdate."""
+    if not scan_paths:
+        return []
+    renames = _suppression_renames(repo_root, range_spec)
+    if renames is None:
+        return None
+    promoted_paths = [path for path in scan_paths if path in renames.promoted_destinations]
+    scan_paths = [
+        path
+        for path in scan_paths
+        if path not in renames.pure_scanned_destinations
+        and path not in renames.promoted_destinations
+    ]
+    if not scan_paths and not promoted_paths:
+        return []
+    notebook_paths, diff_scan_paths = _partition_suppression_paths(scan_paths)
+    violations = _textual_suppression_violations(
+        repo_root,
+        range_spec=range_spec,
+        paths=diff_scan_paths,
+        head_label="HEAD",
+    )
+    if violations is None:
+        return None
+    notebook_violations = _diff_notebook_suppression_violations(base_ref, notebook_paths, repo_root)
+    if notebook_violations is None:
+        return None
+    violations.extend(notebook_violations)
+    promoted_violations = _diff_full_content_suppression_violations(promoted_paths, repo_root)
+    if promoted_violations is None:
+        return None
+    violations.extend(promoted_violations)
+    return violations
+
+
+def check_suppression_diff(base_ref: str, repo_root: Path) -> int:
+    """CI mirror of security-suppressions-push: compares HEAD against base_ref.
+
+    Returns:
+        0  no new security suppressions detected
+        1  new security suppressions found
+        3  git error (external failure)
+    """
+    range_spec = f"{base_ref}..HEAD"
+    result = _run_git(
+        repo_root,
+        [
+            "diff",
+            *TEXTUAL_DIFF_FLAGS,
+            "--name-only",
+            "--diff-filter=ACMRT",
+            "--no-renames",
+            "-z",
+            range_spec,
+        ],
+    )
+    if result.returncode != 0:
+        _print_process_output(result)
+        return 3
+    scan_paths: list[str] = []
+    for raw_path in result.stdout.split("\0"):
+        if not raw_path:
+            continue
+        path = _safe_relative_path(raw_path)
+        if path is None:
+            print(f"ERROR: unsafe path in diff range: {raw_path}", file=sys.stderr)
+            return 3
+        if Path(path).suffix.lower() in SECURITY_SUPPRESSION_SUFFIXES:
+            scan_paths.append(path)
+    violations = _added_suppression_violations_for_range(
+        range_spec, base_ref, scan_paths, repo_root
+    )
+    if violations is None:
+        return 3
+    if not violations:
+        return 0
+    print("ERROR: security suppression comments detected in diff range:", file=sys.stderr)
+    for violation in violations:
+        print(f"  {violation}", file=sys.stderr)
+    return 1
+
+
 def _notebook_suppression_violations(
     update: PushUpdate,
     paths: Sequence[str],
@@ -2680,6 +2832,22 @@ def _commit_text_or_none(head: str, path: str, repo_root: Path) -> str | None:
 def _commit_text_or_empty(head: str, path: str, repo_root: Path) -> str:
     result = _run_git(repo_root, ["show", f"{head}:{path}"])
     return result.stdout if result.returncode == 0 else ""
+
+
+def _commit_text_for_base(base_ref: str, path: str, repo_root: Path) -> str | None:
+    """Return the text of a file at ``base_ref``, or ``""`` when the file is
+    absent at that ref (new file), or ``None`` when ``base_ref`` itself is
+    invalid so the caller can propagate rc=3 rather than rc=1."""
+    result = _run_git(repo_root, ["show", f"{base_ref}:{path}"])
+    if result.returncode == 0:
+        return result.stdout
+    # Distinguish "file not in tree" (new file, treat as empty) from any
+    # other git failure (bad ref, corrupt repo, etc.) which is an external
+    # error that should surface as rc=3, not produce spurious violations.
+    if "does not exist in" in result.stderr or "exists on disk, but not in" in result.stderr:
+        return ""
+    _print_process_output(result)
+    return None
 
 
 def _notebook_code_lines(text: str) -> list[str]:
@@ -3075,6 +3243,70 @@ def _filesystem_collision_key(path: str) -> str | None:
     return "/".join(normalized_parts)
 
 
+class _SemgrepExecutableError(RuntimeError):
+    """Semgrep executable resolution failed before the scan ran."""
+
+
+@lru_cache(maxsize=1)
+def _semgrep_pinned_version(repo_root: Path = REPO_ROOT) -> str:
+    pyproject = repo_root / "pyproject.toml"
+    try:
+        pyproject_text = pyproject.read_text(encoding="utf-8")
+    except OSError as error:
+        raise _SemgrepExecutableError(
+            f"cannot read semgrep pin from {pyproject}: {error}\n"
+        ) from error
+    matches: list[str] = re.findall(
+        r'^\s*"semgrep==([^"]+)",\s*$',
+        pyproject_text,
+        re.MULTILINE,
+    )
+    versions = set(matches)
+    if len(versions) != 1:
+        raise _SemgrepExecutableError(
+            f"pyproject.toml must declare one semgrep pin, found: {sorted(versions)!r}\n"
+        )
+    return versions.pop()
+
+
+@lru_cache(maxsize=1)
+def _resolve_semgrep_executable(repo_root: Path = REPO_ROOT) -> str:
+    sibling_name = "semgrep.exe" if os.name == "nt" else "semgrep"
+    sibling = Path(sys.executable).parent / sibling_name
+    if sibling.is_file() and os.access(sibling, os.X_OK):
+        return str(sibling)
+
+    resolved = shutil.which("semgrep")
+    if resolved is None:
+        raise FileNotFoundError("semgrep")
+
+    version = _probe_semgrep_version(resolved, repo_root)
+    pinned = _semgrep_pinned_version(repo_root)
+    if version != pinned:
+        raise _SemgrepExecutableError(
+            f"semgrep version mismatch: pyproject.toml pins {pinned}, "
+            f"but {resolved} reports {version}\n"
+        )
+    return resolved
+
+
+def _probe_semgrep_version(executable: str, repo_root: Path) -> str:
+    result = _run_command(
+        [executable, "--version"],
+        repo_root,
+        timeout_seconds=SEMGREP_TIMEOUT_SECONDS,
+    )
+    if result.returncode != 0:
+        raise _SemgrepExecutableError(
+            f"semgrep version probe failed for {executable}: {result.stderr.strip()}\n"
+        )
+    version = result.stdout.strip().splitlines()[0] if result.stdout.strip() else ""
+    if not version:
+        raise _SemgrepExecutableError(
+            f"semgrep version probe returned no version for {executable}\n"
+        )
+    return version
+
 def _run_semgrep_tree(
     tree: Path,
     paths: Sequence[str],
@@ -3084,9 +3316,9 @@ def _run_semgrep_tree(
     finding: subprocess.CompletedProcess[str] | None = None
     last_result: subprocess.CompletedProcess[str] | None = None
     try:
-        for batch in _semgrep_target_batches(targets):
+        for batch in _semgrep_target_batches(targets, repo_root):
             result = _run_command(
-                _semgrep_command("auto", batch),
+                _semgrep_command("auto", batch, repo_root),
                 repo_root,
                 timeout_seconds=SEMGREP_TIMEOUT_SECONDS,
             )
@@ -3100,14 +3332,20 @@ def _run_semgrep_tree(
                 finding = verified
     except FileNotFoundError:
         return subprocess.CompletedProcess([], 2, "", "semgrep executable not found\n")
+    except _SemgrepExecutableError as error:
+        return subprocess.CompletedProcess([], 2, "", str(error))
     except OSError as error:
         return subprocess.CompletedProcess([], 2, "", f"cannot execute semgrep: {error}\n")
     return finding or last_result or subprocess.CompletedProcess([], 0, "", "")
 
 
-def _semgrep_command(config: str, targets: Sequence[str]) -> list[str]:
+def _semgrep_command(
+    config: str,
+    targets: Sequence[str],
+    repo_root: Path = REPO_ROOT,
+) -> list[str]:
     return [
-        "semgrep",
+        _resolve_semgrep_executable(repo_root),
         "scan",
         "--config",
         config,
@@ -3125,8 +3363,11 @@ def _semgrep_command(config: str, targets: Sequence[str]) -> list[str]:
     ]
 
 
-def _semgrep_target_batches(targets: Sequence[str]) -> list[list[str]]:
-    base_length = sum(len(argument) + 1 for argument in _semgrep_command("auto", []))
+def _semgrep_target_batches(
+    targets: Sequence[str],
+    repo_root: Path = REPO_ROOT,
+) -> list[list[str]]:
+    base_length = sum(len(argument) + 1 for argument in _semgrep_command("auto", [], repo_root))
     batches: list[list[str]] = []
     batch: list[str] = []
     batch_length = base_length
@@ -4237,8 +4478,8 @@ def _suppression_renames(
     return _parse_suppression_renames(result.stdout, context=context)
 
 
-PATH_SEPARATOR_RE = re.compile(r"[\\/]")
 
+PATH_SEPARATOR_RE = re.compile(r"[\\/]")
 
 def _step_defeats_bash_subparse(shell: str | None, run: str) -> bool:
     if _body_declares_its_own_interpreter(run):
@@ -4710,6 +4951,75 @@ def _unpushed_commit_count(update: PushUpdate, repo_root: Path) -> int | None:
         return None
 
 
+def _new_commits_for_branch(update: PushUpdate, branch: str | None, repo_root: Path) -> int | None:
+    """Count commits in this push that are not yet on the remote branch.
+
+    Returns None on any git failure. Used for the needs-split bypass: a PR
+    labelled needs-split may still receive small fix commits even when the
+    branch is over the total limit (issue #3895).
+    """
+    if not branch:
+        return None
+    result = _run_git(
+        repo_root,
+        ["rev-list", "--count", update.source.local_sha, f"^origin/{branch}"],
+    )
+    if result.returncode != 0:
+        return None
+    try:
+        return int(result.stdout.strip())
+    except ValueError:
+        return None
+
+
+# Maximum new commits allowed through the needs-split bypass per push.
+# The bypass is for small fix/merge commits while the PR awaits splitting, not
+# for landing an entirely new batch of work (issue #3895).
+_NEEDS_SPLIT_NEW_COMMIT_CAP = 5
+
+_NEEDS_SPLIT_LABEL = "needs-split"
+
+
+def _check_needs_split_bypass(
+    update: PushUpdate, branch: str | None, repo_root: Path
+) -> int | None:
+    """Return 0 if needs-split label permits this push, None if not.
+
+    Checks the PR for a needs-split label and validates that the number of new
+    commits in this push stays within _NEEDS_SPLIT_NEW_COMMIT_CAP (issue #3895).
+    """
+    split_args = [
+        sys.executable,
+        "scripts/validation/check_pr_bypass_label.py",
+        "--label",
+        _NEEDS_SPLIT_LABEL,
+    ]
+    if branch:
+        split_args.extend(["--branch", branch])
+    split_check = _run_command(split_args, repo_root)
+    if split_check.returncode != 0:
+        return None
+    new_count = _new_commits_for_branch(update, branch, repo_root)
+    if new_count is not None and new_count <= _NEEDS_SPLIT_NEW_COMMIT_CAP:
+        print(
+            f"NOTE: PR is labelled {_NEEDS_SPLIT_LABEL!r}; this push adds "
+            f"{new_count} new commit(s) (cap {_NEEDS_SPLIT_NEW_COMMIT_CAP}). "
+            "Allowing while splitting is in progress.",
+        )
+        return 0
+    cap_msg = (
+        f"{new_count} new commit(s) exceeds the needs-split cap ({_NEEDS_SPLIT_NEW_COMMIT_CAP})"
+        if new_count is not None
+        else "could not count new commits"
+    )
+    print(
+        f"NOTE: PR has {_NEEDS_SPLIT_LABEL!r} but {cap_msg}; "
+        "use commit-limit-bypass to override the ceiling entirely.",
+        file=sys.stderr,
+    )
+    return None
+
+
 def _check_commit_limit(update: PushUpdate, repo_root: Path) -> int:
     result = _run_git(repo_root, ["rev-list", "--count", update.range_spec])
     if result.returncode != 0:
@@ -4740,6 +5050,14 @@ def _check_commit_limit(update: PushUpdate, repo_root: Path) -> int:
             f"limit is {limit}.",
         )
         return 0
+    # needs-split bypass (issue #3895): a PR labelled needs-split is already
+    # scheduled for splitting. Block only when this push itself is large; allow
+    # small fix pushes (up to _NEEDS_SPLIT_NEW_COMMIT_CAP new commits) so the
+    # author can address review comments without being forced onto --no-verify.
+    # commit-limit-bypass (checked above) remains the unconditional escape.
+    needs_split_rc = _check_needs_split_bypass(update, branch, repo_root)
+    if needs_split_rc is not None:
+        return needs_split_rc
     _print_process_output(bypass, stdout_stream=sys.stderr)
     print(f"ERROR: push has {commit_count} commits, limit is {limit}", file=sys.stderr)
     return 1
@@ -5565,6 +5883,10 @@ def _handle_staged_suppressions(args: argparse.Namespace) -> int:
     return check_staged_suppressions(_repo_root(args))
 
 
+def _handle_suppression_diff(args: argparse.Namespace) -> int:
+    return check_suppression_diff(args.base_ref, _repo_root(args))
+
+
 def _handle_stage_generated(args: argparse.Namespace) -> int:
     return stage_generated(args.kind, _repo_root(args))
 
@@ -5637,6 +5959,12 @@ def build_parser() -> argparse.ArgumentParser:
     generated = subparsers.add_parser("stage-generated")
     generated.add_argument("kind", choices=sorted(GENERATED_PATHS | GENERATED_GLOBS))
     generated.set_defaults(handler=_handle_stage_generated)
+    suppression_diff = subparsers.add_parser(
+        "security-suppressions-diff",
+        help="CI backstop: check HEAD..base_ref range for new security suppressions",
+    )
+    suppression_diff.add_argument("--base-ref", required=True, metavar="REF")
+    suppression_diff.set_defaults(handler=_handle_suppression_diff)
     return parser
 
 

@@ -154,7 +154,7 @@ See `resources/diff-format.md` for specification.
 
    # More context to anchor the insertion point
    more_existing_code()
-````
+```
 
 ### Milestone N
 

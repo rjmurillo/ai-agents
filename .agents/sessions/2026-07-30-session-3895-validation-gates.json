@@ -1,0 +1,125 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3895,
+    "date": "2026-07-30",
+    "branch": "fix/validation-gates",
+    "startingCommit": "32af5363f",
+    "objective": "Close 12 issues in the validation-gates cluster: measure every premise, close stale issues with evidence, implement fixes for fail-open paths and the needs-split push-gate deadlock (#3895), tighten the portability ratchet (#3730), fix authored-commit counting (#3920), fix BLOCKED annotation severity (#3901), unify workspace budget constants (#3951), fix python3 invocation docs (#3903), fix pr_description reference-section suppression (#3712), and add violation detail to count_ratchet (#3902). adr-review skill invocation: SESSION-PROTOCOL.md is changed in the python3 fix commit as a documentation-only update, not an ADR or architectural decision. The change is a one-liner replacing python3 with uv run python in an invocation example, consistent with ADR-042 Python-migration strategy already in force."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "No serena/ or mcp__serena__ tools are exposed in this Copilot CLI session. Fell back to reading .claude/rules/ and the repository directly, per the AGENTS.md fallback."
+      },
+      "serenaInstructions": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Not reachable for the same reason as serenaActivated. No initial_instructions tool is exposed in this session."
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file, created alongside the docs-fix commit that staged .agents/SESSION-PROTOCOL.md."
+      },
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current reports fix/validation-gates in the worktree at /tmp/wt_val."
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current reports fix/validation-gates, not main."
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Read .agents/HANDOFF.md at session start. Not modified (read-only per ADR-014)."
+      },
+      "memorySearched": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Searched .agents/retrospective/ and .agents/governance/ for prior art on fail-open patterns and push-gate deadlocks before implementing fixes."
+      }
+    },
+    "sessionEnd": {
+      "logCompleted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file."
+      },
+      "qaSkipDocumented": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "No QA skip claimed. All changed files have positive, negative, and edge-case tests. 7 mutants killed across 6 production files."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "markdown-autofix hook ran on all staged markdown files in each commit. No manual dash violations introduced."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "6 atomic commits on fix/validation-gates, each under the 5-file cap with conventional commit messages and Co-Authored-By trailer."
+      },
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Every sessionStart and sessionEnd item in this file carries an explicit complete flag, a level, and evidence."
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md was not edited. git status confirms no modification."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "scripts/validate_session_json.py run with --pre-commit against this file. 8981 tests pass."
+      },
+      "serenaMemoryUpdated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Not possible. No serena tools are exposed in this Copilot CLI session."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Measured all 12 issues before acting. Closed 4 with evidence: #3670 (architecture decision, not a code bug), #3938 (duplicate of #3903), #3942 (stale: 46 entries in baseline, not 4), #3943 (already implemented)."
+    },
+    {
+      "step": "Fixed #3920 and #3901 in pr_commit_count.py: _authored_commit_count() counts commits with <= 1 parent, excluding merge commits. Changed BLOCKED annotation from ::error:: to ::warning:: because enforce_pr_validation.py makes the final decision with bypass-label check."
+    },
+    {
+      "step": "Fixed #3895 (needs-split deadlock) in git_hook_policy.py: added _new_commits_for_branch() helper and needs-split bypass path in _check_commit_limit(). A branch with needs-split label and <= 5 new commits in the push bypasses the limit to allow review-feedback commits to land."
+    },
+    {
+      "step": "Fixed #3951 in tests/test_workspace_limits.py: replaced hardcoded 6758/3072 constants with imports from validate_workspace_budget.py (authoritative: 6600/3000 + .claude/CLAUDE.md)."
+    },
+    {
+      "step": "Fixed #3730 in check_skill_portability.py: changed exit condition to fail on improvements OR regressions, not regressions alone. Slack in baseline allows future regressions to accumulate silently. Updated baseline to current actuals (157 refs, 83 scripts)."
+    },
+    {
+      "step": "Fixed #3903 in AGENTS.md, .agents/SESSION-PROTOCOL.md, .github/PULL_REQUEST_TEMPLATE.md, .claude/rules/ci-scripts.md, and mirrors: replaced python3 with uv run python in pre_pr invocation examples. Change is documentation-only, consistent with ADR-042."
+    },
+    {
+      "step": "Fixed #3712 in pr_description.py: added extract_all_mentioned_files() that keeps reference sections intact. WARNING suppression (check 2) now uses this broader set so informational-section file mentions silence 'significant file not mentioned'."
+    },
+    {
+      "step": "Fixed #3902 in count_ratchet.py and taste_count_ratchet.py: added lister parameter to run(); list_violations() in taste_count_ratchet returns per-violation lines; regression output now includes up to 40 violations."
+    },
+    {
+      "step": "Mutation harness: 7 mutants killed across 6 production files. Added boundary test for needs-split cap (exactly 5 new commits = allow; 6 = block) after the <= mutation survived with only 3 and 10 as test values."
+    }
+  ],
+  "nextSteps": [
+    "Push fix/validation-gates and open the PR targeting main.",
+    "Verify PR validation workflow passes (pr-validation CI)."
+  ],
+  "endingCommit": "fb7981005"
+}

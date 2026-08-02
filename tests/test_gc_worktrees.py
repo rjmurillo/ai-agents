@@ -395,7 +395,6 @@ class TestFormatReport:
         assert "APPLY" in text
         assert "removed /repo/wt" in text
 
-
 class TestCli:
     """Argument parsing and the main() exit-code contract."""
 

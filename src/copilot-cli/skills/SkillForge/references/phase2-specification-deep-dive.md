@@ -1,5 +1,6 @@
+# Phase 2: Specification Deep Dive
 
-### Specification Structure
+## Specification Structure
 
 The specification captures all analysis insights in XML format:
 
@@ -52,7 +53,7 @@ The specification captures all analysis insights in XML format:
 
 See: [specification-template.md](specification-template.md)
 
-### Specification Validation
+## Specification Validation
 
 Before proceeding to Phase 3:
 

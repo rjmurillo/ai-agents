@@ -83,12 +83,14 @@ def test_main_needs_ai(tmp_path, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# main - invalid JSON from resolver falls back to empty
+# main - invalid JSON from resolver must fail the step
 # ---------------------------------------------------------------------------
 
 
 def test_main_invalid_json_from_resolver(tmp_path, monkeypatch):
+    """Resolver exits 0 but writes garbage stdout: step must FAIL (match PowerShell original)."""
     out = tmp_path / "output.txt"
+    out.write_text("", encoding="utf-8")
     monkeypatch.setenv("GITHUB_OUTPUT", str(out))
     monkeypatch.setenv("PR_NUMBER", "11")
     monkeypatch.setenv("HEAD_REF", "feat/x")
@@ -98,7 +100,25 @@ def test_main_invalid_json_from_resolver(tmp_path, monkeypatch):
     mock = MagicMock(returncode=0, stdout="not json", stderr="")
     with patch("scripts.ci.run_pr_conflict_resolver.subprocess.run", return_value=mock):
         rc = rpcr.main()
-    assert rc == rpcr.EXIT_SUCCESS
+    assert rc == rpcr.EXIT_FAILURE
+    # No needs_ai written to GITHUB_OUTPUT on failure
     content = out.read_text(encoding="utf-8")
-    # Empty parsed dict -> success=False path -> needs_ai=true
-    assert "needs_ai=true" in content
+    assert "needs_ai" not in content
+
+
+def test_json_parse_failure_does_not_write_needs_ai(tmp_path, monkeypatch):
+    """Mutant guard: restoring 'parsed = {}' must kill this test."""
+    out = tmp_path / "output.txt"
+    out.write_text("", encoding="utf-8")
+    monkeypatch.setenv("GITHUB_OUTPUT", str(out))
+    monkeypatch.setenv("PR_NUMBER", "99")
+    monkeypatch.setenv("HEAD_REF", "fix/y")
+    monkeypatch.setenv("BASE_REF", "main")
+    monkeypatch.setenv("REPO_OWNER", "o")
+    monkeypatch.setenv("REPO_NAME", "r")
+    mock = MagicMock(returncode=1, stdout="{broken json", stderr="")
+    with patch("scripts.ci.run_pr_conflict_resolver.subprocess.run", return_value=mock):
+        rc = rpcr.main()
+    assert rc == rpcr.EXIT_FAILURE
+    assert rc != rpcr.EXIT_SUCCESS
+    assert "needs_ai" not in out.read_text(encoding="utf-8")

@@ -173,3 +173,45 @@ ignores:
   - "src/copilot-cli/skills/build/SKILL.md"
   - "src/copilot-cli/skills/test/SKILL.md"
   - "src/copilot-cli/skills/ship/SKILL.md"
+
+  # XML specification document stored with .md extension for GitHub rendering.
+  # The file is valid XML (skill specification schema), not authored Markdown.
+  # Its 4-space-indented XML structure produces false-positive MD046 violations
+  # (the XML tags are parsed as indented code blocks) and MD041 (no H1 since
+  # the document opens with an XML declaration). Renaming to .xml would break
+  # existing skill-discovery tooling that walks *.md. Excluded narrowly.
+  - ".claude/skills/cva-analysis/references/SKILL_SPEC.md"
+  - "src/copilot-cli/skills/cva-analysis/references/SKILL_SPEC.md"
+
+# Per-glob rule overrides for skill trees.
+#
+# MD040 (fenced-code-language): 575 violations across .claude/skills/ and
+# src/copilot-cli/skills/ (86% of all skill-tree violations). Skill documents
+# carry many illustrative bare fences used for generic pseudo-code, output
+# templates, and multi-language examples where no single language tag applies.
+# Requiring a language tag on these fences would force authors to annotate
+# illustrative content that is intentionally language-agnostic or to use
+# "text" uniformly, which adds no value for these files.
+#
+# MD033 (no-inline-html): 132 violations. Skill documents use structured
+# XML-like tags (<example>, <phase>, <output>) as semantic markers recognized
+# by the AI harness. These tags are not decorative HTML; they are part of the
+# skill protocol. A blanket no-inline-html rule would force removal of the
+# harness protocol markup.
+#
+# Measured 2026-07-31: disabling both rules eliminates 707 of 823 violations
+# (86%) while retaining full coverage on docs/, README, and all non-skill
+# files. Only MD040 and MD033 are scoped off; all other rules (MD041, MD046,
+# MD024, etc.) continue to apply to the skill trees.
+#
+# v0.23.1 supports this via the overrides[].filter + config mechanism
+# (documented in README "overrides" section). combine: merge ensures the
+# parent config is inherited and only the named rules are overridden.
+overrides:
+  - filter:
+      - ".claude/skills/**"
+      - "src/copilot-cli/skills/**"
+    config:
+      MD040: false
+      MD033: false
+    combine: merge

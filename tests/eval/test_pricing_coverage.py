@@ -9,11 +9,13 @@ has a pricing entry, so a missing rate is caught here, not on spend.
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EVAL_DIR = REPO_ROOT / "scripts" / "eval"
+PANELS_DIR = EVAL_DIR / "panels"
 
 _path_added = str(EVAL_DIR) not in sys.path
 if _path_added:
@@ -41,8 +43,45 @@ LIVE_PINNED_MODEL_IDS = frozenset(
 )
 
 
+def shipped_panel_models() -> list[tuple[str, str]]:
+    """Every (panel filename, model id) pair the shipped panel configs dispatch."""
+    pairs: list[tuple[str, str]] = []
+    for path in sorted(PANELS_DIR.glob("*.json")):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        pairs += [(path.name, tier["model"]) for tier in payload.get("tiers", [])]
+    return pairs
+
+
 def test_sweep_default_model_is_priced() -> None:
     assert DEFAULT_MODEL in MODEL_PRICING_RATES_USD_PER_1K_TOKENS
+
+
+def test_shipped_panels_dispatch_at_least_one_model() -> None:
+    # Guards the test below from passing on an empty glob (a renamed panels
+    # directory would otherwise make it vacuous).
+    assert shipped_panel_models()
+
+
+def test_shipped_panel_anthropic_models_are_priced() -> None:
+    """Every claude-* id a shipped panel names must carry a rate (issue #3905).
+
+    Scoped to Anthropic ids on purpose. The panels also name gpt-5.6-sol,
+    which is reachable only through the copilot-cli provider; that transport
+    meters premium requests instead of tokens, so it has no per-token rate to
+    assert and inventing one would falsify an operator cost report.
+    """
+    unpriced = sorted(
+        f"{panel}:{model}"
+        for panel, model in shipped_panel_models()
+        if model.startswith("claude-") and model not in MODEL_PRICING_RATES_USD_PER_1K_TOKENS
+    )
+    assert not unpriced, (
+        "Shipped panel configs under scripts/eval/panels/ name Anthropic model "
+        "ids with no entry in MODEL_PRICING_RATES_USD_PER_1K_TOKENS "
+        f"(scripts/eval/_eval_common.py): {unpriced}. eval-model-panel.py "
+        "shells eval-agent-vs-baseline.py with --model, and that child exits 2 "
+        "on an unpriced id, so the panel is dead on arrival for a live run."
+    )
 
 
 def test_all_live_pinned_models_are_priced() -> None:
