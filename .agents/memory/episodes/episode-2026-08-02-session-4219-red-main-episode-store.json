@@ -59,7 +59,8 @@
       "content": "Commit: c7a401c7a8",
       "caused_by": [],
       "leads_to": [
-        "e007"
+        "e007",
+        "e008"
       ],
       "_source_session": "2026-08-02-session-4219-red-main-episode-store"
     },
@@ -73,6 +74,17 @@
       ],
       "leads_to": [],
       "_source_session": "2026-08-02-session-4219-red-main-episode-store"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 77e305c6ed",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4219-red-main-episode-store"
     }
   ],
   "metrics": {
@@ -80,7 +92,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 14
   },
   "lessons": []
