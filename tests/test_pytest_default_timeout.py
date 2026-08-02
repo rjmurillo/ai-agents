@@ -46,6 +46,7 @@ def test_pytest_timeout_terminates_hanging_test_module(tmp_path: Path) -> None:
         ],
         cwd=REPO_ROOT,
         text=True,
+        encoding="utf-8",
         capture_output=True,
         timeout=10,
         check=False,
