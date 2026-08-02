@@ -1,0 +1,154 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3765,
+    "date": "2026-08-01",
+    "branch": "fix/issue-3765",
+    "startingCommit": "7270f8762",
+    "objective": "Repair backwards commit chains in shipped episode artifacts and gate the defect at rest (issue 3765)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena responded on this worktree; list_memories returned the project corpus"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Called mcp__serena__initial_instructions and read the manual"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read the issue 3765 thread including both triage comments and the independent verification"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ls .claude/skills/memory/scripts: no repair entry point exists on main"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md and CLAUDE.md loaded at session start"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .claude/rules/universal.md, testing.md, ci-scripts.md, plugin-self-containment.md"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "list_memories enumerated the corpus; read decision-* and memory/* entries relevant to episode causal order"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/issue-3765"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/issue-3765"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status clean on fix/issue-3765 branched from 63a8e9b45 before the first edit"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "7270f8762"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Every sessionStart and sessionEnd gate in this file carries evidence"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git status shows .agents/HANDOFF.md unmodified on this branch"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote decision-episode-commit-order-repair-needs-restamp: why a bare relink is deletion, not repair"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown changed on this branch; pre_pr.py markdown gates passed"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "2224afc14 extractor check plus repair, 7270f8762 tests, then the episode repair batches on this branch"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run python scripts/validation/pre_pr.py: RESULT: All validations passed. uv run pytest tests/skills/memory/test_extract_session_episode.py: 242 passed. ruff check on all three changed Python files: All checks passed"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Work log below records each step with its measurement"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not run; the durable lesson went to the Serena decision memory instead"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "title": "Reproduced the backwards commit chains on current main",
+      "outcome": "success",
+      "evidence": "At 63a8e9b45 a probe over the episode corpus found commit-to-commit leads_to edges pointing from a newer committer date to an older one: 17 edges across 14 files. Eight of the nine files issue 3765 named are among them; the ninth (session-3423) carries 11 abbreviated SHAs that no longer resolve, so it has no verifiable edge. Six files the issue did not name carry the same shape."
+    },
+    {
+      "title": "Measured the relink-only repair the prior triage proposed, and rejected it",
+      "outcome": "failure",
+      "evidence": "Calling _link_sequential_events on a deep copy of the 14 files takes 234 edges to 96 and strands 163 of 263 events with no edge, up from 4. An edgeless graph carries no backwards edge, so a backwards-edge check reads that as success. Rejected as deletion, not repair."
+    },
+    {
+      "title": "Added the commit-order check and the restamp-then-relink repair to the extractor",
+      "outcome": "success",
+      "evidence": "extract_session_episode.py: validate_commit_order flags a commit-to-commit edge that runs backwards in committer time; repair_commit_order restamps commit events from git via the cached _commit_datetime, rebuilds the chain with _link_sequential_events, and refuses any rebuild that loses edges. Wired into validate_episode_file so the existing corpus pin covers it. New --fix flag drives the repair."
+    },
+    {
+      "title": "Repaired episode batch 1 of 4",
+      "outcome": "success",
+      "evidence": "Sessions 3256, 3422, 3475, 3605. Edges 63 to 63, 46 to 48, 6 to 8, 16 to 16. No field outside events changed."
+    },
+    {
+      "title": "Repaired episode batch 2 of 4",
+      "outcome": "success",
+      "evidence": "Sessions 3499, 3584, 3585, 3617. Edges 5 to 5, 8 to 8, 10 to 10, 18 to 20."
+    },
+    {
+      "title": "Repaired episode batch 3 of 4",
+      "outcome": "success",
+      "evidence": "Sessions 3626, 3630, 3650, 3652. Edges 2 to 3, 17 to 19, 7 to 8, 12 to 13."
+    }
+  ],
+  "endingCommit": "7270f8762",
+  "nextSteps": [
+    "PR 4163 repairs the same corpus by a compatible mechanism; four of these files overlap and will conflict on content.",
+    "extract_session_episode.py still merges existing events first on --preserve, which issue 3765 asked to change. List order no longer determines the causal chain, so the repair did not need it. File separately if it still matters.",
+    "_git_commit_timestamp duplicates the cached _commit_datetime with a different repo-resolution rule. Not touched here."
+  ]
+}
