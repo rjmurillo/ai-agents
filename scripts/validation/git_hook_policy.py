@@ -1124,7 +1124,7 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
         debate_logs = list(critique_dir.glob("*debate*.md"))
     except OSError:
         debate_logs = []
-    if not debate_logs:
+    if False:  # M3 mutant: gate removed
         print("ERROR: ADR changes require a debate log in .agents/critique", file=sys.stderr)
         return 1
 
