@@ -261,7 +261,6 @@ def test_historical_records_are_out_of_scope(path: str) -> None:
     "path",
     [
         "src/copilot-cli/skills/session-init/SKILL.md",
-        "src/claude/architect.md",
         "src/vs-code-agents/retrospective.agent.md",
         ".github/instructions/python.instructions.md",
     ],
@@ -273,10 +272,117 @@ def test_generated_mirrors_are_out_of_scope(path: str) -> None:
 
 @pytest.mark.parametrize(
     "path",
+    ["src/claude/AGENTS.md", "src/claude/architect.md"],
+)
+def test_hand_maintained_src_claude_is_in_scope(path: str) -> None:
+    """`src/claude/` looks like a generated mirror and is not one.
+
+    `.agents/governance/GENERATOR-FILES.md:35` states it verbatim: "`src/claude/`
+    is a hand-maintained copy, not a generator output. It was misclassified as a
+    strict vendored copy until Issue #2882". No generator writes it, and
+    `build/scripts/validate_install_parity.py:97` blocklists `AGENTS.md` from
+    every parity group, so `src/claude/AGENTS.md` is guarded by nothing else.
+
+    An earlier revision of this guard listed `src/claude/` beside the real
+    mirrors. Five `build/generate_agents.py` invocations in `src/claude/AGENTS.md`
+    (lines 61, 70, 279, 294, 305) survived two rounds of the issue #3791 fix
+    behind that one entry.
+    """
+    assert is_in_scope(path)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        ".claude/skills/session-init/scripts/new_session_log.py",
+        "build/scripts/build_all.py",
+        "scripts/ci/write_drift_job_summary.py",
+    ],
+)
+def test_python_sources_are_in_scope(path: str) -> None:
+    """A usage docstring and a printed remediation hand over the same broken command."""
+    assert is_in_scope(path)
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["tests/test_check_doc_interpreter_portability.py", "tests/validation/test_x.py"],
+)
+def test_test_fixtures_are_out_of_scope(path: str) -> None:
+    """Tests build offending invocations on purpose; see `.claude/rules/universal.md`."""
+    assert not is_in_scope(path)
+
+
+@pytest.mark.parametrize(
+    "path",
     ["CONTRIBUTING.md", ".agents/SESSION-PROTOCOL.md", "docs/installation.md", "README.md"],
 )
 def test_live_instruction_docs_are_in_scope(path: str) -> None:
     assert is_in_scope(path)
+
+
+def test_declaration_on_the_offending_line_suppresses_it(tmp_path: Path) -> None:
+    repo = make_repo(
+        tmp_path,
+        {
+            "tool.py": "import yaml\n",
+            "doc.md": "`python3 tool.py`  <!-- doc-interpreter-portability: quoted CI -->\n",
+        },
+    )
+
+    assert scan(repo) == {}
+
+
+def test_declaration_on_the_line_above_suppresses_it(tmp_path: Path) -> None:
+    repo = make_repo(
+        tmp_path,
+        {
+            "tool.py": "import yaml\n",
+            "doc.md": "doc-interpreter-portability: quoted CI\n    python3 tool.py\n",
+        },
+    )
+
+    assert scan(repo) == {}
+
+
+def test_declaration_two_lines_above_does_not_suppress(tmp_path: Path) -> None:
+    """Negative control: the opt-out is line-scoped, not file-scoped."""
+    repo = make_repo(
+        tmp_path,
+        {
+            "tool.py": "import yaml\n",
+            "doc.md": "doc-interpreter-portability: quoted CI\n\n    python3 tool.py\n",
+        },
+    )
+
+    assert scan(repo) == {"doc.md": 1}
+
+
+def test_declaration_does_not_cover_a_sibling_offense_in_the_same_file(tmp_path: Path) -> None:
+    """A declared line must not grant the rest of the file an exemption."""
+    repo = make_repo(
+        tmp_path,
+        {
+            "tool.py": "import yaml\n",
+            "doc.md": (
+                "`python3 tool.py`  <!-- doc-interpreter-portability: quoted CI -->\n"
+                "\n"
+                "Now run `python3 tool.py` for real.\n"
+            ),
+        },
+    )
+
+    assert scan(repo) == {"doc.md": 1}
+
+
+def test_python_usage_docstring_is_an_offense(tmp_path: Path) -> None:
+    """The surface widened past Markdown: a docstring hands over the same command."""
+    repo = make_repo(
+        tmp_path,
+        {"tool.py": '"""Usage:\n\n    python3 tool.py --check\n"""\n\nimport yaml\n'},
+    )
+
+    assert scan(repo) == {"tool.py": 1}
 
 
 def test_unreadable_baseline_exits_2(tmp_path: Path) -> None:
@@ -345,14 +451,40 @@ def test_repository_is_at_or_below_its_baseline() -> None:
     assert exit_code == 0
 
 
+@pytest.mark.parametrize(
+    "path",
+    ["src/claude/AGENTS.md", ".claude/skills/session-init/scripts/new_session_log.py"],
+)
+def test_named_regression_files_carry_no_bare_interpreter(path: str) -> None:
+    """Scan two specific files without consulting the guard's scope configuration.
+
+    `test_repository_has_no_documented_bare_interpreter_invocations` routes
+    through `scan`, which asks `is_in_scope` first. Putting a root back into
+    `GENERATED_ROOTS` therefore silences it, which is exactly how
+    `src/claude/AGENTS.md` stayed broken. This reads the bytes directly, so the
+    only way to make it pass is to fix the file.
+    """
+    tracked_py = set(tracked_files(REPO_ROOT, "*.py"))
+    text = (REPO_ROOT / path).read_text(encoding="utf-8")
+
+    flagged = [
+        f"{path}:{number} {script}"
+        for number, line in enumerate(text.splitlines(), 1)
+        for script, _ in find_offenses(line, REPO_ROOT, tracked_py)
+    ]
+
+    assert flagged == [], "bare interpreter came back: " + ", ".join(flagged)
+
+
 def test_repository_has_no_documented_bare_interpreter_invocations() -> None:
-    """No in-scope document may name a bare interpreter for a non-stdlib script.
+    """No in-scope file may name a bare interpreter for a non-stdlib script.
 
     Issue #3791 named one instance (`scripts/sync_adr_protocol.py` in
-    CONTRIBUTING.md). Fixing only that one left 112 identical siblings across 47
-    files, all of which die with the same ModuleNotFoundError on a clean
-    checkout. They were migrated in the same change, so the correct count is
-    zero, and this asserts the whole class rather than the named instance.
+    CONTRIBUTING.md). Fixing only that one left the identical shape across the
+    Markdown tree, then across `src/claude/` and the Python usage docstrings and
+    printed remediation strings, all of which die with the same
+    ModuleNotFoundError on a clean checkout. The correct count is zero, and this
+    asserts the whole class rather than the named instance.
 
     Stronger than `test_repository_is_at_or_below_its_baseline`, which a
     `--update-baseline` run would satisfy by grandfathering a new offender.

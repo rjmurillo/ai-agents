@@ -3,6 +3,7 @@
 
 A document that tells a contributor to run
 
+doc-interpreter-portability: the defect this guard finds, quoted so it can be named
     python3 scripts/sync_adr_protocol.py
 
 is only correct on a machine whose *system* interpreter already has the script's
@@ -45,25 +46,56 @@ What it counts:
   ambient interpreter by contract (``.claude/rules/python.md``).
 
 Scope:
-  Tracked Markdown, minus two exclusions.
+  Tracked Markdown **and Python**, minus three exclusions.
+
+  Python is in scope because a usage block in a module docstring, and a
+  remediation string a script prints to a contributor's terminal, hand over the
+  same unrunnable command a Markdown instruction does.
+  ``build/generate_agents.py`` printed a "To fix: Run ..." line naming the bare
+  interpreter on every drift failure, which is the exact command that dies on a
+  clean checkout.
 
   * **Historical roots** (``.agents/sessions/``, ``.agents/retrospective/``,
     ``.agents/architecture/``, and siblings). These are records of what was
     decided or done, not instructions to follow. Rewriting a session log or an
     ADR body to change a command it quotes would falsify the record.
-  * **Generated mirrors** (``src/copilot-cli/``, ``src/claude/``,
-    ``src/vs-code-agents/``, ``.github/instructions/``). Per
-    ``.agents/governance/GENERATOR-FILES.md`` these are build outputs; the fix
-    belongs in the canonical source and arrives here by regeneration.
+  * **Generated mirrors** (``src/copilot-cli/``, ``src/vs-code-agents/``,
+    ``.github/instructions/``). ``.agents/governance/GENERATOR-FILES.md`` names
+    a generator for each: ``generate_skills.py``/``generate_commands.py`` and
+    ``_build_lib`` write ``src/copilot-cli/``, ``generate_agents.py`` writes
+    ``src/vs-code-agents/``, ``generate_rules.py`` writes
+    ``.github/instructions/``. The fix belongs in the canonical source and
+    arrives here by regeneration.
+
+    ``src/claude/`` is deliberately NOT on that list. It looks like a mirror and
+    is not one. GENERATOR-FILES.md:35 says so in as many words: "``src/claude/``
+    is a hand-maintained copy, not a generator output. It was misclassified as a
+    strict vendored copy until Issue #2882". No generator writes it, and
+    ``build/scripts/validate_install_parity.py:97`` blocklists ``AGENTS.md``
+    from every parity group, so ``src/claude/AGENTS.md`` had no gate of any kind.
+    Excluding it here is what let five bare-interpreter instances survive two
+    rounds of this fix (``src/claude/AGENTS.md`` lines 61, 70, 279, 294, 305).
+  * **``tests/``**. Test files construct offending invocations on purpose, as
+    fixtures for this guard and for its siblings. Same carve-out shape as the
+    ``tests/hooks/fixtures/`` exemption in ``.claude/rules/universal.md``.
+
+Declaring a single line:
+  A line carrying ``doc-interpreter-portability:`` plus a reason, on the offense
+  itself or on the line directly above it, is skipped. Two live cases, both
+  quoting what CI runs verbatim under ``.claude/rules/canonical-source-mirror.md``
+  (CI installs the dependencies system-wide, so bare ``python3`` is correct
+  there and rewording the quote would falsify the citation). Line-scoped on
+  purpose: a whole-file opt-out is what this guard's own ``src/claude/``
+  exclusion was, and it hid five real offenses.
 
 Baseline ratchet:
   ``doc_interpreter_baseline.json`` grandfathers per-file counts, and it is
-  **empty**. Every in-scope document was migrated in the same change that added
-  this guard: 112 invocations across 47 files, which is the full sibling set of
-  the one instance issue #3791 named. So any offense at all is a regression, and
-  the check FAILS on it. Keep the baseline empty. ``--update-baseline`` exists to
-  tighten a count after a fix, never to admit a new offender; adding an entry
-  also breaks ``test_repository_has_no_documented_bare_interpreter_invocations``.
+  **empty**. Every in-scope file was migrated in the same change that added this
+  guard, and the Python surface plus ``src/claude/AGENTS.md`` in the change that
+  widened it. So any offense at all is a regression, and the check FAILS on it.
+  Keep the baseline empty. ``--update-baseline`` exists to tighten a count after
+  a fix, never to admit a new offender; adding an entry also breaks
+  ``test_repository_has_no_documented_bare_interpreter_invocations``.
 
 Exit codes (ADR-035):
   0 - no drift (counts at or below baseline), or --update-baseline wrote the file
@@ -106,14 +138,30 @@ HISTORICAL_ROOTS: tuple[str, ...] = (
     "evals/",
 )
 
-# Build outputs per .agents/governance/GENERATOR-FILES.md. Fix the source; these
-# arrive by regeneration.
+# Build outputs per .agents/governance/GENERATOR-FILES.md, which names a
+# generator for each. Fix the source; these arrive by regeneration.
+#
+# `src/claude/` is NOT here, though it sits beside two roots that are. The same
+# file says so directly (GENERATOR-FILES.md:35): "`src/claude/` is a
+# hand-maintained copy, not a generator output. It was misclassified as a strict
+# vendored copy until Issue #2882". Listing it cost five real offenses in
+# `src/claude/AGENTS.md`, which nothing else guards either:
+# `validate_install_parity.py:97` blocklists `AGENTS.md` from every parity group.
 GENERATED_ROOTS: tuple[str, ...] = (
     ".github/instructions/",
-    "src/claude/",
     "src/copilot-cli/",
     "src/vs-code-agents/",
 )
+
+# Test files build offending invocations on purpose, as fixtures for this guard
+# and its siblings. Same shape as the `tests/hooks/fixtures/` carve-out in
+# `.claude/rules/universal.md`.
+FIXTURE_ROOTS: tuple[str, ...] = ("tests/",)
+
+# A line-scoped opt-out. Put it on the offending line or the line directly above,
+# with a reason. Line-scoped rather than file-scoped because a file-scoped
+# opt-out is exactly what the `src/claude/` entry above used to be.
+DECLARATION = "doc-interpreter-portability:"
 
 # `uv run [flags] python[3] [short opts] <tracked>.py`
 # The optional `uv` group is captured so an already-fixed invocation can be
@@ -157,8 +205,17 @@ def tracked_files(repo_root: Path, *patterns: str) -> list[str]:
 
 
 def is_in_scope(rel_path: str) -> bool:
-    """Return whether a document carries instructions this guard should gate."""
-    return not rel_path.startswith(HISTORICAL_ROOTS + GENERATED_ROOTS)
+    """Return whether a file carries instructions this guard should gate."""
+    return not rel_path.startswith(HISTORICAL_ROOTS + GENERATED_ROOTS + FIXTURE_ROOTS)
+
+
+def is_declared(lines: list[str], index: int) -> bool:
+    """Return whether the offense at ``index`` carries a declaration.
+
+    The marker counts on the offending line itself or on the line directly
+    above it, so a docstring or a multi-line command block can carry it.
+    """
+    return any(DECLARATION in lines[i] for i in (index, index - 1) if i >= 0)
 
 
 def _import_time_nodes(body: list[ast.stmt]) -> Iterator[ast.stmt]:
@@ -265,20 +322,24 @@ def find_offenses(line: str, repo_root: Path, tracked_py: set[str]) -> list[tupl
 
 
 def scan(repo_root: Path) -> dict[str, int]:
-    """Return {doc path: unportable invocation count} for in-scope documents."""
+    """Return {file path: undeclared unportable invocation count} for in-scope files."""
     tracked_py = set(tracked_files(repo_root, "*.py"))
     counts: dict[str, int] = {}
-    for rel in tracked_files(repo_root, "*.md"):
+    for rel in tracked_files(repo_root, "*.md", "*.py"):
         if not is_in_scope(rel):
             continue
         path = repo_root / rel
         if not path.is_file():
             continue
         try:
-            text = path.read_text(encoding="utf-8")
+            lines = path.read_text(encoding="utf-8").splitlines()
         except (OSError, UnicodeDecodeError):
             continue
-        total = sum(len(find_offenses(line, repo_root, tracked_py)) for line in text.splitlines())
+        total = sum(
+            len(find_offenses(line, repo_root, tracked_py))
+            for index, line in enumerate(lines)
+            if not is_declared(lines, index)
+        )
         if total:
             counts[rel] = total
     return counts
