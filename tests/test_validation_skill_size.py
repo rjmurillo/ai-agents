@@ -1113,7 +1113,7 @@ class TestGetSkillFilesDefaultScansAllTrees:
         finally:
             os.chdir(original_cwd)
 
-        paths_str = [str(f) for f in files]
+        paths_str = [f.as_posix() for f in files]
         assert any(_SKILL_TREE_PREFIXES[0] in p for p in paths_str), (
             f"Default scan must include {_SKILL_TREE_PREFIXES[0]}"
         )
