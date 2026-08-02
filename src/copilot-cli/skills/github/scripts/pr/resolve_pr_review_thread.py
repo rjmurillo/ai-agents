@@ -20,6 +20,7 @@ import json
 import os
 import subprocess
 import sys
+from typing import Any
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -110,7 +111,7 @@ def resolve_review_thread(thread_id: str) -> bool:
     return False
 
 
-def get_unresolved_threads(pr_number: int) -> list[dict]:
+def get_unresolved_threads(pr_number: int) -> list[dict[str, Any]]:
     """Fetch unresolved review threads for a PR."""
     result = subprocess.run(
         ["gh", "repo", "view", "--json", "owner,name"],
@@ -139,7 +140,7 @@ def get_unresolved_threads(pr_number: int) -> list[dict]:
     return [t for t in threads if not t.get("isResolved", True)]
 
 
-def query_thread_state(thread_id: str) -> dict | None:
+def query_thread_state(thread_id: str) -> dict[str, Any] | None:
     data = gh_graphql(_THREAD_QUERY, {"threadId": thread_id})
     node = data.get("node")
     return node if isinstance(node, dict) else None
