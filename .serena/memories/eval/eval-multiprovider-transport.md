@@ -4,6 +4,8 @@ The eval harness can route baseline and variant calls through one provider selec
 
 Provider names: `openai`, `codex`, `github`, `github-models`, and `anthropic-sdk`. OpenAI and GitHub Models share the OpenAI-compatible provider. GitHub Models uses `https://models.github.ai/inference` and token lookup order `GITHUB_MODELS_TOKEN`, `GITHUB_TOKEN`, `GH_TOKEN`.
 
+**`github` and `github-models` are dead as of 2026-07-30.** GitHub retired GitHub Models that day, permanently and without grandfathering. Both rows resolve to `https://models.github.ai/inference`, which returned HTTP 410 when probed on 2026-08-02. The 410 body still carries the word "temporarily," and `_is_provider_outage` in `scripts/eval/eval-prompt-change.py` matches that text, so an eval routed through either provider now exits neutral instead of red and its gate reports success while grading nothing. Tracked in #4339. Reachable rows are `openai`, `codex`, and `anthropic-sdk`, subject to #4002.
+
 Credential loading mirrors `_anthropic_api.load_api_key`: check env vars first, then repo-root `.env`; reject symlinked module paths before resolving `__file__` so credential lookup cannot be redirected outside the repo.
 
 Error contract: providers raise `RuntimeError` with the HTTP or timeout message shapes that `_eval_api_adapter._categorize_error` already understands. Non-text OpenAI-compatible response content fails loudly instead of returning an empty string.

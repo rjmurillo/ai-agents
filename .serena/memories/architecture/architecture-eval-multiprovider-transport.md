@@ -5,6 +5,16 @@ The eval harness can run through OpenAI or GitHub Models when the
 `EVAL_PROVIDER` (env) or `--provider` (flag). Anthropic stays the default on the
 dependency-free urllib path, so no existing baseline moves.
 
+**The GitHub Models half of that is gone.** GitHub retired the service on
+2026-07-30, permanently and without grandfathering, after brownout rehearsals on
+2026-07-16 and 2026-07-23. Probed on 2026-08-02,
+`https://models.github.ai/inference` returns HTTP 410. The design below is still
+an accurate description of the seam; only the reachability of the `github` and
+`github-models` rows changed. The 410 body still says "temporarily
+unavailable," which `_is_provider_outage` matches, so an eval routed through
+either row exits neutral and its gate reports success while grading nothing.
+Tracked in #4339, with #4002 covering a separate `--provider` defect.
+
 ## Design (Open/Closed)
 
 - `scripts/eval/_providers.py` defines `EvalProvider` (a `Protocol`) with
