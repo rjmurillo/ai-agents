@@ -958,7 +958,7 @@ python3 .claude/skills/session-init/scripts/new_session_log.py
 
 ```bash
 # Validation (structural schema + business rules)
-python3 scripts/validate_session_json.py [session].json
+uv run python scripts/validate_session_json.py [session].json
 ```
 
 For detailed schema structure, load `.agents/schemas/session-log.schema.json` when needed.
@@ -1108,7 +1108,7 @@ The `validate_session_json.py` script checks session protocol compliance:
 
 ```bash
 # Validate current session
-python3 scripts/validate_session_json.py .agents/sessions/2025-12-17-session-01.json
+uv run python scripts/validate_session_json.py .agents/sessions/2025-12-17-session-01.json
 ```
 
 ### What Validation Checks
