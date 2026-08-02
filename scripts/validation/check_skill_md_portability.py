@@ -608,6 +608,11 @@ def check_semantic_baseline_conflict(
         return []
     if baseline_rel not in changed:
         return []
+    # When the scanner script itself changes (e.g. extending EXTRA_SCAN_ROOTS),
+    # the baseline MUST be regenerated to match the new scan scope. That co-change
+    # is intentional, not a conflict. Skip the guard in this case. Issue #4195.
+    if any(rel in _MEASURED_SCANNER_FILES for rel in changed):
+        return []
     return [rel for rel in changed if rel != baseline_rel and _is_measured_input(rel)]
 
 

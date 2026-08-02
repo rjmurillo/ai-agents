@@ -1463,10 +1463,16 @@ class TestBaselineSemanticConflictGuard:
 
         assert rc == 0
 
-    def test_baseline_and_counter_code_cochange_fails_closed(
+    def test_baseline_and_counter_code_cochange_skips_guard(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """Changing the scanner changes what the stored baseline means."""
+        """Scanner script + baseline co-change: guard is skipped (bootstrapping case).
+
+        When the scanner script itself changes (e.g. to extend EXTRA_SCAN_ROOTS),
+        the baseline MUST be regenerated to match the new scope. The semantic
+        conflict guard cannot distinguish a correct co-regen from an accidental
+        one in this case, so it defers to the user. Issue #4195.
+        """
         self._init_repo(tmp_path)
         (tmp_path / "scripts" / "validation" / "check_skill_md_portability.py").write_text(
             "# scanner semantics changed\n", encoding="utf-8"
@@ -1487,9 +1493,7 @@ class TestBaselineSemanticConflictGuard:
             ]
         )
 
-        assert rc == 1
-        out = capsys.readouterr().out
-        assert "scripts/validation/check_skill_md_portability.py" in out
+        assert rc == 0
 
     def test_bad_base_ref_fails_closed_as_config_error(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
