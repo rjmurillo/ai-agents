@@ -24,6 +24,9 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 from active_plan_closeout import validate_active_plan_closeout
+from check_doc_interpreter_portability import (  # noqa: E402
+    validate_doc_interpreter_portability,
+)
 from check_duplicate_test_helpers import validate_duplicate_test_helpers
 from check_nested_tests import validate_no_nested_tests
 from check_test_tree_writes import validate_test_tree_writes
@@ -217,6 +220,15 @@ def run_all_validations(
         "Stale Script References",
         state,
         lambda: validate_stale_script_refs(repo_root),
+    )
+
+    # 3.715 Documented interpreter portability (Issue #3791). Fails when a live
+    # doc tells a contributor to run a script with third-party imports under a
+    # bare `python3`, which dies with ModuleNotFoundError on a clean checkout.
+    run_validation(
+        "Documented Interpreter Portability",
+        state,
+        lambda: validate_doc_interpreter_portability(repo_root),
     )
 
     # 3.72 Orphaned build_all --check deferrals (Issue #2770). Fails when a
@@ -446,6 +458,7 @@ def run_all_validations(
     # optional groups (e.g. ``[a] [b]``) make Copilot CLI parse separate flow nodes.
     # Canonical CI source: .github/workflows/validate-generated-agents.yml, step
     # "Validate Copilot agent frontmatter (issues #2491-#2497, #2500)", which runs
+    # doc-interpreter-portability: verbatim CI quote; CI installs deps system-wide
     # verbatim: ``python3 scripts/validation/validate_argument_hint.py``. This local
     # check calls validate_argument_hint() over the same default scan surface.
     run_validation(

@@ -97,7 +97,7 @@ Serena MCP tools available → MUST call FIRST:
 2. Update Serena memory (if available)
 3. Run scoped markdownlint on changed files (ADR-043, see SESSION-PROTOCOL.md Phase 2)
 4. Commit all changes
-5. Run `python3 scripts/validate_session_json.py [log]`
+5. Run `uv run python scripts/validate_session_json.py [log]`
 
 ## Gotchas (non-obvious, save cycles)
 

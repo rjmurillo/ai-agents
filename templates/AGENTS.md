@@ -108,7 +108,7 @@ Per ADR-036, when adding content that applies to ALL platforms, you MUST update 
 ```text
 1. Edit templates/agents/{agent}.shared.md
 2. Edit src/claude/{agent}.md (MANUAL - not auto-synced!)
-3. Run: python3 build/generate_agents.py
+3. Run: uv run python build/generate_agents.py
 4. Commit all files atomically
 ```
 
@@ -117,7 +117,7 @@ Per ADR-036, when adding content that applies to ALL platforms, you MUST update 
 ```text
 1. Identify universal changes in src/claude/{agent}.md
 2. Duplicate those changes to templates/agents/{agent}.shared.md
-3. Run: python3 build/generate_agents.py
+3. Run: uv run python build/generate_agents.py
 4. Commit all files atomically
 ```
 
@@ -133,10 +133,10 @@ After ANY modification to `templates/`:
 
 ```powershell
 # Regenerate all platform files
-python3 build/generate_agents.py
+uv run python build/generate_agents.py
 
 # Validate generation succeeded
-python3 build/generate_agents.py --validate
+uv run python build/generate_agents.py --validate
 
 # Commit template AND generated files together
 git add templates/ src/vs-code-agents/ src/copilot-cli/
@@ -287,19 +287,19 @@ sequenceDiagram
 ### Generate All Agents
 
 ```bash
-python3 build/generate_agents.py
+uv run python build/generate_agents.py
 ```
 
 ### Preview Changes (Dry Run)
 
 ```bash
-python3 build/generate_agents.py --what-if
+uv run python build/generate_agents.py --what-if
 ```
 
 ### Validate Generated Files
 
 ```bash
-python3 build/generate_agents.py --validate
+uv run python build/generate_agents.py --validate
 ```
 
 ## Monitoring
