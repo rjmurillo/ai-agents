@@ -168,5 +168,10 @@
     "src/copilot-cli/skills/validate-pr-description/SKILL.md": 1,
     "src/copilot-cli/skills/work-operating-model/SKILL.md": 2
   },
-  "marker_files": {}
+  "marker_files": {
+    ".claude/skills/spec-generator/references/spec-prior-art-schema.md": 1,
+    ".claude/skills/spec-generator/references/spec-step0-gates.md": 1,
+    "src/copilot-cli/skills/spec-generator/references/spec-prior-art-schema.md": 1,
+    "src/copilot-cli/skills/spec-generator/references/spec-step0-gates.md": 1
+  }
 }
