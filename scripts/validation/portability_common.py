@@ -121,21 +121,32 @@ def resolve_baseline_path(
     default_baseline_name: str,
     reject_outside_root: bool,
 ) -> Path:
-    """Resolve the baseline path, optionally rejecting root escapes."""
+    """Resolve the baseline path, optionally rejecting root escapes.
+
+    The single home for this reasoning. Every checker that accepts `--baseline`
+    delegates here rather than keeping a copy, because the copies drifted into
+    the same defect independently once already: both resolved the path before
+    handing it on, which erased the symlink the guard downstream exists to
+    refuse. Returns `Path("")` when the candidate escapes the root.
+    """
     if baseline is None:
         return root / "scripts" / "validation" / default_baseline_name
     if not reject_outside_root:
         return baseline if baseline.is_absolute() else root / baseline
 
     root_resolved = root.resolve()
-    resolved = (
-        baseline.expanduser().resolve()
-        if baseline.is_absolute()
-        else (root / baseline).expanduser().resolve()
-    )
-    if not resolved.is_relative_to(root_resolved):
+    candidate = baseline.expanduser()
+    if not candidate.is_absolute():
+        candidate = root / candidate
+    if not candidate.expanduser().resolve().is_relative_to(root_resolved):
         return Path("")
-    return resolved
+    # Return the lexically normalised path, not the resolved one. `resolve()`
+    # follows every symlink, so handing its output onward erases the evidence
+    # the symlink guard exists to find: an in-repository link would pass the
+    # containment test above and then be written through as if it were the
+    # baseline. Collapsing `..` textually is safe precisely because any symlink
+    # that would make it unsound is refused downstream.
+    return Path(os.path.normpath(candidate))
 
 
 def write_baseline(

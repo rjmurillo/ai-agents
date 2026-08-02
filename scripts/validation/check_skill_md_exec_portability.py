@@ -96,6 +96,9 @@ from scripts.validation.portability_common import (
     refuse_unsafe_baseline_write,
     write_baseline_json,
 )
+from scripts.validation.portability_common import (
+    resolve_baseline_path as _common_resolve_baseline_path,
+)
 
 # Shipped skill trees to scan. Both carry SKILL.md files that agents execute:
 # .claude/skills is the canonical tree; src/copilot-cli/skills holds the
@@ -333,15 +336,11 @@ def _resolve_root(repo_root: Path | None) -> Path:
 
 
 def _resolve_baseline_path(root: Path, baseline: Path | None) -> Path | None:
-    if baseline is None:
-        return root / "scripts" / "validation" / _DEFAULT_BASELINE_NAME
-    resolved = baseline.expanduser()
-    if not resolved.is_absolute():
-        resolved = root / resolved
-    resolved = resolved.resolve()
-    if not resolved.is_relative_to(root.resolve()):
-        return None
-    return resolved
+    """Locate the baseline, refusing anything that resolves outside the root."""
+    resolved = _common_resolve_baseline_path(
+        root, baseline, _DEFAULT_BASELINE_NAME, reject_outside_root=True
+    )
+    return None if resolved == Path("") else resolved
 
 
 def _write_baseline(

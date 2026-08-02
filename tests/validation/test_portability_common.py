@@ -149,3 +149,67 @@ class TestTheGuardCannotBeSkippedByForgettingAnArgument:
 
         assert rc == 2
         assert path.read_text(encoding="utf-8") == "{}"
+
+
+class TestAnOverrideKeepsTheEvidenceTheSymlinkGuardNeeds:
+    """`resolve()` follows links, so resolving before the guard runs blinds it.
+
+    The containment test needs the resolved form. The guard needs the lexical
+    one. Returning the resolved path satisfies the first and silently defeats
+    the second, which is how an in-repository symlink passes as a baseline.
+    """
+
+    def test_a_symlinked_override_is_returned_unresolved(self, tmp_path: Path) -> None:
+        root = tmp_path / "repo"
+        (root / "scripts" / "validation").mkdir(parents=True)
+        target = root / "scripts" / "validation" / "other.json"
+        target.write_text("{}", encoding="utf-8")
+        link = root / "scripts" / "validation" / "link.json"
+        link.symlink_to(target)
+
+        resolved = common.resolve_baseline_path(
+            root, Path("scripts/validation/link.json"), "d.json", reject_outside_root=True
+        )
+
+        assert resolved.name == "link.json"
+        assert resolved.is_symlink()
+
+    def test_an_override_outside_the_root_is_still_rejected(
+        self, tmp_path: Path
+    ) -> None:
+        """Keeping the lexical path must not weaken the containment test."""
+        root = tmp_path / "repo"
+        (root / "scripts" / "validation").mkdir(parents=True)
+        outside = tmp_path / "outside.json"
+        outside.write_text("{}", encoding="utf-8")
+
+        resolved = common.resolve_baseline_path(
+            root, outside, "d.json", reject_outside_root=True
+        )
+
+        assert resolved == Path("")
+
+    def test_a_link_pointing_out_of_the_root_is_rejected(self, tmp_path: Path) -> None:
+        root = tmp_path / "repo"
+        (root / "scripts" / "validation").mkdir(parents=True)
+        outside = tmp_path / "outside.json"
+        outside.write_text("{}", encoding="utf-8")
+        link = root / "scripts" / "validation" / "escape.json"
+        link.symlink_to(outside)
+
+        resolved = common.resolve_baseline_path(
+            root, link, "d.json", reject_outside_root=True
+        )
+
+        assert resolved == Path("")
+
+    def test_a_plain_override_still_resolves(self, tmp_path: Path) -> None:
+        """The refusals above are only correct if this stays permitted."""
+        root = tmp_path / "repo"
+        (root / "scripts" / "validation").mkdir(parents=True)
+
+        resolved = common.resolve_baseline_path(
+            root, Path("scripts/validation/b.json"), "d.json", reject_outside_root=True
+        )
+
+        assert resolved == root / "scripts" / "validation" / "b.json"
