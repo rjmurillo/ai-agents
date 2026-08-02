@@ -53,6 +53,10 @@ These rules apply to every change in this repository.
    `tests/hooks/fixtures/` are exempt because they intentionally carry the
    prohibited bytes to exercise detection logic; the dash-guard hook and the
    `validate_dash_prohibition` validator both skip that prefix. Refs Issue #1923.
+   **Quotations**: the ban still applies inside external quotes. If a quoted
+   span or title has a prohibited dash, do not rewrite it. End the quote before
+   it, use `[...]`, or split the quote and explain the dash's job in your prose.
+   Refs Issue #4079.
 6. MUST NOT add auto-generated headers, generation timestamps, or "do not edit"
    comments to any file (agent prompts, documentation, code, template outputs).
    Generated output must be indistinguishable from hand-written content:
