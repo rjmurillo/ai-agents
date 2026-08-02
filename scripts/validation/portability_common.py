@@ -33,12 +33,11 @@ def load_baseline(path: Path) -> dict[str, int]:
 
     baseline: dict[str, int] = {}
     for key, value in files.items():
-        if value is None:
-            raise ValueError(f"Baseline count for {key!r} is null")
-        try:
-            baseline[str(key)] = int(value)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"Baseline count for {key!r} is not an integer") from exc
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise ValueError(
+                f"Baseline count for {key!r} must be a JSON integer, got {type(value).__name__}"
+            )
+        baseline[str(key)] = value
     return baseline
 
 
@@ -120,8 +119,14 @@ def resolve_baseline_path(
     baseline: Path | None,
     default_baseline_name: str,
     reject_outside_root: bool,
-) -> Path:
-    """Resolve the baseline path, optionally rejecting root escapes."""
+) -> Path | None:
+    """Resolve the baseline path, optionally rejecting root escapes.
+
+    Returns None when reject_outside_root is True and the candidate lies
+    outside the repository root. Returns the resolved path otherwise.
+    Not all callers delegate here; check_vendor_portability.py has its own
+    resolver.
+    """
     if baseline is None:
         return root / "scripts" / "validation" / default_baseline_name
     if not reject_outside_root:
@@ -134,7 +139,7 @@ def resolve_baseline_path(
         else (root / baseline).expanduser().resolve()
     )
     if not resolved.is_relative_to(root_resolved):
-        return Path("")
+        return None
     return resolved
 
 
