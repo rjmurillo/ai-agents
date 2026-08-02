@@ -37,7 +37,7 @@ def repo_root() -> Path:
     result = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=True,
     )
     root = Path(result.stdout.strip())

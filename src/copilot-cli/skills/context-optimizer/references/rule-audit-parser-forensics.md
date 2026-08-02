@@ -314,7 +314,6 @@ value against the value actually filed and refuses only on a conflict, or when
 the two cannot be compared at all. All 288 archived payloads are unaffected by
 all three changes; none carries either shape.
 
-
 Round 18 corrected the reasoning behind round 17's third fix, and the
 correction governs the rest. Round 17 argued that an over-eager refusal is a
 defect in the same family as an over-eager accept, "because a dropped sample
@@ -460,8 +459,10 @@ on the reasoning that a string holding only a name holds no number and so
 carries no verdict. That reasoning is true of the string and false of the
 payload. It published this unmarked:
 
-    {"activation_score": 5, "citation_score": 4, "behavior_score": 5,
-     "corrected_verdict": [{"field": "activation_score", "value": 1}, ...]}
+```json
+{"activation_score": 5, "citation_score": 4, "behavior_score": 5,
+ "corrected_verdict": [{"field": "activation_score", "value": 1}, ...]}
+```
 
 Every field name sits in value position and every competing number sits in a
 sibling key, so the exemption excused all three names and the filed 5/4/5 was

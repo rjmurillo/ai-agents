@@ -1,378 +1,158 @@
 # Memory Citation Guide
 
-## Overview
+How to attach citations to a Serena memory, verify them, and fix them when they
+break.
 
-Citations in Serena memories provide traceability between knowledge and codebase locations. This enables automated staleness detection, confidence scoring, and verification of memory accuracy.
+This guide covers the workflow and the judgment calls. It deliberately does not
+restate the schema. The schema of record is
+[CITATION-SCHEMA.md](../architecture/CITATION-SCHEMA.md): field types, source
+types, verification semantics, and both scoring formulas live there, and that is
+the file to change when the code changes.
 
-### Benefits
+## Why Cite
 
-- **Staleness Detection**: Automatically detect when code referenced by memories changes or moves
-- **Confidence Scoring**: Quantify memory reliability based on citation validity
-- **Traceability**: Understand which code a memory references without manual search
-- **CI Integration**: Block or warn on PRs that invalidate memory citations
+A citation ties a claim in a memory to a location in the repository. The payoff
+is mechanical staleness detection: when the cited code moves or disappears,
+`verify` fails and the memory is flagged instead of quietly rotting.
 
-### When to Add Citations
+An uncited memory is not flagged as suspect. It scores a validity factor of 1.0,
+the same as a memory whose citations all pass. Citations buy you detection, not
+credit.
 
-Add citations when memories reference:
+## When To Cite
 
-- **Code patterns**: Implementation patterns, design decisions
-- **Configuration**: Config files, environment variables, build settings
-- **API definitions**: Endpoints, request/response formats, contracts
-- **Architecture**: Component boundaries, data flows, system diagrams
-- **Dependencies**: External libraries, frameworks, tool configurations
+Cite a claim when a reader would otherwise have to search the repository to
+check it:
 
-**Do not** add citations for:
+- A described implementation pattern, so the reader can see it in place.
+- A configuration value, path, or contract the memory asserts.
+- A decision recorded elsewhere, via an `adr`, `issue`, or `pr` citation.
 
-- **General knowledge**: Language features, industry practices
-- **Temporary notes**: Session logs, investigation notes (unless they reference specific code)
-- **Future planning**: Roadmaps, ideas that don't yet exist in code
+Do not cite:
 
-## Citation Schema
+- General knowledge, language features, or industry practice. There is nothing
+  in the repository to point at, and a citation to an incidental file will go
+  stale for no benefit.
+- Planned work that does not exist yet. The citation is broken on arrival.
+- Every file a memory happens to mention. Each citation is a maintenance
+  obligation; a memory with twenty citations fails often and gets ignored.
 
-Citations are stored in YAML frontmatter at the top of memory markdown files.
+Aim to cite the few locations that would falsify the memory if they changed.
 
-### Required Fields
+## Writing a Citation
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `path` | string | Relative file path from repository root (e.g., `scripts/Deploy.ps1`) |
-| `verified` | datetime | ISO 8601 timestamp of last verification (e.g., `2026-01-24T12:00:00Z`) |
+Citations go in the body, conventionally under a `## Citations` heading:
 
-### Optional Fields
+```markdown
+## Citations
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `line` | integer | Line number (1-indexed) for precise location |
-| `snippet` | string | Code snippet for fuzzy matching when lines shift |
-
-### Example
-
-```yaml
----
-id: security-002-input-validation
-subject: Input Validation Pattern
-citations:
-  - path: scripts/Validate-Input.ps1
-    line: 42
-    snippet: "if ($Input -notmatch '^[a-zA-Z0-9]+$')"
-    verified: 2026-01-24T10:30:00Z
-  - path: scripts/api/Invoke-APICall.ps1
-    line: 15
-    verified: 2026-01-24T10:30:00Z
-  - path: .github/workflows/security-scan.yml
-    verified: 2026-01-24T10:30:00Z
-tags:
-  - security
-  - validation
-confidence: 1.0
----
-
-# Input Validation Pattern
-
-This memory documents the standard input validation pattern used across the codebase...
+[cite:file](src/validate.py) - the validation entry point
+[cite:file](src/validate.py:42) - the boundary check
+[cite:function](src/validate.py::validate_input) - the check itself
+[cite:adr](ADR-035-exit-code-standard) - the exit codes this follows
 ```
 
-## Adding Citations
+Relationships between memories use links, conventionally under `## Links`:
 
-### Manual Method
+```markdown
+## Links
 
-1. Open the memory file in `.serena/memories/`
-2. Add or update the `citations` array in the YAML frontmatter
-3. Include required fields: `path` and `verified`
-4. Optionally add `line` and `snippet` for precision
-5. Save and verify: `python -m scripts.memory_enhancement verify <memory-id>`
+[link:related_to](security/output-encoding) - the matching output rule
+```
 
-### CLI Method (Future Phase 4)
+Three things routinely cost people a debugging session:
+
+1. **A link must end its line.** A citation may sit inline in a sentence; a link
+   may not. `[link:related_to](x) and more words` parses as zero links, with no
+   warning.
+2. **The memory id is the path, not the frontmatter.** A memory at
+   `.serena/memories/security/input-validation.md` has the id
+   `security/input-validation`. An `id:` field in frontmatter is ignored.
+3. **A misspelled source type deletes the citation.** It warns on stderr and
+   then the citation is absent from every count, so the memory can pass with
+   nothing checked. Read the stderr of the run, not just its exit code.
+
+There is no command that adds a citation for you and no dry-run mode. Write the
+line, then verify.
+
+## Verifying
+
+Global options must come before the subcommand.
 
 ```bash
-# Add citation to existing memory
-python -m scripts.memory_enhancement add-citation \
-  --memory security-002-input-validation \
-  --path scripts/Validate-Input.ps1 \
-  --line 42 \
-  --snippet "if ($Input -notmatch"
+# One memory
+uv run python -m memory_enhancement verify --memory-id security/security-002-input-validation-first-88
 
-# Bulk add citations from git blame
-python -m scripts.memory_enhancement auto-cite --memory <memory-id>
+# Every memory
+uv run python -m memory_enhancement verify-all
+
+# Aggregate report
+uv run python -m memory_enhancement health --json
 ```
 
-### Best Practices
+`verify` and `verify-all` exit 1 when any citation fails, which is what makes
+them usable in CI.
 
-1. **Use line numbers and snippets for precision**
-   - Line numbers alone can become stale when code is refactored
-   - Snippets enable fuzzy matching: if line 42 moves to line 45 but the snippet still matches, the citation remains valid
+## Reading a Failure
 
-2. **Verify after adding**
-   ```bash
-   python -m scripts.memory_enhancement verify <memory-id>
-   ```
+Failures come in two kinds, and they call for different fixes.
 
-3. **Keep citations focused**
-   - Cite specific functions/classes, not entire files unless the whole file is relevant
-   - Avoid over-citation: 3-5 citations per memory is typical
+**Stale** means the file is still there but the target is not where the
+citation says it is. The reason mentions `exceeds` (the file is now shorter
+than the cited line) or `not found in file` (no `def name` text):
 
-4. **Update verified timestamp**
-   - Set `verified` to the current timestamp when adding or manually verifying a citation
-   - CI will update this automatically during validation
-
-## Verification Workflow
-
-### Local Verification
-
-**Single memory:**
-```bash
-python -m scripts.memory_enhancement verify security-002-input-validation
+```text
+[FAIL] src/a.py:99 - Line 99 exceeds file length (2 lines)
+[FAIL] src/a.py::zzz - Function 'zzz' not found in file
 ```
 
-**Output example:**
-```
-✅ VALID - security-002-input-validation
-Confidence: 100.0%
-Citations: 3/3 valid
-```
+Fix by re-pointing the citation. The knowledge is probably still true.
 
-**All memories with citations:**
-```bash
-python -m scripts.memory_enhancement verify-all
+**Broken** means the target is gone:
+
+```text
+[FAIL] src/gone.py - File not found: src/gone.py
 ```
 
-**Output example:**
-```
-Verified 127 memories: 120 valid, 7 stale
+Fix by finding the replacement, or by asking whether the memory still describes
+the system. A file deleted outright often means the memory is obsolete, not
+mis-pointed.
 
-Stale memories:
+Stale and broken are weighted differently in the health score, which is why the
+distinction is worth keeping straight. See
+[CITATION-SCHEMA.md](../architecture/CITATION-SCHEMA.md) for the formula.
 
-❌ STALE - pr-review-003
-Confidence: 33.3%
-Citations: 1/3 valid
+## Fixing a Stale Citation
 
-Stale citations:
-  - scripts/pr/Review-PR.ps1:102
-    Reason: Line 102 exceeds file length (98 lines)
-  - scripts/pr/Post-Comment.ps1:
-    Reason: File not found: scripts/pr/Post-Comment.ps1
-```
+1. Run `verify --memory-id <id>` and read every `[FAIL]` line.
+2. For each one, open the cited file and find where the content went.
+3. Re-point the citation. For a Python function or method, prefer
+   `[cite:function](path::name)` over `[cite:file](path:LINE)`. A line number
+   is only checked against the file's length, so an edit above it keeps
+   passing while pointing at different content; it fails only once the file
+   gets shorter than the cited line. A function name does not drift that way.
+   For anything
+   else use `[cite:file](path)` or `[cite:file](path:LINE)`: the `function`
+   check is a text search for `def name`, so a TypeScript, C#, or Go name is
+   reported stale even when it exists, and a hyphenated name such as a
+   PowerShell `Get-Thing` is reported broken.
+4. Re-run `verify --memory-id <id>` and confirm it exits 0.
+5. If the content is gone rather than moved, fix the memory text too. A memory
+   that cites the right file while describing behavior that no longer exists is
+   worse than one with a broken citation, because nothing detects it.
 
-### Batch Health Check
+## CI
 
-```bash
-python -m scripts.memory_enhancement health --format markdown
-```
+`.github/workflows/memory-validation.yml` runs verification on pull requests
+that touch `.serena/memories/**` or `scripts/memory_enhancement/**`.
 
-**Output:**
-- Summary: Total memories, valid/stale counts, average confidence
-- Stale memories: Detailed reasons for each stale citation
-- Low confidence (<0.5): Memories needing review
-- Orphaned memories (optional): Memories with no links
-
-**JSON output** (for scripts/CI):
-```bash
-python -m scripts.memory_enhancement health --format json
-```
-
-### CI Integration
-
-The `memory-validation.yml` workflow runs automatically on PRs that touch:
-- `.serena/memories/**`
-- `scripts/memory_enhancement/**`
-- Python files in `scripts/**/*.py`
-
-**Workflow behavior:**
-1. Verifies all memories with citations
-2. Generates health report
-3. Posts PR comment with results
-4. **Currently non-blocking** (warning mode)
-5. Exit with error if stale citations found (can be enabled for blocking mode)
-
-**Sample PR comment:**
-```
-## ⚠️ Warning: Memory Validation
-
-### Summary
-- **Total memories**: 933
-- **Memories with citations**: 127
-- **Valid memories**: 120 ✅
-- **Stale memories**: 7 ❌
-- **Average confidence**: 94.5%
-
-### ❌ Stale Memories
-...
-```
-
-## Interpreting Results
-
-### Confidence Scores
-
-| Score | Interpretation | Action |
-|-------|----------------|--------|
-| 1.0 (100%) | All citations valid | No action needed |
-| 0.7-0.99 (70-99%) | Most citations valid | Review and update stale citations |
-| 0.5-0.69 (50-69%) | Half of citations stale | Update or deprecate memory |
-| <0.5 (<50%) | Majority of citations stale | Consider removing or rewriting memory |
-
-**Calculation:** `confidence = valid_citations / total_citations`
-
-For memories without citations, confidence defaults to `1.0` (assumes manual verification).
-
-### Stale Citation Reasons
-
-| Reason | Meaning | Remediation |
-|--------|---------|-------------|
-| `File not found: path/to/file` | File deleted or moved | Update path or remove citation |
-| `Line X exceeds file length (Y lines)` | File shortened, line no longer exists | Update line number or remove citation |
-| `Snippet not found in line X` | Line content changed | Update snippet or line number |
-| `Error reading file: <error>` | Permissions or encoding issue | Fix file permissions or encoding |
-
-## Examples
-
-### Example 1: Code Pattern with Precise Citations
-
-```yaml
----
-id: implementation-002-test-driven
-subject: Test-Driven Implementation Pattern
-citations:
-  - path: tests/Test-ValidationLogic.Tests.ps1
-    line: 23
-    snippet: "It 'validates input format' {"
-    verified: 2026-01-24T11:00:00Z
-  - path: scripts/Validate-Input.ps1
-    line: 1
-    snippet: "function Validate-Input {"
-    verified: 2026-01-24T11:00:00Z
-tags:
-  - testing
-  - implementation
-confidence: 1.0
----
-
-# Test-Driven Implementation Pattern
-
-When implementing new validation logic, we follow TDD by writing tests first...
-```
-
-### Example 2: Configuration Reference
-
-```yaml
----
-id: ci-infrastructure-002-explicit-retry
-subject: Explicit Retry Timing Configuration
-citations:
-  - path: .github/workflows/pytest.yml
-    line: 87
-    snippet: "timeout-minutes: 10"
-    verified: 2026-01-24T11:15:00Z
-  - path: .github/workflows/memory-validation.yml
-    line: 53
-    snippet: "timeout-minutes: 10"
-    verified: 2026-01-24T11:15:00Z
-tags:
-  - ci-infrastructure
-  - performance
-confidence: 1.0
----
-
-# Explicit Retry Timing Configuration
-
-CI workflows should specify explicit timeouts to prevent infinite hangs...
-```
-
-### Example 3: Before/After Adding Citations
-
-**Before (no citations):**
-```yaml
----
-id: security-003-secure-error-handling
-subject: Secure Error Handling Pattern
-tags:
-  - security
-  - error-handling
----
-
-# Secure Error Handling Pattern
-
-Error messages should not leak sensitive information...
-```
-
-**After (with citations):**
-```yaml
----
-id: security-003-secure-error-handling
-subject: Secure Error Handling Pattern
-citations:
-  - path: scripts/error/Handle-Error.ps1
-    line: 15
-    snippet: 'Write-Host "An error occurred" -ForegroundColor Red'
-    verified: 2026-01-24T12:00:00Z
-  - path: tests/Test-ErrorHandling.Tests.ps1
-    line: 42
-    snippet: "It 'does not leak stack traces' {"
-    verified: 2026-01-24T12:00:00Z
-tags:
-  - security
-  - error-handling
-confidence: 1.0
----
-
-# Secure Error Handling Pattern
-
-Error messages should not leak sensitive information...
-```
-
-## Link Types
-
-Citations are references to code. For relationships between memories, use **links**:
-
-```yaml
-links:
-  - link_type: RELATED
-    target_id: security-001-input-validation
-  - link_type: IMPLEMENTS
-    target_id: adr-042-python-first-enforcement
-  - link_type: SUPERSEDES
-    target_id: security-003-old-error-handling
-```
-
-**Link types:**
-- `RELATED`: General relationship
-- `SUPERSEDES`: This memory replaces an older one
-- `BLOCKS`: This memory blocks another (dependency)
-- `IMPLEMENTS`: This memory implements an ADR/spec
-- `EXTENDS`: This memory extends another with more detail
-
-## Troubleshooting
-
-### Problem: Verification fails with "Module not found"
-
-**Solution:** Install dependencies:
-```bash
-# With UV
-uv pip install --system -e ".[dev]"
-
-# With pip
-pip install -e ".[dev]"
-```
-
-### Problem: All citations show as stale after refactoring
-
-**Solution:** Use `snippet` for fuzzy matching. If line 42 moves to line 50 but the snippet still matches, the citation remains valid. Update line numbers after major refactors.
-
-### Problem: Health report shows 0 memories with citations
-
-**Solution:** This is expected if no memories have citations yet. Start by adding citations to high-importance memories (e.g., security patterns, core architecture decisions).
-
-### Problem: CI workflow doesn't trigger
-
-**Solution:** Ensure your PR touches one of the trigger paths:
-- `.serena/memories/**`
-- `scripts/memory_enhancement/**`
-- `scripts/**/*.py`
-- `pyproject.toml`
-- `uv.lock`
+Read the aggregate numbers before trusting a green result. A repository with
+many memories and no citations reports a perfect health score, because the score
+is computed over citations rather than over memories. A high score with a low
+citation count means nothing was checked.
 
 ## References
 
-- [PRD: Memory Enhancement Layer](../specs/PRD-memory-enhancement-layer-for-serena-forgetful.md)
+- [CITATION-SCHEMA.md](../architecture/CITATION-SCHEMA.md) - schema of record
 - [ADR-038: Reflexion Memory Schema](../architecture/ADR-038-reflexion-memory-schema.md)
-- [Memory Enhancement README](../../scripts/memory_enhancement/README.md)
-- [GitHub Workflow: memory-validation.yml](../../.github/workflows/memory-validation.yml)
+- [memory-validation.yml](../../.github/workflows/memory-validation.yml)

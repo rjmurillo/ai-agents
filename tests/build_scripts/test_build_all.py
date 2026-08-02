@@ -986,7 +986,7 @@ def _git_porcelain(repo: Path) -> str:
     proc = subprocess.run(
         ["git", "-C", str(repo), "status", "--porcelain", "-uall"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=True,
     )
     return proc.stdout

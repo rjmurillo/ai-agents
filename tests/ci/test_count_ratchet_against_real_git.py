@@ -64,11 +64,21 @@ def test_the_shipped_baseline_matches_the_tracked_tree():
     A baseline above the real count is dead allowance: violations could be
     added up to the gap without the gate noticing. A baseline below it means
     main is already red.
+
+    The assertion uses a descriptive message so a failure identifies the
+    ratchet involved. Run ``python scripts/ci/taste_count_ratchet.py``
+    directly (1-2 seconds) to see the per-file detail instead of waiting
+    for the full test suite.
     """
     repo_root = Path(__file__).resolve().parents[2]
     baseline_path = repo_root / "scripts" / "ci" / "taste_count_baseline.txt"
     baseline = int(baseline_path.read_text(encoding="utf-8").strip())
-    assert ratchet.current_count(repo_root) == baseline
+    actual = ratchet.current_count(repo_root)
+    assert actual == baseline, (
+        f"taste count ratchet: baseline is {baseline} but current tree has "
+        f"{actual} violations. "
+        f"Run 'python scripts/ci/taste_count_ratchet.py' for per-file detail."
+    )
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
 def test_a_baseline_outside_the_repo_is_not_bootstrap_against_real_git(tmp_path):

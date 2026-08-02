@@ -63,6 +63,8 @@ AI-assisted coding makes the marginal cost of completeness near-zero. When the c
 
 **When the user explicitly says skip.** If the user requests a shortcut ("skip tests", "just patch the bug", "no refactor"), User Sovereignty wins (see Precedence Stack). State the trade-off once ("OK. Tests skipped: regression on this path is not covered.") and proceed. Do not re-litigate the choice on subsequent turns.
 
+**Naming note.** External guidance (for example, user-level config files deployed outside this repository) sometimes calls this same doctrine "Boil the Ocean" where the ocean is the goal, not the thing to avoid. The framing differs but the intent is identical: do the complete thing. Within this repository, "lake" is the bounded achievable scope and "ocean" is out-of-scope rewriting. If you encounter "Boil the Ocean" in an external file, treat it as a synonym. The URL below uses the ocean framing and is the origin of the doctrine.
+
 Read more: <https://garryslist.org/posts/boil-the-ocean>
 
 ---

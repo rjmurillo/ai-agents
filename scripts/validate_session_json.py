@@ -32,7 +32,7 @@ import argparse
 import json
 import re
 import sys
-from datetime import datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -204,6 +204,12 @@ _CONTRAST_CONJUNCTION = re.compile(r"(?i)\b(but|however|except|though|although)\
 # not a pytest outcome count.
 _NUMERIC_COUNT_TOKENS = frozenset({"skipped"})
 _DIGIT_BEFORE_TOKEN = re.compile(r"(?:^|[,;:]\s*)\d+\s*$")
+# pytest summary lines report counts as "<N> passed", "<N> skipped", etc. across
+# multi-word summaries like "94 passed plus 1 skipped". The narrow prefix check
+# in _DIGIT_BEFORE_TOKEN misses these when the count appears after a word (not a
+# delimiter). This pattern recognises any "<N> outcome-word" in the full evidence
+# string, acting as a secondary escape for the "skipped" token. Issue #3939.
+_PYTEST_SUMMARY_CONTEXT = re.compile(r"\b\d+\s+(?:passed|failed|xfailed|xpassed|error(?:s)?)\b")
 
 # Legacy field name for backward compatibility with existing session logs.
 # Issue #868: "handoffNotUpdated" with Complete=false was a confusing double negative.
@@ -309,6 +315,23 @@ def validate_session_section(session: dict[str, Any], result: ValidationResult) 
     branch = session.get("branch")
     if isinstance(branch, str) and branch and not BRANCH_PATTERN.match(branch):
         result.warnings.append(f"Branch '{branch}' doesn't follow conventional naming")
+
+    # Validate session date is not in the future. A future date means the agent
+    # wrote tomorrow's date or a placeholder; the log will be invisible to
+    # branch-context-policy date filtering (issue #3717).
+    session_date_str = session.get("date")
+    if isinstance(session_date_str, str):
+        try:
+            session_date = date.fromisoformat(session_date_str)
+            today = datetime.now(tz=timezone.utc).date()
+            if session_date > today:
+                result.errors.append(
+                    f"Session date '{session_date_str}' is in the future "
+                    f"(today is {today.isoformat()}); branch-context-policy "
+                    "will not pick up this log"
+                )
+        except ValueError:
+            pass  # Schema already rejects non-date strings via its pattern
 
     # Validate commit SHA format
     commit = session.get("startingCommit")
@@ -420,7 +443,26 @@ def _is_numeric_test_count(evidence: str, match: re.Match[str]) -> bool:
     """
     if match.group(0).lower() not in _NUMERIC_COUNT_TOKENS:
         return False
-    return bool(_DIGIT_BEFORE_TOKEN.search(evidence[: match.start()]))
+    prefix = evidence[: match.start()]
+    if bool(_DIGIT_BEFORE_TOKEN.search(prefix)):
+        return True
+    # _PYTEST_SUMMARY_CONTEXT must only apply to the clause that contains the
+    # matched token. Searching the entire evidence string falsely excuses
+    # "354 passed; markdownlint step skipped": "354 passed" satisfies the
+    # pattern even though the "skipped" belongs to a different clause and is a
+    # genuine contradiction. See post-#4001 adversarial review.
+    clause_start = 0
+    for sep in (";", "\n"):
+        pos = evidence.rfind(sep, 0, match.start())
+        if pos >= 0:
+            clause_start = max(clause_start, pos + 1)
+    clause_end = len(evidence)
+    for sep in (";", "\n"):
+        pos = evidence.find(sep, match.end())
+        if 0 <= pos < clause_end:
+            clause_end = pos
+    clause = evidence[clause_start:clause_end].strip()
+    return bool(_PYTEST_SUMMARY_CONTEXT.search(clause))
 
 
 def _has_contradiction(evidence: str) -> bool:
@@ -601,7 +643,7 @@ def validate_evidence_agrees_with_session(data: dict[str, Any], result: Validati
 
         problem = commit_reachability_problem(ending, _PROJECT_ROOT)
         if problem is not None:
-            result.warnings.append(
+            result.errors.append(
                 f"endingCommit {ending!r} {problem}; the SHA was most likely "
                 "orphaned by amending or rebasing the commit that carried it. "
                 "Record the SHA in a follow-up commit instead of amending "
@@ -903,7 +945,9 @@ def validate_against_schema(
         result.errors.append(_describe(error))
 
 
-def validate_session_log(data: object, *, existing_log: bool = False) -> ValidationResult:
+def validate_session_log(
+    data: object, *, existing_log: bool = False, creation_mode: bool = False
+) -> ValidationResult:
     """Validate a session log against the committed schema and protocol rules.
 
     Args:
@@ -911,6 +955,13 @@ def validate_session_log(data: object, *, existing_log: bool = False) -> Validat
             any JSON value can reach here, so the type is the parser's, not the
             schema's. The schema reports a non-object; the protocol checks below
             need a mapping and are skipped without one.
+        creation_mode: True when the log was just created and session-end
+            evidence does not yet exist. The full schema still binds (required
+            fields, correct types, ``notOnMain``), but ``validate_protocol_compliance``
+            and ``validate_evidence_agrees_with_session`` are skipped because
+            the session has not run yet. Use this at creation time only; use
+            ``existing_log`` for logs already committed. The two modes are
+            mutually exclusive; if both are set, ``existing_log`` wins.
         existing_log: True when the log was already committed and this change
             only edits it. Two different questions are bundled in this file, and
             they have different answers on an old log. Shape ("is this record
@@ -949,10 +1000,14 @@ def validate_session_log(data: object, *, existing_log: bool = False) -> Validat
     if isinstance(data.get("session"), dict):
         validate_session_section(data["session"], result)
 
-    if not existing_log and isinstance(data.get("protocolCompliance"), dict):
+    # creation_mode: the session just started; checklist items are incomplete
+    # by design and evidence-agreement checks have nothing to compare against.
+    # existing_log wins when both are set (see docstring).
+    skip_compliance = existing_log or creation_mode
+    if not skip_compliance and isinstance(data.get("protocolCompliance"), dict):
         validate_protocol_compliance(data["protocolCompliance"], result)
 
-    if not existing_log:
+    if not existing_log and not creation_mode:
         validate_evidence_agrees_with_session(data, result)
 
     return result
@@ -1152,10 +1207,20 @@ def parse_args() -> argparse.Namespace:
         "--existing-log",
         action="store_true",
         help=(
-            "Validate as a record only: skip the session-compliance checklist. "
-            "Set this for a log that was already committed and is only being "
-            "edited, where a checklist item cannot be made true retroactively. "
-            "A newly added log must not set it."
+            "Skip protocol-compliance and evidence-agreement checks: validate "
+            "schema and shape only. Use for a log already committed where "
+            "a checklist item cannot be made true retroactively."
+        ),
+    )
+    parser.add_argument(
+        "--creation-mode",
+        action="store_true",
+        help=(
+            "Validate a freshly created log: full schema check plus structural "
+            "shape, but skip protocol-compliance (checklist items are incomplete "
+            "by design) and evidence-agreement (nothing to agree against yet). "
+            "Use only at session-creation time; use --existing-log for already-"
+            "committed logs."
         ),
     )
     parser.add_argument(
@@ -1237,7 +1302,9 @@ def main() -> int:
                 _PROJECT_ROOT,
             )
 
-        result = validate_session_log(data, existing_log=existing_log)
+        result = validate_session_log(
+            data, existing_log=existing_log, creation_mode=args.creation_mode
+        )
         validate_filename_number(validated_path, data, result)
 
         # Report results

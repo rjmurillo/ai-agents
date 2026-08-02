@@ -1,0 +1,246 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3996,
+    "date": "2026-07-30",
+    "branch": "fix/memory-enhancement-cli-docs",
+    "startingCommit": "32af5363f",
+    "objective": "Correct memory_enhancement CLI documentation to the measured command surface and install an executable guard"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP tools are not exposed in this harness; used the AGENTS.md documented fallback of reading .serena/memories/ directly, including testing/issue-998-graph-traversal-verification.md."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena unavailable; loaded AGENTS.md, CLAUDE.md, and .claude/rules/* as the documented fallback instruction source."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read and not modified."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "memory-enhancement, reflect, code-review-and-quality, doubt-driven-development, llm-council, and github skills loaded during work."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill-first routing applied from AGENTS.md."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md, .claude/rules/universal.md, generated-artifacts.md, and plugin-version-bump.md read before editing."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/testing/issue-998-graph-traversal-verification.md read and corrected during this session."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned fix/memory-enhancement-cli-docs."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Work ran in worktree /tmp/wt-cli on fix/memory-enhancement-cli-docs."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status checked before and after each edit batch."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "32af5363f, origin/main at branch creation."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Documentation corrected, guard test added, mirrors regenerated, manifests bumped."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md read only; not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "issue-998-graph-traversal-verification.md updated with a dated supersession note for the Phase 2 graph CLI signature."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 invoked on all 11 changed markdown files and reported 'Linting: 0 files': every touched path (.agents/**, .serena/**, .claude/skills/**, src/copilot-cli/skills/**) is excluded by the repository markdownlint config, so no rules apply."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed across atomic commits of five files or fewer."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "58 guard tests pass; ruff clean on the new file with the 331-error repository baseline unchanged; plugin manifest parity green."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Follow-up defects recorded in nextSteps for issue filing."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Deferred; findings captured in nextSteps and in the PR description."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-07-30T04:30:00Z",
+      "entry": "Built an executable guard that parses every documented memory_enhancement invocation against the real argparse parser, with negative and positive controls."
+    },
+    {
+      "time": "2026-07-30T04:55:00Z",
+      "entry": "A self-written control caught the detector mistaking a global option value for a subcommand name; added _VALUE_TAKING_GLOBALS and a dedicated control."
+    },
+    {
+      "time": "2026-07-30T05:20:00Z",
+      "entry": "Read confidence.py, verification.py, health.py, and serena_integration.py to establish the measured formulas and citation source types."
+    },
+    {
+      "time": "2026-07-30T05:40:00Z",
+      "entry": "Built probe repositories and captured real CLI output for every documented example instead of inventing output."
+    },
+    {
+      "time": "2026-07-30T05:50:00Z",
+      "entry": "Rewrote SKILL.md, confidence-scoring.md, examples.md, CITATION-SCHEMA.md, and the reflect Phase 4 section against measured behavior."
+    },
+    {
+      "time": "2026-07-30T06:05:00Z",
+      "entry": "Proved citations parse inline but links are dropped unless they end their line, and that an unrecognized source type drops the citation while the memory still exits 0."
+    },
+    {
+      "time": "2026-07-30T06:15:00Z",
+      "entry": "Rewrote memory-citation-guide.md from 378 lines to 150, removing a duplicated and fabricated schema in favour of a pointer to CITATION-SCHEMA.md."
+    },
+    {
+      "time": "2026-07-30T06:25:00Z",
+      "entry": "Confirmed via git history that the issue-998 memory was accurate when written and superseded by PR 1576; annotated rather than rewrote the record."
+    },
+    {
+      "time": "2026-07-30T06:35:00Z",
+      "entry": "Widened the guard to bare subcommand fragments; the new controls exposed a pre-existing normalizer bug where the '>' closing a placeholder was treated as a shell redirect."
+    },
+    {
+      "time": "2026-07-30T06:45:00Z",
+      "entry": "Regenerated the Copilot CLI skill mirrors with build/scripts/generate_skills.py and bumped both project-toolkit manifests to 0.6.5431."
+    },
+    {
+      "time": "2026-07-30T07:10:00Z",
+      "entry": "Ran two adversarial review rounds on other model families; reproduced every finding by execution before acting, which downgraded two of seven from one reviewer and rejected one of three from the other."
+    },
+    {
+      "time": "2026-07-30T07:30:00Z",
+      "entry": "Closed four scanner holes the reviews found: an int substitution swallowing the following flag, a line continuation hiding a flag, a redirect leaving a stray descriptor, and exempt roots deletable without detection."
+    },
+    {
+      "time": "2026-07-30T07:45:00Z",
+      "entry": "Rejected a fifth proposed widening after measuring corpus incidence: the single command substitution in the corpus is quoted and already parses, and the unquoted form fails loudly rather than silently."
+    },
+    {
+      "time": "2026-07-30T08:00:00Z",
+      "entry": "Mutation-tested three new assertions by reverting each fix in turn and confirming the matching test fails; guard suite is 71 tests, up from 63."
+    },
+    {
+      "time": "2026-07-30T08:20:00Z",
+      "entry": "Disproved my own correction: a probe showed a TypeScript file containing the comment '// def ts_func' verifies as PASS, so the citation check is a raw text search, not a definition check, and all three documents now say that."
+    },
+    {
+      "timestamp": "2026-07-30T22:10:00Z",
+      "activity": "Addressed three Copilot review comments on PR #4008. Reproduced each before acting: the scanner's git ls-files call decoded with the platform default encoding (a Windows cp1252 crash risk), the citation guide invoked the CLI as scripts.memory_enhancement, and the session log carried an empty endingCommit.",
+      "outcome": "All three confirmed. Pinned utf-8 with errors=replace, normalized three module paths to memory_enhancement, and recorded the ending commit."
+    },
+    {
+      "timestamp": "2026-07-30T22:25:00Z",
+      "activity": "Checked whether the guide's normalized command actually runs. Both module paths execute identically (rc 0), so the finding was a consistency defect rather than a break. Confirmed the skill and the guide now spell the CLI the same way.",
+      "outcome": "Single spelling of record across every document that describes the CLI."
+    },
+    {
+      "timestamp": "2026-07-30T22:40:00Z",
+      "activity": "Ran every concrete --memory-id value documented across the doc roots rather than trusting the review scope. Four ids resolved: security/input-validation (twice), security/output-encoding, and input-validation. All four exited 1 with 'Memory not found'.",
+      "outcome": "Found a defect class the guard misses entirely: it validates flag syntax but never argument values."
+    },
+    {
+      "timestamp": "2026-07-30T22:55:00Z",
+      "activity": "Read the surrounding prose before changing any of the four. examples.md already declares its fixture ('security/input-validation cites src/validate.py and src/missing.py') ahead of Examples 1 and 2, and Example 3's unknown-id output matches the real tool byte for byte. Those are correctly labelled hypotheticals.",
+      "outcome": "Left examples.md alone. Changing it would have broken a deliberate teaching fixture."
+    },
+    {
+      "timestamp": "2026-07-30T23:05:00Z",
+      "activity": "Measured whether a real memory could replace the hypotheticals. verify-all reports 'no citations' for all 878 memories and health --json returns total_citations 0, so no live memory can demonstrate citation output. Confirms the vacuity behind health_score 1.0 already tracked in issue #3980.",
+      "outcome": "A hypothetical is unavoidable in CITATION-SCHEMA.md, so declared it in prose instead of inventing a fake id."
+    },
+    {
+      "timestamp": "2026-07-30T23:15:00Z",
+      "activity": "Pointed the guide's single-memory example at security/security-002-input-validation-first-88, verified to exit 0, so the one command a reader is most likely to copy is runnable.",
+      "outcome": "Guard 71 passed, 0 em or en dashes across all changed files, no .claude changes so no version bump or mirror regeneration required."
+    },
+    {
+      "timestamp": "2026-07-31T00:10:00Z",
+      "activity": "Third adversarial review round on GPT-5.6 Sol returned five findings, four marked merge blockers. Reproduced each by execution before acting rather than accepting the severities.",
+      "outcome": "Two blockers confirmed, one downgraded to medium, one partly misread. All five still worth fixing; none accepted on the reviewer's word."
+    },
+    {
+      "timestamp": "2026-07-31T00:25:00Z",
+      "activity": "DOC-2, the one that mattered. The guide and the reflect reference both claimed a line citation 'goes stale on the next edit above it'. _verify_file_line only counts lines. Proved it: cite drift.py:5 in a 10-line file, insert three lines above, and the citation still passes while line 5 now holds different content.",
+      "outcome": "The claim was backwards. It is a silent false pass, and CITATION-SCHEMA.md already said the opposite, so the docs contradicted each other. Rewrote all three to say a line number is checked against length only and fails just on truncation."
+    },
+    {
+      "timestamp": "2026-07-31T00:40:00Z",
+      "activity": "Pinned the corrected behaviour with two characterization tests, since prose cannot be verified but the behaviour it describes can. Mutation-checked both by flipping the success return in _verify_file_line; both failed, and the file restored byte-clean.",
+      "outcome": "If line citations ever become content-aware the tests fail and name the three documents that must change with them."
+    },
+    {
+      "timestamp": "2026-07-31T00:55:00Z",
+      "activity": "PORT-1 claimed the vendor-portability declarations omit cited paths. Ran the repo's own gate: 'No new vendor-portability offenders', so it is not a gate violation. On substance the reviewer was right that a declaration naming two ADRs while the skill also cites two workflow files is incomplete.",
+      "outcome": "Downgraded from blocker to medium and fixed anyway. Both declarations now name every path a vendored install loses."
+    },
+    {
+      "timestamp": "2026-07-31T01:10:00Z",
+      "activity": "DOC-3 claimed the skill presents a fictional workflow as the deployed one. It is actually labelled 'Example workflow (for reference)', so the framing was wrong, but the 35 lines of YAML did contradict the real workflow on name, path filters, blocking behaviour, and a PR-comment step that does not exist.",
+      "outcome": "Replaced the fiction with six accurate lines read off .github/workflows/citation-verify.yml. SKILL.md dropped from 360 to 322 lines."
+    },
+    {
+      "timestamp": "2026-07-31T01:20:00Z",
+      "activity": "Closed DOC-4 and the remainder of DOC-1: health does not rank, so 'ranks the damage' became 'summarizes', and the function-citation recommendation is now scoped to Python where the def-text search actually works.",
+      "outcome": "Version gate OK at 0.6.5432, build_all idempotent, 104 targeted tests pass, taste lints 0 errors, 0 em or en dashes across all 13 changed files."
+    }
+  ],
+  "endingCommit": "7c64e26c23a9e1ee091de6495b82bff7099ffb35",
+  "nextSteps": [
+    "File: search emits memory ids that verify --memory-id rejects for any memory in a subdirectory.",
+    "File: session_end_memory.py and reinforce_memories() are unreachable because no SessionEnd hook is registered, yet hook-protocol.md lists the hook as live.",
+    "File: add-citation, list-citations, and update-confidence were documented but never built; decide implement versus drop.",
+    "File: the repository reports a perfect memory health score over zero citations, which makes the CI signal vacuous.",
+    "Check PR 3993, whose plugin version equals main and will fail the strictly-greater bump gate."
+  ]
+}

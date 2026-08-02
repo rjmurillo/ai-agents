@@ -175,10 +175,11 @@ def test_both_gates_deny_relief_when_branch_merges_only_landed_side(tmp_path: Pa
     """NEGATIVE PARITY (the divergence case from issue #3997).
 
     A feature branch that merges a side branch already landed on main must NOT
-    receive the 40-commit relief from either gate. Before the fix, CI's
-    contains_base_merge granted relief (s1 was external to the PR commit list
-    because s1 is reachable from main), while the pre-push hook denied it (s1
-    is not on origin/main's first-parent history).
+    receive the 40-commit relief from either gate. Before the fix (PR #4030),
+    the broader contains_base_merge approximation granted relief (s1 was
+    external to the PR commit list because s1 is reachable from main), while
+    the pre-push hook denied it (s1 is not on origin/main's first-parent
+    history). Both gates now use contains_main_merge and agree.
     """
     repo, base, head = _repo_branch_merges_landed_side(tmp_path, "both-deny")
 

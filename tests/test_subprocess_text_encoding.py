@@ -349,8 +349,29 @@ def _has_splat(call: ast.Call) -> bool:
     Live, and load bearing. This helper was dead once, and the reason it was
     dead was a hole in :func:`_captures_text`, not an excess of caution. See
     the splat cases in ``test_detector_closes_the_evasions``.
+
+    A ``**{}`` or ``**{"cwd": "."}`` splat is a literal dict whose keys are
+    visible at parse time. If none of those keys are text-mode keywords the
+    splat cannot select text mode, so it does not count as a splat for
+    purposes of this check. Any key the scan cannot see, including a nested
+    ``**inner`` inside the literal, is treated conservatively: the splat
+    counts as opaque and the call is flagged.
     """
-    return any(keyword.arg is None for keyword in call.keywords)
+    for keyword in call.keywords:
+        if keyword.arg is not None:
+            continue
+        if not isinstance(keyword.value, ast.Dict):
+            return True
+        # Literal dict: flag only if any key is a text-mode keyword or
+        # the key is unknown (nested splat inside the dict literal).
+        for key in keyword.value.keys:
+            if key is None:
+                return True  # nested ``**inner`` expands unknowns
+            if not isinstance(key, ast.Constant):
+                return True  # non-literal key: value unknown at parse time
+            if key.value in _TEXT_MODE_KEYWORDS:
+                return True
+    return False
 
 
 def _is_falsy_literal(node: ast.expr | None) -> bool:
@@ -675,7 +696,10 @@ def _attribute(
     node: ast.Attribute, modules: dict[str, str], functions: dict[str, str]
 ) -> str | None:
     """Return the subprocess entry point ``owner.attr`` names, or ``None``."""
-    owner, attr = _owner_module(node.value, modules), node.attr
+    owner = _owner_module(node.value, modules)
+    if owner is None:
+        owner = _module_from_container(node.value, modules)
+    attr = node.attr
     if owner == "subprocess" and attr in _SUBPROCESS_ATTRS:
         return attr
     if owner == "os" and attr == "popen":
@@ -1292,6 +1316,29 @@ def _settle(
             queue.extend(waiting.get(one, ()))
         settled.add(key)
     return grown
+
+
+def _module_from_container(node: ast.expr, modules: dict[str, str]) -> str | None:
+    """Return the module every element of a subscripted container maps to.
+
+    ``[subprocess][0].run`` resolves the attribute against the sole module
+    the container holds. Only resolves when every element in the innermost
+    unwound container names the same module: ``[os, subprocess][1].run``
+    stays unresolved because index arithmetic is not modelled and the two
+    elements disagree.
+    """
+    while isinstance(node, ast.Subscript):
+        node = node.value
+    if not isinstance(node, (ast.List, ast.Tuple)):
+        return None
+    found: set[str] = set()
+    for elt in node.elts:
+        m = _owner_module(elt, modules)
+        if m is None:
+            return None
+        found.add(m)
+    return found.pop() if len(found) == 1 else None
+
 
 
 def _owner_name(node: ast.expr) -> str | None:
@@ -3125,6 +3172,14 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             'runner(["x"], text=True)',
             "a parameter shadows a reader inside its own function, not the file",
         ),
+        (
+            'import subprocess\nsubprocess.run(["x"], **{})',
+            "an empty literal-dict splat carries no text-mode key and returns bytes",
+        ),
+        (
+            'import subprocess\nsubprocess.run(["x"], **{"cwd": "."})',
+            "a literal-dict splat with only non-text-mode keys cannot decode",
+        ),
     ],
 )
 def test_detector_stays_quiet(source: str, why: str) -> None:
@@ -4778,6 +4833,14 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'fetch(runner)["encoding"] = None\n'
             'runner(["x"], text=True)',
             "methodcaller names the dunder as a string and calls it later",
+        ),
+        (
+            'import subprocess\n[subprocess][0].run(["x"], capture_output=True, text=True)',
+            "a module in a subscripted list still reaches its entry point",
+        ),
+        (
+            'import subprocess\nk = "text"\nsubprocess.run(["x"], **{k: True})',
+            "a dict splat with a non-constant key is treated as opaque and flagged",
         ),
     ],
 )

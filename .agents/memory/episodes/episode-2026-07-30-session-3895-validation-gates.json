@@ -1,0 +1,119 @@
+{
+  "id": "episode-2026-07-30-session-3895-validation-gates",
+  "session": "2026-07-30-session-3895-validation-gates",
+  "timestamp": "2026-07-30T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Close 12 issues in the validation-gates cluster: measure every premise, close stale issues with evidence, implement fixes for fail-open paths and the needs-split push-gate deadlock (#3895), tighten the portability ratchet (#3730), fix authored-commit counting (#3920), fix BLOCKED annotation severity (#3901), unify workspace budget constants (#3951), fix python3 invocation docs (#3903), fix pr_description reference-section suppression (#3712), and add violation detail to count_ratchet (#3902). adr-review skill invocation: SESSION-PROTOCOL.md is changed in the python3 fix commit as a documentation-only update, not an ADR or architectural decision. The change is a one-liner replacing python3 with uv run python in an invocation example, consistent with ADR-042 Python-migration strategy already in force.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured all 12 issues before acting. Closed 4 with evidence: #3670 (architecture decision, not a code bug), #3938 (duplicate of #3903), #3942 (stale: 46 entries in baseline, not 4), #3943 (already implemented).",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #3920 and #3901 in pr_commit_count.py: _authored_commit_count() counts commits with <= 1 parent, excluding merge commits. Changed BLOCKED annotation from ::error:: to ::warning:: because enforce_pr_validation.py makes the final decision with bypass-label check.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #3895 (needs-split deadlock) in git_hook_policy.py: added _new_commits_for_branch() helper and needs-split bypass path in _check_commit_limit(). A branch with needs-split label and <= 5 new commits in the push bypasses the limit to allow review-feedback commits to land.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #3951 in tests/test_workspace_limits.py: replaced hardcoded 6758/3072 constants with imports from validate_workspace_budget.py (authoritative: 6600/3000 + .claude/CLAUDE.md).",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #3730 in check_skill_portability.py: changed exit condition to fail on improvements OR regressions, not regressions alone. Slack in baseline allows future regressions to accumulate silently. Updated baseline to current actuals (157 refs, 83 scripts).",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #3903 in AGENTS.md, .agents/SESSION-PROTOCOL.md, .github/PULL_REQUEST_TEMPLATE.md, .claude/rules/ci-scripts.md, and mirrors: replaced python3 with uv run python in pre_pr invocation examples. Change is documentation-only, consistent with ADR-042.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #3712 in pr_description.py: added extract_all_mentioned_files() that keeps reference sections intact. WARNING suppression (check 2) now uses this broader set so informational-section file mentions silence 'significant file not mentioned'.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #3902 in count_ratchet.py and taste_count_ratchet.py: added lister parameter to run(); list_violations() in taste_count_ratchet returns per-violation lines; regression output now includes up to 40 violations.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Mutation harness: 7 mutants killed across 6 production files. Added boundary test for needs-split cap (exactly 5 new commits = allow; 6 = block) after the <= mutation survived with only 3 and 10 as test values.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 6a4f9abb9",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-30-session-3895-validation-gates"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: db15017ce",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-30-session-3895-validation-gates"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: fb7981005",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-30-session-3895-validation-gates"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 8
+  },
+  "lessons": []
+}

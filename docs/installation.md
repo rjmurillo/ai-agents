@@ -125,8 +125,8 @@ Skill directory layout:
 To validate the repository copy of the skills structure:
 
 ```bash
-python3 scripts/validate_skill_installation.py
-python3 scripts/validate_skill_installation.py --verbose
+uv run python scripts/validate_skill_installation.py
+uv run python scripts/validate_skill_installation.py --verbose
 ```
 
 ### Optional skill packs
