@@ -54,6 +54,17 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+# Import baseline-visibility guards from sibling module.  The same logic lives
+# in portability_common.resolve_checked_baseline, but that function also
+# resolves the path and requires a default-name parameter that is redundant
+# here.  Importing the two atomic predicates keeps the dependency minimal.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from portability_baseline import (  # noqa: E402
+    refuse_oversized_baseline,
+    refuse_symlinked_baseline,
+    refuse_undiffable_baseline,
+)
+
 RULES_SUBDIR = Path(".claude") / "rules"
 SKILLS_SUBDIR = Path(".claude") / "skills"
 RULE_SCENARIOS_SUBDIR = Path("tests") / "evals" / "rule-scenarios"
@@ -377,6 +388,15 @@ def _format_regressions(new_rules: set[str], new_skills: set[str]) -> list[str]:
 
 def run(repo_root: Path, baseline_path: Path, update: bool) -> int:
     """Execute the coverage gate. Return an exit code (never fails open)."""
+    # Refuse a baseline whose diff attribute is unset: a hidden baseline lets
+    # a lowered count land without review seeing it (issue #4249).
+    if refuse_symlinked_baseline(repo_root, baseline_path):
+        return EXIT_CONFIG
+    if refuse_undiffable_baseline(repo_root, baseline_path):
+        return EXIT_CONFIG
+    if refuse_oversized_baseline(baseline_path):
+        return EXIT_CONFIG
+
     uncovered_rules, uncovered_skills = compute_uncovered(repo_root)
 
     if update:
