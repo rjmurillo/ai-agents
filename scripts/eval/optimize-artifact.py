@@ -2493,10 +2493,41 @@ def cmd_report(args: argparse.Namespace) -> int:
             "run the loop against that split, and report at the end."
         )
     holdout_key = _holdout_key(split, _REPORT_GROUP)
+
+    # Header only, and before the lock, so the corpus refusal costs nothing.
+    # `cmd_gate` orders it the same way and for the same reason, and the stake
+    # is higher here: its budget is whatever cap the run opened with, this one
+    # is one, so charging a file scored against the wrong task set would cost a
+    # re-split and a re-run of the loop. Reading the header is not a reveal
+    # either, since the caller supplied the file and the refusal below prints
+    # no task id.
+    pin = split.get("corpus", _UNPINNED)
+    with _digest_scrubbed(holdout_key):
+        corpus = _corpus_header(args.results)
+        _refuse_unparseable_input(args.results)
+    # `_corpus_conflict` counts the distinct identities declared across the
+    # inputs, so the gate's two files and this command's one reach it through
+    # the same predicate; passing the single header on both sides lets the set
+    # collapse it rather than restating the rule with one fewer term.
+    if _corpus_refused(pin, corpus, corpus):
+        _emit({
+            "decision": "REFUSE",
+            "reason": (
+                "the split and the results do not agree on one corpus, so the "
+                "number would describe a different task set than the split "
+                "names. Re-score the artifact so that one corpus is named "
+                "across both, and report again. This attempt spent nothing."
+            ),
+            "reported": False,
+            "group": _REPORT_GROUP,
+            "fingerprint": split["fingerprint"],
+        })
+        return EXIT_LOGIC
+
     # The lock spans the read, the compare, and the write, so two reports
     # started together cannot both find an unspent budget and both reveal.
     with _ledger_held(holdout_key):
-        return _report_reveal(args, split, holdout_key, test_ids)
+        return _report_reveal(args, split, holdout_key, test_ids, pin)
 
 
 def _report_reveal(
@@ -2504,6 +2535,7 @@ def _report_reveal(
     split: dict[str, Any],
     holdout_key: str,
     test_ids: list[str],
+    pin: object,
 ) -> int:
     """Spend the one reveal and report what it bought."""
     ledger = _ledger_path(holdout_key, _REPORT_LEDGER_SUFFIX)
@@ -2539,7 +2571,8 @@ def _report_reveal(
 
     # Read before the charge, so a file that never parsed is a config error
     # rather than a spent budget. `cmd_gate` orders its own read the same way.
-    results = _read_results(args.results).results
+    results_file = _read_results(args.results)
+    results = results_file.results
 
     # Charge before reading the group, not after emitting a number. A crash
     # between the two would otherwise leave the group read and the reveal
@@ -2567,6 +2600,11 @@ def _report_reveal(
         "score": _score_group(results, split, _REPORT_GROUP),
         "group": _REPORT_GROUP,
         "n": len(test_ids),
+        # False means the check never ran, not that it failed: a disagreement
+        # refused above without charging. One field rather than the gate's two,
+        # because `corpus_pinned` and `corpus_verified` differ there only in the
+        # unpinned pair that agrees with itself, and one file has no such pair.
+        "corpus_verified": results_file.corpus is not None and results_file.corpus == pin,
         "fingerprint": split["fingerprint"],
     })
     return EXIT_OK

@@ -2722,6 +2722,107 @@ class TestTheTestGroupIsReadOnceByReport:
             _run(capsys, "report", "--results", cand, "--split", split_path,
                  "--group", "opt")
 
+    # -- the corpus pin, which the gate already honours ----------------------
+
+    def _pinned_split(self, tmp_path, capsys, corpus, *, seed="s1"):
+        """The split with a corpus pin written in, as `split --corpus` records it.
+
+        The pin sits outside the fingerprint, so writing it after the draw
+        produces the same file `split --results` writes from an enveloped
+        source. `TestOneCorpusOrNoComparison` edits the same key the same way.
+        """
+        split_path, record, tasks = self._split_fixture(tmp_path, capsys, seed=seed)
+        record["corpus"] = corpus
+        split_path.write_text(json.dumps(record), encoding="utf-8")
+        return split_path, record, tasks
+
+    def _enveloped_candidate(self, tmp_path, corpus, *, name="cand.json"):
+        verdicts = {f"t{i:02d}": True for i in range(20)}
+        return _write(tmp_path, name, _enveloped(corpus, verdicts, name=name))
+
+    def test_a_results_file_from_another_corpus_is_refused(self, tmp_path, capsys):
+        """`cmd_gate` refuses a corpus disagreement; this read must too.
+
+        A gate that compares across a corpus change measures the change as
+        well as the edit. A report over the wrong corpus is worse: nothing
+        downstream compares it against anything, so the number ships as the
+        final honest one under a fingerprint naming other tasks.
+        """
+        split_path, _, _ = self._pinned_split(tmp_path, capsys, _SHA_A)
+        cand = self._enveloped_candidate(tmp_path, _SHA_B)
+
+        code, out = self._report(capsys, cand, split_path)
+
+        assert (code, out["decision"], out["reported"]) == (EXIT_LOGIC, "REFUSE", False)
+        assert "corpus" in out["reason"]
+        assert "score" not in out
+
+    def test_a_corpus_refusal_does_not_spend_the_report(self, tmp_path, capsys):
+        """Decidable from a header, so it costs nothing, as at `cmd_gate`.
+
+        The stake is higher here than there: the gate's budget is whatever cap
+        the run opened with, and this one is one. Charging a mistyped path
+        would cost a re-split and a re-run of the whole loop.
+        """
+        split_path, _, _ = self._pinned_split(tmp_path, capsys, _SHA_A)
+        wrong = self._enveloped_candidate(tmp_path, _SHA_B, name="wrong.json")
+        right = self._enveloped_candidate(tmp_path, _SHA_A, name="right.json")
+
+        refused_code, _ = self._report(capsys, wrong, split_path)
+        code, out = self._report(capsys, right, split_path)
+
+        assert refused_code == EXIT_LOGIC
+        assert (code, out["group"], out["score"]) == (EXIT_OK, "test", 1.0)
+
+    def test_a_stripped_envelope_beside_a_pin_is_refused(self, tmp_path, capsys):
+        """Omission is the bypass the pair rule closes: stripping the envelope
+        turns a digest into an unknown, and an unknown beside a pin is a
+        disagreement rather than a blank."""
+        split_path, _, _ = self._pinned_split(tmp_path, capsys, _SHA_A)
+        bare = self._candidate(tmp_path, name="bare.json")
+
+        code, out = self._report(capsys, bare, split_path)
+
+        assert (code, out["decision"]) == (EXIT_LOGIC, "REFUSE")
+        assert "corpus" in out["reason"]
+
+    def test_a_matching_corpus_reports_and_says_the_check_ran(self, tmp_path, capsys):
+        split_path, _, _ = self._pinned_split(tmp_path, capsys, _SHA_A)
+        cand = self._enveloped_candidate(tmp_path, _SHA_A)
+
+        code, out = self._report(capsys, cand, split_path)
+
+        assert (code, out["score"]) == (EXIT_OK, 1.0)
+        assert out["corpus_verified"] is True
+
+    def test_an_unpinned_split_still_reports_and_says_the_check_never_ran(
+        self, tmp_path, capsys
+    ):
+        """The rule and hook paths publish no corpus identity at all, so the
+        report stays available there, flagged rather than refused."""
+        split_path, _, _ = self._split_fixture(tmp_path, capsys)
+        cand = self._candidate(tmp_path)
+
+        code, out = self._report(capsys, cand, split_path)
+
+        assert (code, out["score"]) == (EXIT_OK, 1.0)
+        assert out["corpus_verified"] is False
+
+    def test_a_corpus_with_nothing_to_check_it_against_is_not_verified(
+        self, tmp_path, capsys
+    ):
+        """A split drawn from a task list pins nothing, so one named corpus is
+        not a conflict and is also not a check that passed. `_UNPINNED` is a
+        sentinel rather than `None` for exactly this row, and the verdict must
+        not read it as a match."""
+        split_path, _, _ = self._split_fixture(tmp_path, capsys)
+        cand = self._enveloped_candidate(tmp_path, _SHA_A)
+
+        code, out = self._report(capsys, cand, split_path)
+
+        assert (code, out["score"]) == (EXIT_OK, 1.0)
+        assert out["corpus_verified"] is False
+
 
 class TestConsultationLedgerIsHeldByTheGate:
     """A budget the caller passes in is not a budget.

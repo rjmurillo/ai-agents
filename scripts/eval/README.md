@@ -660,19 +660,28 @@ reads the third group:
 uv run --frozen python "$OA" report --results cand.json --split split.json
 ```
 
-It prints `score`, `group`, `n`, and `fingerprint`, and no `decision` field,
-because it reports rather than decides. Exit 0 on a number, 1 on a refusal,
-2 on a split it cannot use.
+It prints `score`, `group`, `n`, `corpus_verified`, and `fingerprint`, and no
+`decision` field, because it reports rather than decides. Exit 0 on a number,
+1 on a refusal, 2 on a split it cannot use.
 
-Four things bound it. It has no `--group`, so it reads `test` and nothing
+Five things bound it. It has no `--group`, so it reads `test` and nothing
 else. It answers once per test group: the second call refuses, and the record
 is keyed on the group's membership, so copying or renaming the split does not
 buy another. Its budget is separate from the gate's, so an exhausted
 consultation budget does not block the report and a spent report does not
-block the gate. And a results file that does not cover the test group is
-refused **after** the read is charged, for the same reason the gate charges
-first: a free coverage probe against a withheld group is an oracle over its
-membership.
+block the gate. It honours the corpus pin the gate honours, refusing results
+that name a corpus the split does not, which the gate refuses because a
+comparison across a corpus change measures the change too, and this command
+refuses because nothing downstream compares the number at all. And a results
+file that does not cover the test group is refused **after** the read is
+charged, for the same reason the gate charges first: a free coverage probe
+against a withheld group is an oracle over its membership.
+
+The corpus refusal is free, unlike the coverage one. A corpus identity is a
+header on the file the caller supplied, decidable without touching the group,
+so it is read before the lock and charges nothing. `corpus_verified` reports
+whether the check ran at all: the rule and hook paths publish no corpus
+identity, so `false` there means unchecked rather than failed.
 
 Score the artifact over the whole task set before calling this. There is one
 attempt, and spending it on a short results file means re-splitting and
