@@ -1,0 +1,183 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4041,
+    "date": "2026-07-31",
+    "branch": "autofix/pr-4037",
+    "startingCommit": "c58cb1b7d",
+    "objective": "Finalize PR 4037 evidence corrections and ADR closure amendment"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Serena MCP was activated for the resumed review and its instructions were loaded"
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Serena initial instructions loaded during the resumed review"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read and left unchanged"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used github, push-pr, merge-resolver, adr-review, and session-init skills; repository scripts were selected from their documented catalogs"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md skill-first, branch, commit, generated-artifact, and validation constraints were applied"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md and .agents/SESSION-PROTOCOL.md read; canonical skill sources were regenerated into Copilot mirrors"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Relevant session checkpoints, PR #4037 context, PR #4059 concurrent changes, issue #3218 body and all seven comments were loaded"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "autofix/pr-4037"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On autofix/pr-4037"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Worktree and branch status checked repeatedly; push guard caught concurrent main and PR branch changes before mutation"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "c58cb1b7d"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Full-diff review, six-role ADR review, 63 changed-skill tests, generated drift check, scoped markdownlint attempt, pre_pr.py, and 52 focused ratchet tests completed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remained unchanged"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Durable issue #3217 and #3218 closure facts are recorded in ADR-068, ADR-085, and their debate logs"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 ran on the five ADR artifacts and selected 0 files because .agents is excluded; repository pre_pr.py markdown validation passed"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ADR corrections, current-main merges, Markdown auto-fix safeguards, both count-ratchet trigger repairs, measured research claims, and parameterized structural ratchet tests are committed through 66d1bd6ae"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "63 changed-skill tests passed; build_all.py and pre_pr.py passed before the latest main refresh; ADR reviews converged; golden-principles passed; 52 focused ratchet tests and 5 research-frontier tests passed; merged taste count matches baseline 608; merged type-ignore count matches baseline 55; plugin manifests match at 0.6.5492"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "PR #4037 body now reports the 51-file scope and taste-ratchet repair; review-thread updates remain an explicit next step"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-07-31-pr-4037-autofix.md records three Five Whys, failure-mode classifications, actions, and four atomic learnings"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Merged concurrent PR branch changes and current main after the push guard detected divergence",
+      "outcome": "Resolved canonical skill conflicts by intent, regenerated Copilot mirrors, and advanced both plugin manifests under the parallel-PR version rule"
+    },
+    {
+      "action": "Ran repeated independent full-diff reviews and corrected every reported factual defect",
+      "outcome": "Corrected merge-policy history, issue #3218 ownership, dispatcher evidence wording, volatile counts, ADR statuses, source ranges, and plugin version 0.6.5471"
+    },
+    {
+      "action": "Ran /adr-review with six roles on the ADR-068 and ADR-085 issue #3218 closure amendment",
+      "outcome": "Architect, critic, independent-thinker, security, analyst, and high-level-advisor all voted Accept. Debate logs were appended, prior history preserved, and ADR-082 was verified to contain no #3218 reference"
+    },
+    {
+      "action": "Started the final /review and repaired its analyst finding",
+      "outcome": "The investigation allowlist row now re-verifies both the live eight-pattern module output and matching ADR-034 text. All changed skill evidence dates now align with the 2026-07-30 verification pass. The change-control incident history now records ADR-066 as Accepted on 2026-07-19. Mirrors were regenerated and project-toolkit advanced to 0.6.5475"
+    },
+    {
+      "action": "Reconciled ADR-085 with the full issue #3217 closure discourse",
+      "outcome": "Removed stale future ownership, linked both closed issues, confirmed implemented remains true, and completed six-role convergence with five Accept and one Disagree-and-Commit"
+    },
+    {
+      "action": "Merged current origin/main after PR #4037 became conflict-marked",
+      "outcome": "Preserved the PR provenance corrections, took main's scanner and review-gate fixes, advanced both project-toolkit manifests to 0.6.5476, regenerated artifacts, and cleared all conflict markers"
+    },
+    {
+      "action": "Repaired Markdown auto-fix corruption found by the final pre-PR gate",
+      "outcome": "Wrapped line-start issue references in inline code, regenerated both Copilot skill mirrors, advanced both project-toolkit manifests to 0.6.5478, and filed issue #4118 for the validator defect"
+    },
+    {
+      "action": "Ran /adr-review with six roles on narrow file-size suppressions for append-only ADR records",
+      "outcome": "Five roles voted Accept. The critic voted Disagree-and-Commit after requesting explicit in-file rationale. The rationale was added, no P0 or P1 finding remained, and both debate logs record convergence"
+    },
+    {
+      "action": "Closed both count-ratchet baseline-only trigger gaps found during final push validation",
+      "outcome": "Lowered the verified taste baseline to 609, added both baseline files to their pre-push globs, removed duplicated stale totals, added parameterized negative-control tests with structural job-block parsing, and corrected the ADR amendment review artifact to count all five ADR-085 locations"
+    },
+    {
+      "action": "Replaced an unsupported research-frontier generalization with a measured rule-coverage claim",
+      "outcome": "Verified 25 rule files and 12 one-rule scenario fixtures, recorded that 13 rules lack an activation baseline, regenerated the Copilot mirror, and advanced project-toolkit to 0.6.5488"
+    },
+    {
+      "action": "Merged current origin/main after the correct push exposed stale count evidence",
+      "outcome": "Removed the inherited type-ignore suppression, measured the combined taste count at 608, resolved the only merge conflict from evidence, and committed merge 66d1bd6ae"
+    },
+    {
+      "action": "Completed the PR #4037 autofix retrospective before rerunning exact-SHA review",
+      "outcome": "Recorded three Five Whys, classified FM-4 and FM-9 failures, linked issues #4118, #4134, and #4135, and persisted four atomic learnings to Serena memory"
+    },
+    {
+      "action": "Resolved the final analyst evidence wording finding",
+      "outcome": "Stated that 12 scenario fixtures cover 12 distinct rules, regenerated the Copilot mirror, advanced project-toolkit to 0.6.5489, and corrected the session scope to 51 files"
+    },
+    {
+      "action": "Merged the final origin/main documentation update before push",
+      "outcome": "Preserved both branches' skill corrections, regenerated all mirrors, advanced project-toolkit above both parents to 0.6.5491, and reverified taste 608 and type-ignore 55"
+    },
+    {
+      "action": "Merged the next origin/main test-infrastructure update before push",
+      "outcome": "Accepted main's project-toolkit description change, advanced both project-toolkit manifests above both parents to 0.6.5492, regenerated mirrors, and reverified both count ratchets"
+    }
+  ],
+  "endingCommit": "64383d51738098422cb6410ef1f49c4690526727",
+  "nextSteps": [
+    "Complete the fresh exact-SHA review, create a review marker, and push without force.",
+    "Reply to and resolve all PR #4037 review threads, run completion gates, and merge ready PRs."
+  ]
+}

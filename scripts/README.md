@@ -45,10 +45,10 @@ Validates session protocol compliance for session logs.
 
 ```bash
 # Validate specific session
-python3 scripts/validate_session_json.py .agents/sessions/2025-12-17-session-01.json
+uv run python scripts/validate_session_json.py .agents/sessions/2025-12-17-session-01.json
 
 # Validate with pre-commit mode
-python3 scripts/validate_session_json.py .agents/sessions/2025-12-17-session-01.json --pre-commit
+uv run python scripts/validate_session_json.py .agents/sessions/2025-12-17-session-01.json --pre-commit
 ```
 
 **Called By**: Pre-commit hook, orchestrator, CI
@@ -126,16 +126,16 @@ Validates GitHub Actions workflows locally before pushing (ADR-006 compliance).
 
 ```bash
 # Validate all workflows
-python3 scripts/validate_workflows.py
+uv run python scripts/validate_workflows.py
 
 # Validate only changed files
-python3 scripts/validate_workflows.py --changed
+uv run python scripts/validate_workflows.py --changed
 
 # Validate specific file
-python3 scripts/validate_workflows.py .github/workflows/pytest.yml
+uv run python scripts/validate_workflows.py .github/workflows/pytest.yml
 
 # Run with act (if installed)
-python3 scripts/validate_workflows.py --act
+uv run python scripts/validate_workflows.py --act
 ```
 
 **Validates**:

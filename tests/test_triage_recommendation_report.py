@@ -298,7 +298,7 @@ class TestMain:
             ],
             cwd=_REPO_ROOT,
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             check=False,
             timeout=30,
         )

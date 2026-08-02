@@ -18,6 +18,10 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 CLAUDE_MARKETPLACE = REPO_ROOT / ".claude-plugin" / "marketplace.json"
 COPILOT_MARKETPLACE = REPO_ROOT / ".github" / "plugin" / "marketplace.json"
 CLAUDE_AGENTS_PLUGIN = REPO_ROOT / "src" / "claude" / ".claude-plugin" / "plugin.json"
+CLAUDE_TOOLKIT_PLUGIN = REPO_ROOT / ".claude" / ".claude-plugin" / "plugin.json"
+COPILOT_TOOLKIT_PLUGIN = (
+    REPO_ROOT / "src" / "copilot-cli" / ".claude-plugin" / "plugin.json"
+)
 
 CLAUDE_PLUGIN_NAMES = {"claude-agents", "project-toolkit"}
 COPILOT_PLUGIN_NAMES = {"project-toolkit"}
@@ -92,16 +96,31 @@ class TestMarketplaceShape:
 
 
 class TestMarketplaceSourceManifestParity:
-    """Marketplace entries must match the plugin manifests they publish."""
+    """Descriptions stay aligned for the three published plugin roots.
 
-    def test_claude_agents_description_matches_source_manifest(self) -> None:
-        marketplace = _load_marketplace(CLAUDE_MARKETPLACE)
-        plugin_manifest = _load_marketplace(CLAUDE_AGENTS_PLUGIN)
-        claude_agents_entry = next(
-            plugin for plugin in marketplace["plugins"] if plugin["name"] == "claude-agents"
+    This guards the #4158 regression where the Copilot CLI manifest copied the
+    Claude Code description while its marketplace entry stayed correct. It is
+    not a general name or manifest parity policy.
+    """
+
+    @pytest.mark.parametrize(
+        ("marketplace_path", "plugin_name", "manifest_path"),
+        [
+            (CLAUDE_MARKETPLACE, "claude-agents", CLAUDE_AGENTS_PLUGIN),
+            (CLAUDE_MARKETPLACE, "project-toolkit", CLAUDE_TOOLKIT_PLUGIN),
+            (COPILOT_MARKETPLACE, "project-toolkit", COPILOT_TOOLKIT_PLUGIN),
+        ],
+    )
+    def test_description_matches_source_manifest(
+        self, marketplace_path: Path, plugin_name: str, manifest_path: Path
+    ) -> None:
+        marketplace = _load_marketplace(marketplace_path)
+        plugin_manifest = _load_marketplace(manifest_path)
+        entry = next(
+            plugin for plugin in marketplace["plugins"] if plugin["name"] == plugin_name
         )
 
-        assert claude_agents_entry["description"] == plugin_manifest["description"]
+        assert entry["description"] == plugin_manifest["description"]
 
 
 class TestSourceDirsExist:
@@ -136,7 +155,7 @@ class TestManifestValidatorGreen:
                 str(REPO_ROOT / "build" / "scripts" / "validate_plugin_manifests.py"),
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
             cwd=REPO_ROOT,
         )
@@ -150,14 +169,11 @@ class TestUniquenessAssertionDetectsCollision:
     """Verify the uniqueness check actually catches duplicates (test the test)."""
 
     def test_duplicate_name_detected_in_synthetic_fixture(self) -> None:
-        synthetic = {
-            "name": "ai-agents",
-            "plugins": [
-                {"name": "project-toolkit", "source": "./.claude"},
-                {"name": "project-toolkit", "source": "./other"},
-            ],
-        }
-        names = [p["name"] for p in synthetic["plugins"]]
+        plugins: list[dict[str, str]] = [
+            {"name": "project-toolkit", "source": "./.claude"},
+            {"name": "project-toolkit", "source": "./other"},
+        ]
+        names = [p["name"] for p in plugins]
         assert len(names) != len(set(names)), (
             "Test fixture must trigger the uniqueness assertion"
         )

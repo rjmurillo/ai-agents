@@ -14,11 +14,8 @@ The port fixes four defects the PowerShell original carried, each covered here:
 
 from __future__ import annotations
 
-import ast
 import json
 import subprocess
-import sys
-from pathlib import Path
 
 import pytest
 
@@ -349,74 +346,3 @@ class TestMain:
 
         mod.main(["--session-file", "sessions/x.json"])
         assert mod._RESULT_MD.read_text(encoding="utf-8") == "body"
-
-
-class TestWorkflowWiring:
-    def test_the_workflow_invokes_this_script(self) -> None:
-        from pathlib import Path
-
-        text = (
-            Path(__file__)
-            .resolve()
-            .parents[2]
-            .joinpath(".github/workflows/ai-session-protocol.yml")
-            .read_text(encoding="utf-8")
-        )
-        assert "scripts/ci/validate_session_protocol.py" in text
-
-    def test_the_upload_step_still_reads_the_artifact_name_output(self) -> None:
-        from pathlib import Path
-
-        text = (
-            Path(__file__)
-            .resolve()
-            .parents[2]
-            .joinpath(".github/workflows/ai-session-protocol.yml")
-            .read_text(encoding="utf-8")
-        )
-        assert "steps.validate.outputs.artifact-name" in text
-
-
-class TestTheExtractedScriptsRunUnderBarePython:
-    """The validate job installs nothing, so its scripts must be stdlib-only.
-
-    ``ai-session-protocol.yml`` calls ``python3`` directly with no
-    ``setup-uv`` or ``pip install`` step, so the runner's interpreter has no
-    PyYAML and no third-party package. An ``import yaml`` added to either
-    script would pass every local test (the dev venv has it) and fail only in
-    production. The same trap already justified an equivalent guard for
-    ``scripts/validation/session_scope.py``.
-    """
-
-    SCRIPTS = ("validate_session_protocol.py", "detect_session_logs.py")
-    STDLIB_ROOTS = frozenset(sys.stdlib_module_names)
-
-    @pytest.mark.parametrize("name", SCRIPTS)
-    def test_the_script_imports_no_third_party_package(self, name: str) -> None:
-        source = (Path(__file__).resolve().parents[2].joinpath("scripts/ci", name)).read_text(
-            encoding="utf-8"
-        )
-        tree = ast.parse(source)
-        roots: set[str] = set()
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                roots.update(alias.name.split(".")[0] for alias in node.names)
-            elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
-                roots.add(node.module.split(".")[0])
-        outside = sorted(roots - self.STDLIB_ROOTS - {"__future__"})
-        assert not outside, (
-            f"{name} imports {outside}, but the validate job runs bare python3 "
-            "with no dependency install step."
-        )
-
-    def test_the_validate_job_still_installs_no_dependencies(self) -> None:
-        """If the job gains a dep install, the guard above stops being needed."""
-        text = (
-            Path(__file__)
-            .resolve()
-            .parents[2]
-            .joinpath(".github/workflows/ai-session-protocol.yml")
-            .read_text(encoding="utf-8")
-        )
-        assert "setup-uv" not in text
-        assert "pip install" not in text

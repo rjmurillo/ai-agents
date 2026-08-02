@@ -444,9 +444,25 @@ def _is_numeric_test_count(evidence: str, match: re.Match[str]) -> bool:
     if match.group(0).lower() not in _NUMERIC_COUNT_TOKENS:
         return False
     prefix = evidence[: match.start()]
-    return bool(_DIGIT_BEFORE_TOKEN.search(prefix)) or bool(
-        _PYTEST_SUMMARY_CONTEXT.search(evidence)
-    )
+    if bool(_DIGIT_BEFORE_TOKEN.search(prefix)):
+        return True
+    # _PYTEST_SUMMARY_CONTEXT must only apply to the clause that contains the
+    # matched token. Searching the entire evidence string falsely excuses
+    # "354 passed; markdownlint step skipped": "354 passed" satisfies the
+    # pattern even though the "skipped" belongs to a different clause and is a
+    # genuine contradiction. See post-#4001 adversarial review.
+    clause_start = 0
+    for sep in (";", "\n"):
+        pos = evidence.rfind(sep, 0, match.start())
+        if pos >= 0:
+            clause_start = max(clause_start, pos + 1)
+    clause_end = len(evidence)
+    for sep in (";", "\n"):
+        pos = evidence.find(sep, match.end())
+        if 0 <= pos < clause_end:
+            clause_end = pos
+    clause = evidence[clause_start:clause_end].strip()
+    return bool(_PYTEST_SUMMARY_CONTEXT.search(clause))
 
 
 def _has_contradiction(evidence: str) -> bool:
@@ -929,7 +945,9 @@ def validate_against_schema(
         result.errors.append(_describe(error))
 
 
-def validate_session_log(data: object, *, existing_log: bool = False) -> ValidationResult:
+def validate_session_log(
+    data: object, *, existing_log: bool = False, creation_mode: bool = False
+) -> ValidationResult:
     """Validate a session log against the committed schema and protocol rules.
 
     Args:
@@ -937,6 +955,13 @@ def validate_session_log(data: object, *, existing_log: bool = False) -> Validat
             any JSON value can reach here, so the type is the parser's, not the
             schema's. The schema reports a non-object; the protocol checks below
             need a mapping and are skipped without one.
+        creation_mode: True when the log was just created and session-end
+            evidence does not yet exist. The full schema still binds (required
+            fields, correct types, ``notOnMain``), but ``validate_protocol_compliance``
+            and ``validate_evidence_agrees_with_session`` are skipped because
+            the session has not run yet. Use this at creation time only; use
+            ``existing_log`` for logs already committed. The two modes are
+            mutually exclusive; if both are set, ``existing_log`` wins.
         existing_log: True when the log was already committed and this change
             only edits it. Two different questions are bundled in this file, and
             they have different answers on an old log. Shape ("is this record
@@ -975,10 +1000,14 @@ def validate_session_log(data: object, *, existing_log: bool = False) -> Validat
     if isinstance(data.get("session"), dict):
         validate_session_section(data["session"], result)
 
-    if not existing_log and isinstance(data.get("protocolCompliance"), dict):
+    # creation_mode: the session just started; checklist items are incomplete
+    # by design and evidence-agreement checks have nothing to compare against.
+    # existing_log wins when both are set (see docstring).
+    skip_compliance = existing_log or creation_mode
+    if not skip_compliance and isinstance(data.get("protocolCompliance"), dict):
         validate_protocol_compliance(data["protocolCompliance"], result)
 
-    if not existing_log:
+    if not existing_log and not creation_mode:
         validate_evidence_agrees_with_session(data, result)
 
     return result
@@ -1179,9 +1208,19 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help=(
             "Skip protocol-compliance and evidence-agreement checks: validate "
-            "schema and shape only. Use for (1) a log already committed where "
-            "a checklist item cannot be made true retroactively, or (2) a "
-            "freshly created log that does not yet have session-end evidence."
+            "schema and shape only. Use for a log already committed where "
+            "a checklist item cannot be made true retroactively."
+        ),
+    )
+    parser.add_argument(
+        "--creation-mode",
+        action="store_true",
+        help=(
+            "Validate a freshly created log: full schema check plus structural "
+            "shape, but skip protocol-compliance (checklist items are incomplete "
+            "by design) and evidence-agreement (nothing to agree against yet). "
+            "Use only at session-creation time; use --existing-log for already-"
+            "committed logs."
         ),
     )
     parser.add_argument(
@@ -1263,7 +1302,9 @@ def main() -> int:
                 _PROJECT_ROOT,
             )
 
-        result = validate_session_log(data, existing_log=existing_log)
+        result = validate_session_log(
+            data, existing_log=existing_log, creation_mode=args.creation_mode
+        )
         validate_filename_number(validated_path, data, result)
 
         # Report results
