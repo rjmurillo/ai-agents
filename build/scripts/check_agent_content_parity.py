@@ -86,6 +86,47 @@ def _compare_trees(
     return diffs, sorted(only_claude), sorted(only_src)
 
 
+def _print_text_report(
+    diffs: list[str],
+    missing_from_src: list[str],
+    missing_from_claude: list[str],
+    claude_count: int,
+    src_count: int,
+    total_issues: int,
+) -> None:
+    print(
+        f"Examined {claude_count} files in .claude/agents/, "
+        f"{src_count} files in src/claude/."
+    )
+    if diffs:
+        print(f"\nContent mismatch ({len(diffs)} files):")
+        for name in diffs:
+            print(f"  DIFF: {name}")
+    if missing_from_src:
+        print(f"\nMissing from src/claude/ ({len(missing_from_src)} files):")
+        for name in missing_from_src:
+            print(f"  MISSING: {name}")
+    if missing_from_claude:
+        print(f"\nMissing from .claude/agents/ ({len(missing_from_claude)} files):")
+        for name in missing_from_claude:
+            print(f"  MISSING: {name}")
+    if total_issues == 0:
+        print("OK: trees are byte-identical for all shared files.")
+    else:
+        print(f"\nFAIL: {total_issues} parity issue(s) detected.")
+
+
+def _resolve_dirs(repo_root: Path) -> tuple[Path, Path, int]:
+    """Return (claude_dir, src_dir, error_code). error_code 0 = OK, 2 = fail."""
+    claude_dir = repo_root / ".claude" / "agents"
+    src_dir = repo_root / "src" / "claude"
+    for d in (claude_dir, src_dir):
+        if not d.is_dir():
+            print(f"ERROR: directory not found: {d}", file=sys.stderr)
+            return claude_dir, src_dir, 2
+    return claude_dir, src_dir, 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="Exit 1 on any drift (default).")
@@ -99,13 +140,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
 
-    claude_dir = repo_root / ".claude" / "agents"
-    src_dir = repo_root / "src" / "claude"
-
-    for d in (claude_dir, src_dir):
-        if not d.is_dir():
-            print(f"ERROR: directory not found: {d}", file=sys.stderr)
-            return 2
+    claude_dir, src_dir, err = _resolve_dirs(repo_root)
+    if err:
+        return err
 
     diffs, missing_from_src, missing_from_claude = _compare_trees(claude_dir, src_dir)
 
@@ -123,26 +160,9 @@ def main(argv: list[str] | None = None) -> int:
         }
         print(json.dumps(report, indent=2))
     else:
-        print(
-            f"Examined {claude_count} files in .claude/agents/, "
-            f"{src_count} files in src/claude/."
+        _print_text_report(
+            diffs, missing_from_src, missing_from_claude, claude_count, src_count, total_issues
         )
-        if diffs:
-            print(f"\nContent mismatch ({len(diffs)} files):")
-            for name in diffs:
-                print(f"  DIFF: {name}")
-        if missing_from_src:
-            print(f"\nMissing from src/claude/ ({len(missing_from_src)} files):")
-            for name in missing_from_src:
-                print(f"  MISSING: {name}")
-        if missing_from_claude:
-            print(f"\nMissing from .claude/agents/ ({len(missing_from_claude)} files):")
-            for name in missing_from_claude:
-                print(f"  MISSING: {name}")
-        if total_issues == 0:
-            print("OK: trees are byte-identical for all shared files.")
-        else:
-            print(f"\nFAIL: {total_issues} parity issue(s) detected.")
 
     return 1 if total_issues > 0 else 0
 
