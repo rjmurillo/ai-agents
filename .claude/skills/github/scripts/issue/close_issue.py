@@ -447,7 +447,9 @@ def _comment_exists(owner: str, repo: str, issue: int, body: str, fmt: str) -> b
     return body in _comment_bodies(payload)
 
 
-def _close_issue(owner: str, repo: str, issue: int, reason: str) -> subprocess.CompletedProcess[str]:
+def _close_issue(
+    owner: str, repo: str, issue: int, reason: str
+) -> subprocess.CompletedProcess[str]:
     """Run gh issue close with the given reason. Returns the completed process."""
     return subprocess.run(
         [

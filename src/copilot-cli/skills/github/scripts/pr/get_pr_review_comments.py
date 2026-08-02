@@ -745,7 +745,10 @@ def main(argv: list[str] | None = None) -> int:
             if issue_count > 0:
                 review_text = "review comment" if review_count == 1 else "review comments"
                 issue_text = "issue comment" if issue_count == 1 else "issue comments"
-                print(f"PR #{args.pull_request}: {review_count} {review_text} + {issue_count} {issue_text}")
+                print(
+                    f"PR #{args.pull_request}: "
+                    f"{review_count} {review_text} + {issue_count} {issue_text}"
+                )
             else:
                 review_text = "review comment" if review_count == 1 else "review comments"
                 print(f"PR #{args.pull_request}: {review_count} {review_text}")
