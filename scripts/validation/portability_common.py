@@ -169,6 +169,14 @@ def resolve_checked_baseline(
     `None` for either refusal keeps the sentinel uniform too; the checkers had
     split into `None` and `Path("")` for the same condition, which is the same
     drift starting again in the return type.
+
+    The symlink refusal belongs here and not only on the write path. The diff
+    attribute is read from the pathname handed in, while `read_text()` follows
+    the link, so a committed symlink lets the vetted name and the consumed file
+    be two different files. Hiding the target rather than the name then lands
+    every later lowering unseen, which is the attribute finding one indirection
+    deeper. Refusing the link closes both, and it runs first because a link is
+    the more basic objection: the target need not be inside the tree at all.
     """
     resolved = resolve_baseline_path(
         root, baseline, default_baseline_name, reject_outside_root=True
@@ -179,6 +187,8 @@ def resolve_checked_baseline(
             "The ratchet only owns the artifact git tracks.",
             file=sys.stderr,
         )
+        return None
+    if refuse_symlinked_baseline(root, resolved):
         return None
     if refuse_undiffable_baseline(root, resolved):
         return None

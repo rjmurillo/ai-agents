@@ -164,7 +164,7 @@ def _escaping_parent(baseline_path: Path, repo_root: Path) -> Path | None:
 
 
 def refuse_symlinked_baseline(repo_root: Path, baseline_path: Path) -> bool:
-    """Refuse to write a baseline anywhere but the real path git tracks.
+    """Refuse to use a baseline anywhere but the real path git tracks.
 
     Following a symlink writes outside the path git tracks. The target is not
     the ratchet's to overwrite, and a checkout that produced a symlink here is
@@ -172,13 +172,18 @@ def refuse_symlinked_baseline(repo_root: Path, baseline_path: Path) -> bool:
     up to the repository root is checked, not just the final component, and a
     destination that escapes the repository is refused even when nothing on the
     way to it is a link.
+
+    Readers refuse for a second reason. Every other check runs against the
+    pathname it is handed, while reading the file follows the link, so a link
+    lets the vetted name and the consumed file be two different files. The
+    wording below stays neutral because both callers reach it.
     """
     linked = _linked_component(baseline_path, repo_root)
     if linked is not None:
         print(
-            f"Refusing to write a baseline through a symlink: {linked}. "
-            "Following it would write outside the path git tracks, and the file it "
-            "points at is not the ratchet's to overwrite.",
+            f"Refusing a baseline reached through a symlink: {linked}. "
+            "Following it leaves the path git tracks, so the file vetted here "
+            "and the file used are not guaranteed to be the same one.",
             file=sys.stderr,
         )
         return True

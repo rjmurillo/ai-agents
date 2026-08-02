@@ -22,6 +22,7 @@ import pytest
 
 from scripts.validation import portability_baseline
 from scripts.validation.portability_baseline import refuse_undiffable_baseline
+from scripts.validation.portability_common import resolve_checked_baseline
 
 
 def _git(root: Path, *args: str, stdin: str | None = None) -> subprocess.CompletedProcess[str]:
@@ -288,3 +289,79 @@ class TestEveryCheckerRefusesAHiddenBaseline:
 
         _attribute(root, "scripts/validation/*.json -diff")
         assert checker.main(argv) == 2, f"{module} accepted a baseline review cannot see"
+
+
+class TestTheAttributeCheckAndTheReadMustLandOnTheSameFile:
+    """A symlink splits the file that is vetted from the file that is used.
+
+    The attribute is asked about the pathname handed in. Reading follows the
+    link. So hiding the *target* rather than the name leaves the guard looking
+    at an unhidden pathname while the checker parses a file review cannot see,
+    which is the attribute finding one indirection deeper. The write path had
+    refused links for a different reason since before the attribute guard
+    existed; the read path had not.
+    """
+
+    @staticmethod
+    def _split(repo: Path, *, hide_target: bool) -> Path:
+        """Replace the baseline with a link to a sibling, optionally hidden."""
+        named = _baseline(repo)
+        target = named.with_name("hidden.json")
+        target.write_text(named.read_text())
+        named.unlink()
+        named.symlink_to("hidden.json")
+        if hide_target:
+            _attribute(repo, "scripts/validation/hidden.json -diff")
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-qm", "split the baseline behind a link")
+        return target
+
+    def test_hiding_the_target_hides_the_lowered_count(self, repo: Path) -> None:
+        """The asset, pinned. Without this the refusal below protects nothing."""
+        target = self._split(repo, hide_target=True)
+        target.write_text(json.dumps({"files": {"a/b.py": 1}}) + "\n")
+
+        rendered = _git(repo, "diff").stdout
+        assert "Binary files" in rendered
+        assert '"a/b.py": 1' not in rendered
+        assert json.loads(_baseline(repo).read_text())["files"]["a/b.py"] == 1
+
+    def test_the_read_gate_refuses_a_linked_baseline(self, repo: Path) -> None:
+        self._split(repo, hide_target=True)
+        assert resolve_checked_baseline(repo, _baseline(repo), "baseline.json") is None
+
+    def test_the_control_without_a_link_is_allowed(self, repo: Path) -> None:
+        """Same tree, no link, nothing hidden. A refusal here would prove nothing."""
+        assert resolve_checked_baseline(repo, _baseline(repo), "baseline.json") is not None
+
+    def test_a_link_is_refused_even_when_its_target_is_diffable(self, repo: Path) -> None:
+        """The link alone is the objection; the guard does not wait to be hidden."""
+        self._split(repo, hide_target=False)
+        assert resolve_checked_baseline(repo, _baseline(repo), "baseline.json") is None
+
+    @pytest.mark.parametrize(
+        ("module", "baseline_name"),
+        [
+            ("check_skill_portability", "skill_portability_baseline.json"),
+            ("check_skill_md_exec_portability", "skill_md_exec_portability_baseline.json"),
+            ("check_skill_md_portability", "skill_md_portability_baseline.json"),
+        ],
+    )
+    def test_every_checker_refuses_a_linked_baseline(
+        self, tmp_path: Path, module: str, baseline_name: str
+    ) -> None:
+        """Wiring, not the module. Each checker is its own way through."""
+        checker = importlib.import_module(f"scripts.validation.{module}")
+        root = tmp_path / module
+        root.mkdir()
+        baseline = TestEveryCheckerRefusesAHiddenBaseline._tree(root, baseline_name)
+        argv = ["--repo-root", str(root), "--baseline", str(baseline)]
+
+        allowed = checker.main(argv)
+        assert allowed != 2, f"{module} rejected a clean tree, so its control proves nothing"
+
+        target = baseline.with_name("hidden.json")
+        target.write_text(baseline.read_text())
+        baseline.unlink()
+        baseline.symlink_to("hidden.json")
+        assert checker.main(argv) == 2, f"{module} read a baseline through a link"

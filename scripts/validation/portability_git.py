@@ -57,10 +57,26 @@ def run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes] |
 
 
 def was_recorded(repo_root: Path, path: Path) -> bool | None:
-    """Report whether branch history has the baseline, None when git cannot answer."""
+    """Report whether branch history has the baseline, None when git cannot answer.
+
+    The two failures of `resolve().relative_to()` are not the same answer and
+    must not share a return. `ValueError` means the path resolved fine and sits
+    outside this repository, so this repository's history genuinely does not
+    record it: that is a real `False`. `OSError` means the filesystem refused to
+    resolve the path at all, so nothing was learned. Reporting `False` there
+    tells the caller "no debt has ever been recorded" on the strength of a
+    question that was never answered, and `read_previous_sections()` reads that
+    `False` as permission to proceed.
+    """
     try:
-        rel = path.resolve().relative_to(repo_root.resolve())
-    except (OSError, ValueError):
+        resolved = path.resolve()
+    except OSError:
+        return None
+    try:
+        rel = resolved.relative_to(repo_root.resolve())
+    except OSError:
+        return None
+    except ValueError:
         return False
 
     proc = run_git(repo_root, "log", "-1", "--format=%H", "HEAD", "--", str(rel))

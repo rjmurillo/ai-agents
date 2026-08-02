@@ -23,8 +23,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from scripts.validation import portability_floor  # noqa: E402
 from scripts.validation.portability_floor import read_previous_sections  # noqa: E402
-from scripts.validation.portability_git import tree_entries  # noqa: E402
+from scripts.validation.portability_git import tree_entries, was_recorded  # noqa: E402
 
 pytestmark = pytest.mark.unit
 
@@ -237,3 +238,94 @@ class TestATreeNameIsDecodedTheWayThePathIs:
 
         assert problem is None
         assert previous == HIGH
+
+
+class TestAPathThatCannotBeResolvedIsNotProofNothingWasRecorded:
+    """Two failures of the same expression mean opposite things.
+
+    `was_recorded` resolves the baseline and makes it relative to the root.
+    `ValueError` means the resolve worked and the answer is "elsewhere", which
+    this repository's history genuinely does not record. `OSError` means the
+    resolve never happened, so nothing was learned. Both returned `False`, and
+    `read_previous_sections` reads `False` as "no debt has ever been recorded"
+    and proceeds, so an unanswered question granted permission.
+
+    On CPython 3.14 and Linux the `OSError` arm is defensive rather than
+    reachable: non-strict `Path.resolve()` swallows ELOOP, ENAMETOOLONG and
+    EACCES, all three checked. It is raised here rather than induced, and the
+    test claims only that the contract holds, not that a caller can trip it.
+    Other platforms and older interpreters do raise, and the docstring on the
+    function has promised `None` for an unanswerable resolve throughout.
+    """
+
+    def test_a_path_outside_the_repository_is_recorded_nowhere_in_it(
+        self, tmp_path: Path
+    ) -> None:
+        root = _repo(tmp_path / "repo")
+        outside = tmp_path / "elsewhere" / "baseline.json"
+        outside.parent.mkdir(parents=True)
+        outside.write_text("{}\n")
+
+        assert was_recorded(root, outside) is False
+
+    def test_an_unresolvable_path_answers_unknown_and_not_absent(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        root = _repo(tmp_path / "repo")
+        baseline = root / REL
+        real = Path.resolve
+
+        def refuse(self: Path, strict: bool = False) -> Path:
+            if self == baseline:
+                raise OSError(5, "Input/output error")
+            return real(self, strict)
+
+        monkeypatch.setattr(Path, "resolve", refuse)
+        assert was_recorded(root, baseline) is None
+
+    def test_the_control_resolves_and_answers(self, tmp_path: Path) -> None:
+        """Without the induced failure the same call returns a real verdict."""
+        root = _repo(tmp_path / "repo")
+        baseline = root / REL
+        baseline.write_text("{}\n")
+
+        assert was_recorded(root, baseline) is False
+
+        _commit(root, root, {"files": {"a/b.py": 5}})
+        assert was_recorded(root, baseline) is True
+
+    def test_the_caller_refuses_before_it_ever_asks(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Order, not the return value. `False` was never reachable from here.
+
+        `read_previous_sections` reads the committed copy first, and that path
+        already separated the two failures correctly: it refuses an OSError and
+        treats a ValueError as "git tracks nothing here". So the conflation
+        below it could not be reached through any checker, and calling it a live
+        fail-open overstates it. What is pinned is the ordering that makes that
+        true, because a refactor that consulted history first would open the
+        hole for real, and no assertion on a return value would notice.
+        """
+        root = _repo(tmp_path / "repo")
+        baseline = root / REL
+        real = Path.resolve
+        asked = False
+
+        def refuse(self: Path, strict: bool = False) -> Path:
+            if self == baseline:
+                raise OSError(5, "Input/output error")
+            return real(self, strict)
+
+        def spy(*args: object, **kwargs: object) -> bool | None:
+            nonlocal asked
+            asked = True
+            return False
+
+        monkeypatch.setattr(Path, "resolve", refuse)
+        monkeypatch.setattr(portability_floor, "was_recorded", spy)
+        sections, problem = read_previous_sections(root, baseline)
+
+        assert sections is None
+        assert problem is not None
+        assert not asked, "history was consulted before the committed copy refused"
