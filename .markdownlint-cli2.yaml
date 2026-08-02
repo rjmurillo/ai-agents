@@ -40,6 +40,12 @@ config:
   # Table column style - disabled, tables are readable as-is
   MD060: false
 
+  # No-space-atx heading - disabled. Issue #4118: --fix rewrites a line-start
+  # issue reference (#NNNN) into an H1 heading (# NNNN). This repo uses #NNNN
+  # as prose shorthand for GitHub issues; that pattern cannot be fixed
+  # automatically without corrupting valid text.
+  MD018: false
+
   # Fenced code language - REQUIRED for syntax highlighting
   # Note: 3 known false positives in nested template files (retrospective.md, roadmap.md)
   # where nested code blocks cause parser confusion
