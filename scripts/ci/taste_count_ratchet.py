@@ -10,12 +10,11 @@ prints an error the author correctly learns to ignore. That is the same training
 signal that teaches people to ignore the naming and complexity rules riding in
 the same output.
 
-Enforcing the ceiling outright is not viable: 615 error-severity violations
-exist today (458 file-size, 133 complexity, 24 naming), measured with the linter
-itself rather than a reimplementation of it. So this freezes the total and
-blocks growth, the same shape ``ruff_count_ratchet.py`` uses for lint debt.
+Existing debt is recorded in ``taste_count_baseline.txt``, measured with the
+linter itself rather than a reimplementation of it. This freezes the ceiling
+and blocks growth, the same shape ``ruff_count_ratchet.py`` uses for lint debt.
 Every currently-failing file keeps passing on day one and no contributor's
-existing work breaks, but the count can only fall.
+existing work breaks, but the count cannot rise.
 
 Scope is git-TRACKED files. The linter's own ``--directory`` mode walks the
 filesystem with ``os.walk`` and no exclusions, so it would count untracked
@@ -30,8 +29,8 @@ Stdlib only: this runs by path in CI and must not depend on the project's
 import graph.
 
 Exit codes (AGENTS.md contract):
-    0 - ok (count == baseline, or --update records a decrease)
-    1 - regression (count != baseline, or baseline raised vs --base-ref)
+    0 - ok (count <= baseline, or --update records a decrease)
+    1 - regression (count > baseline, or baseline raised vs --base-ref)
     2 - config error (baseline missing or malformed, bad args)
     3 - external error (the linter could not run)
 """
@@ -105,9 +104,7 @@ def current_count(repo_root: Path) -> int | None:
             sys.stderr.write(f"taste-lints could not be launched: {exc}\n")
             return None
         if proc.returncode not in (_EXIT_CLEAN, _EXIT_VIOLATIONS):
-            sys.stderr.write(
-                f"taste-lints exited {proc.returncode}, which is not a scan result\n"
-            )
+            sys.stderr.write(f"taste-lints exited {proc.returncode}, which is not a scan result\n")
             sys.stderr.write(proc.stderr)
             return None
         try:
@@ -121,6 +118,50 @@ def current_count(repo_root: Path) -> int | None:
             return None
         total += count
     return total
+
+
+def list_violations(repo_root: Path) -> list[str] | None:
+    """Return a human-readable line per error-severity violation, or None.
+
+    Used by the ratchet to show WHICH violations are present on regression so
+    contributors do not need a separate run to find them (issue #3902).
+    """
+    files = tracked_files(repo_root, ("*",))
+    if files is None:
+        return None
+    if not files:
+        return []
+
+    lines: list[str] = []
+    for batch in chunk(files):
+        try:
+            proc = subprocess.run(
+                [sys.executable, str(_LINTER), "--format", "json", "--", *batch],
+                cwd=repo_root,
+                capture_output=True,
+                text=True,
+                errors="replace",
+                encoding="utf-8",
+                check=False,
+            )
+        except (FileNotFoundError, OSError):
+            return None
+        if proc.returncode not in (_EXIT_CLEAN, _EXIT_VIOLATIONS):
+            return None
+        try:
+            report = json.loads(proc.stdout)
+        except json.JSONDecodeError:
+            return None
+        for finding in report.get("findings", []):
+            if not isinstance(finding, dict):
+                continue
+            if finding.get("severity") != "error":
+                continue
+            path = finding.get("path", "?")
+            rule = finding.get("rule", "?")
+            msg = finding.get("message", "")
+            lines.append(f"{path}: [{rule}] {msg}")
+    return lines
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -138,6 +179,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "reasoned `# taste-lint: ignore <rule>` comment in the first 10 lines "
             "of the file explaining why the rule does not apply (issue #3779)."
         ),
+        lister=list_violations,
     )
 
 

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- grew from 471 to 513 lines for issues #3895/#3920
+# (authored commit count, needs-split bypass). Refactor to helper module deferred.
 """Classify a pull request's commit count for the PR validation gate.
 
 Extracted from the inline PowerShell of the ``Check PR commit count`` step in
@@ -105,12 +107,17 @@ class CountResult:
 
     Exactly one of ``count`` or ``transient`` is meaningful: when ``transient``
     is True the count could not be determined and ``status`` is UNKNOWN.
+
+    ``count`` is the authored (non-merge) commit count used for classification.
+    ``total_count`` is the raw total including branch-maintenance merges, kept
+    for audit and diagnostics (issue #3920).
     """
 
     status: str
     count: int | None
     transient: bool
     limit: int = BLOCK_THRESHOLD
+    total_count: int | None = None
 
 
 def classify_count(count: int, limit: int = BLOCK_THRESHOLD) -> str:
@@ -293,6 +300,28 @@ def main_merge_evidence(
     return ReliefEvidence(granted=bool(external_shas & trunk), trunk_unreadable=False)
 
 
+def _authored_commit_count(commits: list[Any]) -> int:
+    """Count commits with at most one parent (not branch-maintenance merges).
+
+    A merge commit has more than one parent. Branch-maintenance merges from the
+    base branch consume the same count threshold as authored changes but do not
+    represent scope growth. Issue #3920.
+
+    A commit without a readable ``parents`` key (missing, null, not a list) is
+    counted as authored to fail closed: an unreadable parent must not silently
+    lower the count and let a large PR through the gate.
+    """
+    count = 0
+    for commit in commits:
+        if not isinstance(commit, dict):
+            count += 1
+            continue
+        parents = commit.get("parents")
+        if not isinstance(parents, list) or len(parents) <= 1:
+            count += 1
+    return count
+
+
 def is_transient_error(stderr: str) -> bool:
     """Return True when gh stderr indicates a transient transport failure."""
     haystack = stderr.lower()
@@ -368,7 +397,8 @@ def fetch_commit_count(pr_number: int, owner: str, repo: str) -> CountResult:
             f"got {type(commits).__name__}"
         )
 
-    count = len(commits)
+    total_count = len(commits)
+    authored_count = _authored_commit_count(commits)
     evidence = main_merge_evidence(commits, Path.cwd())
     if evidence.trunk_unreadable:
         print(
@@ -379,7 +409,13 @@ def fetch_commit_count(pr_number: int, owner: str, repo: str) -> CountResult:
             "that reason (issue #3997)."
         )
     limit = MAIN_MERGE_BLOCK_THRESHOLD if evidence.granted else BLOCK_THRESHOLD
-    return CountResult(classify_count(count, limit), count, transient=False, limit=limit)
+    return CountResult(
+        classify_count(authored_count, limit),
+        authored_count,
+        transient=False,
+        limit=limit,
+        total_count=total_count,
+    )
 
 
 def _write_github_output(status: str, count: int | None, limit: int = BLOCK_THRESHOLD) -> None:
@@ -448,11 +484,18 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     count = outcome.count if outcome.count is not None else 0
-    print(f"PR #{args.pr_number} has {count} commits (status: {outcome.status})")
+    total_count = outcome.total_count if outcome.total_count is not None else count
+    suffix = f" ({total_count} total, {count} authored)" if total_count != count else ""
+    print(f"PR #{args.pr_number} has {count} commits (status: {outcome.status}){suffix}")
     if outcome.status == "BLOCKED":
+        # Emit a warning here, not an error. The final enforcement decision and
+        # its error annotation live in enforce_pr_validation.py, which checks
+        # the bypass label before escalating to ::error::. An ::error:: here
+        # fires before the bypass check and creates a false red annotation on
+        # PRs that carry commit-limit-bypass (issue #3901).
         print(
-            f"::error::PR exceeds commit limit ({count} > {outcome.limit}). "
-            "Consider splitting this PR."
+            f"::warning::PR has {count} authored commits (limit {outcome.limit}). "
+            "Enforcement pending bypass-label check."
         )
     elif outcome.status == "ALERT":
         print(

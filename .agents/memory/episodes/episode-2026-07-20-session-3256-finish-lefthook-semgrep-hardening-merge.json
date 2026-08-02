@@ -11,11 +11,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Completed Semgrep PowerShell parser-error hardening",
-      "caused_by": [
-        "e030"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e002"
+        "e004"
       ]
     },
     {
@@ -23,11 +21,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Completed independent security review",
-      "caused_by": [
-        "e001"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e003"
+        "e004"
       ]
     },
     {
@@ -35,21 +31,54 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Committed final Semgrep attribution hardening",
-      "caused_by": [
-        "e002"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e005"
+        "e004"
       ]
     },
     {
       "id": "e004",
-      "timestamp": "2026-07-20T00:00:00+00:00",
+      "timestamp": "2026-07-20T03:59:44+00:00",
       "type": "commit",
       "content": "Commit: 24298fe68d1efe8f45e72c0579b0685024db381b",
-      "caused_by": [],
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e005",
+        "e006",
+        "e009",
+        "e011",
+        "e012",
+        "e013",
+        "e018",
+        "e019",
+        "e020",
+        "e021",
+        "e022",
+        "e028",
+        "e029",
+        "e030",
+        "e033",
+        "e034",
+        "e039",
+        "e040",
+        "e041",
+        "e042",
+        "e043",
+        "e044",
+        "e045",
+        "e046",
+        "e047",
+        "e051",
+        "e055",
+        "e056",
+        "e057",
+        "e061",
+        "e062"
+      ],
       "leads_to": [
-        "e007"
+        "e008"
       ]
     },
     {
@@ -57,11 +86,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Integrated concurrent branch updates and pushed PR 3259",
-      "caused_by": [
-        "e003"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e006"
+        "e004"
       ]
     },
     {
@@ -69,35 +96,33 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Addressed the 23-thread PR review round",
-      "caused_by": [
-        "e005"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e009"
+        "e004"
       ]
     },
     {
       "id": "e007",
-      "timestamp": "2026-07-20T00:00:00+00:00",
+      "timestamp": "2026-07-20T06:09:35+00:00",
       "type": "commit",
       "content": "Commit: d500641aa2437ee455b2b64b616a7b1ad67874a8",
       "caused_by": [
-        "e004"
+        "e008"
       ],
       "leads_to": [
-        "e008"
+        "e010"
       ]
     },
     {
       "id": "e008",
-      "timestamp": "2026-07-20T00:00:00+00:00",
+      "timestamp": "2026-07-20T04:20:06+00:00",
       "type": "commit",
       "content": "Commit: fc4630123c",
       "caused_by": [
-        "e007"
+        "e004"
       ],
       "leads_to": [
-        "e010"
+        "e007"
       ]
     },
     {
@@ -105,23 +130,21 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Rejected unsafe start and end sentinel cleanup",
-      "caused_by": [
-        "e006"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e011"
+        "e004"
       ]
     },
     {
       "id": "e010",
-      "timestamp": "2026-07-20T00:00:00+00:00",
+      "timestamp": "2026-07-20T06:34:01+00:00",
       "type": "commit",
       "content": "Commit: 8512726a77cb634ec12606f6059672b0f76e07f7",
       "caused_by": [
-        "e008"
+        "e007"
       ],
       "leads_to": [
-        "e014"
+        "e015"
       ]
     },
     {
@@ -129,11 +152,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Merged origin/main and resolved four conflicts",
-      "caused_by": [
-        "e009"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e012"
+        "e004"
       ]
     },
     {
@@ -141,11 +162,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Closed pushed security-suppression coverage gaps",
-      "caused_by": [
-        "e011"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e013"
+        "e004"
       ]
     },
     {
@@ -153,32 +172,30 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Addressed five new PR review threads",
-      "caused_by": [
-        "e012"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e018"
+        "e004"
       ]
     },
     {
       "id": "e014",
-      "timestamp": "2026-07-20T00:00:00+00:00",
+      "timestamp": "2026-07-20T13:03:48+00:00",
       "type": "commit",
       "content": "Commit: 087671362479c80f89956446ac24e3ef59e8b7fa",
       "caused_by": [
-        "e010"
+        "e016"
       ],
       "leads_to": [
-        "e015"
+        "e017"
       ]
     },
     {
       "id": "e015",
-      "timestamp": "2026-07-20T00:00:00+00:00",
+      "timestamp": "2026-07-20T12:37:48+00:00",
       "type": "commit",
       "content": "Commit: 6ab3b8ecdf",
       "caused_by": [
-        "e014"
+        "e010"
       ],
       "leads_to": [
         "e016"
@@ -186,26 +203,26 @@
     },
     {
       "id": "e016",
-      "timestamp": "2026-07-20T00:00:00+00:00",
+      "timestamp": "2026-07-20T13:03:39+00:00",
       "type": "commit",
       "content": "Commit: 4455884de7",
       "caused_by": [
         "e015"
       ],
       "leads_to": [
-        "e017"
+        "e014"
       ]
     },
     {
       "id": "e017",
-      "timestamp": "2026-07-20T00:00:00+00:00",
+      "timestamp": "2026-07-20T13:03:48+00:00",
       "type": "commit",
       "content": "Commit: 0876713624",
       "caused_by": [
-        "e016"
+        "e014"
       ],
       "leads_to": [
-        "e023"
+        "e024"
       ]
     },
     {
@@ -213,11 +230,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Merged current main and pushed the hardened branch",
-      "caused_by": [
-        "e013"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e019"
+        "e004"
       ]
     },
     {
@@ -225,11 +240,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Addressed four additional PR review threads",
-      "caused_by": [
-        "e018"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e020"
+        "e004"
       ]
     },
     {
@@ -237,11 +250,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Removed vulnerable Semgrep transitive dependencies",
-      "caused_by": [
-        "e019"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e021"
+        "e004"
       ]
     },
     {
@@ -249,11 +260,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Resolved three incorrect uv dependency comments",
-      "caused_by": [
-        "e020"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e022"
+        "e004"
       ]
     },
     {
@@ -261,32 +270,30 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Added a seven-day uv dependency cooldown",
-      "caused_by": [
-        "e021"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e028"
+        "e004"
       ]
     },
     {
       "id": "e023",
-      "timestamp": "2026-07-20T00:00:00+00:00",
+      "timestamp": "2026-07-20T13:59:06+00:00",
       "type": "commit",
       "content": "Commit: e362c5199b44152c2334f17a48737e4c074469ac",
       "caused_by": [
-        "e017"
+        "e027"
       ],
       "leads_to": [
-        "e024"
+        "e031"
       ]
     },
     {
       "id": "e024",
-      "timestamp": "2026-07-20T00:00:00+00:00",
+      "timestamp": "2026-07-20T13:23:18+00:00",
       "type": "commit",
       "content": "Commit: f1f356926e",
       "caused_by": [
-        "e023"
+        "e017"
       ],
       "leads_to": [
         "e025"
@@ -294,7 +301,7 @@
     },
     {
       "id": "e025",
-      "timestamp": "2026-07-20T00:00:00+00:00",
+      "timestamp": "2026-07-20T13:31:09+00:00",
       "type": "commit",
       "content": "Commit: 329699a64e",
       "caused_by": [
@@ -306,7 +313,7 @@
     },
     {
       "id": "e026",
-      "timestamp": "2026-07-20T00:00:00+00:00",
+      "timestamp": "2026-07-20T13:45:25+00:00",
       "type": "commit",
       "content": "Commit: bbc7285ab5",
       "caused_by": [
@@ -318,14 +325,14 @@
     },
     {
       "id": "e027",
-      "timestamp": "2026-07-20T00:00:00+00:00",
+      "timestamp": "2026-07-20T13:58:30+00:00",
       "type": "commit",
       "content": "Commit: 104cd32072",
       "caused_by": [
         "e026"
       ],
       "leads_to": [
-        "e031"
+        "e023"
       ]
     },
     {
@@ -333,11 +340,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Closed the final two Copilot review comments",
-      "caused_by": [
-        "e022"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e029"
+        "e004"
       ]
     },
     {
@@ -345,11 +350,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Confirmed PR 3259 is ready to merge",
-      "caused_by": [
-        "e028"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e033"
+        "e004"
       ]
     },
     {
@@ -358,19 +361,32 @@
       "type": "test",
       "content": "Repository merge gate found 60 threads, zero unresolved, 89 passed checks, and no failed or pending required checks; two known nonrequired checks remain failed",
       "caused_by": [
+        "e035",
+        "e036",
+        "e037",
+        "e038",
+        "e048",
+        "e049",
+        "e050",
+        "e052",
+        "e053",
+        "e058",
+        "e059",
+        "e060",
+        "e063",
         "e064"
       ],
       "leads_to": [
-        "e001"
+        "e004"
       ]
     },
     {
       "id": "e031",
-      "timestamp": "2026-07-20T00:00:00+00:00",
+      "timestamp": "2026-07-20T14:10:07+00:00",
       "type": "commit",
       "content": "Commit: fd5bfba041771f1656c5d4a2b69b179559ff19a4",
       "caused_by": [
-        "e027"
+        "e023"
       ],
       "leads_to": [
         "e032"
@@ -378,14 +394,14 @@
     },
     {
       "id": "e032",
-      "timestamp": "2026-07-20T00:00:00+00:00",
+      "timestamp": "2026-07-20T14:10:07+00:00",
       "type": "commit",
       "content": "Commit: fd5bfba041",
       "caused_by": [
         "e031"
       ],
       "leads_to": [
-        "e035"
+        "e054"
       ]
     },
     {
@@ -393,11 +409,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Closed three late Copilot review findings in code",
-      "caused_by": [
-        "e029"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e034"
+        "e004"
       ]
     },
     {
@@ -405,11 +419,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Validated the final Lefthook review fixes",
-      "caused_by": [
-        "e033"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e039"
+        "e004"
       ]
     },
     {
@@ -417,11 +429,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 226b6c2f0a9ef824063c59bbfcb1f10770322414",
-      "caused_by": [
-        "e032"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e036"
+        "e030"
       ]
     },
     {
@@ -429,11 +439,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 9e83c42659",
-      "caused_by": [
-        "e035"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e037"
+        "e030"
       ]
     },
     {
@@ -441,11 +449,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: ac736f3d98",
-      "caused_by": [
-        "e036"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e038"
+        "e030"
       ]
     },
     {
@@ -453,11 +459,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 226b6c2f0a",
-      "caused_by": [
-        "e037"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e048"
+        "e030"
       ]
     },
     {
@@ -465,11 +469,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Completed the six-role Lefthook architecture review",
-      "caused_by": [
-        "e034"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e040"
+        "e004"
       ]
     },
     {
@@ -477,11 +479,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Accepted ADR-086 and recorded review consensus",
-      "caused_by": [
-        "e039"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e041"
+        "e004"
       ]
     },
     {
@@ -489,11 +489,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Updated the superseded and dependent hook records",
-      "caused_by": [
-        "e040"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e042"
+        "e004"
       ]
     },
     {
@@ -501,11 +499,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Aligned workflow and generated-agent records",
-      "caused_by": [
-        "e041"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e043"
+        "e004"
       ]
     },
     {
@@ -513,11 +509,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Aligned memory routing and architecture citations",
-      "caused_by": [
-        "e042"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e044"
+        "e004"
       ]
     },
     {
@@ -525,11 +519,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Aligned eval and Copilot dogfood records",
-      "caused_by": [
-        "e043"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e045"
+        "e004"
       ]
     },
     {
@@ -537,11 +529,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Aligned vendored-hook and permission-surface records",
-      "caused_by": [
-        "e044"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e046"
+        "e004"
       ]
     },
     {
@@ -549,11 +539,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Committed the final timeout and governance hardening",
-      "caused_by": [
-        "e045"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e047"
+        "e004"
       ]
     },
     {
@@ -561,11 +549,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Ran the final Lefthook pre-push gate",
-      "caused_by": [
-        "e046"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e051"
+        "e004"
       ]
     },
     {
@@ -573,11 +559,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: f6a65861cb6f359d7764f878b3922bba5e9a2079",
-      "caused_by": [
-        "e038"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e049"
+        "e030"
       ]
     },
     {
@@ -585,11 +569,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: d5ab4d93a1",
-      "caused_by": [
-        "e048"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e050"
+        "e030"
       ]
     },
     {
@@ -597,11 +579,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: f6a65861cb",
-      "caused_by": [
-        "e049"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e052"
+        "e030"
       ]
     },
     {
@@ -609,11 +589,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Merged current main and regenerated the causal graph",
-      "caused_by": [
-        "e047"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e055"
+        "e004"
       ]
     },
     {
@@ -621,11 +599,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 0b3678dd54c0df19bea33bfb626fbb46b05870e9",
-      "caused_by": [
-        "e050"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e053"
+        "e030"
       ]
     },
     {
@@ -633,35 +609,29 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 0b3678dd54",
-      "caused_by": [
-        "e052"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e054"
+        "e030"
       ]
     },
     {
       "id": "e054",
-      "timestamp": "2026-07-20T00:00:00+00:00",
+      "timestamp": "2026-07-20T18:31:40+00:00",
       "type": "commit",
       "content": "Commit: 1470178844",
       "caused_by": [
-        "e053"
+        "e032"
       ],
-      "leads_to": [
-        "e058"
-      ]
+      "leads_to": []
     },
     {
       "id": "e055",
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Falsified the proposed alternate-index rejection",
-      "caused_by": [
-        "e051"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e056"
+        "e004"
       ]
     },
     {
@@ -669,11 +639,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Added active-index and Windows regression coverage",
-      "caused_by": [
-        "e055"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e057"
+        "e004"
       ]
     },
     {
@@ -681,11 +649,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Completed the ADR-086 active-index delta review",
-      "caused_by": [
-        "e056"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e061"
+        "e004"
       ]
     },
     {
@@ -693,11 +659,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 45e305d6bb389a9d19ba208a16ed4a4a2cae8f3a",
-      "caused_by": [
-        "e054"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e059"
+        "e030"
       ]
     },
     {
@@ -705,11 +669,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: d767c4bc9e",
-      "caused_by": [
-        "e058"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e060"
+        "e030"
       ]
     },
     {
@@ -717,11 +679,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 45e305d6bb",
-      "caused_by": [
-        "e059"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e063"
+        "e030"
       ]
     },
     {
@@ -729,11 +689,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Committed the ADR-086 active-index evidence",
-      "caused_by": [
-        "e057"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e062"
+        "e004"
       ]
     },
     {
@@ -741,21 +699,19 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Aligned the security infrastructure guide with Lefthook",
-      "caused_by": [
-        "e061"
-      ],
-      "leads_to": []
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ]
     },
     {
       "id": "e063",
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: ae1fd30ce37c95cc373eb8de86ce988a019eb7ba",
-      "caused_by": [
-        "e060"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e064"
+        "e030"
       ]
     },
     {
@@ -763,9 +719,7 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: ae1fd30ce3",
-      "caused_by": [
-        "e063"
-      ],
+      "caused_by": [],
       "leads_to": [
         "e030"
       ]

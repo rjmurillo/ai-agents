@@ -21,6 +21,7 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 import re
@@ -1549,7 +1550,17 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Validate an existing episode JSON file, or every *.json under a "
             "directory, instead of extracting. Exit 2 on a duplicate, missing, "
-            "or non-contiguous event id"
+            "or non-contiguous event id, or a commit-to-commit edge that runs "
+            "backwards in committer time"
+        ),
+    )
+    parser.add_argument(
+        "--fix",
+        action="store_true",
+        help=(
+            "With --validate, repair backwards commit order in place by "
+            "restamping commit events from git and rebuilding the chain. "
+            "Refuses any file whose rebuild would drop edges"
         ),
     )
     parser.add_argument(
@@ -1955,19 +1966,157 @@ def validate_metrics_consistency(metrics: Any) -> list[str]:
     return []
 
 
-def validate_episode_file(path: Path) -> list[str]:
-    """Return one message per violation found in the episode JSON at ``path``."""
+def _commit_event_dates(events: list) -> dict[str, datetime]:
+    """Map event id to committer date, for commit events whose SHA resolves here.
+
+    A squash-merged branch takes its SHAs with it, so an abbreviated SHA from a
+    branch that no longer exists resolves nowhere. Those events are absent from
+    the map, and every caller skips what is missing rather than guessing a
+    position git did not supply.
+    """
+    dates: dict[str, datetime] = {}
+    for evt in events:
+        entry = _as_dict(evt)
+        identifier = entry.get("id")
+        if entry.get("type") != "commit" or not isinstance(identifier, str):
+            continue
+        sha = _commit_sha(entry)
+        moment = _commit_datetime(sha) if sha else None
+        if moment is not None:
+            dates[identifier] = moment
+    return dates
+
+
+def validate_commit_order(events: Any) -> list[str]:
+    """Return one message per commit-to-commit edge that runs backwards in time.
+
+    ``leads_to`` claims the source commit preceded the target. When git says the
+    target was committed first, the episode records an effect as its own cause.
+    17 such edges shipped across 14 episodes, written by the pre-#3638 linker,
+    which chained commits by list position while ``_collect_shas`` put the
+    session's *last* commit first. Issue #3765 named nine files; the same defect
+    shape reached six more it did not list, and one it did list carries no
+    verifiable edge because none of its abbreviated SHAs still resolves.
+
+    Only commit-to-commit edges are checked, and only where git resolves both
+    SHAs. Every other edge type is ordered by event timestamps this function has
+    no independent evidence about.
+    """
+    if not isinstance(events, list):
+        return []
+    dates = _commit_event_dates(events)
+    problems: list[str] = []
+    for evt in events:
+        entry = _as_dict(evt)
+        source = entry.get("id")
+        if not isinstance(source, str) or source not in dates:
+            continue
+        for raw_target in _as_list(entry.get("leads_to")):
+            target = raw_target if isinstance(raw_target, str) else ""
+            if target not in dates or dates[target] >= dates[source]:
+                continue
+            problems.append(
+                f"commit edge {source} -> {target} runs backwards: "
+                f"{dates[source].isoformat()} then {dates[target].isoformat()}"
+            )
+    return problems
+
+
+def _edge_count(events: list) -> int:
+    """Total ``leads_to`` edges across ``events``."""
+    return sum(len(_as_list(_as_dict(evt).get("leads_to"))) for evt in events)
+
+
+def repair_commit_order(events: list) -> str | None:
+    """Restamp commit events from git and rebuild the chain. Return a refusal.
+
+    Returns ``None`` on success and a one-line reason when the repair is
+    refused, leaving ``events`` untouched in that case.
+
+    Relinking alone is not a repair. These episodes carry session-date midnight
+    on every event, so ``_event_order_relation`` cannot separate a commit from a
+    same-day milestone and drops the edge as incomparable: over the fourteen
+    affected files a bare relink takes 234 edges to 96 and strands 163 of 263
+    events with no edge at all, up from 4. An edgeless graph carries no
+    backwards edge, so the check this repair exists to satisfy cannot see that
+    damage. Restamping first restores the evidence the ordering rule needs, and
+    the edge-count guard below refuses any repair that still loses edges.
+    """
+    dates = _commit_event_dates(events)
+    if not dates:
+        return "no commit event resolves to a git commit in this checkout"
+    before = copy.deepcopy(events)
+    for evt in events:
+        entry = evt if isinstance(evt, dict) else None
+        if entry is not None and entry.get("id") in dates:
+            entry["timestamp"] = dates[entry["id"]].isoformat()
+    try:
+        _renumber_events(events)
+        _link_sequential_events(events)
+    except EpisodeValidationError as exc:
+        events[:] = before
+        return f"relink failed: {exc}"
+    lost = _edge_count(before) - _edge_count(events)
+    if lost > 0:
+        events[:] = before
+        return f"refused: relink would drop {lost} of {_edge_count(before)} edges"
+    return None
+
+
+def _read_episode(path: Path) -> tuple[dict | None, str]:
+    """Return the parsed episode at ``path``, or ``None`` and why it is unusable."""
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        return [f"{path}: unreadable: {exc}"]
+        return None, f"unreadable: {exc}"
     if not isinstance(data, dict):
-        return [f"{path}: top level must be an object"]
-    problems = [
-        *validate_event_ids(data.get("events")),
-        *validate_metrics_consistency(data.get("metrics")),
-    ]
+        return None, "top level must be an object"
+    return data, ""
+
+
+def validate_episode_file(path: Path) -> list[str]:
+    """Return one message per violation found in the episode JSON at ``path``."""
+    data, failure = _read_episode(path)
+    if data is None:
+        return [f"{path}: {failure}"]
+    events = data.get("events")
+    problems = validate_event_ids(events)
+    if not problems:
+        problems = validate_commit_order(events)
+    problems = [*problems, *validate_metrics_consistency(data.get("metrics"))]
     return [f"{path}: {problem}" for problem in problems]
+
+
+def repair_episode_file(path: Path) -> tuple[bool, list[str]]:
+    """Repair backwards commit order at ``path``.
+
+    Returns whether the file was rewritten, and one message per reason the
+    repair could not proceed.
+
+    A file with no backwards commit edge is left alone: this repair addresses
+    that defect only, and rewriting a sound episode would churn timestamps no
+    check objects to. That decision lives here rather than in the caller so one
+    read of the file answers both questions.
+
+    An unreadable file yields no message. ``run_validate`` calls
+    ``validate_episode_file`` on the same path straight after, and that reports
+    the identical ``_read_episode`` text; returning it here too printed the line
+    twice under ``--validate --fix`` and told the reader nothing new.
+    """
+    data, _ = _read_episode(path)
+    if data is None:
+        return False, []
+    events = data.get("events")
+    if not isinstance(events, list) or not validate_commit_order(events):
+        return False, []
+    refusal = repair_commit_order(events)
+    if refusal:
+        return False, [f"{path}: {refusal}"]
+    try:
+        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    except OSError as exc:
+        return False, [f"{path}: write failed: {exc}"]
+    return True, []
 
 
 def _episode_paths(target: Path) -> list[Path]:
@@ -1977,25 +2126,32 @@ def _episode_paths(target: Path) -> list[Path]:
     return [target]
 
 
-def run_validate(target: Path) -> int:
-    """Validate an episode file or a directory of them. Exit 2 on violation."""
+def run_validate(target: Path, *, fix: bool = False) -> int:
+    """Validate an episode file or a directory of them. Exit 2 on violation.
+
+    With ``fix``, repair backwards commit order in place first, then report on
+    what the repair left. A refused repair still counts as a violation, so the
+    exit code never claims a file was fixed when it was not.
+    """
     paths = _episode_paths(target)
     if not paths:
         print(json.dumps({"Error": f"No episode files under {target}"}), file=sys.stderr)
         return 2
+    repaired = 0
+    if fix:
+        for path in paths:
+            changed, failures = repair_episode_file(path)
+            for failure in failures:
+                print(failure, file=sys.stderr)
+            repaired += int(changed)
     problems = [problem for path in paths for problem in validate_episode_file(path)]
     for problem in problems:
         print(problem, file=sys.stderr)
-    if problems:
-        print(
-            json.dumps(
-                {"Validated": len(paths), "Violations": len(problems)},
-            ),
-            file=sys.stderr,
-        )
-        return 2
-    print(json.dumps({"Validated": len(paths), "Violations": 0}), file=sys.stderr)
-    return 0
+    summary: dict[str, int] = {"Validated": len(paths), "Violations": len(problems)}
+    if fix:
+        summary["Repaired"] = repaired
+    print(json.dumps(summary), file=sys.stderr)
+    return 2 if problems else 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -2013,7 +2169,14 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
             return 1
-        return run_validate(session_log_path)
+        return run_validate(session_log_path, fix=args.fix)
+
+    if args.fix:
+        print(
+            json.dumps({"Error": "--fix requires --validate"}),
+            file=sys.stderr,
+        )
+        return 2
 
     if not session_log_path.is_file():
         print(

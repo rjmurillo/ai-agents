@@ -51,6 +51,42 @@ class TestVerifyFileCitation:
         assert "exceeds" in result.reason.lower()
 
     @pytest.mark.unit
+    def test_file_line_ignores_edits_above_it(self, tmp_path):
+        """A `:LINE` citation is checked against length, never content.
+
+        Inserting lines above the cited line moves the content the citation
+        meant, and verification still passes. The documentation says exactly
+        this, so pin it: if line citations ever become content-aware,
+        .agents/architecture/CITATION-SCHEMA.md, .agents/guides/
+        memory-citation-guide.md, and .claude/skills/reflect/references/
+        phase3-4-propose-persist.md all describe the old behaviour and must
+        change with it.
+        """
+        target = tmp_path / "drift.py"
+        target.write_text("".join(f"line{i}\n" for i in range(1, 11)))
+        c = Citation(source_type=SourceType.FILE, target="drift.py:5", context="")
+        assert verify_citation(c, tmp_path).is_valid is True
+
+        target.write_text(
+            "new\nnew\nnew\n" + "".join(f"line{i}\n" for i in range(1, 11))
+        )
+        assert target.read_text().splitlines()[4] == "line2"
+        assert verify_citation(c, tmp_path).is_valid is True
+
+    @pytest.mark.unit
+    def test_file_line_fails_only_on_truncation(self, tmp_path):
+        """The one edit a `:LINE` citation does catch is the file shrinking."""
+        target = tmp_path / "shrink.py"
+        target.write_text("".join(f"line{i}\n" for i in range(1, 11)))
+        c = Citation(source_type=SourceType.FILE, target="shrink.py:9", context="")
+        assert verify_citation(c, tmp_path).is_valid is True
+
+        target.write_text("line1\nline2\n")
+        result = verify_citation(c, tmp_path)
+        assert result.is_valid is False
+        assert "exceeds" in result.reason.lower()
+
+    @pytest.mark.unit
     def test_file_line_zero_rejected(self, tmp_path):
         """Line number 0 is invalid (1-indexed); must be rejected."""
         (tmp_path / "file.py").write_text("line1\nline2\n")

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 
@@ -178,3 +179,49 @@ class TestFormatReport:
         text = format_report(report)
         assert "100.0%" in text
         assert "Stale Memories" not in text
+
+
+class TestDocumentationMatchesScoring:
+    """Guard the SKILL.md health_score prose against the code it describes.
+
+    PR #4008 documented ``1.0 when there are none`` while PR #4003 changed the
+    nonempty-corpus-with-no-citations case to 0.0. The two PRs touched disjoint
+    files, so git merged them without a conflict and the documentation was left
+    asserting the opposite of the code. Prose and behavior are checked together
+    here because nothing else compares them.
+    """
+
+    SKILL_PATHS = (
+        Path(".claude/skills/memory-enhancement/SKILL.md"),
+        Path("src/copilot-cli/skills/memory-enhancement/SKILL.md"),
+    )
+
+    def _repo_root(self) -> Path:
+        return Path(__file__).resolve().parents[1]
+
+    @pytest.mark.unit
+    def test_documented_empty_corpus_score_matches_code(self):
+        counts = {"total": 0, "valid": 0, "stale": 0, "broken": 0, "unverified": 0}
+        assert _calculate_health_score(counts, total_memories=0) == 1.0
+        for rel in self.SKILL_PATHS:
+            text = (self._repo_root() / rel).read_text(encoding="utf-8")
+            assert "1.0 for an empty corpus" in text, f"{rel} does not document the 1.0 case"
+
+    @pytest.mark.unit
+    def test_documented_uncited_corpus_score_matches_code(self):
+        counts = {"total": 0, "valid": 0, "stale": 0, "broken": 0, "unverified": 0}
+        assert _calculate_health_score(counts, total_memories=878) == 0.0
+        for rel in self.SKILL_PATHS:
+            text = (self._repo_root() / rel).read_text(encoding="utf-8")
+            assert "0.0 when memories exist but carry no citations" in text, (
+                f"{rel} does not document the 0.0 case"
+            )
+
+    @pytest.mark.unit
+    def test_superseded_claim_is_absent(self):
+        """The pre-#4003 wording must not survive anywhere in the two mirrors."""
+        for rel in self.SKILL_PATHS:
+            text = (self._repo_root() / rel).read_text(encoding="utf-8")
+            assert "total`; 1.0 when there are none)" not in text, (
+                f"{rel} still carries the superseded health_score claim"
+            )
