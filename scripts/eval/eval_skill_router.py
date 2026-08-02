@@ -10,7 +10,9 @@ sibling more often than the old ones did.
 For each fixture (a verbatim user request plus 2-4 candidate sibling skills) and
 each VARIANT in {before, after}, the scorer:
   1. Resolves every candidate's description text:
-       - before : `git show origin/main:<path>` (the pre-#2127 description)
+       - before : `git show fd379f0a85e0dc4362c3960a84a7ad5632270239:<path>`
+                  (the immutable first-parent of the #2127 merge commit 817e466f8;
+                  this is the state of main the instant before #2127 landed).
        - after  : the working-tree file (the rewritten description)
   2. Builds a router prompt that lists ONLY the candidate descriptions plus the
      user query, and instructs the model to reply with EXACTLY one candidate name.
@@ -47,9 +49,12 @@ Usage:
 
 Exit codes:
     0 ok
-    2 config (fixtures file invalid, candidate description failed to load, or
-              missing ANTHROPIC_API_KEY - a missing env var is config per ADR-035)
-    3 external (API failure)
+1 identical-arms (before and after descriptions are byte-identical for every
+  candidate in every fixture; the eval cannot measure any change and exits
+  loudly so the caller knows the result is not a null finding)
+2 config (fixtures file invalid, candidate description failed to load, or
+          missing ANTHROPIC_API_KEY - a missing env var is config per ADR-035)
+3 external (API failure)
 """
 
 from __future__ import annotations
@@ -65,7 +70,13 @@ from typing import Any, cast
 from _anthropic_api import call_api, load_api_key_for_selected_provider
 
 MODEL = "claude-sonnet-4-6"
-BEFORE_REF = "origin/main"
+# Immutable first-parent of the #2127 merge commit (817e466f8).
+# This is the exact state of main the instant before #2127 landed.
+# Do NOT change this to a branch name: a moving ref makes both arms
+# read identical bytes once the target commit is on that branch, and
+# a zero delta reads as "no improvement" when it actually means
+# "nothing was compared" (issue #4304).
+BEFORE_REF = "fd379f0a85e0dc4362c3960a84a7ad5632270239"
 MAX_TOKENS = 64
 
 REQUIRED_FIXTURE_FIELDS = {"id", "query", "candidates", "correct"}
@@ -368,6 +379,8 @@ def build_plan(fixtures: list[dict[str, Any]], repo_root: Path) -> list[dict[str
             {
                 "fixture": fx,
                 "paths": paths,
+                "before_desc": before_desc,
+                "after_desc": after_desc,
                 "prompts": {
                     "before": build_router_prompt(fx["query"], candidates, before_desc),
                     "after": build_router_prompt(fx["query"], candidates, after_desc),
@@ -375,6 +388,24 @@ def build_plan(fixtures: list[dict[str, Any]], repo_root: Path) -> list[dict[str
             }
         )
     return plan
+
+
+def check_identical_arms(plan: list[dict[str, Any]]) -> list[str]:
+    """Return a list of (fixture_id, candidate) pairs where before==after description.
+
+    An empty list means the two arms differ somewhere (healthy). A non-empty list
+    means those specific candidates read identical bytes in both variants. When
+    ALL candidates in EVERY fixture are identical the eval is a no-op and must
+    exit non-zero (exit 1) so the caller cannot mistake zero-delta for a null
+    finding (issue #4304).
+    """
+    identical_pairs: list[str] = []
+    for item in plan:
+        fx_id = item["fixture"]["id"]
+        for name in item["fixture"]["candidates"]:
+            if item["before_desc"][name] == item["after_desc"][name]:
+                identical_pairs.append(f"{fx_id}/{name}")
+    return identical_pairs
 
 
 def run_eval(plan: list[dict[str, Any]], api_key: str) -> dict[str, Any]:
@@ -475,6 +506,32 @@ def main() -> int:
     except RuntimeError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
+
+    # Detect identical arms: if before and after descriptions are byte-identical
+    # for every candidate in every fixture, the eval measures nothing. Exit 1
+    # loudly so the caller cannot mistake a zero-delta result for a null finding.
+    # Partial overlap (some candidates identical, some differ) is reported as a
+    # warning but does not abort, because a partial change is still measurable.
+    identical_pairs = check_identical_arms(plan)
+    total_candidate_slots = sum(len(item["fixture"]["candidates"]) for item in plan)
+    if identical_pairs and len(identical_pairs) == total_candidate_slots:
+        print(
+            "ERROR: identical arms detected. Before and after descriptions are "
+            "byte-identical for every candidate in every fixture. "
+            f"BEFORE_REF={BEFORE_REF!r} resolves to the same content as the "
+            "working tree for all candidates, so no change is being measured. "
+            "Fix BEFORE_REF to point to the immutable pre-change commit.",
+            file=sys.stderr,
+        )
+        return 1
+    if identical_pairs:
+        print(
+            f"WARNING: {len(identical_pairs)}/{total_candidate_slots} candidate slots "
+            "have identical before/after descriptions and will not contribute signal: "
+            + ", ".join(identical_pairs[:10])
+            + ("..." if len(identical_pairs) > 10 else ""),
+            file=sys.stderr,
+        )
 
     if args.dry_run:
         planned_calls = len(plan) * 2  # one before + one after per fixture
