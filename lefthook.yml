@@ -288,7 +288,7 @@ pre-commit:
 
           - name: memory-tier
             timeout: 5m
-            run: uv run --frozen python scripts/validate_memory_tier.py --path .serena/memories
+            run: uv run --frozen python scripts/validate_memory_tier.py --path .serena/memories --ci
             glob: ".serena/memories/**/*.md"
 
     - group:
