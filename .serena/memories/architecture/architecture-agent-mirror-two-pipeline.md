@@ -1,66 +1,104 @@
-# Agent mirror pipelines: generated vs hand-maintained trees
+# Agent mirror: two generated trees, three hand-maintained ones
 
-Agent files live in several trees. Two are generated from templates; the rest
-are hand-maintained. Never confuse them.
+Agent definitions have five destination trees. The generator writes exactly two
+of them. The other three are hand-maintained copies that a human or agent must
+edit deliberately. Regeneration will not carry a change into them, and no PR
+gate compares their text. The only text comparison is a weekly, allowlist-scoped
+audit that covers two pairs; see "The two verifications" below for what it does
+and does not prove.
 
-## Generated trees (template source -> generator -> output)
+## The pipeline
 
-- Source of truth: `templates/agents/<name>.shared.md`.
+- Shared body: `templates/agents/<name>.shared.md` (30 files as of 2026-08-01).
 - Generator: `build/generate_agents.py` (+ `build/generate_agents_common.py`),
-  invoked by `build/scripts/build_all.py::_build_agents`.
-- Destination 1 (Copilot CLI): `src/copilot-cli/agents/<name>.agent.md`.
-- Destination 2 (VS Code): `src/vs-code-agents/<name>.agent.md`.
+  invoked by `build/scripts/build_all.py::_build_agents` which calls
+  `generate_agents.main([...])` across all platform configs.
 
-A behavioral change to a shared agent is made ONCE in the `.shared.md` body
-and flows to both generated trees on regeneration. Do NOT hand-edit the
-generated destinations.
+| Tree | Written by the generator? |
+|---|---|
+| `src/copilot-cli/agents/<name>.agent.md` | yes |
+| `src/vs-code-agents/<name>.agent.md` | yes |
+| `src/claude/<name>.md` | no, hand-maintained |
+| `.claude/agents/<name>.md` | no, hand-maintained |
+| `.github/agents/<name>.agent.md` | no, hand-maintained |
 
-## Hand-maintained trees (NOT generated from templates)
+The generated pair is exactly the `outputDir` set for agents in
+`templates/platforms/*.yaml`: `src/copilot-cli/agents` and `src/vs-code-agents`.
+Nothing else.
 
-- `src/claude/*.md`: canonical hand-maintained Claude agent prompts. Edit
-  directly, in lockstep with the shared template (ADR-036).
-- `.claude/agents/`: hand-maintained self-host install copy for Claude Code.
-- `.github/agents/`: hand-maintained self-host install copy for GitHub Copilot.
+Verify this rather than trusting an empty diff. Running the generator and
+seeing no change is consistent with "wrote the identical bytes back". Append a
+unique marker to one file in each tree, prove the marker is absent from the
+rest of the tree first, then run `python3 build/generate_agents.py`: the marker
+is erased in a generated tree and survives in a hand-maintained one. Measured
+2026-08-01 at `7e8d3ac2f4`, the marker survived in `src/claude/`,
+`.claude/agents/`, and `.github/agents/`.
 
-These three trees are never written by `build/generate_agents.py`. The generator
-carries a hard guard against writing under `.claude/` (REQ-003-010).
+So a behavioral change (for example a severity rubric on
+silent-failure-hunter) made ONCE in the `.shared.md` body reaches two trees.
+The remaining three need the same edit applied by hand, in the same change.
 
-## The two verifications
+## The two verifications, and what each does not prove
 
-1. Template-to-generated staleness: `build/generate_agents.py --validate`.
-   Runs on PRs via `.github/workflows/agent-drift-detection.yml`. Catches "I
-   edited the generated file instead of the template" or "I edited the template
-   but forgot to regenerate."
+1. Similarity scoring: `build/scripts/detect_agent_drift.py`. Scores
+   `src/claude` against `src/vs-code-agents`, and `.claude/agents` against
+   `.github/agents`, over an 18-section allowlist. It never reads a template
+   body. It is a weekly and manual audit
+   (`.github/workflows/drift-detection.yml` has only `schedule` and
+   `workflow_dispatch` triggers), not a PR merge gate. The #2707 fix cited
+   "detect_agent_drift 100% on all silent-failure-hunter pairs" as evidence,
+   but that 100.0 is vacuous: `silent-failure-hunter` matches zero allowlisted
+   sections, so the score is hardcoded and cannot fall (verified 2026-08-01 at
+   `7e8d3ac2f4`). Treat a 100.0 as evidence only after confirming the pair
+   compares a nonzero number of sections.
+2. Installed-copy parity: `scripts/validation/run_install_parity_ci.py` (backed
+   by `build/scripts/validate_install_parity.py`). It checks **co-change in a
+   diff, not content**: "reports the sibling files that should have changed
+   together and did not" (`validate_install_parity.py:24`). It never compares
+   two files' text. Measured 2026-08-01 at `7e8d3ac2f4`:
 
-2. Claude-vs-VS-Code semantic drift: `build/scripts/detect_agent_drift.py`.
-   Compares `src/claude/` against `src/vs-code-agents/` using section
-   similarity. Runs weekly via `.github/workflows/drift-detection.yml`. Catches
-   Claude-specific enrichment that has diverged significantly from the
-   template-derived VS Code body. Note: this detector does NOT compare against
-   the templates directly.
+   ```bash
+   uv run python build/scripts/validate_install_parity.py --files \
+     templates/agents/merge-resolver.shared.md .claude/agents/merge-resolver.md \
+     .github/agents/merge-resolver.agent.md src/claude/merge-resolver.md \
+     src/copilot-cli/agents/merge-resolver.agent.md \
+     src/vs-code-agents/merge-resolver.agent.md
+   ```
 
-3. Install-copy parity: `scripts/validation/run_install_parity_ci.py` (backed
-   by `build/scripts/validate_install_parity.py`). Asserts that every
-   install-parity member of a shared-template agent carries the identical body.
+   returns `install-parity: OK`, rc 0, on six files the detector scores at
+   20.9% similar. The #2707 claim that parity "confirmed all six
+   silent-failure-hunter install-parity members carry the identical rubric
+   body" is not something parity can establish. Diff the files to make that
+   claim.
 
-## Workflow when changing a shared agent
+## Why this matters
+
+Neither check proves the five trees agree on content. The detector compares
+text but only inside an 18-section allowlist, only between two specific pairs,
+and only on a weekly schedule. Parity runs at PR time but only asks whether
+sibling files moved together. A contradiction that lives outside the allowlist,
+or in one of the four agents whose allowlist match is empty, is invisible to
+both. Read both files before you edit either.
+
+## Workflow when changing an agent
 
 1. Edit `templates/agents/<name>.shared.md`.
-2. Also edit `src/claude/<name>.md` in the same change (it is NOT auto-synced).
-3. Run `python3 build/generate_agents.py` to refresh `src/copilot-cli/agents/`
-   and `src/vs-code-agents/`.
-4. Run `build/scripts/build_all.py --check` (must be clean after commit).
-5. Confirm `run_install_parity_ci.py` is OK.
-6. Commit all generated and hand-edited files together.
+2. Run `build/scripts/build_all.py --check` (must be clean after commit).
+3. Confirm `detect_agent_drift.py` reports 100% on the changed pairs, AND that
+   those pairs compare a nonzero number of sections (otherwise the 100.0 is
+   hardcoded and proves nothing).
+4. Confirm `run_install_parity_ci.py` is OK.
+5. The agent catalog line count regenerates (155 to 158 in #2707); commit the
+   regenerated catalog with the change. Generated artifacts ship WITH the
+   change, never in a follow-up PR.
 
 ## Evidence
 
-- Source: `build/scripts/detect_agent_drift.py` module docstring (verified
-  at HEAD); `templates/platforms/copilot-cli.yaml` and
-  `templates/platforms/vscode.yaml` `outputDir` fields.
-- Issue #4155 documents that the prior "two-pipeline" description incorrectly
-  listed `.claude/agents/` as a generated destination and incorrectly stated
-  that `detect_agent_drift.py` compares against templates.
+- PR #2707 (merge a4af5d2f66aa): three SkillOpt fixes including
+  silent-failure-hunter, verified via `build_all.py --check`,
+  `detect_agent_drift` (100% on all pairs), and `run_install_parity_ci.py`.
+- Source tree: `templates/agents/*.shared.md`.
+- Generator: `build/generate_agents.py`, `build/scripts/build_all.py`.
 - Checks: `build/scripts/detect_agent_drift.py`,
   `scripts/validation/run_install_parity_ci.py`,
   `build/scripts/validate_install_parity.py`.

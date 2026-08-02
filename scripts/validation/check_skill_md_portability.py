@@ -68,7 +68,11 @@ from scripts.utils.markdown_parser import (
     MarkdownNestingError,
     blank_code_block_lines,
 )
-from scripts.validation.portability_common import build_portability_parser
+from scripts.validation.portability_common import (
+    build_portability_parser,
+    refuse_unsafe_baseline_write,
+    write_baseline_json,
+)
 from scripts.validation.portability_common import (
     diff_against_baseline as _diff_against_baseline,
 )
@@ -421,6 +425,19 @@ def scan_plugin_roots(root: Path) -> dict[str, int]:
     return counts
 
 
+def scanned_markdown_by_root(root: Path) -> dict[str, int]:
+    """Return how many skill ``.md`` files were read under each shipped root.
+
+    A sum cannot answer coverage: one empty root stays invisible in a total
+    another root keeps positive, so a partial checkout would write a baseline
+    dropping every file the unread root owned.
+    """
+    return {
+        skills_dir.relative_to(root).as_posix(): scan_skill_markdown(skills_dir).scanned
+        for skills_dir in skills_dirs(root)
+    }
+
+
 def scan_marker_suppressions(root: Path) -> dict[str, int]:
     """Return marker-suppressed reference counts across every plugin root."""
     counts: dict[str, int] = {}
@@ -525,14 +542,21 @@ def diff_marker_baseline(
 
 
 def _write_baseline(
-    baseline_path: Path, current: dict[str, int], marker_current: dict[str, int]
+    root: Path,
+    baseline_path: Path,
+    current: dict[str, int],
+    marker_current: dict[str, int],
+    allow_shrink: bool,
 ) -> int:
     total = sum(current.values())
     marker_total = sum(marker_current.values())
-    baseline_path.write_text(
-        json.dumps(
-            {
-                "_comment": (
+    entries = dict(sorted(current.items()))
+    marker_entries = dict(sorted(marker_current.items()))
+    rc = write_baseline_json(
+        root,
+        baseline_path,
+        {
+            "_comment": (
                     "Vendor-portability ratchet baseline for skill Markdown "
                     "(issue #2050). The files object counts undeclared "
                     "upstream-only path references per Markdown file. The "
@@ -542,14 +566,15 @@ def _write_baseline(
                     "check_skill_md_portability.py --update-baseline. Lower "
                     "values in files are better; marker_files values must stay exact."
                 ),
-                "files": dict(sorted(current.items())),
-                "marker_files": dict(sorted(marker_current.items())),
-            },
-            indent=2,
-        )
-        + "\n",
-        encoding="utf-8",
+            "files": entries,
+            "marker_files": marker_entries,
+        },
+        {"files": entries, "marker_files": marker_entries},
+        "skill .md files",
+        allow_shrink,
     )
+    if rc:
+        return rc
     print(
         f"Baseline written: {len(current)} files, {total} refs; "
         f"{len(marker_current)} marker files, {marker_total} suppressed refs."
@@ -624,6 +649,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         current = scan_plugin_roots(root)
         marker_current = scan_marker_suppressions(root)
+        scanned_by_root = scanned_markdown_by_root(root)
     except (OSError, MarkdownNestingError) as exc:
         print(f"Could not scan skills dirs under {root}: {exc}", file=sys.stderr)
         return 2
@@ -635,7 +661,18 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if args.update_baseline:
-        return _write_baseline(baseline_path, current, marker_current)
+        if refuse_unsafe_baseline_write(
+            root,
+            scanned_by_root,
+            baseline_path,
+            {"files": current, "marker_files": marker_current},
+            "skill .md files",
+            args.allow_baseline_shrink,
+        ):
+            return 2
+        return _write_baseline(
+            root, baseline_path, current, marker_current, args.allow_baseline_shrink
+        )
 
     try:
         baseline = _load_baseline(baseline_path)

@@ -1,11 +1,8 @@
-"""Regression guards for knowledge-surface contradictions fixed in issues #4155, #4169, #4175.
-
-Each test pins a previously broken or contradictory claim so the same wording
-cannot re-enter an always-on surface unnoticed.
-"""
+"""Regression guards for issues #4155, #4169, and #4175."""
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -13,146 +10,202 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 _AGENTS_MD = REPO_ROOT / "AGENTS.md"
 _CLAUDE_AGENTS_RULE = REPO_ROOT / ".claude" / "rules" / "claude-agents.md"
 _TEMPLATES_RULE = REPO_ROOT / ".claude" / "rules" / "templates.md"
+_CLAUDE_AGENTS_MIRRORS = (
+    REPO_ROOT / ".github" / "instructions" / "claude-agents.instructions.md",
+    REPO_ROOT / "src" / "copilot-cli" / "instructions" / "claude-agents.instructions.md",
+)
+_TEMPLATES_MIRRORS = (
+    REPO_ROOT / ".github" / "instructions" / "templates.instructions.md",
+    REPO_ROOT / "src" / "copilot-cli" / "instructions" / "templates.instructions.md",
+)
+_PLUGIN_VERSION_RULE_SURFACES = (
+    REPO_ROOT / ".claude" / "rules" / "plugin-version-bump.md",
+    REPO_ROOT / ".github" / "instructions" / "plugin-version-bump.instructions.md",
+    REPO_ROOT
+    / "src"
+    / "copilot-cli"
+    / "instructions"
+    / "plugin-version-bump.instructions.md",
+)
+_ARCHITECTURE_SKILL_SURFACES = (
+    REPO_ROOT / ".claude" / "skills" / "ai-agents-architecture-contract" / "SKILL.md",
+    REPO_ROOT
+    / "src"
+    / "copilot-cli"
+    / "skills"
+    / "ai-agents-architecture-contract"
+    / "SKILL.md",
+)
+_DRIFT_MEMORIES = (
+    REPO_ROOT / ".serena" / "memories" / "agents-two-pipeline-mirror-recipe.md",
+    REPO_ROOT
+    / ".serena"
+    / "memories"
+    / "architecture"
+    / "architecture-agent-mirror-two-pipeline.md",
+)
 
 
-# ---------------------------------------------------------------------------
-# Issue #4155: detect_agent_drift.py compares src/claude vs src/vs-code-agents,
-# NOT vs templates. templates.md MUST NOT list src/claude/ as generated.
-# ---------------------------------------------------------------------------
+def _read(path: Path) -> str:
+    return path.read_text(encoding="utf-8")
 
 
-def test_templates_rule_does_not_list_src_claude_as_generated() -> None:
-    """templates.md MUST NOT cite src/claude/ as a generated tree to avoid editing.
-
-    src/claude/ is hand-maintained (claude-agents.md MUST-1 says "Edit Claude
-    agents directly"). Listing it as a file that must not be edited because it
-    is generated contradicts that rule and deadlocks any agent that loads both.
-    """
-    text = _TEMPLATES_RULE.read_text(encoding="utf-8")
-    must_not_start = text.index("## MUST NOT")
-    must_not_section = text[must_not_start:]
-    # The specific phrase that caused the deadlock was listing src/claude/ as a
-    # generated file in the prohibition, e.g.:
-    # "MUST NOT edit generated files directly (`src/claude/`..."
-    assert "generated files directly (`src/claude/" not in must_not_section, (
-        "templates.md MUST NOT section prohibits editing src/claude/ as a generated "
-        "file. src/claude/ is hand-maintained; this contradicts claude-agents.md "
-        "MUST-1 ('Edit Claude agents directly'). Remove it and list the actual "
-        "generated trees: src/copilot-cli/agents/ and src/vs-code-agents/."
-    )
+def _section(text: str, heading: str) -> str:
+    marker = f"\n{heading}\n"
+    start = text.index(marker) + 1
+    end = text.find("\n## ", start + len(heading))
+    return text[start:] if end == -1 else text[start:end]
 
 
-def test_templates_rule_references_actual_generated_trees() -> None:
-    """templates.md MUST reference the trees the generator actually writes.
+def _numbered_rule(section: str, number: int) -> str:
+    prefix = f"{number}. "
+    lines = section.splitlines()
+    start = next(index for index, line in enumerate(lines) if line.startswith(prefix))
+    item = [lines[start]]
+    after_blank = False
+    for line in lines[start + 1 :]:
+        if re.match(r"\d+\. ", line) or line.startswith("## "):
+            break
+        if after_blank and line and not line.startswith((" ", "\t")):
+            break
+        item.append(line)
+        after_blank = not line
+    return "\n".join(item).rstrip()
 
-    The generator writes src/copilot-cli/agents/ and src/vs-code-agents/.
-    Those must appear in the MUST-2 commit instruction.
-    """
-    text = _TEMPLATES_RULE.read_text(encoding="utf-8")
-    assert "src/copilot-cli/" in text, (
-        "templates.md should reference src/copilot-cli/ as a generated destination."
-    )
-    assert "src/vs-code-agents/" in text, (
-        "templates.md should reference src/vs-code-agents/ as a generated destination."
-    )
+
+def _boundary_entries(text: str, boundary: str) -> list[str]:
+    prefix = f"**{boundary}**:"
+    start = text.index(prefix)
+    line = text[start : text.index("\n", start)]
+    return line.removeprefix(prefix).split("|")
 
 
-def test_claude_agents_rule_does_not_claim_drift_detector_compares_templates() -> None:
-    """claude-agents.md must not say detect_agent_drift.py compares vs templates.
+def _normalized(path: Path) -> str:
+    return " ".join(_read(path).split())
 
-    The detector compares src/claude/ against src/vs-code-agents/, not against
-    templates/agents/*.shared.md. Saying 'diverges from the shared body' implies
-    a direct template comparison that never happens.
-    """
-    text = _CLAUDE_AGENTS_RULE.read_text(encoding="utf-8")
-    # These phrases would mean "compares against the template"
-    bad_phrases = [
-        "diverges from the shared body",
-        "stays in sync with the shared template body",
-        "diverge from that shared body",
-    ]
-    for phrase in bad_phrases:
-        assert phrase not in text, (
-            f"claude-agents.md contains '{phrase}', implying detect_agent_drift.py "
-            "compares src/claude/ against the shared template. It actually compares "
-            "against VS Code copies (src/vs-code-agents/). Correct the description."
+
+def test_template_rules_name_only_generated_agent_trees() -> None:
+    for path in (_TEMPLATES_RULE, *_TEMPLATES_MIRRORS):
+        text = _read(path)
+        must_2 = _numbered_rule(_section(text, "## MUST"), 2)
+        should_2 = _numbered_rule(_section(text, "## SHOULD"), 2)
+        generated_clause = re.search(
+            r"Regenerated files under (.+?) MUST be committed", must_2, re.DOTALL
+        )
+        assert generated_clause is not None
+        must_paths = set(re.findall(r"`([^`]+/)`", generated_clause.group(1)))
+
+        expected = {"src/copilot-cli/agents/", "src/vs-code-agents/"}
+        assert must_paths == expected
+        assert should_2 == (
+            "2. **Preview per platform**. SHOULD inspect the generated output for both "
+            "target platforms (`src/copilot-cli/agents/<agent>.agent.md` and "
+            "`src/vs-code-agents/<agent>.agent.md`) to confirm the change renders "
+            "correctly."
         )
 
 
-def test_claude_agents_and_templates_rules_agree_src_claude_is_hand_maintained() -> None:
-    """The two rules must not contradict each other on whether src/claude/ is generated.
-
-    claude-agents.md says edit src/claude/ directly (MUST-1).
-    templates.md must not prohibit that edit by listing src/claude/ as generated.
-    If both load simultaneously (they do: both have applyTo matching src/claude/**)
-    an agent holding both rules is deadlocked.
-    """
-    claude_agents_text = _CLAUDE_AGENTS_RULE.read_text(encoding="utf-8")
-    templates_text = _TEMPLATES_RULE.read_text(encoding="utf-8")
-
-    # claude-agents.md must still say src/claude/ is hand-maintained
-    assert "hand-maintained" in claude_agents_text, (
-        "claude-agents.md must state that src/claude/ is hand-maintained."
-    )
-    assert "NOT generated" in claude_agents_text, (
-        "claude-agents.md must state that src/claude/ is NOT generated."
-    )
-
-    # templates.md MUST NOT section must not prohibit editing src/claude/ as generated
-    must_not_start = templates_text.index("## MUST NOT")
-    must_not_section = templates_text[must_not_start:]
-    assert "generated files directly (`src/claude/" not in must_not_section, (
-        "templates.md MUST NOT section contradicts claude-agents.md by listing "
-        "src/claude/ as a generated file that must not be edited directly."
-    )
+def test_templates_rule_uses_portable_claude_agents_reference() -> None:
+    for path in (_TEMPLATES_RULE, *_TEMPLATES_MIRRORS):
+        must_not_1 = _numbered_rule(_section(_read(path), "## MUST NOT"), 1)
+        assert ".claude/rules/claude-agents.md" not in must_not_1
+        assert "claude-agents rule" in must_not_1
 
 
-# ---------------------------------------------------------------------------
-# Issue #4169: AGENTS.md Never list must say "New bash scripts", not "Use bash".
-# An unqualified "Use bash" contradicts claude-model-patches.md which lists
-# allowed bash patterns including git, gh, and package managers.
-# ---------------------------------------------------------------------------
+def test_claude_agents_rule_states_drift_detector_inputs() -> None:
+    for path in (_CLAUDE_AGENTS_RULE, *_CLAUDE_AGENTS_MIRRORS):
+        detector_section = _section(
+            _read(path), "## What the drift detector does and does not catch"
+        )
+
+        assert "It compares two pairs, and `templates/` is in neither:" in detector_section
+        assert _numbered_rule(detector_section, 1) == (
+            "1. `src/claude/*.md` against `src/vs-code-agents/*.agent.md`"
+        )
+        assert _numbered_rule(detector_section, 2) == (
+            "2. `.claude/agents/*.md` against `.github/agents/*.agent.md`"
+        )
 
 
-def test_agents_md_never_list_does_not_flatly_prohibit_use_bash() -> None:
-    """AGENTS.md Never list must not say bare 'Use bash'.
-
-    'Use bash' without a qualifier contradicts claude-model-patches.md which
-    explicitly lists allowed bash patterns (git, gh, package managers, etc.).
-    An agent holding both rules cannot tell which to follow; the correct
-    wording is 'New bash scripts' to match all three detailed rules which
-    scope the prohibition to authoring script files.
-    """
-    text = _AGENTS_MD.read_text(encoding="utf-8")
-    never_start = text.index("**Never**:")
-    never_line = text[never_start : text.index("\n", never_start)]
-    assert "Use bash" not in never_line, (
-        "AGENTS.md Never list contains 'Use bash' without qualifier. This contradicts "
-        "claude-model-patches.md which enumerates allowed bash patterns (git, gh, "
-        "package managers). Change to 'New bash scripts' to match the detailed rules."
+def test_other_detector_guidance_surfaces_state_actual_inputs() -> None:
+    expected_first_pair = "`src/claude` against `src/vs-code-agents`"
+    expected_pairs = (
+        "`src/claude` against `src/vs-code-agents`, and `.claude/agents` against "
+        "`.github/agents`"
     )
 
+    for path in (*_TEMPLATES_MIRRORS, _TEMPLATES_RULE):
+        text = _normalized(path)
+        assert "does NOT compare templates against anything" in text
+        assert expected_pairs in text
 
-# ---------------------------------------------------------------------------
-# Issue #4175: AGENTS.md Always list must not say "Bump plugin manifest".
-# ADR-092 removed the version field from all plugin manifests; any bump
-# now fails the validate_plugin_version_bump.py gate.
-# ---------------------------------------------------------------------------
+    for path in _ARCHITECTURE_SKILL_SURFACES:
+        text = _normalized(path)
+        assert "NOT against templates" in text
+        assert expected_pairs in text
 
+    recipe_text = _normalized(_DRIFT_MEMORIES[0])
+    assert "never reads a template body" in recipe_text
+    assert expected_first_pair in recipe_text
 
-def test_agents_md_always_list_does_not_say_bump_plugin_manifest() -> None:
-    """AGENTS.md Always list must not say 'Bump plugin manifest'.
+    architecture_text = _normalized(_DRIFT_MEMORIES[1])
+    assert "never reads a template body" in architecture_text
+    assert expected_pairs in architecture_text
 
-    ADR-092 removed the version field from all plugin manifests. Following
-    'Bump plugin manifest' now fails the validate_plugin_version_bump.py gate
-    with exit 1. The correct entry is 'No manifest version (ADR-092)' or
-    equivalent that reflects the current policy.
-    """
-    text = _AGENTS_MD.read_text(encoding="utf-8")
-    always_start = text.index("**Always**:")
-    always_line = text[always_start : text.index("\n", always_start)]
-    assert "Bump plugin manifest" not in always_line, (
-        "AGENTS.md Always list contains 'Bump plugin manifest'. ADR-092 removed the "
-        "version field; bumping now fails the gate. Replace with guidance that "
-        "reflects the current no-version policy."
+    obsolete_claims = (
+        "compares agents against templates",
+        "diverges from the shared body",
+        "diverges from the template",
+        "stays in sync with the shared template body",
     )
+    detector_surfaces = (
+        _CLAUDE_AGENTS_RULE,
+        *_CLAUDE_AGENTS_MIRRORS,
+        _TEMPLATES_RULE,
+        *_TEMPLATES_MIRRORS,
+        *_ARCHITECTURE_SKILL_SURFACES,
+        *_DRIFT_MEMORIES,
+    )
+    for path in detector_surfaces:
+        text = _normalized(path).casefold()
+        assert all(claim not in text for claim in obsolete_claims)
+
+
+def test_rules_agree_src_claude_is_hand_maintained() -> None:
+    expected_contract = (
+        "`src/claude/*.md` are hand-maintained Claude agent prompts with unique "
+        "Claude-specific content (`name`/`model` frontmatter). They are NOT generated."
+    )
+    for path in (_CLAUDE_AGENTS_RULE, *_CLAUDE_AGENTS_MIRRORS):
+        text = _read(path)
+        assert expected_contract in text
+
+    for path in (_TEMPLATES_RULE, *_TEMPLATES_MIRRORS):
+        must_not = _section(_read(path), "## MUST NOT")
+        assert "generated files directly (`src/claude/" not in must_not
+        assert (
+            "`src/claude/`, `.claude/agents/`, or `.github/agents/`, "
+            "which are hand-maintained"
+        ) in must_not
+
+
+def test_agents_never_scopes_bash_rule_to_new_scripts() -> None:
+    entries = _boundary_entries(_read(_AGENTS_MD), "Never")
+
+    assert "New bash scripts" in entries
+    assert "Use bash" not in entries
+
+
+def test_agents_always_requires_no_manifest_version_policy() -> None:
+    entries = _boundary_entries(_read(_AGENTS_MD), "Always")
+
+    assert "No manifest version (ADR-092)" in entries
+    assert "Bump plugin manifest" not in entries
+
+
+def test_plugin_version_rules_forbid_manifest_bumps() -> None:
+    for path in _PLUGIN_VERSION_RULE_SURFACES:
+        text = _read(path)
+        assert "# Plugin Manifests Carry No Version" in text
+        assert "must never add one back" in text
+        assert "Nothing. Do not touch the manifests" in text
