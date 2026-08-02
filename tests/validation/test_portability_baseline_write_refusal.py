@@ -183,6 +183,33 @@ class TestIndexEnvironmentIsNotTrusted:
 class TestDroppedEntryGuard:
     """The bounded rule: refuse any rewrite that records less than its predecessor."""
 
+    @pytest.mark.parametrize(
+        ("module", "marker"),
+        [
+            (cmp, "<!-- vendor-portability: test fixture -->"),
+            (cep, "<!-- vendor-portability-exec: test fixture -->"),
+        ],
+    )
+    def test_marker_entry_drop_also_needs_the_shrink_to_be_declared(
+        self, tmp_path: Path, module: ModuleType, marker: str
+    ) -> None:
+        _repo(tmp_path)
+        target = tmp_path / ROOT_NAMES[1] / "alpha" / "SKILL.md"
+        target.write_text(f"{marker}\n{SKILL_BODY.format(name='alpha')}", encoding="utf-8")
+        _git(tmp_path, "commit", "-qam", "add marker")
+        baseline, before, _ = _seed_baseline(tmp_path, module)
+        seeded = json.loads(baseline.read_text(encoding="utf-8"))
+        assert seeded["marker_files"], "fixture records no marker entry to protect"
+
+        target.write_text(SKILL_BODY.format(name="alpha"), encoding="utf-8")
+
+        assert _update(tmp_path, module) == 2
+        assert baseline.read_bytes() == before
+
+        assert _update(tmp_path, module, "--allow-baseline-shrink") == 0
+        after = json.loads(baseline.read_text(encoding="utf-8"))
+        assert after["marker_files"] == {}
+
     @pytest.mark.parametrize("module", [cmp, cep])
     def test_committed_deletion_still_needs_the_shrink_to_be_declared(
         self, tmp_path: Path, module: ModuleType
