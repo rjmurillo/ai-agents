@@ -9,6 +9,7 @@ baseline (the CI ratchet that blocks new upstream-path references).
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -142,10 +143,15 @@ RUNTIME_PATH = ".claude/skills/runtime"
         self._skill_script(tmp_path, "gamma", "Path('.agents/architecture')\n")
         original_read_text = Path.read_text
 
-        def read_text(path: Path, *args: object, **kwargs: object) -> str:
+        def read_text(
+            path: Path,
+            encoding: str | None = None,
+            errors: str | None = None,
+            newline: str | None = None,
+        ) -> str:
             if path.name == "run.py":
                 raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "bad byte")
-            return original_read_text(path, *args, **kwargs)
+            return original_read_text(path, encoding, errors, newline)
 
         monkeypatch.setattr(Path, "read_text", read_text)
 
@@ -255,10 +261,15 @@ class TestRepoRatchet:
         baseline.write_text('{"files": {}}\n', encoding="utf-8")
         original_read_text = Path.read_text
 
-        def read_text(path: Path, *args: object, **kwargs: object) -> str:
+        def read_text(
+            path: Path,
+            encoding: str | None = None,
+            errors: str | None = None,
+            newline: str | None = None,
+        ) -> str:
             if path.name == "run.py":
                 raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "bad byte")
-            return original_read_text(path, *args, **kwargs)
+            return original_read_text(path, encoding, errors, newline)
 
         monkeypatch.setattr(Path, "read_text", read_text)
 
@@ -278,6 +289,37 @@ class TestRepoRatchet:
             '{"files": {"skills/alpha/scripts/run.py": 5}}\n', encoding="utf-8"
         )
         assert csp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline_path)]) == 1
+
+    def test_baseline_shrink_requires_the_explicit_override(self, tmp_path: Path) -> None:
+        self._repo_with_clean_skill(tmp_path)
+        baseline_path = tmp_path / "baseline.json"
+        baseline_path.write_text(
+            '{"files": {"skills/alpha/scripts/run.py": 5}}\n', encoding="utf-8"
+        )
+        # The floor now comes from the committed copy, so the fixture has to be
+        # a real repository. A directory with no git in it cannot answer what
+        # was already forgiven, and the guard refuses rather than guess.
+        for command in (
+            ["init", "-q"],
+            ["config", "user.email", "t@example.com"],
+            ["config", "user.name", "t"],
+            ["add", "-A"],
+            ["commit", "-qm", "seed"],
+        ):
+            subprocess.run(
+                ["git", "-C", str(tmp_path), *command], check=True, capture_output=True
+            )
+        args = [
+            "--repo-root",
+            str(tmp_path),
+            "--baseline",
+            str(baseline_path),
+            "--update-baseline",
+        ]
+
+        assert csp.main(args) == 2
+        assert csp.main([*args, "--allow-baseline-shrink"]) == 0
+        assert json.loads(baseline_path.read_text(encoding="utf-8"))["files"] == {}
 
     def test_regression_still_triggers_failure(self, tmp_path: Path) -> None:
         """Regressions (current > baseline) must still exit 1."""
@@ -301,3 +343,39 @@ class TestRepoRatchet:
             '{"files": {"skills/gamma/scripts/run.py": 0}}\n', encoding="utf-8"
         )
         assert csp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline_path)]) == 0
+
+    def test_a_baseline_outside_the_repository_is_refused_in_both_modes(
+        self, tmp_path: Path
+    ) -> None:
+        """The read and the write have to agree about what they will accept.
+
+        This checker used to resolve any `--baseline` while the write path
+        refused every out-of-tree destination, so a read succeeded and the
+        update it was meant to precede failed. The permissiveness was never a
+        decision: the resolver predated the containment test its two siblings
+        apply, and a later dedupe preserved the gap verbatim.
+        """
+        root = tmp_path / "repo"
+        skills = root / ".claude" / "skills" / "delta" / "scripts"
+        skills.mkdir(parents=True)
+        (skills / "run.py").write_text("print('ok')\n", encoding="utf-8")
+        outside = tmp_path / "outside.json"
+        outside.write_text('{"files": {}}\n', encoding="utf-8")
+        argv = ["--repo-root", str(root), "--baseline", str(outside)]
+
+        assert csp.main(argv) == 2
+        assert csp.main([*argv, "--update-baseline"]) == 2
+        assert json.loads(outside.read_text(encoding="utf-8")) == {"files": {}}
+
+    def test_a_baseline_inside_the_repository_is_still_accepted(
+        self, tmp_path: Path
+    ) -> None:
+        """The refusal above is only correct if the supported path still works."""
+        root = tmp_path / "repo"
+        skills = root / ".claude" / "skills" / "delta" / "scripts"
+        skills.mkdir(parents=True)
+        (skills / "run.py").write_text("print('ok')\n", encoding="utf-8")
+        inside = root / "baseline.json"
+        inside.write_text('{"files": {"skills/delta/scripts/run.py": 0}}\n', encoding="utf-8")
+
+        assert csp.main(["--repo-root", str(root), "--baseline", str(inside)]) == 0
