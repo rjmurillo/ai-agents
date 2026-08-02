@@ -41,6 +41,7 @@ from __future__ import annotations
 import ast
 import functools
 import re
+import sys
 from pathlib import Path
 
 import pytest
@@ -119,6 +120,26 @@ def _python_sources() -> tuple[Path, ...]:
             if not any(s in p.relative_to(_REPO_ROOT).parts for s in skip)
         )
     return tuple(sources)
+
+
+def test_python_sources_keeps_checkout_nested_under_worktrees(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Skip tokens are path-relative so agent worktree parents do not hide all files."""
+    repo = tmp_path / ".claude" / "worktrees" / "issue-4159"
+    included = repo / "scripts" / "caller.py"
+    relative_skip = repo / "scripts" / "worktrees" / "scratch.py"
+    cache_skip = repo / "scripts" / "__pycache__" / "cached.py"
+    for source in (included, relative_skip, cache_skip):
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text("print('reachable')\n", encoding="utf-8")
+
+    monkeypatch.setattr(sys.modules[__name__], "_REPO_ROOT", repo)
+    _python_sources.cache_clear()
+    try:
+        assert _python_sources() == (included,)
+    finally:
+        _python_sources.cache_clear()
 
 
 def _module_name(rel: str) -> str:

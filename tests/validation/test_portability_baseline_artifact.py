@@ -236,7 +236,7 @@ class TestTheWriteItself:
         link = root / "scripts" / "validation" / "b.json"
         link.symlink_to(victim)
 
-        assert refuse_symlinked_baseline(link)
+        assert refuse_symlinked_baseline(root, link)
         assert write_baseline_json(root, link, NESTED, SECTIONS, UNIT, False) == 2
         assert victim.read_text(encoding="utf-8") == "DO NOT OVERWRITE"
 
