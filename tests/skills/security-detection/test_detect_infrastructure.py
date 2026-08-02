@@ -85,7 +85,7 @@ def test_documented_ci_diff_exposes_renamed_sensitive_source(tmp_path: Path) -> 
         ["git", "-C", str(tmp_path), "rev-parse", "HEAD"],
         check=True,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     ).stdout.strip()
     destination = tmp_path / "docs" / "ci.yml"
     destination.parent.mkdir()
@@ -108,7 +108,7 @@ def test_documented_ci_diff_exposes_renamed_sensitive_source(tmp_path: Path) -> 
         ["git", "-C", str(tmp_path), "rev-parse", "HEAD"],
         check=True,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     ).stdout.strip()
 
     changed = subprocess.run(

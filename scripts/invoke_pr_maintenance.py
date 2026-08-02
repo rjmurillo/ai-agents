@@ -33,6 +33,11 @@ from scripts.github_core import (
     check_workflow_rate_limit,
     resolve_repo_params,
 )
+from scripts.pr_maintenance_rollup import (
+    complete_status_check_rollups,
+    fetch_status_context_page_with_gh,
+    rollup_has_failing_checks,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -111,17 +116,7 @@ def has_failing_checks(pr: dict[str, Any]) -> bool:
     if not rollup:
         return False
 
-    state = rollup.get("state", "")
-    if state in ("FAILURE", "ERROR"):
-        return True
-
-    contexts = rollup.get("contexts", {})
-    context_nodes = contexts.get("nodes", [])
-    for ctx in context_nodes:
-        if ctx.get("conclusion") == "FAILURE" or ctx.get("state") == "FAILURE":
-            return True
-
-    return False
+    return rollup_has_failing_checks(rollup, pr.get("number", "?"))
 
 
 def has_unresolved_threads(pr: dict[str, Any]) -> bool:
@@ -181,19 +176,15 @@ query($owner: String!, $name: String!, $limit: Int!) {
                 commits(last: 1) {
                     nodes {
                         commit {
+                            oid
                             statusCheckRollup {
                                 state
                                 contexts(first: 100) {
+                                    totalCount
+                                    pageInfo { hasNextPage endCursor }
                                     nodes {
-                                        ... on CheckRun {
-                                            name
-                                            conclusion
-                                            status
-                                        }
-                                        ... on StatusContext {
-                                            context
-                                            state
-                                        }
+                                        ... on CheckRun { name conclusion startedAt completedAt }
+                                        ... on StatusContext { context state createdAt }
                                     }
                                 }
                             }
@@ -205,6 +196,16 @@ query($owner: String!, $name: String!, $limit: Int!) {
     }
 }
 """
+
+
+
+def _fetch_status_context_page(
+    owner: str,
+    repo: str,
+    oid: str,
+    cursor: str,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    return fetch_status_context_page_with_gh(owner, repo, oid, cursor, run_gh)
 
 
 def get_open_prs(owner: str, repo: str, limit: int) -> list[dict[str, Any]]:
@@ -225,6 +226,7 @@ def get_open_prs(owner: str, repo: str, limit: int) -> list[dict[str, Any]]:
     try:
         data = json.loads(result.stdout)
         nodes: list[dict[str, Any]] = data["data"]["repository"]["pullRequests"]["nodes"]
+        complete_status_check_rollups(owner, repo, nodes, _fetch_status_context_page)
         return nodes
     except (json.JSONDecodeError, KeyError) as exc:
         raise RuntimeError(

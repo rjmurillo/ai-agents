@@ -45,21 +45,22 @@ commands, rules, hooks):
 
 ```bash
 # Regenerate everything from canonical sources.
-python3 build/scripts/build_all.py
+uv run python build/scripts/build_all.py
 
 # Verify generated trees match sources without writing (CI drift gate).
-python3 build/scripts/build_all.py --check
+uv run python build/scripts/build_all.py --check
 
 # Agents only (also runnable standalone).
-python3 build/generate_agents.py
+uv run python build/generate_agents.py
 
 # PR-quality CI prompts only.
 python3 build/scripts/generate_pr_quality_prompts.py
 ```
 
 After editing a source listed above, run the matching regen command and commit
-the regenerated output in the same PR. A plugin source change also requires a
-`plugin.json` version bump (see AGENTS.md, Issue #2118).
+the regenerated output in the same PR. A plugin source change requires no
+`plugin.json` edit: the manifests carry no `version` field, and adding one back
+fails `build/scripts/validate_plugin_version_bump.py` (ADR-092, Issue #4080).
 
 The Copilot hook generator retains per-matcher shim wrappers, then emits one
 dispatcher registration per event when the platform enables dispatcher mode.

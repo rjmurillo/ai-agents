@@ -1,0 +1,66 @@
+{
+  "id": "episode-2026-08-02-session-4230-merge-conflict-resolution",
+  "session": "2026-08-02-session-4230-merge-conflict-resolution",
+  "timestamp": "2026-08-02T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Resolve PR #4230 merge conflict after origin/main advanced, keep the baseline semantic guard and main scan-coverage safety changes, then push the conflict-free branch.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main into wt/t_f726fbc6 and resolved scripts/validation/check_skill_md_portability.py by preserving the PR's --base-ref semantic-conflict guard plus main's scan-coverage refusal before baseline writes.",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-02-session-4230-merge-conflict-resolution"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-aligned unrelated files imported by main so the branch diff remains scoped to the PR's intended validation files plus this session log.",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-02-session-4230-merge-conflict-resolution"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated with targeted pytest, ruff, check_skill_md_portability --base-ref origin/main, and scripts/validation/pre_pr.py.",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-02-session-4230-merge-conflict-resolution"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-02T03:00:47+00:00",
+      "type": "commit",
+      "content": "Commit: 93c80baa8aaf",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4230-merge-conflict-resolution"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 97
+  },
+  "lessons": []
+}

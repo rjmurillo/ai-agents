@@ -1,3 +1,10 @@
+# taste-lint: ignore file-size
+# All tests for a single script belong in one file for discoverability;
+# splitting across files would obscure which cases are covered and add
+# import overhead without reducing complexity. The file grew to 849 lines
+# because the #4046 fix added 9 new test classes for three new exemption
+# mechanisms (regex-metachar, prose string, tests-dir exclusion), each
+# requiring a positive, negative, and edge case per exemption type.
 """Tests for scripts/validation/check_vendor_portability.py.
 
 Issue #2050. The check fails CI when a vendor-shipped skill script
@@ -11,7 +18,6 @@ from __future__ import annotations
 
 import ast
 import importlib.util
-import subprocess
 import sys
 from pathlib import Path
 
@@ -709,374 +715,195 @@ def test_nested_dot_slash_scripts_path_is_not_offender(fake_repo: Path) -> None:
     assert cvp.collect_offenders(fake_repo) == []
 
 
-# --- scripts/ false-positive guards (issue #4046) --------------------------
-#
-# PR #4029 added `scripts/` to _BANNED_PATH and grandfathered nine offenders,
-# all false positives. The regex exemption keyed on a literal `\.`, a signal a
-# `scripts/` pattern can never carry because the prefix has no dot, so the whole
-# new prefix class was unexemptable. These tests pin the three signals that
-# replace it: a regex metacharacter, a required path component after the
-# separator, and the test-suite skip.
+# ---------------------------------------------------------------------------
+# Issue #4046 - exemption gaps for the scripts/ prefix
+# ---------------------------------------------------------------------------
 
 
-def test_anchored_scripts_regex_is_not_an_offender(fake_repo: Path) -> None:
-    """r"^scripts/" is a path-matcher, not a path dependency.
+class TestRegexMetacharExemption:
+    """Raw-string regexes with metacharacters other than ``\\.`` are exempt.
 
-    Evidence: .claude/skills/metrics/collect_metrics.py:37 carries this exact
-    literal inside a list of regex patterns. Isolating negative control: drop
-    `^` from _REGEX_METACHAR and this file is flagged again.
+    The original ``_is_raw_string_regex`` checked only for ``\\.``, which works
+    for ``.agents/`` and ``.claude/lib/`` (both start with a dot the regex must
+    escape).  It failed silently for ``scripts/`` (no dot), so
+    ``r"^scripts/"`` and ``r'python\\s+scripts/'`` were flagged as real paths.
+    Issue #4046 broadens the test to any regex metachar.  Isolating negative
+    control: restoring the old ``"\\\\." in token_text`` check breaks these
+    assertions.
     """
-    _write(
-        fake_repo,
-        ".claude/skills/foo/scripts/patterns.py",
-        'PATHS = [\n    r"^scripts/",\n    r"^docs/",\n]\n',
-    )
 
-    assert cvp.collect_offenders(fake_repo) == []
+    def test_raw_string_with_caret_is_exempt(self, fake_repo: Path) -> None:
+        """r"^scripts/" contains the anchor metachar ``^`` and must be exempt."""
+        _write(
+            fake_repo,
+            ".claude/skills/foo/collect_metrics.py",
+            'BANNED = re.compile(r"^scripts/")\n',
+        )
+        assert cvp.collect_offenders(fake_repo) == []
+
+    def test_raw_string_with_backslash_escape_is_exempt(self, fake_repo: Path) -> None:
+        r"""r'python\s+scripts/' has ``\s`` (a backslash-escape) and must be exempt."""
+        _write(
+            fake_repo,
+            ".claude/skills/foo/validate_skill.py",
+            "count = re.findall(r'python\\s+scripts/', content)\n",
+        )
+        assert cvp.collect_offenders(fake_repo) == []
+
+    def test_plain_scripts_path_without_metachar_is_still_offender(self, fake_repo: Path) -> None:
+        """r"scripts/foo.py" has no metachar and must still be flagged.
+
+        Isolating negative control: this proves the broader metachar check
+        does not accidentally exempt simple path strings written as raw strings.
+        """
+        _write(
+            fake_repo,
+            ".claude/skills/foo/bad.py",
+            'path = r"scripts/validation/check.py"\n',
+        )
+        offenders = cvp.collect_offenders(fake_repo)
+        assert len(offenders) == 1
+        assert offenders[0].relpath == ".claude/skills/foo/bad.py"
 
 
-def test_quantified_scripts_regex_is_not_an_offender(fake_repo: Path) -> None:
-    """r'python\\s+scripts/' is a pattern; the `+` quantifier is the signal.
+class TestProseStringExemption:
+    """Sentence-like and multi-line literals are treated as prose, not paths.
 
-    Evidence: .claude/skills/SkillForge/scripts/validate-skill.py:609 counts
-    documented invocations with this literal.
+    Recommendation strings, error messages, and template constants that
+    mention ``scripts/`` as a concept (not a path to open) should not be
+    flagged.  Isolating negative control: adding a ``not _is_prose_string``
+    guard removal breaks these assertions.
     """
-    _write(
-        fake_repo,
-        ".claude/skills/foo/scripts/count.py",
-        "import re\n\ncount = len(re.findall(r'python\\s+scripts/', body))\n",
-    )
 
-    assert cvp.collect_offenders(fake_repo) == []
+    def test_space_containing_string_is_exempt(self, fake_repo: Path) -> None:
+        """A recommendation string with a space is exempt."""
+        _write(
+            fake_repo,
+            ".claude/skills/foo/audit.py",
+            'recs.append("Extract logic to scripts/ subdirectory.")\n',
+        )
+        assert cvp.collect_offenders(fake_repo) == []
+
+    def test_diagnostic_message_without_punctuation_is_exempt(self, fake_repo: Path) -> None:
+        """A validator diagnostic may mention scripts/ without punctuation."""
+        _write(
+            fake_repo,
+            ".claude/skills/foo/validate.py",
+            'self.check("presence", False, "scripts/ directory does not exist")\n',
+        )
+        assert cvp.collect_offenders(fake_repo) == []
+
+    def test_no_space_scripts_path_is_offender(self, fake_repo: Path) -> None:
+        """A path string with no space is still flagged.
+
+        Isolating negative control: proves the prose exemption does not
+        cover compact paths like ``"scripts/run.py"`` that could be a real
+        file the program opens.
+        """
+        _write(
+            fake_repo,
+            ".claude/skills/foo/bad.py",
+            'result = open("scripts/run.py")\n',
+        )
+        offenders = cvp.collect_offenders(fake_repo)
+        assert len(offenders) == 1
+        assert offenders[0].relpath == ".claude/skills/foo/bad.py"
+
+    def test_shell_command_with_spaces_is_offender(self, fake_repo: Path) -> None:
+        """Spaces do not exempt a path passed to a shell command."""
+        _write(
+            fake_repo,
+            ".claude/skills/foo/bad.py",
+            'subprocess.run(".claude/lib/paths.py --check", shell=True)\n',
+        )
+
+        offenders = cvp.collect_offenders(fake_repo)
+
+        assert len(offenders) == 1
+        assert offenders[0].relpath == ".claude/skills/foo/bad.py"
+
+    def test_os_system_command_with_spaces_is_offender(self, fake_repo: Path) -> None:
+        """A command prefix before scripts/ remains visible to the gate."""
+        _write(
+            fake_repo,
+            ".claude/skills/foo/bad.py",
+            'os.system("python scripts/session_log.py")\n',
+        )
+
+        offenders = cvp.collect_offenders(fake_repo)
+
+        assert len(offenders) == 1
+        assert offenders[0].relpath == ".claude/skills/foo/bad.py"
+
+    def test_fstring_command_with_spaces_is_offender(self, fake_repo: Path) -> None:
+        """An f-string command does not become prose because it has spaces."""
+        _write(
+            fake_repo,
+            ".claude/skills/foo/bad.py",
+            'cmd = f"cat .agents/HANDOFF.md {mode}"\n',
+        )
+
+        offenders = cvp.collect_offenders(fake_repo)
+
+        assert len(offenders) == 1
+        assert offenders[0].relpath == ".claude/skills/foo/bad.py"
 
 
-def test_character_class_scripts_regex_is_not_an_offender(fake_repo: Path) -> None:
-    """A character class is a regex metacharacter signal like an anchor is.
+class TestTestsDirectoryExclusion:
+    """Files in ``tests/`` directories are excluded from the scan.
 
-    The literal carries no `\\.`, so the old exemption could not fire for it
-    even though it is plainly a pattern.
+    Test files run only in the development checkout where all upstream paths
+    are present.  A hard-coded path in a test fixture cannot fail a consumer
+    install, so scanning them produces only false positives.
+    Issue #4046 adds an explicit exclusion.
+    Isolating negative control: removing ``"tests" in py_file.parts`` from
+    ``collect_offenders`` breaks the first assertion here.
     """
-    _write(
-        fake_repo,
-        ".claude/skills/foo/scripts/klass.py",
-        'PATTERN = r"scripts/v[a-z]+"\n',
-    )
 
-    assert cvp.collect_offenders(fake_repo) == []
-
-
-def test_raw_scripts_path_without_metachar_is_still_an_offender(fake_repo: Path) -> None:
-    """A raw string with no metacharacter is a real path and stays flagged.
-
-    Bounds the widened exemption: raw-ness alone does not buy an exemption, so
-    a raw literal naming a real upstream file is still caught.
-    """
-    _write(
-        fake_repo,
-        ".claude/skills/foo/scripts/bad.py",
-        'target = r"scripts/validation/pre_pr.py"\n',
-    )
-
-    offenders = cvp.collect_offenders(fake_repo)
-
-    assert len(offenders) == 1
-    assert offenders[0].relpath == ".claude/skills/foo/scripts/bad.py"
-
-
-def test_backslash_alone_is_not_a_regex_metachar_signal() -> None:
-    """The bare backslash is excluded so Windows raw paths stay flagged.
-
-    A backslash is the Windows path separator, so admitting it as a "this is a
-    regex" signal would exempt every raw Windows path literal.
-    """
-    assert cvp._is_regex_pattern("scripts/", r'r".\scripts\pre_pr.py"', True) is False
-    assert cvp._is_regex_pattern("scripts/", r'r"^scripts/"', True) is True
-
-
-def test_bare_scripts_directory_in_prose_is_not_an_offender(fake_repo: Path) -> None:
-    """ "scripts/ subdirectory" names no file, so there is nothing to migrate.
-
-    Evidence: .claude/skills/SkillForge/scripts/skill_modularity_audit.py:145
-    builds this recommendation string. Isolating negative control: drop the
-    trailing `[\\w.\\-]` from _BANNED_PATH and this file is flagged again.
-    """
-    _write(
-        fake_repo,
-        ".claude/skills/foo/scripts/advise.py",
-        'recs.append("Extract procedural logic to scripts/ subdirectory.")\n',
-    )
-
-    assert cvp.collect_offenders(fake_repo) == []
-
-
-def test_scripts_template_placeholder_is_not_an_offender(fake_repo: Path) -> None:
-    """A `<name>` placeholder resolves to no file, so it is not a dependency.
-
-    Evidence: .claude/skills/SkillForge/scripts/init_skill.py:109 embeds this in
-    a README template constant, which is neither a docstring nor a CLI kwarg and
-    so is missed by both existing prose exemptions.
-    """
-    _write(
-        fake_repo,
-        ".claude/skills/foo/scripts/template.py",
-        'README = "Run `python scripts/<name>.py` to start.\\n"\n',
-    )
-
-    assert cvp.collect_offenders(fake_repo) == []
-
-
-def test_scripts_path_with_component_is_still_an_offender(fake_repo: Path) -> None:
-    """The required path component still admits a real reference (AC2)."""
-    _write(
-        fake_repo,
-        ".claude/skills/foo/scripts/bad.py",
-        "path = 'scripts/validation/pre_pr.py'\n",
-    )
-
-    assert len(cvp.collect_offenders(fake_repo)) == 1
-
-
-def test_hyphen_and_dot_start_a_path_component(fake_repo: Path) -> None:
-    """A leading hyphen or dot in the filename still counts as a component.
-
-    Edge case for the `[\\w.\\-]` class: a dotfile or a hyphen-led name must not
-    slip the gate just because it does not start with a word character.
-    """
-    _write(
-        fake_repo,
-        ".claude/skills/foo/scripts/dotted.py",
-        "path = 'scripts/.hidden_helper.py'\n",
-    )
-    _write(
-        fake_repo,
-        ".claude/skills/bar/scripts/hyphen.py",
-        "path = 'scripts/-odd-name.py'\n",
-    )
-
-    assert len(cvp.collect_offenders(fake_repo)) == 2
-
-
-def test_scripts_literal_in_skill_test_suite_is_not_scanned(fake_repo: Path) -> None:
-    """A `scripts/` fixture string under a skill's tests/ directory is exempt.
-
-    Evidence: four of the nine #4046 false positives are bare fixture paths such
-    as `"scripts/session_log.py"` with no syntactic signal separating them from
-    a real dependency. A skill's tests never execute in a consumer install, so
-    the literal cannot break one. Isolating negative control: drop the
-    `in_tests` branch from _is_exempt_match and this file is flagged again.
-    """
-    _write(
-        fake_repo,
-        ".claude/skills/foo/tests/test_threads.py",
-        'thread = _thread("sess-1", "scripts/session_log.py", body)\n',
-    )
-
-    assert cvp.collect_offenders(fake_repo) == []
-
-
-def test_agents_path_in_skill_test_suite_is_still_an_offender(fake_repo: Path) -> None:
-    """The tests/ exemption is scoped to `scripts/`; #4046 AC3 froze the rest.
-
-    Widening it to every prefix would drop four pre-existing `.agents/` baseline
-    entries (memory, merge-resolver, session, session-end test suites) and
-    change the #2050 gate the issue said to leave alone.
-    """
-    _write(
-        fake_repo,
-        ".claude/skills/foo/tests/test_health.py",
-        "out = '.agents/analysis/x.md'\n",
-    )
-
-    assert len(cvp.collect_offenders(fake_repo)) == 1
-
-
-def test_test_named_file_outside_tests_dir_is_still_scanned(fake_repo: Path) -> None:
-    """The skip keys on the directory, not the filename.
-
-    `.claude/skills/memory/scripts/test_memory_health.py` sits under scripts/
-    and stays in the baseline, so the boundary is pinned here.
-    """
-    _write(
-        fake_repo,
-        ".claude/skills/foo/scripts/test_helper.py",
-        "out = '.agents/analysis/x.md'\n",
-    )
-
-    assert len(cvp.collect_offenders(fake_repo)) == 1
-
-
-def test_main_passes_on_new_offender_inside_tests_dir(fake_repo: Path) -> None:
-    """CLI exit code: a fixture path under tests/ does not fail the gate."""
-    _write(
-        fake_repo,
-        ".claude/skills/foo/tests/test_fixture.py",
-        "path = 'scripts/validation/pre_pr.py'\n",
-    )
-
-    assert cvp.main(["--repo-root", str(fake_repo)]) == 0
-
-
-def test_main_fails_on_new_scripts_offender_in_shipped_script(fake_repo: Path) -> None:
-    """CLI exit code: a real scripts/ dependency in a shipped script still fails."""
-    _write(
-        fake_repo,
-        ".claude/skills/foo/scripts/run.py",
-        'subprocess.run(["python3", "scripts/validation/pre_pr.py"])\n',
-    )
-
-    assert cvp.main(["--repo-root", str(fake_repo)]) == 1
-
-
-# --- Issue #4046 review round 2: AC3 and the dynamic scripts/ shapes ---------
-#
-# Two holes were opened by the first #4046 fix and are pinned here.
-#
-# AC3 ("`.agents/` and `.claude/lib/` detection is unchanged"): the widened
-# metacharacter set admits `* ? [ ]`, which are glob wildcards as well as regex
-# metacharacters. Applied to every prefix it exempted real reads of the upstream
-# tree. The set is now scoped to the `scripts/` prefix.
-#
-# AC2 ("a genuine hard-coded scripts/ path in a shipped non-test skill script is
-# still flagged"): requiring a literal path component after the separator
-# un-flagged every dynamically built path, which is the common shape.
-
-
-@pytest.mark.parametrize(
-    "name,source",
-    [
-        ("raw_glob", 'import glob\nfiles = glob.glob(r".agents/analysis/*.md")\n'),
-        ("raw_recursive_glob", 'p = r".agents/**/*.json"\n'),
-        ("raw_bracket", 'p = r".agents/x[0].md"\n'),
-        ("raw_alternation", 'p = r".agents/a|b/x.md"\n'),
-        ("plain_glob", 'import glob\nfiles = glob.glob(".agents/analysis/*.md")\n'),
-    ],
-)
-def test_raw_agents_path_with_glob_metachar_is_still_an_offender(
-    fake_repo: Path, name: str, source: str
-) -> None:
-    """AC3: a glob over `.agents/` reads the upstream tree, so it stays flagged.
-
-    `*` is both a regex metacharacter and a path wildcard. Isolating negative
-    control: point _is_regex_pattern at _REGEX_METACHAR for every prefix and
-    each of these files goes silent.
-    """
-    _write(fake_repo, f".claude/skills/foo/scripts/{name}.py", source)
-
-    assert len(cvp.collect_offenders(fake_repo)) == 1
-
-
-def test_raw_claude_lib_path_with_paren_is_still_an_offender(fake_repo: Path) -> None:
-    """AC3: the `.claude/lib/` prefix keeps the pre-#4046 escaped-dot signal."""
-    _write(
-        fake_repo,
-        ".claude/skills/foo/scripts/cache.py",
-        'CACHE = r".claude/lib/cache(v2)/x.json"\n',
-    )
-
-    assert len(cvp.collect_offenders(fake_repo)) == 1
-
-
-def test_escaped_dot_still_exempts_an_agents_regex(fake_repo: Path) -> None:
-    """AC3, positive side: the #2510 exemption itself is unchanged."""
-    _write(
-        fake_repo,
-        ".claude/skills/foo/scripts/patterns.py",
-        'import re\n\nPATTERN = re.compile(r"\\.agents/")\n',
-    )
-
-    assert cvp.collect_offenders(fake_repo) == []
-
-
-@pytest.mark.parametrize(
-    "name,source",
-    [
-        ("fstring", 'import subprocess\nsubprocess.run(["python3", f"scripts/{tool}.py"])\n'),
-        ("concat", 'import subprocess\nsubprocess.run(["python3", "scripts/" + tool])\n'),
-        ("join", 'import os\n\ntarget = os.path.join("scripts/", rel)\n'),
-        ("percent", 'target = "scripts/%s" % rel\n'),
-        ("format", 'target = "scripts/{}".format(rel)\n'),
-    ],
-)
-def test_dynamically_built_scripts_path_is_an_offender(
-    fake_repo: Path, name: str, source: str
-) -> None:
-    """AC2: a `scripts/` path assembled at runtime is still a real dependency.
-
-    The consumer install breaks at runtime on a tree that ships in neither
-    plugin root, which is what the #4013 guard exists to prevent. Isolating
-    negative control: drop the fourth _BANNED_PATH alternation and all five go
-    silent.
-    """
-    _write(fake_repo, f".claude/skills/foo/scripts/{name}.py", source)
-
-    assert len(cvp.collect_offenders(fake_repo)) == 1
-
-
-def test_sentence_ending_in_scripts_directory_is_not_an_offender(fake_repo: Path) -> None:
-    """The bare-separator alternation is anchored on the start of the literal.
-
-    Evidence: .claude/skills/SkillForge/scripts/validate-skill.py:622 builds
-    `f"...bash examples - consider adding scripts/"`. That names the directory
-    as advice, not as a path being assembled. Isolating negative control: drop
-    the `(?:^|(?<=['\\"]))` anchor and this file is flagged.
-    """
-    _write(
-        fake_repo,
-        ".claude/skills/foo/scripts/advise.py",
-        'msg = f"Skill has {n} bash examples - consider adding scripts/"\n',
-    )
-
-    assert cvp.collect_offenders(fake_repo) == []
-
-
-def test_cli_exit_codes_for_the_reopened_shapes(fake_repo: Path, tmp_path: Path) -> None:
-    """End-to-end through the CLI, in a subprocess, for both reopened shapes.
-
-    Drives the real entry point rather than the imported function so the
-    ADR-035 exit code is observed the way CI observes it.
-    """
-    _write(
-        fake_repo,
-        ".claude/skills/foo/scripts/dyn.py",
-        'import subprocess\nsubprocess.run(["python3", f"scripts/{tool}.py"])\n',
-    )
-    _write(
-        fake_repo,
-        ".claude/skills/bar/scripts/glob_agents.py",
-        'import glob\nfiles = glob.glob(r".agents/analysis/*.md")\n',
-    )
-
-    result = subprocess.run(
-        [sys.executable, str(SCRIPT_PATH), "--repo-root", str(fake_repo)],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert result.returncode == 1
-    assert ".claude/skills/foo/scripts/dyn.py" in result.stdout
-    assert ".claude/skills/bar/scripts/glob_agents.py" in result.stdout
-
-
-def test_cli_exit_zero_when_only_exempt_shapes_present(fake_repo: Path) -> None:
-    """Negative control for the CLI test: the exempt shapes exit 0."""
-    _write(
-        fake_repo,
-        ".claude/skills/foo/scripts/patterns.py",
-        'import re\n\nPATTERN = re.compile(r"^scripts/")\n',
-    )
-    _write(
-        fake_repo,
-        ".claude/skills/foo/tests/test_fixture.py",
-        'path = "scripts/validation/pre_pr.py"\n',
-    )
-
-    result = subprocess.run(
-        [sys.executable, str(SCRIPT_PATH), "--repo-root", str(fake_repo)],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert result.returncode == 0
-    assert "[PASS]" in result.stdout
+    def test_scripts_path_in_tests_dir_is_not_offender(self, fake_repo: Path) -> None:
+        """A hard-coded scripts/ path inside a tests/ subdir is not flagged."""
+        _write(
+            fake_repo,
+            ".claude/skills/foo/tests/test_foo.py",
+            'threads.append(_thread("sess", "scripts/session_log.py", body))\n',
+        )
+        assert cvp.collect_offenders(fake_repo) == []
+
+    def test_agents_path_in_tests_dir_is_not_offender(self, fake_repo: Path) -> None:
+        """.agents/ inside a tests/ subdir is also excluded."""
+        _write(
+            fake_repo,
+            ".claude/skills/foo/tests/test_bar.py",
+            'assert is_valid(".agents/HANDOFF.md")\n',
+        )
+        assert cvp.collect_offenders(fake_repo) == []
+
+    def test_scripts_path_outside_tests_dir_is_offender(self, fake_repo: Path) -> None:
+        """The same compact path in a non-test file is still flagged.
+
+        Isolating negative control: the tests/ exclusion is scoped to the
+        ``tests`` directory component, not to file names starting with ``test_``.
+        A ``scripts/test_foo.py`` file (in the scripts/ dir) is still scanned.
+        """
+        _write(
+            fake_repo,
+            ".claude/skills/foo/scripts/worker.py",
+            'path = "scripts/session_log.py"\n',
+        )
+        offenders = cvp.collect_offenders(fake_repo)
+        assert len(offenders) == 1
+        assert offenders[0].relpath == ".claude/skills/foo/scripts/worker.py"
+
+    def test_tests_ancestor_does_not_disable_scan(self, tmp_path: Path) -> None:
+        """Only repo-relative tests directories are excluded."""
+        repo_root = tmp_path / "tests" / "repo"
+        _write(
+            repo_root,
+            ".claude/skills/foo/scripts/worker.py",
+            'path = "scripts/session_log.py"\n',
+        )
+
+        offenders = cvp.collect_offenders(repo_root)
+
+        assert len(offenders) == 1
+        assert offenders[0].relpath == ".claude/skills/foo/scripts/worker.py"

@@ -1,0 +1,79 @@
+# Validate Artifact Retention (ADR-015, Issue #3981)
+#
+# Every retention-days value in .github/workflows/ must be 1 (operational)
+# or 7 (standard) per ADR-015: Artifact Storage Minimization Strategy.
+#
+# Fires on PRs that touch workflow files so regressions are caught before
+# merge rather than detected by the pytest gate (which only fires on Python
+# file changes).
+#
+# Related: ADR-015 (.agents/architecture/ADR-015-artifact-storage-minimization.md)
+# Gate script: scripts/ci/adr015_workflow_retention.py
+# Test: tests/ci/test_adr015_workflow_retention.py
+# Issue: #3981
+
+name: Validate Artifact Retention
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+jobs:
+  check-changes:
+    name: Check for Workflow Changes
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      should-run: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.workflows }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check path filters
+        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          filters: |
+            workflows:
+              - '.github/workflows/*.yml'
+              - '.github/workflows/*.yaml'
+              - 'scripts/ci/adr015_workflow_retention.py'
+              - '.github/workflows/validate-artifact-retention.yml'
+
+  validate-retention:
+    name: Validate Artifact Retention (ADR-015)
+    needs: check-changes
+    if: needs.check-changes.outputs.should-run == 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check retention-days values (ADR-015)
+        run: python3 scripts/ci/adr015_workflow_retention.py
+
+  skip-validation:
+    name: Skip Validation (No Workflow Changes)
+    needs: check-changes
+    if: needs.check-changes.outputs.should-run != 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 1
+    permissions:
+      contents: read
+    steps:
+      - name: Skip message
+        run: echo "Artifact retention validation skipped - no workflow files changed"

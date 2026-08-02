@@ -11,7 +11,7 @@ How to validate session logs and handle common issues.
 ### Basic Usage
 
 ```bash
-python3 scripts/validate_session_json.py \
+uv run python scripts/validate_session_json.py \
     .agents/sessions/2026-01-05-session-375.json
 ```
 
@@ -23,7 +23,7 @@ CI and the pre-commit hook run the same command; the exit code is the gate
 (non-zero = FAIL; treat exit code 2 as failure). The `--pre-commit` flag tightens output for hook use:
 
 ```bash
-python3 scripts/validate_session_json.py \
+uv run python scripts/validate_session_json.py \
     .agents/sessions/2026-01-05-session-375.json --pre-commit
 ```
 
@@ -183,7 +183,7 @@ For session-init skill, run validation immediately after creating the session lo
 SESSION_PATH=".agents/sessions/2026-01-05-session-375.json"
 
 # Run validation; exit code 0 = PASS, non-zero = FAIL
-if python3 scripts/validate_session_json.py "$SESSION_PATH"; then
+if uv run python scripts/validate_session_json.py "$SESSION_PATH"; then
     echo "Session log validated successfully"
 else
     echo "Validation failed"
@@ -200,7 +200,7 @@ fi
 The validator prints a full Markdown report by default:
 
 ```bash
-python3 scripts/validate_session_json.py \
+uv run python scripts/validate_session_json.py \
     .agents/sessions/2026-01-05-session-375.json
 ```
 

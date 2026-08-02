@@ -497,7 +497,9 @@ def run_compliance_checks(
                         }
                     )
                     results.recommendations.append(
-                        f"Consider moving {skill_name} to passive context (SKILL-QUICK-REF.md)"
+                        f"{skill_name} has no actions: consider progressive "
+                        "disclosure or deletion, not an always-on slot "
+                        "(see the Decision Framework in this skill's SKILL.md)"
                     )
                 else:
                     results.summary["failed"] += 1

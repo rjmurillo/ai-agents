@@ -26,9 +26,9 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
-if _plugin_root:
+if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
     _lib_dir = os.path.join(_plugin_root, "lib")
 elif _workspace:
     _lib_dir = os.path.join(_workspace, ".claude", "lib")
@@ -447,7 +447,9 @@ def _comment_exists(owner: str, repo: str, issue: int, body: str, fmt: str) -> b
     return body in _comment_bodies(payload)
 
 
-def _close_issue(owner: str, repo: str, issue: int, reason: str) -> subprocess.CompletedProcess[str]:
+def _close_issue(
+    owner: str, repo: str, issue: int, reason: str
+) -> subprocess.CompletedProcess[str]:
     """Run gh issue close with the given reason. Returns the completed process."""
     return subprocess.run(
         [

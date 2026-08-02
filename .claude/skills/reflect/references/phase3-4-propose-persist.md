@@ -4,7 +4,7 @@ SKILL.md Process steps 3 and 4 point here for the proposal display format,
 user-response handling, persistence strategy, memory format, and the Phase 4
 auto-citation capture.
 
-### Phase 3: Propose Learnings
+## Phase 3: Propose Learnings
 
 Present findings using WCAG AA accessible colors (4.5:1 contrast ratio):
 
@@ -57,7 +57,7 @@ Present findings using WCAG AA accessible colors (4.5:1 contrast ratio):
 3. Repeat for each finding
 4. Confirm final list before applying
 
-### Phase 4: Persist Learnings to Memory
+## Phase 4: Persist Learnings to Memory
 
 **ALWAYS show changes before applying.**
 
@@ -118,48 +118,85 @@ After user approval:
 - {note 2} (Session {N}, {date})
 ```
 
-#### Phase 4 Enhancement: Auto-Citation Capture
+### Phase 4 Enhancement: Auto-Citation Capture
 
-When persisting learnings that reference specific code locations, automatically capture citations:
+When persisting learnings that reference specific code locations, capture
+citations in the memory body. There is no command that adds a citation; the
+citation is markdown you write.
 
 1. **Detect code references** in learning text:
    - Inline code references: `` `path/to/file.ext` line N ``
    - Function references: `` `functionName()` in `file.ext` ``
    - Explicit citations: "See: file.ext:42"
 
-2. **Extract citation metadata**: file path, line number, snippet (if available)
+2. **Extract the target**: the file path, or the issue, PR, or ADR identifier
 
-3. **Add citations to memory frontmatter**:
+3. **Write the citation into the memory body**, not the frontmatter:
 
-   ```bash
-   python -m memory_enhancement add-citation <memory-id> --file <path> --line <num> --snippet <text>
+   ```markdown
+   ## Citations
+
+   [cite:file](path/to/file.ext) - what this reference establishes
    ```
 
-4. **Update confidence score** based on initial verification
+   Valid `source_type` values are `file`, `function`, `issue`, `pr`, `adr`,
+   `memory`, `url`. A `citations:` list in YAML frontmatter is not parsed.
+
+4. **Verify what you wrote**:
+
+   ```bash
+   python -m memory_enhancement verify --memory-id <memory-id>
+   ```
+
+   The memory id is the path under `.serena/memories/` without `.md`, so a
+   memory at `.serena/memories/testing/foo.md` has the id `testing/foo`. Exit
+   code 1 means a citation did not resolve.
 
 **Detection Patterns**:
 
 | Pattern | Example | Extraction |
 |---------|---------|------------|
-| Inline code + line | In `` `src/client/constants.ts` line 42 `` | file=src/client/constants.ts, line=42 |
-| Function in file | `` `handleError()` in `src/utils.ts` `` | file=src/utils.ts (file-level) |
-| Explicit citation | See: src/api.py:100 | file=src/api.py, line=100 |
+| Inline code + line | In `` `src/client/constants.ts` line 42 `` | target=src/client/constants.ts |
+| Function in file | `` `handleError()` in `src/utils.ts` `` | target=src/utils.ts |
+| Explicit citation | See: src/api.py:100 | target=src/api.py |
+
+A citation target may be a bare path, `path:LINE`, or `path::function`. A bare
+path must exist and `:LINE` must be within the file's length. The `::function`
+check is a text search rather than a parser: it passes when the file contains
+`def name` or `async def name` anywhere, including inside a comment or a
+string, and it never looks at the file extension.
+
+So prefer `::function` over `:LINE` for a Python function or method. `:LINE`
+is only checked against the file's length, so an edit above it keeps passing
+while pointing at different content, and it fails only once the file gets
+shorter than the cited line. A name survives both. Cite
+`path` or `path:LINE` for anything else. A TypeScript, C#, or Go function is
+reported stale even though it exists, and so is a Python class, because none of
+them is preceded by `def`. A name containing a character outside
+`[A-Za-z0-9_]`, such as the hyphen in a PowerShell `Get-Thing`, fails the
+target format outright and is reported broken. Both make `health` exit 1.
 
 **Integration Point**:
 
 After user approves learnings (step 4 above), before writing to Serena:
 
 1. Parse learning text for code references using patterns above
-2. For each reference found:
-   - Extract file path, line number, and snippet
-   - Call `python -m memory_enhancement add-citation <memory-id> --file <path> --line <num> --snippet <text>`
-3. If citation extraction fails, proceed without citations (non-blocking)
+2. For each reference found, append a `[cite:...]` line to the memory body
+3. If no code reference is found, proceed without citations (non-blocking)
 4. Proceed with normal Serena MCP write
+5. Run `verify --memory-id <memory-id>` and report any `[FAIL]` line
 
 **Example**:
 
 Learning text: "The bug was in `scripts/health.py` line 45, where we forgot to handle None"
 
-1. Extract: file=scripts/health.py, line=45, snippet="handle None"
-2. Add citation: `python -m memory_enhancement add-citation memory-observations --file scripts/health.py --line 45 --snippet "handle None"`
-3. Write learning to Serena with citation attached
+1. Extract: target=scripts/health.py
+2. Append to the memory body:
+
+   ```markdown
+   ## Citations
+
+   [cite:file](scripts/health.py) - line 45 missed the None case
+   ```
+
+3. Write learning to Serena, then verify it resolves

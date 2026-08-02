@@ -74,6 +74,10 @@ def parse_report(payload: object) -> list[tuple[str, str]]:
     emits. A shape mismatch means the producer and this consumer have drifted
     apart, which is the failure issue #3971 was filed for, so it must not be
     absorbed into a default.
+
+    The citation-count sum is one of the invariants ``HealthReport`` enforces at
+    construction time. A report read from disk never passes through that
+    constructor, so the consumer re-checks it here rather than trusting the file.
     """
     if not isinstance(payload, dict):
         raise ValueError(f"expected a JSON object, got {type(payload).__name__}")
@@ -85,6 +89,18 @@ def parse_report(payload: object) -> list[tuple[str, str]]:
 
     counts = {field: _coerce_count(payload[field]) for field in COUNT_FIELDS}
     lengths = {field: _coerce_length(payload[field]) for field in LENGTH_FIELDS}
+
+    citation_sum = (
+        counts["valid_citations"]
+        + counts["stale_citations"]
+        + counts["broken_citations"]
+        + counts["unverified_citations"]
+    )
+    if citation_sum != counts["total_citations"]:
+        raise ValueError(
+            "citation counts must sum to total_citations: "
+            f"{citation_sum} != {counts['total_citations']}"
+        )
 
     pairs = [(field, str(counts[field])) for field in COUNT_FIELDS]
     pairs.extend((field, str(lengths[field])) for field in LENGTH_FIELDS)
