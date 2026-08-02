@@ -919,6 +919,26 @@ def _today_session_log(sessions_dir: Path) -> Path | None:
     return best
 
 
+def _session_log_for_current_branch(sessions_dir: Path, repo_root: Path) -> Path | None:
+    """Return the session log for the current branch, falling back to mtime.
+
+    Calls ``_current_branch`` to identify the active branch, then uses
+    ``_session_log_for_branch`` to find its log deterministically. Falls back
+    to ``_today_session_log`` (newest by mtime) so callers fail open rather
+    than hard-blocking when no branch-specific log exists yet.
+
+    This is the correct replacement for bare ``_today_session_log`` calls
+    in ADR and retrospective gates: concurrent agents on other branches
+    frequently own a newer mtime and the mtime winner names the wrong session.
+    """
+    branch = _current_branch(repo_root)
+    if branch is not None:
+        log = _session_log_for_branch(sessions_dir, branch)
+        if log is not None:
+            return log
+    return _today_session_log(sessions_dir)
+
+
 def _split_frontmatter(content: bytes) -> tuple[bytes, bytes]:
     """Split a document into its frontmatter and its body, without decoding.
 
@@ -1084,7 +1104,7 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
         if not gated_paths:
             return 0
 
-    session_log = _today_session_log(repo_root / ".agents" / "sessions")
+    session_log = _session_log_for_current_branch(repo_root / ".agents" / "sessions", repo_root)
     if session_log is None or not _session_has_adr_review(session_log):
         print(
             "ERROR: ADR changes require adr-review evidence in today's session log",
@@ -1365,7 +1385,7 @@ def check_retrospective_evidence(paths: Sequence[str], repo_root: Path) -> int:
     if paths and _documentation_only(paths):
         return 0
 
-    session_log = _today_session_log(repo_root / ".agents" / "sessions")
+    session_log = _session_log_for_current_branch(repo_root / ".agents" / "sessions", repo_root)
     if paths and _is_trivial_retrospective_session(session_log, paths):
         return 0
     if _today_retrospective_exists(repo_root):

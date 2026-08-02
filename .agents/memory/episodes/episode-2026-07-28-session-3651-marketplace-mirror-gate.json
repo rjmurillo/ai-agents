@@ -13,7 +13,7 @@
       "content": "Traced the drift the gate exists to catch. git show 2043c39863 proves the count-stripping sweep in PR #2187 changed descriptions only in the two marketplace files. It touched two plugin.json files for version alone and never touched src/claude/.claude-plugin/plugin.json, which still opened with '25 specialized agent definitions'. The two strings in that pair are the same sentence with the count removed from one copy, which is what identifies the omission as an incomplete transformation rather than an intended difference.",
       "caused_by": [],
       "leads_to": [
-        "e002"
+        "e012"
       ]
     },
     {
@@ -21,11 +21,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Resolved a Chesterton's Fence before writing any gate. validate_plugin_version_bump.py carries a docstring line recording that validate_marketplace_counts.py was deliberately retired in the same PR #2187, because it compared a hard-coded count against the filesystem and therefore went red on every PR that added a component. The mirror check compares two checked-in strings and derives nothing, so it cannot fire on unrelated work. Recorded the distinction in the module docstring and in a Serena memory so a future reader who finds the retired validator's grave does not re-litigate it.",
-      "caused_by": [
-        "e001"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e003"
+        "e012"
       ]
     },
     {
@@ -33,11 +31,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Added check_marketplace_mirrors() to build/scripts/check_plugin_manifest_parity.py, comparing each marketplace entry's name and description against the plugin.json at its source directory, with 34 tests. Wired both marketplace files into the path filters of validate-generated-agents.yml and agent-drift-detection.yml so an edit to a marketplace alone runs the gate.",
-      "caused_by": [
-        "e002"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e004"
+        "e012"
       ]
     },
     {
@@ -45,11 +41,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Mutation-tested the suite rather than trusting a green run. Removing 'description' from _MIRRORED_FIELDS killed 5 tests and short-circuiting _compare_entry killed 6, so the original tests were not vacuous. A later adversarial review found a mutation that did survive: skipping the last configured marketplace. Added a two-marketplace fixture in both drift directions plus a CLI test that derives the expected entry count from the checked-in files. That mutation now kills 3 tests.",
-      "caused_by": [
-        "e003"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e005"
+        "e012"
       ]
     },
     {
@@ -57,11 +51,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "A cross-model security review by gemini-3.1-pro-preview reported one LOW finding, a path traversal in the source join. Verifying it myself showed the reviewer had found one of two vectors: './/etc/passwd' escapes because the join goes absolute, and './../../etc' escapes by walking out, which the reviewer missed. '/etc/passwd' was already safe. Added a resolve() plus is_relative_to() containment guard checked before .exists(), with three tests that plant a real readable manifest outside the root so a permissive implementation returns 0 and the test fails. Forcing the guard to return True kills exactly the two escape tests.",
-      "caused_by": [
-        "e004"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e006"
+        "e012"
       ]
     },
     {
@@ -69,11 +61,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "One of those new tests failed and the test was wrong, not the code. It used './sub/../plug' where 'sub' never existed, so .exists() failed before containment mattered. Fixing the fixture exposed a second defect in my own reporting: config errors printed under the staleness header with the staleness advice, which tells a reader with a bad path to 'edit whichever copy is wrong so both carry the same string'. Split the header and the fix line by failure class.",
-      "caused_by": [
-        "e005"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e007"
+        "e012"
       ]
     },
     {
@@ -81,11 +71,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "A cross-model adversarial review by gpt-5.6-sol returned 2 BLOCKING, 4 MAJOR and 1 MINOR. Three were real defects in the comparison itself. 'entry.get(f) != data.get(f)' read absent-on-both as agreement, so name is now required on both sides per upstream while description stays optional. _local_source_dir returned None for any string not starting with './', so a dropped prefix or a deleted source silently evaded the gate; upstream defines a string source as always a relative path and every remote source as an object, so non-conforming strings are now config errors and metadata.pluginRoot is honored. _read_manifest did not catch UnicodeDecodeError, so invalid UTF-8 crashed with exit 1 instead of the ADR-035 config code 2. Each fix was mutation-tested and each mutation killed exactly its own test.",
-      "caused_by": [
-        "e006"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e008"
+        "e012"
       ]
     },
     {
@@ -93,11 +81,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Verifying the review's MINOR finding proved my own commit message false and nearly overturned the change. The message claimed the sweep had cleaned both marketplace files and both project-toolkit manifests; git show disproved it. Tracing further showed the mirror has never held on disk for two of the three pairs, so history of agreement cannot justify the gate. Consulting the upstream marketplace specification confirmed it does not require an entry to repeat its manifest's text. What re-established the premise was textual identity: each marketplace description is the same sentence as its manifest description with the counts removed. The gate enforces a repository convention, and the docstring and memory now say so explicitly instead of implying a specification rule.",
-      "caused_by": [
-        "e007"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e009"
+        "e012"
       ]
     },
     {
@@ -105,11 +91,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Recomputed the version targets independently rather than taking the reviewer's numbers. Fetching all 21 open PR heads and reading every manifest showed the parity pair tops out at 0.6.152 in PR #3643, not the 0.6.151 the reviewer reported, and the src/claude 0.3.x line tops out at 0.3.48 in PR #3613. Set 0.6.153 and 0.3.49. PR #3638 carries 0.6.147 in src/claude, a cross-version-line collision already flagged on that PR, excluded from the 0.3.x maximum.",
-      "caused_by": [
-        "e008"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e010"
+        "e012"
       ]
     },
     {
@@ -117,30 +101,57 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Discovered mid-session that origin/main had moved and had already fixed half the change. PR #3559 landed 22 minutes after the original data commit and restored the Copilot description to the exact string its marketplace entry publishes. Rebuilt the branch on current main with three clean commits, dropped the now-redundant Copilot hunk, and closed #3645 with the evidence rather than shipping a duplicate fix. The independent convergence on the same string is now cited as evidence the convention is real.",
-      "caused_by": [
-        "e009"
-      ],
-      "leads_to": [
-        "e014"
-      ]
-    },
-    {
-      "id": "e011",
-      "timestamp": "2026-07-28T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 37a42bb7e0",
       "caused_by": [],
       "leads_to": [
         "e012"
       ]
     },
     {
+      "id": "e011",
+      "timestamp": "2026-07-28T10:01:33+00:00",
+      "type": "commit",
+      "content": "Commit: 37a42bb7e0",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e024"
+      ]
+    },
+    {
       "id": "e012",
-      "timestamp": "2026-07-28T00:00:00+00:00",
+      "timestamp": "2026-07-28T10:00:47+00:00",
       "type": "commit",
       "content": "Commit: a7169cb800",
       "caused_by": [
-        "e011"
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010",
+        "e014",
+        "e015",
+        "e016",
+        "e017",
+        "e018",
+        "e019",
+        "e020",
+        "e021",
+        "e022",
+        "e023",
+        "e025",
+        "e026",
+        "e027",
+        "e028",
+        "e029",
+        "e030",
+        "e031",
+        "e032"
       ],
       "leads_to": [
         "e013"
@@ -148,14 +159,14 @@
     },
     {
       "id": "e013",
-      "timestamp": "2026-07-28T00:00:00+00:00",
+      "timestamp": "2026-07-28T10:01:11+00:00",
       "type": "commit",
       "content": "Commit: 76ad4621e3",
       "caused_by": [
         "e012"
       ],
       "leads_to": [
-        "e024"
+        "e011"
       ]
     },
     {
@@ -163,11 +174,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Reproduce the stale count and confirm it is still live on main",
-      "caused_by": [
-        "e010"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e015"
+        "e012"
       ]
     },
     {
@@ -175,11 +184,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Date the regression against the sweep that caused it",
-      "caused_by": [
-        "e014"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e016"
+        "e012"
       ]
     },
     {
@@ -187,11 +194,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "First design: require each marketplace entry to mirror its manifest",
-      "caused_by": [
-        "e015"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e017"
+        "e012"
       ]
     },
     {
@@ -199,11 +204,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Adversarial review round 1 (gemini-3.1-pro security, gpt-5.6-sol rubber-duck)",
-      "caused_by": [
-        "e016"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e018"
+        "e012"
       ]
     },
     {
@@ -211,11 +214,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Discover main had moved and half the change was already shipped",
-      "caused_by": [
-        "e017"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e019"
+        "e012"
       ]
     },
     {
@@ -223,11 +224,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Adversarial review round 2 refuted the design",
-      "caused_by": [
-        "e018"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e020"
+        "e012"
       ]
     },
     {
@@ -235,11 +234,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Verify the refutation against upstream rather than accept it",
-      "caused_by": [
-        "e019"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e021"
+        "e012"
       ]
     },
     {
@@ -247,11 +244,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Rebuild around the invariant the evidence supports",
-      "caused_by": [
-        "e020"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e022"
+        "e012"
       ]
     },
     {
@@ -259,11 +254,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Prove the new tests constrain the new code",
-      "caused_by": [
-        "e021"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e023"
+        "e012"
       ]
     },
     {
@@ -271,20 +264,18 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Align the workflows with the check they run",
-      "caused_by": [
-        "e022"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e025"
+        "e012"
       ]
     },
     {
       "id": "e024",
-      "timestamp": "2026-07-28T00:00:00+00:00",
+      "timestamp": "2026-07-28T10:34:21+00:00",
       "type": "commit",
       "content": "Commit: 5f9317fdf8",
       "caused_by": [
-        "e013"
+        "e011"
       ],
       "leads_to": [
         "e033"
@@ -295,11 +286,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Send the redesign for a third adversarial pass",
-      "caused_by": [
-        "e023"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e026"
+        "e012"
       ]
     },
     {
@@ -307,11 +296,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Reproduce the pattern counterexamples before fixing anything",
-      "caused_by": [
-        "e025"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e027"
+        "e012"
       ]
     },
     {
@@ -319,11 +306,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Restructure the pattern around real component categories",
-      "caused_by": [
-        "e026"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e028"
+        "e012"
       ]
     },
     {
@@ -331,11 +316,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Kill the surviving mutation and the one it exposed",
-      "caused_by": [
-        "e027"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e029"
+        "e012"
       ]
     },
     {
@@ -343,11 +326,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Verify the historical claims instead of correcting them from the report",
-      "caused_by": [
-        "e028"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e030"
+        "e012"
       ]
     },
     {
@@ -355,11 +336,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Trace when the count actually went wrong",
-      "caused_by": [
-        "e029"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e031"
+        "e012"
       ]
     },
     {
@@ -367,11 +346,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Guard the gate's own file list",
-      "caused_by": [
-        "e030"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e032"
+        "e012"
       ]
     },
     {
@@ -379,14 +356,14 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Rebuild the branch on current main a third time",
-      "caused_by": [
-        "e031"
-      ],
-      "leads_to": []
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
     },
     {
       "id": "e033",
-      "timestamp": "2026-07-28T00:00:00+00:00",
+      "timestamp": "2026-07-28T11:04:33+00:00",
       "type": "commit",
       "content": "Commit: f2a851b1ee458861df9c977041deaba95236ca7e",
       "caused_by": [

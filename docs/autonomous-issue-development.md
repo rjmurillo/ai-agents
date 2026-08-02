@@ -435,10 +435,12 @@ git push
 
 **Resolution**:
 
-1. Run `python3 scripts/validate_session_json.py .agents/sessions/[log].json`
+1. Run `uv run python scripts/validate_session_json.py .agents/sessions/[log].json`
 2. Address each validation error (QA report, evidence, etc.)
 3. For documentation-only changes, ensure no code file patterns detected
-4. If false positive, document justification and use `--no-verify` with explanation
+4. If it is a false positive, fix the validator rather than the symptom, and say so in the
+   PR. Do not reach for `--no-verify`: `.claude/rules/universal.md` MUST NOT #2 forbids
+   skipping hooks, and a gate that is wrong for one contributor is wrong for all of them.
 
 ## Prerequisites
 
