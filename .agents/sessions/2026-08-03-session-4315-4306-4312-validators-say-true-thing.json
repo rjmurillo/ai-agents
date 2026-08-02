@@ -1,0 +1,152 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4315,
+    "date": "2026-08-02",
+    "branch": "fix/validators-say-true-thing",
+    "startingCommit": "a72ee868c",
+    "objective": "Fix three validator-misrepresentation issues: #4315 (advisory [FAIL] prints when check passes), #4306 (score_atomicity is boolean in disguise), #4312 (endingCommit error blames amend/rebase when squash merge is the actual cause)."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena MCP not reachable in this harness (Copilot CLI); 61 prior logs document the same gap. Read code directly from the worktree instead."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Same harness gap as serenaActivated; fell back to reading code directly"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read (not edited)"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .claude/skills/retrospective/references/diagnosis-and-actions.md before touching score_atomicity.py"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub API used for issue triage; gh api /repos/.../issues/NNNN"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read; no new bash scripts, Python-first"
+      },
+      "memoriesLoaded": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena not available; read .serena/memories/decision-squash-only-breaks-ancestry-merge-detection.md by name to confirm #4312 root cause"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current: fix/validators-say-true-thing"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/validators-say-true-thing is not main"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git diff --name-only origin/main checked after merge"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "a72ee868c"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Three fixes committed; all tests pass; all ratchets green"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not modified"
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena not available in this harness; key decisions documented in commit body per SESSION-PROTOCOL fallback"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed with Fixes #4315 Fixes #4306 Fixes #4312"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ruff format --check clean; no markdown files modified in this PR"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run --frozen python scripts/validate_session_json.py <path> --pre-commit"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not invoked; fix-only session with no process failures"
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "No rework required; all mutations killed on first attempt"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Triaged issues #4315, #4306, #4312 against current origin/main",
+      "result": "All three confirmed reproducible; all merit fixes."
+    },
+    {
+      "action": "Fixed #4315: restructured validate_review_marker in checks_coverage.py",
+      "result": "Exit-code-0 branch prints and returns True first. Enforced failure path prints verbatim. Advisory path rewrites [FAIL] to [WARN] via _print_output helper. Extracted helper also reduced complexity from 11 to 9 (taste-lint passes)."
+    },
+    {
+      "action": "Fixed #4312: updated endingCommit error message in validate_session_json.py",
+      "result": "Message now names three causes: (1) amend, (2) rebase, (3) squash-merge, with issue #4312 reference and guidance distinguishing the squash case from amend/rebase."
+    },
+    {
+      "action": "Fixed #4306: expanded _VAGUE_WORDS, added _MIN_ACTIONABLE_WORDS=4, updated _is_actionable in score_atomicity.py",
+      "result": "Single letters, keyboard mash, and platitudes built on new trigger words (careful, important, matters) now score below the 70% persistence threshold. Synced mirrors in src/copilot-cli/."
+    },
+    {
+      "action": "Wrote tests for all three fixes with mutation proof",
+      "result": "44 tests pass. Mutations killed: WARN rewrite removed (2 failures); MIN_ACTIONABLE_WORDS removed (3 failures); squash text removed (1 failure). All 3 mutations confirmed via exit code 1."
+    },
+    {
+      "action": "Ran all three ratchets against origin/main",
+      "result": "taste OK (600), type-ignore OK (44), ruff OK (312 <= 315)."
+    }
+  ],
+  "endingCommit": "74b501ec8",
+  "nextSteps": [
+    "Verify PR is created and linked to issues #4315, #4306, #4312.",
+    "Monitor CI for unexpected failures."
+  ]
+}
