@@ -99,7 +99,9 @@
       "timestamp": "2026-06-18T00:00:00+00:00",
       "type": "test",
       "content": "Test evidence: uv run python -m pytest tests/ -k 'skill_registry or registry' -> 62 passed, 12848 deselected. pre_pr.py 24 passed (Plugin Version Bump passed, Agent Drift Detection passed, Markdown Linting passed). scripts/incoherence.py smoke run passed (exit 0).",
-      "caused_by": [],
+      "caused_by": [
+        "e013"
+      ],
       "leads_to": []
     },
     {
@@ -108,7 +110,9 @@
       "type": "commit",
       "content": "Commit: fda295e9",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e012"
+      ]
     }
   ],
   "metrics": {
@@ -119,5 +123,7 @@
     "commits": 1,
     "files_changed": 2
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 1"
 }
