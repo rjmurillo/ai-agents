@@ -122,6 +122,40 @@ def _candidate_temp_roots() -> list[str]:
     return roots
 
 
+def _candidate_git_dir_roots() -> list[str]:
+    """Return the git dir for the current working directory, if one exists.
+
+    In a linked worktree ``git rev-parse --git-dir`` returns the worktree-
+    specific path (e.g. ``.git/worktrees/wt-4055/``), which is a safe scratch
+    location for transient reply bodies when ``/tmp`` is unavailable and the
+    working tree must stay clean of untracked files.
+
+    Returns an empty list when git is not available or the cwd is not inside
+    a repository.
+    """
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--git-dir"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        if result.returncode != 0:
+            return []
+        git_dir = result.stdout.strip()
+        if not git_dir:
+            return []
+        resolved = str(Path(git_dir).resolve())
+        if Path(resolved).is_dir():
+            return [resolved]
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    return []
+
+
 def assert_valid_body_file(body_file: str, allowed_base: str | None = None) -> None:
     """Validate a body file parameter for safe file access.
 
@@ -129,8 +163,9 @@ def assert_valid_body_file(body_file: str, allowed_base: str | None = None) -> N
 
     When allowed_base is None, accepts paths within either the repo root or
     any plausible system temp directory (TMPDIR, tempfile.gettempdir(), /tmp,
-    or /private/tmp). This supports temp-file-based reply staging on every
-    shell.
+    or /private/tmp) or the repository git dir. The git-dir path supports
+    transient reply bodies in linked worktrees where /tmp is unavailable and
+    untracked files in the working tree are undesirable.
 
     Args:
         body_file: The file path to validate.
@@ -151,6 +186,10 @@ def assert_valid_body_file(body_file: str, allowed_base: str | None = None) -> N
 
     for temp_root in _candidate_temp_roots():
         if is_safe_file_path(body_file, temp_root):
+            return
+
+    for git_root in _candidate_git_dir_roots():
+        if is_safe_file_path(body_file, git_root):
             return
 
     error_and_exit(f"Body file path traversal not allowed: {body_file}", 2)
