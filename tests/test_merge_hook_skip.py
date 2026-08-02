@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator, Sequence
 from pathlib import Path
+from typing import cast
 
 import yaml
 
@@ -48,7 +49,7 @@ class TestTasteAdvisorySkipsMerge:
         config = _load()
         jobs = _job_map(config, "pre-commit")
         job = jobs["taste-advisory"]
-        skip = job.get("skip", [])
+        skip = cast(list[object], job.get("skip", []))
         assert "merge" in skip, (
             "taste-advisory is missing 'skip: merge'; it will block merge commits "
             "that import main-side files (issue #4308)"
@@ -57,7 +58,7 @@ class TestTasteAdvisorySkipsMerge:
     def test_skip_is_list(self) -> None:
         config = _load()
         jobs = _job_map(config, "pre-commit")
-        skip = jobs["taste-advisory"].get("skip", [])
+        skip = cast(list[object], jobs["taste-advisory"].get("skip", []))
         assert isinstance(skip, list), "skip must be a list, not a scalar"
 
 
@@ -68,7 +69,7 @@ class TestAdrReviewPolicySkipsMerge:
         config = _load()
         jobs = _job_map(config, "pre-commit")
         job = jobs["adr-review-policy"]
-        skip = job.get("skip", [])
+        skip = cast(list[object], job.get("skip", []))
         assert "merge" in skip, (
             "adr-review-policy is missing 'skip: merge'; it will block merge commits "
             "that touch SESSION-PROTOCOL.md or ADR files inherited from main (issue #4307)"
@@ -77,7 +78,7 @@ class TestAdrReviewPolicySkipsMerge:
     def test_skip_is_list(self) -> None:
         config = _load()
         jobs = _job_map(config, "pre-commit")
-        skip = jobs["adr-review-policy"].get("skip", [])
+        skip = cast(list[object], jobs["adr-review-policy"].get("skip", []))
         assert isinstance(skip, list), "skip must be a list, not a scalar"
 
 
@@ -89,5 +90,5 @@ class TestNegativeControl:
         config = _load()
         jobs = _job_map(config, "pre-commit")
         job = jobs["session-policy"]
-        skip = job.get("skip", [])
+        skip = cast(list[object], job.get("skip", []))
         assert "merge" in skip, "session-policy lost its skip: merge (parser regression)"
