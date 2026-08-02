@@ -77,6 +77,19 @@ query($owner: String!, $name: String!, $prNumber: Int!) {
     }
 }"""
 
+_THREAD_QUERY = """\
+query($threadId: ID!) {
+    node(id: $threadId) {
+        ... on PullRequestReviewThread {
+            id
+            isResolved
+            pullRequest {
+                number
+            }
+        }
+    }
+}"""
+
 
 def resolve_review_thread(thread_id: str) -> bool:
     """Resolve a single review thread. Returns True on success."""
@@ -126,6 +139,12 @@ def get_unresolved_threads(pr_number: int) -> list[dict]:
     return [t for t in threads if not t.get("isResolved", True)]
 
 
+def query_thread_state(thread_id: str) -> dict | None:
+    data = gh_graphql(_THREAD_QUERY, {"threadId": thread_id})
+    node = data.get("node")
+    return node if isinstance(node, dict) else None
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -158,7 +177,24 @@ def main(argv: list[str] | None = None) -> int:
     assert_gh_authenticated()
 
     if args.thread_id:
+        try:
+            thread = query_thread_state(args.thread_id)
+        except RuntimeError as exc:
+            print(f"Error: failed to query thread state: {exc}", file=sys.stderr)
+            return 3
+        if thread is None:
+            print(json.dumps({"action": "SKIP", "reason": "not_found"}, indent=2))
+            return 0
+        if thread.get("isResolved"):
+            print(json.dumps({"action": "SKIP", "reason": "already_resolved"}, indent=2))
+            return 0
         success = resolve_review_thread(args.thread_id)
+        print(
+            json.dumps(
+                {"action": "ACT", "success": success, "thread_id": args.thread_id},
+                indent=2,
+            )
+        )
         return 0 if success else 1
 
     # Resolve all unresolved threads
