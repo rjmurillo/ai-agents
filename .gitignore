@@ -180,3 +180,17 @@ bun.lockb
 # prefix that make_run_id guarantees, so tracked fixtures stay visible.
 evals/*/reports/sweep-*
 evals/*/runs/sweep-*
+
+# Unexpanded tilde artifacts (#4295). A tool run inside the tree that joins "~"
+
+# as a literal path segment instead of expanding it creates a real directory
+
+# named `~` here rather than writing to $HOME. #1186 committed one that way. The
+
+# result reads like a home directory path in `git ls-files`, which is exactly the
+
+# misreading that caused it. Root anchored so a legitimately named file deeper in
+
+# the tree is unaffected.
+
+/~/
