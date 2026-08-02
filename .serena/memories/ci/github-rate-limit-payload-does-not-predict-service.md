@@ -51,10 +51,29 @@ Established by the measurements above:
   a REST URL.
 - `gh api rate_limit` keeps answering when everything else is refused.
 
-Not established. The mechanism. A secondary or abuse limit keyed on request
-velocity fits, and so does an account-wide throttle triggered by draining the
-GraphQL bucket, since both REST and GraphQL were refused together in the last
-observation. These were not separated, so do not repeat either as the cause.
+Narrowed later in the same session. Two candidate mechanisms fit the readings
+above: a secondary limit keyed on request velocity, or an account wide throttle
+triggered by draining the GraphQL bucket, since REST and GraphQL were refused
+together at 20:25 with `graphql=0`. A later measurement separates them:
+
+```
+20:25  gh run list             403   core=4948  graphql=0
+20:25  gh api repos/...        403   core=4948  graphql=0
+20:50  gh pr list              refused (GraphQL)
+20:50  POST /repos/.../issues  201   core=3079  graphql=0
+```
+
+GraphQL stayed exhausted across both readings while REST went from refused to
+serving. An exhausted GraphQL bucket is therefore not sufficient to refuse REST,
+and the account wide throttle explanation does not survive that. The velocity
+explanation is the better supported of the two. It is not proven, so still
+describe a refusal as a refusal rather than naming a cause.
+
+The operational consequence is concrete. When GraphQL is exhausted, REST is
+often still serving, so prefer the REST shape of an operation when one exists.
+`gh issue create` and `gh pr create` go through GraphQL, but
+`POST /repos/{owner}/{repo}/issues` and `POST /repos/{owner}/{repo}/pulls` do
+not, and both worked in this window.
 
 ## What to do
 
@@ -72,8 +91,14 @@ raises immediately rather than retrying, even though these refusals clear in
 about a minute. `scripts/github_core/rate_limit.py:93`
 `check_workflow_rate_limit` reads only the `rate_limit` payload, so it returns
 `success=True` during a refusal window and its three production callers proceed
-into work that will fail call by call. Filed together; search issues for
-"403 rate-limit refusal is never retried".
+into work that will fail call by call. Both are issue #4326.
+
+`.claude/skills/github/scripts/issue/new_issue.py` speaks GraphQL, so it cannot
+file an issue while GraphQL is exhausted even though the REST issue endpoint is
+serving. Confirmed by failing that script and then filing the same issue through
+`POST /repos/rjmurillo/ai-agents/issues` in the same minute. When a github skill
+script fails with a GraphQL rate limit, the REST equivalent is worth one try
+before waiting.
 
 ## Under fleet operation
 
