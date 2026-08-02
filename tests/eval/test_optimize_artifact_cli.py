@@ -2329,6 +2329,7 @@ print(code)
             capture_output=True,
             cwd=_EVAL_DIR,
             text=True,
+            encoding="utf-8",
             timeout=2,
         )
         assert result.returncode == 0
@@ -10888,7 +10889,7 @@ class TestAStdoutThatCannotBeWrittenIsNotARejectVerdict:
         """
         proc = subprocess.run(
             [sys.executable, "-c", _CLOSED_STDOUT_DRIVER, str(_SCRIPT)],
-            capture_output=True, text=True,
+            capture_output=True, text=True, encoding="utf-8",
         )
         assert proc.returncode == EXIT_CONFIG, proc.stderr[:400]
         assert "Traceback" not in proc.stderr
@@ -10905,7 +10906,7 @@ class TestAStdoutThatCannotBeWrittenIsNotARejectVerdict:
         """
         proc = subprocess.run(
             [sys.executable, "-c", _NO_FILENO_DRIVER, str(_SCRIPT)],
-            capture_output=True, text=True,
+            capture_output=True, text=True, encoding="utf-8",
         )
         assert proc.returncode == EXIT_CONFIG, proc.stderr[:400]
         assert "Exception ignored" not in proc.stderr

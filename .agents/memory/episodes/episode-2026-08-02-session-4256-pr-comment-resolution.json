@@ -1,0 +1,99 @@
+{
+  "id": "episode-2026-08-02-session-4256-pr-comment-resolution",
+  "session": "2026-08-02-session-4256-pr-comment-resolution",
+  "timestamp": "2026-08-02T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Clear PR #4256 review threads, validate the memory migration, push, and merge.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fetched PR branch and origin/main, created wt-4256, and merged origin/main first.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4256-pr-comment-resolution"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fetched unresolved review threads with GraphQL and clustered them.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4256-pr-comment-resolution"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified reviewer claims against current tree.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4256-pr-comment-resolution"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed migration failure outcomes and tests.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4256-pr-comment-resolution"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified blast-radius tests and ratchets.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4256-pr-comment-resolution"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 3598b31a34",
+      "caused_by": [],
+      "leads_to": [
+        "e007",
+        "e008"
+      ],
+      "_source_session": "2026-08-02-session-4256-pr-comment-resolution"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 151af01bfd",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4256-pr-comment-resolution"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 2b81f6c757",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4256-pr-comment-resolution"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 6
+  },
+  "lessons": []
+}

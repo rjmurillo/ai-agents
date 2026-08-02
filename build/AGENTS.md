@@ -61,10 +61,10 @@ After modifying ANY file in `templates/`:
 
 ```bash
 # Regenerate platform-specific files
-python3 build/generate_agents.py
+uv run python build/generate_agents.py
 
 # Verify generation succeeded
-python3 build/generate_agents.py --validate
+uv run python build/generate_agents.py --validate
 
 # Commit ALL affected files together
 git add templates/ src/vs-code-agents/ src/copilot-cli/
@@ -78,7 +78,7 @@ When `src/claude/` agents receive **universal changes**:
 ```text
 1. Edit src/claude/{agent}.md (Claude-specific source)
 2. Duplicate changes to templates/agents/{agent}.shared.md
-3. Run: python3 build/generate_agents.py
+3. Run: uv run python build/generate_agents.py
 4. Commit all files atomically
 ```
 
@@ -150,13 +150,13 @@ behind. There are zero deferrals today; the gate passes until someone adds one.
 
 ```powershell
 # Generate all agents
-python3 build/generate_agents.py
+uv run python build/generate_agents.py
 
 # Preview changes (dry run)
-python3 build/generate_agents.py --what-if
+uv run python build/generate_agents.py --what-if
 
 # CI validation mode
-python3 build/generate_agents.py --validate
+uv run python build/generate_agents.py --validate
 ```
 
 **Exit Codes**:
@@ -262,7 +262,7 @@ Two gates keep the hand-maintained copies honest:
 
 When you edit a shared-template agent, update the template
 (`templates/agents/{name}.shared.md`), regenerate the `src/copilot-cli` and
-`src/vs-code-agents` copies (`python3 build/generate_agents.py`), and hand-edit
+`src/vs-code-agents` copies (`uv run python build/generate_agents.py`), and hand-edit
 `.claude/agents/{name}.md`, `.github/agents/{name}.agent.md`, and
 `src/claude/{name}.md` to match.
 

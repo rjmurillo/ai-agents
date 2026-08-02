@@ -7,11 +7,11 @@ append; not git-tracked), and offers staleness, clean, and audit-format
 modes for CI integration.
 
 CLI:
-    python3 build/scripts/build_all.py
-    python3 build/scripts/build_all.py --check
-    python3 build/scripts/build_all.py --clean
-    python3 build/scripts/build_all.py --audit-format json
-    python3 build/scripts/build_all.py --platform copilot-cli
+    uv run python build/scripts/build_all.py
+    uv run python build/scripts/build_all.py --check
+    uv run python build/scripts/build_all.py --clean
+    uv run python build/scripts/build_all.py --audit-format json
+    uv run python build/scripts/build_all.py --platform copilot-cli
 
 EXIT CODES:
     0 - success

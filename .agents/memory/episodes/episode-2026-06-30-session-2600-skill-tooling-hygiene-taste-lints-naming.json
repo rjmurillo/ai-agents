@@ -11,7 +11,9 @@
       "timestamp": "2026-06-30T00:00:00+00:00",
       "type": "test",
       "content": "_check_python_naming regex ^_?[a-z]... ; canonical+mirror regenerated. uv/.venv pytest tests/skills/taste-lints -> 64 passed; eval helpers no longer trip naming.",
-      "caused_by": [],
+      "caused_by": [
+        "e004"
+      ],
       "leads_to": []
     },
     {
@@ -19,7 +21,9 @@
       "timestamp": "2026-06-30T00:00:00+00:00",
       "type": "test",
       "content": "scripts/skill_description_budget.py + tests. .venv pytest -> 20 passed; ruff+mypy clean; live corpus 77 skills/28665 chars.",
-      "caused_by": [],
+      "caused_by": [
+        "e004"
+      ],
       "leads_to": []
     },
     {
@@ -27,7 +31,9 @@
       "timestamp": "2026-06-30T00:00:00+00:00",
       "type": "test",
       "content": "_script_ref_resolves added; cleared 37/39 script_path FPs. pytest orphan-ref suites -> 102 passed; ruff+mypy(scan.py) clean. Contradiction logged; #2796 commented, kept open for skill_name FP class.",
-      "caused_by": [],
+      "caused_by": [
+        "e004"
+      ],
       "leads_to": []
     },
     {
@@ -36,7 +42,11 @@
       "type": "commit",
       "content": "Commit: 9dc494e6d3464db8a6cb340ed3ed4ccd9d997c0f",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e001",
+        "e002",
+        "e003"
+      ]
     }
   ],
   "metrics": {
@@ -47,5 +57,7 @@
     "commits": 9,
     "files_changed": 12
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 3"
 }
