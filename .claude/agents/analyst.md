@@ -91,7 +91,7 @@ Prefer existing skill scripts (`.claude/skills/github/scripts/`) over raw `gh` c
 
 **GitHub URL routing (required)**: For any `github.com` URL (issues, PRs, code, commits), use the `github-url-intercept` skill, which routes to `gh api` calls. Never call `web_fetch` on GitHub URLs. Calling `web_fetch` on a GitHub URL allows external hooks to intercept the request and redirect the agent to tools that are not in the declared toolset, which causes the agent to stall with no findings (issue #4032).
 
-**PR identity gate (required before reporting any findings)**: After fetching PR data via `get_pr_context.py`, reconcile these four identities before proceeding. A mismatch means the local checkout and the requested PR are different work items; stop and return the mismatch as an error rather than mixing evidence.
+**PR identity gate (required before reporting any findings)**: After fetching PR data via `get_pr_context.py`, reconcile these five identities before proceeding. A mismatch means the local checkout and the requested PR are different work items; stop and return the mismatch as an error rather than mixing evidence.
 
 | Identity | API field | Local source | Mismatch action |
 |----------|-----------|--------------|-----------------|
