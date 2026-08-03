@@ -117,6 +117,54 @@ An empty result means the ref is not there, whatever the log said. This is the
 same class of error as reading the advisory `[FAIL]` above: a line that is true
 about one thing gets read as a verdict on another.
 
+## The same trap with a diagnostic that actively blames you: count ratchets
+
+The tests above fail with a neutral message. The count ratchets fail with a
+message that names the wrong culprit, which is worse, because it sends you to
+edit the one file you must never edit.
+
+A ratchet compares the baseline file **on your branch** against the count
+measured on `origin/main`. When `main` **lowers** a baseline, a branch that has
+not merged `main` still carries the older, higher number. The ratchet reports:
+
+```
+ruff count ratchet: BASELINE RAISED. 315 -> 326 (+11) against origin/main.
+  The baseline may only fall; lower the count rather than raising the baseline.
+taste count ratchet: BASELINE RAISED. 600 -> 601 (+1) against origin/main.
+```
+
+Read plainly, that says you widened the allowance. You did not touch the
+baseline file at all. Someone else **narrowed** it on `main` and your branch is
+behind. Measured 2026-08-02: a branch whose entire diff was `.serena/memories/*.md`
+failed both ratchets this way, having touched no Python, no baseline, and no
+linted source.
+
+`check_skill_md_portability.py` has the same shape with different words. It
+prints `changed measured input: <path>` for a long list of files your diff never
+touched, because it is diffing the whole corpus against a baseline that moved on
+`main`.
+
+The tell in all three: the named files or numbers have nothing to do with your
+diff. Before reading one line of the diagnostic, run:
+
+```bash
+git fetch origin main && git merge origin/main --no-edit
+```
+
+Then re-verify in about 30 seconds rather than paying another 15 minute push:
+
+```bash
+uv run --frozen python scripts/ci/type_ignore_count_ratchet.py --base-ref origin/main
+uv run --frozen --extra dev python scripts/ci/ruff_count_ratchet.py --base-ref origin/main
+uv run --frozen python scripts/ci/taste_count_ratchet.py --base-ref origin/main
+```
+
+On the 2026-08-02 instance the merge cleared both ratchets and the portability
+checker in one step, with no other change.
+
+Never hand-edit a baseline number to silence this. A baseline may only fall, and
+the number that looks wrong on your branch is the correct number on `main`.
+
 ## Related
 
 - Never pipe `git push` into `tail`: `$?` then reports `tail`'s status, so a
