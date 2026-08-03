@@ -37,10 +37,11 @@ _SKILL_DIR = (
 
 def _load_module(name: str, path: Path):
     spec = importlib.util.spec_from_file_location(name, path)
-    assert spec and spec.loader
+    assert spec is not None and spec.loader is not None
+    loader = spec.loader
     mod = importlib.util.module_from_spec(spec)
     sys.modules[name] = mod
-    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    loader.exec_module(mod)
     return mod
 
 

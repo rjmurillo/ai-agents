@@ -193,10 +193,6 @@ class TestAuditSkill:
         assert result is not None
         assert result.rating == "good"
         assert result.modularity_score == 100
-        result = audit_skill(skill_dir)
-        assert result is not None
-        assert result.rating == "good"
-        assert result.modularity_score == 100
 
     def test_audit_oversized_skill(self, tmp_path: Path) -> None:
         skill_dir = tmp_path / "big-skill"
