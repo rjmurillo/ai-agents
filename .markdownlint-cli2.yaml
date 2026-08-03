@@ -113,7 +113,14 @@ ignores:
   - "ai_agents.egg-info/**"
   - "dist/**"
   # Worktrees are duplicate working copies, not unique source.
+  # All five gitignored worktree roots must be listed; missing any one
+  # causes the full-repo walk to count duplicate .md files (issue #4248).
   - ".claude/worktrees/**"
+  - ".worktrees/**"
+  - ".wt/**"
+  - "worktree-*/**"
+  - "worktree--/**"
+  - "wt_*/**"
   # Internal tooling outputs and provider caches: not authored .md.
   - ".agents/**"
   - ".serena/**"
