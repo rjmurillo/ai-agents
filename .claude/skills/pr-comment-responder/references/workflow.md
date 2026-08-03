@@ -124,10 +124,13 @@ python3 "$SCRIPTS_DIR/pr/get_pr_reviewers.py" --pull-request [number]
 ### Step 1.2a: Load Reviewer-Specific Memories
 
 ```python
+# get_pr_reviewers.py reports the canonical login, with every observed spelling
+# in "aliases". Match on the canonical one: "copilot-pull-request-reviewer" is
+# an alias and never appears as a reviewer's login.
 for reviewer in ALL_REVIEWERS:
     if reviewer == "cursor[bot]":
         mcp__serena__read_memory(memory_file_name="cursor-bot-review-patterns")
-    elif reviewer == "copilot-pull-request-reviewer":
+    elif reviewer == "github-copilot[bot]":
         mcp__serena__read_memory(memory_file_name="copilot-pr-review-patterns")
 ```
 
