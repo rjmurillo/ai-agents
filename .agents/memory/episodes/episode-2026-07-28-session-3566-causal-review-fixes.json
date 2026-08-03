@@ -13,7 +13,9 @@
       "type": "milestone",
       "content": "PR branch no longer has an unresolved local merge conflict.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e002",
@@ -21,7 +23,9 @@
       "type": "milestone",
       "content": "Pre-code milestones are no longer linked to later commits, and same-timestamp commit to test edges remain supported.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e003",
@@ -29,7 +33,9 @@
       "type": "milestone",
       "content": "Malformed episodes fail closed instead of manufacturing edges or crashing.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e004",
@@ -37,7 +43,9 @@
       "type": "milestone",
       "content": "New v2 episode links feed the global causal graph, while legacy links remain distinguishable by missing marker.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e005",
@@ -45,7 +53,9 @@
       "type": "milestone",
       "content": "New evidence tests fail without the fix and pass with it. TMPDIR was inside .pytest_tmp, not system temp.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e006",
@@ -53,14 +63,23 @@
       "type": "milestone",
       "content": "New evidence tests fail without the fix and pass with it. Final push evidence used TMPDIR outside the worktree.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e007",
-      "timestamp": "2026-07-28T00:00:00+00:00",
+      "timestamp": "2026-07-28T05:25:14+00:00",
       "type": "commit",
       "content": "Commit: 7a0dce3cd8d6326213f070033dc9b26adc1c0e04",
-      "caused_by": [],
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006"
+      ],
       "leads_to": []
     }
   ],
