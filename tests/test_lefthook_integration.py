@@ -764,6 +764,8 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "extract-session-episodes",
         "commit-file-count",
         "memory-size",
+        "adr-review-policy",
+        "taste-advisory",
     }
     pure_jobs = {
         "action-pin-policy",
@@ -778,8 +780,6 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "memory-index",
         "memory-tier",
         "memory-skill-format",
-        "adr-review-policy",
-        "taste-advisory",
     }
     for name in merge_exempt_jobs:
         skip = pre_commit_jobs[name].get("skip", [])
