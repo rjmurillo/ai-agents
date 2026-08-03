@@ -1,10 +1,21 @@
-# github skill scripts refuse a comment file outside the repository root
+# GitHub skill issue scripts refuse a comment file outside the repository root
 
-## Symptom
+## Which scripts, and which flag
 
-`close_issue.py`, `post_issue_comment.py`, and their siblings under
-`.claude/skills/github/scripts/` reject `--comment-file` when the path sits
-outside the repository:
+The guard is not family-wide. Measured on the scripts under
+`.claude/skills/github/scripts/issue/`:
+
+| Script | Flag | Enforces repo-root containment |
+|---|---|---|
+| `close_issue.py` | `--comment-file` | yes |
+| `reopen_issue.py` | `--comment-file` | yes |
+| `post_issue_comment.py` | `--body-file` | no |
+
+`post_issue_comment.py` takes a different flag name and accepts a path anywhere.
+Its `repo_root` computation exists to locate `.github/artifacts`, not to
+constrain the body file. Do not generalize the guard to it.
+
+## Symptom on the two that do guard
 
 ```
 [FAIL] Comment file must stay under /home/richard/src/GitHub/rjmurillo/ai-agents6:
@@ -12,14 +23,14 @@ outside the repository:
 ```
 
 This collides with `AGENTS.md`, which lists "Scratch in tree" under **Never**.
-Writing the body to the harness scratchpad is refused by the script; writing it
-into the working tree is refused by policy.
+The harness scratchpad is refused by the script; the working tree is refused by
+policy.
 
-## What works
+## Workaround, and where it stops working
 
-Write the body under `.git/`. It is inside the repository root, so the path
-check passes, and it is not part of the tree, so no policy is broken and nothing
-shows up in `git status`:
+In a normal clone, write the body under `.git/`. It is inside the repository
+root so the path check passes, and it is not part of the tree so no policy is
+broken and nothing appears in `git status`:
 
 ```bash
 mkdir -p .git/issue-scratch
@@ -31,16 +42,25 @@ uv run --frozen python .claude/skills/github/scripts/issue/close_issue.py \
   --reason "not planned" --comment-file .git/issue-scratch/body.md --verify-claims
 ```
 
-Issue #4276 asks for the same allowance on review-thread reply bodies, which is
-the identical constraint one script over. Until it lands, `.git/` scratch is the
-working answer for every script in the family.
+**This fails in a linked worktree.** There `.git` is a regular file, not a
+directory, so `mkdir -p .git/issue-scratch` cannot succeed. Measured on a
+worktree under `.claude/worktrees/`: `.git` is 87 bytes of ASCII text.
 
-## Two argument traps in the same family
+`git rev-parse --git-dir` does resolve to a real directory in both cases, but in
+a linked worktree it points at `<main-repo>/.git/worktrees/<name>`, which is
+outside that worktree's own toplevel. Whether that path satisfies a given
+script's containment check depends on how the script computes the root, so it is
+not a verified universal substitute. Check before relying on it.
 
-**`--reason "not planned"` must be quoted.** The value contains a space, and an
-unquoted `--reason not planned` is parsed as `--reason not`, which fails with
-`invalid choice: 'not' (choose from 'completed', 'not planned')`. The error names
-the choices but not the quoting, so it reads as a bug in the allowed values.
+Issue #4276 is exactly this gap, raised for review-thread reply bodies.
+
+## Two argument traps on the guarding scripts
+
+**`--reason "not planned"` must be quoted.** The value contains a space, so an
+unquoted `--reason not planned` is parsed as `--reason not` and fails with
+`invalid choice: 'not' (choose from 'completed', 'not planned')`. The error
+names the choices but not the quoting, so it reads as a bug in the allowed
+values.
 
 **`--verify-claims` rejects any cited PR that is not merged, including one cited
 as context.** A closing comment mentioning `#4017` purely as a note for whoever
