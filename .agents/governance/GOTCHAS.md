@@ -1,5 +1,9 @@
 # Gotchas
 
+<!-- # taste-lint: ignore file-size, a trap catalog has to be readable in one
+pass. Splitting it by category would make you open several files to learn what
+will bite you, which is the one thing this file exists to prevent. -->
+
 Non-obvious repository behavior that cost real time to learn and cannot be
 inferred from reading the code. Each entry states the trap, the symptom you
 will actually see, and the fix.

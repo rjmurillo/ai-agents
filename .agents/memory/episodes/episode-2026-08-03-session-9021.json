@@ -1,0 +1,103 @@
+{
+  "id": "episode-2026-08-03-session-9021",
+  "session": "2026-08-03-session-9021",
+  "timestamp": "2026-08-03T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Repair red main: the taste count ratchet regression from a scalar-baseline merge race, and a subprocess encoding violation that blocks pre_pr on every branch",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduce the red main claim in issue 4500 independently",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-03-session-9021"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Establish the taste-lint suppression contract from source",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-03-session-9021"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Correct a wrong CLI assumption",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-03-session-9021"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Negative control both fixes on the real subject",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-03-session-9021"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Root cause the ratchet race more precisely than the issue states",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-03-session-9021"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-03T19:45:43+00:00",
+      "type": "commit",
+      "content": "Commit: 795523e339",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-03-session-9021"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-03T19:47:06+00:00",
+      "type": "commit",
+      "content": "Commit: d3bc128517",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-9021"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 4
+  },
+  "lessons": []
+}
