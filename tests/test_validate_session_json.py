@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size, validator regression suite keeps shared fixtures.
 """Tests for validate_session_json module.
 
 These tests verify the session log validation functionality used for
