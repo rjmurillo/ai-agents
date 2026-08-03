@@ -68,6 +68,52 @@ def _git_subprocess_env() -> dict[str, str]:
     return clean_env
 
 
+def _upstream_head_ref_name(repo_root: Path) -> str | None:
+    """Return the remote branch name the current branch is configured to track.
+
+    Reads ``branch.<current>.merge``, which holds the full remote ref
+    (``refs/heads/fix/gc-report-time-budget``) regardless of what the local
+    branch is called. An isolated worktree checked out as ``pr-4294`` tracking
+    a differently named PR head is the case this exists for (issue #4382).
+
+    Returns None on a detached HEAD, an unconfigured upstream, or a value that
+    is not a branch ref.
+    """
+    clean_env = _git_subprocess_env()
+    branch_rc, branch_out, _ = _run_subprocess(
+        ["git", "-C", str(repo_root), "rev-parse", "--abbrev-ref", "HEAD"],
+        env=clean_env,
+        timeout=10,
+    )
+    branch = branch_out.strip()
+    if branch_rc != 0 or not branch or branch == "HEAD":
+        return None
+    merge_rc, merge_out, _ = _run_subprocess(
+        ["git", "-C", str(repo_root), "config", "--get", f"branch.{branch}.merge"],
+        env=clean_env,
+        timeout=10,
+    )
+    if merge_rc != 0:
+        return None
+    ref = merge_out.strip()
+    prefix = "refs/heads/"
+    if not ref.startswith(prefix):
+        return None
+    return ref[len(prefix) :] or None
+
+
+def _gh_pr_base_ref_name(repo_root: Path, extra_args: list[str]) -> str | None:
+    """Return the open PR's ``baseRefName``, or None on any gh failure."""
+    exit_code, stdout, _ = _run_subprocess(
+        ["gh", "pr", "view", *extra_args, "--json", "baseRefName", "-q", ".baseRefName"],
+        timeout=5,
+        cwd=repo_root,
+    )
+    if exit_code != 0:
+        return None
+    return stdout.strip() or None
+
+
 def _gh_base_ref(repo_root: Path) -> str | None:
     """Return ``origin/<baseRefName>`` for the open PR, or None.
 
@@ -76,8 +122,11 @@ def _gh_base_ref(repo_root: Path) -> str | None:
 
     Behavior:
     - If gh is not on PATH, return None.
-    - If gh succeeds but no PR exists for the current branch (empty
-      output), return None.
+    - If the bare lookup finds no PR, retry with ``--head <upstream head>``.
+      ``gh pr view`` infers the PR from the local branch name, so a worktree
+      checked out as ``pr-<number>`` while tracking a differently named PR head
+      resolved nothing and the caller fell back to the stale head upstream
+      (issue #4382).
     - If gh exits non-zero (auth, network, unknown error), return None.
 
     A related helper (``_gh_base_ref``) lives in
@@ -85,22 +134,26 @@ def _gh_base_ref(repo_root: Path) -> str | None:
     pre-push framework. Find it via
     ``grep -n '^def _gh_base_ref' .claude/hooks/PreToolUse/push_guard_base.py``.
     The two functions evolved separately and intentionally cover
-    different runtime contexts (CI vs developer machine). Test coverage
-    in this codebase locks in the public contract above; the canonical
-    file does the same in its own test suite.
+    different runtime contexts (CI vs developer machine); both carry this
+    fallback. Test coverage in this codebase locks in the public contract
+    above; the canonical file does the same in its own test suite.
     """
     if not shutil.which("gh"):
         return None
-    exit_code, stdout, _ = _run_subprocess(
-        ["gh", "pr", "view", "--json", "baseRefName", "-q", ".baseRefName"],
-        timeout=5,
-        cwd=repo_root,
-    )
-    if exit_code != 0:
+    base = _gh_pr_base_ref_name(repo_root, [])
+    if base:
+        return f"origin/{base}"
+    head = _upstream_head_ref_name(repo_root)
+    if not head:
         return None
-    base = stdout.strip()
+    base = _gh_pr_base_ref_name(repo_root, ["--head", head])
     if not base:
         return None
+    print(
+        f"[base-ref] selected origin/{base}: PR resolved by upstream head "
+        f"'{head}' after the local branch name matched no PR",
+        file=sys.stderr,
+    )
     return f"origin/{base}"
 
 
@@ -187,6 +240,7 @@ def _resolve_branch_base_ref(repo_root: Path) -> str | None:
             timeout=10,
         )
         if exit_code == 0:
+            print(f"[base-ref] selected {pr_base}: open PR base branch", file=sys.stderr)
             return pr_base
 
     # ``@{u}`` is the right base for derivative branches that track a parent
@@ -203,6 +257,11 @@ def _resolve_branch_base_ref(repo_root: Path) -> str | None:
             timeout=10,
         )
         if exit_code == 0:
+            print(
+                f"[base-ref] selected {ref}: no PR base resolved, first "
+                "candidate ref that exists locally",
+                file=sys.stderr,
+            )
             return ref
     return None
 
