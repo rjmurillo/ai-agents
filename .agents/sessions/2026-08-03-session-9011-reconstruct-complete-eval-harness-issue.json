@@ -103,8 +103,8 @@
       },
       "tasksUpdated": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Updated fix-eval-harness-p2 to done in .agents/todos.db; one row affected and verified"
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
@@ -150,6 +150,14 @@
     {
       "action": "Wrote the required per-issue continuation record",
       "outcome": "Created .agents/sessions/handoffs/2026-08-03-4123-handoff.md with the inherited gate blocker and resume commands"
+    },
+    {
+      "action": "Merged the next origin/main update and reran the complete pre-PR gate",
+      "outcome": "Main raised the Markdown instruction ceiling to 84,000 bytes; the 83,516-byte corpus passes and pre-PR exits 0 with every executed gate passing"
+    },
+    {
+      "action": "Updated the orchestrator todo ledger",
+      "outcome": "Ensured the missing fix-eval-harness-p2 row, then executed the required done update and verified exactly one row changed"
     }
   ],
   "endingCommit": "033a80f1f",
