@@ -48,11 +48,17 @@ completed inside one second.
 ## Decision
 
 In any mutation harness, purge `__pycache__` after writing each mutant and
-again after the final restore:
+again after the final restore. Use `scripts/testing/mutation_harness.py`;
+`MutationRunner` purges through `_purge_pycache` before writing a mutant and
+after restoring the source. Its `shutil.rmtree` call raises on failure, so the
+harness stops instead of grading against stale bytecode.
+
+An ad hoc harness should use the same fail-fast operation:
 
 ```python
-subprocess.run(["find", str(ROOT), "-name", "__pycache__", "-type", "d",
-                "-exec", "rm", "-rf", "{}", "+"], capture_output=True)
+for pycache in sorted(ROOT.rglob("__pycache__"), reverse=True):
+    if pycache.is_dir():
+        shutil.rmtree(pycache)
 ```
 
 Do not rely on `cmp -s` alone. It proves the source was restored; it says
