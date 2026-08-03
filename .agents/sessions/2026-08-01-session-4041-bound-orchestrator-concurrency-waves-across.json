@@ -1,0 +1,158 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4041,
+    "date": "2026-08-01",
+    "branch": "feat/orchestrator-wave-discipline",
+    "startingCommit": "5d1f67d4f6",
+    "objective": "Bound orchestrator concurrency waves across all six agent surfaces and close the Copilot-side absence of any delegation budget introduced by PR 1715"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena MCP tools are not exposed by this harness. Documented fallback used: .agents/governance/ and .claude/rules/ read directly from the tree"
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not available in this harness; same fallback path used"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read (116 lines) and left unmodified; it is read-only per ADR-014"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/skills/ enumerated; session-init/scripts/new_session_log.py used to create this log rather than hand-writing JSON"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md Gates, Boundaries and Standards read. No-force-push, no --no-verify, and the skill-first rule honored throughout"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/GENERATOR-FILES.md read (it is what identified templates/agents/orchestrator.shared.md as the generator source) and FAILURE-MODES.md read to classify the retrospective"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/ read directly via the documented fallback: 96 memories enumerated and searched for prior coverage of generator topology before writing a new one. session-capture-protocol.md was found to mention templates/agents/orchestrator.shared.md incidentally, which is why the new memory is scoped to topology rather than duplicating that entry"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat/orchestrator-wave-discipline"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On feat/orchestrator-wave-discipline"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --porcelain run before and after each generator invocation; worktree /tmp/wt-wave is isolated from the main checkout"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "5d1f67d4f6"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart and sessionEnd items filled with measured evidence. Two items are marked incomplete honestly: Serena activation and memory update, both unavailable in this harness"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read (116 lines) and not modified; git status shows no entry for it"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP is not exposed by this harness, so the memory was written directly to the committed store: .serena/memories/decision-agent-files-are-not-canonical.md. Records which agent trees are generated versus hand-maintained, the six-surface table, the PR #1715 divergence as measured cost, and the three validators that do and do not catch it"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 run on the retrospective exited 0 but reported 0 issues in 0 files: .markdownlint-cli2.yaml excludes .agents/** and .serena/**, so the file was out of scope. This is not a lint pass and is recorded as such"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Commit 5d1f67d4f6 carries the seven agent surfaces. This commit carries the two plugin manifests, the retrospective, and this log. Working tree clean after both"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "build_all.py --check RC=0; validate_install_parity.py --files across all six agent paths RC=0; check_skill_md_exec_portability, check_skill_md_portability, check_skill_portability, check_vendor_portability all RC=0; validate_plugin_version_bump, check_plugin_manifest_parity, validate_plugin_manifests all RC=0; zero prohibited dashes in the staged diff"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Locate the orchestrator wave-width gap",
+      "outcome": "Confirmed the agent has a delegation depth budget and a between-wave checkpoint protocol but no width bound. Line 279 already names wide concurrent waves as a hazard while prescribing no dose limit."
+    },
+    {
+      "task": "Identify the correct edit target",
+      "outcome": "First edit landed in .claude/agents/orchestrator.md, a hand-maintained copy. Caught when build_all.py reported writes while no mirror changed. GENERATOR-FILES.md identified templates/agents/orchestrator.shared.md as the generator source for the Copilot and VS Code mirrors."
+    },
+    {
+      "task": "Measure the pre-existing divergence",
+      "outcome": "On clean origin/main the Claude copies (345 lines, 20 H2) carry Orchestration Budget and the template plus Copilot copies (328 to 335 lines, 19 H2) do not. git log -S proved the section entered .claude/ in PR #1715 and never entered the template."
+    },
+    {
+      "task": "Apply the change across all six surfaces",
+      "outcome": "Wave discipline written to the template, which required creating the Orchestration Budget section there; mirrors regenerated; three hand-maintained copies updated. Commit 5d1f67d4f6, 7 files."
+    },
+    {
+      "task": "Validate",
+      "outcome": "build_all.py --check RC=0 after staging; validate_install_parity.py --files across all six agent paths RC=0; four portability gates RC=0; three plugin validators RC=0; zero prohibited dashes in the staged diff."
+    },
+    {
+      "task": "Guard against a false defect report",
+      "outcome": "validate_install_parity.py --base reported no drift with siblings missing. Re-ran in --files mode, which correctly reported the violation and exited 1. The --base mode diffs base..HEAD and the work was uncommitted. Tool is correct; nothing reported."
+    },
+    {
+      "task": "Act on adversarial review of PR #4136",
+      "outcome": "Reviewer raised a Critical finding on .claude/skills/ paths in shipped Copilot skills. Verified counts identical on main and HEAD and zero such lines added by the diff; check_skill_md_exec_portability.py reports 738 grandfathered invocations against a baseline of 738. Pre-existing tracked debt, not a regression, so not fixed in that PR. The one legitimate finding, an incomplete vendor-portability declaration I had authored, was fixed."
+    },
+    {
+      "task": "Correct the memory store that made the wrong-tree edit likely",
+      "outcome": "An untruncated search found 36 memories touching agent generation, four of which gave incomplete or false edit-location guidance. architecture-agent-mirror-two-pipeline.md listed .claude/agents/ as a GENERATED destination; agent-generation-edit-locations.md named a PowerShell generator that no longer exists and left .github/agents/ as an unanswered question; two recipe memories named only two of the four files to edit. All four corrected against a negative control: reverting only .claude/agents/orchestrator.md and running build_all.py leaves it reverted, proving it is hand-maintained. The first duplicate check was truncated with head -10 and missed these; the untruncated grep is what surfaced them."
+    }
+  ],
+  "endingCommit": "5d1f67d4f6",
+  "nextSteps": [
+    "Push feat/orchestrator-wave-discipline and open the PR, then run scripts/validation/pr_description.py --ci against the live PR number",
+    "Run an adversarial review on a different model family (gpt-5.6-sol) against the new PR, per the standing requirement",
+    "Resolve whether detect_agent_drift.py reporting 100.0% similar for the orchestrator .claude vs .github pair is a baseline exemption or a blind metric. Do not file a defect until established",
+    "Decide disposition of the remaining orchestrator divergence: Context Maintenance is Claude-only and Output Bounds is Copilot-only. Search for an existing issue before filing",
+    "Update PR #4140's body with the three closed subclass holes and the negative-control evidence"
+  ]
+}

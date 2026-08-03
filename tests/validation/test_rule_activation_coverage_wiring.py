@@ -24,10 +24,18 @@ GATE_SOURCE = Path(gate.__file__).resolve()
 _VALIDATION_DIR = GATE_SOURCE.parent
 POSITIVE_PROMPT = "Fix the token expiration bug in auth.py before it ships."
 
-# Modules that check_rule_activation_coverage.py imports at runtime via
-# sys.path.insert(0, script_dir) -- must be copied alongside the gate script.
+# Modules the gate script imports at runtime, as a full transitive closure.
+# The gate puts its own repo root on sys.path so it works when CI runs it as a
+# plain script (issues #3073, #4210). Inside this fixture that root is tmp_path,
+# so `scripts.validation.*` resolves here rather than in the real checkout, and
+# a partial copy raises ModuleNotFoundError. That is the hermetic behavior we
+# want: the fixture repo has to be complete on its own.
+#   portability_baseline -> portability_floor, portability_git
+#   portability_floor    -> portability_git
 _RUNTIME_DEPS = [
     "portability_baseline.py",
+    "portability_floor.py",
+    "portability_git.py",
 ]
 
 

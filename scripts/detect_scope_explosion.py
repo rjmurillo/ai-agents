@@ -295,12 +295,14 @@ def format_bar(count: int, threshold: int) -> str:
     return f"[{bar}] {count}/{BLOCK_THRESHOLD} files"
 
 
-def report(result: ScopeResult, quiet: bool = False) -> int:
+def report(result: ScopeResult, quiet: bool = False, from_prepush: bool = False) -> int:
     """Report scope status and return exit code.
 
     Args:
         result: Detection result.
         quiet: Suppress non-error output.
+        from_prepush: True when invoked from the pre-push hook (files already
+            committed; bypass requires ``git push``, not ``git commit``).
 
     Returns:
         Exit code: 0 for pass/warn, 1 for block.
@@ -323,10 +325,13 @@ def report(result: ScopeResult, quiet: bool = False) -> int:
         print(f"  Branch: {result.current_branch}")
         print(f"  {count} files changed since diverging from main.")
         print("  Strongly consider splitting this into smaller PRs.")
-        print("  Remediation:")
-        print("    1. Commit current work")
-        print("    2. Create a PR for the current scope")
-        print("    3. Start a new branch for remaining work")
+        if not from_prepush:
+            print("  Remediation:")
+            print("    1. Commit current work")
+            print("    2. Create a PR for the current scope")
+            print("    3. Start a new branch for remaining work")
+        else:
+            print("  Remediation: split commits onto separate branches and push each.")
         return 0
 
     # Block: count exceeds the hard limit (50 is allowed; 51+ blocks).
@@ -335,13 +340,17 @@ def report(result: ScopeResult, quiet: bool = False) -> int:
     print(f"  {count} files changed (over the {BLOCK_THRESHOLD}-file hard limit).")
     print("  This PR is too large to review effectively.")
     print("")
-    print("  Remediation:")
-    print("    1. Split into smaller, focused PRs")
-    print("    2. Use 'git stash' to save uncommitted work")
-    print("    3. Create a PR for the current scope, then continue")
+    if not from_prepush:
+        print("  Remediation:")
+        print("    1. Split into smaller, focused PRs")
+        print("    2. Use 'git stash' to save uncommitted work")
+        print("    3. Create a PR for the current scope, then continue")
+    else:
+        print("  Remediation: split commits onto separate branches and push each.")
     print("")
     print("  Bypass (justified large PRs only):")
-    print("    SKIP_SCOPE_CHECK=1 git commit ...")
+    bypass_cmd = "git push" if from_prepush else "git commit"
+    print(f"    SKIP_SCOPE_CHECK=1 {bypass_cmd} ...")
     return 1
 
 
@@ -357,8 +366,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--base-branch",
-        default="main",
-        help="Base branch to compare against (default: main)",
+        default=None,
+        help="Base branch to compare against (default: main). When supplied, the"
+        " script treats itself as running from the pre-push hook and adjusts"
+        " bypass instructions accordingly.",
     )
     parser.add_argument(
         "--quiet",
@@ -382,12 +393,13 @@ def main() -> int:
             print("Scope check bypassed (SKIP_SCOPE_CHECK=1)")
             return 0
 
-        result = detect_scope(args.base_branch)
+        result = detect_scope(args.base_branch or "main")
         if result is None:
             # Not on a feature branch or no merge base found
             return 0
 
-        return report(result, args.quiet)
+        from_prepush = args.base_branch is not None
+        return report(result, args.quiet, from_prepush=from_prepush)
 
     except subprocess.TimeoutExpired:
         print("ERROR: Git command timed out during scope detection", file=sys.stderr)

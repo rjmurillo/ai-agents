@@ -27,6 +27,7 @@ from _eval_agent_types import RunRecord
 from _eval_common import (
     MODEL_PRICING_RATES_USD_PER_1K_TOKENS,
     PRICING_RATE_AS_OF,
+    cost_basis,
 )
 from _plan_runner import UnsupportedModelError
 
@@ -109,7 +110,7 @@ class AggregateResult:
     flaky_fixtures_excluded: list[str]
     total_tokens_in: int
     total_tokens_out: int
-    cost_estimate_usd: float
+    cost_estimate_usd: float | None
     pricing_rate_as_of: str
     error_count: int
     halt_due_to_flakiness: bool
@@ -119,6 +120,10 @@ class AggregateResult:
     # stays False but this flag records that the threshold was crossed, so
     # the caller can surface the warning without invalidating the run.
     flaky_halt_threshold_crossed: bool = False
+    # "usd" when the provider publishes a per-token rate, "requests" when it
+    # meters an allowance instead. On the "requests" basis `cost_estimate_usd`
+    # is None and the report carries the call count as the spend figure.
+    cost_basis: str = "usd"
 
 
 def _records_by_fixture_variant(
@@ -332,15 +337,24 @@ def _paired_bootstrap_ci(
 
 
 def _cost_estimate(
-    model_id: str, total_tokens_in: int, total_tokens_out: int
-) -> float:
-    """Return USD cost for the given token totals. Raises on unpriced models.
+    model_id: str,
+    total_tokens_in: int,
+    total_tokens_out: int,
+    provider: str | None = None,
+) -> float | None:
+    """Return USD cost for the given token totals, or None off the USD basis.
+
+    A quota-billed provider meters requests against an allowance and
+    publishes no per-token rate, so there is no dollar figure to report and
+    None is the honest answer. The report carries the request count instead.
 
     Returning 0.0 for an unpriced model would render a "free run" report
     that hides the missing price. The runner translates the raised
     `UnsupportedModelError` into exit code 2 (config) so operators can
     add the rate to `_eval_common.MODEL_PRICING_RATES_USD_PER_1K_TOKENS`.
     """
+    if cost_basis(provider) == "requests":
+        return None
     rates = MODEL_PRICING_RATES_USD_PER_1K_TOKENS.get(model_id)
     if rates is None:
         raise UnsupportedModelError(
@@ -364,9 +378,13 @@ class ReportAggregator:
         bootstrap_iterations: int = BOOTSTRAP_ITERATIONS,
         rng: random.Random | None = None,
         flag_only_on_flaky_halt: bool = False,
+        provider: str | None = None,
     ) -> None:
         self._records = records
         self._model_id = model_id
+        # The biller is the provider, not the model: a quota-billed
+        # transport reports requests where a per-token vendor reports USD.
+        self._provider = provider
         self._iterations = bootstrap_iterations
         self._rng = rng or random.Random(42)
         # Flag-and-continue: when True, crossing the N-aware halt count does
@@ -434,7 +452,9 @@ class ReportAggregator:
 
         total_tokens_in = sum(r.tokens_in for r in self._records)
         total_tokens_out = sum(r.tokens_out for r in self._records)
-        cost = _cost_estimate(self._model_id, total_tokens_in, total_tokens_out)
+        cost = _cost_estimate(
+            self._model_id, total_tokens_in, total_tokens_out, self._provider
+        )
         error_count = sum(1 for r in self._records if r.outcome == "error")
         # Cost is only authoritative when every contributing record carries
         # measured token usage. Any estimated record taints the total.
@@ -457,6 +477,7 @@ class ReportAggregator:
             total_tokens_out=total_tokens_out,
             cost_estimate_usd=cost,
             pricing_rate_as_of=PRICING_RATE_AS_OF,
+            cost_basis=cost_basis(self._provider),
             error_count=error_count,
             halt_due_to_flakiness=halt,
             tokens_estimated=tokens_estimated,

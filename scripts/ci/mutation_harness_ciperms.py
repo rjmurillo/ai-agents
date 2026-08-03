@@ -77,6 +77,7 @@ def _run_tests(test_filter: str) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
         cwd=REPO_ROOT,
     )
 

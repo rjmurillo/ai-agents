@@ -16,6 +16,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.windows_path
+
 _MODULE_PATH = (
     Path(__file__).resolve().parents[1] / "scripts" / "ci" / "check_ai_review_infra_gate.py"
 )
@@ -267,10 +269,13 @@ def test_action_routes_gate_invoke_and_parse_through_one_output_path():
     assert "/tmp/ai-review-output.txt" not in action
 
 
-def test_windows_contract_jobs_fail_independently_and_run_for_action_changes():
+def test_windows_contract_jobs_run_for_action_changes():
     workflow = _PYTEST_WORKFLOW_PATH.read_text(encoding="utf-8")
 
+    # The ai-review action change still triggers the Windows path-contract job.
     assert "- '.github/actions/ai-review/action.yml'" in workflow
-    assert workflow.count("- name: Run pwsh hook contract tests") == 1
-    assert workflow.count("- name: Run AI review output path contract tests") == 1
+    # The single marker-based step replaces the old hardcoded per-file steps
+    # (issue #4299). Both test_pytest_head_guard.py and this file carry
+    # pytestmark = pytest.mark.windows_path, so they still run on Windows.
+    assert workflow.count("- name: Run Windows path-contract tests") == 1
     assert "    timeout-minutes: 15" in workflow
