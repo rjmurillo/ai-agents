@@ -164,6 +164,13 @@ reason: measured, one 2-line function added to a 5-function module drops cohesio
 8.7 to 8.3, while a real degradation moves whole points. Pass `0.0` to gate on
 any drop at all.
 
+Growth costs more than the tolerance absorbs, and cohesion is where it shows.
+The score is `10 - LOC/120 - 0.3 * (definitions - 1)` at confidence 0.4, so a
+file that gains three functions and 100 lines loses about 1.7 points whether or
+not anything got worse. A test module gaining tests hits this every time. Read
+the named delta before acting on an exit 10: this heuristic cannot tell growth
+from decay, and a file that grew for a good reason is the common case.
+
 The JSON report carries `gate_mode` and a `comparisons` array with per-quality
 `base`, `head`, `delta`, and `status`.
 
