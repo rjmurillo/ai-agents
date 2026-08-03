@@ -1,10 +1,5 @@
 # Rule Audit Procedure
 
-<!-- vendor-portability: declared. This contributor-facing reference cites
-upstream-only scripts/eval/, scripts/validation/, build/scripts/, tests/evals/,
-.agents/, and .claude/rules/ paths. Its audit commands intentionally require
-an ai-agents source checkout. -->
-
 <!-- # taste-lint: ignore file-size -->
 <!-- file-size rationale: this is one linear procedure, executed top to bottom
 from step 0 through step 8. The 500-line limit encodes code cohesion, and the

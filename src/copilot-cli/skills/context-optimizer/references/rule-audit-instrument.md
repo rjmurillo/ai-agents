@@ -1,9 +1,5 @@
 # Rule Audit Instrument
 
-<!-- vendor-portability: declared. This contributor-facing reference cites
-upstream-only scripts/eval/ and .agents/analysis/ paths. Its audit commands
-intentionally require an ai-agents source checkout. -->
-
 What the eval harness can measure, what it cannot, and the traps that have
 cost real time. Companion to `rule-audit-procedure.md`, which is the procedure
 you follow; this document is the instrument you follow it with. Read the first
