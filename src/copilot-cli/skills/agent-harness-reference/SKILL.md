@@ -228,6 +228,27 @@ Claude Code is a separate contract:
 Claude's current 30-event set and nested PreToolUse output are pinned in the
 official sidecar. Never translate fields by name similarity alone.
 
+## Skill Trigger Axis
+
+A skill is model-invoked by default. `disable-model-invocation: true` in the
+frontmatter makes it user-invoked only. Choose per skill, and choose on
+invocation semantics.
+
+| Dimension | Claude Code | Copilot CLI |
+|---|---|---|
+| Standing cost of skill descriptions | Saturates near +17,000 tokens at roughly 24 skills; flat from 25 to 200 | Truncates by an unmeasured rule |
+| Effect of `disable-model-invocation: true` | Drops the cost to about 8 tokens per skill | Not measured |
+| Listing order | Alphabetical by skill name | Not measured |
+| Auto-invocation past the listing ceiling | Works; the "past the ceiling cannot be invoked" claim is refuted | Not measured |
+
+Measured on Claude Code 2.1.220, issue #4381, session 3605. Method, negative
+controls, and the unresolved saturation mechanism are in
+`references/probe-evidence.md` section 7.
+
+Set the flag when nothing but a human typing the skill's name should ever reach
+it. Do not set it to save context: the cost saturates, so the marginal saving
+past the ceiling is zero, while the loss of automatic invocation is total.
+
 ## Verification
 
 Before changing cross-harness hooks:

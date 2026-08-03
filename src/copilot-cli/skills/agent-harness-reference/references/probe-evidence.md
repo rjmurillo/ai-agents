@@ -212,7 +212,67 @@ Durable tests:
 - `tests/e2e/test_plugin_load_smoke.py::test_copilot_commands_disable_auto_update`
 - `tests/test_nightly_cli_smoke_security.py`
 
-## 7. Re-running a probe
+## 7. Skill-description context cost and `disable-model-invocation`
+
+Issue #4381, session 3605, 2026-07-27. Full write-up in Serena memory
+`decision-skill-description-context-cost`; this is the cross-harness record,
+because a Serena memory is MCP-gated and does not bind Copilot or Codex.
+
+Version: Claude Code 2.1.220, model `claude-fable-5`.
+
+Method: `claude -p "hi" --allowed-tools "" --output-format json`, summing
+`input_tokens + cache_creation_input_tokens + cache_read_input_tokens`, against
+a clean profile isolated with `CLAUDE_CONFIG_DIR`, with synthetic project
+skills carrying unique 1,000-character descriptions.
+
+Observed, tokens over a zero-skill baseline of 21,129:
+
+| project skills | tokens | delta |
+|---|---|---|
+| 0 | 21,129 | 0 |
+| 25 | 38,222 | +17,093 |
+| 50 | 38,391 | +17,262 |
+| 100 | 38,670 | +17,541 |
+| 200 | 37,941 | +16,812 |
+| 50, all `disable-model-invocation: true` | 21,525 | +396 |
+
+Three results follow. Description cost is real but **saturates** near +17,000
+tokens at roughly 24 skills, so it does not scale with the skill count.
+`disable-model-invocation: true` collapses it to about 8 tokens per skill, the
+name and its separator. Listing order is alphabetical by skill name, verified by
+a permutation fixture whose alphabetical order was the reverse of its creation
+order.
+
+Two negative controls matter more than the table. Running the same experiment
+against the author's real profile, which carried 264 global skills, produced a
+376-token spread across 0 to 200 project skills and would have concluded
+descriptions are never loaded; isolate the profile or the measurement is
+worthless. And a fixture whose descriptions repeated one sentence tokenized far
+cheaper than its character count, halving the apparent ceiling; use dense,
+distinct text.
+
+One consequence is **refuted**, which is why no rollout followed. A skill 51st
+alphabetically, past the saturation ceiling, auto-invoked correctly on a unique
+trigger phrase on the first try across three runs, with a single `Skill` tool
+call and no preceding `Grep`, `Glob`, or `Read`. So "past the ceiling means not
+auto-invocable" is false, the saturation mechanism is unsettled, and the
+strongest argument for converting skills does not hold.
+
+**Not measured: GitHub Copilot CLI.** It is a separate product and no number
+here transfers to it. Observed there without instrumentation: some skills appear
+with full descriptions and the rest under a name-only list, so it truncates too,
+by an unmeasured rule.
+
+Authoring consequence, which is the decision this evidence supports: set
+`disable-model-invocation: true` when a skill should never be reached by
+anything but a human typing its name, and judge that on invocation semantics,
+not on context accounting. Do not set it to save tokens. The saving saturates,
+and the flag removes automatic invocation by design.
+
+Re-measure before relying on the numbers: server-side prompt changes can move
+them without a CLI version bump.
+
+## 8. Re-running a probe
 
 Use `ai-agents-empirical-probe-toolkit` recipe 1.
 
