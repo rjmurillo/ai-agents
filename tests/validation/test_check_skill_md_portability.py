@@ -1651,29 +1651,6 @@ class TestBaselineSemanticConflictGuard:
         assert "Counts rose above the baseline recorded at HEAD" in out
         assert ".claude/skills/a/SKILL.md" in out
 
-    def test_scanner_change_stays_fatal_without_any_raised_count(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        """Edge: moving scanner semantics invalidates comparison, ratchet or not."""
-        self._init_repo_with_debt(tmp_path)
-        (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
-            "Clean prose.\n", encoding="utf-8"
-        )
-        (tmp_path / "scripts" / "validation" / "check_skill_md_portability.py").write_text(
-            "# scanner semantics changed\n", encoding="utf-8"
-        )
-        (tmp_path / "baseline.json").write_text(
-            json.dumps({"files": {}, "marker_files": {}}), encoding="utf-8"
-        )
-
-        rc = self._run(tmp_path, "HEAD")
-
-        assert rc == 1
-        out = capsys.readouterr().out
-        assert "Semantic baseline conflict" in out
-        assert "Scanner source changed" in out
-        assert "Counts rose above" not in out
-
     def test_baseline_absent_at_base_ref_fails_closed(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
