@@ -12,7 +12,6 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
-from typing import Any, cast
 
 import pytest
 
@@ -39,7 +38,7 @@ finally:
     if _path_added and str(_EVAL_DIR) in sys.path:
         sys.path.remove(str(_EVAL_DIR))
 
-cast(Any, eso).RATE_LIMIT_SLEEP_SEC = 0.0
+eso.RATE_LIMIT_SLEEP_SEC = 0.0
 
 
 # ---------------------------------------------------------------------------

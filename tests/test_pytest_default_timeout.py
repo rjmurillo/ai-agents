@@ -54,5 +54,5 @@ def test_pytest_timeout_terminates_hanging_test_module(tmp_path: Path) -> None:
     output = result.stdout + result.stderr
 
     assert result.returncode != 0
-    assert elapsed < 9.5
+    assert elapsed < 8
     assert "Timeout" in output
