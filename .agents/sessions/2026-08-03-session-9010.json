@@ -119,7 +119,7 @@
       "outcome": "metrics.commits set to 12; test passes"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "cd4ebd80ed",
   "nextSteps": [
     "Push PR #4149"
   ]
