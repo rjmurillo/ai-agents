@@ -592,9 +592,15 @@ def _changed_files_against_base(root: Path, base_ref: str) -> list[str] | None:
     supplied ``--base-ref`` is the evidence source for the semantic-conflict
     guard; silently skipping it would recreate issue #4195.
     """
+    # Three-dot diff (base_ref...HEAD) uses the merge base as the starting
+    # point.  Two-dot (base_ref) would compare the working tree directly to
+    # base_ref, so if base_ref has advanced past the point where the branch
+    # was merged (e.g. main received new commits between the local merge and
+    # push), the diff runs in the wrong direction and includes main-side
+    # changes as apparent branch changes.  Issue #4474.
     try:
         result = subprocess.run(
-            ["git", "diff", "--name-only", base_ref],
+            ["git", "diff", "--name-only", f"{base_ref}...HEAD"],
             cwd=root,
             capture_output=True,
             text=True,
