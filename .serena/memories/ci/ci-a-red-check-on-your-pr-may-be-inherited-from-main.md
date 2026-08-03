@@ -57,6 +57,54 @@ A clean checkout of `main` that reproduces your failure proves you inherited it.
 Fix `main` on its own branch. Do not bury the fix inside an unrelated change,
 which is what a blocked push tempts you into.
 
+### The probe is one-directional: green `main` exonerates nothing
+
+The converse does not hold, and reading it as though it does produces a
+confident wrong answer. `main` moves. If the fix has ALREADY landed on `main`
+while the red PRs are still based on an older `main`, the probe comes back
+green and the PRs stay red for a cause you just failed to reproduce.
+
+Probe the PR's own merge base, not current `main`:
+
+```bash
+BASE=$(git merge-base origin/main <pr-head-sha>)
+git worktree add --detach ~/src/scratch/baseprobe-$$ "$BASE"
+```
+
+Measured 2026-08-03: the failing test passed 7 of 7 on current `origin/main`
+while the same test was red on every open PR. `main` already carried the fix
+(`0c75045d6c`); the PRs did not. The green probe was correct and useless.
+
+So when the probe comes back green but PRs are still red, the next move is to
+compare each PR's merge base against the fix commit, not to start theorizing
+about infrastructure.
+
+### Count the failing tests before theorizing about infrastructure
+
+A red spanning many unrelated PRs feels like infrastructure: cancellation, rate
+limiting, runner capacity, timeouts. On 2026-08-03 those were my priors in that
+order, and all four were wrong.
+
+The failure count is the discriminator, and it costs one grep:
+
+| What you see | What it is |
+|---|---|
+| Exactly one `FAILED` line among thousands of passes | A shared TEST defect |
+| No pytest output, only runner teardown | A JOB-level kill (timeout, OOM, cancellation) |
+| Failures scattered across unrelated modules | A genuinely broken tree |
+
+Measured that day: 1 failed, 22,555 passed, 32 skipped. One test.
+
+The mechanism is worth recognizing on sight, because it produces this shape
+every time. `make_repo` built a git repo and set no local identity, so callers
+running `git commit` fell back to ambient global gitconfig. Every developer
+machine has one. No CI runner does, so `git commit` exited 128 with
+`fatal: empty ident name`.
+
+A test that depends on ambient developer environment state passes for every
+human and fails for every runner. Because it then fails on every branch that
+predates the fix, it presents as an outage rather than as one test.
+
 Measured 2026-08-02: `main` at `a72ee868c` failed the pytest gate and the
 always-on instruction budget at the same time.
 
