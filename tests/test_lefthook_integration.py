@@ -4256,6 +4256,11 @@ def test_mypy_policy_aggregates_failures_and_ignores_deleted_files(
     assert policy.run_mypy(["source.py", "deleted.py"], tmp_path) == 1
 
 
+def test_mypy_policy_rejects_empty_paths(tmp_path: Path) -> None:
+    """#3966: run_mypy with no file arguments must return rc=2 (false green guard)."""
+    assert policy.run_mypy([], tmp_path) == 2
+
+
 def test_mypy_policy_rejects_unsafe_paths_and_symlinks(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

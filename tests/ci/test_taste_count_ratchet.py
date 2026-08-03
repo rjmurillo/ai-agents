@@ -332,6 +332,22 @@ def test_unparseable_report_is_an_external_error(tmp_path, monkeypatch):
     assert rc == ratchet.EXIT_EXTERNAL
 
 
+def test_a_non_mapping_report_is_an_external_error(tmp_path, monkeypatch):
+    """A report that parsed as JSON but is not an object (review of #4284).
+
+    ``report.get("error_count")`` raised AttributeError on a list, a string, or
+    a bare null, and the traceback left the process exiting 1: the ratchet's
+    own code for a REGRESSION. An unreadable report is an external error and
+    must exit 3, or a broken linter reads as new violations a contributor
+    cannot find.
+    """
+    baseline = _write_baseline(tmp_path, "615")
+    for payload in ("null", "7", '"hello"', '[{"error_count": 3}]'):
+        monkeypatch.setattr(subprocess, "run", _fake_scan(10, 0, lint_stdout=payload))
+        rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path)])
+        assert rc == ratchet.EXIT_EXTERNAL, payload
+
+
 def test_report_without_an_integer_count_is_an_external_error(tmp_path, monkeypatch):
     baseline = _write_baseline(tmp_path, "615")
     monkeypatch.setattr(
