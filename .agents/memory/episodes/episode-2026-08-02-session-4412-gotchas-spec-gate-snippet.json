@@ -1,0 +1,94 @@
+{
+  "id": "episode-2026-08-02-session-4412-gotchas-spec-gate-snippet",
+  "session": "2026-08-02-session-4412-gotchas-spec-gate-snippet",
+  "timestamp": "2026-08-02T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Make the spec-coverage gotcha greppable by quoting what the gate actually prints.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-03T00:40:00+00:00",
+      "type": "milestone",
+      "content": "checked an existing branch for redundancy before opening a PR",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-02-session-4412-gotchas-spec-gate-snippet"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-03T00:48:00+00:00",
+      "type": "milestone",
+      "content": "verified what the gate actually prints instead of trusting either version",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-02-session-4412-gotchas-spec-gate-snippet"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-03T00:52:00+00:00",
+      "type": "milestone",
+      "content": "established that the merged snippet cannot be found by grep",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-02-session-4412-gotchas-spec-gate-snippet"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-03T00:58:00+00:00",
+      "type": "milestone",
+      "content": "quoted the two lines a reader will actually search for",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-02-session-4412-gotchas-spec-gate-snippet"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-03T01:02:00+00:00",
+      "type": "milestone",
+      "content": "started from origin/main rather than salvaging the stale branch",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-02-session-4412-gotchas-spec-gate-snippet"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-03T04:08:35+00:00",
+      "type": "commit",
+      "content": "Commit: e6c387ff2",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4412-gotchas-spec-gate-snippet"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 22,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}

@@ -286,10 +286,12 @@ update the PR before running it locally.
 ## Spec coverage blocks when the PR body has no checked acceptance boxes
 
 `Validate Spec Coverage` fails with this, and the reason names a rule rather
-than a missing file, so it reads like an infrastructure fault:
+than a missing file, so it reads like an infrastructure fault. The gate prints
+a JSON payload, so grep the quoted keys, not a prose line:
 
-```
-verdict: NEEDS_REVIEW   reason: closed-loop:external-signal-inconclusive
+```text
+  "verdict": "NEEDS_REVIEW",
+  "reason": "closed-loop:external-signal-inconclusive",
 ```
 
 The cause is a missing section in **the PR body**, not the issue.
