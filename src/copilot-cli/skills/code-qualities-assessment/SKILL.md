@@ -122,7 +122,7 @@ python3 scripts/assess.py --target <path> [options]
 | `--changed-only` | No | false | Only assess changed files (git diff) |
 | `--base` | No | - | Base revision for `--changed-only`, such as origin/main |
 | `--gate-mode` | No | auto | auto, regression, or absolute (see Gate Modes) |
-| `--regression-tolerance` | No | 0.0 | Score drop tolerated before a quality counts as regressed |
+| `--regression-tolerance` | No | 0.5 | Score drop tolerated before a quality counts as regressed |
 | `--format` | No | markdown | markdown, json, or html |
 | `--config` | No | .qualityrc.json | Path to config file |
 | `--output` | No | stdout | Output file path |
@@ -142,14 +142,27 @@ without them. It never silently falls back to absolute thresholds: that fallback
 is exactly how a gate advertised as regression-only ends up blocking on inherited
 debt.
 
-In regression mode, each changed file is scored twice, once at `--base` through
-`git show` and once at head, using the same scoring code. Qualities are compared
+In regression mode, each changed file is scored twice, once at the merge base of
+`--base` and HEAD through `git show` and once at head, using the same scoring
+code. The merge base, not the tip of `--base`: file selection is
+`git diff base...HEAD`, which git resolves from the merge base, so reading
+content at the tip would score the branch against commits that landed on the
+base branch after the fork. Qualities are compared
 independently and only where both revisions scored them (confidence above 0.0),
 so a file whose scored-quality set changed is never compared against a different
 set. Aggregate averages are never compared. A quality that goes from scored to
 unscored counts as evidence loss and fails, unless the file is now a generated
 artifact. A quality that goes from unscored to scored is reported with no delta.
-A file absent at `--base` is new, has no delta, and is gated absolutely.
+A file absent at the merge base is new, has no delta, and is gated absolutely. A
+file the assessor cannot decode as UTF-8 at the merge base (a binary, a
+latin-1 source) scores nothing there, so every quality reads as newly scored and
+no delta is invented from content it could not read.
+
+Every score is size-derived, so adding one small function moves a quality by a
+few tenths with nothing wrong. `--regression-tolerance` defaults to 0.5 for that
+reason: measured, one 2-line function added to a 5-function module drops cohesion
+8.7 to 8.3, while a real degradation moves whole points. Pass `0.0` to gate on
+any drop at all.
 
 The JSON report carries `gate_mode` and a `comparisons` array with per-quality
 `base`, `head`, `delta`, and `status`.
