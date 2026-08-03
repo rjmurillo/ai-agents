@@ -1,0 +1,42 @@
+{
+  "id": "episode-2026-08-03-session-9013",
+  "session": "2026-08-03-session-9013",
+  "timestamp": "2026-08-03T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Repair the nine test failures that a 29-PR merge sweep left on main",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-03T21:00:38+00:00",
+      "type": "commit",
+      "content": "Commit: 01bada7e8",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-03-session-9013"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-03T21:14:52+00:00",
+      "type": "commit",
+      "content": "Commit: 875b2a00c",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-9013"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 6
+  },
+  "lessons": []
+}
