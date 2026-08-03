@@ -18,9 +18,9 @@ from unittest.mock import patch
 import pytest
 
 from scripts.github_core.api import (
+    _GRAPHQL_BACKOFF_BASE_SECONDS,
     REFUSAL_BACKOFF_SECONDS,
     GhAuthStatus,
-    _GRAPHQL_BACKOFF_BASE_SECONDS,
     _is_transient_graphql_error,
     assert_gh_authenticated,
     check_gh_auth,
