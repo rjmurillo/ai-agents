@@ -1,0 +1,56 @@
+{
+  "id": "episode-2026-08-02-session-4263-continue-gpg-signature-made-sun",
+  "session": "2026-08-02-session-4263-continue-gpg-signature-made-sun",
+  "timestamp": "2026-08-02T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Implement and commit the minimal PR #4305 follow-up without pushing or mutating GitHub.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified the isolated branch, clean base, PR #4305 squash commit, and protected session-4219 files.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4263-continue-gpg-signature-made-sun"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected session 4234 post-merge evidence and the portable taste-lints recipe.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4263-continue-gpg-signature-made-sun"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran scoped lint, session and episode validators, targeted tests, pre-PR validation, and normal commit hooks.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4263-continue-gpg-signature-made-sun"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "test",
+      "content": "Ran scoped lint, session and episode validators, targeted tests, pre-PR validation, and normal commit hooks.   3   Markdownlint examined 1 file with 0 issues; 151 targeted tests passed; pre_pr.py reported 44 passed and 4 skipped.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4263-continue-gpg-signature-made-sun"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5
+  },
+  "lessons": []
+}
