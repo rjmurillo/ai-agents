@@ -242,10 +242,13 @@ jobs:
       # The burn-down count had no gate, so it could climb back silently between
       # extraction PRs.
       #
-      # `--max` left slack: the pin sat at 58 while the real count was 45, so
-      # 13 fresh violations could land green. `--exact` makes the count match
+      # `--max` left slack: the pin sat at 58 while the tree held 45, so 13
+      # fresh violations could land green. `--exact` makes the count match
       # reality, the same policy ruff_count_ratchet.py and taste_count_ratchet.py
-      # already use. Lower this number after each extraction batch.
+      # already use. Those two numbers are the historical state of issue #2967,
+      # not the pin below: the pin always equals what the scanner reports today,
+      # and tests/ci/test_pr_validation_workflow.py recomputes it to prove that.
+      # Lower this number after each extraction batch.
       #
       # Unconditional (Issue #4151): Renovate and Dependabot open workflow-only
       # PRs (action SHA bumps), which are exactly the PRs that could smuggle a
