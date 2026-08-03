@@ -529,14 +529,22 @@ def _is_measured_input(rel_path: str) -> bool:
 
 
 def _changed_files_against_base(root: Path, base_ref: str) -> list[str] | None:
-    """List files changed in the working tree relative to ``base_ref``.
+    """List files changed or untracked in the working tree relative to ``base_ref``.
+
+    Returns the union of:
+    - files in ``git diff --name-only <base_ref>`` (tracked changes)
+    - files in ``git ls-files --others --exclude-standard`` (untracked new files)
+
+    A newly created baseline file that has not been ``git add``ed yet is
+    untracked; ``git diff`` alone omits it, causing the semantic-conflict guard
+    to miss it (issue #4372).
 
     ``None`` means git could not answer. The caller must fail closed because a
     supplied ``--base-ref`` is the evidence source for the semantic-conflict
     guard; silently skipping it would recreate issue #4195.
     """
     try:
-        result = subprocess.run(
+        diff_result = subprocess.run(
             ["git", "diff", "--name-only", base_ref],
             cwd=root,
             capture_output=True,
@@ -548,11 +556,34 @@ def _changed_files_against_base(root: Path, base_ref: str) -> list[str] | None:
     except OSError as exc:
         print(f"Could not compare against --base-ref {base_ref}: {exc}", file=sys.stderr)
         return None
-    if result.returncode != 0:
-        stderr = result.stderr.strip() or "git diff failed"
+    if diff_result.returncode != 0:
+        stderr = diff_result.stderr.strip() or "git diff failed"
         print(f"Could not compare against --base-ref {base_ref}: {stderr}", file=sys.stderr)
         return None
-    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+    try:
+        untracked_result = subprocess.run(
+            ["git", "ls-files", "--others", "--exclude-standard"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            errors="replace",
+            encoding="utf-8",
+            check=False,
+        )
+    except OSError:
+        untracked_result = None  # type: ignore[assignment]
+
+    diff_files = {line.strip() for line in diff_result.stdout.splitlines() if line.strip()}
+    untracked_files: set[str] = set()
+    if untracked_result is not None and untracked_result.returncode == 0:
+        untracked_files = {
+            line.strip()
+            for line in untracked_result.stdout.splitlines()
+            if line.strip()
+        }
+
+    return sorted(diff_files | untracked_files)
 
 
 def check_semantic_baseline_conflict(
