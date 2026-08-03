@@ -11,8 +11,8 @@ For each fixture (a verbatim user request plus 2-4 candidate sibling skills) and
 each VARIANT in {before, after}, the scorer:
   1. Resolves every candidate's description text:
        - before : `git show fd379f0a85e0dc4362c3960a84a7ad5632270239:<path>`
-                  (the immutable first-parent of the #2127 merge commit 817e466f8;
-                  this is the state of main the instant before #2127 landed).
+                  (the immutable first-parent of the #2127 merge commit 817e466f8
+                  -- this is the state of main the instant before #2127 landed).
        - after  : the working-tree file (the rewritten description)
   2. Builds a router prompt that lists ONLY the candidate descriptions plus the
      user query, and instructs the model to reply with EXACTLY one candidate name.
@@ -391,7 +391,7 @@ def build_plan(fixtures: list[dict[str, Any]], repo_root: Path) -> list[dict[str
 
 
 def check_identical_arms(plan: list[dict[str, Any]]) -> list[str]:
-    """Return a list of (fixture_id, candidate) pairs where before==after description.
+    """Return a list of "fixture_id/candidate" strings where before==after description.
 
     An empty list means the two arms differ somewhere (healthy). A non-empty list
     means those specific candidates read identical bytes in both variants. When

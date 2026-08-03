@@ -123,7 +123,7 @@ class TestCheckIdenticalArms:
 def _write_fixture(tmp_path: Path, candidates: list[str]) -> str:
     fx = [{"id": "f1", "query": "what", "candidates": candidates, "correct": candidates[0]}]
     p = tmp_path / "fx.json"
-    p.write_text(json.dumps(fx))
+    p.write_text(json.dumps(fx), encoding="utf-8")
     return str(p)
 
 
@@ -246,6 +246,7 @@ class TestOldBehaviorWouldFail:
             content = (repo / rel).read_text()
             m = MagicMock()
             m.stdout = content
+            m.returncode = 0
             return m
 
         with patch.object(router, "BEFORE_REF", "origin/main"):
