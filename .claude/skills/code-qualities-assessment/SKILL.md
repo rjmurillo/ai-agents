@@ -99,8 +99,9 @@ The skill runs automated assessment via `scripts/assess.py`:
    - Link to refactoring patterns
 
 5. **Gate Enforcement (CI mode)**
-   - Check thresholds
-   - Exit code: 0=pass, 10=degraded
+   - Regression mode compares each changed file against its base revision
+   - Absolute mode compares every assessed file against configured thresholds
+   - Exit code: 0=pass, 10=regressed, 11=below thresholds
 
 ---
 
@@ -119,19 +120,48 @@ python3 scripts/assess.py --target <path> [options]
 | `--target` | Yes | - | File, directory, or glob pattern |
 | `--context` | No | production | production, test, or generated |
 | `--changed-only` | No | false | Only assess changed files (git diff) |
+| `--base` | No | - | Base revision for `--changed-only`, such as origin/main |
+| `--gate-mode` | No | auto | auto, regression, or absolute (see Gate Modes) |
+| `--regression-tolerance` | No | 0.0 | Score drop tolerated before a quality counts as regressed |
 | `--format` | No | markdown | markdown, json, or html |
 | `--config` | No | .qualityrc.json | Path to config file |
 | `--output` | No | stdout | Output file path |
 | `--use-serena` | No | auto | auto, yes, or no (Serena integration) |
 
+### Gate Modes
+
+The gate answers one of two questions. Pick the one your caller actually asks.
+
+| Mode | Question | Selected when |
+|------|----------|---------------|
+| `regression` | Did this change make anything worse? | `--gate-mode regression`, or `auto` with both `--changed-only` and `--base` |
+| `absolute` | Is this code above the configured thresholds? | `--gate-mode absolute`, or `auto` otherwise |
+
+`--gate-mode regression` requires both `--changed-only` and `--base`, and exits 1
+without them. It never silently falls back to absolute thresholds: that fallback
+is exactly how a gate advertised as regression-only ends up blocking on inherited
+debt.
+
+In regression mode, each changed file is scored twice, once at `--base` through
+`git show` and once at head, using the same scoring code. Qualities are compared
+independently and only where both revisions scored them (confidence above 0.0),
+so a file whose scored-quality set changed is never compared against a different
+set. Aggregate averages are never compared. A quality that goes from scored to
+unscored counts as evidence loss and fails, unless the file is now a generated
+artifact. A quality that goes from unscored to scored is reported with no delta.
+A file absent at `--base` is new, has no delta, and is gated absolutely.
+
+The JSON report carries `gate_mode` and a `comparisons` array with per-quality
+`base`, `head`, `delta`, and `status`.
+
 ### Exit Codes
 
 | Code | Meaning |
 |------|---------|
-| 0 | Assessment complete, all thresholds met |
-| 10 | Quality degraded vs previous run |
-| 11 | Quality below configured thresholds |
-| 1 | Script error (invalid args, file not found) |
+| 0 | Gate passed |
+| 10 | Regression mode: a comparable quality regressed, or scored evidence was lost |
+| 11 | Below configured thresholds (absolute mode, or a new file in regression mode) |
+| 1 | Script error (invalid args, unresolvable base, file not found) |
 
 ---
 
@@ -169,7 +199,7 @@ Create `.qualityrc.json` to customize thresholds:
 |-------|-----|---------|
 | Running on entire codebase every commit | Slow, noisy | Use --changed-only in CI |
 | Using scores for performance reviews | Gaming the system | Focus on trend improvement |
-| Blocking merges on absolute scores | Discourages refactoring old code | Block on regression only |
+| Blocking merges on absolute scores | Discourages refactoring old code | Run `--gate-mode regression` with `--changed-only --base` |
 | Ignoring context (test vs production) | False positives | Use --context flag |
 | Not configuring thresholds | One-size-fits-all does not fit | Customize .qualityrc.json |
 
@@ -181,10 +211,10 @@ After running assessment, run the bundled validator and require exit 0:
 
 ```bash
 python3 .claude/skills/code-qualities-assessment/scripts/assess.py --target "$TARGET_PATH"
-echo "exit=$?"   # must be 0; exit 11 means thresholds not met, exit 1 means script error
+echo "exit=$?"   # must be 0; 10 = regressed, 11 = thresholds not met, 1 = script error
 ```
 
-- [ ] `assess.py` exited 0 (exit 11 = thresholds not met; exit 1 = script error; neither is a pass)
+- [ ] `assess.py` exited 0 (10 = regressed; 11 = thresholds not met; 1 = script error; none is a pass)
 - [ ] All 5 qualities scored for each symbol
 - [ ] Scores are 1-10 (not null or out of range)
 - [ ] Remediation links provided for low scores
@@ -313,11 +343,13 @@ class User:
 ### Example 2: CI Integration
 
 ```bash
-# In CI pipeline
-python3 scripts/assess.py --target . --changed-only --format json --output quality.json
+# In CI pipeline. --changed-only with --base selects regression mode.
+python3 scripts/assess.py --target . --changed-only --base origin/main \
+  --format json --output quality.json
 
-# Exit code 10 = quality degraded, fail PR
-# Exit code 0 = quality maintained, pass
+# Exit code 0  = nothing this change touched got worse, pass
+# Exit code 10 = a comparable quality regressed, fail PR
+# Exit code 11 = a file added by this change is below thresholds, fail PR
 ```
 
 ### Example 3: Full Codebase Report
