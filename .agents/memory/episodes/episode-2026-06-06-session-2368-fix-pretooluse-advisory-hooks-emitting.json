@@ -43,7 +43,9 @@
       "timestamp": "2026-06-06T00:00:00+00:00",
       "type": "test",
       "content": "Ran: uv run python -m pytest tests/test_invoke_correction_applier.py tests/hooks/test_topical_memory_injection.py -> 54 passed (exit code 0). Added stdout-JSON regression guards; the prior tests only checked stderr or substring-matched stdout, so the bad envelope passed green",
-      "caused_by": [],
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": []
     },
     {
@@ -76,7 +78,9 @@
       "type": "commit",
       "content": "Commit: ee35428b3",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e005"
+      ]
     }
   ],
   "metrics": {
@@ -87,5 +91,7 @@
     "commits": 1,
     "files_changed": 0
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 1"
 }

@@ -280,7 +280,7 @@ sequenceDiagram
 | Attribute | Value |
 |-----------|-------|
 | **Trigger** | PR modifying `templates/**` or `src/**` |
-| **Script** | `python3 build/generate_agents.py --validate` |
+| **Script** | `uv run python build/generate_agents.py --validate` |
 | **Output** | Pass/fail status |
 | **Exit Behavior** | Fails if generated files don't match |
 
@@ -314,14 +314,14 @@ sequenceDiagram
 
 ### validate-plugin-version-bump.yml
 
-**Role**: Plugin version-bump gate (Issue #2118)
+**Role**: Plugin version-field gate (ADR-092, Issue #4080)
 
 | Attribute | Value |
 |-----------|-------|
 | **Trigger** | PR/push touching `.claude/**`, `src/claude/**`, or `src/copilot-cli/**` |
 | **Script** | `scripts/validation/run_plugin_version_bump_ci.py` (delegates to `build/scripts/validate_plugin_version_bump.py`) |
 | **Output** | Pass/fail status |
-| **Checks** | A changed plugin source dir must bump its `.claude-plugin/plugin.json` version (strictly greater semver) |
+| **Checks** | No `.claude-plugin/plugin.json` carries a `version` field; Claude Code resolves freshness from the commit SHA instead |
 
 ---
 
@@ -624,56 +624,31 @@ hit that case, and issue #4057 is where it was reported.
 
 **The race.** Each ratchet freezes a repo-wide violation total in a one-line
 file. Two PRs can each remove one violation and lower the same file from 331 to
-330. Both pass their own leg: the branch measures 330 against a baseline of 330.
-Both write byte-identical content, so git merges them without a conflict. The
-merged tree has improved twice while the file fell once, so `main` measures 329
-against a baseline of 330 and the push leg at `pytest.yml` exits 1. A red default
-branch then blocks every contributor's pre-push through `lefthook.yml`, on a
-change none of them made.
+330. Both pass their own leg. Both write byte-identical content, so git merges
+them without a conflict. The merged tree has improved twice while the file fell
+once, so `main` measures 329 against a baseline of 330.
 
-**Enforcement point: strict required status checks on the default branch.**
-Ruleset `11104075` carries the required-checks rule. Setting
-`strict_required_status_checks_policy` to `true` means a PR cannot merge until
-its branch is current with `main`, and bringing it current re-runs the required
-checks against the tree that will actually land. The second PR then measures 329
-against 330 before it merges, its check goes red, and the stale state never
-reaches `main`. `Run Python Tests` and `Validate PR` are both already required
-contexts, so both count ratchets are covered without adding a check.
+**Resolution: the ratchet does not block that state.** PR #4214 made a count
+below the baseline pass (`scripts/ci/count_ratchet.py`, `count < baseline`
+returns exit 0), so the merged tree above is green and concurrent cleanup PRs
+never conflict on the shared line. The earlier proposal, arming
+`strict_required_status_checks_policy` on ruleset `11104075` so the second PR
+had to be current before merging, is not needed for this race: with the ratchet
+tolerating the drift there is no red `main` to prevent.
 
-```bash
-# Read the current value.
-gh api repos/rjmurillo/ai-agents/rulesets/11104075 \
-  --jq '.rules[] | select(.type=="required_status_checks")
-        | .parameters.strict_required_status_checks_policy'
-```
-
-The field reads `false` as this section lands, so the decision is recorded and
-the gate is not yet armed. Flipping it is a repository-settings change that
-takes effect for all open PRs the moment it applies, so it belongs to a
-repository owner rather than to the PR that documents it. Until it is armed the
-race stays reachable and the failure text in `scripts/ci/count_ratchet.py` is
-what a contributor sees.
-
-The remedy the failure text asks for, a baseline-only commit recording the true
-count, clears the check. `tests/ci/test_count_ratchet_concurrent_merge.py` pins
-both halves: the second branch goes red once it is current, and green once it
-records the true count. A gate no commit can clear would trade a red `main` for
-a stuck queue, so that second test is not decoration.
-
-**Cost.** Every merge to `main` marks every other open PR out of date, so each
-one needs an update and a re-run of the 17 required contexts before it can land.
-That cost is already paid on any PR touching a plugin source, where the
-strictly-greater version bump forces the same rebase (see
-`.claude/rules/plugin-version-bump.md`). Arm auto-merge so the update and the
-merge happen without a human waiting on them.
+**Residual cost.** The baseline sits above the true count until someone records
+it, and that gap absorbs one later regression without firing. `--update` closes
+it. `tests/ci/test_count_ratchet_concurrent_merge.py` pins both the tolerance
+and the cost, including the case where a reintroduced violation lands inside the
+slack unnoticed.
 
 **Rejected alternatives.**
 
 | Option | Why not |
 |--------|---------|
-| Merge queue (`merge_group` trigger) | Blocks the race correctly and costs less per PR, but every required workflow has to answer the `merge_group` event or the queue stalls with no way to merge. That is a change to 17 contexts, against one API field. Revisit if the rebase cost bites. |
-| Self-healing baseline commit on push to `main` | A workflow that commits a corrected baseline to the default branch needs write access, bot-actor exclusion, and loop prevention. It repairs the symptom after `main` is already red. |
-| Push-leg-only exact match | What ships today. It detects the stale state, it does not prevent it, and detection is the thing that turns `main` red. |
+| Block on a count below the baseline | What this replaced. It turns every concurrent cleanup pair into a red `main` or a stuck queue, which is the harm rather than the fix. |
+| Merge queue (`merge_group` trigger) | Every required workflow has to answer the `merge_group` event or the queue stalls with no way to merge. That is a change to 17 contexts for a race the ratchet no longer treats as a failure. |
+| Self-healing baseline commit on push to `main` | A workflow that commits a corrected baseline to the default branch needs write access, bot-actor exclusion, and loop prevention, to repair a state that is no longer an error. |
 | Make the baseline conflict on concurrent edits | Two branches would have to write different bytes for git to refuse the merge, which means the file stops being a count. That redesigns what both ratchets measure and every consumer that reads them. |
 
 **Scope.** This covers the two single-integer baselines only. The JSON allowlist

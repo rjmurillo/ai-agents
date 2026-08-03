@@ -73,8 +73,7 @@ def vendored_root(tmp_path: Path) -> Path:
     # entries is absent in the source tree, the vendored install would
     # break in the wild and the test must surface it.
     assert not missing, (
-        f"vendored fixture: required source entries missing under "
-        f"{CLAUDE_DIR}: {missing}"
+        f"vendored fixture: required source entries missing under {CLAUDE_DIR}: {missing}"
     )
     if CLAUDE_MD.exists():
         shutil.copy2(CLAUDE_MD, target / "CLAUDE.md")
@@ -112,9 +111,7 @@ def test_ai_review_common_imports_from_vendored_copy(vendored_root: Path) -> Non
     """
     lib_path = str(vendored_root / ".claude" / "lib")
     code = (
-        "import sys; sys.path.insert(0, "
-        + repr(lib_path)
-        + "); "
+        "import sys; sys.path.insert(0, " + repr(lib_path) + "); "
         "from ai_review_common.verdict import merge_verdicts, extract_verdict; "
         "assert merge_verdicts(['PASS', 'PASS']) == 'PASS'; "
         "assert merge_verdicts(['PASS', 'UNKNOWN']) == 'UNKNOWN'; "
@@ -125,7 +122,7 @@ def test_ai_review_common_imports_from_vendored_copy(vendored_root: Path) -> Non
     result = subprocess.run(
         [sys.executable, "-c", code],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         timeout=15,
         check=False,
     )
@@ -158,10 +155,6 @@ def test_no_runtime_dependency_on_agents_or_scripts_in_lib(
     - no Import or ImportFrom node references `scripts.*` or `.agents.*`
     - no string literal in a Call argument references `.agents/`, `scripts/`,
       or `.github/` as a filesystem path
-
-    Docstrings citing ``Canonical: scripts/...`` (the sync_plugin_lib.py
-    marker) are acceptable: AST walk skips Expr(Constant) at module top
-    level (docstrings) by inspecting only Import/ImportFrom and Call args.
     """
     import ast
 
@@ -186,10 +179,7 @@ def test_no_runtime_dependency_on_agents_or_scripts_in_lib(
             if isinstance(node, ast.ImportFrom):
                 module_name = node.module or ""
                 # Absolute imports.
-                if (
-                    module_name == "scripts"
-                    or module_name.startswith("scripts.")
-                ):
+                if module_name == "scripts" or module_name.startswith("scripts."):
                     failures.append(
                         f"{rel}:{node.lineno}: import from {module_name!r} "
                         f"(forbidden in vendored install)"
@@ -202,8 +192,7 @@ def test_no_runtime_dependency_on_agents_or_scripts_in_lib(
                         f"(forbidden in vendored install)"
                     )
                 if node.level > 0 and (
-                    module_name.startswith("scripts.")
-                    or module_name.startswith("agents.")
+                    module_name.startswith("scripts.") or module_name.startswith("agents.")
                 ):
                     failures.append(
                         f"{rel}:{node.lineno}: relative import "
@@ -222,9 +211,7 @@ def test_no_runtime_dependency_on_agents_or_scripts_in_lib(
             # forbidden path prefixes (e.g. open(".agents/X")).
             if isinstance(node, ast.Call):
                 for arg in node.args:
-                    if isinstance(arg, ast.Constant) and isinstance(
-                        arg.value, str
-                    ):
+                    if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
                         for prefix in forbidden_path_prefixes:
                             if arg.value.startswith(prefix):
                                 failures.append(
@@ -233,9 +220,7 @@ def test_no_runtime_dependency_on_agents_or_scripts_in_lib(
                                     f"(would fail in vendored install)"
                                 )
 
-    assert not failures, "vendored lib has runtime path leaks:\n" + "\n".join(
-        failures
-    )
+    assert not failures, "vendored lib has runtime path leaks:\n" + "\n".join(failures)
 
 
 def test_review_skill_loads_from_canonical_dir(vendored_root: Path) -> None:
@@ -249,12 +234,8 @@ def test_review_skill_loads_from_canonical_dir(vendored_root: Path) -> None:
     assert ".claude/skills/review/references/" in text, (
         "/review must reference canonical .claude/skills/review/references/ as source"
     )
-    assert "merge_verdicts" in text, (
-        "/review must invoke merge_verdicts from ai_review_common"
-    )
-    assert "ai_review_common" in text, (
-        "/review must reference the verdict module"
-    )
+    assert "merge_verdicts" in text, "/review must invoke merge_verdicts from ai_review_common"
+    assert "ai_review_common" in text, "/review must reference the verdict module"
 
 
 def test_review_skill_chains_skill_extras(vendored_root: Path) -> None:
@@ -293,12 +274,8 @@ def test_review_skill_dispatches_by_discovery_not_fixed_count(
     """
     review = vendored_root / ".claude" / "skills" / "review" / "SKILL.md"
     text = review.read_text(encoding="utf-8")
-    assert "Run 6 canonical axes" not in text, (
-        "/review still hardcodes the 6-axis dispatch header"
-    )
+    assert "Run 6 canonical axes" not in text, "/review still hardcodes the 6-axis dispatch header"
     assert "exactly 9 rows" not in text, (
         "/review output contract still asserts the stale 9-row count"
     )
-    assert "references/*.md" in text, (
-        "/review must document axis discovery from references/*.md"
-    )
+    assert "references/*.md" in text, "/review must document axis discovery from references/*.md"

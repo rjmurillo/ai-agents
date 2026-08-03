@@ -23,7 +23,7 @@ not intentional scope expansion.
 
 - **Skill-Scoped-Tools-001**: Limit tool scope to changed files:
   `markdownlint $(git diff --name-only '*.md')`, not `**/*.md`
-- Apply to session protocol tool commands — replace broad globs with git-scoped lists
+- Apply to session protocol tool commands: replace broad globs with git-scoped lists
 
 ## Evidence from PR #908
 

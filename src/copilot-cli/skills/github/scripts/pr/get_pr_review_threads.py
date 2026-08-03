@@ -18,7 +18,6 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import os
 import sys
@@ -26,9 +25,9 @@ import warnings
 
 logger = logging.getLogger(__name__)
 
-_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
-if _plugin_root:
+if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
     _lib_dir = os.path.join(_plugin_root, "lib")
 elif _workspace:
     _lib_dir = os.path.join(_workspace, ".claude", "lib")
@@ -265,7 +264,7 @@ def _collect_all_threads(
         cursor = page_info.get("endCursor")
         if not cursor:
             # hasNextPage was true but endCursor is empty/null. Cannot
-            # advance — surface as truncation rather than a clean exit,
+            # advance, so surface as truncation rather than a clean exit,
             # since callers would otherwise see a "complete"-looking
             # result that silently dropped pages 2+. Returns the same
             # truncated=True signal as the cap-hit path below.

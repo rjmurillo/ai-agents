@@ -11,11 +11,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "12 of 13 plans verified complete or superseded; spec-005 carries a real residual defect",
-      "caused_by": [
-        "e015"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e002"
+        "e006"
       ]
     },
     {
@@ -23,11 +21,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": ".agents/plans/active/ is empty except .gitkeep; nothing deleted",
-      "caused_by": [
-        "e001"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e003"
+        "e006"
       ]
     },
     {
@@ -35,11 +31,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Issues #3424, #3425, #3426 opened with reproduction commands and file-line evidence",
-      "caused_by": [
-        "e002"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e004"
+        "e006"
       ]
     },
     {
@@ -47,52 +41,55 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Ran the pre-PR gate and cleared both failures. The dash gate flagged 165 pre-existing dashes in 1574-stage1-claude-kit-vendor.md and req-003-multi-tool-artifact-build.md, surfaced only because git mv put them in the branch diff. Considered a .agents/archive/ carve-out in checks_dash.py and rejected it: it would expand a docs-only change into a validator plus rule plus two mirrors plus a plugin manifest bump, and the dashes are ordinary prose, not bytes the archive needs to preserve. Replaced them instead, semantically neutral: label glosses take a colon, ID ranges take a hyphen, clause breaks take a comma or period.",
-      "caused_by": [
-        "e003"
-      ],
-      "leads_to": []
-    },
-    {
-      "id": "e005",
-      "timestamp": "2026-07-26T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 19d4a761",
       "caused_by": [],
       "leads_to": [
         "e006"
       ]
     },
     {
-      "id": "e006",
-      "timestamp": "2026-07-26T00:00:00+00:00",
+      "id": "e005",
+      "timestamp": "2026-07-27T04:07:45+00:00",
       "type": "commit",
-      "content": "Commit: ae8be1c0",
+      "content": "Commit: 19d4a761",
       "caused_by": [
-        "e005"
+        "e014"
       ],
       "leads_to": [
-        "e007"
+        "e015"
       ]
     },
     {
-      "id": "e007",
-      "timestamp": "2026-07-26T00:00:00+00:00",
+      "id": "e006",
+      "timestamp": "2026-07-27T03:57:18+00:00",
       "type": "commit",
-      "content": "Commit: 9f1df6b3",
+      "content": "Commit: ae8be1c0",
       "caused_by": [
-        "e006"
+        "e001",
+        "e002",
+        "e003",
+        "e004"
       ],
       "leads_to": [
         "e008"
       ]
     },
     {
+      "id": "e007",
+      "timestamp": "2026-07-27T04:14:13+00:00",
+      "type": "commit",
+      "content": "Commit: 9f1df6b3",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": []
+    },
+    {
       "id": "e008",
-      "timestamp": "2026-07-26T00:00:00+00:00",
+      "timestamp": "2026-07-27T03:57:32+00:00",
       "type": "commit",
       "content": "Commit: f2094108",
       "caused_by": [
-        "e007"
+        "e006"
       ],
       "leads_to": [
         "e009"
@@ -100,7 +97,7 @@
     },
     {
       "id": "e009",
-      "timestamp": "2026-07-26T00:00:00+00:00",
+      "timestamp": "2026-07-27T03:57:54+00:00",
       "type": "commit",
       "content": "Commit: c74c8b07",
       "caused_by": [
@@ -112,7 +109,7 @@
     },
     {
       "id": "e010",
-      "timestamp": "2026-07-26T00:00:00+00:00",
+      "timestamp": "2026-07-27T03:58:23+00:00",
       "type": "commit",
       "content": "Commit: 0809412c",
       "caused_by": [
@@ -124,7 +121,7 @@
     },
     {
       "id": "e011",
-      "timestamp": "2026-07-26T00:00:00+00:00",
+      "timestamp": "2026-07-27T03:58:41+00:00",
       "type": "commit",
       "content": "Commit: 50860bf0",
       "caused_by": [
@@ -136,7 +133,7 @@
     },
     {
       "id": "e012",
-      "timestamp": "2026-07-26T00:00:00+00:00",
+      "timestamp": "2026-07-27T03:58:41+00:00",
       "type": "commit",
       "content": "Commit: 53f220e9",
       "caused_by": [
@@ -148,7 +145,7 @@
     },
     {
       "id": "e013",
-      "timestamp": "2026-07-26T00:00:00+00:00",
+      "timestamp": "2026-07-27T03:59:01+00:00",
       "type": "commit",
       "content": "Commit: 48c2b938",
       "caused_by": [
@@ -160,26 +157,26 @@
     },
     {
       "id": "e014",
-      "timestamp": "2026-07-26T00:00:00+00:00",
+      "timestamp": "2026-07-27T04:01:52+00:00",
       "type": "commit",
       "content": "Commit: 3f40fac7",
       "caused_by": [
         "e013"
       ],
       "leads_to": [
-        "e015"
+        "e005"
       ]
     },
     {
       "id": "e015",
-      "timestamp": "2026-07-26T00:00:00+00:00",
+      "timestamp": "2026-07-27T04:09:54+00:00",
       "type": "commit",
       "content": "Commit: 1bf125d7",
       "caused_by": [
-        "e014"
+        "e005"
       ],
       "leads_to": [
-        "e001"
+        "e007"
       ]
     }
   ],
@@ -191,5 +188,7 @@
     "commits": 11,
     "files_changed": 0
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "stamp_only by migrate_causal_version.py on 2026-08-02: v2 edge rebuild agrees with stored edges"
 }

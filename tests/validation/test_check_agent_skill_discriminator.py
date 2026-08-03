@@ -124,7 +124,7 @@ def _run(
             *changed,
         ],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=False,
     )
 
@@ -410,7 +410,7 @@ def test_missing_repo_root_is_config_error(tmp_path: Path) -> None:
     proc = subprocess.run(
         [sys.executable, str(SCRIPT), "--repo-root", str(missing)],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=False,
     )
     assert proc.returncode == 2
@@ -422,7 +422,7 @@ def test_missing_commands_dir_is_config_error(tmp_path: Path) -> None:
     proc = subprocess.run(
         [sys.executable, str(SCRIPT), "--repo-root", str(repo)],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=False,
     )
     assert proc.returncode == 2
@@ -473,7 +473,7 @@ def test_changed_files_via_env(tmp_path: Path, monkeypatch) -> None:
     proc = subprocess.run(
         [sys.executable, str(SCRIPT), "--repo-root", str(repo)],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=False,
         env={**__import__("os").environ, "CHANGED_FILES": rel},
     )

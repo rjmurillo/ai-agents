@@ -1,9 +1,15 @@
-"""The concurrent-lowering race and the gate that blocks it (issue #4057).
+"""The concurrent-lowering race and the slack the ratchet accepts (issue #4057).
 
 Two branches can each remove one violation and write the same lowered
 baseline. Git merges the identical one-line edits without a conflict, so the
-merged tree has improved twice while the file fell once, and the default
-branch goes red on a check that both branches passed.
+merged tree has improved twice while the file fell once.
+
+The ratchet does not block that state. ``count_ratchet`` treats a count below
+the baseline as an improvement and exits 0 (PR #4214), so concurrent cleanup
+PRs never conflict on the shared line and the default branch does not go red
+on a change none of them made. The cost is real and is pinned below: the
+baseline sits above the true count until someone records it, and that gap will
+absorb one later regression without firing.
 
 These run against real git because the merge itself is the subject: a
 stand-in that matched on the subcommand would report a clean merge no matter
@@ -82,14 +88,16 @@ def two_branches_that_each_lower_by_one(tmp_path: Path) -> tuple[Path, Path]:
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
-def test_two_concurrent_baseline_lowerings_leave_the_merged_tree_stale(
+def test_two_concurrent_baseline_lowerings_leave_slack_not_a_red_main(
     tmp_path, capsys
 ):
-    """Both branches pass, the identical edits merge clean, and main goes red.
+    """Both branches pass, the identical edits merge clean, and main stays green.
 
     This is the race issue #4057 reports. Each branch removes one violation
-    and writes the same lowered value, so git sees no conflict, but the merged
-    tree has improved twice while the baseline fell once.
+    and writes the same lowered value, so git sees no conflict, and the merged
+    tree has improved twice while the baseline fell once. The ratchet reads
+    that as an improvement rather than a regression, so the default branch
+    does not go red on a change neither author made.
     """
     repo, baseline = two_branches_that_each_lower_by_one(tmp_path)
 
@@ -102,25 +110,43 @@ def test_two_concurrent_baseline_lowerings_leave_the_merged_tree_stale(
 
     rc = run_ratchet(repo, baseline, marker_counter(repo))
 
-    assert rc == count_ratchet.EXIT_REGRESSION
-    err = capsys.readouterr().err
-    assert "BASELINE STALE. 0 violations < baseline 1 (-1)" in err
-    assert "merged without conflict" in err
+    assert rc == count_ratchet.EXIT_OK
+    assert "OK. 0 violations <= baseline 1 (-1 slack)" in capsys.readouterr().out
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
-def test_requiring_a_current_base_turns_the_second_branch_red_before_it_merges(
-    tmp_path, capsys
-):
-    """The enforcement point for issue #4057, proven end to end.
+def test_the_slack_left_by_the_race_absorbs_one_later_regression(tmp_path, capsys):
+    """The price of not blocking, stated as a test rather than a caveat.
 
-    The chosen gate is the strict required-status-checks policy on the default
-    branch: the second branch cannot merge until it is current with main, and
-    updating it re-runs this ratchet. The race above only lands because
-    branch-b merges on a verdict taken before branch-a landed. Bring branch-b
-    up to date and the same verdict flips to a blocking exit, so the stale
-    merge never reaches main. The decision and the rejected alternatives are
-    recorded in ``.github/AGENTS.md``.
+    After the race the baseline reads 1 and the tree measures 0. A change that
+    reintroduces one violation takes the count back to 1, which the stale
+    baseline still allows, so the gate does not fire. Recording the true count
+    is what closes the gap; nothing in the ratchet forces it.
+    """
+    repo, baseline = two_branches_that_each_lower_by_one(tmp_path)
+    for branch in ("branch-a", "branch-b"):
+        merge_into_main(repo, branch)
+
+    (repo / "violation_9.txt").write_text("x\n", encoding="utf-8")
+    commit_all(repo, "reintroduce one violation")
+    capsys.readouterr()
+
+    rc = run_ratchet(repo, baseline, marker_counter(repo))
+
+    assert marker_counter(repo)(repo) == 1
+    assert rc == count_ratchet.EXIT_OK
+    assert "count == baseline 1" in capsys.readouterr().out
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+def test_a_current_base_does_not_turn_the_second_branch_red(tmp_path, capsys):
+    """Bringing branch-b current with main does not manufacture a failure.
+
+    Under a strict required-checks policy the second branch has to be current
+    before it merges, which re-runs this ratchet against the tree that will
+    land. That tree measures 0 against a baseline of 1. Blocking there would
+    turn every concurrent cleanup pair into a stuck queue, so the ratchet
+    reports the slack and passes.
     """
     repo, baseline = two_branches_that_each_lower_by_one(tmp_path)
     merge_into_main(repo, "branch-a")
@@ -130,20 +156,15 @@ def test_requiring_a_current_base_turns_the_second_branch_red_before_it_merges(
 
     rc = run_ratchet(repo, baseline, marker_counter(repo), base_ref="main")
 
-    assert rc == count_ratchet.EXIT_REGRESSION
-    assert "BASELINE STALE. 0 violations < baseline 1 (-1)" in capsys.readouterr().err
+    assert rc == count_ratchet.EXIT_OK
+    assert "OK. 0 violations <= baseline 1 (-1 slack)" in capsys.readouterr().out
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
 def test_the_updated_second_branch_goes_green_once_it_records_the_true_count(
     tmp_path, capsys
 ):
-    """The gate is escapable through the documented remedy, not a wedge.
-
-    A blocking check that no commit can clear would trade a red main for a
-    stuck queue. The baseline-only commit the failure text asks for is the way
-    out, and it has to work.
-    """
+    """Recording the true count is the way to close the slack, and it works."""
     repo, baseline = two_branches_that_each_lower_by_one(tmp_path)
     merge_into_main(repo, "branch-a")
 
@@ -159,7 +180,9 @@ def test_the_updated_second_branch_goes_green_once_it_records_the_true_count(
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
-def test_cumulative_lowering_across_three_branches_is_stale_by_two(tmp_path, capsys):
+def test_cumulative_lowering_across_three_branches_leaves_slack_of_two(
+    tmp_path, capsys
+):
     """The drift scales with the number of branches that land the same edit."""
     repo, baseline = repo_with_markers(tmp_path, 3)
 
@@ -172,17 +195,38 @@ def test_cumulative_lowering_across_three_branches_is_stale_by_two(tmp_path, cap
 
     rc = run_ratchet(repo, baseline, marker_counter(repo))
 
-    assert rc == count_ratchet.EXIT_REGRESSION
-    assert "BASELINE STALE. 0 violations < baseline 2 (-2)" in capsys.readouterr().err
+    assert rc == count_ratchet.EXIT_OK
+    assert "OK. 0 violations <= baseline 2 (-2 slack)" in capsys.readouterr().out
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
-def test_a_branch_that_lowers_the_baseline_below_its_own_count_still_fails(tmp_path):
-    """Control: the branch legs above pass on merit, not by accident.
+def test_a_branch_that_raises_the_count_above_the_baseline_still_fails(tmp_path, capsys):
+    """Negative control: the gate above passes on merit, not because it is off.
 
-    A branch that removes two markers but records only one of them is stale on
-    its own, before any merge. If this passed, the tests above would prove
-    nothing about the merge.
+    Every assertion in this module now expects exit 0, so a ratchet that had
+    been disabled outright would satisfy all of them. A branch that adds a
+    violation it does not record must still be rejected, or those tests prove
+    nothing.
+    """
+    repo, baseline = repo_with_markers(tmp_path, 2)
+    checkout(repo, "-b", "sloppy")
+    (repo / "violation_9.txt").write_text("x\n", encoding="utf-8")
+    commit_all(repo, "sloppy: add a violation without recording it")
+    capsys.readouterr()
+
+    rc = run_ratchet(repo, baseline, marker_counter(repo), base_ref="main")
+
+    assert rc == count_ratchet.EXIT_REGRESSION
+    assert "REGRESSION. 3 violations > baseline 2" in capsys.readouterr().err
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+def test_a_branch_that_lowers_the_baseline_below_its_own_count_is_slack(tmp_path):
+    """Under-recording an improvement is slack, which the ratchet permits.
+
+    A branch that removes two markers but records only one of them measures 1
+    against a baseline of 2. That is the same shape the race produces, so it
+    gets the same verdict.
     """
     repo, baseline = repo_with_markers(tmp_path, 3)
     checkout(repo, "-b", "greedy")
@@ -193,4 +237,4 @@ def test_a_branch_that_lowers_the_baseline_below_its_own_count_still_fails(tmp_p
 
     rc = run_ratchet(repo, baseline, marker_counter(repo), base_ref="main")
 
-    assert rc == count_ratchet.EXIT_REGRESSION
+    assert rc == count_ratchet.EXIT_OK

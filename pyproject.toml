@@ -26,6 +26,7 @@ dev = [
     "semgrep==1.171.0",
     "lefthook==2.1.10",
     "packaging>=24.0",
+    "pytest-timeout>=2.4.0",
 ]
 eval = [
     # OpenAI + GitHub Models providers (scripts/eval/_providers.py).
@@ -62,7 +63,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-v --tb=short --import-mode=importlib"
+addopts = "-v --tb=short --import-mode=importlib --timeout=120"
 markers = [
     "unit: Unit tests",
     "integration: Integration tests",
@@ -113,6 +114,7 @@ ignore = []
 # Test files use sys.path.insert() before importing modules under test
 "tests/hooks/**/*.py" = ["E402"]
 "tests/skills/**/*.py" = ["E402"]
+"tests/validation/**/*.py" = ["E402"]
 # ANN suppression for test files (annotations not required in tests)
 "tests/**/*.py" = ["ANN"]
 "**/tests/**/*.py" = ["ANN"]
@@ -251,4 +253,5 @@ dev = [
     "semgrep==1.171.0",
     "lefthook==2.1.10",
     "packaging>=24.0",
+    "pytest-timeout>=2.4.0",
 ]

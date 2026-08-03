@@ -104,9 +104,19 @@ _WORKFLOW_SUFFIXES = (".yml", ".yaml")
 
 # Per-stage timeouts (seconds). The full act run pulls images and executes
 # composite actions, so it gets the largest budget.
+#
+# The dry run gets the same budget as the full run because ``act`` clones every
+# referenced action into ``~/.cache/act`` before it can plan the graph, and that
+# cache is keyed by action ref, not by workflow. Planning itself is cheap: on a
+# warm cache ``gh act -n -W .github/workflows/codeql-analysis.yml`` returns rc=0
+# in 17s. On an empty cache the same command was still cloning at 130s with 787M
+# pulled and 8 ``git clone`` lines emitted, so the old 120s budget killed a
+# correct workflow and reported a bare ``TimeoutExpired`` (Issue #3949). A
+# Renovate digest bump re-cold-starts one action at a time, so this is not a
+# once-per-machine cost.
 _ACTIONLINT_TIMEOUT = 60
-_ACT_DRYRUN_TIMEOUT = 120
 _ACT_FULL_TIMEOUT = 600
+_ACT_DRYRUN_TIMEOUT = _ACT_FULL_TIMEOUT
 
 # actionlint shells out to shellcheck for ``run:`` scripts. The info and style
 # tiers are advisory (SC2086 quoting advice, SC2129 grouped redirects) and are
@@ -192,6 +202,23 @@ def _is_remote_container() -> bool:
     return any(_env_truthy(marker) for marker in _REMOTE_CONTAINER_ENV_MARKERS)
 
 
+def _decode_partial(raw: bytes | str | None) -> str:
+    """Decode the partial output carried on a ``TimeoutExpired``.
+
+    ``subprocess`` builds the exception from the raw pipe buffers before the
+    text-mode decoder runs, so the attributes arrive as ``bytes`` even when the
+    call passed ``text=True``, and they are ``None`` when the child wrote
+    nothing. Match the decoding ``_run`` asks ``subprocess.run`` for
+    (``encoding="utf-8"``, ``errors="replace"``) so a timed-out run and a
+    completed one read the same.
+    """
+    if raw is None:
+        return ""
+    if isinstance(raw, bytes):
+        return raw.decode("utf-8", errors="replace")
+    return raw
+
+
 def _run(
     cmd: list[str],
     *,
@@ -219,6 +246,14 @@ def _run(
         )
     except FileNotFoundError:
         return -1, "", f"command not found: {cmd[0]}"
+    except subprocess.TimeoutExpired as exc:
+        # Keep whatever the child managed to emit before the kill. It is the only
+        # evidence of what the run was doing when the budget ran out, and the act
+        # stage reads it to tell a cold action cache apart from a slow run
+        # (Issue #3949). Without this branch the partial output is dropped and
+        # the operator gets a bare "timed out after N seconds".
+        detail = f"{type(exc).__name__}: {exc}\n{_decode_partial(exc.stderr)}".rstrip()
+        return -1, _decode_partial(exc.stdout), detail
     except (OSError, subprocess.SubprocessError) as exc:
         return -1, "", f"{type(exc).__name__}: {exc}"
     return proc.returncode, proc.stdout, proc.stderr
@@ -415,7 +450,7 @@ def _actionlint_stage(files: Sequence[str], repo_root: Path) -> StageResult:
     )
     if rc == 0:
         return StageResult("actionlint", True)
-    return StageResult("actionlint", False, (out + err).strip()[:4000])
+    return StageResult("actionlint", False, _with_timeout_hint((out + err).strip()))
 
 
 # gh act defaults to the ``push`` event. A workflow with no ``push`` trigger
@@ -499,6 +534,17 @@ _ACT_GIT_REV_PARSE_ANNOTATION = (
 _ACT_PATHS_FILTER_BASE_PATTERN = re.compile(
     r"requires 'base' input to be configured or 'repository\.default_branch' "
     r"to be set in the event payload"
+)
+
+# act stages a cached action into the container at /var/run/act/actions/<ref>/
+# and copies it with `docker cp`. Recent dockerd rejects that destination with
+# "path escapes from parent" before the action's own code runs, so the step
+# fails on transport, not on anything the workflow does. Reproduced on an
+# unmodified main against .github/workflows/validate-plugin-version-bump.yml,
+# so it is independent of any branch. GitHub does not stage actions this way.
+_ACT_ACTION_CACHE_COPY_PATTERN = re.compile(
+    r"failed to copy content to container: Error response from daemon: "
+    r"statat .*?/?var/run/act/actions/.*?: path escapes from parent"
 )
 
 _ACT_PR_CONTEXT_MISSING_PATTERN = re.compile(
@@ -601,6 +647,14 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
         "name) carry different text and still block.",
     ),
     (
+        None,
+        lambda text: bool(_ACT_ACTION_CACHE_COPY_PATTERN.search(text)),
+        "act could not copy its cached action into the container because dockerd "
+        "rejects the /var/run/act/actions staging path, so the step fails on "
+        "local transport before the action runs. CI does not stage actions this "
+        "way, so this fails only in local act.",
+    ),
+    (
         "pull_request",
         lambda text: bool(_ACT_PR_CONTEXT_MISSING_PATTERN.search(text)),
         "act does not populate the pull_request event context on a local run, so "
@@ -623,6 +677,12 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
         "in local act, not in CI where GH_TOKEN and repo info are available.",
     ),
 )
+
+# ``_run`` stringifies a stage timeout as ``TimeoutExpired: ...`` (the exception
+# class name), and ``act`` logs each action fetch as a ``git clone`` line. The
+# pair tells a cold-action-cache timeout apart from a genuinely slow run.
+_ACT_TIMEOUT_MARKER = "TimeoutExpired"
+_ACT_CLONE_MARKER = "git clone "
 
 # act forwards GitHub workflow commands verbatim, so an action that aborts with
 # ``core.setFailed`` surfaces as a ``::error::`` line. Those lines are the only
@@ -752,6 +812,53 @@ def _act_limitation_hint(combined: str, event: str | None = None) -> str | None:
     return hint
 
 
+def _stage_timeout_hint(combined: str) -> str | None:
+    """Return the cause-and-remedy line when ``combined`` shows a killed run.
+
+    ``_run`` reports a timeout as ``TimeoutExpired: ...``, which on its own names
+    no cause: the operator sees a correct workflow blamed for a wall-clock
+    deadline (Issue #3949). Counting the ``git clone`` lines the child emitted
+    before the kill separates the two cases that matter. Clone lines mean ``act``
+    was still populating its ref-keyed ``~/.cache/act``, which a re-run turns
+    into a warm-cache run of seconds. No clone lines mean the run itself was
+    slow, and claiming a cold cache there would point at the wrong suspect.
+    Returns None when the output carries no timeout marker.
+
+    Every stage routes its failure detail through this, not the act stages only.
+    The detail is truncated for readability and the timeout marker sits at its
+    tail, so a chatty child that outruns the cap would otherwise leave the
+    operator a failure with no stated reason at all.
+    """
+    if _ACT_TIMEOUT_MARKER not in combined:
+        return None
+    clones = sum(1 for line in combined.splitlines() if _ACT_CLONE_MARKER in line)
+    if clones == 0:
+        return (
+            "[cause] the command was killed by the stage timeout. Its output shows no "
+            "action-clone activity, so a cold gh act action cache is not the cause: the run "
+            "itself is slow."
+        )
+    return (
+        f"[cause] act was still cloning actions when the stage timeout fired: {clones} "
+        f"'git clone' line(s) in the partial output. This is a cold gh act action cache, not a "
+        f"workflow defect. act clones every referenced action into ~/.cache/act before it can "
+        f"plan, and that cache is keyed by action ref, so a bumped action digest re-pays the "
+        f"clone. Re-run: the second run reuses the cache and finishes in seconds."
+    )
+
+
+def _with_timeout_hint(combined: str) -> str:
+    """Truncate a failure detail, then append the timeout cause line if any.
+
+    Order matters: the hint is derived from the full text and appended after the
+    truncation, because reading it out of the truncated copy would lose it on a
+    run whose partial output outruns the cap.
+    """
+    detail = combined[:4000]
+    hint = _stage_timeout_hint(combined)
+    return detail if hint is None else f"{detail}\n{hint}"
+
+
 def _run_act_stage(
     stage: str,
     base_cmd: Sequence[str],
@@ -768,6 +875,9 @@ def _run_act_stage(
     already validated the workflow shape. Downgrade it to a passing stage with a
     ``[WARN]`` detail instead of a hard FAIL so the act limitation does not block
     an otherwise valid push. Every other nonzero exit still blocks.
+
+    A stage timeout keeps blocking, but the detail gains a cause line from
+    :func:`_with_timeout_hint` instead of a bare ``TimeoutExpired``.
     """
     env = _act_env(repo_root)
     warnings: list[str] = []
@@ -780,11 +890,17 @@ def _run_act_stage(
         rc, out, err = _run(cmd, timeout=timeout, cwd=repo_root, env=env)
         if rc != 0:
             combined = (out + err).strip()
-            hint = _act_limitation_hint(combined, event)
-            if hint is not None:
-                warnings.append(f"[WARN] {wf}: {hint} Set {_BYPASS_ENV}=true to silence.")
-                continue
-            return StageResult(stage, False, f"{wf}:\n{combined[:4000]}")
+            # A timeout never downgrades. Since ``_run`` started returning the
+            # partial output, a limitation signature can appear in a run that was
+            # then killed mid-flight, and the workflow past that point was never
+            # validated. Fail closed on the timeout instead of passing the stage
+            # on a signature the run never got to finish disproving.
+            if _ACT_TIMEOUT_MARKER not in combined:
+                hint = _act_limitation_hint(combined, event)
+                if hint is not None:
+                    warnings.append(f"[WARN] {wf}: {hint} Set {_BYPASS_ENV}=true to silence.")
+                    continue
+            return StageResult(stage, False, f"{wf}:\n{_with_timeout_hint(combined)}")
     return StageResult(stage, True, "\n".join(warnings))
 
 

@@ -276,16 +276,17 @@ class TestRunValidation:
         assert result is False
 
     @patch("new_session_log.subprocess.run")
-    def test_passes_existing_log_flag_to_validator(self, mock_run, tmp_path):
-        """Validator is called with --existing-log so protocol items are not checked
-        at creation time (issues #3914, #3946)."""
+    def test_passes_creation_mode_flag_to_validator(self, mock_run, tmp_path):
+        """Validator is called with --creation-mode so protocol items are not checked
+        at creation time, but the full schema still binds (post-#4001, issues #3914, #3946)."""
         scripts_dir = tmp_path / "scripts"
         scripts_dir.mkdir()
         (scripts_dir / "validate_session_json.py").write_text("# stub")
         mock_run.return_value = MagicMock(returncode=0)
         new_session_log._run_validation(str(tmp_path / "test.json"), str(tmp_path))
         call_args = mock_run.call_args[0][0]
-        assert "--existing-log" in call_args
+        assert "--creation-mode" in call_args
+        assert "--existing-log" not in call_args
 
 
 class TestGetDescriptiveKeywords:
@@ -372,7 +373,7 @@ def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
         ["git", *args],
         cwd=str(cwd),
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         timeout=30,
         check=True,
     )
@@ -383,7 +384,7 @@ def _git_available() -> bool:
         result = subprocess.run(
             ["git", "--version"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=10,
             check=False,
         )

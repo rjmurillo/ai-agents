@@ -11,11 +11,9 @@
       "timestamp": "2026-07-25T00:00:00+00:00",
       "type": "milestone",
       "content": "Issue #3328 offers three options and calls option 2, verifying each prose SHA is a descendant of the starting commit, accurate. Implemented it first because it looked free: the extractor already shells out to git for staged-file counts, so it adds no dependency, and all 140 existing tests passed unchanged because their fixture SHAs are not git objects and fail open.",
-      "caused_by": [
-        "e009"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e002"
+        "e009"
       ]
     },
     {
@@ -23,11 +21,9 @@
       "timestamp": "2026-07-25T00:00:00+00:00",
       "type": "milestone",
       "content": "Passing tests were not enough evidence, so the rule was replayed against all 916 session logs in the repo. It changed 13 of them. Every case inspected was wrong. This repo squash-merges, and a squash commit discards the branch's parentage, so a session's own merge commit is not a descendant of the branch base it came from. Option 2 as written drops exactly the commits it is supposed to keep.",
-      "caused_by": [
-        "e001"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e003"
+        "e009"
       ]
     },
     {
@@ -35,11 +31,9 @@
       "timestamp": "2026-07-25T00:00:00+00:00",
       "type": "milestone",
       "content": "Inverted the test. A commit already reachable from the starting commit existed before the session began, so the session cannot have produced it. That is a tautology, which is what makes it safe, and it cannot misfire on a squash merge because a squash merge comes after the base rather than before it. Checked the discriminator against the SHA named in the issue report and against the three squash cases: the report SHA is an ancestor of its session's base, and none of the squash cases are.",
-      "caused_by": [
-        "e002"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e004"
+        "e009"
       ]
     },
     {
@@ -47,11 +41,9 @@
       "timestamp": "2026-07-25T00:00:00+00:00",
       "type": "milestone",
       "content": "Re-swept all 878 logs that carry a work log. Nine change, all downward, and reading the prose around each dropped SHA confirms every one is a citation rather than a session commit: another PR's merge commit, a different branch's tip, a git-blame result, and a version-pin reference. Zero false positives. Fails open on an unresolvable SHA, a missing starting commit, or no git, so the metric degrades to today's behavior rather than silently dropping real commits.",
-      "caused_by": [
-        "e003"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e005"
+        "e009"
       ]
     },
     {
@@ -59,11 +51,9 @@
       "timestamp": "2026-07-25T00:00:00+00:00",
       "type": "milestone",
       "content": "Six regression cases added, including one that pins the squash-merge behavior directly so the descendant form cannot be reintroduced without a red test, and one that asserts the event stream and the metric agree so the causal graph cannot carry a commit node the metric does not.",
-      "caused_by": [
-        "e004"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e006"
+        "e009"
       ]
     },
     {
@@ -71,43 +61,47 @@
       "timestamp": "2026-07-25T00:00:00+00:00",
       "type": "milestone",
       "content": "Replace the unsound ancestry discriminator with a committer-date floor",
-      "caused_by": [
-        "e005"
-      ],
-      "leads_to": [
-        "e008"
-      ]
-    },
-    {
-      "id": "e007",
-      "timestamp": "2026-07-25T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: a2038a99017058e99f45de015e6b1886bb538e65",
       "caused_by": [],
       "leads_to": [
         "e009"
       ]
     },
     {
-      "id": "e008",
-      "timestamp": "2026-07-25T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Address the remaining Copilot review threads on PR #3334",
+      "id": "e007",
+      "timestamp": "2026-07-25T09:55:31+00:00",
+      "type": "commit",
+      "content": "Commit: a2038a99017058e99f45de015e6b1886bb538e65",
       "caused_by": [
-        "e006"
+        "e009"
       ],
       "leads_to": []
     },
     {
-      "id": "e009",
+      "id": "e008",
       "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Address the remaining Copilot review threads on PR #3334",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-25T04:00:48+00:00",
       "type": "commit",
       "content": "Commit: 3669adec84",
       "caused_by": [
-        "e007"
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e008"
       ],
       "leads_to": [
-        "e001"
+        "e007"
       ]
     }
   ],

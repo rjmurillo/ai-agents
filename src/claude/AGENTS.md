@@ -1,10 +1,16 @@
 # Claude Code Agents
 
-This document describes the 18 AI agents defined for Claude Code CLI and the critical workflow rules for maintaining them.
+This document describes the 19 AI agents defined for Claude Code CLI and the critical workflow rules for maintaining them.
 
 ## Overview
 
 The `src/claude/` directory contains **hand-maintained** agent definitions for Claude Code CLI. Unlike VS Code and Copilot CLI agents (which are generated from templates), Claude agents are the primary source for Claude-specific features.
+
+Before changing an agent for cross-harness behavior, read
+`agent-harness-reference`. If the change affects event handling, hook-driven
+routing, generated Copilot agents, or runtime contracts, execute it through
+`ai-agents-portability-campaign`. Do not repeat vendor research already pinned
+in the reference sidecar.
 
 > **Governing ADR**: [ADR-036: Two-Source Agent Template Architecture](../../.agents/architecture/ADR-036-two-source-agent-template-architecture.md)
 
@@ -58,7 +64,7 @@ Per ADR-036 §Synchronization Requirement, when adding content that applies to A
 ```text
 1. Edit src/claude/{agent}.md
 2. Duplicate universal changes to templates/agents/{agent}.shared.md
-3. Run: python3 build/generate_agents.py
+3. Run: uv run python build/generate_agents.py
 4. Commit all changed files together
 ```
 
@@ -67,7 +73,7 @@ Per ADR-036 §Synchronization Requirement, when adding content that applies to A
 ```text
 1. Edit templates/agents/{agent}.shared.md
 2. Edit src/claude/{agent}.md (MANUAL - not auto-synced!)
-3. Run: python3 build/generate_agents.py
+3. Run: uv run python build/generate_agents.py
 4. Commit all files atomically
 ```
 
@@ -135,6 +141,7 @@ flowchart TD
 | orchestrator | `orchestrator.md` | Task routing and coordination |
 | milestone-planner | `milestone-planner.md` | Milestone and work package creation |
 | task-decomposer | `task-decomposer.md` | Atomic task generation |
+| backlog-generator | `backlog-generator.md` | Proactive task discovery |
 
 ### Analysis Agents
 
@@ -152,6 +159,7 @@ flowchart TD
 | qa | `qa.md` | Test strategy and verification |
 | devops | `devops.md` | CI/CD pipelines |
 | security | `security.md` | Vulnerability assessment |
+| merge-resolver | `merge-resolver.md` | Git conflict resolution |
 
 ### Strategic Agents
 
@@ -238,7 +246,7 @@ PR Review:
 Claude agents use MCP tool prefix syntax:
 
 ```text
-python3 .claude/skills/memory/scripts/search_memory.py --query "topic"  # Memory Router (ADR-037)
+uv run python .claude/skills/memory/scripts/search_memory.py --query "topic"  # Memory Router (ADR-037)
 mcp__serena__write_memory  # Serena write tools
 mcp__deepwiki__ask_question
 mcp__serena__find_symbol
@@ -276,7 +284,7 @@ gh pr view 50 --json ...
 1. Create `src/claude/{agent-name}.md` with required sections
 2. Create `templates/agents/{agent-name}.shared.md` with platform-agnostic content
 3. Update `templates/platforms/*.yaml` if new tools needed
-4. Run `python3 build/generate_agents.py`
+4. Run `uv run python build/generate_agents.py`
 5. Update documentation (root AGENTS.md, AGENT-SYSTEM.md)
 6. Commit all files together
 
@@ -291,7 +299,7 @@ gh pr view 50 --json ...
 
 3. Edit templates/agents/{agent}.shared.md with equivalent changes
 
-4. Run: python3 build/generate_agents.py
+4. Run: uv run python build/generate_agents.py
 
 5. Review generated files in src/vs-code-agents/ and src/copilot-cli/
 
@@ -302,7 +310,7 @@ gh pr view 50 --json ...
 
 ```bash
 # Validate generated files match templates
-python3 build/generate_agents.py --validate
+uv run python build/generate_agents.py --validate
 
 # Check for drift between Claude and VS Code
 python3 build/scripts/detect_agent_drift.py

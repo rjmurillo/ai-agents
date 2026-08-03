@@ -95,9 +95,7 @@ class TestGitSubprocesses:
     """Git subprocess wrapper behavior."""
 
     def test_run_git_uses_utf8_timeout_and_replacement_errors(self):
-        completed = subprocess.CompletedProcess(
-            ["git", "status"], 0, stdout="ok\n", stderr=""
-        )
+        completed = subprocess.CompletedProcess(["git", "status"], 0, stdout="ok\n", stderr="")
         with patch(
             "scripts.maintenance.gc_worktrees.subprocess.run",
             return_value=completed,
@@ -123,9 +121,7 @@ class TestGitSubprocesses:
                 raise AssertionError("expected RuntimeError")
 
     def test_is_merged_to_base_uses_utf8_timeout_and_replacement_errors(self):
-        completed = subprocess.CompletedProcess(
-            ["git", "merge-base"], 0, stdout="", stderr=""
-        )
+        completed = subprocess.CompletedProcess(["git", "merge-base"], 0, stdout="", stderr="")
         with patch(
             "scripts.maintenance.gc_worktrees.subprocess.run",
             return_value=completed,
@@ -156,7 +152,10 @@ class TestDecide:
 
     def test_keeps_detached_worktree(self):
         wt = Worktree(path="/repo/wt", branch=None, detached=True)
-        decision = decide(wt, _MAIN, _BASE)
+        dirty_check = "scripts.maintenance.gc_worktrees.has_uncommitted_changes"
+        merge_check = "scripts.maintenance.gc_worktrees.is_merged_to_base"
+        with patch(dirty_check, return_value=False), patch(merge_check, return_value=False):
+            decision = decide(wt, _MAIN, _BASE)
         assert decision.remove is False
         assert decision.reason == KEEP_DETACHED
 
@@ -267,10 +266,13 @@ class TestBuildReport:
         assert candidate_paths == ["/repo/wt"]
 
     def test_main_worktree_is_always_kept(self):
-        with patch(
-            "scripts.maintenance.gc_worktrees.list_worktrees",
-            return_value=[Worktree(path=_MAIN, branch="main")],
-        ), patch("scripts.maintenance.gc_worktrees._run_git", return_value=_MAIN):
+        with (
+            patch(
+                "scripts.maintenance.gc_worktrees.list_worktrees",
+                return_value=[Worktree(path=_MAIN, branch="main")],
+            ),
+            patch("scripts.maintenance.gc_worktrees._run_git", return_value=_MAIN),
+        ):
             report = build_report(base_ref=_BASE, apply=False)
         assert report.candidates == []
         assert len(report.kept) == 1
