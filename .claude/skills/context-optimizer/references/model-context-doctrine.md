@@ -1,6 +1,6 @@
 # Model Context Doctrine
 
-Current as of 2026-07-29. Covers Claude Opus 5 and GPT-5.6 Sol.
+Current as of 2026-08-03. Covers Claude Opus 5 and GPT-5.6 Sol.
 
 Read this before you argue about what belongs in always-on context. It exists
 so nobody has to re-derive the argument from primary sources every time. When
@@ -237,13 +237,24 @@ corpus grepped two and reported 8 of the 9 that were always-on at the time;
 `knowledge-persistence.md` loads on every file and was absent from the count
 for a full review cycle. Enumerate by parsing frontmatter, never by grep.
 
-Parse the **generated** `.github/instructions/` mirrors, not the
-`.claude/rules/` sources. `generate_rules.py` drops `alwaysApply:`, renames
-`paths:` to `applyTo:`, and synthesizes `applyTo: "**"` for any rule that
-declares no scope at all or whose globs are all filtered out as internal-only.
-Those last two paths reach the always-on corpus without any source line a
-grep could find, so the mirror is the authority for membership even though the
-source is the authority for content.
+Parse the **generated** mirrors, not the `.claude/rules/` sources.
+`generate_rules.py` drops `alwaysApply:`, renames `paths:` to `applyTo:`, and
+synthesizes `applyTo: "**"` for a rule that declares no scope at all or whose
+globs are all filtered out as internal-only. Neither of those reaches the corpus
+through a source line a grep could find, so the mirror is the authority for
+membership even though the source is the authority for content.
+
+Name the tree with the number, because the two mirror trees disagree.
+`templates/platforms/copilot-cli.yaml:39-40` lists `.github/instructions` under
+`keepInternalGlobsFor`, so the internal-glob filter is disabled there and the
+internal-only fallback cannot fire. It fires only for the plugin tree. At
+`0c75045d6` that leaves `.github/instructions` at 8 rules and 72,291 bytes while
+`src/copilot-cli/instructions` carries 11 rules and 79,823 bytes: `governance`,
+`secret-redaction`, and `session-logs` are narrowly scoped here and always-on in
+the shipped plugin. Every figure in this document is the `.github/instructions`
+number. A vendor install pays 7,532 bytes a turn that this repository never
+measures, on three rules whose globs point at `.agents/` paths the installing
+repository does not have.
 
 They are fenced. The `software-engineering-library` skill contains an explicit
 design sentence saying these baseline rules stay loaded while the other eight
@@ -301,4 +312,4 @@ lands.
 | PR #1022, commit `77edc827` | 2026-01-31 | This repo |
 | ADR-088 | see `.agents/architecture/` | This repo |
 
-<!-- vendor-portability: declared, mixed kinds. Two paths are citations (AGENTS.md, scripts/validation/instruction_budget_constants.py), named as historical provenance for the 8KB budget figure so a future reader does not re-investigate a settled question. One is not: the command under "Measuring the corpus" invokes scripts/validation/instruction_budget.py, and scripts/ ships in no plugin root, so that command cannot run in a vendored install. The surrounding doctrine still applies without it; only the local re-measurement is lost. SKILL.md labels the routing trigger contributor-only because this file and rule-audit-procedure.md both assume a full checkout. Issue #2050. -->
+<!-- vendor-portability: declared, mixed kinds. Two paths are citations (AGENTS.md, scripts/validation/instruction_budget_constants.py), named as historical provenance for the 8KB budget figure so a future reader does not re-investigate a settled question. One is not: the command under "Measuring the corpus" invokes scripts/validation/instruction_budget.py, and scripts/ ships in no plugin root, so that command cannot run in a vendored install. The surrounding doctrine still applies without it; only the local re-measurement is lost. SKILL.md labels the routing trigger contributor-only because this file and rule-audit-procedure.md both assume a full checkout. Two more are citations added for the two-tree divergence: templates/platforms/copilot-cli.yaml is the generator config whose keepInternalGlobsFor line is the sole cause of the divergence, and the .agents/ reference names the very paths a vendored install lacks, which is the point of that sentence. Neither is executable; both are provenance a reader would otherwise have to re-derive. Issue #2050. -->

@@ -38,13 +38,9 @@ DOCTRINE = (
     / "references"
     / "model-context-doctrine.md"
 )
-LIBRARY_SKILL = (
-    REPO_ROOT / ".claude" / "skills" / "software-engineering-library" / "SKILL.md"
-)
+LIBRARY_SKILL = REPO_ROOT / ".claude" / "skills" / "software-engineering-library" / "SKILL.md"
 
-BOOK_RULES = frozenset(
-    {"code-quality", "pragmatic-programmer", "unified-software-engineering"}
-)
+BOOK_RULES = frozenset({"code-quality", "pragmatic-programmer", "unified-software-engineering"})
 
 _TABLE_HEADER = "| Form | Rules |"
 _ROW_NAME = re.compile(r"`([a-z0-9-]+)`")
@@ -142,7 +138,7 @@ def test_doctrine_table_parser_reads_every_row() -> None:
         f"{_TABLE_HEADER}\n|---|---|\n"
         "| `applyTo: '**'` | `alpha`, `beta` |\n"
         "| `alwaysApply: true` | `gamma` |\n"
-        "| `paths: [\"**\"]` | `delta` |\n"
+        '| `paths: ["**"]` | `delta` |\n'
     )
     assert parse_doctrine_table(doc) == {"alpha", "beta", "gamma", "delta"}
 
@@ -158,8 +154,7 @@ def test_library_skill_loading_sentence_matches_reality() -> None:
         f"measured always-on book rules are {sorted(BOOK_RULES & measured)}"
     )
     assert not code & measured, (
-        f"sentence claims {sorted(code & measured)} load on code files only, "
-        "but they are always-on"
+        f"sentence claims {sorted(code & measured)} load on code files only, but they are always-on"
     )
 
 
@@ -174,3 +169,201 @@ def test_library_sentence_parser_splits_both_groups() -> None:
         "gamma load on code files; open a reference here only when needed."
     )
     assert parsed == ({"alpha"}, {"beta", "gamma"})
+
+
+# --- Numeric claims -------------------------------------------------------
+#
+# The membership guards above catch a rule joining or leaving the always-on
+# set. They do not catch the byte and file-count figures going stale, which is
+# the more common drift: a rule grows by 400 bytes and every number quoted in
+# the doctrine is silently wrong. These guards pin each stated figure to a live
+# measurement so the doc and the tree cannot diverge.
+#
+# Measurement reuses `instruction_budget.py` rather than reimplementing it. A
+# guard with its own summing logic agrees with itself, not with the tool the
+# repo actually enforces.
+
+_EIGHT_KB = 8192
+
+_FIG_MIRROR = re.compile(r"always-on corpus is (?P<files>[\d,]+) rules?, (?P<bytes>[\d,]+) bytes")
+_FIG_PY = re.compile(
+    r"effective context on a `\.py` edit is (?P<bytes>[\d,]+) bytes\s*"
+    r"across (?P<files>[\d,]+) files"
+)
+_FIG_SOURCE = re.compile(r"(?P<delta>[\d,]+) bytes larger in total \((?P<bytes>[\d,]+) always-on\)")
+_FIG_PLUGIN = re.compile(
+    r"`src/copilot-cli/instructions` carries (?P<files>[\d,]+) rules? and "
+    r"(?P<bytes>[\d,]+) bytes"
+)
+_FIG_MULTIPLIERS = re.compile(
+    r"always-on corpus is (?P<always>[\d.]+)x that threshold and a Python edit "
+    r"sees (?P<code>[\d.]+)x"
+)
+
+
+def _int(raw: str) -> int:
+    return int(raw.replace(",", ""))
+
+
+def _search(pattern: re.Pattern[str], text: str, label: str) -> re.Match[str]:
+    match = pattern.search(text)
+    if not match:
+        raise ValueError(
+            f"doctrine {label} figure did not match the expected prose shape; "
+            "update the sentence and this guard together"
+        )
+    return match
+
+
+def parse_doctrine_figures(text: str) -> dict[str, float]:
+    """Return every numeric claim the doctrine makes about corpus size.
+
+    Raises `ValueError` when a figure cannot be located, so that rewritten
+    prose fails loudly instead of leaving an assertion with nothing to check.
+    """
+    mirror = _search(_FIG_MIRROR, text, "always-on")
+    py = _search(_FIG_PY, text, "`.py` effective")
+    source = _search(_FIG_SOURCE, text, "source-basis")
+    plugin = _search(_FIG_PLUGIN, text, "plugin-tree")
+    mult = _search(_FIG_MULTIPLIERS, text, "8KB multiplier")
+    return {
+        "mirror_files": _int(mirror.group("files")),
+        "mirror_bytes": _int(mirror.group("bytes")),
+        "py_files": _int(py.group("files")),
+        "py_bytes": _int(py.group("bytes")),
+        "source_bytes": _int(source.group("bytes")),
+        "source_delta": _int(source.group("delta")),
+        "plugin_files": _int(plugin.group("files")),
+        "plugin_bytes": _int(plugin.group("bytes")),
+        "always_multiplier": float(mult.group("always")),
+        "code_multiplier": float(mult.group("code")),
+    }
+
+
+def _budget(ext: str):
+    """Measure one extension's always-on budget with the enforced tool."""
+    import sys
+
+    if str(REPO_ROOT) not in sys.path:
+        sys.path.insert(0, str(REPO_ROOT))
+    from scripts.validation import instruction_budget as ib
+
+    files = ib.load_instruction_files(REPO_ROOT)
+    return ib.measure_extension(files, ext, ceiling_bytes=10**9)
+
+
+def _source_bytes(mirror_names: tuple[str, ...]) -> int:
+    """Sum the `.claude/rules/` sources behind a set of generated mirrors."""
+    total = 0
+    for name in mirror_names:
+        source = REPO_ROOT / ".claude" / "rules" / name.replace(".instructions.md", ".md")
+        total += len(source.read_bytes())
+    return total
+
+
+def _tree_always_on(tree: Path) -> tuple[int, int]:
+    """Return (file count, byte total) for universally scoped rules in a tree."""
+    files = 0
+    total = 0
+    for path in sorted(tree.glob("*.instructions.md")):
+        raw = path.read_bytes()
+        applyto = _frontmatter(raw.decode("utf-8")).get("applyTo")
+        if isinstance(applyto, str) and applyto.strip() == "**":
+            files += 1
+            total += len(raw)
+    return files, total
+
+
+def test_doctrine_always_on_figures_match_the_measured_mirror() -> None:
+    figures = parse_doctrine_figures(DOCTRINE.read_text(encoding="utf-8"))
+    result = _budget(".md")
+    assert (figures["mirror_files"], figures["mirror_bytes"]) == (
+        len(result.matched_files),
+        result.total_bytes,
+    ), (
+        f"doctrine states {figures['mirror_files']} rules / "
+        f"{figures['mirror_bytes']} bytes always-on; measured "
+        f"{len(result.matched_files)} / {result.total_bytes}"
+    )
+
+
+def test_doctrine_python_figures_match_the_measured_mirror() -> None:
+    figures = parse_doctrine_figures(DOCTRINE.read_text(encoding="utf-8"))
+    result = _budget(".py")
+    assert (figures["py_files"], figures["py_bytes"]) == (
+        len(result.matched_files),
+        result.total_bytes,
+    ), (
+        f"doctrine states a `.py` edit sees {figures['py_files']} files / "
+        f"{figures['py_bytes']} bytes; measured "
+        f"{len(result.matched_files)} / {result.total_bytes}"
+    )
+
+
+def test_doctrine_source_basis_figure_and_delta_are_consistent() -> None:
+    """The doc quotes two bases; both, and the gap between them, must hold."""
+    figures = parse_doctrine_figures(DOCTRINE.read_text(encoding="utf-8"))
+    result = _budget(".md")
+    measured_source = _source_bytes(result.matched_files)
+    assert figures["source_bytes"] == measured_source, (
+        f"doctrine states {figures['source_bytes']} bytes at source; measured {measured_source}"
+    )
+    assert figures["source_delta"] == measured_source - result.total_bytes, (
+        f"doctrine states a {figures['source_delta']}-byte gap between source "
+        f"and mirror; measured {measured_source - result.total_bytes}"
+    )
+
+
+def test_doctrine_plugin_tree_figures_match_the_shipped_tree() -> None:
+    """The plugin tree diverges from `.github/instructions`; pin both sides."""
+    figures = parse_doctrine_figures(DOCTRINE.read_text(encoding="utf-8"))
+    plugin_tree = REPO_ROOT / "src" / "copilot-cli" / "instructions"
+    files, total = _tree_always_on(plugin_tree)
+    assert (figures["plugin_files"], figures["plugin_bytes"]) == (files, total), (
+        f"doctrine states the plugin tree carries {figures['plugin_files']} "
+        f"rules / {figures['plugin_bytes']} bytes always-on; measured "
+        f"{files} / {total}"
+    )
+    repo_files, repo_total = _tree_always_on(MIRROR_DIR)
+    assert (files, total) != (repo_files, repo_total), (
+        "the two instruction trees no longer diverge, so the passage "
+        "explaining why they differ is obsolete"
+    )
+
+
+def test_doctrine_8kb_multipliers_match_the_measured_source_sizes() -> None:
+    figures = parse_doctrine_figures(DOCTRINE.read_text(encoding="utf-8"))
+    always = _source_bytes(_budget(".md").matched_files) / _EIGHT_KB
+    code = _source_bytes(_budget(".py").matched_files) / _EIGHT_KB
+    assert round(always, 1) == figures["always_multiplier"], (
+        f"doctrine states {figures['always_multiplier']}x the 8KB threshold; "
+        f"measured {round(always, 1)}x"
+    )
+    assert round(code, 1) == figures["code_multiplier"], (
+        f"doctrine states a Python edit sees {figures['code_multiplier']}x; "
+        f"measured {round(code, 1)}x"
+    )
+
+
+def test_figure_parser_rejects_prose_with_a_figure_removed() -> None:
+    text = DOCTRINE.read_text(encoding="utf-8")
+    stripped = _FIG_PLUGIN.sub("the plugin tree carries more", text)
+    with pytest.raises(ValueError, match="plugin-tree"):
+        parse_doctrine_figures(stripped)
+
+
+def test_figure_parser_reads_every_documented_figure() -> None:
+    figures = parse_doctrine_figures(DOCTRINE.read_text(encoding="utf-8"))
+    assert set(figures) == {
+        "mirror_files",
+        "mirror_bytes",
+        "py_files",
+        "py_bytes",
+        "source_bytes",
+        "source_delta",
+        "plugin_files",
+        "plugin_bytes",
+        "always_multiplier",
+        "code_multiplier",
+    }
+    assert all(value > 0 for value in figures.values())
