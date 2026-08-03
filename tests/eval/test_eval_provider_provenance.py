@@ -146,7 +146,7 @@ class TestBuildPlanWithQuotaProvider:
         # Must not print a dollar figure for a quota provider.
         assert "cost_estimate_usd" not in cost_line[0]
         assert "cost_estimate_requests=" in cost_line[0]
-        assert "basis=quota" in cost_line[0]
+        assert "basis=requests" in cost_line[0]
 
     def test_format_plan_lines_usd_path_unchanged(self):
         plan = plan_mod.PlanRunner.build_plan(
@@ -176,10 +176,14 @@ class TestApiKeyImport:
     EXPECTED_IMPORT = "load_api_key_for_selected_provider"
     SCRIPTS = [
         "eval-agents.py",
+        "eval-e2e-delivery.py",
         "eval-knowledge-integration.py",
         "eval-oneshot-vs-shipped.py",
+        "eval-prompt-change.py",
+        "eval-reviewer-asymmetry.py",
         "eval-skill-overlap.py",
         "eval-rule-activation.py",
+        "eval_skill_router.py",
     ]
 
     @pytest.mark.parametrize("script", SCRIPTS)

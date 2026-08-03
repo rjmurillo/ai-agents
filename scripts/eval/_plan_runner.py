@@ -56,7 +56,7 @@ def _estimate_cost_usd(model_id: str, tokens_in: int, tokens_out: int) -> float:
             f"No pricing rate for model_id={model_id!r}. "
             f"Add it to MODEL_PRICING_RATES_USD_PER_1K_TOKENS in _eval_common.py."
         )
-    return (tokens_in * rates["input"] + tokens_out * rates["output"]) / 1000.0
+    return float((tokens_in * rates["input"] + tokens_out * rates["output"]) / 1000.0)
 
 
 class PlanRunner:
@@ -117,7 +117,7 @@ class PlanRunner:
         cost_estimate_usd=0.00 would read as a free run.
         """
         if plan.estimated_cost_usd is None:
-            cost_line = f"cost_estimate_requests={plan.planned_calls} basis=quota"
+            cost_line = f"cost_estimate_requests={plan.planned_calls} basis=requests"
         else:
             cost_line = (
                 f"cost_estimate_usd={plan.estimated_cost_usd:.2f} "

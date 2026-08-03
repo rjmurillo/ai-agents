@@ -1,5 +1,8 @@
 # Rule Audit Procedure
 
+<!-- vendor-portability: contributor-facing reference for the rjmurillo/ai-agents
+     repository itself; intentionally references upstream-only eval scripts
+     because repo contributors run the rule audit there (issue #2050) -->
 <!-- # taste-lint: ignore file-size -->
 <!-- file-size rationale: this is one linear procedure, executed top to bottom
 from step 0 through step 8. The 500-line limit encodes code cohesion, and the

@@ -50,10 +50,10 @@ QUOTA_BILLED_PROVIDERS = frozenset({"github", "github-models", "copilot", "copil
 
 
 def cost_basis(provider: str | None = None) -> str:
-    """Return "quota" for quota-billed providers, "usd" for token-billed ones.
+    """Return "requests" for quota-billed providers, "usd" for token-billed ones.
 
-    Resolves provider the same way _providers.resolve_provider does, so the
-    plan cost and the actual transport always agree.
+    Uses the same provider normalization as _providers.resolve_provider. It does
+    not validate provider names or resolve aliases.
     """
     import os  # local import: only needed here, avoids module-level side effect
 
