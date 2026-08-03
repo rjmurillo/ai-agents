@@ -2418,15 +2418,14 @@ class TestValidateClosingLinks:
         issues = self._fn("Fixes #50\n", base_ref="feat/stacked", default_branch="main")
         assert len(issues) == 1
         assert issues[0].severity == "WARNING"
-        assert issues[0].issue_type == "Closing keyword targets non-default branch"
-        assert "50" in issues[0].message
+        assert issues[0].issue_type == "Closing keyword on non-default base branch"
         assert "feat/stacked" in issues[0].message
 
-    def test_non_default_base_multiple_keywords_produces_multiple_warnings(self) -> None:
+    def test_non_default_base_multiple_keywords_produces_one_warning(self) -> None:
         body = "Fixes #1\nFixes #2\n"
         issues = self._fn(body, base_ref="feat/stacked", default_branch="main")
-        assert len(issues) == 2
-        assert all(i.severity == "WARNING" for i in issues)
+        assert len(issues) == 1
+        assert issues[0].severity == "WARNING"
 
     def test_same_base_and_default_returns_no_issues(self) -> None:
         issues = self._fn("Fixes #5\n", base_ref="main", default_branch="main")
@@ -2441,18 +2440,17 @@ class TestValidateClosingLinks:
         assert issues == []
 
     # ------------------------------------------------------------------
-    # Code-span keyword on non-default base: CRITICAL, not WARNING
+    # Code-span keyword on non-default base: CRITICAL and WARNING
     # ------------------------------------------------------------------
 
-    def test_code_span_on_non_default_base_is_critical_not_warning(self) -> None:
-        # Code span takes priority over non-default base
+    def test_code_span_on_non_default_base_is_critical_and_warning(self) -> None:
         issues = self._fn(
             "`Fixes #7`\n",
             base_ref="feat/stacked",
             default_branch="main",
         )
-        assert len(issues) == 1
-        assert issues[0].severity == "CRITICAL"
+        assert len(issues) == 2
+        assert {issue.severity for issue in issues} == {"CRITICAL", "WARNING"}
 
     # ------------------------------------------------------------------
     # Integration with main() via fetch_pr_data mock

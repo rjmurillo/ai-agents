@@ -635,8 +635,11 @@ _AUTO_CLOSE_KW: re.Pattern[str] = re.compile(
 # Excludes triple-backtick fences by the negative lookahead/behind.
 _INLINE_CODE_SPAN: re.Pattern[str] = re.compile(r"(?<!`)`(?!`)(?P<content>[^`\n]+?)(?<!`)`(?!`)")
 
-# Fenced code block: triple backtick with optional language tag.
-_FENCED_CODE_BLOCK: re.Pattern[str] = re.compile(r"```[^\n]*\n.*?```", re.DOTALL)
+# Fenced code block: backtick or tilde fence with optional language tag.
+_FENCED_CODE_BLOCK: re.Pattern[str] = re.compile(
+    r"^(`{3,}|~{3,})[^\n]*\n.*?^\1",
+    re.DOTALL | re.MULTILINE,
+)
 
 
 def _span_ranges(body: str, pattern: re.Pattern[str]) -> list[tuple[int, int]]:
@@ -650,8 +653,10 @@ def _in_any_range(pos: int, ranges: list[tuple[int, int]]) -> bool:
 
 def validate_closing_links(
     body: str,
-    base_ref: str,
-    default_branch: str,
+    base_ref: str = "",
+    default_branch: str = "main",
+    *,
+    base_branch: str | None = None,
 ) -> list[Issue]:
     """Detect closing keywords that GitHub will silently ignore.
 
@@ -670,15 +675,20 @@ def validate_closing_links(
     ``Refs`` is excluded because it is intentionally advisory and does not
     trigger auto-close regardless of location.
     """
+    if base_branch is not None:
+        base_ref = base_branch
+
     issues: list[Issue] = []
     fenced_ranges = _span_ranges(body, _FENCED_CODE_BLOCK)
     code_span_ranges = _span_ranges(body, _INLINE_CODE_SPAN)
     non_default_base = bool(base_ref and default_branch and base_ref != default_branch)
 
+    has_closing_keyword = False
     for m in _AUTO_CLOSE_KW.finditer(body):
         pos = m.start()
         full_kw = m.group(0)
         issue_num = m.group("number")
+        has_closing_keyword = True
         # Echo back the owner/repo qualifier the author actually wrote.
         # Dropping it renames the issue: "Fixes other-org/other-repo#5" would
         # be reported, and remediated, as this repository's own #5, which is a
@@ -714,21 +724,20 @@ def validate_closing_links(
                     ),
                 )
             )
-        elif non_default_base:
-            issues.append(
-                Issue(
-                    severity="WARNING",
-                    issue_type="Closing keyword targets non-default branch",
-                    file="<pr-body>",
-                    message=(
-                        f"Closing keyword '{full_kw}' will not auto-close issue "
-                        f"{issue_ref} because this PR targets '{base_ref}' "
-                        f"instead of '{default_branch}'. GitHub only auto-closes "
-                        "issues for PRs merged into the default branch. "
-                        f"Close issue {issue_ref} manually once this stack lands."
-                    ),
-                )
+    if non_default_base and has_closing_keyword:
+        issues.append(
+            Issue(
+                severity="WARNING",
+                issue_type="Closing keyword on non-default base branch",
+                file="<pr-body>",
+                message=(
+                    f"This PR targets '{base_ref}', not the default branch "
+                    f"'{default_branch}'. GitHub only auto-closes issues when "
+                    "a PR merges into the default branch. "
+                    "Close the linked issues by hand once this stack lands."
+                ),
             )
+        )
 
     return issues
 
