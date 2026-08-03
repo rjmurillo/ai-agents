@@ -6,10 +6,8 @@ import pytest
 
 from memory_enhancement.extraction import (
     extract_error_pattern,
-    extract_facts,
     format_suggestion,
     has_error_indicators,
-    has_notable_content,
 )
 
 
@@ -36,25 +34,17 @@ class TestHasErrorIndicators:
     def test_case_insensitive(self):
         assert has_error_indicators("PERMISSION DENIED") is True
 
-
-class TestHasNotableContent:
-    """Tests for notable content detection."""
+    @pytest.mark.unit
+    def test_ignores_an_indicator_inside_an_identifier(self):
+        assert has_error_indicators("analyze_pr_failure.py\ntest_error_handling.py") is False
 
     @pytest.mark.unit
-    def test_detects_python_file(self):
-        assert has_notable_content("Modified scripts/main.py") is True
+    def test_still_detects_an_indicator_inside_an_exception_name(self):
+        assert has_error_indicators("ValueError: bad value") is True
 
     @pytest.mark.unit
-    def test_detects_class_keyword(self):
-        assert has_notable_content("class MyService:") is True
-
-    @pytest.mark.unit
-    def test_no_notable_content(self):
-        assert has_notable_content("just plain text nothing special") is False
-
-    @pytest.mark.unit
-    def test_detects_function_keyword(self):
-        assert has_notable_content("function handleRequest()") is True
+    def test_still_detects_a_plural_indicator(self):
+        assert has_error_indicators("Found 3 errors") is True
 
 
 class TestExtractErrorPattern:
@@ -80,40 +70,6 @@ class TestExtractErrorPattern:
         assert len(result["pattern"]) <= 200
 
 
-class TestExtractFacts:
-    """Tests for fact extraction from tool output."""
-
-    @pytest.mark.unit
-    def test_extracts_file_references(self):
-        text = "Created file: src/main.py\nDone."
-        facts = extract_facts("editor", text)
-        assert len(facts) == 1
-        assert facts[0]["tool_name"] == "editor"
-        assert "main.py" in facts[0]["content"]
-        assert facts[0]["type"] == "observation"
-
-    @pytest.mark.unit
-    def test_extracts_multiple_facts(self):
-        text = "def foo():\nclass Bar:\nplain line"
-        facts = extract_facts("reader", text)
-        assert len(facts) == 2
-
-    @pytest.mark.unit
-    def test_empty_output_returns_empty(self):
-        assert extract_facts("tool", "") == []
-
-    @pytest.mark.unit
-    def test_no_notable_lines_returns_empty(self):
-        assert extract_facts("tool", "just text\nnothing here") == []
-
-    @pytest.mark.unit
-    def test_truncates_long_content(self):
-        line = "def " + "x" * 500
-        facts = extract_facts("tool", line)
-        assert len(facts) == 1
-        assert len(facts[0]["content"]) <= 300
-
-
 class TestFormatSuggestion:
     """Tests for suggestion formatting."""
 
@@ -127,9 +83,10 @@ class TestFormatSuggestion:
         assert "pattern:" in output
 
     @pytest.mark.unit
-    def test_formats_fact(self):
-        facts = extract_facts("reader", "class MyClass:")
-        output = format_suggestion(facts[0])
+    def test_formats_observation_dict(self):
+        output = format_suggestion(
+            {"tool_name": "reader", "type": "observation", "content": "class MyClass:"}
+        )
         assert "<memory-suggestion>" in output
         assert "type: observation" in output
         assert "reader output" in output
