@@ -111,7 +111,6 @@ import subprocess
 import sys
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +139,6 @@ if _lib_dir not in sys.path:
 
 from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
-    gh_graphql,
     resolve_repo_params,
     safe_log_str,
 )
@@ -335,7 +333,7 @@ def parse_lease_block(body: str) -> Lease | None:
     )
 
 
-def _comment_author(comment: dict[str, Any]) -> str:
+def _comment_author(comment: dict) -> str:
     """Return the verified comment author login (``user.login``), or "".
 
     GitHub's REST issue-comments payload carries the authenticated author
@@ -355,7 +353,7 @@ def _comment_author(comment: dict[str, Any]) -> str:
     return login if isinstance(login, str) else ""
 
 
-def select_authoritative_lease(comments: list[dict[str, Any]]) -> Lease | None:
+def select_authoritative_lease(comments: list[dict]) -> Lease | None:
     """Return the lease from the most-recent valid marker comment, or None.
 
     Latest-marker-wins (ADR-076 part 1: "The latest marker comment wins").
@@ -391,7 +389,7 @@ def classify_acquire(
     lease: Lease | None,
     acting_author: str,
     now: datetime,
-) -> dict[str, Any]:
+) -> dict:
     """Decide ACT vs SKIP for an acquire, given the authoritative lease.
 
     Mirrors ``check_pr_live_state.classify_live_state`` verdict shape
@@ -496,9 +494,12 @@ class LeaseStoreError(RuntimeError):
 def _git_head_sha() -> str | None:
     """Return the local HEAD SHA, or None if git is unavailable.
 
-    The acquire path records ``base_sha`` so the push-time guard (Phase 2
-    integration) can detect a remote advance under the lease. Phase 1 only
-    records it; it never gates a push on it (the SHA gate does that).
+    This answers "what is checked out here", which is NOT what ``base_sha``
+    means. ADR-076 part 1 defines ``base_sha`` as the "PR head.sha the
+    holder fetched before acquiring", and acquire step 1 fetches it from
+    GitHub. Acquire records this value only as the observed local checkout,
+    so a caller standing on the wrong branch is reported rather than
+    published as the PR's head (issues #4357, #4375).
     """
     try:
         result = subprocess.run(
@@ -518,81 +519,35 @@ def _git_head_sha() -> str | None:
     return sha if _SHA40.match(sha) else None
 
 
-_PR_HEAD_SHA_QUERY = """\
-query($owner: String!, $repo: String!, $number: Int!) {
-    repository(owner: $owner, name: $repo) {
-        pullRequest(number: $number) {
-            headRefOid
-        }
-    }
-}"""
+def _pr_head_sha(owner: str, repo: str, pr: int) -> str:
+    """Return the PR's authoritative head SHA. Raises LeaseStoreError.
 
-
-def _gh_pr_head_sha(repo_owner: str, repo: str, pr: int) -> str | None:
-    """Return the authoritative PR head SHA from GitHub, or None on failure.
-
-    Resolves the actual PR head via GraphQL ``headRefOid`` so the lease
-    ``base_sha`` reflects the PR branch tip regardless of the caller's
-    working directory (issue #4357). A caller in a ``main`` checkout
-    would otherwise publish ``base_sha`` equal to local HEAD (main's tip),
-    making the freshness evidence in the lease misleading for the
-    push-time guard.
-
-    Falls back to None on any API failure so acquire still proceeds
-    (fail-open; the SHA gate remains the hard backstop).
+    ADR-076 part 3 acquire step 1: "Fetch the PR ``head.sha`` and the latest
+    N lease comments in one bounded read". The value is read from GitHub, so
+    it describes the PR branch no matter which checkout the caller stands
+    in. Acquire catches the failure and records the zero sentinel rather
+    than failing open, because losing freshness evidence must not also lose
+    the lock (see ``acquire``).
     """
     try:
-        data = gh_graphql(
-            _PR_HEAD_SHA_QUERY,
-            {"owner": repo_owner, "repo": repo, "number": pr},
+        result = subprocess.run(
+            ["gh", "api", f"repos/{owner}/{repo}/pulls/{pr}", "--jq", ".head.sha"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            check=False,
         )
-    except RuntimeError as exc:
-        logger.warning(
-            "op=lease_pr_head_sha_failed pr=%d err=%s",
-            pr, safe_log_str(str(exc)),
+    except (subprocess.SubprocessError, OSError) as exc:
+        raise LeaseStoreError(f"pr head read failed: {exc}") from exc
+    if result.returncode != 0:
+        raise LeaseStoreError(
+            f"pr head read exited {result.returncode}: {safe_log_str((result.stderr or '')[:200])}"
         )
-        return None
-    sha: str = str(
-        (
-            (data.get("repository") or {})
-            .get("pullRequest") or {}
-        ).get("headRefOid", "")
-    )
-    if not sha or not _SHA40.match(sha):
-        return None
+    sha = (result.stdout or "").strip()
+    if not _SHA40.match(sha):
+        raise LeaseStoreError("pr head read returned no 40-hex sha")
     return sha
-
-
-def _resolve_base_sha(repo_owner: str, repo: str, pr: int) -> str:
-    """Return the best-available PR head SHA for the lease ``base_sha``.
-
-    Authoritative source: GitHub GraphQL ``headRefOid`` for the PR.
-    Fallback: local ``git rev-parse HEAD`` when the API call fails.
-    Last resort: 40-zero sentinel when neither is available.
-
-    Emits a structured warning when the local HEAD differs from the
-    authoritative PR head, which indicates the caller is in the wrong
-    checkout (issue #4357). The warning is diagnostic only; acquire
-    still proceeds using the authoritative SHA.
-    """
-    authoritative = _gh_pr_head_sha(repo_owner, repo, pr)
-    local = _git_head_sha()
-    if authoritative:
-        if local and local != authoritative:
-            logger.warning(
-                "op=lease_checkout_mismatch pr=%d local_head=%s pr_head=%s "
-                "reason=acquire_from_wrong_checkout",
-                pr, safe_log_str(local), safe_log_str(authoritative),
-            )
-        return authoritative
-    if local:
-        logger.warning(
-            "op=lease_pr_head_unavailable pr=%d local_head=%s "
-            "reason=using_local_head_as_fallback",
-            pr, safe_log_str(local),
-        )
-        return local
-    return "0" * 40
 
 
 def _gh_authenticated_login() -> str:
@@ -629,13 +584,13 @@ def _gh_comment_endpoint(owner: str, repo: str, pr: int) -> str:
     return f"repos/{owner}/{repo}/issues/{pr}/comments"
 
 
-def _parse_paginated_json_arrays(raw_stdout: str) -> list[dict[str, Any]]:
+def _parse_paginated_json_arrays(raw_stdout: str) -> list[dict]:
     """Parse one or more JSON array documents emitted by ``gh api --paginate``."""
     raw = raw_stdout.strip()
     if not raw:
         return []
     decoder = json.JSONDecoder()
-    comments: list[dict[str, Any]] = []
+    comments: list[dict] = []
     pos = 0
     while pos < len(raw):
         while pos < len(raw) and raw[pos].isspace():
@@ -651,7 +606,7 @@ def _parse_paginated_json_arrays(raw_stdout: str) -> list[dict[str, Any]]:
     return comments
 
 
-def list_lease_comments(owner: str, repo: str, pr: int) -> list[dict[str, Any]]:
+def list_lease_comments(owner: str, repo: str, pr: int) -> list[dict]:
     """Return PR issue comments (oldest first). Raises LeaseStoreError.
 
     Wraps ``gh api`` paginated read. A non-zero exit or malformed JSON is a
@@ -709,12 +664,43 @@ def post_lease_comment(owner: str, repo: str, pr: int, body: str) -> None:
 
 @dataclass(frozen=True, slots=True)
 class LeaseResult:
-    """Outcome of a lease operation. ``action`` is ACT or SKIP."""
+    """Outcome of a lease operation. ``action`` is ACT or SKIP.
+
+    ``base_sha`` is the PR's head SHA read from GitHub (ADR-076 part 1), and
+    is populated only on the ACT path. ``acquire`` returns SKIP before it
+    reads the PR head, so both ``base_sha`` and ``local_head_sha`` stay None
+    on that path; a caller must not read them as evidence about the PR.
+
+    On ACT, ``local_head_sha`` is what the caller's checkout had at ``HEAD``,
+    or None when git could not answer. The two differ whenever acquire runs
+    from a checkout that is not the PR branch; the caller reports both so
+    the divergence is visible instead of silently recorded as the PR's head
+    (issue #4357 acceptance criterion 4).
+    """
 
     action: str
     reason: str
     expires_at: str | None = None
     base_sha: str | None = None
+    local_head_sha: str | None = None
+
+
+def _warn_on_checkout_mismatch(pr: int, local_sha: str | None, base_sha: str) -> None:
+    """Log both SHAs when the caller's checkout is not the PR head.
+
+    The lease still publishes the authoritative PR head, so the recorded
+    evidence is correct either way. The warning tells the operator that the
+    session doing the fix work is standing somewhere else, which is what
+    produced the wrong lease on #4294 (issue #4357).
+    """
+    if local_sha is None or local_sha == base_sha:
+        return
+    logger.warning(
+        "op=lease_checkout_mismatch pr=%d local_head_sha=%s pr_head_sha=%s",
+        pr,
+        safe_log_str(local_sha),
+        safe_log_str(base_sha),
+    )
 
 
 def acquire(
@@ -740,31 +726,60 @@ def acquire(
     authenticated ``gh`` login is resolved. An unresolved login ("") can
     only claim a free lock, never self-renew a foreign one (fails safe).
 
+    ``base_sha`` is the PR head SHA read from GitHub (ADR-076 part 3 step
+    1), never the caller's local HEAD, so an acquire run from the wrong
+    checkout cannot publish freshness evidence for another branch. The
+    local HEAD is still read and reported as ``local_head_sha``, and a
+    mismatch is logged with both values (issues #4357, #4375).
+
+    Only the comment read fails open. The head read runs after the lease
+    verdict and records the zero sentinel on failure, so a transient error
+    on it cannot skip the read that enforces mutual exclusion, and it costs
+    nothing on the SKIP path.
+
     ``now`` is injectable for deterministic tests; production passes None
     and the current UTC instant is used.
     """
     now = now or datetime.now(UTC)
     author = _gh_authenticated_login() if acting_author is None else acting_author
-    base_sha = _resolve_base_sha(repo_owner, repo, pr)
+    local_sha = _git_head_sha()
     try:
         comments = list_lease_comments(repo_owner, repo, pr)
     except LeaseStoreError as exc:
         logger.warning("op=lease_acquire_failopen pr=%d err=%s", pr, safe_log_str(str(exc)))
-        return LeaseResult("ACT", "lease-store-unavailable", base_sha=base_sha)
+        return LeaseResult(
+            "ACT", "lease-store-unavailable", base_sha="0" * 40, local_head_sha=local_sha
+        )
 
     current = select_authoritative_lease(comments)
     verdict = classify_acquire(current, author, now)
     if verdict["action"] == "SKIP":
         return LeaseResult("SKIP", verdict["reason"], expires_at=verdict.get("expires_at"))
 
+    # The head read is freshness evidence, not the lock. Failing it open to ACT
+    # alongside the comment read would let a transient API error skip the read
+    # that enforces mutual exclusion, so it is scoped to the sentinel instead.
+    try:
+        base_sha = _pr_head_sha(repo_owner, repo, pr)
+    except LeaseStoreError as exc:
+        logger.warning("op=lease_pr_head_unavailable pr=%d err=%s", pr, safe_log_str(str(exc)))
+        base_sha = "0" * 40
+    _warn_on_checkout_mismatch(pr, local_sha, base_sha)
+
     claim = build_claim(owner, session, base_sha, now)
     try:
         post_lease_comment(repo_owner, repo, pr, render_lease_comment(claim))
     except LeaseStoreError as exc:
         logger.warning("op=lease_claim_failopen pr=%d err=%s", pr, safe_log_str(str(exc)))
-        return LeaseResult("ACT", "lease-store-unavailable", base_sha=base_sha)
+        return LeaseResult(
+            "ACT", "lease-store-unavailable", base_sha=base_sha, local_head_sha=local_sha
+        )
     return LeaseResult(
-        "ACT", verdict["reason"], expires_at=_to_rfc3339(claim.expires_at), base_sha=base_sha
+        "ACT",
+        verdict["reason"],
+        expires_at=_to_rfc3339(claim.expires_at),
+        base_sha=base_sha,
+        local_head_sha=local_sha,
     )
 
 
@@ -894,6 +909,7 @@ def main(argv: list[str] | None = None) -> int:
         "reason": result.reason,
         "expires_at": result.expires_at,
         "base_sha": result.base_sha,
+        "local_head_sha": result.local_head_sha,
     }
     logger.info(
         "op=lease pr=%d command=%s action=%s reason=%s",
