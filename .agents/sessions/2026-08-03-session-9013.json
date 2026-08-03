@@ -1,0 +1,119 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 9013,
+    "date": "2026-08-03",
+    "branch": "test/vacuous-assertion-anti-pattern",
+    "startingCommit": "22fe2b8e1",
+    "objective": "Name the self-shape assertion anti-pattern and the delete-and-measure procedure an adversarial review surfaced on PR 4485"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP unavailable in this Copilot CLI session; used the committed .serena/memories/ fallback that AGENTS.md names."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP unavailable; read .serena/memories/ directly when checking for existing coverage of this learning."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md read-only; no edits (ADR-014)."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github/scripts/issue/ and .claude/skills/github/scripts/pr/ before invoking new_issue.py and post_issue_comment.py."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Filed issue 4487 and posted the PR 4471 diagnosis through the github skill scripts rather than raw gh."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read PROJECT-CONSTRAINTS.md and AGENTS.md boundaries via the injected repository instructions."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Searched .serena/memories/ and .claude/rules/ for existing vacuous-test and tautology coverage before writing; found TESTING-ANTI-PATTERNS.md:15 and testing.md SHOULD 9 and extended the latter rather than duplicating."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "test/vacuous-assertion-anti-pattern"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On test/vacuous-assertion-anti-pattern"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short before staging; four files, all intended."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "22fe2b8e1"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart and sessionEnd MUST items carry evidence above."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md absent from the staged set."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Learning routed to .claude/rules/testing.md SHOULD 9 and TESTING-ANTI-PATTERNS.md Anti-Pattern 7 rather than a memory, per the knowledge-persistence rule: it must bind every contributor editing tests, so a rule file is the correct surface."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py markdown validation passed over the changed files; taste-lints reported 4 files scanned, no violations."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This commit lands the rule, the governance entry, both generated mirrors, and this log."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py reports RESULT: All validations passed; validate_session_json.py exits 0 on this file."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "reflect skill run over this segment; this branch is one of its outputs."
+      }
+    }
+  },
+  "workLog": [],
+  "endingCommit": "",
+  "nextSteps": []
+}

@@ -109,6 +109,31 @@
 
 ---
 
+## Anti-Pattern 7: Self-Shape Assertions
+
+**Description**: A test asserts a property of the function's own return literal rather than a property of the input. The most common form compares the key set of a returned dict against a hardcoded set, when the function builds that dict as a literal. The assertion holds unconditionally and can never fail.
+
+This differs from Anti-Pattern 1 in how it hides. Coverage theater looks thin. A self-shape assertion looks like a contract test, names real keys, and reads as deliberate. It survives review because the reader checks whether the keys are correct, not whether the comparison can ever be false.
+
+**Detection**:
+- `assert set(result) == {...}` where the function under test ends in a dict literal with exactly those keys
+- Assertions on the length, type, or field names of a hardcoded return shape
+- An assertion whose truth you can confirm by reading only the function body, never the input
+- The test would still pass if the input file were replaced with unrelated content
+
+**Correction**:
+- Ask the discriminating question: what input change makes this assertion false? If none exists, the assertion is vacuous.
+- Assert on values derived from the input, not on the shape the function always returns.
+- Blanket range guards such as `all(value > 0 ...)` are a related trap: they also fail when a legitimate zero appears. Guard the specific figure that cannot be zero, not every field.
+
+**Deleting a vacuous test is half the fix.** The vacuous test existed because someone believed that surface needed coverage. Before deleting, measure what the surviving tests actually cover; the vacuous test was masking the gap, not filling it. A parser with five patterns and one fail-closed test leaves four patterns free to fail open.
+
+Prove the replacement discriminates. Mutate the code so the guarded property is false, then confirm the failure count matches the number of cases you expect. In the incident that produced this entry, a fail-open mutation failed exactly five tests, one per pattern; the single-case test it replaced caught one, and the deleted self-shape assertion caught none.
+
+**Related**: Anti-Pattern 1 (Coverage Theater), `TESTING-RIGOR.md` positive/negative/edge requirement
+
+---
+
 ## Coverage Targets by Risk Tier
 
 | Code Category | Target | Rationale |
