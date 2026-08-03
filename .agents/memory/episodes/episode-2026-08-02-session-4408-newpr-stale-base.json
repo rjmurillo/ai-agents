@@ -68,7 +68,9 @@
       "timestamp": "2026-08-02T00:00:00+00:00",
       "type": "test",
       "content": "Reverted new_pr.py to HEAD and re-ran: all 6 new tests failed. Restored the fix: all 6 passed. A test that passes both ways would have proved nothing.",
-      "caused_by": [],
+      "caused_by": [
+        "e019"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-02-session-4408-newpr-stale-base"
     },
@@ -95,7 +97,9 @@
       "timestamp": "2026-08-02T00:00:00+00:00",
       "type": "test",
       "content": "build/scripts/generate_skills.py regenerated src/copilot-cli/skills/github/scripts/pr/new_pr.py; diff -q confirms it matches the canonical file. Full file: 80 passed.",
-      "caused_by": [],
+      "caused_by": [
+        "e019"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-02-session-4408-newpr-stale-base"
     },
@@ -167,7 +171,9 @@
       "timestamp": "2026-08-02T00:00:00+00:00",
       "type": "error",
       "content": "Discriminating check: ran the suite against origin/main (pre-fix) and against HEAD (hard-coded origin shorthand).    13 failures pre-fix, 9 failures against the shorthand version, 87 pass restored. The DWIM and multi-remote tests each catch a defect the earlier version had",
-      "caused_by": [],
+      "caused_by": [
+        "e019"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-02-session-4408-newpr-stale-base"
     },
@@ -179,6 +185,19 @@
       "caused_by": [],
       "leads_to": [],
       "_source_session": "2026-08-02-session-4408-newpr-stale-base"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: fc549e93dafb5c77e6a5a2c9b8ed1bd504e09c8c",
+      "caused_by": [],
+      "leads_to": [
+        "e006",
+        "e009",
+        "e017"
+      ],
+      "_source_session": "2026-08-02-session-4408-newpr-stale-base"
     }
   ],
   "metrics": {
@@ -186,7 +205,7 @@
     "tool_calls": 0,
     "errors": 13,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 5
   },
   "lessons": []
