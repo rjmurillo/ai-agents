@@ -47,8 +47,8 @@ issue, or write-up. All commands run from the repo root.
 | ADR-072 status is Proposed with approval conditions | `sed -n '1,15p' .agents/architecture/ADR-072-jtbd-plugin-architecture.md` |
 | ADR-068 status is Accepted as of 2026-07-30 | `sed -n '1,10p' .agents/architecture/ADR-068-consolidated-hook-dispatcher.md` |
 | Rule-activation eval exists with a no-spend path | `python3 scripts/eval/eval-rule-activation.py --help` |
-| 12 rule scenario fixtures as of 2026-07-30 | `set -- tests/evals/rule-scenarios/*; echo $#` |
-| Corpus size (98 skill directories, 25 rule files, 121 retrospective corpus files, 879 Markdown memory files as of 2026-07-30) | `set -- .claude/skills/*/; echo $#; set -- .claude/rules/*.md; echo $#; python3 -c "from pathlib import Path; print(sum(1 for p in Path('.agents/retrospective').glob('*.md') if p.is_file())); print(sum(1 for p in Path('.serena/memories').rglob('*.md') if p.is_file()))"` |
+| Rule scenario fixtures | `set -- tests/evals/rule-scenarios/*; echo $#` |
+| Corpus size across skills, rules, retros, memories | `python3 -c "from pathlib import Path as P; print(len(list(P('.claude/skills').glob('*/SKILL.md'))),'skills',len(list(P('.claude/rules').glob('*.md'))),'rules',sum(1 for p in P('.agents/retrospective').glob('*.md') if p.is_file() and p.name != 'INDEX.md'),'retros',sum(1 for p in P('.serena/memories').rglob('*.md') if p.is_file()),'memories')"` |
 | Runtime contract tests pass | `uv run pytest tests/build_scripts/test_generate_hooks_runtime_contract.py -q` |
 | Apply-step hooks unregistered | `uv run pytest -q "tests/build_scripts/test_copilot_dispatcher_artifact.py::TestDispatcherArtifacts::test_retired_hooks_are_absent_and_keepers_are_plugin_only"` |
 
@@ -89,19 +89,19 @@ durable competitive surface and everything else is plumbing.
 
 - Prompt engineering is folklore: rules ship because they sound right, and
   almost nobody measures whether a rule changes model behavior at all.
-- Rules are unmeasured even here: this repo has 25 rule files under
-  `.claude/rules/` but only 12 scenario fixtures under
-  `tests/evals/rule-scenarios/` (as of 2026-07-30). Those fixtures name 12
-  distinct rules, so 13 of 25 rules have no activation baseline.
+- Rules are unmeasured even here: this repo carries more rule files
+  under `.claude/rules/` than scenario fixtures under
+  `tests/evals/rule-scenarios/`. Run the Phase 1 corpus command for current
+  numbers rather than quoting a stored one. Most rules have never had an
+  activation baseline.
 - Weight tuning is unavailable to a repository: you cannot fine-tune the vendor
   model, so context curation is the only lever, and the field has no shared
   methodology for verifying it.
 
 ### This repo's asset
 
-- 98 skill directories, 25 rule files, 121 retrospective corpus files,
-  879 Serena Markdown memory files
-  (counts as of 2026-07-30; re-verify with the Phase 1 corpus-size command).
+- A large corpus of skill directories, rules, retrospectives, and Serena
+  memories. Run the Phase 1 corpus command for current counts.
 - Gates that produce inspectable artifacts (verification-based governance,
   SESSION-PROTOCOL.md): every rule violation leaves evidence, so compliance is
   measurable after the fact.
@@ -304,7 +304,7 @@ Sources and re-verification:
 - Guard tiers and thresholds: `.claude/skills/guard-maturity/SKILL.md:52-59`. Re-verify: `sed -n '52,59p' .claude/skills/guard-maturity/SKILL.md`.
 - Runtime contract test and anchoring validator: `tests/build_scripts/test_generate_hooks_runtime_contract.py`, `scripts/validation/validate_hook_anchoring.py`. Re-verify: `ls tests/build_scripts/test_generate_hooks_runtime_contract.py scripts/validation/validate_hook_anchoring.py`.
 - Env-anchor decision memory: `.serena/memories/decision-copilot-cli-hook-plugin-root-contract.md`. Re-verify: `ls .serena/memories/decision-copilot-cli-hook-plugin-root-contract.md`.
-- Counts (skill dirs, rules, retros, memories, scenario fixtures): Phase 1 command. Volatile; re-run before quoting rather than copying a snapshot from here.
+- Counts (skill dirs, rules, retros, memories, scenario fixtures): Phase 1 command. Volatile; run the command, never quote a stored number.
 - Incident claims (#2205, #2290, #1887, #1989, #2230): see `ai-agents-failure-archaeology` for evidence paths; do not re-litigate settled battles.
 
 Unverified in this document (flagged inline): per-rule traffic data, automated

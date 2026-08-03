@@ -24,6 +24,13 @@ from pathlib import Path
 _GIT_TIMEOUT_SECONDS = 30
 _COMMIT_SHA = re.compile(r"^[0-9a-f]{7,40}$")
 
+# The fragments ``commit_reachability_problem`` returns. Named so a caller can
+# tell which question failed without matching on prose: the object being absent
+# and the object being present but unreachable have different causes.
+NOT_A_COMMIT_SHA = "is not a commit SHA"
+NO_SUCH_COMMIT = "names no commit in this repository"
+NOT_AN_ANCESTOR = "names a commit that is not an ancestor of HEAD"
+
 
 def _git(args: list[str], repo_root: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
@@ -61,7 +68,7 @@ def commit_reachability_problem(sha: str, repo_root: Path) -> str | None:
         A sentence fragment naming the problem, or None when there is none.
     """
     if not _COMMIT_SHA.match(sha):
-        return "is not a commit SHA"
+        return NOT_A_COMMIT_SHA
     try:
         if _git(["rev-parse", "--is-inside-work-tree"], repo_root).returncode != 0:
             return None
@@ -69,9 +76,9 @@ def commit_reachability_problem(sha: str, repo_root: Path) -> str | None:
         if shallow.returncode != 0 or shallow.stdout.strip() == "true":
             return None
         if _git(["cat-file", "-e", f"{sha}^{{commit}}"], repo_root).returncode != 0:
-            return "names no commit in this repository"
+            return NO_SUCH_COMMIT
         if _git(["merge-base", "--is-ancestor", sha, "HEAD"], repo_root).returncode != 0:
-            return "names a commit that is not an ancestor of HEAD"
+            return NOT_AN_ANCESTOR
     except (OSError, subprocess.SubprocessError):
         return None
     return None
