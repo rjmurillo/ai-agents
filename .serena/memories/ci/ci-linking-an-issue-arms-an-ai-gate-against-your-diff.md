@@ -61,5 +61,5 @@ output as the verdict misattributes both passes and failures.
 - `.github/scripts/check_spec_failures.py` (the authoritative verdict)
 - `.github/workflows/ai-spec-validation.yml` (gate definition)
 - `scripts/ci/spec_extract_refs.py` (the `has_specs` guard)
-- [ci-validate-pr-has-four-signals-but-only-one-blocks](ci-validate-pr-has-four-signals-but-only-one-blocks.md).
+- [ci-validate-pr-is-many-gates-only-some-read-the-body](ci-validate-pr-is-many-gates-only-some-read-the-body.md).
   A different check with the same trap: most of its output is advisory.

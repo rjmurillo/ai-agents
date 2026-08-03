@@ -58,7 +58,7 @@ promotes to `status`. A template WARN does not red the `Validate PR` check.
 
 Use the template because it makes PRs readable, not because CI forces it. When the
 check is actually red, the cause is a different signal. See
-[ci-validate-pr-has-four-signals-but-only-one-blocks](../ci/ci-validate-pr-has-four-signals-but-only-one-blocks.md).
+[ci-validate-pr-is-many-gates-only-some-read-the-body](../ci/ci-validate-pr-is-many-gates-only-some-read-the-body.md).
 
 ## Related
 
