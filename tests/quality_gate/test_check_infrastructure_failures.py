@@ -96,7 +96,7 @@ class TestMainNoFailures:
 
         def fake_run(*a, **k):  # noqa: ANN002, ANN003
             called["run"] = True
-            return subprocess.CompletedProcess([], 0)
+            return subprocess.CompletedProcess([], 0, stdout="", stderr="")
 
         monkeypatch.setattr(mod.subprocess, "run", fake_run)
         rc = main(["--results-dir", str(tmp_path)])
@@ -116,38 +116,85 @@ class TestMainWithFailures:
         _write_infra(results, "security", "true", retries="2")
         return results
 
-    def test_adds_label_when_authenticated(self, tmp_path, monkeypatch, capsys) -> None:
+    def test_adds_label_over_rest_without_an_auth_preflight(
+        self, tmp_path, monkeypatch, capsys
+    ) -> None:
+        """One REST call, no `gh auth status`, no GraphQL.
+
+        `gh pr edit --add-label` routes through GraphQL, so it dies in the same
+        quota window that took `--add-reviewer` down in issue #4335, and the
+        `gh auth status` preflight in front of it skipped the label silently
+        during that window (issue #3139).
+        """
         results = self._seed_failure(tmp_path)
         monkeypatch.setenv("PR_NUMBER", "123")
         monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
         calls: list[list[str]] = []
 
-        def fake_run(cmd, timeout, check=False, capture_output=False):  # noqa: ANN001
+        def fake_run(cmd, **kwargs):  # noqa: ANN001, ANN003
             calls.append(cmd)
-            return subprocess.CompletedProcess(cmd, 0)
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
         monkeypatch.setattr(mod.subprocess, "run", fake_run)
         rc = main(["--results-dir", str(results)])
+
         assert rc == 0
-        # First call: gh auth status; second: gh pr edit --add-label.
-        assert calls[0][:3] == ["gh", "auth", "status"]
-        assert "--add-label" in calls[1]
-        assert "infrastructure-failure" in calls[1]
+        assert len(calls) == 1
+        assert calls[0][:4] == ["gh", "api", "--method", "POST"]
+        assert calls[0][4] == "repos/owner/repo/issues/123/labels"
+        assert "labels[]=infrastructure-failure" in calls[0]
+        assert "pr" not in calls[0]
         assert "Successfully added infrastructure-failure label" in capsys.readouterr().out
 
-    def test_auth_failure_skips_label_returns_zero(self, tmp_path, monkeypatch, capsys) -> None:
+    def test_quota_refusal_is_retried_then_reported(
+        self, tmp_path, monkeypatch, capsys
+    ) -> None:
         results = self._seed_failure(tmp_path)
         monkeypatch.setenv("PR_NUMBER", "123")
         monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+        calls: list[list[str]] = []
+        sleeps: list[float] = []
 
-        def fake_run(cmd, timeout, check=False, capture_output=False):  # noqa: ANN001
-            # gh auth status fails.
-            return subprocess.CompletedProcess(cmd, 1)
+        def fake_run(cmd, **kwargs):  # noqa: ANN001, ANN003
+            calls.append(cmd)
+            return subprocess.CompletedProcess(
+                cmd,
+                1,
+                stdout="",
+                stderr="gh: API rate limit exceeded for user ID 6811113 (HTTP 403)",
+            )
 
         monkeypatch.setattr(mod.subprocess, "run", fake_run)
+        monkeypatch.setattr(mod.time, "sleep", sleeps.append)
         rc = main(["--results-dir", str(results)])
+
+        out = capsys.readouterr().out
         assert rc == 0
-        assert "gh CLI authentication failed" in capsys.readouterr().out
+        assert len(calls) == len(mod.REFUSAL_BACKOFF_SECONDS)
+        assert sleeps == [mod.REFUSAL_BACKOFF_SECONDS[0]]
+        assert "rate_limited" in out
+
+    def test_permission_denial_is_not_retried(
+        self, tmp_path, monkeypatch, capsys
+    ) -> None:
+        results = self._seed_failure(tmp_path)
+        monkeypatch.setenv("PR_NUMBER", "123")
+        monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+        calls: list[list[str]] = []
+
+        def fake_run(cmd, **kwargs):  # noqa: ANN001, ANN003
+            calls.append(cmd)
+            return subprocess.CompletedProcess(
+                cmd, 1, stdout="", stderr="HTTP 403: Resource not accessible by integration"
+            )
+
+        monkeypatch.setattr(mod.subprocess, "run", fake_run)
+        monkeypatch.setattr(mod.time, "sleep", lambda _d: pytest.fail("must not sleep"))
+        rc = main(["--results-dir", str(results)])
+
+        assert rc == 0
+        assert len(calls) == 1
+        assert "Failed to add infrastructure-failure label" in capsys.readouterr().out
 
     def test_missing_pr_metadata_skips_label_returns_zero(
         self, tmp_path, monkeypatch, capsys
@@ -159,7 +206,7 @@ class TestMainWithFailures:
 
         def fake_run(*a, **k):  # noqa: ANN002, ANN003
             called["run"] = True
-            return subprocess.CompletedProcess([], 0)
+            return subprocess.CompletedProcess([], 0, stdout="", stderr="")
 
         monkeypatch.setattr(mod.subprocess, "run", fake_run)
         rc = main(["--results-dir", str(results)])
@@ -172,35 +219,35 @@ class TestMainWithFailures:
         monkeypatch.setenv("PR_NUMBER", "123")
         monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
 
-        def fake_run(cmd, timeout, check=False, capture_output=False):  # noqa: ANN001
-            if cmd[:3] == ["gh", "auth", "status"]:
-                return subprocess.CompletedProcess(cmd, 0)
-            return subprocess.CompletedProcess(cmd, 1)  # label add fails
+        def fake_run(cmd, **kwargs):  # noqa: ANN001, ANN003
+            return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="HTTP 404")
 
         monkeypatch.setattr(mod.subprocess, "run", fake_run)
         rc = main(["--results-dir", str(results)])
         assert rc == 0
         assert "Failed to add infrastructure-failure label" in capsys.readouterr().out
 
-    def test_auth_timeout_returns_zero(self, tmp_path, monkeypatch, capsys) -> None:
+    def test_timeout_returns_zero(self, tmp_path, monkeypatch, capsys) -> None:
         results = self._seed_failure(tmp_path)
         monkeypatch.setenv("PR_NUMBER", "123")
         monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
 
-        def fake_run(cmd, timeout, check=False, capture_output=False):  # noqa: ANN001
+        def fake_run(cmd, timeout, **kwargs):  # noqa: ANN001, ANN003
             raise subprocess.TimeoutExpired(cmd, timeout)
 
         monkeypatch.setattr(mod.subprocess, "run", fake_run)
         rc = main(["--results-dir", str(results)])
         assert rc == 0
-        assert "gh auth status timed out" in capsys.readouterr().out
+        assert "Adding infrastructure-failure label timed out" in capsys.readouterr().out
 
     def test_emits_notice_per_failed_agent(self, tmp_path, monkeypatch, capsys) -> None:
         results = self._seed_failure(tmp_path)
         monkeypatch.setenv("PR_NUMBER", "123")
         monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
         monkeypatch.setattr(
-            mod.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess([], 0)
+            mod.subprocess,
+            "run",
+            lambda *a, **k: subprocess.CompletedProcess([], 0, stdout="", stderr=""),
         )
         main(["--results-dir", str(results)])
         out = capsys.readouterr().out
