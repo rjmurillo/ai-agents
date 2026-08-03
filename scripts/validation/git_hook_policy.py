@@ -4852,65 +4852,6 @@ def _is_zero_sha(sha: str) -> bool:
 FORCE_PUSH_ESCAPE_ENV = "FORCE_PUSH_OK"
 
 
-def _check_non_fast_forward(push_ref: PushRef, repo_root: Path) -> int:
-    """Reject a push that drops commits already published on the remote.
-
-    ``universal.md`` MUST NOT #1 forbids force-pushing shared branches. The
-    pre-push hook never sees argv, so it cannot key off ``--force`` or
-    ``--force-with-lease``; a force can also come from ``push.default`` or a
-    ``+``-prefixed refspec. The reliable test is ancestry: when the remote tip
-    is not reachable from the local tip, the push rewrites published history
-    (issue #4293).
-
-    Returns 0 when the update is a fast-forward, a new branch, a deletion, or
-    a non-branch destination. Returns 1 for a rewrite and for any inconclusive
-    result, so the guard fails closed.
-    """
-    if push_ref.is_new or push_ref.is_deletion:
-        return 0
-    if not push_ref.remote_ref.startswith("refs/heads/"):
-        return 0
-    if os.environ.get(FORCE_PUSH_ESCAPE_ENV) == "1":
-        print(
-            f"WARNING: {FORCE_PUSH_ESCAPE_ENV}=1 allows a history rewrite of "
-            f"'{push_ref.remote_ref}'. Collaborator commits on that ref are "
-            "unrecoverable; there is no remote reflog.",
-            file=sys.stderr,
-        )
-        return 0
-    present = _run_git(repo_root, ["cat-file", "-e", f"{push_ref.remote_sha}^{{commit}}"])
-    if present.returncode != 0:
-        print(
-            f"ERROR: remote tip {push_ref.remote_sha} of '{push_ref.remote_ref}' is "
-            "not present locally, so the push cannot be proven to be a "
-            "fast-forward. Fetch the remote and retry.",
-            file=sys.stderr,
-        )
-        return 1
-    ancestry = _run_git(
-        repo_root,
-        ["merge-base", "--is-ancestor", push_ref.remote_sha, push_ref.local_sha],
-    )
-    if ancestry.returncode == 0:
-        return 0
-    if ancestry.returncode != 1:
-        _print_process_output(ancestry)
-        print(
-            "ERROR: could not determine whether the push to "
-            f"'{push_ref.remote_ref}' is a fast-forward; blocking to fail closed.",
-            file=sys.stderr,
-        )
-        return 1
-    print(
-        f"ERROR: non-fast-forward push to '{push_ref.remote_ref}'. Remote tip "
-        f"{push_ref.remote_sha} is not reachable from {push_ref.local_sha}, so "
-        "the push would drop commits already published there. Rebase or merge "
-        f"the remote work instead. Set {FORCE_PUSH_ESCAPE_ENV}=1 only when the "
-        "branch is yours alone and unshared.",
-        file=sys.stderr,
-    )
-    return 1
-
 
 def _merge_base(repo_root: Path, base: str, head: str) -> str | None:
     result = _run_git(repo_root, ["merge-base", base, head])
@@ -5098,10 +5039,6 @@ def check_push_refs(stream: TextIO, repo_root: Path) -> int:
     if nff_result != 0:
         return nff_result
     active_refs = [push_ref for push_ref in refs if not push_ref.is_deletion]
-    # Materialize the list so every offending ref is reported, not just the first.
-    rewrite_results = [_check_non_fast_forward(push_ref, repo_root) for push_ref in active_refs]
-    if any(result != 0 for result in rewrite_results):
-        return 1
     if active_refs:
         warn_if_push_files_incomplete(active_refs, repo_root)
         _fetch_origin_main(repo_root)
