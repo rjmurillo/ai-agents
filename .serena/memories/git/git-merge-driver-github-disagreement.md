@@ -133,6 +133,28 @@ and means nothing about drivers. Trust `git diff --stat "origin/$BASE...HEAD"`,
 and note that it clears on a different trigger than stale mergeability does. See
 `docs/autonomous-pr-monitor.md` for both triggers.
 
+**The two-dot form invents deletions, and the count scales with how far behind
+you are.** Note the three dots above. `origin/main..HEAD` compares the current
+tip of main against your head, so every commit that landed on main since you
+branched reads as content your branch removed. `origin/main...HEAD` compares the
+merge base instead, which is what GitHub shows.
+
+Verified 2026-08-02 on branch `docs/testing-discriminating-input`, 7 behind and 2
+ahead, whose real change adds three lines and deletes nothing:
+
+| form | result |
+|---|---|
+| `git diff --shortstat origin/main..HEAD` | 62 files, 207 insertions, **4978 deletions** |
+| `git diff --shortstat origin/main...HEAD` | 4 files, 118 insertions, 0 deletions |
+| `git diff --shortstat $(git merge-base HEAD origin/main) HEAD` | 4 files, 118 insertions, 0 deletions |
+
+The failure mode is not a wrong number, it is a wrong decision. Four thousand
+deletions on a three-line change reads as an accidental mass revert, and the
+reflex is to reset or re-branch, which discards real work to fix an artifact of
+the diff command. Check `git rev-list --left-right --count origin/main...HEAD`
+first: a non-zero left number means the two-dot form will lie, and by roughly
+that much.
+
 ## Resolution
 
 Only for the local-clean, server-conflicting direction. Merge `origin/main` into
