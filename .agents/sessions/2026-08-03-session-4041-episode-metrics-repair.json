@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4041,
+    "date": "2026-08-03",
+    "branch": "feat/orchestrator-wave-discipline",
+    "startingCommit": "ad0dc0033",
+    "objective": "Repair zero-commit metrics in concurrency-waves episode to unblock merge"
+  },
+  "protocolCompliance": {
+    "sessionLogCreated": true,
+    "branchVerified": true,
+    "handoffRead": true,
+    "memorySearched": false
+  },
+  "work": [
+    {
+      "description": "Fix episode metrics: set commits=12 (actual branch commit count) instead of 0",
+      "files": [
+        ".agents/memory/episodes/episode-2026-08-01-session-4041-bound-orchestrator-concurrency-waves-across.json"
+      ]
+    }
+  ],
+  "outcome": "Episode metrics repaired. test_the_committed_episode_store_is_clean passes."
+}

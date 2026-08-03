@@ -1,0 +1,29 @@
+{
+  "id": "episode-2026-08-03-session-9010",
+  "session": "2026-08-03-session-9010",
+  "timestamp": "2026-08-03T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Repair zero-commit metrics in concurrency-waves episode to unblock PR merge",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Repair episode metrics",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-9010"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 4
+  },
+  "lessons": []
+}
