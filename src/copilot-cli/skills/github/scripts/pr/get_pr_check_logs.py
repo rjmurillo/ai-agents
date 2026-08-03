@@ -482,8 +482,11 @@ def _payload_from_checks_input(
         )
         return None, pr_number, 1
 
-    if payload.get("Number") and pr_number == 0:
-        pr_number = int(payload["Number"])
+    payload_number = payload.get("Number")
+    if isinstance(payload_number, int) and pr_number == 0:
+        pr_number = payload_number
+    elif isinstance(payload_number, str) and payload_number.isdigit() and pr_number == 0:
+        pr_number = int(payload_number)
     return payload, pr_number, 0
 
 
