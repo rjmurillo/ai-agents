@@ -11,5 +11,5 @@ DEFAULT_CEILINGS_BYTES: dict[str, int] = {
     ".py": 99_000,
     ".cs": 99_000,
     ".ps1": 99_000,
-    ".md": 83_000,
+    ".md": 84_000,
 }

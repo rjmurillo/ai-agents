@@ -13,7 +13,7 @@
       "content": "Measure the abandoned branch against main before choosing a base",
       "caused_by": [],
       "leads_to": [
-        "e002"
+        "e010"
       ]
     },
     {
@@ -21,11 +21,9 @@
       "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
       "content": "Port family F2, itertools filters and heapq selectors",
-      "caused_by": [
-        "e001"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e003"
+        "e010"
       ]
     },
     {
@@ -33,11 +31,9 @@
       "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
       "content": "Fix a lambda owner-name crash surfaced by F2",
-      "caused_by": [
-        "e002"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e004"
+        "e010"
       ]
     },
     {
@@ -45,11 +41,9 @@
       "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
       "content": "Port family F1, operator selectors",
-      "caused_by": [
-        "e003"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e005"
+        "e010"
       ]
     },
     {
@@ -57,11 +51,9 @@
       "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
       "content": "Port family F3, module alias through container and class body",
-      "caused_by": [
-        "e004"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e006"
+        "e010"
       ]
     },
     {
@@ -69,11 +61,9 @@
       "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
       "content": "Port family F5, partial fixed capture through a container",
-      "caused_by": [
-        "e005"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e007"
+        "e010"
       ]
     },
     {
@@ -81,11 +71,9 @@
       "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
       "content": "Port family F4, partial keyword mutation undoing a codec pin",
-      "caused_by": [
-        "e006"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e008"
+        "e010"
       ]
     },
     {
@@ -93,11 +81,9 @@
       "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
       "content": "Fix main's construction-site codec-pin false positive",
-      "caused_by": [
-        "e007"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e009"
+        "e010"
       ]
     },
     {
@@ -105,73 +91,111 @@
       "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
       "content": "Port operator.methodcaller, previously deferred as expensive",
-      "caused_by": [
-        "e008"
-      ],
-      "leads_to": []
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ]
     },
     {
       "id": "e010",
-      "timestamp": "2026-07-30T00:00:00+00:00",
+      "timestamp": "2026-07-30T06:36:44+00:00",
       "type": "commit",
       "content": "Commit: 4fabd3819",
-      "caused_by": [],
-      "leads_to": []
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ]
     },
     {
       "id": "e011",
-      "timestamp": "2026-07-30T00:00:00+00:00",
+      "timestamp": "2026-07-30T06:39:43+00:00",
       "type": "commit",
       "content": "Commit: 691c21ac5",
-      "caused_by": [],
-      "leads_to": []
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ]
     },
     {
       "id": "e012",
-      "timestamp": "2026-07-30T00:00:00+00:00",
+      "timestamp": "2026-07-30T06:51:10+00:00",
       "type": "commit",
       "content": "Commit: 067d4c986",
-      "caused_by": [],
-      "leads_to": []
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ]
     },
     {
       "id": "e013",
-      "timestamp": "2026-07-30T00:00:00+00:00",
+      "timestamp": "2026-07-30T07:06:04+00:00",
       "type": "commit",
       "content": "Commit: bd1fadd7f",
-      "caused_by": [],
-      "leads_to": []
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ]
     },
     {
       "id": "e014",
-      "timestamp": "2026-07-30T00:00:00+00:00",
+      "timestamp": "2026-07-30T07:12:42+00:00",
       "type": "commit",
       "content": "Commit: a6c911400",
-      "caused_by": [],
-      "leads_to": []
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ]
     },
     {
       "id": "e015",
-      "timestamp": "2026-07-30T00:00:00+00:00",
+      "timestamp": "2026-07-30T07:21:41+00:00",
       "type": "commit",
       "content": "Commit: d928b6346",
-      "caused_by": [],
-      "leads_to": []
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e016"
+      ]
     },
     {
       "id": "e016",
-      "timestamp": "2026-07-30T00:00:00+00:00",
+      "timestamp": "2026-07-30T07:43:51+00:00",
       "type": "commit",
       "content": "Commit: 8ce470bfd",
-      "caused_by": [],
-      "leads_to": []
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [
+        "e017"
+      ]
     },
     {
       "id": "e017",
-      "timestamp": "2026-07-30T00:00:00+00:00",
+      "timestamp": "2026-07-30T07:51:02+00:00",
       "type": "commit",
       "content": "Commit: 707f016fc222a8691266181171b24d4adfa90beb",
-      "caused_by": [],
+      "caused_by": [
+        "e016"
+      ],
       "leads_to": []
     }
   ],
