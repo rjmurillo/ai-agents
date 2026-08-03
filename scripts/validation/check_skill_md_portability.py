@@ -562,7 +562,7 @@ def _changed_files_against_base(root: Path, base_ref: str) -> list[str] | None:
         return None
 
     try:
-        untracked_result = subprocess.run(
+        untracked_result: subprocess.CompletedProcess[str] | None = subprocess.run(
             ["git", "ls-files", "--others", "--exclude-standard"],
             cwd=root,
             capture_output=True,
@@ -572,7 +572,7 @@ def _changed_files_against_base(root: Path, base_ref: str) -> list[str] | None:
             check=False,
         )
     except OSError:
-        untracked_result = None  # type: ignore[assignment]
+        untracked_result = None
 
     diff_files = {line.strip() for line in diff_result.stdout.splitlines() if line.strip()}
     untracked_files: set[str] = set()
