@@ -318,26 +318,32 @@ The race a push lock exists to prevent is a lost ref update: two writers push
 to the same remote ref and one overwrites the other. Git takes its lock per ref.
 Two pushes to two different branches cannot race for the same lock on the server.
 
-A global `flock /tmp/aiagents-push.lock` wrapping `git push` serializes the
-entire fleet including the 7 to 15 minute pre-push hook. Five concurrent pushes
-to five distinct branches costs 5 x 15 = 75 minutes instead of 15.
+A single global lock wrapping `git push` serializes the entire fleet including
+the 7 to 15 minute pre-push hook. Five concurrent pushes to five distinct
+branches costs 5 x 15 = 75 minutes instead of 15.
 
-Use a per-branch lock keyed on the exact branch name:
+Use the canonical per-branch lock, keyed on the exact branch name. The path is
+fixed by `.claude/rules/push-lock.md` and `scripts/validation/check_push_lock_paths.py`
+blocks any other spelling:
 
 ```bash
 BR=$(git branch --show-current)
 SLUG=$(printf '%s' "$BR" | tr '/' '-')
-flock "/home/richard/src/GitHub/rjmurillo/ai-agents-pushpol2-push-${SLUG}.lock" \
-  git push --force-with-lease origin HEAD:"$BR"
+mkdir -p "$HOME/src/scratch/locks"
+flock "$HOME/src/scratch/locks/push-lock-$SLUG.lock" \
+  git push origin HEAD:"$BR"
 ```
 
 Notes:
 - `tr '/' '-'` is required: a branch like `fix/foo` would otherwise create a
   lock file with a `/` in its name, which the shell reads as a directory path.
-- Use an absolute path for the lock file and keep it outside `/tmp` (not durable
-  on this machine).
-- `--force-with-lease` already fails safely on a lost update. The lock prevents
-  the git-object-packing overhead of a concurrent same-branch push, not data loss.
+- `mkdir -p` first. `flock` fails when the parent directory is missing, and a
+  failed `flock` in a detached push says nothing.
+- Keep the lock outside `/tmp`. A wipe there splits one filename across two
+  inodes, and the two holders stop excluding each other (issue #4366).
+- The lock prevents the git-object-packing overhead of a concurrent same-branch
+  push. It is not a substitute for the pre-push non-fast-forward guard, and a
+  force push stays forbidden on a shared branch (issue #4293).
 - Two distinct branches never contend for the same lock file, so their pre-push
   hooks run in parallel. Measured throughput: four concurrent pushes to four
   distinct branches finish in approximately one hook duration, not four.
