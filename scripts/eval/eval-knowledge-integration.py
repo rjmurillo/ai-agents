@@ -31,7 +31,7 @@ from typing import Any
 # ---------------------------------------------------------------------------
 from _anthropic_api import DEFAULT_MODEL, load_custom_prompts, verify_model_available
 from _anthropic_api import call_api as _call_api
-from _anthropic_api import load_api_key as _load_api_key
+from _anthropic_api import load_api_key_for_selected_provider as _load_api_key_for_selected_provider
 from _eval_common import EST_TOKENS_PER_CALL, aggregate_multi_run_scores
 
 # ---------------------------------------------------------------------------
@@ -71,7 +71,9 @@ def load_skill_context(skill_name: str) -> str:
     if refs_dir.is_dir():
         for ref_file in sorted(refs_dir.iterdir()):
             if ref_file.is_file():
-                parts.append(f"# Reference: {ref_file.name}\n\n{ref_file.read_text(encoding='utf-8')}")
+                parts.append(
+                    f"# Reference: {ref_file.name}\n\n{ref_file.read_text(encoding='utf-8')}"
+                )
 
     return "\n\n---\n\n".join(parts)
 
@@ -82,130 +84,230 @@ def load_skill_context(skill_name: str) -> str:
 
 PROMPTS: dict[str, list[dict[str, str]]] = {
     "cva-analysis": [
-        {"prompt": "I have a system that handles payments in USD, EUR, and GBP with different tax rules per currency. How would you build the CVA matrix for this?",
-         "expected": "Matrix with currencies as columns, tax/payment concepts as rows. Rows map to Strategies, columns to Abstract Factory."},
-        {"prompt": "When should I use a Bridge pattern vs an Abstract Factory based on CVA results?",
-         "expected": "Bridge for two independent variation axes. Abstract Factory for co-dependent column items."},
-        {"prompt": "My CVA matrix has 40% empty cells. What does that tell me?",
-         "expected": "Forcing unrelated concerns into one dimension. Split into separate matrices. Empty cells are questions."},
-        {"prompt": "How does Coplien's multi-paradigm design relate to CVA?",
-         "expected": "Commonality analysis discovers natural abstractions. Variability analysis discovers differences. CVA-to-pattern pipeline."},
-        {"prompt": "I have a row in my CVA matrix where all cells are identical. What should I do?",
-         "expected": "Remove from matrix. Not a variability. Make it a constant in the base class."},
-        {"prompt": "What are the three perspectives I should keep separate during CVA analysis?",
-         "expected": "Conceptual (what you want), Specification (interfaces), Implementation (code). Mixing produces wrong abstractions."},
+        {
+            "prompt": "I have a system that handles payments in USD, EUR, and GBP with different tax rules per currency. How would you build the CVA matrix for this?",
+            "expected": "Matrix with currencies as columns, tax/payment concepts as rows. Rows map to Strategies, columns to Abstract Factory.",
+        },
+        {
+            "prompt": "When should I use a Bridge pattern vs an Abstract Factory based on CVA results?",
+            "expected": "Bridge for two independent variation axes. Abstract Factory for co-dependent column items.",
+        },
+        {
+            "prompt": "My CVA matrix has 40% empty cells. What does that tell me?",
+            "expected": "Forcing unrelated concerns into one dimension. Split into separate matrices. Empty cells are questions.",
+        },
+        {
+            "prompt": "How does Coplien's multi-paradigm design relate to CVA?",
+            "expected": "Commonality analysis discovers natural abstractions. Variability analysis discovers differences. CVA-to-pattern pipeline.",
+        },
+        {
+            "prompt": "I have a row in my CVA matrix where all cells are identical. What should I do?",
+            "expected": "Remove from matrix. Not a variability. Make it a constant in the base class.",
+        },
+        {
+            "prompt": "What are the three perspectives I should keep separate during CVA analysis?",
+            "expected": "Conceptual (what you want), Specification (interfaces), Implementation (code). Mixing produces wrong abstractions.",
+        },
     ],
     "decision-critic": [
-        {"prompt": "A team wants to remove a legacy caching layer that 'nobody uses anymore'. How should I challenge this?",
-         "expected": "Chesterton's Fence: understand why built before removing. Check usage, historical context, edge cases."},
-        {"prompt": "We're designing a new microservices architecture from scratch. What mental model warns against this?",
-         "expected": "Gall's Law: complex systems that work evolved from simple ones. Start simple, evolve."},
-        {"prompt": "Our A/B test shows 30% engagement increase. Should I trust this result?",
-         "expected": "Survivorship bias: only measuring users who stayed? Check for selection effects, missing data."},
-        {"prompt": "How should I evaluate a decision where the immediate fix looks good but long-term effects are unclear?",
-         "expected": "Systems thinking: feedback loops, second-order effects, delays. Map the system, not the component."},
-        {"prompt": "A developer says 'while fixing this bug, I should also refactor this messy code'. Appropriate?",
-         "expected": "Boy Scout Rule: leave code better. But scope to area you're touching. Don't expand blast radius."},
-        {"prompt": "Three competing proposals for auth system. How do I stress-test each?",
-         "expected": "Decompose into assumptions. Verify independently. Look for hidden coupling, single points of failure, reversibility."},
+        {
+            "prompt": "A team wants to remove a legacy caching layer that 'nobody uses anymore'. How should I challenge this?",
+            "expected": "Chesterton's Fence: understand why built before removing. Check usage, historical context, edge cases.",
+        },
+        {
+            "prompt": "We're designing a new microservices architecture from scratch. What mental model warns against this?",
+            "expected": "Gall's Law: complex systems that work evolved from simple ones. Start simple, evolve.",
+        },
+        {
+            "prompt": "Our A/B test shows 30% engagement increase. Should I trust this result?",
+            "expected": "Survivorship bias: only measuring users who stayed? Check for selection effects, missing data.",
+        },
+        {
+            "prompt": "How should I evaluate a decision where the immediate fix looks good but long-term effects are unclear?",
+            "expected": "Systems thinking: feedback loops, second-order effects, delays. Map the system, not the component.",
+        },
+        {
+            "prompt": "A developer says 'while fixing this bug, I should also refactor this messy code'. Appropriate?",
+            "expected": "Boy Scout Rule: leave code better. But scope to area you're touching. Don't expand blast radius.",
+        },
+        {
+            "prompt": "Three competing proposals for auth system. How do I stress-test each?",
+            "expected": "Decompose into assumptions. Verify independently. Look for hidden coupling, single points of failure, reversibility.",
+        },
     ],
     "golden-principles": [
-        {"prompt": "A class has 15 public methods. What code quality issue and how to fix?",
-         "expected": "Low cohesion. Too many responsibilities. Split by SRP. One reason to change."},
-        {"prompt": "Explain programming by intention with a concrete example.",
-         "expected": "Sergeant methods direct workflow via well-named private methods. Public method reads like intent, not implementation."},
-        {"prompt": "Duplicate validation logic in 3 controllers. Should I extract it?",
-         "expected": "DRY applies. Extract. But verify true duplication (same concept) not coincidental similarity."},
-        {"prompt": "How do I know if my code violates Open-Closed Principle?",
-         "expected": "Adding requirement requires modifying existing code instead of extending. Strategy makes code open-closed."},
-        {"prompt": "What's the relationship between testability and encapsulation?",
-         "expected": "Hard to test indicates poor encapsulation, tight coupling, Law of Demeter violation. Testability is a design signal."},
-        {"prompt": "When is it acceptable to violate Separation of Concerns?",
-         "expected": "Cross-cutting concerns (logging, auth, caching). Use aspects/middleware. Never for business logic."},
+        {
+            "prompt": "A class has 15 public methods. What code quality issue and how to fix?",
+            "expected": "Low cohesion. Too many responsibilities. Split by SRP. One reason to change.",
+        },
+        {
+            "prompt": "Explain programming by intention with a concrete example.",
+            "expected": "Sergeant methods direct workflow via well-named private methods. Public method reads like intent, not implementation.",
+        },
+        {
+            "prompt": "Duplicate validation logic in 3 controllers. Should I extract it?",
+            "expected": "DRY applies. Extract. But verify true duplication (same concept) not coincidental similarity.",
+        },
+        {
+            "prompt": "How do I know if my code violates Open-Closed Principle?",
+            "expected": "Adding requirement requires modifying existing code instead of extending. Strategy makes code open-closed.",
+        },
+        {
+            "prompt": "What's the relationship between testability and encapsulation?",
+            "expected": "Hard to test indicates poor encapsulation, tight coupling, Law of Demeter violation. Testability is a design signal.",
+        },
+        {
+            "prompt": "When is it acceptable to violate Separation of Concerns?",
+            "expected": "Cross-cutting concerns (logging, auth, caching). Use aspects/middleware. Never for business logic.",
+        },
     ],
     "threat-modeling": [
-        {"prompt": "How does defense in depth apply to a web API with a database backend?",
-         "expected": "Multiple independent layers: WAF, input validation, auth, authz, parameterized queries, encryption, network segmentation."},
-        {"prompt": "We're implementing zero trust for internal services. Core principles?",
-         "expected": "Never trust, always verify. Verify explicitly. Least privilege. Assume breach. No implicit trust from network."},
-        {"prompt": "Map STRIDE threats to OWASP Top 10.",
-         "expected": "Spoofing->Broken Auth. Tampering->Injection. Repudiation->Insufficient Logging. Info Disclosure->Sensitive Data Exposure."},
-        {"prompt": "Apply principle of least privilege to a CI/CD pipeline.",
-         "expected": "Separate build/deploy creds. Time-limited tokens. No persistent admin. Each stage gets only needed permissions."},
-        {"prompt": "Difference between defense in depth and zero trust?",
-         "expected": "DiD: multiple layers assuming outer may fail. ZT: no layer trusted, every request verified. Complementary."},
-        {"prompt": "Developer wants admin endpoint without auth 'because internal'. What's wrong?",
-         "expected": "Violates zero trust. Internal networks get breached. Defense in depth requires auth at every layer."},
+        {
+            "prompt": "How does defense in depth apply to a web API with a database backend?",
+            "expected": "Multiple independent layers: WAF, input validation, auth, authz, parameterized queries, encryption, network segmentation.",
+        },
+        {
+            "prompt": "We're implementing zero trust for internal services. Core principles?",
+            "expected": "Never trust, always verify. Verify explicitly. Least privilege. Assume breach. No implicit trust from network.",
+        },
+        {
+            "prompt": "Map STRIDE threats to OWASP Top 10.",
+            "expected": "Spoofing->Broken Auth. Tampering->Injection. Repudiation->Insufficient Logging. Info Disclosure->Sensitive Data Exposure.",
+        },
+        {
+            "prompt": "Apply principle of least privilege to a CI/CD pipeline.",
+            "expected": "Separate build/deploy creds. Time-limited tokens. No persistent admin. Each stage gets only needed permissions.",
+        },
+        {
+            "prompt": "Difference between defense in depth and zero trust?",
+            "expected": "DiD: multiple layers assuming outer may fail. ZT: no layer trusted, every request verified. Complementary.",
+        },
+        {
+            "prompt": "Developer wants admin endpoint without auth 'because internal'. What's wrong?",
+            "expected": "Violates zero trust. Internal networks get breached. Defense in depth requires auth at every layer.",
+        },
     ],
     "analyze": [
-        {"prompt": "Investigating a performance regression. How to structure using OODA loop?",
-         "expected": "Observe: metrics/logs/traces. Orient: compare baseline. Decide: hypothesis. Act: test with targeted measurement."},
-        {"prompt": "Inherited legacy codebase with no tests. Where to start?",
-         "expected": "Identify change/inflection points. Add characterization tests at boundaries. Sprout Method/Class. Don't rewrite, strangle."},
-        {"prompt": "Service has getters returning internal state for caller decisions. What design problem?",
-         "expected": "Tell Don't Ask violation. Feature envy. Move decision logic into the object that owns the data."},
-        {"prompt": "How to decide whether to fix adjacent code while fixing a bug?",
-         "expected": "Boy Scout Rule: improve code you touch but scope to area of change. Don't expand blast radius."},
-        {"prompt": "Three pillars of observability and when to use each?",
-         "expected": "Logs (events, debugging), Metrics (aggregates, alerting), Traces (request flow, latency). Use all three together."},
-        {"prompt": "Found a code smell but unsure if it's a real problem. How to decide?",
-         "expected": "Is it hard to test? Violates cohesion/coupling? Would a stranger understand? If yes, it's real."},
+        {
+            "prompt": "Investigating a performance regression. How to structure using OODA loop?",
+            "expected": "Observe: metrics/logs/traces. Orient: compare baseline. Decide: hypothesis. Act: test with targeted measurement.",
+        },
+        {
+            "prompt": "Inherited legacy codebase with no tests. Where to start?",
+            "expected": "Identify change/inflection points. Add characterization tests at boundaries. Sprout Method/Class. Don't rewrite, strangle.",
+        },
+        {
+            "prompt": "Service has getters returning internal state for caller decisions. What design problem?",
+            "expected": "Tell Don't Ask violation. Feature envy. Move decision logic into the object that owns the data.",
+        },
+        {
+            "prompt": "How to decide whether to fix adjacent code while fixing a bug?",
+            "expected": "Boy Scout Rule: improve code you touch but scope to area of change. Don't expand blast radius.",
+        },
+        {
+            "prompt": "Three pillars of observability and when to use each?",
+            "expected": "Logs (events, debugging), Metrics (aggregates, alerting), Traces (request flow, latency). Use all three together.",
+        },
+        {
+            "prompt": "Found a code smell but unsure if it's a real problem. How to decide?",
+            "expected": "Is it hard to test? Violates cohesion/coupling? Would a stranger understand? If yes, it's real.",
+        },
     ],
     "adr-generator": [
-        {"prompt": "I want to create an ADR for switching from REST to gRPC for internal services. Walk me through the process.",
-         "expected": "Phase G1: gather context, alternatives, stakeholders. ASR Test significance check. START readiness gate. Phase G2: scan destination for existing ADRs, detect template. Phase G3: generate. Phase G4: validate against checklist. Phase G5: save with correct naming."},
-        {"prompt": "The docs/adr/ directory has 5 existing ADRs using lowercase 0001-slug.md naming and Nygard template. What should I do?",
-         "expected": "Explore codebase to find ADR locations. Detect Nygard template from existing ADRs in docs/adr/. Adopt 0NNN-slug.md naming convention. Warn that auto-review will not trigger because the lowercase 0NNN-slug.md filename does not match the ADR-*.md glob, even though docs/adr/ is now monitored by adr-review file_triggers. Generate using Nygard sections (Status, Context, Decision, Consequences)."},
-        {"prompt": "No ADR directory exists in this project. How do I proceed?",
-         "expected": "Search broadly first: glob for ADR-*.md, adr-*.md, 0*-*.md across the codebase. Check for .adr-dir config. If nothing found, prompt user to choose template from catalog. Suggest MADR as widely-adopted default. Ask user to confirm target directory. Start numbering per chosen convention (e.g., 001, 0001, ADR-001)."},
-        {"prompt": "A developer wants to document choosing a logging library. Is that worth an ADR?",
-         "expected": "Apply ASR Test: business value/risk, stakeholder concern, cross-cutting impact, FOAK. Logging is cross-cutting (criterion 5). If it affects multiple services, yes. If purely local to one module, probably not."},
-        {"prompt": "I wrote an ADR with only one alternative and no negative consequences. What's wrong?",
-         "expected": "Two anti-patterns: Free Lunch Coupon (no negative consequences documented) and Sprint/Rush (only one option considered). Quality checklist requires at least 2 alternatives with pros/cons and at least 1 negative consequence. ecADR criterion 'c' (Criteria) also fails."},
-        {"prompt": "When should I use MADR vs Nygard vs the project canonical template?",
-         "expected": "Nygard: quick capture, single decision-maker, low ceremony. MADR: multiple stakeholders, formal evaluation, per-option pros/cons. Project canonical: this project's governance, Prior Art Investigation, coded consequences, agent-specific fields."},
+        {
+            "prompt": "I want to create an ADR for switching from REST to gRPC for internal services. Walk me through the process.",
+            "expected": "Phase G1: gather context, alternatives, stakeholders. ASR Test significance check. START readiness gate. Phase G2: scan destination for existing ADRs, detect template. Phase G3: generate. Phase G4: validate against checklist. Phase G5: save with correct naming.",
+        },
+        {
+            "prompt": "The docs/adr/ directory has 5 existing ADRs using lowercase 0001-slug.md naming and Nygard template. What should I do?",
+            "expected": "Explore codebase to find ADR locations. Detect Nygard template from existing ADRs in docs/adr/. Adopt 0NNN-slug.md naming convention. Warn that auto-review will not trigger because the lowercase 0NNN-slug.md filename does not match the ADR-*.md glob, even though docs/adr/ is now monitored by adr-review file_triggers. Generate using Nygard sections (Status, Context, Decision, Consequences).",
+        },
+        {
+            "prompt": "No ADR directory exists in this project. How do I proceed?",
+            "expected": "Search broadly first: glob for ADR-*.md, adr-*.md, 0*-*.md across the codebase. Check for .adr-dir config. If nothing found, prompt user to choose template from catalog. Suggest MADR as widely-adopted default. Ask user to confirm target directory. Start numbering per chosen convention (e.g., 001, 0001, ADR-001).",
+        },
+        {
+            "prompt": "A developer wants to document choosing a logging library. Is that worth an ADR?",
+            "expected": "Apply ASR Test: business value/risk, stakeholder concern, cross-cutting impact, FOAK. Logging is cross-cutting (criterion 5). If it affects multiple services, yes. If purely local to one module, probably not.",
+        },
+        {
+            "prompt": "I wrote an ADR with only one alternative and no negative consequences. What's wrong?",
+            "expected": "Two anti-patterns: Free Lunch Coupon (no negative consequences documented) and Sprint/Rush (only one option considered). Quality checklist requires at least 2 alternatives with pros/cons and at least 1 negative consequence. ecADR criterion 'c' (Criteria) also fails.",
+        },
+        {
+            "prompt": "When should I use MADR vs Nygard vs the project canonical template?",
+            "expected": "Nygard: quick capture, single decision-maker, low ceremony. MADR: multiple stakeholders, formal evaluation, per-option pros/cons. Project canonical: this project's governance, Prior Art Investigation, coded consequences, agent-specific fields.",
+        },
     ],
     "adr-review": [
-        {"prompt": "Review this ADR: 'We decided to use Redis for caching because it's fast.' Status: Accepted.",
-         "expected": "Multiple issues: Sales Pitch anti-pattern ('fast' without data). No alternatives considered. Status should be Proposed, not Accepted. Missing consequences. Fails Zimmermann checklist questions 2 (missing options), 5 (rationale not convincing), 6 (no consequences)."},
-        {"prompt": "An agent's review says 'this ADR is fine, LGTM' with no substantive comments. What anti-pattern is this?",
-         "expected": "Pass Through anti-pattern (or Over-Friendliness variant). Document barely read. Phase 2 consolidation should flag this and request re-review with more depth using the 7-question checklist."},
-        {"prompt": "A reviewer keeps recommending their own preferred technology in every review comment. What anti-pattern?",
-         "expected": "Self Promotion / Conflict of Interest anti-pattern. Comments mostly recommend reviewer's own work. Should provide objective technical arguments, not push preferred solutions."},
-        {"prompt": "How do the three review perspectives differ in rigor?",
-         "expected": "Peer/Coach: early feedback, low rigor, friendly. Stakeholder: confirm adequacy, medium rigor, seek agreement. Design Authority: formal approval, high rigor, sign-off. Choose reviewers based on review goals."},
-        {"prompt": "An ADR has good structure but the context section describes the solution instead of the problem. What to flag?",
-         "expected": "Zimmermann checklist question 1 and 5: is the problem relevant? Does the solution solve the problem? Context should explain forces and constraints, not the chosen solution. Author Pledge item 4: invest in quality (thorough, focused, factual)."},
-        {"prompt": "What are the 7 questions in the Zimmermann ADR review checklist?",
-         "expected": "1. Problem relevant enough? 2. Options solve the problem? Valid options missing? 3. Decision drivers MECE? 4. Conflicting criteria prioritized? 5. Chosen solution solves problem, rationale convincing? 6. Consequences objective? 7. Solution actionable, traceable, has review date?"},
+        {
+            "prompt": "Review this ADR: 'We decided to use Redis for caching because it's fast.' Status: Accepted.",
+            "expected": "Multiple issues: Sales Pitch anti-pattern ('fast' without data). No alternatives considered. Status should be Proposed, not Accepted. Missing consequences. Fails Zimmermann checklist questions 2 (missing options), 5 (rationale not convincing), 6 (no consequences).",
+        },
+        {
+            "prompt": "An agent's review says 'this ADR is fine, LGTM' with no substantive comments. What anti-pattern is this?",
+            "expected": "Pass Through anti-pattern (or Over-Friendliness variant). Document barely read. Phase 2 consolidation should flag this and request re-review with more depth using the 7-question checklist.",
+        },
+        {
+            "prompt": "A reviewer keeps recommending their own preferred technology in every review comment. What anti-pattern?",
+            "expected": "Self Promotion / Conflict of Interest anti-pattern. Comments mostly recommend reviewer's own work. Should provide objective technical arguments, not push preferred solutions.",
+        },
+        {
+            "prompt": "How do the three review perspectives differ in rigor?",
+            "expected": "Peer/Coach: early feedback, low rigor, friendly. Stakeholder: confirm adequacy, medium rigor, seek agreement. Design Authority: formal approval, high rigor, sign-off. Choose reviewers based on review goals.",
+        },
+        {
+            "prompt": "An ADR has good structure but the context section describes the solution instead of the problem. What to flag?",
+            "expected": "Zimmermann checklist question 1 and 5: is the problem relevant? Does the solution solve the problem? Context should explain forces and constraints, not the chosen solution. Author Pledge item 4: invest in quality (thorough, focused, factual).",
+        },
+        {
+            "prompt": "What are the 7 questions in the Zimmermann ADR review checklist?",
+            "expected": "1. Problem relevant enough? 2. Options solve the problem? Valid options missing? 3. Decision drivers MECE? 4. Conflicting criteria prioritized? 5. Chosen solution solves problem, rationale convincing? 6. Consequences objective? 7. Solution actionable, traceable, has review date?",
+        },
     ],
     "world-model-diagnostic": [
-        {"prompt": "A 60-person knowledge-work startup with strong senior engineers wants to build retrieval over their docs and Slack. Which paradigm fits?",
-         "expected": "Vector database. Knowledge work, under 100 people, senior team can act as human boundary layer. Pair with aggressive boundary work and explicit outcome encoding. Risk: loses effectiveness as senior judgment thins."},
-        {"prompt": "A regulated healthcare enterprise wants to automate clinical decision support. Which paradigm and why?",
-         "expected": "Structured ontology. Enterprise + regulated + safety-critical, errors are expensive. Boundary must be architectural. Trade-off: high upfront structure cost. Risk: over-engineered schema before patterns emerge."},
-        {"prompt": "An e-commerce platform has transaction logs, user behavior telemetry, and operational exhaust. Which paradigm?",
-         "expected": "Signal-fidelity. Platform business with high-fidelity machine-readable signal. Higher ceiling than vector DB or ontology. Risk: mistaking soft signals (emails, notes) for hard signals (transactions, metrics)."},
-        {"prompt": "A team says 'AI will decide which support tickets are urgent'. What's the diagnostic concern?",
-         "expected": "Automating judgment that should stay human. Urgency requires context only humans have. Boundary audit shows interpret this first. Use AI for routing only, keep human in loop. Distinguish act on this from interpret first."},
-        {"prompt": "Why does the diagnostic refuse to give a numeric readiness score?",
-         "expected": "Numeric scores conflate facts with interpretation and present judgment with the same voice as evidence. The diagnostic uses firm finding, inference, open question labels. Goal is to expose where information routing ends and editorial judgment begins, not produce a single number."},
-        {"prompt": "Cues conflict: company has high-fidelity transaction signal but only three senior people. How does the diagnostic resolve this?",
-         "expected": "Priority order from Paradigm Mapping Contract: 1. Highest-fidelity signal. 2. Cost of bad interpretive decision. 3. Senior human judgment available. Signal-fidelity wins on highest-fidelity rule. Caveat: thin senior layer means boundary work is non-negotiable."},
+        {
+            "prompt": "A 60-person knowledge-work startup with strong senior engineers wants to build retrieval over their docs and Slack. Which paradigm fits?",
+            "expected": "Vector database. Knowledge work, under 100 people, senior team can act as human boundary layer. Pair with aggressive boundary work and explicit outcome encoding. Risk: loses effectiveness as senior judgment thins.",
+        },
+        {
+            "prompt": "A regulated healthcare enterprise wants to automate clinical decision support. Which paradigm and why?",
+            "expected": "Structured ontology. Enterprise + regulated + safety-critical, errors are expensive. Boundary must be architectural. Trade-off: high upfront structure cost. Risk: over-engineered schema before patterns emerge.",
+        },
+        {
+            "prompt": "An e-commerce platform has transaction logs, user behavior telemetry, and operational exhaust. Which paradigm?",
+            "expected": "Signal-fidelity. Platform business with high-fidelity machine-readable signal. Higher ceiling than vector DB or ontology. Risk: mistaking soft signals (emails, notes) for hard signals (transactions, metrics).",
+        },
+        {
+            "prompt": "A team says 'AI will decide which support tickets are urgent'. What's the diagnostic concern?",
+            "expected": "Automating judgment that should stay human. Urgency requires context only humans have. Boundary audit shows interpret this first. Use AI for routing only, keep human in loop. Distinguish act on this from interpret first.",
+        },
+        {
+            "prompt": "Why does the diagnostic refuse to give a numeric readiness score?",
+            "expected": "Numeric scores conflate facts with interpretation and present judgment with the same voice as evidence. The diagnostic uses firm finding, inference, open question labels. Goal is to expose where information routing ends and editorial judgment begins, not produce a single number.",
+        },
+        {
+            "prompt": "Cues conflict: company has high-fidelity transaction signal but only three senior people. How does the diagnostic resolve this?",
+            "expected": "Priority order from Paradigm Mapping Contract: 1. Highest-fidelity signal. 2. Cost of bad interpretive decision. 3. Senior human judgment available. Signal-fidelity wins on highest-fidelity rule. Caveat: thin senior layer means boundary work is non-negotiable.",
+        },
     ],
 }
 
 SKILLS = list(PROMPTS.keys())
 
 
-def run_prompt(api_key: str, prompt: str, system_context: str = "", model: str = DEFAULT_MODEL) -> str:
+def run_prompt(
+    api_key: str, prompt: str, system_context: str = "", model: str = DEFAULT_MODEL
+) -> str:
     """Run a single prompt with optional system context."""
     messages = [{"role": "user", "content": prompt}]
     result: str = _call_api(api_key, messages, system=system_context, model=model)
     return result
 
 
-def score_response(api_key: str, prompt: str, response: str, expected: str, model: str = DEFAULT_MODEL) -> dict[str, Any]:
+def score_response(
+    api_key: str, prompt: str, response: str, expected: str, model: str = DEFAULT_MODEL
+) -> dict[str, Any]:
     """Use the API to score a response on accuracy, depth, specificity (1-5)."""
     scoring_prompt = f"""Score the following response on three dimensions (1-5 each).
 
@@ -230,6 +332,7 @@ Respond in JSON only, no other text:
     if "```" in text:
         # Extract content between first ``` and last ```
         import re
+
         match = re.search(r"```(?:json)?\s*\n(.*?)```", text, re.DOTALL)
         if match:
             text = match.group(1).strip()
@@ -238,7 +341,12 @@ Respond in JSON only, no other text:
         scores: dict[str, Any] = json.loads(text)
     except json.JSONDecodeError:
         print(f"WARNING: Failed to parse LLM response: {text[:100]}", file=sys.stderr)
-        scores = {"accuracy": 0, "depth": 0, "specificity": 0, "reasoning": f"Failed to parse: {text[:200]}"}
+        scores = {
+            "accuracy": 0,
+            "depth": 0,
+            "specificity": 0,
+            "reasoning": f"Failed to parse: {text[:200]}",
+        }
 
     return scores
 
@@ -246,6 +354,7 @@ Respond in JSON only, no other text:
 # ---------------------------------------------------------------------------
 # Kill gate criteria
 # ---------------------------------------------------------------------------
+
 
 def apply_kill_gate(results: dict[str, Any]) -> dict[str, Any]:
     """Apply kill gate per plan criteria (scales proportionally):
@@ -338,10 +447,7 @@ def _avg_scores(score_list: list[dict[str, Any]]) -> dict[str, float]:
         return {"accuracy": 0.0, "depth": 0.0, "specificity": 0.0}
 
     dims = ["accuracy", "depth", "specificity"]
-    return {
-        dim: round(sum(s.get(dim, 0) for s in score_list) / len(score_list), 2)
-        for dim in dims
-    }
+    return {dim: round(sum(s.get(dim, 0) for s in score_list) / len(score_list), 2) for dim in dims}
 
 
 # ---------------------------------------------------------------------------
@@ -383,10 +489,13 @@ def run_assessment(
 
         context = load_skill_context(skill)
         context_size = len(context)
-        print(f"\n{'='*60}", file=sys.stderr)
-        print(f"  Skill: {skill} ({len(skill_prompts)} prompts, context: {context_size} chars, "
-              f"runs: {runs})", file=sys.stderr)
-        print(f"{'='*60}", file=sys.stderr)
+        print(f"\n{'=' * 60}", file=sys.stderr)
+        print(
+            f"  Skill: {skill} ({len(skill_prompts)} prompts, context: {context_size} chars, "
+            f"runs: {runs})",
+            file=sys.stderr,
+        )
+        print(f"{'=' * 60}", file=sys.stderr)
 
         baseline_scores: list[dict[str, Any]] = []
         enhanced_scores: list[dict[str, Any]] = []
@@ -398,8 +507,12 @@ def run_assessment(
             print(f"  [{current}/{total}] {prompt_text[:70]}...", file=sys.stderr)
 
             if dry_run:
-                baseline_scores.append({"accuracy": 0, "depth": 0, "specificity": 0, "reasoning": "dry-run"})
-                enhanced_scores.append({"accuracy": 0, "depth": 0, "specificity": 0, "reasoning": "dry-run"})
+                baseline_scores.append(
+                    {"accuracy": 0, "depth": 0, "specificity": 0, "reasoning": "dry-run"}
+                )
+                enhanced_scores.append(
+                    {"accuracy": 0, "depth": 0, "specificity": 0, "reasoning": "dry-run"}
+                )
                 continue
 
             baseline_runs: list[dict[str, Any]] = []
@@ -411,7 +524,9 @@ def run_assessment(
 
                 # Baseline: no skill context
                 baseline_resp = run_prompt(api_key, prompt_text, model=model)
-                baseline_score = score_response(api_key, prompt_text, baseline_resp, expected, model=model)
+                baseline_score = score_response(
+                    api_key, prompt_text, baseline_resp, expected, model=model
+                )
                 baseline_score["model_used"] = model
                 baseline_runs.append(baseline_score)
                 api_call_count += 2  # 1 run + 1 score
@@ -420,8 +535,12 @@ def run_assessment(
 
                 # Enhanced: with skill context
                 system_ctx = f"You are a software engineering expert. Use the following skill knowledge to answer:\n\n{context}"
-                enhanced_resp = run_prompt(api_key, prompt_text, system_context=system_ctx, model=model)
-                enhanced_score = score_response(api_key, prompt_text, enhanced_resp, expected, model=model)
+                enhanced_resp = run_prompt(
+                    api_key, prompt_text, system_context=system_ctx, model=model
+                )
+                enhanced_score = score_response(
+                    api_key, prompt_text, enhanced_resp, expected, model=model
+                )
                 enhanced_score["model_used"] = model
                 enhanced_runs.append(enhanced_score)
                 api_call_count += 2  # 1 run + 1 score
@@ -437,8 +556,14 @@ def run_assessment(
             if baseline_agg.get("flaky") or enhanced_agg.get("flaky"):
                 flaky_tag = " [FLAKY]"
 
-            print(f"    Baseline: A={baseline_agg.get('accuracy',0)} D={baseline_agg.get('depth',0)} S={baseline_agg.get('specificity',0)}", file=sys.stderr)
-            print(f"    Enhanced: A={enhanced_agg.get('accuracy',0)} D={enhanced_agg.get('depth',0)} S={enhanced_agg.get('specificity',0)}{flaky_tag}", file=sys.stderr)
+            print(
+                f"    Baseline: A={baseline_agg.get('accuracy', 0)} D={baseline_agg.get('depth', 0)} S={baseline_agg.get('specificity', 0)}",
+                file=sys.stderr,
+            )
+            print(
+                f"    Enhanced: A={enhanced_agg.get('accuracy', 0)} D={enhanced_agg.get('depth', 0)} S={enhanced_agg.get('specificity', 0)}{flaky_tag}",
+                file=sys.stderr,
+            )
 
         results[skill] = {
             "baseline": baseline_scores,
@@ -458,9 +583,15 @@ def main() -> None:
     parser.add_argument("--skill", type=str, help="Eval a single skill instead of all 5")
     parser.add_argument("--prompts-file", type=str, help="Load custom prompts from a JSON file")
     parser.add_argument("--model", type=str, default=DEFAULT_MODEL, help="Model to use for eval")
-    parser.add_argument("--dry-run", action="store_true", help="Print prompts without calling the API")
-    parser.add_argument("--runs", type=int, default=1,
-                        help="Number of runs per scenario for flakiness detection (ADR-057)")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Print prompts without calling the API"
+    )
+    parser.add_argument(
+        "--runs",
+        type=int,
+        default=1,
+        help="Number of runs per scenario for flakiness detection (ADR-057)",
+    )
     parser.add_argument("--output", type=str, help="Write results to file instead of stdout")
     args = parser.parse_args()
 
@@ -469,7 +600,7 @@ def main() -> None:
         api_key = ""
     else:
         try:
-            api_key = _load_api_key()
+            api_key = _load_api_key_for_selected_provider()
         except RuntimeError as e:
             print(f"ERROR: {e}", file=sys.stderr)
             sys.exit(1)
@@ -483,7 +614,10 @@ def main() -> None:
     # Determine which skills to eval
     if args.skill:
         if not _get_skill_dir(args.skill):
-            print(f"ERROR: Skill directory not found for '{args.skill}' in {SKILLS_DIR}", file=sys.stderr)
+            print(
+                f"ERROR: Skill directory not found for '{args.skill}' in {SKILLS_DIR}",
+                file=sys.stderr,
+            )
             sys.exit(1)
         skills = [args.skill]
     else:
@@ -517,7 +651,9 @@ def main() -> None:
         sys.exit(2)
 
     prompt_count = sum(len(prompts.get(s, [])) for s in skills)
-    api_calls = prompt_count * 4 * args.runs if not args.dry_run else 0  # (2 runs + 2 scores) * runs per prompt
+    api_calls = (
+        prompt_count * 4 * args.runs if not args.dry_run else 0
+    )  # (2 runs + 2 scores) * runs per prompt
     print(f"Skills: {skills}", file=sys.stderr)
     print(f"Prompts: {prompt_count}, API calls: {api_calls}", file=sys.stderr)
 
@@ -525,8 +661,9 @@ def main() -> None:
         print(f"Starting eval (est. {api_calls * 2}s with rate limiting)...", file=sys.stderr)
 
     try:
-        results = run_assessment(api_key, skills, prompts, model=args.model,
-                                dry_run=args.dry_run, runs=args.runs)
+        results = run_assessment(
+            api_key, skills, prompts, model=args.model, dry_run=args.dry_run, runs=args.runs
+        )
     except RuntimeError as exc:
         print(f"Error: assessment failed: {exc}", file=sys.stderr)
         sys.exit(1)
@@ -565,12 +702,20 @@ def main() -> None:
     total_skills = gate.get("total_skills", len(skills))
     proceed_threshold = gate.get("proceed_threshold", 0)
     conditional_threshold = gate.get("conditional_threshold", 0)
-    print(f"\n{'='*70}", file=sys.stderr)
-    print(f"  KILL GATE: {gate['verdict']} ({'PASS' if gate['passed'] else 'FAIL'})", file=sys.stderr)
-    print(f"  Criteria: PROCEED={proceed_threshold}/{total_skills} pass (no regression), CONDITIONAL={conditional_threshold}/{total_skills} (or regression downgrades PROCEED), STOP=<{conditional_threshold}", file=sys.stderr)
-    print(f"{'='*70}", file=sys.stderr)
-    print(f"  {'Skill':<20} {'Baseline':>10} {'Enhanced':>10} {'Delta':>10} {'Status':>8}", file=sys.stderr)
-    print(f"  {'-'*58}", file=sys.stderr)
+    print(f"\n{'=' * 70}", file=sys.stderr)
+    print(
+        f"  KILL GATE: {gate['verdict']} ({'PASS' if gate['passed'] else 'FAIL'})", file=sys.stderr
+    )
+    print(
+        f"  Criteria: PROCEED={proceed_threshold}/{total_skills} pass (no regression), CONDITIONAL={conditional_threshold}/{total_skills} (or regression downgrades PROCEED), STOP=<{conditional_threshold}",
+        file=sys.stderr,
+    )
+    print(f"{'=' * 70}", file=sys.stderr)
+    print(
+        f"  {'Skill':<20} {'Baseline':>10} {'Enhanced':>10} {'Delta':>10} {'Status':>8}",
+        file=sys.stderr,
+    )
+    print(f"  {'-' * 58}", file=sys.stderr)
     for skill, summary in gate.get("summary", {}).items():
         b = sum(summary["baseline_avg"].values()) / 3
         enhanced_val = sum(summary["enhanced_avg"].values()) / 3
@@ -581,8 +726,11 @@ def main() -> None:
             status = "PASS"
         else:
             status = "BELOW"
-        print(f"  {skill:<20} {b:>10.2f} {enhanced_val:>10.2f} {d:>10.2f} {status:>8}", file=sys.stderr)
-    print(f"{'='*70}", file=sys.stderr)
+        print(
+            f"  {skill:<20} {b:>10.2f} {enhanced_val:>10.2f} {d:>10.2f} {status:>8}",
+            file=sys.stderr,
+        )
+    print(f"{'=' * 70}", file=sys.stderr)
 
     if gate.get("failures"):
         for f in gate["failures"]:
