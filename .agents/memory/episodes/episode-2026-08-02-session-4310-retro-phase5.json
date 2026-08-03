@@ -1,0 +1,96 @@
+{
+  "id": "episode-2026-08-02-session-4310-retro-phase5",
+  "session": "2026-08-02-session-4310-retro-phase5",
+  "timestamp": "2026-08-02T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Persist Phase 5 retrospective learnings from the PR #4302 incident: three new memories, two corrections, and the retrospective artifact.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran retrospective skill Phase 0-5 over the PR #4302 incident",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-02-session-4310-retro-phase5"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Deduplicated candidate learnings against 898 existing memories before writing",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-02-session-4310-retro-phase5"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wrote three new memories at 95%, 90%, and 92% atomicity",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-02-session-4310-retro-phase5"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected two existing memories that would have reproduced the defect",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-02-session-4310-retro-phase5"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Harvested agent redo4003: PR #4003 merge resolution redone and pushed green",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-02-session-4310-retro-phase5"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-02T19:10:09+00:00",
+      "type": "commit",
+      "content": "Commit: d51833006889",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4310-retro-phase5"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": [
+    "Search open issues for the target file before designing a fix. gh issue list --state open --limit 400 --search '<filename>' --json number,title",
+    "Root-cause bisection names the cause, never the remedy. Write down what the code is structurally, then ask whether the metric that flagged it fits that structure.",
+    "An assertion is sound only when its expected value traces to a different authority than the code under test. Mutate the production code and confirm the test goes red. A survivor had one authority.",
+    "Avoid: Sampling gh run list with status=completed over a recent-N window to measure CI duration. Paginate to 500+ runs and confirm the workflows you care about appear in the sample by name.",
+    "Avoid: Treating a clean bisection as carrying the design forward. Treat the end of diagnosis as the start of design. Search the tracker before writing the remedy."
+  ]
+}
