@@ -71,6 +71,75 @@ def tracked_files(repo_root: Path, globs: Sequence[str]) -> list[str] | None:
     return [path for path in proc.stdout.split("\0") if path]
 
 
+def _diff_paths(repo_root: Path, spec: str, scope: str) -> frozenset[str]:
+    """Paths named by one ``git diff`` form, or empty with the cause on stderr.
+
+    ``scope`` names what could not be resolved, so the two probes in
+    ``changed_files`` stay distinguishable on stderr when only one fails. Empty
+    on failure: this orders a diagnostic and must never block a push.
+    """
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(repo_root), "diff", "--name-only", "-z", spec],
+            capture_output=True,
+            text=True,
+            errors="replace",
+            encoding="utf-8",
+            check=False,
+        )
+    except (FileNotFoundError, OSError) as exc:
+        sys.stderr.write(f"diagnostic ordering degraded: git could not be launched: {exc}\n")
+        return frozenset()
+    if proc.returncode != 0:
+        sys.stderr.write(f"diagnostic ordering degraded: git could not resolve {scope}\n")
+        sys.stderr.write(proc.stderr)
+        return frozenset()
+    return frozenset(path for path in proc.stdout.split("\0") if path)
+
+
+def changed_files(repo_root: Path, base_ref: str | None) -> frozenset[str]:
+    """Repo-relative paths this checkout changed, or empty when unknown.
+
+    Used only to order the regression diagnostic, never to change a count. A
+    whole-repo ratchet trips on a total, so the printed list is dominated by
+    historical violations the branch never touched: on issue #3902's own PR the
+    single added violation sat at index 596 of 601 and the 40-line cap hid it.
+    Showing branch-touched files first puts the actionable line on screen.
+
+    Two probes, unioned, because the priority set has to cover the same surface
+    the scan reads. ``tracked_files`` lists the index and the linter then reads
+    each path off disk, so a staged or unstaged edit is counted like any other
+    content. ``base_ref...HEAD`` names committed work only, so a violation
+    introduced by a dirty file was counted, tripped the ratchet, and then
+    sorted in with the historical bulk it was supposed to lead: the exact
+    burying this ordering exists to prevent, and its likeliest local shape,
+    since the pre-push hook scans whatever is on disk. ``git diff HEAD`` closes
+    that. It names staged and unstaged edits to tracked files, including a
+    staged addition, and omits untracked paths, which ``git ls-files`` never
+    offers the linter anyway.
+
+    Three-dot on the committed leg so a branch behind ``base_ref`` is compared
+    against the merge base and does not inherit every file the base changed
+    meanwhile, which would degenerate the priority set to "everything".
+
+    Empty on any failure, which degrades to the previous emission order rather
+    than blocking. The legs fail independently, so one unusable probe still
+    leaves the other probe's paths prioritised. A failure writes the cause to
+    stderr, matching ``tracked_files`` above; an unordered list is
+    indistinguishable from an untouched tree otherwise.
+
+    An absent ``base_ref`` is the documented no-op, not a failure, and stays
+    quiet, the working-tree probe included. A caller that omits ``--base-ref``
+    asked for no ordering at all, and probing anyway would print a degradation
+    note on every run outside a repository.
+    """
+    if not base_ref:
+        return frozenset()
+    committed = _diff_paths(repo_root, f"{base_ref}...HEAD", base_ref)
+    uncommitted = _diff_paths(repo_root, "HEAD", "HEAD")
+    return committed | uncommitted
+
+
 def chunk(paths: Sequence[str], budget: int = ARGV_BUDGET_BYTES) -> list[list[str]]:
     """Split ``paths`` into batches sized in UTF-8 bytes.
 
@@ -227,14 +296,16 @@ def run(
     counter: Callable[[Path], int | None],
     scan_error: str,
     regression_advice: str,
-    lister: Callable[[Path], list[str] | None] | None = None,
+    lister: Callable[[Path, frozenset[str]], list[str] | None] | None = None,
 ) -> int:
     """Evaluate one ratchet. ``counter`` returns the current count, or None.
 
-    ``lister`` is an optional function that returns the full violation list.
-    When provided and a regression is detected, the violations are printed to
-    stderr so contributors can see what needs fixing without a separate run
-    (issue #3902).
+    ``lister`` is an optional function that returns the full violation list,
+    given the repo root and the set of paths the branch changed. When provided
+    and a regression is detected, the violations are printed to stderr so
+    contributors can see what needs fixing without a separate run (issue #3902).
+    A lister is expected to order branch-touched files first so the 40-line cap
+    cannot hide the violation that caused the regression.
     """
     baseline = read_baseline(args.baseline)
     if baseline is None:
@@ -288,7 +359,8 @@ def run(
             file=sys.stderr,
         )
         if lister is not None:
-            violations = lister(args.repo_root.resolve())
+            root = args.repo_root.resolve()
+            violations = lister(root, changed_files(root, args.base_ref))
             if violations:
                 max_lines = 40
                 lines = violations[:max_lines]
@@ -310,8 +382,7 @@ def run(
             )
             return EXIT_OK
         print(
-            f"{label}: OK. {count} violations <= baseline {baseline} "
-            f"(-{baseline - count} slack)."
+            f"{label}: OK. {count} violations <= baseline {baseline} (-{baseline - count} slack)."
         )
         return EXIT_OK
 

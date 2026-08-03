@@ -18,7 +18,7 @@ Assuming `gh pr list` output is complete without verification causes systematic 
 1. **Silent failures**: Missing PRs go unnoticed until user feedback
 2. **Trust erosion**: User must verify agent's work
 3. **Wasted effort**: Re-processing required after discovery
-4. **Systematic gap**: Not random—specific filter conditions cause misses
+4. **Systematic gap**: Not random: specific filter conditions cause misses
 
 ## Correct Pattern
 

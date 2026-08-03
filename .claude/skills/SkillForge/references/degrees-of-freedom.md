@@ -1,5 +1,7 @@
 # Degrees of Freedom in Skill Design
 
+<!-- vendor-portability-exec: example invocations only; scripts referenced here are illustrative and do not exist in this repository -->
+
 When writing SKILL.md instructions, choose how much latitude to give Claude. Not every section needs the same level of specificity. The right choice depends on how fragile the operation is and how much valid variation exists.
 
 Think of Claude as exploring a path: a narrow bridge with cliffs needs specific guardrails (low freedom), while an open field allows many routes (high freedom).

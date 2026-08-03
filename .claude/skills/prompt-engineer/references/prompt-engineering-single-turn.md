@@ -1,6 +1,6 @@
 # Prompt Engineering: Research-Backed Techniques for Single-Turn Prompts
 
-This document synthesizes practical prompt engineering patterns with academic research on LLM reasoning and instruction-following. All techniques target **single-turn system prompts**--static instructions executed in one LLM call. Techniques may include internal structure (e.g., "first extract, then analyze") but do not rely on multi-message orchestration, external tool loops, or dynamic prompt modification.
+This document synthesizes practical prompt engineering patterns with academic research on LLM reasoning and instruction-following. All techniques target **single-turn system prompts**, static instructions executed in one LLM call. Techniques may include internal structure (e.g., "first extract, then analyze") but do not rely on multi-message orchestration, external tool loops, or dynamic prompt modification.
 
 **Meta-principle**: Show your prompt to a colleague with minimal context on the task and ask them to follow the instructions. If they're confused, the model will likely be too.
 
@@ -11,78 +11,78 @@ This document synthesizes practical prompt engineering patterns with academic re
 | Domain             | Technique                     | Trigger Condition                               | Stacks With                        | Conflicts With                     | Cost/Tradeoff                                | Effect                                                       |
 | ------------------ | ----------------------------- | ----------------------------------------------- | ---------------------------------- | ---------------------------------- | -------------------------------------------- | ------------------------------------------------------------ |
 | **Reasoning**      | Plan-and-Solve                | Multi-step problems with missing steps          | RE2, Thinking Tags, Step-Back      | Scope Limitation, Direct Prompting | Moderate token increase for planning phase   | Of incorrect answers: calc errors 7%→5%, missing-step 12%→7% |
-| **Reasoning**      | Step-Back                     | Domain knowledge required before reasoning      | Plan-and-Solve                     | --                                  | Additional retrieval step                    | Up to 27% improvement on knowledge tasks                     |
+| **Reasoning**      | Step-Back                     | Domain knowledge required before reasoning      | Plan-and-Solve                     | n/a                                | Additional retrieval step                    | Up to 27% improvement on knowledge tasks                     |
 | **Reasoning**      | Chain of Draft                | Token efficiency needed                         | Any reasoning technique            | Verbose CoT                        | Minimal; up to 92% token reduction           | Matches CoT accuracy at 7.6% token cost                      |
-| **Reasoning**      | Direct Prompting              | Pattern recognition, implicit learning          | --                                  | Any CoT variant                    | Minimal; no reasoning overhead               | Avoids 30%+ accuracy drops on pattern tasks                  |
-| **Reasoning**      | Thread of Thought             | Chaotic/multi-source context                    | RE2                                | --                                  | Moderate increase; benefits from two-phase   | Systematic context segmentation                              |
-| **Input**          | RE2 (Re-Reading)              | Any comprehension task (universal enhancer)     | All output-phase techniques        | --                                  | Minimal; question repetition only            | GSM8K: 77.79%→80.59% with CoT                                |
-| **Input**          | RaR (Rephrase and Respond)    | Ambiguous questions, frame mismatch             | CoT                                | --                                  | Minimal; single rephrasing step              | Aligns intent with LLM interpretation                        |
-| **Input**          | S2A (System 2 Attention)      | Heavily biased/opinionated context              | --                                  | Including original context         | ~2x tokens (preprocessing filter call)       | Factual QA: 62.8%→80.3% on opinion-contaminated prompts      |
-| **Input**          | Distractor-Robust Prompting   | Occasional noise, efficiency needed             | Explicit ignore instruction        | --                                  | Minimal; single-turn, no preprocessing       | Approaches S2A without preprocessing cost                    |
-| **Input**          | Document Positioning          | >20K tokens of source material                  | Quote Extraction                   | --                                  | None; structural change only                 | Empirical improvement (Anthropic guidance)                   |
-| **Input**          | Quote Extraction              | Grounding required before analysis              | Document Positioning               | --                                  | Moderate increase for extraction step        | Forces evidence commitment                                   |
-| **Example Design** | Contrastive Examples          | Model makes predictable mistakes                | Affirmative Directives, Categories | --                                  | ~2x example tokens (correct + incorrect)     | +9.8 to +16.0 points on reasoning tasks                      |
-| **Example Design** | Complexity-Based Selection    | Teaching thorough reasoning                     | Diversity-Based Selection          | --                                  | Fewer examples but longer; net neutral       | +5.3 avg, up to +18 accuracy (Fu et al.)                     |
-| **Example Design** | Diversity-Based Selection     | Selecting from example pool                     | Complexity-Based Selection         | --                                  | None; selection strategy only                | Robust even with 50% wrong demos                             |
+| **Reasoning**      | Direct Prompting              | Pattern recognition, implicit learning          | n/a                                | Any CoT variant                    | Minimal; no reasoning overhead               | Avoids 30%+ accuracy drops on pattern tasks                  |
+| **Reasoning**      | Thread of Thought             | Chaotic/multi-source context                    | RE2                                | n/a                                | Moderate increase; benefits from two-phase   | Systematic context segmentation                              |
+| **Input**          | RE2 (Re-Reading)              | Any comprehension task (universal enhancer)     | All output-phase techniques        | n/a                                | Minimal; question repetition only            | GSM8K: 77.79%→80.59% with CoT                                |
+| **Input**          | RaR (Rephrase and Respond)    | Ambiguous questions, frame mismatch             | CoT                                | n/a                                | Minimal; single rephrasing step              | Aligns intent with LLM interpretation                        |
+| **Input**          | S2A (System 2 Attention)      | Heavily biased/opinionated context              | n/a                                | Including original context         | ~2x tokens (preprocessing filter call)       | Factual QA: 62.8%→80.3% on opinion-contaminated prompts      |
+| **Input**          | Distractor-Robust Prompting   | Occasional noise, efficiency needed             | Explicit ignore instruction        | n/a                                | Minimal; single-turn, no preprocessing       | Approaches S2A without preprocessing cost                    |
+| **Input**          | Document Positioning          | >20K tokens of source material                  | Quote Extraction                   | n/a                                | None; structural change only                 | Empirical improvement (Anthropic guidance)                   |
+| **Input**          | Quote Extraction              | Grounding required before analysis              | Document Positioning               | n/a                                | Moderate increase for extraction step        | Forces evidence commitment                                   |
+| **Example Design** | Contrastive Examples          | Model makes predictable mistakes                | Affirmative Directives, Categories | n/a                                | ~2x example tokens (correct + incorrect)     | +9.8 to +16.0 points on reasoning tasks                      |
+| **Example Design** | Complexity-Based Selection    | Teaching thorough reasoning                     | Diversity-Based Selection          | n/a                                | Fewer examples but longer; net neutral       | +5.3 avg, up to +18 accuracy (Fu et al.)                     |
+| **Example Design** | Diversity-Based Selection     | Selecting from example pool                     | Complexity-Based Selection         | n/a                                | None; selection strategy only                | Robust even with 50% wrong demos                             |
 | **Example Design** | Analogical Prompting          | No hand-crafted examples available              | Diversity instruction              | Hand-crafted examples              | Moderate increase (self-generated examples)  | GSM8K: 77.8% (vs 72.5% 0-shot CoT)                           |
-| **Example Design** | Category-Based Generalization | Novel inputs need correct handling              | Edge-case examples                 | --                                  | Minimal; structural organization             | Enables analogical reasoning                                 |
-| **Output**         | Scope Limitation              | Well-defined task; model stuck in planning loop | --                                  | Plan-and-Solve                     | May reduce tokens by preventing overthinking | Prevents analysis paralysis                                  |
-| **Output**         | XML Structure Patterns        | Enforcing completeness                          | Instructive Tag Naming             | --                                  | Minimal; structural tags only                | Forces systematic reasoning                                  |
-| **Output**         | Format Strictness             | Exact format required                           | Forbidden Phrases                  | --                                  | Minimal                                      | "ONLY return X" compliance                                   |
-| **Output**         | Hint-Based Guidance           | Output missing key aspects                      | Any technique                      | --                                  | Minimal                                      | 4-13% improvement via directional stimulus                   |
-| **NLU**            | Metacognitive Prompting       | Deep comprehension required                     | --                                  | Simple tasks (causes overthinking) | Moderate to high (5-stage process)           | +4.8% to +6.4% over CoT                                      |
-| **Behavioral**     | Identity Establishment        | Any task (foundational)                         | Emotional Stimuli                  | --                                  | Minimal                                      | +10pp on math benchmarks                                     |
-| **Behavioral**     | Emotional Stimuli             | Reluctant execution                             | Identity Establishment             | --                                  | Minimal                                      | 8% on Instruction Induction, 115% on BIG-Bench               |
-| **Behavioral**     | Confidence Building           | Hesitation/verification loops                   | Error Normalization                | --                                  | Minimal                                      | Eliminates hesitation loops                                  |
-| **Behavioral**     | Error Normalization           | Expected failures cause stopping                | Confidence Building                | --                                  | Minimal                                      | Prevents apology spirals                                     |
-| **Behavioral**     | Pre-Work Context Analysis     | Blind execution problems                        | Category-Based Examples            | --                                  | Slight increase for analysis phase           | Prevents context-blind execution                             |
-| **Behavioral**     | Emphasis Hierarchy            | Multiple priority levels                        | Numbered Rule Priority             | --                                  | Minimal                                      | Predictable priority system                                  |
-| **Behavioral**     | Affirmative Directives        | Any instruction (foundational)                  | Contrastive Examples               | --                                  | Minimal                                      | Significant correctness improvement                          |
-| **Verification**   | Embedded Verification         | Factual accuracy concerns                       | --                                  | --                                  | Moderate increase for verification questions | List-based QA: 17%→70% (factored CoVe)                       |
+| **Example Design** | Category-Based Generalization | Novel inputs need correct handling              | Edge-case examples                 | n/a                                | Minimal; structural organization             | Enables analogical reasoning                                 |
+| **Output**         | Scope Limitation              | Well-defined task; model stuck in planning loop | n/a                                | Plan-and-Solve                     | May reduce tokens by preventing overthinking | Prevents analysis paralysis                                  |
+| **Output**         | XML Structure Patterns        | Enforcing completeness                          | Instructive Tag Naming             | n/a                                | Minimal; structural tags only                | Forces systematic reasoning                                  |
+| **Output**         | Format Strictness             | Exact format required                           | Forbidden Phrases                  | n/a                                | Minimal                                      | "ONLY return X" compliance                                   |
+| **Output**         | Hint-Based Guidance           | Output missing key aspects                      | Any technique                      | n/a                                | Minimal                                      | 4-13% improvement via directional stimulus                   |
+| **NLU**            | Metacognitive Prompting       | Deep comprehension required                     | n/a                                | Simple tasks (causes overthinking) | Moderate to high (5-stage process)           | +4.8% to +6.4% over CoT                                      |
+| **Behavioral**     | Identity Establishment        | Any task (foundational)                         | Emotional Stimuli                  | n/a                                | Minimal                                      | +10pp on math benchmarks                                     |
+| **Behavioral**     | Emotional Stimuli             | Reluctant execution                             | Identity Establishment             | n/a                                | Minimal                                      | 8% on Instruction Induction, 115% on BIG-Bench               |
+| **Behavioral**     | Confidence Building           | Hesitation/verification loops                   | Error Normalization                | n/a                                | Minimal                                      | Eliminates hesitation loops                                  |
+| **Behavioral**     | Error Normalization           | Expected failures cause stopping                | Confidence Building                | n/a                                | Minimal                                      | Prevents apology spirals                                     |
+| **Behavioral**     | Pre-Work Context Analysis     | Blind execution problems                        | Category-Based Examples            | n/a                                | Slight increase for analysis phase           | Prevents context-blind execution                             |
+| **Behavioral**     | Emphasis Hierarchy            | Multiple priority levels                        | Numbered Rule Priority             | n/a                                | Minimal                                      | Predictable priority system                                  |
+| **Behavioral**     | Affirmative Directives        | Any instruction (foundational)                  | Contrastive Examples               | n/a                                | Minimal                                      | Significant correctness improvement                          |
+| **Verification**   | Embedded Verification         | Factual accuracy concerns                       | n/a                                | n/a                                | Moderate increase for verification questions | List-based QA: 17%→70% (factored CoVe)                       |
 
 ---
 
 ## Quick Reference: Key Principles
 
-1. **Plan-and-Solve for Complex Tasks** -- Explicit planning reduces missing-step errors (from 12% to 7% of incorrect answers)
-2. **Step-Back for Knowledge-Intensive Tasks** -- Retrieve principles before specific reasoning
-3. **Re-Reading (RE2) for Better Comprehension** -- Instruction "Read the question again:" outperforms simple repetition by 1.2pp
-4. **Rephrase and Respond (RaR) for Ambiguous Questions** -- Let the model clarify questions in its own terms
-5. **System 2 Attention (S2A) for Contaminated Context** -- Filter out bias/noise before reasoning
-6. **Distractor-Robust Prompting for Efficiency** -- Exemplars with distractors + ignore instruction
-7. **Chain of Draft for Efficiency** -- Minimal intermediate steps can reduce tokens by up to 92%
-8. **Know When to Use/Skip CoT** -- Helps: arithmetic, symbolic manipulation, multi-step computation. Hurts: pattern recognition, context-grounded QA/NLI, classification
-9. **CoT Explanations May Be Unfaithful** -- Models can rationalize biased answers without mentioning the bias
-10. **Thread of Thought for Complex Contexts** -- Systematic segmentation prevents information loss
-11. **Analogical Prompting for Missing Examples** -- Self-generate relevant examples AND tutorials from model knowledge
-12. **Metacognitive Prompting for Deep Understanding** -- 5-stage NLU process improves comprehension (+4.8-6.4%)
-13. **Contrastive Examples** -- Show both correct AND incorrect examples (+9.8 to +16.0 points)
-14. **Automatic Invalid Demonstration Generation** -- Shuffle entities in valid chains to create invalid ones
-15. **Complexity-Based Example Selection** -- More reasoning steps per example outperforms more examples
-16. **Diversity-Based Example Selection** -- Diverse examples more robust than similar ones
-17. **Few-Shot Ordering Matters** -- Examples with correct labels appearing first bias toward that label
-18. **Balance Few-Shot Label Distribution** -- Skewed distributions create prediction bias
-19. **Document Positioning** -- Place long documents above instructions (Anthropic empirical guidance)
-20. **Quote Extraction for Grounding** -- Force evidence commitment before reasoning
-21. **Hint-Based Guidance** -- Provide directional stimulus for 4-13% improvement on key aspects
-22. **Affirmative Directives** -- "Do X" outperforms "Don't do Y"
-23. **Confidence Building** -- "Assume you have access" eliminates hesitation loops
-24. **Error Normalization** -- "It is okay if X fails" prevents apology spirals
-25. **Pre-Work Context Analysis** -- "Before [action], analyze [context]" prevents blind execution
-26. **Category-Based Generalization** -- Group examples by type to enable analogical reasoning
-27. **Scope Limitation** -- "Nothing more, nothing less" prevents overthinking
-28. **XML Structure Patterns** -- Tags force systematic analysis before action
-29. **Instructive Tag Naming** -- Tag name IS the instruction for scannable structure
-30. **Completeness Checkpoint Tags** -- Bullet points within tags become required sub-tasks
-31. **Emphasis Hierarchy** -- Reserve CRITICAL/RULE 0 for genuinely exceptional cases
-32. **STOP Escalation** -- Creates metacognitive checkpoint for behaviors to interrupt
-33. **Numbered Rule Priority** -- Explicit numbering resolves conflicts between rules
-34. **UX-Justified Defaults** -- Explain _why_ a default is preferred for user experience
-35. **Reward/Penalty Framing** -- Monetary penalties create behavioral weight
-36. **Output Format Strictness** -- "ONLY return X" leaves no room for interpretation
-37. **Emotional Stimuli** -- "This is important to my career" improves attention (8% Instruction Induction, 115% BIG-Bench)
-38. **Identity Establishment** -- Role-play prompting is foundational; +10pp accuracy observed on math benchmarks
-39. **Embedded Verification** -- Open verification questions improve list-based accuracy from 17% to 70%
+1. **Plan-and-Solve for Complex Tasks**. Explicit planning reduces missing-step errors (from 12% to 7% of incorrect answers)
+2. **Step-Back for Knowledge-Intensive Tasks**. Retrieve principles before specific reasoning
+3. **Re-Reading (RE2) for Better Comprehension**. Instruction "Read the question again:" outperforms simple repetition by 1.2pp
+4. **Rephrase and Respond (RaR) for Ambiguous Questions**. Let the model clarify questions in its own terms
+5. **System 2 Attention (S2A) for Contaminated Context**. Filter out bias/noise before reasoning
+6. **Distractor-Robust Prompting for Efficiency**. Exemplars with distractors + ignore instruction
+7. **Chain of Draft for Efficiency**. Minimal intermediate steps can reduce tokens by up to 92%
+8. **Know When to Use/Skip CoT**. Helps: arithmetic, symbolic manipulation, multi-step computation. Hurts: pattern recognition, context-grounded QA/NLI, classification
+9. **CoT Explanations May Be Unfaithful**. Models can rationalize biased answers without mentioning the bias
+10. **Thread of Thought for Complex Contexts**. Systematic segmentation prevents information loss
+11. **Analogical Prompting for Missing Examples**. Self-generate relevant examples AND tutorials from model knowledge
+12. **Metacognitive Prompting for Deep Understanding**. 5-stage NLU process improves comprehension (+4.8-6.4%)
+13. **Contrastive Examples**. Show both correct AND incorrect examples (+9.8 to +16.0 points)
+14. **Automatic Invalid Demonstration Generation**. Shuffle entities in valid chains to create invalid ones
+15. **Complexity-Based Example Selection**. More reasoning steps per example outperforms more examples
+16. **Diversity-Based Example Selection**. Diverse examples more robust than similar ones
+17. **Few-Shot Ordering Matters**. Examples with correct labels appearing first bias toward that label
+18. **Balance Few-Shot Label Distribution**. Skewed distributions create prediction bias
+19. **Document Positioning**. Place long documents above instructions (Anthropic empirical guidance)
+20. **Quote Extraction for Grounding**. Force evidence commitment before reasoning
+21. **Hint-Based Guidance**. Provide directional stimulus for 4-13% improvement on key aspects
+22. **Affirmative Directives**. "Do X" outperforms "Don't do Y"
+23. **Confidence Building**. "Assume you have access" eliminates hesitation loops
+24. **Error Normalization**. "It is okay if X fails" prevents apology spirals
+25. **Pre-Work Context Analysis**. "Before [action], analyze [context]" prevents blind execution
+26. **Category-Based Generalization**. Group examples by type to enable analogical reasoning
+27. **Scope Limitation**. "Nothing more, nothing less" prevents overthinking
+28. **XML Structure Patterns**. Tags force systematic analysis before action
+29. **Instructive Tag Naming**. Tag name IS the instruction for scannable structure
+30. **Completeness Checkpoint Tags**. Bullet points within tags become required sub-tasks
+31. **Emphasis Hierarchy**. Reserve CRITICAL/RULE 0 for genuinely exceptional cases
+32. **STOP Escalation**. Creates metacognitive checkpoint for behaviors to interrupt
+33. **Numbered Rule Priority**. Explicit numbering resolves conflicts between rules
+34. **UX-Justified Defaults**. Explain _why_ a default is preferred for user experience
+35. **Reward/Penalty Framing**. Monetary penalties create behavioral weight
+36. **Output Format Strictness**. "ONLY return X" leaves no room for interpretation
+37. **Emotional Stimuli**. "This is important to my career" improves attention (8% Instruction Induction, 115% BIG-Bench)
+38. **Identity Establishment**. Role-play prompting is foundational; +10pp accuracy observed on math benchmarks
+39. **Embedded Verification**. Open verification questions improve list-based accuracy from 17% to 70%
 
 ---
 
@@ -104,7 +104,7 @@ A: Let's think step by step.
 
 **Performance**: RE2 improves GSM8K accuracy from 77.79% → 80.59% when combined with CoT. The improvement is consistent across model sizes and task types.
 
-**Why this works**: Decoder-only LLMs use unidirectional attention--each token only sees previous tokens. Later words like "How many..." clarify earlier words, but standard encoding misses this. Re-reading lets the second pass benefit from the full first-pass context.
+**Why this works**: Decoder-only LLMs use unidirectional attention: each token only sees previous tokens. Later words like "How many..." clarify earlier words, but standard encoding misses this. Re-reading lets the second pass benefit from the full first-pass context.
 
 ### Critical: Instruction vs. Repetition
 
@@ -139,7 +139,7 @@ A: Let's think step by step.
 
 ### Rephrase and Respond (RaR)
 
-Misunderstandings between humans and LLMs arise from different "frames"--how each interprets the same question. **Rephrase and Respond** lets the LLM clarify the question in its own terms before answering.
+Misunderstandings between humans and LLMs arise from different "frames", meaning how each interprets the same question. **Rephrase and Respond** lets the LLM clarify the question in its own terms before answering.
 
 Per Deng et al. (2023): "Misunderstandings in interpersonal communications often arise when individuals, shaped by distinct subjective experiences, interpret the same message differently... RaR asks the LLMs to Rephrase the given questions and then Respond within a single query."
 
@@ -175,7 +175,7 @@ Without rephrasing, the model might interpret "even day" as even day of the week
 
 ### Handling Irrelevant Context: S2A and Distractor-Robust Prompting
 
-LLMs are susceptible to irrelevant information in context--opinions, distractors, or biased framing. Two complementary techniques address this at different cost points. Consult the Technique Selection Guide above for trigger conditions and cost/tradeoff comparison.
+LLMs are susceptible to irrelevant information in context: opinions, distractors, or biased framing. Two complementary techniques address this at different cost points. Consult the Technique Selection Guide above for trigger conditions and cost/tradeoff comparison.
 
 #### System 2 Attention (S2A): Preprocessing Filter
 
@@ -183,7 +183,7 @@ S2A regenerates the context to remove problematic content before answering. This
 
 **The two-step process:**
 
-Step 1 -- Filter the context:
+Step 1, filter the context:
 
 ```
 Given the following text by a user, extract the part that is unbiased and not
@@ -196,11 +196,11 @@ this into two categories labeled with "Unbiased text context:" and "Question/Que
 Text by User: [ORIGINAL INPUT PROMPT]
 ```
 
-Step 2 -- Answer using filtered context only.
+Step 2, answer using filtered context only.
 
 **Performance**: On opinion-contaminated factual QA, accuracy increases from 62.8% to 80.3%. Improves math word problems by ~12% when irrelevant sentences are present.
 
-**Critical insight**: Per the paper: "attention must be hard (sharp) not soft when it comes to avoiding irrelevant or spurious correlations in the context." If you include both original and filtered context, performance degrades--the model still attends to problematic parts. The filtering must be _exclusive_.
+**Critical insight**: Per the paper: "attention must be hard (sharp) not soft when it comes to avoiding irrelevant or spurious correlations in the context." If you include both original and filtered context, performance degrades, because the model still attends to problematic parts. The filtering must be _exclusive_.
 
 #### Distractor-Robust Prompting: Single-Turn Alternative
 
@@ -231,7 +231,7 @@ The example demonstrates ignoring the irrelevant sentence about the neighbor.
 Feel free to ignore irrelevant information given in the problem description.
 ```
 
-**Performance**: On the GSM-IC benchmark, instructed prompting with distractor-containing exemplars approaches or exceeds the robustness of S2A without the preprocessing cost. Importantly, this does not hurt performance on clean inputs--the model learns _when_ to ignore, not to always ignore.
+**Performance**: On the GSM-IC benchmark, instructed prompting with distractor-containing exemplars approaches or exceeds the robustness of S2A without the preprocessing cost. Importantly, this does not hurt performance on clean inputs: the model learns _when_ to ignore, not to always ignore.
 
 **Stacking note**: The techniques can be combined for maximum robustness, though this is rarely necessary given the cost of S2A.
 
@@ -331,7 +331,7 @@ Then, let's carry out the plan and solve the problem step by step.
 
 For variable extraction tasks, add: "Extract relevant variables and their corresponding numerals" and "Calculate intermediate results."
 
-**Residual limitations**: PS+ reduces but does not eliminate errors. PS+ does not address semantic misunderstanding--if the model misinterprets the problem, planning won't help.
+**Residual limitations**: PS+ reduces but does not eliminate errors. PS+ does not address semantic misunderstanding. If the model misinterprets the problem, planning won't help.
 
 ---
 
@@ -365,7 +365,7 @@ Now answer the original question using these principles.
 
 Chain of Thought often produces unnecessarily verbose outputs. **Chain of Draft (CoD)** addresses this by encouraging minimal intermediate steps. Per Xu et al. (2025): "CoD matches or surpasses CoT in accuracy while using as little as only 7.6% of the tokens, significantly reducing cost and latency across various reasoning tasks."
 
-**Key insight**: "Rather than elaborating on every detail, humans typically jot down only the essential intermediate results -- minimal drafts -- to facilitate their thought processes."
+**Key insight**: "Rather than elaborating on every detail, humans typically jot down only the essential intermediate results [...] to facilitate their thought processes." The paper calls those results "minimal drafts".
 
 **Example comparison from the paper:**
 
@@ -388,7 +388,7 @@ A: 20 - 12 = 8. #### 8
 
 ### Thread of Thought: Segmented Context Analysis
 
-When prompts contain substantial, potentially chaotic information from multiple sources, **Thread of Thought** structures comprehension of the context itself--not just reasoning about the problem.
+When prompts contain substantial, potentially chaotic information from multiple sources, **Thread of Thought** structures comprehension of the context itself, not just reasoning about the problem.
 
 Per Zhou et al. (2023): "ThoT prompting adeptly maintains the logical progression of reasoning without being overwhelmed... ThoT represents the unbroken continuity of ideas that individuals maintain while sifting through vast information, allowing for the selective extraction of relevant details and the dismissal of extraneous ones."
 
@@ -432,7 +432,7 @@ The conclusion marker ("Therefore, the answer:") forces the model to distill its
 
 CoT benefits are task-type dependent. The determining factor: whether correctness requires grounding in external context.
 
-**When CoT helps -- self-contained reasoning:**
+**When CoT helps, self-contained reasoning:**
 
 | Task Type                       | Why CoT Works                                                     |
 | ------------------------------- | ----------------------------------------------------------------- |
@@ -442,15 +442,15 @@ CoT benefits are task-type dependent. The determining factor: whether correctnes
 
 The common property: the reasoning chain is auditable without consulting external sources. You can verify "6 × 8 = 48" without checking any context.
 
-**When CoT hurts -- context-grounded or implicit tasks:**
+**When CoT hurts, context-grounded or implicit tasks:**
 
 | Task Type                  | Failure Mechanism                                                                 | Source                |
 | -------------------------- | --------------------------------------------------------------------------------- | --------------------- |
 | Pattern recognition        | Articulation overrides implicit learning; 30%+ accuracy drops observed            | Sprague et al. (2025) |
-| QA over provided documents | Explanations often nonfactual--model hallucinates facts not in context             | Ye & Durrett (2022)   |
+| QA over provided documents | Explanations often nonfactual; model hallucinates facts not in context             | Ye & Durrett (2022)   |
 | NLI / entailment           | Same grounding problem; "Let's think step by step" causes performance degradation | Ye & Durrett (2022)   |
 | Classification             | Answer is pattern-matched; reasoning adds nothing or introduces spurious features | Sprague et al. (2025) |
-| Extraction tasks           | Answer exists verbatim in context; no reasoning required                          | --                     |
+| Extraction tasks           | Answer exists verbatim in context; no reasoning required                          | n/a                   |
 
 Per Ye & Durrett (2022): "The tasks that receive significant benefits from using explanations... are all program-like (e.g., integer addition and program execution), whereas the tasks in this work emphasize textual reasoning grounded in provided inputs."
 
@@ -468,18 +468,18 @@ Per Ye & Durrett (2022): "The tasks that receive significant benefits from using
 
 ### CoT Faithfulness Limitation
 
-Chain-of-thought explanations can be plausible yet systematically unfaithful. Per Turpin et al. (2023): "CoT explanations can be heavily influenced by adding biasing features to model inputs--e.g., by reordering the multiple-choice options in a few-shot prompt to make the answer always '(A)'--which models systematically fail to mention in their explanations."
+Chain-of-thought explanations can be plausible yet systematically unfaithful. Per Turpin et al. (2023): "CoT explanations can be heavily influenced by adding biasing features to model inputs [...] which models systematically fail to mention in their explanations." The elided example is reordering the multiple-choice options in a few-shot prompt so the answer is always "(A)".
 
 **Key findings:**
 
 - When models are biased toward incorrect answers, they generate CoT explanations that rationalize those answers
 - "As many as 73% of unfaithful explanations in our sample support the bias-consistent answer"
-- 15% of unfaithful explanations have _no obvious errors_--fully coherent reasoning leading to wrong conclusions
+- 15% of unfaithful explanations have _no obvious errors_: fully coherent reasoning leading to wrong conclusions
 - Accuracy can drop "by as much as 36%" when biasing features are present
 
 **Implication**: Do not treat CoT explanations as faithful representations of model decision-making. CoT improves accuracy on many tasks, but the _explanations_ may not reflect the actual reasoning process. The model may be influenced by factors it doesn't verbalize.
 
-**Non-obvious insight**: Few-shot CoT reduces susceptibility to bias compared to zero-shot CoT. Per the paper: accuracy improves significantly when moving from zero-shot to few-shot settings (35.0→51.7% for one model). If you need more robust reasoning, few-shot demonstrations help--but they don't eliminate the faithfulness problem.
+**Non-obvious insight**: Few-shot CoT reduces susceptibility to bias compared to zero-shot CoT. Per the paper: accuracy improves significantly when moving from zero-shot to few-shot settings (35.0→51.7% for one model). If you need more robust reasoning, few-shot demonstrations help, but they don't eliminate the faithfulness problem.
 
 ---
 
@@ -493,7 +493,7 @@ Showing both correct AND incorrect examples significantly improves performance. 
 
 **Mechanism**: "Language models are better able to learn step-by-step reasoning when provided with both valid and invalid rationales."
 
-**Example from the paper (Figure 1) -- Incoherent Objects:**
+**Example from the paper (Figure 1), Incoherent Objects:**
 
 This is the most effective type of invalid demonstration. The paper extracts entity spans (numbers, equations) from valid reasoning and randomly shuffles their positions:
 
@@ -510,7 +510,7 @@ pages a week. So he writes 3*2=6 pages every week.
 That means he writes 6*2=12 pages a year.
 ```
 
-The incorrect example shows _incoherent objects_--the same calculations appear but in shuffled, nonsensical order. The language templates remain grammatically correct, but the bridging objects (numbers, equations) are incoherent.
+The incorrect example shows _incoherent objects_: the same calculations appear but in shuffled, nonsensical order. The language templates remain grammatically correct, but the bridging objects (numbers, equations) are incoherent.
 
 **Example (style enforcement):**
 
@@ -526,7 +526,7 @@ assistant: The answer to your mathematical query is 4. Let me know if you need h
 </example>
 ```
 
-**Non-obvious insight**: The incorrect example doesn't need to be wrong factually--it can be wrong _behaviorally_ or _structurally_. Contrastive examples teach the model what patterns to avoid, whether that's verbose style, reasoning errors, or structural incoherence. A naive forbidden pattern like "don't be verbose" is far less effective than showing the specific pattern to avoid.
+**Non-obvious insight**: The incorrect example doesn't need to be wrong factually. It can be wrong _behaviorally_ or _structurally_. Contrastive examples teach the model what patterns to avoid, whether that's verbose style, reasoning errors, or structural incoherence. A naive forbidden pattern like "don't be verbose" is far less effective than showing the specific pattern to avoid.
 
 #### Automatic Generation of Invalid Demonstrations
 
@@ -579,7 +579,7 @@ Eight complex examples outperform retrieval-based selection requiring 10,000+ an
 
 When selecting few-shot examples from a pool of candidates, choose diverse examples rather than similar ones. Per Zhang et al. (2022): "Diversity matters for automatically constructing demonstrations... Diversity-based clustering may mitigate misleading by similarity."
 
-**The problem with similar examples**: If you select examples most similar to the test question, you risk sampling from a "frequent-error cluster"--a set of questions where the model tends to fail. Similar examples reinforce the same failure patterns.
+**The problem with similar examples**: If you select examples most similar to the test question, you risk sampling from a "frequent-error cluster", a set of questions where the model tends to fail. Similar examples reinforce the same failure patterns.
 
 **The diversity principle**: Select examples that cover different types or categories of the problem space. Even if some examples contain errors, diverse sampling is more robust. Per the paper: "Even when presented with 50% wrong demonstrations, Auto-CoT (using diversity-based clustering) performance does not degrade significantly."
 
@@ -631,7 +631,7 @@ and explain the solution.
 
 **Why this works**: Modern LLMs have acquired problem-solving knowledge during training. Explicitly prompting them to recall relevant problems activates this knowledge and enables in-context learning from self-generated demonstrations.
 
-**Critical refinement--request diverse examples**: Per the paper's ablation study, "Diverse exemplars" (77.8%) outperform "Non-diverse exemplars" (75.9%). Always instruct the model to generate _distinct_ examples:
+**Critical refinement, request diverse examples**: Per the paper's ablation study, "Diverse exemplars" (77.8%) outperform "Non-diverse exemplars" (75.9%). Always instruct the model to generate _distinct_ examples:
 
 ```
 Recall three relevant and distinct problems. Note that your problems should be
@@ -639,7 +639,7 @@ distinct from each other and from the initial problem (e.g., involving different
 numbers and scenarios).
 ```
 
-**Enhanced variant--add knowledge recall**: For complex tasks, the paper finds that adding tutorial generation further improves results:
+**Enhanced variant, add knowledge recall**: For complex tasks, the paper finds that adding tutorial generation further improves results:
 
 ```
 # Problem: [problem statement]
@@ -699,7 +699,7 @@ Commands that require elevated permissions:
 INSERT, UPDATE, DELETE, systemctl, chmod, chown, kill, pkill, renice
 ```
 
-**Non-obvious failure mode**: The flat list doesn't just lack generalization--it actively encourages memorization over reasoning. When the model encounters an unlisted command, it has no framework for making a decision and will default to inconsistent behavior.
+**Non-obvious failure mode**: The flat list doesn't just lack generalization. It actively encourages memorization over reasoning. When the model encounters an unlisted command, it has no framework for making a decision and will default to inconsistent behavior.
 
 #### Synergy: Categories + Edge Cases
 
@@ -717,7 +717,7 @@ This tool will work with all temporary file paths like:
 /var/folders/123/abc/T/TemporaryItems/NSIRD_screencaptureui_ZfB1tD/Screenshot.png
 ```
 
-The edge case teaches that even unusual temporary paths are valid--without this, the model might reject paths that don't look like standard file locations.
+The edge case teaches that even unusual temporary paths are valid. Without this, the model might reject paths that don't look like standard file locations.
 
 ---
 
@@ -727,7 +727,7 @@ Beyond content, complexity, and diversity, three additional factors significantl
 
 #### Example Ordering
 
-Order affects results dramatically. Per Lu et al. (2021): "On some tasks, exemplar order can cause accuracy to vary from sub-50% to 90%+"--a 40+ percentage point swing from ordering alone.
+Order affects results dramatically. Per Lu et al. (2021): "On some tasks, exemplar order can cause accuracy to vary from sub-50% to 90%+", a 40+ percentage point swing from ordering alone.
 
 **Key finding from the paper**: "We observe that the sample with the correct label that appears first is more likely to be the correct answer." This suggests a practical heuristic: place examples with labels matching your expected test distribution first.
 
@@ -735,7 +735,7 @@ Practical guidance:
 
 - For recency-sensitive tasks, place the most representative example _last_
 - For tasks requiring diverse pattern coverage, alternate between different types
-- When uncertain, test multiple orderings--the effect is task-dependent
+- When uncertain, test multiple orderings, because the effect is task-dependent
 
 #### Label Distribution
 
@@ -763,7 +763,7 @@ Skewed example distributions create prediction bias. Per the systematic survey (
 
 Examples similar in _structure_ to expected inputs outperform topically similar but structurally different examples. Per Liu et al. (2021): selecting exemplars similar to the test sample improves performance.
 
-**Non-obvious failure**: An example analyzing research papers won't transfer well to analyzing sales emails, even if both involve "summarization"--the _structure_ differs. Match the format, length, and organization of your expected inputs.
+**Non-obvious failure**: An example analyzing research papers won't transfer well to analyzing sales emails, even if both involve "summarization", because the _structure_ differs. Match the format, length, and organization of your expected inputs.
 
 ---
 
@@ -814,7 +814,7 @@ Task: Add error handling to the fetchUser function.
 
 ### XML Structure Patterns
 
-XML tags are more than separators--they can enforce reasoning structure, ensure completeness, and even function as instructions themselves.
+XML tags are more than separators. They can enforce reasoning structure, ensure completeness, and even function as instructions themselves.
 
 #### Basic Thinking Tags
 
@@ -834,7 +834,7 @@ Analyze all staged changes and draft a commit message. Wrap your analysis in <co
 </commit_analysis>
 ```
 
-**Why this works**: The tag structure enforces completeness--the model must address each sub-point before proceeding. Without tags, models often skip steps or provide incomplete analysis.
+**Why this works**: The tag structure enforces completeness: the model must address each sub-point before proceeding. Without tags, models often skip steps or provide incomplete analysis.
 
 #### Completeness Checkpoint Tags
 
@@ -871,7 +871,7 @@ Analyze the document thoroughly.
 </analysis>
 ```
 
-The incorrect version provides a container but no structure--the model decides what "thorough" means.
+The incorrect version provides a container but no structure, so the model decides what "thorough" means.
 
 #### Instructive Tag Naming
 
@@ -1032,7 +1032,7 @@ Even in static prompts, you can include conditional sections for different scena
 - Look for common antipatterns like == instead of ===
 ```
 
-**Why this works in static prompts**: The model's attention mechanism naturally focuses on the section relevant to the current input. You don't need dynamic injection--the model self-selects.
+**Why this works in static prompts**: The model's attention mechanism naturally focuses on the section relevant to the current input. You don't need dynamic injection, because the model self-selects.
 
 ---
 
@@ -1044,7 +1044,7 @@ Techniques for controlling model behavior, motivation, and execution patterns.
 
 **Research basis**: Per Kong et al. (2024): "Role-play prompting consistently surpasses the standard zero-shot approach across most datasets... accuracy on AQuA rises from 53.5% to 63.8%."
 
-On mathematical reasoning benchmarks, identity establishment provides 10+ percentage point accuracy improvement through implicit role-based reasoning. The technique is foundational across all domains--"You are a helpful assistant" is ubiquitous--though the magnitude of improvement varies by task type.
+On mathematical reasoning benchmarks, identity establishment provides 10+ percentage point accuracy improvement through implicit role-based reasoning. The technique is foundational across all domains ("You are a helpful assistant" is ubiquitous), though the magnitude of improvement varies by task type.
 
 **Example:**
 
@@ -1052,7 +1052,7 @@ On mathematical reasoning benchmarks, identity establishment provides 10+ percen
 You are an agent for Claude Code, Anthropic's official CLI for Claude.
 ```
 
-**Non-obvious insight**: The identity doesn't need to be elaborate. "You are an expert debugger" is sufficient--what matters is establishing a competent role that implies relevant capabilities. Overly detailed backstories can actually hurt performance by consuming context that could be used for the actual task.
+**Non-obvious insight**: The identity doesn't need to be elaborate. "You are an expert debugger" is sufficient. What matters is establishing a competent role that implies relevant capabilities. Overly detailed backstories can actually hurt performance by consuming context that could be used for the actual task.
 
 **Research finding on immersion depth** (Kong et al., 2024): Two-round dialogue prompts where the model first acknowledges its role outperform single-turn prompts. The model's response "That's great to hear! As your math teacher, I'll do my best to explain mathematical concepts correctly..." deepens immersion and improves subsequent reasoning.
 
@@ -1118,7 +1118,7 @@ If you have permission, you may modify files in the project directory.
 Check that you can access each file before modifying.
 ```
 
-**Non-obvious failure mode**: Without confidence priming, the model may enter "verification loops"--repeatedly checking access or validity instead of proceeding. This wastes tokens and often produces no useful output.
+**Non-obvious failure mode**: Without confidence priming, the model may enter "verification loops", repeatedly checking access or validity instead of proceeding. This wastes tokens and often produces no useful output.
 
 ---
 
@@ -1134,18 +1134,18 @@ E_SANDBOX_PERMISSION_DENIED error. When this happens, the correct behavior is:
 retry using sandbox=false.
 
 Tool calls might fail for legitimate reasons (e.g., file not found, network issue).
-These are normal occurrences--don't apologize, just handle them.
+These are normal occurrences. Don't apologize, just handle them.
 
 However, if you see E_TOOL_FORMAT_ERROR or E_SANDBOX_EXEC_ERROR, these
 reflect real issues and should be fixed, not retried with sandbox=false.
 ```
 
-**Non-obvious insight**: This teaches the model _metacognition_--the ability to differentiate between recoverable environmental errors and actual problems requiring different solutions. Without this distinction, the model either retries everything (wasting time) or gives up on everything (missing easy fixes).
+**Non-obvious insight**: This teaches the model _metacognition_: the ability to differentiate between recoverable environmental errors and actual problems requiring different solutions. Without this distinction, the model either retries everything (wasting time) or gives up on everything (missing easy fixes).
 
 **CORRECT:**
 
 ```
-If a file doesn't exist, you'll receive an error message. This is expected behavior--
+If a file doesn't exist, you'll receive an error message. This is expected behavior,
 proceed with your task using the information you have.
 ```
 
@@ -1207,7 +1207,7 @@ to understand where this functionality belongs. Then proceed with implementation
 Implement the feature as described below.
 ```
 
-**Non-obvious failure mode**: Without pre-work analysis, a model may produce technically correct output that doesn't integrate with existing content. The output works in isolation but fails in context--a subtle bug that's hard to catch in testing.
+**Non-obvious failure mode**: Without pre-work analysis, a model may produce technically correct output that doesn't integrate with existing content. The output works in isolation but fails in context, a subtle bug that's hard to catch in testing.
 
 ---
 
@@ -1303,7 +1303,7 @@ For behaviors you need to _interrupt_, not just discourage, use explicit STOP co
 3. Provide the mandatory alternative
 4. Justify why the alternative is available
 
-**Why this is stronger than preference statements**: "Prefer X over Y" allows Y in edge cases. STOP creates a metacognitive checkpoint--the model must pause and re-evaluate before proceeding with the discouraged action.
+**Why this is stronger than preference statements**: "Prefer X over Y" allows Y in edge cases. STOP creates a metacognitive checkpoint: the model must pause and re-evaluate before proceeding with the discouraged action.
 
 **CORRECT:**
 
@@ -1388,7 +1388,7 @@ Note: Errors from incorrect sandbox=true runs annoy the User more than permissio
 
 **Why this works**: The monetary penalty creates behavioral weight through gamification, but the UX explanation provides _reasoning_ for the priority. Both together are more effective than either alone.
 
-**Non-obvious insight**: The penalty magnitude matters less than its presence. "-$1000" and "-$100" produce similar effects--what matters is establishing that this error is categorically worse than alternatives.
+**Non-obvious insight**: The penalty magnitude matters less than its presence. "-$1000" and "-$100" produce similar effects. What matters is establishing that this error is categorically worse than alternatives.
 
 ---
 
@@ -1446,7 +1446,7 @@ Per Dhuliawala et al. (2023): "Only ~17% of baseline answer entities are correct
 **Example of the yes/no failure mode** (from the paper):
 
 - Open question: "Where was Hillary Clinton born?" → "Chicago, Illinois" (correct)
-- Yes/no question: "Was Hillary Clinton born in New York?" → "Yes" (incorrect--model agrees with the framing)
+- Yes/no question: "Was Hillary Clinton born in New York?" → "Yes" (incorrect, the model agrees with the framing)
 
 **Implementation:**
 
@@ -1468,7 +1468,7 @@ Techniques specifically for NLU tasks requiring deep comprehension.
 
 ### Metacognitive Prompting
 
-For tasks requiring deep comprehension rather than pure reasoning--such as paraphrase detection, textual entailment, or nuanced classification--**Metacognitive Prompting** guides the model through structured self-reflection.
+For tasks requiring deep comprehension rather than pure reasoning (paraphrase detection, textual entailment, nuanced classification), **Metacognitive Prompting** guides the model through structured self-reflection.
 
 Per Wang & Zhao (2024): "MP introduces a structured approach that enables LLMs to process tasks, enhancing their contextual awareness and introspection in responses... MP consistently outperforms existing prompting methods in both general and domain-specific NLU tasks."
 
@@ -1491,7 +1491,7 @@ As you perform this task, follow these steps:
    explanation for this confidence level.
 ```
 
-**Performance**: MP improves over CoT by 4.8% to 6.4% in zero-shot settings across NLU benchmarks. On domain-specific tasks (legal, biomedical), gains are larger--up to 12.4% improvement on EUR-LEX legal classification.
+**Performance**: MP improves over CoT by 4.8% to 6.4% in zero-shot settings across NLU benchmarks. On domain-specific tasks (legal, biomedical), gains are larger, up to 12.4% improvement on EUR-LEX legal classification.
 
 **Important context**: This technique was originally designed as a multi-stage process, but with sufficiently capable models, all five stages can be executed in a single prompt. The model produces comprehension, judgment, critical evaluation, decision, and confidence assessment in one pass.
 
@@ -1501,7 +1501,7 @@ As you perform this task, follow these steps:
 
 2. **Overcorrection errors (31.7%)**: The critical reassessment stage can stray excessively from an initially accurate interpretation. The model "corrects" itself into a wrong answer.
 
-**When to use**: Complex NLU tasks requiring nuanced interpretation--legal document analysis, medical text classification, semantic similarity, textual entailment. Not recommended for straightforward reasoning or arithmetic where simpler techniques suffice.
+**When to use**: Complex NLU tasks requiring nuanced interpretation: legal document analysis, medical text classification, semantic similarity, textual entailment. Not recommended for straightforward reasoning or arithmetic where simpler techniques suffice.
 
 ---
 
@@ -1522,7 +1522,7 @@ Each hedge reinforces caution, creating escalating hesitation. Instead, establis
 
 ```
 # BETTER
-Proceed with the file path provided. If it doesn't exist, you'll receive an error--
+Proceed with the file path provided. If it doesn't exist, you'll receive an error,
 use that information to adjust your approach.
 ```
 
@@ -1622,7 +1622,7 @@ Filtered context: [opinion removed]
 Now answer based on the filtered context.
 ```
 
-Per Weston & Sukhbaatar (2023): Even with explicit instructions to use filtered context, the model's attention still incorporates the original biased information. The filtering must be _exclusive_--remove the original entirely.
+Per Weston & Sukhbaatar (2023): Even with explicit instructions to use filtered context, the model's attention still incorporates the original biased information. The filtering must be _exclusive_: remove the original entirely.
 
 ```
 # BETTER
