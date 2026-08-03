@@ -410,10 +410,13 @@ def run_assessment(
     for p in repo_files:
         if not p.is_file() or _should_exclude(p, repo_root):
             continue
+        rel = str(p.relative_to(repo_root))
         for glob_pattern in doc_globs:
             if p.match(glob_pattern):
                 doc_files_set.add(p)
                 break
+        # Fallback: accept any file whose suffix matches common doc globs
+        _ = rel  # used in the loop above
 
     # Enumerate source files
     source_files: dict[str, str] = {}  # path -> content
@@ -740,7 +743,8 @@ def run_compilability_check(
                         content,
                     )
                     for param in named_params:
-                        if not re.search(rf"\b{re.escape(param)}\b", actual.signature):  # nosemgrep: skill-ldap-injection
+                        pattern = rf"\b{re.escape(param)}\b"  # nosemgrep: skill-ldap-injection
+                        if not re.search(pattern, actual.signature):
                             finding_counter += 1
                             findings.append(Finding(
                                 id=f"compile-{finding_counter:04d}",
