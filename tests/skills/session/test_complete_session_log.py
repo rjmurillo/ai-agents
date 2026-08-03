@@ -105,6 +105,68 @@ class TestSerenaMemoryUpdated:
         mock_run.return_value = MagicMock(returncode=0, stdout="src/app.py\n")
         assert complete_session_log._test_serena_memory_updated() is False
 
+    @patch("complete_session_log.subprocess.run")
+    def test_detects_committed_memory_via_git_log(self, mock_run):
+        """Committed .serena/memories/ changes are detected when starting_commit provided."""
+
+        def _side_effect(cmd, **kwargs):
+            if "log" in cmd:
+                return MagicMock(returncode=0, stdout=".serena/memories/new.md\n")
+            return MagicMock(returncode=0, stdout="")
+
+        mock_run.side_effect = _side_effect
+        assert complete_session_log._test_serena_memory_updated("abc1234") is True
+
+    @patch("complete_session_log.subprocess.run")
+    def test_no_committed_memory_no_starting_commit(self, mock_run):
+        """Without starting_commit, git log is not consulted (no false positive)."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="")
+        assert complete_session_log._test_serena_memory_updated() is False
+        for call in mock_run.call_args_list:
+            assert "log" not in call.args[0]
+
+    @patch("complete_session_log.subprocess.run")
+    def test_committed_memory_unrelated_files_not_detected(self, mock_run):
+        """git log output with no .serena/memories/ lines returns False."""
+
+        def _side_effect(cmd, **kwargs):
+            if "log" in cmd:
+                return MagicMock(returncode=0, stdout="scripts/some_script.py\n")
+            return MagicMock(returncode=0, stdout="")
+
+        mock_run.side_effect = _side_effect
+        assert complete_session_log._test_serena_memory_updated("abc1234") is False
+
+    @patch("complete_session_log.subprocess.run")
+    def test_git_log_failure_returns_false(self, mock_run):
+        """Non-zero git log exit code does not raise, returns False."""
+
+        def _side_effect(cmd, **kwargs):
+            if "log" in cmd:
+                return MagicMock(returncode=128, stdout="")
+            return MagicMock(returncode=0, stdout="")
+
+        mock_run.side_effect = _side_effect
+        assert complete_session_log._test_serena_memory_updated("abc1234") is False
+
+    @patch("complete_session_log.subprocess.run")
+    def test_memories_backup_dir_not_detected(self, mock_run):
+        """Path .serena/memories_backup must not be confused with .serena/memories/."""
+        mock_run.return_value = MagicMock(returncode=0, stdout=".serena/memories_backup/old.md\n")
+        assert complete_session_log._test_serena_memory_updated() is False
+
+    @patch("complete_session_log.subprocess.run")
+    def test_memories_backup_in_git_log_not_detected(self, mock_run):
+        """committed .serena/memories_backup changes must not fire the check."""
+
+        def _side_effect(cmd, **kwargs):
+            if "log" in cmd:
+                return MagicMock(returncode=0, stdout=".serena/memories_backup/old.md\n")
+            return MagicMock(returncode=0, stdout="")
+
+        mock_run.side_effect = _side_effect
+        assert complete_session_log._test_serena_memory_updated("abc1234") is False
+
 
 class TestUncommittedChanges:
     """Tests for _test_uncommitted_changes function."""

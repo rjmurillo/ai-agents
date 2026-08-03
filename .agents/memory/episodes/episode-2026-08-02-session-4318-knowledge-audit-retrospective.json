@@ -1,0 +1,74 @@
+{
+  "id": "episode-2026-08-02-session-4318-knowledge-audit-retrospective",
+  "session": "2026-08-02-session-4318-knowledge-audit-retrospective",
+  "timestamp": "2026-08-02T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Record the knowledge-audit retrospective. Classify the session's failures against the existing taxonomy, link every claim to a command or a file, and list remediation against filed issues.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Classified the session against .agents/governance/FAILURE-MODES.md",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4318-knowledge-audit-retrospective"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified every file and line cited in the evidence table by reading it",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4318-knowledge-audit-retrospective"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-ran the stale-pycache probe in the revert direction with real writes and no utime",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4318-knowledge-audit-retrospective"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated the rule mirrors and re-measured the instruction budget",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4318-knowledge-audit-retrospective"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected an overclaim in the first retrospective draft",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4318-knowledge-audit-retrospective"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 933e34242",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4318-knowledge-audit-retrospective"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}

@@ -1,0 +1,144 @@
+"""Mutation harness for issue #3791: check_python3_entrypoints validator.
+
+Verifies that each load-bearing component of check_python3_entrypoints.py
+is individually detectable by the test suite.
+
+Rules:
+- Count each pattern; exit nonzero with DID-NOT-APPLY when count != 1.
+- cmp -s check: fail if mutated bytes are identical to original (no mutation applied).
+- sleep(1.1) after every file write to defeat 1-second bytecode mtime cache.
+- Restore byte-identically and assert after every mutant.
+- Outcomes: DEAD (tests caught it), SURVIVED (tests missed it), DID-NOT-APPLY (pattern absent).
+"""
+
+from __future__ import annotations
+
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_TARGET = _REPO_ROOT / "scripts" / "validation" / "check_python3_entrypoints.py"
+_TESTS = [
+    "tests/test_check_python3_entrypoints.py",
+]
+
+
+def _run_tests() -> int:
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", *_TESTS, "-x", "-q"],
+        cwd=_REPO_ROOT,
+        capture_output=True,
+    )
+    return result.returncode
+
+
+def _apply_mutant(original: bytes, old: bytes, new: bytes) -> tuple[bytes, str]:
+    """Return mutated bytes and a status string.
+
+    Returns (mutated_bytes, "OK") on success.
+    Returns (original, "DID-NOT-APPLY") if pattern is absent.
+    Raises ValueError if pattern appears more than once.
+    """
+    count = original.count(old)
+    if count == 0:
+        return original, "DID-NOT-APPLY"
+    if count > 1:
+        raise ValueError(
+            f"PATTERN-AMBIGUOUS: pattern appears {count} times (need exactly 1): {old!r}"
+        )
+    mutated = original.replace(old, new, 1)
+    if mutated == original:
+        raise ValueError(f"Mutation produced byte-identical output for: {old!r}")
+    return mutated, "OK"
+
+
+def run_mutants() -> None:
+    original_bytes = _TARGET.read_bytes()
+
+    mutants = [
+        (
+            "remove _BARE_PY3_PATTERN regex",
+            b'_BARE_PY3_PATTERN = re.compile(r"(?<!\\w)python3\\s+(scripts/[^\\s`\\"\']+\\.py)")',
+            b'_BARE_PY3_PATTERN = re.compile(r"MUTANT-DELETED-3791-NEVER-MATCHES")',
+        ),
+        (
+            "remove yaml from _THIRD_PARTY_IMPORTS",
+            b'        "yaml",  # PyYAML',
+            b'        # "yaml",  # MUTANT-DELETED-3791',
+        ),
+        (
+            "suppress violation return in check_docs",
+            b"                if bad:\n                    violations.append((doc_path, lineno, rel, bad))",  # noqa: E501
+            b"                if bad:\n                    pass  # MUTANT-DELETED-3791",
+        ),
+        (
+            "change exit-1 return to exit-0 in main",
+            b"    return 1\n\n\nif __name__ == \"__main__\":",
+            b"    return 0  # MUTANT-DELETED-3791\n\n\nif __name__ == \"__main__\":",
+        ),
+    ]
+
+    dead: list[str] = []
+    survived: list[str] = []
+    did_not_apply: list[str] = []
+
+    for name, old, new in mutants:
+        print(f"\n--- Mutant: {name} ---")
+        mutated, status = _apply_mutant(original_bytes, old, new)
+
+        if status == "DID-NOT-APPLY":
+            did_not_apply.append(name)
+            print("  DID-NOT-APPLY: pattern not found in target file")
+            continue
+
+        _TARGET.write_bytes(mutated)
+        time.sleep(1.1)
+
+        # Verify bytes actually changed
+        on_disk = _TARGET.read_bytes()
+        if on_disk == original_bytes:
+            _TARGET.write_bytes(original_bytes)
+            did_not_apply.append(name)
+            print("  DID-NOT-APPLY: file byte-identical after write")
+            continue
+
+        rc = _run_tests()
+        if rc == 0:
+            survived.append(name)
+            print("  SURVIVED: tests passed when they should have failed")
+        else:
+            dead.append(name)
+            print(f"  DEAD: tests caught the mutation (exit {rc})")
+
+        _TARGET.write_bytes(original_bytes)
+        time.sleep(1.1)
+        restored = _TARGET.read_bytes()
+        assert restored == original_bytes, f"Restore was not byte-identical for: {name}"
+
+    print(f"\n{'='*60}")
+    print(f"DEAD:          {len(dead)}")
+    print(f"SURVIVED:      {len(survived)}")
+    print(f"DID-NOT-APPLY: {len(did_not_apply)}")
+
+    if did_not_apply:
+        print("\nDID-NOT-APPLY (patterns not found -- verify target still contains them):")
+        for msg in did_not_apply:
+            print(f"  {msg}")
+
+    if survived:
+        print("\nSURVIVING MUTANTS (test suite did not detect):")
+        for msg in survived:
+            print(f"  {msg}")
+        sys.exit(1)
+
+    if did_not_apply:
+        print("\nDID-NOT-APPLY mutations present -- target may have changed.")
+        sys.exit(2)
+
+    print("\nAll mutants killed. Tests are load-bearing.")
+
+
+if __name__ == "__main__":
+    run_mutants()

@@ -4,9 +4,13 @@ description: Quality assurance specialist who verifies implementations work corr
 model: opus
 metadata:
   tier: builder
+# Requires fresh context and separate tool state to review implementations independently.
+isolation_required: true
 argument-hint: Provide the implementation or feature to verify
 ---
 # QA Agent
+
+> **Autonomy Guardrail**: Apply the autonomy rule from `AGENTS.md`, confirm before external/irreversible actions.
 
 ## Reviewer Asymmetry (Read First)
 

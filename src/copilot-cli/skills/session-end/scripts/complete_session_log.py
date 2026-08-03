@@ -190,7 +190,7 @@ def _test_handoff_modified() -> bool:
     return False
 
 
-def _test_serena_memory_updated() -> bool:
+def _test_serena_memory_updated(starting_commit: str | None = None) -> bool:
     for cmd in [
         ["git", "diff", "--cached", "--name-only"],
         ["git", "diff", "--name-only"],
@@ -205,7 +205,25 @@ def _test_serena_memory_updated() -> bool:
         )
         if result.returncode == 0:
             for line in result.stdout.splitlines():
-                if line.startswith(".serena/memories"):
+                if line.startswith(".serena/memories/"):
+                    return True
+    if starting_commit:
+        result = subprocess.run(
+            [
+                "git",
+                "log",
+                "--name-only",
+                "--format=",
+                f"{starting_commit}..HEAD",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        if result.returncode == 0:
+            for line in result.stdout.splitlines():
+                if line.startswith(".serena/memories/"):
                     return True
     return False
 
@@ -472,7 +490,8 @@ def main(argv: list[str] | None = None) -> int:
             changes.append("Confirmed HANDOFF.md not modified")
 
     # 3. serenaMemoryUpdated
-    memory_updated = _test_serena_memory_updated()
+    starting_commit = session.get("session", {}).get("startingCommit")
+    memory_updated = _test_serena_memory_updated(starting_commit)
     if "serenaMemoryUpdated" in session_end:
         check = session_end["serenaMemoryUpdated"]
         if memory_updated:

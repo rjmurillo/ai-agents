@@ -92,6 +92,29 @@ def test_transitive_local_import_reaches_third_party(tmp_path: Path) -> None:
     assert scan(repo) == {"README.md": 1}
 
 
+def test_subprocess_wrapper_reaches_third_party_dependency(tmp_path: Path) -> None:
+    repo = make_repo(
+        tmp_path,
+        {
+            "validate.py": "import jsonschema\n",
+            "entry.py": (
+                "import os\nimport subprocess\nimport sys\n"
+                "def validate(repo_root):\n"
+                "    target = os.path.join(repo_root, 'validate.py')\n"
+                "    subprocess.run([sys.executable, target], check=False)\n"
+                "def main():\n"
+                "    validate('.')\n"
+                "if __name__ == '__main__':\n"
+                "    main()\n"
+            ),
+            "README.md": "Run `python3 entry.py`.\n",
+        },
+    )
+
+    assert third_party_imports("entry.py", repo, {"entry.py", "validate.py"}) == {"jsonschema"}
+    assert scan(repo) == {"README.md": 1}
+
+
 def test_dot_directory_script_path_is_flagged(tmp_path: Path) -> None:
     """`python3 .claude/skills/<name>/scripts/<file>.py` is a documented invocation.
 
@@ -441,3 +464,32 @@ def test_update_baseline_writes_current_counts(tmp_path: Path) -> None:
 
     assert exit_code == 0
     assert json.loads(baseline.read_text(encoding="utf-8"))["files"] == {"README.md": 1}
+
+
+def test_update_baseline_refuses_count_increase(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(
+        tmp_path,
+        {"tool.py": "import yaml\n", "README.md": "Run `python3 tool.py`.\n"},
+    )
+    baseline = write_baseline(repo, {})
+
+    exit_code = main(["--repo-root", str(repo), "--baseline", str(baseline), "--update-baseline"])
+
+    assert exit_code == 1
+    assert json.loads(baseline.read_text(encoding="utf-8"))["files"] == {}
+    error = capsys.readouterr().err
+    assert "README.md:1" in error
+    assert "tool.py imports yaml" in error
+    assert "refusing to raise baseline" in error
+
+
+def test_update_baseline_records_verified_reduction(tmp_path: Path) -> None:
+    repo = make_repo(tmp_path, {"tool.py": "import yaml\n", "README.md": "No command.\n"})
+    baseline = write_baseline(repo, {"README.md": 1})
+
+    exit_code = main(["--repo-root", str(repo), "--baseline", str(baseline), "--update-baseline"])
+
+    assert exit_code == 0
+    assert json.loads(baseline.read_text(encoding="utf-8"))["files"] == {}
