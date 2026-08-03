@@ -52,9 +52,11 @@ from github_core.output import (
 )
 
 _JSON_FIELDS = (
-    "number,title,body,headRefName,headRefOid,baseRefName,state,author,labels,"
+    "number,title,body,headRefName,headRefOid,baseRefName,baseRefOid,state,author,labels,"
     "reviewRequests,commits,additions,deletions,changedFiles,"
-    "mergeable,mergedAt,mergedBy,createdAt,updatedAt"
+    "mergeable,mergeStateStatus,isDraft,autoMergeRequest,"
+    "headRepository,reviews,"
+    "mergedAt,mergedBy,createdAt,updatedAt"
 )
 
 
@@ -112,6 +114,8 @@ def main(argv: list[str] | None = None) -> int:
     labels = [label.get("name", "") for label in pr_data.get("labels", [])]
     author = pr_data.get("author")
     merged_by = pr_data.get("mergedBy")
+    head_repo = pr_data.get("headRepository") or {}
+    auto_merge = pr_data.get("autoMergeRequest")
 
     data: dict = {
         "number": pr_data.get("number"),
@@ -122,6 +126,14 @@ def main(argv: list[str] | None = None) -> int:
         "head_branch": pr_data.get("headRefName"),
         "head_sha": pr_data.get("headRefOid"),
         "base_branch": pr_data.get("baseRefName"),
+        "base_sha": pr_data.get("baseRefOid"),
+        "is_draft": pr_data.get("isDraft", False),
+        "merge_state_status": pr_data.get("mergeStateStatus"),
+        "auto_merge": auto_merge is not None,
+        "auto_merge_method": auto_merge.get("mergeMethod") if auto_merge else None,
+        "head_repo_name": head_repo.get("name"),
+        "head_repo_owner": (head_repo.get("owner") or {}).get("login"),
+        "reviews": pr_data.get("reviews", []),
         "labels": labels,
         "commits": len(pr_data.get("commits", [])),
         "additions": pr_data.get("additions"),
