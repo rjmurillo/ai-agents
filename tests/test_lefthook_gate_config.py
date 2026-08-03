@@ -29,7 +29,7 @@ def _iter_all_jobs(data) -> list[dict]:
 
 
 class TestMemoryTierGateEnforcement:
-    """Memory gate lefthook jobs must include --ci to exit non-zero on violations."""
+    """Memory gate lefthook jobs must enforce, each at the tier issue #4313 chose."""
 
     def _find_job(self, name: str) -> dict:
         data = yaml.safe_load(LEFTHOOK_PATH.read_text(encoding="utf-8"))
@@ -38,10 +38,31 @@ class TestMemoryTierGateEnforcement:
                 return job
         raise AssertionError(f"Job {name!r} not found in lefthook.yml")
 
-    def test_memory_tier_job_has_ci_flag(self) -> None:
+    def test_memory_tier_job_does_not_use_bare_ci(self) -> None:
+        """--ci promotes 425 pre-existing warnings to errors and blocks every commit.
+
+        Issue #4313 rejected that shape by name: "A ratchet fits the repo's
+        existing pattern and avoids a 400-file cleanup blocking unrelated work."
+        The count is enforced by memory-index-count-ratchet instead, so this
+        asserts the rejected shape stays gone.
+        """
         job = self._find_job("memory-tier")
         run = job.get("run", "")
-        assert "--ci" in run, f"memory-tier is missing --ci: {run!r}"
+        assert "--ci" not in run, (
+            f"memory-tier carries --ci, which blocks every commit touching "
+            f".serena/memories/** until the whole backlog is cleared: {run!r}"
+        )
+
+    def test_memory_tier_count_is_enforced_by_a_ratchet(self) -> None:
+        job = self._find_job("memory-index-count-ratchet")
+        run = job.get("run", "")
+        assert "scripts/ci/memory_index_count_ratchet.py" in run, (
+            f"memory-index-count-ratchet does not run the ratchet: {run!r}"
+        )
+        assert "--base-ref" in run, (
+            f"memory-index-count-ratchet cannot catch a PR that raises the "
+            f"baseline without --base-ref: {run!r}"
+        )
 
     def test_memory_index_job_has_ci_flag(self) -> None:
         job = self._find_job("memory-index")

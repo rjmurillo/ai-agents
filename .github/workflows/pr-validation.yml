@@ -294,6 +294,19 @@ jobs:
           # CI-only: see taste-lint ratchet step above for the --depth=1 caveat.
           git fetch --depth=1 origin "$BASE_REF"
           uv run --frozen python3 scripts/ci/type_ignore_count_ratchet.py --base-ref FETCH_HEAD
+      # Issue #4313: 425 atomic memories are unreachable through the retrieval
+      # path AGENTS.md points at. The pre-push ratchet stops the count rising,
+      # but every route that skips local hooks reaches the remote unchecked:
+      # `--no-verify`, a clone where `lefthook install` was never run, a bot
+      # push, a cloud agent. The gate needs a server-side leg for the same
+      # reason the conflict-marker gate below does.
+      - name: Run unindexed-memory count ratchet
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          # CI-only: see taste-lint ratchet step above for the --depth=1 caveat.
+          git fetch --depth=1 origin "$BASE_REF"
+          uv run --frozen python3 scripts/ci/memory_index_count_ratchet.py --base-ref FETCH_HEAD
       # Issue #3770: `conflict-marker-policy` runs only at pre-commit over the
       # index. Every route that skips local hooks reached the remote unchecked:
       # a server-side merge from the "Update branch" button, `--no-verify`, a
