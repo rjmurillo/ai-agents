@@ -455,7 +455,18 @@ class SemgrepScanner:
             raise SemgrepScanError(
                 f"Semgrep timed out after {self.SCAN_TIMEOUT_SECONDS}s"
             ) from e
-        except subprocess.SubprocessError as e:
+        except (subprocess.SubprocessError, OSError) as e:
+            # OSError is listed explicitly: it is NOT a subclass of
+            # subprocess.SubprocessError (verified in this session:
+            # issubclass(subprocess.SubprocessError, OSError) is False; the two
+            # hierarchies are siblings under Exception). subprocess.run raises
+            # OSError, not SubprocessError, when the exec itself faults: the
+            # binary was deleted between _resolve_semgrep_executable's version
+            # probe and this call (TOCTOU -> FileNotFoundError), lost its exec
+            # bit (PermissionError), or the kernel refused the spawn (OSError).
+            # Without this arm the exception escapes _run_semgrep, run() catches
+            # only SemgrepScanError, and the gate dies on a traceback instead of
+            # the structured blocking finding below.
             logger.error("Semgrep scan failed: %s", e)
             message = _semgrep_output_snippet(str(e), fallback=type(e).__name__)
             return [_scan_failure_finding(f"Semgrep scan failed: {message}")]
