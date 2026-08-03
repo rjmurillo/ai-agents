@@ -23,12 +23,18 @@ mirror is authoritative for membership.
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+import scripts.validation.instruction_budget as ib  # noqa: E402
+
 MIRROR_DIR = REPO_ROOT / ".github" / "instructions"
 DOCTRINE = (
     REPO_ROOT
@@ -242,12 +248,6 @@ def parse_doctrine_figures(text: str) -> dict[str, float]:
 
 def _budget(ext: str):
     """Measure one extension's always-on budget with the enforced tool."""
-    import sys
-
-    if str(REPO_ROOT) not in sys.path:
-        sys.path.insert(0, str(REPO_ROOT))
-    from scripts.validation import instruction_budget as ib
-
     files = ib.load_instruction_files(REPO_ROOT)
     return ib.measure_extension(files, ext, ceiling_bytes=10**9)
 
@@ -345,25 +345,29 @@ def test_doctrine_8kb_multipliers_match_the_measured_source_sizes() -> None:
     )
 
 
-def test_figure_parser_rejects_prose_with_a_figure_removed() -> None:
+@pytest.mark.parametrize(
+    ("pattern", "label"),
+    [
+        (_FIG_MIRROR, "always-on"),
+        (_FIG_PY, "`.py` effective"),
+        (_FIG_SOURCE, "source-basis"),
+        (_FIG_PLUGIN, "plugin-tree"),
+        (_FIG_MULTIPLIERS, "8KB multiplier"),
+    ],
+)
+def test_figure_parser_rejects_prose_with_a_figure_removed(
+    pattern: re.Pattern[str], label: str
+) -> None:
+    """Rewording any one figure sentence must raise, never silently pass.
+
+    Every numeric test in this file reads its expected value out of the prose.
+    If a reworded sentence made the parser return a partial dict instead of
+    raising, those tests would compare against a stale or absent figure and go
+    green while the doc drifted. Each of the five patterns is checked because
+    a single-pattern test leaves the other four free to fail open.
+    """
     text = DOCTRINE.read_text(encoding="utf-8")
-    stripped = _FIG_PLUGIN.sub("the plugin tree carries more", text)
-    with pytest.raises(ValueError, match="plugin-tree"):
+    stripped = pattern.sub("prose with the figure removed", text)
+    assert stripped != text, f"{label} pattern did not match the doc; test is vacuous"
+    with pytest.raises(ValueError, match=re.escape(label)):
         parse_doctrine_figures(stripped)
-
-
-def test_figure_parser_reads_every_documented_figure() -> None:
-    figures = parse_doctrine_figures(DOCTRINE.read_text(encoding="utf-8"))
-    assert set(figures) == {
-        "mirror_files",
-        "mirror_bytes",
-        "py_files",
-        "py_bytes",
-        "source_bytes",
-        "source_delta",
-        "plugin_files",
-        "plugin_bytes",
-        "always_multiplier",
-        "code_multiplier",
-    }
-    assert all(value > 0 for value in figures.values())
