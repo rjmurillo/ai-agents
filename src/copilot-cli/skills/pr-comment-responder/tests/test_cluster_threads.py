@@ -507,6 +507,25 @@ class TestResolveLibDir:
         monkeypatch.setattr(os.path, "isdir", lambda path: path == "copilot-root/lib")
         assert mod._resolve_lib_dir() == "copilot-root/lib"
 
+    def test_resolve_lib_dir_failure_names_every_candidate(self, monkeypatch, capsys):
+        mod = _load_module()
+        monkeypatch.setenv("COPILOT_PLUGIN_ROOT", "copilot-root")
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", "claude-root")
+        monkeypatch.setenv("GITHUB_WORKSPACE", "workspace-root")
+        monkeypatch.setattr(os.path, "isdir", lambda path: False)
+
+        try:
+            mod._resolve_lib_dir()
+        except SystemExit as exc:
+            assert exc.code == 2
+        else:
+            raise AssertionError("expected SystemExit")
+
+        stderr = capsys.readouterr().err
+        assert "copilot-root/lib" in stderr
+        assert "claude-root/lib" in stderr
+        assert "workspace-root/.claude/lib" in stderr
+
     def test_non_runtime_fetch_failure_exits_3(self):
         mod = _load_module()
 

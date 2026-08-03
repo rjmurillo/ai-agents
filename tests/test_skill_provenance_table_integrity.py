@@ -1,9 +1,14 @@
 """Regression guard: escaped pipes in skill SKILL.md provenance tables.
 
 Escaped pipes (``\\|``) are valid Markdown table syntax but reach a raw shell
-reader intact. In a re-verify command column, the escape lets a second shell
-statement hide the first statement's failure (the first statement exits non-zero
-and the shell sees a literal ``|`` as a pipe character, silently continuing).
+reader intact. The backslash escapes the pipe, so the shell does NOT open a
+pipeline: it passes a literal ``|`` as an argument to the first command, which
+then fails on it. Where the cell chains a second statement with ``;``, the shell
+continues past that failure and the chain still exits 0, so the row reports a
+result it never computed. Reproduced with
+``bash -c 'ls dir/ \\| wc -l; echo next'``: ``ls`` prints
+``cannot access '|': No such file or directory``, ``echo`` still runs, and the
+overall status is 0.
 
 This test scans every ``## Provenance`` table in every ``.claude/skills/*/SKILL.md``
 and reports any row that contains ``\\|``.

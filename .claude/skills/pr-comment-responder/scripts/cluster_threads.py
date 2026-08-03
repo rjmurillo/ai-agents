@@ -529,7 +529,8 @@ def _resolve_lib_dir() -> str:
         if os.path.isdir(lib_dir):
             return lib_dir
 
-    print(f"Plugin lib directory not found: {relative}", file=sys.stderr)
+    tried = ", ".join(candidates)
+    print(f"Plugin lib directory not found. Tried: {tried}", file=sys.stderr)
     sys.exit(2)
 
 
