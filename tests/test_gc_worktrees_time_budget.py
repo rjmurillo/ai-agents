@@ -304,6 +304,120 @@ class TestPartialReportsRefuseToMutate:
         assert report.remove_errors == []
 
 
+class TestApplyRefusesWhenOccupancyWasUnavailable:
+    """An unreadable /proc must withhold mutation, not license it.
+
+    ``occupied_paths`` returns an empty set of process working directories when
+    it cannot read ``/proc``. ``is_occupied`` matches a worktree path against
+    that set, so an empty set answers "vacant" for every worktree on no
+    evidence at all. Each one then clears the occupancy check and can reach the
+    candidate list. The report flags the gap via ``occupancy_unavailable``;
+    these tests pin that ``--apply`` honors the flag.
+    """
+
+    @staticmethod
+    def _report(decisions, *, occupancy_unavailable):
+        return GcReport(
+            timestamp="t",
+            base_ref="origin/main",
+            apply=True,
+            main_worktree="/repo",
+            decisions=decisions,
+            occupancy_unavailable=occupancy_unavailable,
+        )
+
+    def test_an_unavailable_scan_removes_nothing(self):
+        """Positive: the candidate is not removed and prune does not run."""
+        report = self._report(
+            [Decision("/repo/a", "feat/a", remove=True, reason="merged to base")],
+            occupancy_unavailable=True,
+        )
+        with (
+            patch("scripts.maintenance.gc_worktrees.remove_worktree") as remove,
+            patch("scripts.maintenance.gc_worktrees.prune_worktrees") as prune,
+        ):
+            apply_removals(report)
+        remove.assert_not_called()
+        prune.assert_not_called()
+        assert report.removed == []
+
+    def test_the_refusal_names_proc_and_the_remedy(self):
+        """Positive: the operator learns what was not checked and what to do."""
+        report = self._report(
+            [Decision("/repo/a", "feat/a", remove=True, reason="merged to base")],
+            occupancy_unavailable=True,
+        )
+        with (
+            patch("scripts.maintenance.gc_worktrees.remove_worktree"),
+            patch("scripts.maintenance.gc_worktrees.prune_worktrees"),
+        ):
+            apply_removals(report)
+        assert len(report.remove_errors) == 1
+        message = report.remove_errors[0]
+        assert "/proc" in message
+        assert "live process" in message
+
+    def test_an_available_scan_is_not_refused(self):
+        """Negative control: the guard must not fire on a readable /proc.
+
+        Without this the suite cannot tell a working guard from one that
+        refuses unconditionally.
+        """
+        report = self._report(
+            [Decision("/repo/a", "feat/a", remove=True, reason="merged to base")],
+            occupancy_unavailable=False,
+        )
+        with (
+            patch("scripts.maintenance.gc_worktrees.remove_worktree") as remove,
+            patch("scripts.maintenance.gc_worktrees.prune_worktrees") as prune,
+        ):
+            apply_removals(report)
+        assert [c.args[0] for c in remove.call_args_list] == ["/repo/a"]
+        prune.assert_called_once()
+        assert report.remove_errors == []
+
+    def test_an_unavailable_scan_with_no_candidates_still_refuses_to_prune(self):
+        """Edge: zero candidates does not make pruning safe.
+
+        ``git worktree prune`` drops admin records for directories that are
+        gone. With occupancy unknown the run has no standing to assert anything
+        about the tree, so the whole mutation is withheld, not just removals.
+        """
+        report = self._report(
+            [Decision("/repo/b", "feat/b", remove=False, reason=KEEP_MAIN)],
+            occupancy_unavailable=True,
+        )
+        with (
+            patch("scripts.maintenance.gc_worktrees.remove_worktree"),
+            patch("scripts.maintenance.gc_worktrees.prune_worktrees") as prune,
+        ):
+            apply_removals(report)
+        prune.assert_not_called()
+
+    def test_occupancy_outranks_a_partial_report(self):
+        """Edge: both refusals apply; the data-loss one is reported.
+
+        A run can be truncated and unable to read /proc at once. Only one
+        message is emitted, and it names the condition that risks deleting live
+        work rather than the one that risks an inconsistent plan.
+        """
+        report = self._report(
+            [
+                Decision("/repo/a", "feat/a", remove=True, reason="merged to base"),
+                Decision("/repo/z", "feat/z", remove=False, reason=KEEP_TIME_BUDGET),
+            ],
+            occupancy_unavailable=True,
+        )
+        with (
+            patch("scripts.maintenance.gc_worktrees.remove_worktree") as remove,
+            patch("scripts.maintenance.gc_worktrees.prune_worktrees"),
+        ):
+            apply_removals(report)
+        remove.assert_not_called()
+        assert len(report.remove_errors) == 1
+        assert "/proc" in report.remove_errors[0]
+
+
 class TestWorkerFailuresAbortTheReport:
     """A worker exception aborts the run instead of yielding a short list.
 

@@ -391,7 +391,23 @@ def apply_removals(report: GcReport) -> None:
     a different set than the dry run a reader reviewed, and ``git worktree
     prune`` would still drop admin records for worktrees this run never looked
     at. Rerun with ``--time-budget 0`` to get a complete, reviewable plan.
+
+    Refuses just as hard when the occupancy scan was unavailable. A failed
+    ``/proc`` read yields an empty set of process working directories, and an
+    empty set is indistinguishable from "every worktree is vacant" at the point
+    ``is_occupied`` consults it. Every worktree then clears the occupancy check
+    on no evidence, so applying the plan can delete a directory a live process
+    is sitting in. The dry run stays useful because the report discloses the
+    gap; only the mutation is withheld.
     """
+    if report.occupancy_unavailable:
+        report.remove_errors.append(
+            "refused: the occupancy scan could not read /proc, so no worktree "
+            "was checked for a live process; rerun where /proc is readable "
+            "before applying"
+        )
+        return
+
     if report.unevaluated:
         report.remove_errors.append(
             f"refused: {len(report.unevaluated)} worktree(s) were not inspected; "
