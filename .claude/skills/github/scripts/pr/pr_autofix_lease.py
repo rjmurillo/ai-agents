@@ -139,6 +139,7 @@ if _lib_dir not in sys.path:
 
 from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
+    gh_graphql,
     resolve_repo_params,
     safe_log_str,
 )
@@ -516,6 +517,81 @@ def _git_head_sha() -> str | None:
     return sha if _SHA40.match(sha) else None
 
 
+_PR_HEAD_SHA_QUERY = """\
+query($owner: String!, $repo: String!, $number: Int!) {
+    repository(owner: $owner, name: $repo) {
+        pullRequest(number: $number) {
+            headRefOid
+        }
+    }
+}"""
+
+
+def _gh_pr_head_sha(repo_owner: str, repo: str, pr: int) -> str | None:
+    """Return the authoritative PR head SHA from GitHub, or None on failure.
+
+    Resolves the actual PR head via GraphQL ``headRefOid`` so the lease
+    ``base_sha`` reflects the PR branch tip regardless of the caller's
+    working directory (issue #4357). A caller in a ``main`` checkout
+    would otherwise publish ``base_sha`` equal to local HEAD (main's tip),
+    making the freshness evidence in the lease misleading for the
+    push-time guard.
+
+    Falls back to None on any API failure so acquire still proceeds
+    (fail-open; the SHA gate remains the hard backstop).
+    """
+    try:
+        data = gh_graphql(
+            _PR_HEAD_SHA_QUERY,
+            {"owner": repo_owner, "repo": repo, "number": pr},
+        )
+    except RuntimeError as exc:
+        logger.warning(
+            "op=lease_pr_head_sha_failed pr=%d err=%s",
+            pr, safe_log_str(str(exc)),
+        )
+        return None
+    sha = (
+        (data.get("repository") or {})
+        .get("pullRequest") or {}
+    ).get("headRefOid", "")
+    if not sha or not _SHA40.match(sha):
+        return None
+    return sha
+
+
+def _resolve_base_sha(repo_owner: str, repo: str, pr: int) -> str:
+    """Return the best-available PR head SHA for the lease ``base_sha``.
+
+    Authoritative source: GitHub GraphQL ``headRefOid`` for the PR.
+    Fallback: local ``git rev-parse HEAD`` when the API call fails.
+    Last resort: 40-zero sentinel when neither is available.
+
+    Emits a structured warning when the local HEAD differs from the
+    authoritative PR head, which indicates the caller is in the wrong
+    checkout (issue #4357). The warning is diagnostic only; acquire
+    still proceeds using the authoritative SHA.
+    """
+    authoritative = _gh_pr_head_sha(repo_owner, repo, pr)
+    local = _git_head_sha()
+    if authoritative:
+        if local and local != authoritative:
+            logger.warning(
+                "op=lease_checkout_mismatch pr=%d local_head=%s pr_head=%s "
+                "reason=acquire_from_wrong_checkout",
+                pr, safe_log_str(local), safe_log_str(authoritative),
+            )
+        return authoritative
+    if local:
+        logger.warning(
+            "op=lease_pr_head_unavailable pr=%d local_head=%s "
+            "reason=using_local_head_as_fallback",
+            pr, safe_log_str(local),
+        )
+        return local
+    return "0" * 40
+
+
 def _gh_authenticated_login() -> str:
     """Return the authenticated GitHub login, or "" if it cannot resolve.
 
@@ -666,7 +742,7 @@ def acquire(
     """
     now = now or datetime.now(UTC)
     author = _gh_authenticated_login() if acting_author is None else acting_author
-    base_sha = _git_head_sha() or ("0" * 40)
+    base_sha = _resolve_base_sha(repo_owner, repo, pr)
     try:
         comments = list_lease_comments(repo_owner, repo, pr)
     except LeaseStoreError as exc:
