@@ -40,6 +40,7 @@
     "skills/github/scripts/pr/get_pr_review_comments.py": 1,
     "skills/github/scripts/pr/get_pr_review_threads.py": 1,
     "skills/github/scripts/pr/get_pr_reviewers.py": 1,
+    "skills/github/scripts/pr/get_pr_reviews.py": 1,
     "skills/github/scripts/pr/get_pull_requests.py": 1,
     "skills/github/scripts/pr/get_thread_by_id.py": 1,
     "skills/github/scripts/pr/get_thread_conversation_history.py": 1,

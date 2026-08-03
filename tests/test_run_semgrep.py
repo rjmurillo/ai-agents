@@ -32,6 +32,24 @@ def scanner() -> SemgrepScanner:
         return SemgrepScanner()
 
 
+@pytest.fixture(autouse=True)
+def _stub_pinned_executable():
+    """Stub semgrep executable resolution for every test in this module.
+
+    ``_resolve_semgrep_executable`` verifies the resolved binary against the
+    pyproject.toml pin, which costs a ``semgrep --version`` subprocess. The
+    tests below mock ``subprocess.run`` to script the *scan* call, so an
+    unstubbed probe consumes that mock and the scan never runs. Resolution has
+    its own coverage in ``tests/test_run_semgrep_pinning.py``; here it is an
+    external boundary and is stubbed like one.
+    """
+    with patch(
+        "scripts.security.run_semgrep._resolve_semgrep_executable",
+        return_value="/pinned/semgrep",
+    ):
+        yield
+
+
 def _completed(returncode: int, stdout: str = "", stderr: str = "") -> MagicMock:
     result = MagicMock()
     result.returncode = returncode
@@ -163,6 +181,59 @@ class TestRunSemgrepFailClosed:
         assert findings[0].check_id == "semgrep-scan-failure"
         assert findings[0].severity == "ERROR"
         assert "generic failure" in findings[0].message
+
+    @pytest.mark.parametrize(
+        ("error", "expected_fragment"),
+        [
+            # Binary passed the resolver's version probe, then vanished before
+            # the scan spawn (TOCTOU).
+            (FileNotFoundError(2, "No such file or directory"), "No such file"),
+            # Exec bit dropped, or the binary sits on a noexec mount.
+            (PermissionError(13, "Permission denied"), "Permission denied"),
+            # Any other kernel-level spawn refusal (ENOMEM, ETXTBSY, ...).
+            (OSError("spawn refused"), "spawn refused"),
+        ],
+        ids=["file-not-found", "permission-denied", "generic-oserror"],
+    )
+    def test_os_error_returns_scan_failure(
+        self,
+        scanner: SemgrepScanner,
+        error: OSError,
+        expected_fragment: str,
+    ) -> None:
+        """An exec-time OSError must fail closed, not escape _run_semgrep.
+
+        Discriminating input: OSError is not a subclass of
+        subprocess.SubprocessError, so the SubprocessError arm alone lets every
+        case here escape uncaught instead of returning a blocking finding.
+        """
+        with patch(
+            "scripts.security.run_semgrep.subprocess.run",
+            side_effect=error,
+        ):
+            findings = scanner._run_semgrep([Path("/repo/a.py")])
+        assert len(findings) == 1
+        assert findings[0].check_id == "semgrep-scan-failure"
+        assert findings[0].severity == "ERROR"
+        assert expected_fragment in findings[0].message
+
+    def test_os_error_makes_run_exit_1(self, scanner: SemgrepScanner) -> None:
+        """End to end: an exec-time OSError blocks the push, never passes it.
+
+        Discriminating input: uncaught, the OSError escapes run() entirely;
+        swallowed and returned as [], run() would exit 0 on a scan that never
+        ran. Exit 1 is the only fail-closed answer.
+        """
+        with (
+            patch.object(
+                scanner, "_get_changed_files", return_value=[Path("/repo/a.py")]
+            ),
+            patch(
+                "scripts.security.run_semgrep.subprocess.run",
+                side_effect=PermissionError(13, "Permission denied"),
+            ),
+        ):
+            assert scanner.run() == 1
 
     def test_invalid_json_returns_scan_failure(self, scanner: SemgrepScanner) -> None:
         with patch(

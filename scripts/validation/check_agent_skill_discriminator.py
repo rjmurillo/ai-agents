@@ -479,6 +479,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Changed agent file paths to score (space-separated).",
     )
     parser.add_argument(
+        "--all",
+        action="store_true",
+        default=False,
+        help="Score every agent in the repo, not just changed files. "
+        "Used by the scheduled full-corpus audit (Issue #4087).",
+    )
+    parser.add_argument(
         "--pr-body",
         default=os.environ.get("PR_BODY", ""),
         help="PR description text; scanned for the override token (env: PR_BODY).",
@@ -508,6 +515,20 @@ def main(argv: list[str] | None = None) -> int:
     changed = _split_changed_arg(
         args.changed_files, os.environ.get("CHANGED_FILES")
     )
+
+    if args.all:
+        # Full-corpus mode: score every agent in the repo (Issue #4087).
+        # Overrides --changed-files and CHANGED_FILES.
+        agents_dir = repo_root / ".claude" / "agents"
+        templates_dir = repo_root / "templates" / "agents"
+        corpus: list[str] = []
+        for directory in (agents_dir, templates_dir):
+            if directory.is_dir():
+                for p in sorted(directory.rglob("*.md")):
+                    rel = str(p.relative_to(repo_root))
+                    if is_agent_path(rel):
+                        corpus.append(rel)
+        changed = corpus
 
     try:
         result = run_check(repo_root, changed, args.pr_body)
