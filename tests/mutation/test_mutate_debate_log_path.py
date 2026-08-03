@@ -25,10 +25,16 @@ All test nodes assert:
 
 Counting occurs before each mutation; DID-NOT-APPLY is reported if the literal
 is absent (count == 0) and is an error exit.
+
+Isolation (Issue #4457): mutations are applied to a temporary shadow copy of
+scripts/validation/git_hook_policy.py so the tracked source file is never
+modified.  The subprocess runs with PYTHONPATH pointing at the shadow tree, so
+it imports the mutated module without touching the working tree.
 """
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 import sys
 import time
@@ -47,8 +53,36 @@ _OUTCOME_SURVIVED = "SURVIVED"
 _OUTCOME_DID_NOT_APPLY = "DID-NOT-APPLY"
 
 
-def _run_tests() -> subprocess.CompletedProcess[str]:
+def _build_shadow(tmp_dir: Path) -> tuple[Path, Path]:
+    """Copy scripts/ into a shadow tree under tmp_dir.
+
+    Returns (shadow_root, shadow_target) where shadow_root is the directory to
+    prepend to PYTHONPATH and shadow_target is the mutable copy of TARGET.
+
+    The full scripts/ tree is copied so that the shadow
+    scripts/validation/__init__.py (which imports scripts.validation.models and
+    other submodules) resolves correctly without touching the production tree.
+    """
+    shadow_scripts = tmp_dir / "scripts"
+    shutil.copytree(
+        REPO_ROOT / "scripts",
+        shadow_scripts,
+        symlinks=False,
+        ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+    )
+    shadow_target = shadow_scripts / "validation" / "git_hook_policy.py"
+    return tmp_dir, shadow_target
+
+
+def _run_tests(shadow_root: Path) -> subprocess.CompletedProcess[str]:
+    env_path = str(shadow_root)
     cmd = [sys.executable, "-m", "pytest", "--tb=short", "-q", *TESTS]
+    import os
+
+    env = os.environ.copy()
+    # Prepend shadow_root so the mutated module shadows the production one.
+    existing = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = env_path if not existing else f"{env_path}:{existing}"
     return subprocess.run(
         cmd,
         cwd=str(REPO_ROOT),
@@ -56,6 +90,7 @@ def _run_tests() -> subprocess.CompletedProcess[str]:
         text=True,
         encoding="utf-8",
         errors="replace",
+        env=env,
     )
 
 
@@ -72,12 +107,14 @@ def _assert_suite_ran(result: subprocess.CompletedProcess[str], label: str) -> N
 
 
 def _apply_positive_mutant(
+    shadow_target: Path,
     original: bytes,
     original_fragment: bytes,
     mutant_fragment: bytes,
     label: str,
+    shadow_root: Path,
 ) -> str:
-    """Apply a mutant and assert the suite detects it (DEAD). Returns outcome string."""
+    """Apply a mutant to the shadow copy and assert the suite detects it (DEAD)."""
     count = original.count(original_fragment)
     if count == 0:
         raise AssertionError(
@@ -92,25 +129,24 @@ def _apply_positive_mutant(
     mutated = original.replace(original_fragment, mutant_fragment, 1)
     assert mutated != original, f"Mutation {label} produced a byte-identical file"
 
-    backup = TARGET.read_bytes()
-    try:
-        TARGET.write_bytes(mutated)
-        time.sleep(1.1)  # defeat 1-second bytecode mtime granularity
+    shadow_target.write_bytes(mutated)
+    time.sleep(1.1)  # defeat 1-second bytecode mtime granularity
 
-        result = _run_tests()
-        _assert_suite_ran(result, label)
+    result = _run_tests(shadow_root)
+    _assert_suite_ran(result, label)
 
-        assert result.returncode != 0, (
-            f"MUTANT SURVIVED ({label}): suite passed after mutation. "
-            "Tests do not detect the regression.\n"
-            f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-        )
-    finally:
-        TARGET.write_bytes(backup)
-        time.sleep(1.1)
+    # Restore shadow copy regardless of outcome so later mutants start clean.
+    shadow_target.write_bytes(original)
+    time.sleep(1.1)
 
-    restored = TARGET.read_bytes()
-    assert restored == original, f"File not restored byte-identically after {label}"
+    assert result.returncode != 0, (
+        f"MUTANT SURVIVED ({label}): suite passed after mutation. "
+        "Tests do not detect the regression.\n"
+        f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    )
+
+    restored = shadow_target.read_bytes()
+    assert restored == original, f"Shadow not restored byte-identically after {label}"
 
     return _OUTCOME_DEAD
 
@@ -123,12 +159,15 @@ _M1_ORIGINAL = b'    critique_dir = repo_root / ".agents" / "critique"\n'
 _M1_MUTANT = b'    critique_dir = repo_root / ".agents" / "analysis"  # M1 mutant\n'
 
 
-def test_m1_directory_name_reverted_is_detected() -> None:
-    original = TARGET.read_bytes()
-    outcome = _apply_positive_mutant(original, _M1_ORIGINAL, _M1_MUTANT, "M1-dir-name")
+def test_m1_directory_name_reverted_is_detected(tmp_path: Path) -> None:
+    shadow_root, shadow_target = _build_shadow(tmp_path)
+    original = shadow_target.read_bytes()
+    outcome = _apply_positive_mutant(
+        shadow_target, original, _M1_ORIGINAL, _M1_MUTANT, "M1-dir-name", shadow_root
+    )
     assert outcome == _OUTCOME_DEAD
     # Inverted verification: suite still passes after restore.
-    result = _run_tests()
+    result = _run_tests(shadow_root)
     _assert_suite_ran(result, "M1-restore-check")
     assert result.returncode == 0, (
         "Tests failed after restoring original (M1).\n"
@@ -151,11 +190,14 @@ _M2_MUTANT = (
 )
 
 
-def test_m2_error_message_path_changed_is_detected() -> None:
-    original = TARGET.read_bytes()
-    outcome = _apply_positive_mutant(original, _M2_ORIGINAL, _M2_MUTANT, "M2-error-msg")
+def test_m2_error_message_path_changed_is_detected(tmp_path: Path) -> None:
+    shadow_root, shadow_target = _build_shadow(tmp_path)
+    original = shadow_target.read_bytes()
+    outcome = _apply_positive_mutant(
+        shadow_target, original, _M2_ORIGINAL, _M2_MUTANT, "M2-error-msg", shadow_root
+    )
     assert outcome == _OUTCOME_DEAD
-    result = _run_tests()
+    result = _run_tests(shadow_root)
     _assert_suite_ran(result, "M2-restore-check")
     assert result.returncode == 0, (
         "Tests failed after restoring original (M2).\n"
@@ -181,11 +223,14 @@ _M3_MUTANT = (
 )
 
 
-def test_m3_missing_debate_log_gate_removed_is_detected() -> None:
-    original = TARGET.read_bytes()
-    outcome = _apply_positive_mutant(original, _M3_ORIGINAL, _M3_MUTANT, "M3-gate-removed")
+def test_m3_missing_debate_log_gate_removed_is_detected(tmp_path: Path) -> None:
+    shadow_root, shadow_target = _build_shadow(tmp_path)
+    original = shadow_target.read_bytes()
+    outcome = _apply_positive_mutant(
+        shadow_target, original, _M3_ORIGINAL, _M3_MUTANT, "M3-gate-removed", shadow_root
+    )
     assert outcome == _OUTCOME_DEAD
-    result = _run_tests()
+    result = _run_tests(shadow_root)
     _assert_suite_ran(result, "M3-restore-check")
     assert result.returncode == 0, (
         "Tests failed after restoring original (M3).\n"
@@ -217,9 +262,10 @@ _IC_MUTANT = (
 )
 
 
-def test_ic_comment_only_change_survives() -> None:
+def test_ic_comment_only_change_survives(tmp_path: Path) -> None:
     """Inverted control: a comment-only mutation must NOT be detected (rc == 0)."""
-    original = TARGET.read_bytes()
+    shadow_root, shadow_target = _build_shadow(tmp_path)
+    original = shadow_target.read_bytes()
 
     count = original.count(_IC_ORIGINAL)
     if count == 0:
@@ -233,22 +279,20 @@ def test_ic_comment_only_change_survives() -> None:
     mutated = original.replace(_IC_ORIGINAL, _IC_MUTANT, 1)
     assert mutated != original, "IC mutation produced a byte-identical file"
 
-    backup = TARGET.read_bytes()
-    try:
-        TARGET.write_bytes(mutated)
-        time.sleep(1.1)
+    shadow_target.write_bytes(mutated)
+    time.sleep(1.1)
 
-        result = _run_tests()
-        _assert_suite_ran(result, "IC")
+    result = _run_tests(shadow_root)
+    _assert_suite_ran(result, "IC")
 
-        assert result.returncode == 0, (
-            f"INVERTED CONTROL FAILED (IC): suite rejected a comment-only change. "
-            "The harness is over-sensitive or a test matches comments.\n"
-            f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-        )
-    finally:
-        TARGET.write_bytes(backup)
-        time.sleep(1.1)
+    shadow_target.write_bytes(original)
+    time.sleep(1.1)
 
-    restored = TARGET.read_bytes()
-    assert restored == original, "File not restored byte-identically after IC"
+    assert result.returncode == 0, (
+        f"INVERTED CONTROL FAILED (IC): suite rejected a comment-only change. "
+        "The harness is over-sensitive or a test matches comments.\n"
+        f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    )
+
+    restored = shadow_target.read_bytes()
+    assert restored == original, "Shadow not restored byte-identically after IC"
