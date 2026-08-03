@@ -164,5 +164,5 @@
     "Commit the protocol change and this log together, then push and open the PR.",
     "Issue #4401 tracks the ADR-043 correction note. Do not reopen the debate to land it."
   ],
-  "endingCommit": ""
+  "endingCommit": "1be7533cc"
 }
