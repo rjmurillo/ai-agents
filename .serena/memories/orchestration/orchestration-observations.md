@@ -50,7 +50,7 @@
   - A `code-review` agent asked to restore a defect, clear the bytecode cache, and rerun the suite restored every tracked file correctly
   - It still left `coverage.json`, `fix.py`, `test_cov.py`, and `worktree_occupancy.py.patch` untracked in the worktree it had reviewed
   - Check `git status --porcelain` for `??` entries after any delegated empirical review, not only for modified files
-  - The next broad `git add` or a commit-file-count check sweeps them into your commit
+  - `.claude/rules/testing.md` MUST NOT 4 forbids leaving files in the working tree, and the next broad `git add` or a commit-file-count check sweeps them in
   - Result: move the strays out of the tree rather than deleting them, in case the review needs re-reading
 
 ## Notes for Review (LOW confidence)
