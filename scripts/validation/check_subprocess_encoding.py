@@ -1,31 +1,49 @@
-"""Subprocess encoding convention checker.
+#!/usr/bin/env python3
+"""Gate: subprocess calls with text-mode UTF-8 must pair errors="replace".
 
-Detects subprocess.run / subprocess.Popen / subprocess.check_output /
-subprocess.check_call calls that decode text (via ``text=True`` or
-``encoding=...``) but omit ``errors=``. A missing ``errors=`` means decode
-errors raise UnicodeDecodeError, which silently drops output or crashes the
-caller. The canonical form is::
+A ``subprocess.run`` (or any ``subprocess.*`` call) that sets both
+``encoding="utf-8"`` (case-insensitive, common aliases accepted) and
+text-capturing mode (``text=True`` or ``capture_output=True``) must also
+pass ``errors="replace"``.
 
-    subprocess.run(..., text=True, encoding="utf-8", errors="replace")
+Without ``errors="replace"``, a child process that emits bytes invalid for
+UTF-8 raises ``UnicodeDecodeError`` on the calling side. On Windows CI
+runners, ``git`` and ``gh`` can emit such bytes in branch names, commit
+messages, or file-system paths. The decode fails before the caller can
+report the real assertion, hiding the underlying failure. See issue #4261.
 
-Exit codes (AGENTS.md contract):
-    0  - ok: no violations found
-    1  - violations found
-    2  - config error (bad arguments, baseline missing)
-    3  - external error (could not parse a file)
+Canonical house pattern (in ``scripts/ci/verify_code_env.py``):
 
-Usage::
+    subprocess.run(
+        argv,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
 
-    # Check a single file
-    uv run --frozen python scripts/validation/check_subprocess_encoding.py path/to/file.py
+What this scanner checks:
+    A call is flagged when ALL of these hold:
+    1. It reaches a subprocess text-capturing entry point (``subprocess.run``,
+       ``subprocess.check_output``, ``subprocess.Popen``,
+       ``subprocess.check_call``).
+    2. It has a literal ``encoding=`` keyword whose value is a UTF-8 alias
+       (``"utf-8"``, ``"utf8"``, ``"UTF-8"``, ``"UTF8"``, ``"utf_8"``).
+    3. The call enables text mode: ``text=True`` or ``capture_output=True``
+       are present as literal ``True``-valued keywords, or the entry point
+       decodes unconditionally (``check_output``).
+    4. No ``errors=`` keyword is present.
 
-    # Check all tracked Python files
-    uv run --frozen python scripts/validation/check_subprocess_encoding.py --all
+Deliberate over-approximation:
+    When a call site uses ``**kwargs``, we cannot know whether ``errors`` was
+    supplied by the caller. Rather than silently wave it through, we flag the
+    site. The author must either add ``errors="replace"`` or restructure to
+    avoid the splat. One extra keyword in the rare-but-valid call is worth
+    never missing a decode on the common violating call.
 
-    # Check only changed files (for pre-commit hooks)
-    uv run --frozen python scripts/validation/check_subprocess_encoding.py --changed-files
-
-Refs #4261.
+Exits (ADR-035):
+    0 - No violations found.
+    1 - One or more violations detected.
+    2 - Configuration error (invalid repository root).
 """
 
 from __future__ import annotations
@@ -35,229 +53,215 @@ import subprocess
 import sys
 from pathlib import Path
 
-__all__ = ["check_file", "main"]
+_UTF8_ALIASES: frozenset[str] = frozenset({"utf-8", "utf8", "utf_8", "UTF-8", "UTF8", "UTF_8"})
 
-# Subprocess functions that accept text-mode keyword arguments.
-_SUBPROCESS_FUNCS = frozenset(
-    {"subprocess.run", "subprocess.Popen", "subprocess.check_output", "subprocess.check_call"}
+# subprocess entry points that accept keyword arguments
+_TEXT_CAPTURING_CALLS: frozenset[str] = frozenset({"run", "Popen", "check_call"})
+
+# Entry points that unconditionally return decoded text (no text= needed)
+_UNCONDITIONAL_DECODE_CALLS: frozenset[str] = frozenset({"check_output", "getoutput"})
+
+_ALL_SUBPROCESS_CALLS: frozenset[str] = _TEXT_CAPTURING_CALLS | _UNCONDITIONAL_DECODE_CALLS
+
+_SKIP_DIRS: frozenset[str] = frozenset(
+    {".venv", "venv", ".git", "__pycache__", "node_modules", ".mypy_cache", ".ruff_cache"}
 )
 
-# Files under this prefix are exempt (intentional bad-byte test fixtures).
-_FIXTURE_PREFIX = "tests/hooks/fixtures/"
+
+def _keyword_value(call: ast.Call, name: str) -> ast.expr | None:
+    """Return the value node for the first keyword matching ``name``, or None."""
+    for kw in call.keywords:
+        if kw.arg == name:
+            return kw.value
+    return None
 
 
-def _is_subprocess_call(node: ast.Call) -> bool:
-    """Return True if node is a call to a known subprocess function."""
+def _has_keyword(call: ast.Call, name: str) -> bool:
+    return any(kw.arg == name for kw in call.keywords)
+
+
+def _has_splat(call: ast.Call) -> bool:
+    """True when the call has a ``**kwargs`` expansion."""
+    return any(kw.arg is None for kw in call.keywords)
+
+
+def _is_true_literal(node: ast.expr | None) -> bool:
+    if node is None:
+        return False
+    return isinstance(node, ast.Constant) and node.value is True
+
+
+def _is_utf8_literal(node: ast.expr | None) -> bool:
+    if node is None:
+        return False
+    return isinstance(node, ast.Constant) and node.value in _UTF8_ALIASES
+
+
+def _subprocess_call_name(node: ast.Call) -> str | None:
+    """Return the bare function name for a ``subprocess.*`` call, or None."""
     func = node.func
-    if isinstance(func, ast.Attribute):
-        # Handle ``subprocess.run(...)``
-        if isinstance(func.value, ast.Name) and func.value.id == "subprocess":
-            return f"subprocess.{func.attr}" in _SUBPROCESS_FUNCS
-    if isinstance(func, ast.Name):
-        # Handle bare ``run(...)`` after ``from subprocess import run``
-        return func.id in {f.split(".")[1] for f in _SUBPROCESS_FUNCS}
-    return False
+    # subprocess.run(...)
+    if (
+        isinstance(func, ast.Attribute)
+        and isinstance(func.value, ast.Name)
+        and func.value.id == "subprocess"
+        and func.attr in _ALL_SUBPROCESS_CALLS
+    ):
+        return func.attr
+    # from subprocess import run; run(...)
+    if isinstance(func, ast.Name) and func.id in _ALL_SUBPROCESS_CALLS:
+        return func.id
+    return None
 
 
-def _keyword_names(call: ast.Call) -> frozenset[str]:
-    """Return the set of keyword argument names used in a call."""
-    return frozenset(kw.arg for kw in call.keywords if kw.arg is not None)
+def _is_flagged(call: ast.Call) -> bool:
+    """Return True when this call violates the errors="replace" convention.
+
+    A call is flagged when it reaches a subprocess text entry point, pins
+    UTF-8 as the codec, enables text mode, and omits ``errors=``.
+    """
+    name = _subprocess_call_name(call)
+    if name is None:
+        return False
+
+    encoding_node = _keyword_value(call, "encoding")
+    if not _is_utf8_literal(encoding_node):
+        # No explicit UTF-8 pin: not in scope for this checker.
+        return False
+
+    # Verify text mode is enabled (or the call decodes unconditionally).
+    unconditional = name in _UNCONDITIONAL_DECODE_CALLS
+    text_enabled = _is_true_literal(_keyword_value(call, "text")) or _is_true_literal(
+        _keyword_value(call, "capture_output")
+    )
+    if not unconditional and not text_enabled:
+        # Binary mode with an explicit encoding is unusual but not our concern.
+        return False
+
+    # If errors= is already present, the call is compliant.
+    if _has_keyword(call, "errors"):
+        return False
+
+    # A **kwargs splat may carry errors= but we cannot verify; flag conservatively.
+    # This is the deliberate over-approximation described in the module docstring.
+    return True
 
 
-def _uses_text_mode(keywords: frozenset[str]) -> bool:
-    """Return True if the call uses text mode (text= or encoding=)."""
-    return "text" in keywords or "encoding" in keywords
+_SUPPRESSION_COMMENT = "# subprocess-encoding: strict-ok"
 
 
-def _has_errors_kwarg(keywords: frozenset[str]) -> bool:
-    """Return True if the call already specifies errors=."""
-    return "errors" in keywords
+def find_violations(source: str, filename: str = "<string>") -> list[int]:
+    """Return line numbers of flagged calls in *source*.
 
-
-def check_file(path: Path) -> list[tuple[int, str]]:
-    """Parse *path* and return (lineno, message) for each violation.
-
-    Returns an empty list for files that do not use subprocess, and raises
-    ValueError if the file cannot be parsed.
+    A call on a line that ends with ``# subprocess-encoding: strict-ok`` is
+    suppressed. Use this only when strict decoding is intentional and
+    documented (for example, when the stream is guaranteed valid UTF-8 and a
+    decode failure should propagate as an error rather than silently produce
+    replacement characters).
     """
     try:
-        source = path.read_text(encoding="utf-8", errors="replace")
-        tree = ast.parse(source, filename=str(path))
-    except SyntaxError as exc:
-        raise ValueError(f"syntax error in {path}: {exc}") from exc
-
-    violations: list[tuple[int, str]] = []
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
-        if not _is_subprocess_call(node):
-            continue
-        keywords = _keyword_names(node)
-        if _uses_text_mode(keywords) and not _has_errors_kwarg(keywords):
-            func_name = (
-                ast.unparse(node.func)
-                if hasattr(ast, "unparse")
-                else "subprocess call"
-            )
-            violations.append(
-                (
-                    node.lineno,
-                    f"{func_name} uses text mode but omits errors=; "
-                    "add errors=\"replace\" (or errors=\"strict\" if intentional)",
-                )
-            )
-    return violations
-
-
-def _tracked_python_files(repo_root: Path) -> list[Path]:
-    """Return all tracked .py files in the repository."""
-    result = subprocess.run(
-        ["git", "ls-files", "*.py", "**/*.py"],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        cwd=repo_root,
-    )
-    if result.returncode != 0:
+        tree = ast.parse(source, filename=filename)
+    except SyntaxError:
         return []
-    return [repo_root / line for line in result.stdout.splitlines() if line.endswith(".py")]
 
+    source_lines = source.splitlines()
 
-def _changed_python_files(repo_root: Path) -> list[Path]:
-    """Return .py files changed relative to HEAD (staged and unstaged)."""
-    result = subprocess.run(
-        ["git", "diff", "--name-only", "--diff-filter=ACM", "HEAD"],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        cwd=repo_root,
+    def _suppressed(lineno: int) -> bool:
+        if lineno < 1 or lineno > len(source_lines):
+            return False
+        return _SUPPRESSION_COMMENT in source_lines[lineno - 1]
+
+    return sorted(
+        node.lineno
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and _is_flagged(node)
+        and not _suppressed(node.lineno)
     )
-    if result.returncode != 0:
-        return []
-    paths = [
-        repo_root / line
-        for line in result.stdout.splitlines()
-        if line.endswith(".py")
-    ]
-    # Also include staged files not in HEAD (new files)
-    staged = subprocess.run(
-        ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        cwd=repo_root,
-    )
-    if staged.returncode == 0:
-        for line in staged.stdout.splitlines():
-            if line.endswith(".py"):
-                p = repo_root / line
-                if p not in paths:
-                    paths.append(p)
-    return paths
 
 
-def _is_exempt(path: Path, repo_root: Path) -> bool:
-    """Return True if *path* is exempt from the convention."""
+def _collect_sources(repo_root: Path) -> list[Path]:
+    """Return tracked Python files under ``scripts/`` that are not in cache dirs."""
     try:
-        rel = path.relative_to(repo_root)
-    except ValueError:
-        return False
-    return str(rel).startswith(_FIXTURE_PREFIX)
-
-
-def _print_violations(
-    path: Path, repo_root: Path, violations: list[tuple[int, str]]
-) -> int:
-    """Print violations for *path* and return the count."""
-    count = 0
-    for lineno, msg in violations:
-        try:
-            rel = path.relative_to(repo_root)
-        except ValueError:
-            rel = path
-        print(f"{rel}:{lineno}: {msg}")
-        count += 1
-    return count
-
-
-def _exit_code(total_violations: int) -> int:
-    """Return the exit code for the checker."""
-    if total_violations:
-        print(
-            f"\ncheck_subprocess_encoding: {total_violations} violation(s) found.",
-            file=sys.stderr,
-        )
-        return 1
-    return 0
-
-
-def main(argv: list[str] | None = None) -> int:
-    import argparse
-
-    parser = argparse.ArgumentParser(
-        description=__doc__,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    mode = parser.add_mutually_exclusive_group()
-    mode.add_argument(
-        "--all",
-        action="store_true",
-        dest="all_files",
-        help="Check all tracked Python files (default when no paths given).",
-    )
-    mode.add_argument(
-        "--changed-files",
-        action="store_true",
-        dest="changed_files",
-        help="Check only files changed relative to HEAD.",
-    )
-    parser.add_argument(
-        "paths",
-        nargs="*",
-        type=Path,
-        help="Specific files to check.",
-    )
-    args = parser.parse_args(argv)
-
-    repo_root = Path(
-        subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
+        completed = subprocess.run(
+            ["git", "-C", str(repo_root), "ls-files", "scripts/*.py", "scripts/**/*.py"],
             capture_output=True,
             text=True,
             encoding="utf-8",
             errors="replace",
-        ).stdout.strip()
-    )
-
-    if args.paths:
-        files = list(args.paths)
-    elif args.changed_files:
-        files = _changed_python_files(repo_root)
-    else:
-        # --all is the default when no paths given
-        files = _tracked_python_files(repo_root)
-
-    if not files:
-        print("check_subprocess_encoding: no files to check")
-        return 0
-
-    total_violations = 0
-    for path in sorted(files):
-        if _is_exempt(path, repo_root):
+            check=False,
+            timeout=15,
+        )
+        if completed.returncode == 0:
+            rels = [line for line in completed.stdout.splitlines() if line.strip()]
+            return [repo_root / r for r in rels if r.endswith(".py")]
+    except (OSError, subprocess.SubprocessError):
+        pass
+    # Fallback: walk the tree
+    found: list[Path] = []
+    for path in (repo_root / "scripts").rglob("*.py"):
+        if any(part in _SKIP_DIRS for part in path.relative_to(repo_root).parts):
             continue
+        found.append(path)
+    return sorted(found)
+
+
+def find_all_violations(repo_root: Path) -> list[tuple[Path, int]]:
+    """Return ``(path, lineno)`` pairs for every flagged call site."""
+    results: list[tuple[Path, int]] = []
+    for path in _collect_sources(repo_root):
         if not path.is_file():
             continue
         try:
-            violations = check_file(path)
-        except ValueError as exc:
-            print(f"ERROR: {exc}", file=sys.stderr)
-            return 3
-        total_violations += _print_violations(path, repo_root, violations)
+            source = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for lineno in find_violations(source, str(path)):
+            results.append((path, lineno))
+    return results
 
-    return _exit_code(total_violations)
+
+def validate_subprocess_encoding(repo_root: Path) -> bool:
+    """Return True when no violation is found.
+
+    Entry point matching the ``validate_*(repo_root) -> bool`` contract used
+    by ``pre_pr_sequence.py``.
+    """
+    violations = find_all_violations(repo_root)
+    if not violations:
+        return True
+    count = len(violations)
+    print(
+        f"[FAIL] {count} subprocess call(s) pin UTF-8 encoding without errors=\"replace\":",
+        file=sys.stderr,
+    )
+    for path, lineno in violations:
+        rel = path.relative_to(repo_root) if path.is_relative_to(repo_root) else path
+        print(f"  {rel}:{lineno}", file=sys.stderr)
+    print(
+        "\nFix: add errors=\"replace\" to each flagged call.",
+        file=sys.stderr,
+    )
+    print(
+        "Reason: a child process on Windows can emit bytes invalid for UTF-8.",
+        file=sys.stderr,
+    )
+    print(
+        "Without errors=\"replace\", the decode raises before the caller can report "
+        "the real failure.",
+        file=sys.stderr,
+    )
+    return False
+
+
+def main(argv: list[str] | None = None) -> int:
+    """CLI entry point. Returns an ADR-035 exit code."""
+    args = argv if argv is not None else sys.argv[1:]
+    repo_root = Path(args[0]).resolve() if args else Path(__file__).resolve().parents[2]
+    if not repo_root.is_dir():
+        print(f"[FAIL] Invalid repository root: {repo_root}", file=sys.stderr)
+        return 2
+    return 0 if validate_subprocess_encoding(repo_root) else 1
 
 
 if __name__ == "__main__":

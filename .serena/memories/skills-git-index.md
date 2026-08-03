@@ -9,3 +9,4 @@
 | staged changes guard empty commit merge scenario check defensive | [git/git-003-staged-changes-guard](git/git-003-staged-changes-guard.md) |
 | branch switch file verification state reset uncommitted lost | [git/git-004-branch-switch-file-verification](git/git-004-branch-switch-file-verification.md) |
 | branch verify current show-current commit push reset mutating MUST | [git/git-004-branch-verification-before-commit](git/git-004-branch-verification-before-commit.md) |
+| git diff direction stale branch additions shown as removals behind origin main predates | [git/git-diff-direction-on-a-stale-branch](git/git-diff-direction-on-a-stale-branch.md) |

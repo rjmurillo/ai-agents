@@ -37,6 +37,7 @@ def measure_pack_size(package_dir: Path) -> tuple[int | None, str]:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
         check=False,
     )
     if result.returncode != 0:
@@ -55,6 +56,7 @@ def measure_pack_size(package_dir: Path) -> tuple[int | None, str]:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
         check=False,
     )
     last_line = result2.stdout.strip().splitlines()[-1] if result2.stdout.strip() else ""

@@ -43,6 +43,9 @@ jobs:
           # Need full history for accurate PR analysis
           fetch-depth: 0
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+
       - name: Run statistics aggregation
         env:
           # Use BOT_PAT to trigger downstream workflows when committing changes
@@ -50,7 +53,7 @@ jobs:
           DAYS_BACK: ${{ github.event.inputs.days_back }}
         run: |
           days_back="${DAYS_BACK:-90}"
-          python3 scripts/update_reviewer_signal_stats.py --days-back "$days_back"
+          uv run --frozen python scripts/update_reviewer_signal_stats.py --days-back "$days_back"
 
       - name: Commit updated stats
         env:

@@ -152,6 +152,7 @@ def main() -> int:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
     )
     if push_result.returncode != 0:
         print(
