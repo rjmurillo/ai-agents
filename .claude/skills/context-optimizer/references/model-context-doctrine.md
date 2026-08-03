@@ -200,7 +200,7 @@ disagrees by more, the document is stale and the command wins.
 One book rule loads on every file. `pragmatic-programmer.md` was narrowed to
 code files in PR #4424, which recovered 11,225 always-on bytes, the largest
 single reduction this corpus has taken. What remains always-on is not the
-largest rule either: `voice.md` at 19,624 bytes is the single biggest
+largest rule either: `voice.md` at 17,527 bytes is the single biggest
 always-on file.
 
 | Rule | Bytes | Loading | Scenario file | Scored result |
