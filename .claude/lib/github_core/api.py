@@ -366,24 +366,49 @@ def is_gh_authenticated() -> bool:
     return check_gh_auth().is_authenticated
 
 
-def _rate_limit_reset_hint() -> str:
-    """Best-effort bucket and reset evidence for a quota refusal.
+def _rate_limit_resources() -> dict:
+    """Best-effort ``gh api rate_limit`` resources map, or ``{}``.
 
     ``gh api rate_limit`` is exempt from the quota it reports, so it keeps
-    answering during a refusal. Returns an empty string when the payload is
-    unavailable; never raises, because this only enriches a diagnostic.
+    answering during a refusal. Never raises: every caller only enriches or
+    shortens a diagnostic with it.
     """
     try:
         result = _run_gh(["api", "rate_limit"])
     except (OSError, subprocess.SubprocessError):
-        return ""
+        return {}
     if result.returncode != 0:
-        return ""
+        return {}
     try:
-        resources = (json.loads(result.stdout) or {}).get("resources") or {}
+        return (json.loads(result.stdout) or {}).get("resources") or {}
     except json.JSONDecodeError:
-        return ""
+        return {}
 
+
+def drained_rate_limit_buckets() -> list[str]:
+    """Names of buckets the exempt payload reports at zero remaining.
+
+    Issue #4326 measured two different conditions behind the same "API rate
+    limit exceeded" wording. The velocity refusal leaves every bucket healthy
+    and clears in about a minute, so retrying wins. Genuine exhaustion shows in
+    the payload (``core 4950/5000, graphql 0/5000, reset 34m``) and no bounded
+    retry can outlast it, so retrying only burns requests. This separates them.
+
+    An empty list means "no drained bucket observed", which includes the case
+    where the payload could not be read: without evidence of exhaustion the
+    caller should retry rather than fail early.
+    """
+    resources = _rate_limit_resources()
+    drained = []
+    for name, bucket in resources.items():
+        if isinstance(bucket, dict) and bucket.get("remaining") == 0:
+            drained.append(name)
+    return sorted(drained)
+
+
+def _rate_limit_reset_hint() -> str:
+    """Bucket and reset evidence for a quota refusal, or ``""``."""
+    resources = _rate_limit_resources()
     parts = []
     for name in ("core", "graphql"):
         bucket = resources.get(name) or {}
@@ -545,6 +570,15 @@ _GRAPHQL_MAX_ATTEMPTS = 3
 _GRAPHQL_BACKOFF_BASE_SECONDS = 2.0
 _TRANSIENT_HTTP_PATTERN = re.compile(r"\(?\bHTTP\s+(429|500|502|503|504)\b")
 
+# Ceiling for the jittered wait before retrying a refusal, per attempt. Sized to
+# the recovery measured on issue #4326, where "the next call of the same shape
+# succeeded about a minute later". The 5xx ladder (1s then 2s) is wrong for this
+# condition: full-jitter over it spends 1.5s on average and 3s at worst, so the
+# three attempts land inside the same refusal window and the retry burns two
+# extra requests for the same failure. Full jitter is kept, so the expected
+# total is about 22s and the worst case 45s.
+REFUSAL_BACKOFF_SECONDS = (15.0, 30.0)
+
 # Quota and secondary-limit refusals clear on their own, so a bounded retry
 # recovers them (issue #4326). 5xx and 429 keep their existing coverage through
 # _TRANSIENT_HTTP_PATTERN; nothing else becomes retryable here.
@@ -570,6 +604,22 @@ def _is_transient_graphql_error(error_msg: str) -> bool:
     if _TRANSIENT_HTTP_PATTERN.search(error_msg) is not None:
         return True
     return classify_gh_failure_text(error_msg) in _RETRYABLE_REFUSAL_STATUSES
+
+
+def _graphql_retry_ceiling(error_text: str, attempt: int) -> float | None:
+    """Jitter ceiling for the next retry, or ``None`` when retry cannot help.
+
+    A 5xx or 429 keeps the original exponential ladder. A rate-limit refusal
+    gets the longer ladder sized to its measured recovery, unless the exempt
+    ``rate_limit`` payload shows the bucket actually drained, in which case the
+    reset is bucket-scale (34 minutes in the issue #4326 measurement) and no
+    bounded retry reaches it.
+    """
+    if classify_gh_failure_text(error_text) not in _RETRYABLE_REFUSAL_STATUSES:
+        return _GRAPHQL_BACKOFF_BASE_SECONDS ** (attempt - 1)
+    if drained_rate_limit_buckets():
+        return None
+    return REFUSAL_BACKOFF_SECONDS[min(attempt, len(REFUSAL_BACKOFF_SECONDS)) - 1]
 
 
 _RETRY_AFTER_PATTERN = re.compile(r"\bRetry-After:\s*(\d+)", re.IGNORECASE)
@@ -671,7 +721,13 @@ def gh_graphql(query: str, variables: dict | None = None) -> dict:
         error_msg = _extract_graphql_error(result)
         is_last = attempt == _GRAPHQL_MAX_ATTEMPTS
         if not is_last and _is_transient_graphql_error(raw_error):
-            backoff = _GRAPHQL_BACKOFF_BASE_SECONDS ** (attempt - 1)
+            backoff = _graphql_retry_ceiling(raw_error, attempt)
+            if backoff is None:
+                drained = ", ".join(drained_rate_limit_buckets())
+                raise RuntimeError(
+                    f"GraphQL request failed: {error_msg} "
+                    f"(bucket exhausted: {drained}; retry cannot outlast the reset)"
+                )
             delay = _retry_after_delay(raw_error, backoff)
             logger.warning(
                 "Transient GraphQL failure (attempt %d/%d), retrying in %.1fs: %s",

@@ -68,6 +68,27 @@ def _probe_api_serving() -> str:
     return (result.stderr or result.stdout).strip() or "probe returned a non-zero exit"
 
 
+def _probe_failure_is_a_refusal(probe_error: str) -> bool:
+    """True when the probe failure is a quota refusal, not an upstream wobble.
+
+    The probe exists to catch the one condition the payload cannot show: GitHub
+    refusing calls while the buckets read healthy (issue #4326 defect 2).
+    Failing the gate on every nonzero probe would be the opposite defect, a 5xx
+    or a dropped connection read as fatal, which is what issue #3139 is about.
+    So only rate-limit wording closes the gate; a transport failure is reported
+    and the work proceeds, exactly as it did before the probe existed.
+
+    Imported inside the function on purpose: ``api`` imports this module, so a
+    module-level import would be a cycle.
+    """
+    from scripts.github_core.api import GhAuthStatus, classify_gh_failure_text
+
+    return classify_gh_failure_text(probe_error) in (
+        GhAuthStatus.RATE_LIMITED,
+        GhAuthStatus.SECONDARY_RATE_LIMITED,
+    )
+
+
 def _fetch_rate_limit() -> dict:
     """Call ``gh api rate_limit`` and return the parsed JSON payload.
 
@@ -171,12 +192,19 @@ def check_workflow_rate_limit(
         summary_lines.append(row)
 
     probe_error = _probe_api_serving()
-    if probe_error:
+    if probe_error and _probe_failure_is_a_refusal(probe_error):
         all_passed = False
         summary_lines.append("| live probe | N/A | served | X REFUSED |")
         summary_lines.append("")
         summary_lines.append(
             f"Live probe (`gh api {_PROBE_ENDPOINT}`) was refused: {probe_error}"
+        )
+    elif probe_error:
+        summary_lines.append("| live probe | N/A | served | ! UNRESOLVED |")
+        summary_lines.append("")
+        summary_lines.append(
+            f"Live probe (`gh api {_PROBE_ENDPOINT}`) did not complete: {probe_error}. "
+            "Not a quota refusal, so the gate is not closed on it."
         )
 
     return RateLimitResult(

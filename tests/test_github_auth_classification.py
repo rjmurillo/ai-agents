@@ -18,11 +18,14 @@ from unittest.mock import patch
 import pytest
 
 from scripts.github_core.api import (
+    REFUSAL_BACKOFF_SECONDS,
     GhAuthStatus,
+    _GRAPHQL_BACKOFF_BASE_SECONDS,
     _is_transient_graphql_error,
     assert_gh_authenticated,
     check_gh_auth,
     classify_gh_failure_text,
+    gh_graphql,
     is_gh_authenticated,
 )
 from scripts.github_core.rate_limit import check_workflow_rate_limit
@@ -123,6 +126,51 @@ class TestIsTransientGraphqlError:
     @pytest.mark.parametrize("body", [PERMISSION_DENIED, BAD_CREDENTIALS, "HTTP 404"])
     def test_permanent_failures_are_not_retried(self, body):
         assert _is_transient_graphql_error(body) is False
+
+
+class TestGraphqlRetryEnvelope:
+    """The retry has to outlast the condition it matches, or it only burns calls.
+
+    Issue #4326 measured the refusal clearing "about a minute" later. The
+    original ladder capped the whole retry at 3s and averaged 1.5s, so all three
+    attempts landed inside the same refusal window: two extra requests, same
+    outcome. These tests measure the envelope, which no classifier assertion can.
+    """
+
+    def _run_with_recorded_sleeps(self, bodies, drained):
+        calls = [_completed(stderr=body, rc=1) for body in bodies]
+        sleeps: list[float] = []
+        with patch("subprocess.run", side_effect=calls), patch(
+            "scripts.github_core.api.drained_rate_limit_buckets", return_value=drained
+        ), patch("time.sleep", side_effect=sleeps.append):
+            with pytest.raises(RuntimeError) as exc:
+                gh_graphql("query { viewer { login } }")
+        return sleeps, str(exc.value)
+
+    def test_quota_retry_budget_reaches_the_measured_recovery(self):
+        sleeps, _ = self._run_with_recorded_sleeps([GRAPHQL_QUOTA] * 3, drained=[])
+
+        assert len(sleeps) == 2
+        # Full jitter, so assert the ceiling the ladder allows, not a point value.
+        assert sleeps[0] <= REFUSAL_BACKOFF_SECONDS[0]
+        assert sleeps[1] <= REFUSAL_BACKOFF_SECONDS[1]
+        assert sum(REFUSAL_BACKOFF_SECONDS) >= 45.0
+
+    def test_drained_bucket_fails_fast_instead_of_burning_attempts(self):
+        """Genuine exhaustion resets on the hour; no bounded retry reaches it."""
+        sleeps, message = self._run_with_recorded_sleeps(
+            [GRAPHQL_QUOTA] * 3, drained=["graphql"]
+        )
+
+        assert sleeps == []
+        assert "bucket exhausted: graphql" in message
+
+    def test_5xx_keeps_the_short_ladder(self):
+        """An upstream wobble clears in seconds; do not sleep a minute on it."""
+        sleeps, _ = self._run_with_recorded_sleeps([REST_503] * 3, drained=[])
+
+        assert len(sleeps) == 2
+        assert max(sleeps) <= _GRAPHQL_BACKOFF_BASE_SECONDS
 
 
 class TestCheckGhAuth:
@@ -312,3 +360,20 @@ class TestRateLimitGateProbe:
             result = check_workflow_rate_limit({"core": 100, "graphql": 50})
         assert result.success is False
         assert result.probe_error == ""
+
+    @pytest.mark.parametrize("body", [REST_503, GH_CONNECT_FAILURE])
+    def test_a_transport_wobble_does_not_close_the_gate(self, body):
+        """The probe catches refusals, not outages.
+
+        Failing on every nonzero probe would abort work the payload-only gate
+        used to allow, which is the "transient 5xx read as fatal" shape issue
+        #3139 exists to remove. The evidence is still reported.
+        """
+        calls = [_completed(stdout=_HEALTHY_PAYLOAD, rc=0), _completed(stderr=body, rc=1)]
+        with patch("subprocess.run", side_effect=calls):
+            result = check_workflow_rate_limit({"core": 100, "graphql": 50})
+
+        assert result.success is True
+        assert result.probe_error != ""
+        assert "REFUSED" not in result.summary_markdown
+        assert "did not complete" in result.summary_markdown
