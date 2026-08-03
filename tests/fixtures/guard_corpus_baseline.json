@@ -111,10 +111,6 @@
       380,
       481
     ],
-    "guard-maturity/scripts/run_report.py": [
-      134,
-      146
-    ],
     "memory/memory_core/schema_validation.py": [
       77
     ],
