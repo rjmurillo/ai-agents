@@ -313,11 +313,16 @@ def fetch_pr_data(pr_number: int, owner: str, repo: str) -> dict[str, Any]:
         raise RuntimeError(f"Failed to fetch PR #{pr_number} labels: {result.stderr}")
     labels: list[dict[str, Any]] = json.loads(result.stdout)
 
+    base_info: dict[str, Any] = pr_info.get("base") or {}
+    base_repo: dict[str, Any] = base_info.get("repo") or {}
+
     return {
         "title": pr_info.get("title") or "",
         "body": pr_info.get("body", "") or "",
         "files": files,
         "labels": [{"name": lbl.get("name") or ""} for lbl in labels],
+        "base_branch": base_info.get("ref") or "",
+        "default_branch": base_repo.get("default_branch") or "main",
     }
 
 
@@ -662,6 +667,99 @@ def validate_no_dashes(title: str, body: str) -> list[Issue]:
     return issues
 
 
+# Regex matching GitHub's honored closing keywords.
+# Ref: https://docs.github.com/en/issues/tracking-your-work-with-issues/linking-a-pull-request-to-an-issue
+_CLOSING_KEYWORD_RE = re.compile(
+    r"\b(close[sd]?|fix(?:e[sd])?|resolve[sd]?)"
+    r"\s+(?:[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+)?#(\d+)",
+    re.IGNORECASE,
+)
+# Fenced code block: ``` or ~~~, optional lang tag, content, closing fence
+_FENCED_BLOCK_RE = re.compile(r"^(`{3,}|~{3,})[^\n]*\n.*?^\1", re.DOTALL | re.MULTILINE)
+# Inline code span (single backticks only; double/triple are fenced)
+_INLINE_CODE_RE = re.compile(r"(?<![`])`(?!`)([^`\n]+)`(?![`])")
+
+
+def validate_closing_links(
+    body: str, base_branch: str, default_branch: str = "main"
+) -> list[Issue]:
+    """Detect closing keywords that GitHub will NOT honor (issue #3827).
+
+    Two failure modes:
+    1. Keyword inside an inline code span or fenced code block: GitHub does not
+       parse closing keywords inside code markup, so the issue stays open.
+    2. PR targets a non-default branch (stacked PR): GitHub only fires
+       auto-close when the PR merges into the default branch. Downgraded to
+       WARNING because no body edit can fix it.
+    """
+    issues: list[Issue] = []
+
+    # Remove fenced blocks first so we can test inline code spans on clean text.
+    fenced_spans: list[tuple[int, int]] = [
+        (m.start(), m.end()) for m in _FENCED_BLOCK_RE.finditer(body)
+    ]
+
+    def _in_fenced(pos: int) -> bool:
+        return any(start <= pos < end for start, end in fenced_spans)
+
+    # Check 1: closing keyword inside a fenced code block
+    for m in _CLOSING_KEYWORD_RE.finditer(body):
+        if _in_fenced(m.start()):
+            issues.append(
+                Issue(
+                    severity="CRITICAL",
+                    issue_type="Closing keyword in fenced code block",
+                    file="<pr-body>",
+                    message=(
+                        f"`{m.group(0)}` is inside a fenced code block. "
+                        "GitHub does not honor closing keywords in code markup. "
+                        "Move the keyword to unformatted prose on its own line."
+                    ),
+                )
+            )
+
+    # Check 2: closing keyword inside an inline code span (outside fenced blocks)
+    for m in _INLINE_CODE_RE.finditer(body):
+        if _in_fenced(m.start()):
+            continue
+        span_text = m.group(1)
+        if _CLOSING_KEYWORD_RE.search(span_text):
+            issues.append(
+                Issue(
+                    severity="CRITICAL",
+                    issue_type="Closing keyword in inline code span",
+                    file="<pr-body>",
+                    message=(
+                        f"Closing keyword found inside inline code: `{span_text}`. "
+                        "GitHub does not honor closing keywords in code markup. "
+                        "Move the keyword to unformatted prose on its own line, "
+                        "for example: `Fixes #N` on a line by itself outside backticks."
+                    ),
+                )
+            )
+
+    # Check 3: stacked PR (non-default base branch)
+    if base_branch and default_branch and base_branch != default_branch:
+        # Only warn if the body actually contains closing keywords at all
+        body_has_closing = bool(_CLOSING_KEYWORD_RE.search(body))
+        if body_has_closing:
+            issues.append(
+                Issue(
+                    severity="WARNING",
+                    issue_type="Closing keyword on non-default base branch",
+                    file="<pr-body>",
+                    message=(
+                        f"This PR targets '{base_branch}', not the default branch "
+                        f"'{default_branch}'. GitHub only auto-closes issues when "
+                        "a PR merges into the default branch. "
+                        "Close the linked issues by hand once the stack lands."
+                    ),
+                )
+            )
+
+    return issues
+
+
 def validate_pr_description(
     pr_files: list[str],
     mentioned_files: list[str],
@@ -848,6 +946,12 @@ def main(argv: list[str] | None = None) -> int:
     # in GitHub and never reach `git commit`. This check closes that gap.
     title: str = pr_data.get("title", "") or ""
     issues.extend(validate_no_dashes(title, description))
+
+    # Validate: closing keywords are not buried in code spans or fenced blocks,
+    # and the PR targets the default branch (issue #3827).
+    base_branch: str = pr_data.get("base_branch", "") or ""
+    default_branch: str = pr_data.get("default_branch", "main") or "main"
+    issues.extend(validate_closing_links(description, base_branch, default_branch))
 
     # Honor the bypass label only when CI mode would otherwise fail. The label
     # is the documented escape hatch for false-positive contextual references

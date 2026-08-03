@@ -505,7 +505,7 @@ class TestPlanRunner:
         ]
         assert len(cost_line) == 1
         assert cost_line[0] == (
-            f"cost_estimate_requests={plan.planned_calls} basis=quota"
+            f"cost_estimate_requests={plan.planned_calls} basis=requests"
         )
     def test_opus_5_costs_the_published_per_mtok_rate(self):
         # Issue #3905: claude-opus-5 had no pricing row, so every plan naming
@@ -689,7 +689,7 @@ class TestCliExitCodes:
         assert rc == 0
         captured = capsys.readouterr()
         assert "planned_calls=6" in captured.out
-        assert "cost_estimate_requests=6 basis=quota" in captured.out
+        assert "cost_estimate_requests=6 basis=requests" in captured.out
         assert "cost_estimate_usd=" not in captured.out
 
     def test_dry_run_on_a_usd_provider_still_exits_config(
