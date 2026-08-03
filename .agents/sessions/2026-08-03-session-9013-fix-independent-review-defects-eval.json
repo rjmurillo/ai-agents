@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: 13fe4e3ca)"
+        "Evidence": "All changes committed (HEAD: 8c29a40d7)"
       },
       "validationPassed": {
         "level": "MUST",
@@ -137,9 +137,13 @@
     {
       "action": "Updated the orchestrator todo ledger",
       "outcome": "Executed the required done update for fix-eval-harness-p2 and verified exactly one row changed"
+    },
+    {
+      "action": "Investigated repository-wide rework noise emitted by session-end",
+      "outcome": "Confirmed merge commits polluted the branch edit tally and unbounded evidence added about 73 KB; filed issue #4469 with reproduction and negative-control criteria"
     }
   ],
-  "endingCommit": "13fe4e3ca",
+  "endingCommit": "8c29a40d7",
   "nextSteps": [
     "Route the external-provider boundary change to QA and security PIV before merge",
     "Push or open a pull request only after explicit user approval"
