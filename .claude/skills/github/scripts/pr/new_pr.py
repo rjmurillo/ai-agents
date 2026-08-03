@@ -111,6 +111,38 @@ def _run_warning_validator(argv: list[str], *, timeout: int) -> str | None:
     return None
 
 
+def _ref_exists(ref: str) -> bool:
+    """Return True when a git ref resolves in this worktree."""
+    result = subprocess.run(
+        ["git", "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=10,
+        env=_git_env(),
+    )
+    return result.returncode == 0 and bool(result.stdout.strip())
+
+
+def resolve_validation_base_ref(base: str) -> str:
+    """Resolve the ref to diff local validation against.
+
+    A linked worktree can hold a local ``main`` that is hundreds of commits
+    behind ``origin/main``. Diffing against the stale local ref selects files
+    the PR never touched, so validation picked an unrelated session log and
+    blocked PR creation (issue #4324, and the same shape as issue #2207 in
+    ``detect_scope_explosion.py``).
+
+    This is the local comparison ref only. ``gh pr create --base`` still gets
+    the plain branch name, because that is what GitHub expects.
+    """
+    remote_ref = f"origin/{base}"
+    if _ref_exists(remote_ref):
+        return remote_ref
+    return base
+
+
 def _git_env() -> dict[str, str]:
     """Return environment with git hook override variables stripped."""
     return {
@@ -278,8 +310,11 @@ def run_validations(
 
     # Validation 1: Session End (if .agents/ files changed)
     print("[1/6] Checking Session End protocol...")
+    base_ref = resolve_validation_base_ref(base)
+    if base_ref != base:
+        print(f"  Comparing against {base_ref} (local '{base}' may be stale)")
     result = subprocess.run(
-        ["git", "diff", "--name-only", f"{base}...{head}"],
+        ["git", "diff", "--name-only", f"{base_ref}...{head}"],
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -290,7 +325,7 @@ def run_validations(
     diff_failed = result.returncode != 0
     if diff_failed:
         print(
-            f"  WARNING: 'git diff {base}...{head}' failed (exit {result.returncode}); "
+            f"  WARNING: 'git diff {base_ref}...{head}' failed (exit {result.returncode}); "
             "the changed-file set is unknown. Validations that rely on it are "
             "skipped, not treated as 'no changes'.",
             file=sys.stderr,
@@ -335,7 +370,15 @@ def run_validations(
                             timeout=60,
                         )
                         if vresult.returncode != 0:
-                            print("Session End validation failed", file=sys.stderr)
+                            print(
+                                f"Session End validation failed for {session_log} "
+                                f"(exit {vresult.returncode})",
+                                file=sys.stderr,
+                            )
+                            if vresult.stdout:
+                                print(vresult.stdout, end="", file=sys.stderr)
+                            if vresult.stderr:
+                                print(vresult.stderr, end="", file=sys.stderr)
                             raise SystemExit(1)
         elif not has_legacy_md:
             print("  WARNING: No session log found but .agents/ files changed", file=sys.stderr)

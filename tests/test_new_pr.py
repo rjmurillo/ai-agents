@@ -147,6 +147,7 @@ class TestMain:
                 _completed(stdout=str(tmp_path), rc=0),  # git rev-parse
                 _completed(rc=0),  # gh --version
                 _completed(stdout="feat/branch\n", rc=0),  # git branch
+                _completed(stdout="abc1234\n", rc=0),  # git rev-parse origin/main
                 _completed(stdout="", rc=0),  # git diff (validations)
                 _completed(stdout="{}", stderr="", rc=0),  # PR description validation
                 _completed(rc=0),  # gh pr create
@@ -162,6 +163,7 @@ class TestMain:
                 _completed(stdout=str(tmp_path), rc=0),  # git rev-parse
                 _completed(rc=0),  # gh --version
                 _completed(stdout="feat/branch\n", rc=0),  # git branch
+                _completed(stdout="abc1234\n", rc=0),  # git rev-parse origin/main
                 _completed(stdout="", rc=0),  # git diff
             ],
         ):
@@ -296,6 +298,7 @@ class TestMain:
             side_effect=[
                 _completed(stdout=str(tmp_path), rc=0),  # git rev-parse
                 _completed(rc=0),  # gh --version
+                _completed(stdout="abc1234\n", rc=0),  # git rev-parse origin/main
                 _completed(stdout="", rc=0),  # git diff (validations)
                 _completed(stdout="{}", stderr="", rc=0),  # PR description validation
                 _completed(rc=0),  # gh pr create
@@ -571,6 +574,7 @@ class TestRunValidations:
         with patch(
             "subprocess.run",
             side_effect=[
+                _completed(stdout="abc1234\n", rc=0),  # git rev-parse origin/main
                 _completed(stdout=changed, rc=0),  # git diff
                 _completed(stdout='{"ok": false}\n', rc=0),  # git show <head>:<path>
                 _completed(rc=1, stderr="validation failed"),  # python validation
@@ -1180,3 +1184,82 @@ class TestValidation6EscapedNewlineCheck:
         out = capsys.readouterr().out
         for step in range(1, 7):
             assert f"[{step}/6]" in out, f"missing step {step}/6"
+
+
+class TestValidationBaseRef:
+    """Issue #4324: a worktree's local main can lag origin/main by hundreds of commits."""
+
+    def test_prefers_the_remote_tracking_ref(self):
+        with patch("subprocess.run", return_value=_completed(stdout="abc1234\n", rc=0)):
+            assert _mod.resolve_validation_base_ref("main") == "origin/main"
+
+    def test_falls_back_to_the_local_name_when_no_remote_ref(self):
+        with patch("subprocess.run", return_value=_completed(stdout="", rc=1)):
+            assert _mod.resolve_validation_base_ref("main") == "main"
+
+    def test_diff_uses_the_remote_ref_not_the_stale_local_one(self, tmp_path):
+        """The stale local main selected unrelated session logs and blocked PR #4323."""
+        diff_specs: list[str] = []
+
+        def fake_run(cmd, **kwargs):
+            if cmd[:2] == ["git", "rev-parse"]:
+                return _completed(stdout="abc1234\n", rc=0)
+            if cmd[:3] == ["git", "diff", "--name-only"]:
+                diff_specs.append(cmd[3])
+                return _completed(stdout="src/a.py\n", rc=0)
+            return _completed(rc=0)
+
+        with patch("subprocess.run", side_effect=fake_run):
+            run_validations(str(tmp_path), "main", "feat/branch")
+
+        assert diff_specs == ["origin/main...feat/branch"]
+
+    def test_diff_uses_the_local_ref_when_origin_is_absent(self, tmp_path):
+        diff_specs: list[str] = []
+
+        def fake_run(cmd, **kwargs):
+            if cmd[:2] == ["git", "rev-parse"]:
+                return _completed(stdout="", rc=1)
+            if cmd[:3] == ["git", "diff", "--name-only"]:
+                diff_specs.append(cmd[3])
+                return _completed(stdout="src/a.py\n", rc=0)
+            return _completed(rc=0)
+
+        with patch("subprocess.run", side_effect=fake_run):
+            run_validations(str(tmp_path), "main", "feat/branch")
+
+        assert diff_specs == ["main...feat/branch"]
+
+    def test_session_validation_failure_names_the_log_and_shows_output(
+        self, tmp_path, capsys
+    ):
+        """The failure hid both the selected file and the validator output (#4324)."""
+        changed = ".agents/sessions/2025-01-01-session-01.json\n"
+        validate_script = tmp_path / "scripts" / "validate_session_json.py"
+        validate_script.parent.mkdir(parents=True)
+        validate_script.write_text("# mock")
+
+        def fake_run(cmd, **kwargs):
+            if cmd[:2] == ["git", "rev-parse"]:
+                return _completed(stdout="abc1234\n", rc=0)
+            if cmd[:3] == ["git", "diff", "--name-only"]:
+                return _completed(stdout=changed, rc=0)
+            if cmd[:2] == ["git", "show"]:
+                return _completed(stdout='{"ok": false}\n', rc=0)
+            if "validate_session_json.py" in " ".join(cmd):
+                return _completed(
+                    stdout="BLOCKING: end_time missing\n",
+                    stderr="1 MUST requirement not met\n",
+                    rc=1,
+                )
+            return _completed(rc=0)
+
+        with patch("subprocess.run", side_effect=fake_run):
+            with pytest.raises(SystemExit) as exc:
+                run_validations(str(tmp_path), "main", "feat/branch")
+
+        assert exc.value.code == 1
+        err = capsys.readouterr().err
+        assert "2025-01-01-session-01.json" in err
+        assert "BLOCKING: end_time missing" in err
+        assert "1 MUST requirement not met" in err
