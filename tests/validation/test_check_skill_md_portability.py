@@ -1104,13 +1104,16 @@ class TestMainCli:
         result = cmp._resolve_baseline_path(root, traversal)
         assert result is None, "path traversal must be refused"
 
+
     def test_absolute_baseline_outside_root_is_refused(self, tmp_path: Path) -> None:
+
         root = tmp_path / "repo"
         root.mkdir()
         outside = tmp_path / "outside.json"
         outside.write_text("{}", encoding="utf-8")
         result = cmp._resolve_baseline_path(root, outside)
         assert result is None, "absolute path outside root must be refused"
+
 
 
 class TestUnexpectedScanException:
