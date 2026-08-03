@@ -58,7 +58,17 @@ from typing import Any
 # in portability_common.resolve_checked_baseline, but that function also
 # resolves the path and requires a default-name parameter that is redundant
 # here.  Importing the two atomic predicates keeps the dependency minimal.
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _SCRIPT_DIR.parent.parent
+
+# `portability_baseline` imports `scripts.validation.portability_floor` by its
+# absolute package path, so the repo root must be importable even when this
+# runs as a plain script rather than via `python -m` (issues #3073, #4210).
+# The sibling directory alone is not enough: it resolves the flat import on the
+# next line but not the absolute one that import performs in turn.
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+sys.path.insert(0, str(_SCRIPT_DIR))
 from portability_baseline import (  # noqa: E402
     refuse_oversized_baseline,
     refuse_symlinked_baseline,

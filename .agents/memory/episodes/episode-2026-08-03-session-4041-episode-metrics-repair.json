@@ -1,0 +1,42 @@
+{
+  "id": "episode-2026-08-03-session-4041-episode-metrics-repair",
+  "session": "2026-08-03-session-4041-episode-metrics-repair",
+  "timestamp": "2026-08-03T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Repair zero-commit metrics in concurrency-waves episode to unblock merge",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix episode metrics: set commits=12 (actual branch commit count) instead of 0",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-03-session-4041-episode-metrics-repair"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-03T06:36:11+00:00",
+      "type": "commit",
+      "content": "Commit: cd4ebd80ed",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4041-episode-metrics-repair"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}
