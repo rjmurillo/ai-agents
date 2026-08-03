@@ -1,5 +1,10 @@
 # Rule Audit Procedure
 
+<!-- vendor-portability: declared. This contributor-facing reference cites
+upstream-only scripts/eval/, scripts/validation/, build/scripts/, tests/evals/,
+.agents/, and .claude/rules/ paths. Its audit commands intentionally require
+an ai-agents source checkout. -->
+
 <!-- # taste-lint: ignore file-size -->
 <!-- file-size rationale: this is one linear procedure, executed top to bottom
 from step 0 through step 8. The 500-line limit encodes code cohesion, and the
@@ -260,8 +265,9 @@ confirmatory test (issue #3957). Editing any line below after seeing a run
 makes that run exploratory too, so change it before, or not at all.
 
 - **Run count.** Exactly four runs per model across two model families, eight
-  signs in total. Runs are not added because the count came out close, and a
-  run is discarded only for a recorded provider error, never for its result.
+  runs in total. Each non-tied run contributes one sign. Runs are not added
+  because the count came out close, and a run is discarded only for a recorded
+  provider error, never for its result.
 - **The unit.** One run contributes one sign: the direction of that run's delta
   between the two arms being compared. Magnitudes are recorded and do not vote.
 - **Ties.** An exact tie contributes no sign and lowers n. That is the sign
@@ -274,8 +280,8 @@ makes that run exploratory too, so change it before, or not at all.
   of 8, 7 of 8, 7 of 7, 6 of 6, and 5 of 5 non-tied signs in one direction,
   whose two-tailed p values under a fair-coin null are 0.008, 0.070, 0.016,
   0.031, and 0.063. Every other outcome does not decide. With four or fewer
-  non-tied signs even unanimity reaches only 0.125, so an audit that ties its
-  way down to an n of 4 is repeated rather than read.
+  non-tied signs even unanimity reaches only 0.125, so that audit does not
+  decide. A later audit starts the same fixed eight-run design from zero.
 - **Threshold for a cut.** A cut fails when the pre-cut version wins the sign
   count at that same threshold, and passes otherwise. This accepts a null and
   cannot separate "no degradation" from "too few runs to see one". The fixed
@@ -464,8 +470,8 @@ After any change to always-on content:
    success is the absence of replicated degradation: the sign count must not
    favor the pre-cut version. Demanding that a cut clear the noise floor is
    incoherent, because a good cut leaves the delta near zero. For an addition or
-   a keep decision, success is replicated improvement whose magnitude clears the
-   floor.
+   a keep decision, success is replicated improvement whose sign count reaches
+   the registered threshold. Magnitudes are recorded and do not vote.
 4. If the rule is fenced, update the fence in the same commit. The
    `software-engineering-library` skill currently fences the three book rules.
 
