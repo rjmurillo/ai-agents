@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Requested follow-up changes committed locally with normal hooks; final PR lifecycle actions remain."
+        "Evidence": "Implementation and validation changes committed at 9587ecd5e37c3129a77f22f3aa9c681509982205 with normal hooks; PR lifecycle remains."
       },
       "validationPassed": {
         "level": "MUST",
@@ -130,6 +130,6 @@
       "result": "Markdownlint examined 1 file with 0 issues; 151 targeted tests passed; pre_pr.py reported 44 passed and 4 skipped."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "9587ecd5e37c3129a77f22f3aa9c681509982205",
   "nextSteps": []
 }

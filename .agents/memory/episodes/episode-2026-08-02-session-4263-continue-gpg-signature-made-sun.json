@@ -39,8 +39,21 @@
       "timestamp": "2026-08-02T00:00:00+00:00",
       "type": "test",
       "content": "Ran scoped lint, session and episode validators, targeted tests, pre-PR validation, and normal commit hooks.   3   Markdownlint examined 1 file with 0 issues; 151 targeted tests passed; pre_pr.py reported 44 passed and 4 skipped.",
-      "caused_by": [],
+      "caused_by": [
+        "e005"
+      ],
       "leads_to": [],
+      "_source_session": "2026-08-02-session-4263-continue-gpg-signature-made-sun"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 9587ecd5e37c3129a77f22f3aa9c681509982205",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
       "_source_session": "2026-08-02-session-4263-continue-gpg-signature-made-sun"
     }
   ],
@@ -49,7 +62,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 5
   },
   "lessons": []
