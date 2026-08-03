@@ -19,6 +19,7 @@ See: ADR-035 Exit Code Standardization
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -183,13 +184,14 @@ def get_requested_files(paths: Sequence[str]) -> list[str]:
 
 
 def get_all_files(repo_root: Path) -> list[str]:
-    """Get all relevant files tracked by git in the repository.
+    """Get all relevant files in the repository.
 
-    Uses ``git ls-files --cached --others --exclude-standard`` so that
-    gitignored trees (worktrees, caches, scratch directories) are never
-    enumerated, regardless of what is on disk. A hand-maintained SKIP_DIRS
-    denylist cannot achieve this because .gitignore and the denylist drift
-    independently (issue #4338).
+    Uses ``git ls-files`` to enumerate tracked files so that paths listed in
+    ``.gitignore`` (generated files, caches, vendored trees) are excluded
+    automatically. Filters to extensions in ``VALID_EXTENSIONS`` afterwards.
+
+    Falls back to ``os.walk`` with ``SKIP_DIRS`` pruning when the directory is
+    not a git repository (bare checkouts, temp trees used in tests).
 
     Args:
         repo_root: Repository root path.
@@ -199,36 +201,29 @@ def get_all_files(repo_root: Path) -> list[str]:
     """
     try:
         result = subprocess.run(
-            [
-                "git",
-                "-C",
-                str(repo_root),
-                "ls-files",
-                "--cached",
-                "--others",
-                "--exclude-standard",
-            ],
+            ["git", "-C", str(repo_root), "ls-files", "--cached", "--others", "--exclude-standard"],
             capture_output=True,
+            check=True,
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=30,
-            check=False,
         )
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return []
+        return [
+            p for p in result.stdout.splitlines()
+            if p and Path(p).suffix in VALID_EXTENSIONS
+        ]
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
 
-    if result.returncode != 0:
-        return []
-
+    # Fallback: os.walk with SKIP_DIRS for non-git directories.
     files: list[str] = []
-    for line in result.stdout.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        if Path(line).suffix not in VALID_EXTENSIONS:
-            continue
-        files.append(line)
+    for current_dir, dir_names, file_names in os.walk(repo_root):
+        dir_names[:] = [d for d in dir_names if d not in SKIP_DIRS]
+        for name in file_names:
+            if Path(name).suffix not in VALID_EXTENSIONS:
+                continue
+            rel_path = Path(current_dir, name).relative_to(repo_root)
+            files.append(rel_path.as_posix())
     return files
 
 

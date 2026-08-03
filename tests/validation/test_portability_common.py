@@ -14,9 +14,33 @@ def _message(rel: str, count: int, allowed: int) -> str:
     return f"{rel}: {count} refs (baseline {allowed})"
 
 
-def test_load_baseline_accepts_wrapped_files_object(tmp_path: Path) -> None:
+def test_load_baseline_rejects_string_count(tmp_path: Path) -> None:
     baseline = tmp_path / "baseline.json"
     baseline.write_text(json.dumps({"files": {"skills/a.py": "2"}}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="integer"):
+        common.load_baseline(baseline)
+
+
+def test_load_baseline_rejects_float_count(tmp_path: Path) -> None:
+    baseline = tmp_path / "baseline.json"
+    baseline.write_text(json.dumps({"files": {"skills/a.py": 2.5}}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="integer"):
+        common.load_baseline(baseline)
+
+
+def test_load_baseline_rejects_bool_count(tmp_path: Path) -> None:
+    baseline = tmp_path / "baseline.json"
+    baseline.write_text(json.dumps({"files": {"skills/a.py": True}}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="integer"):
+        common.load_baseline(baseline)
+
+
+def test_load_baseline_accepts_integer_count(tmp_path: Path) -> None:
+    baseline = tmp_path / "baseline.json"
+    baseline.write_text(json.dumps({"files": {"skills/a.py": 2}}), encoding="utf-8")
 
     assert common.load_baseline(baseline) == {"skills/a.py": 2}
 
@@ -25,7 +49,7 @@ def test_load_baseline_rejects_null_count(tmp_path: Path) -> None:
     baseline = tmp_path / "baseline.json"
     baseline.write_text(json.dumps({"files": {"skills/a.py": None}}), encoding="utf-8")
 
-    with pytest.raises(ValueError, match="null"):
+    with pytest.raises(ValueError, match="integer"):
         common.load_baseline(baseline)
 
 
@@ -53,7 +77,7 @@ def test_resolve_baseline_rejects_path_outside_repo(tmp_path: Path) -> None:
             "default.json",
             reject_outside_root=True,
         )
-        == Path("")
+        is None
     )
 
 
@@ -187,7 +211,7 @@ class TestAnOverrideKeepsTheEvidenceTheSymlinkGuardNeeds:
             root, outside, "d.json", reject_outside_root=True
         )
 
-        assert resolved == Path("")
+        assert resolved is None
 
     def test_a_link_pointing_out_of_the_root_is_rejected(self, tmp_path: Path) -> None:
         root = tmp_path / "repo"
@@ -201,7 +225,7 @@ class TestAnOverrideKeepsTheEvidenceTheSymlinkGuardNeeds:
             root, link, "d.json", reject_outside_root=True
         )
 
-        assert resolved == Path("")
+        assert resolved is None
 
     def test_a_plain_override_still_resolves(self, tmp_path: Path) -> None:
         """The refusals above are only correct if this stays permitted."""

@@ -161,6 +161,35 @@ EXCLUDE_DIRS = {
 }
 
 
+def _iter_git_files(repo_root: Path):
+    """Yield ``Path`` objects for every file tracked by git in ``repo_root``.
+
+    Uses ``git ls-files --cached --others --exclude-standard`` so that paths
+    listed in ``.gitignore`` (generated files, caches, vendored trees) are
+    excluded automatically. Falls back to ``repo_root.rglob("*")`` when the
+    directory is not inside a git repository.
+    """
+    try:
+        result = subprocess.run(
+            [
+                "git", "-C", str(repo_root),
+                "ls-files", "--cached", "--others", "--exclude-standard",
+            ],
+            capture_output=True,
+            check=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        for rel in result.stdout.splitlines():
+            if rel:
+                yield repo_root / rel
+        return
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+    yield from repo_root.rglob("*")
+
+
 def _should_exclude(path: Path, repo_root: Path | None = None) -> bool:
     """Check if path is in an excluded directory.
 
@@ -177,59 +206,6 @@ def _should_exclude(path: Path, repo_root: Path | None = None) -> bool:
         if part in EXCLUDE_DIRS:
             return True
     return False
-
-
-def _get_repository_files(repo_root: Path) -> list[Path]:
-    """Return files that git considers part of the repository.
-
-    Uses ``git ls-files --cached --others --exclude-standard`` so that
-    gitignored trees (worktrees, caches, scratch directories) are never
-    enumerated, regardless of what is on disk. A hand-maintained EXCLUDE_DIRS
-    denylist cannot achieve this because .gitignore and the denylist drift
-    independently (issue #4338).
-
-    Args:
-        repo_root: Absolute path to the repository root.
-
-    Returns:
-        Absolute Paths for each file git knows about.
-    """
-    try:
-        result = subprocess.run(
-            [
-                "git",
-                "-C",
-                str(repo_root),
-                "ls-files",
-                "--cached",
-                "--others",
-                "--exclude-standard",
-            ],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=30,
-            check=False,
-        )
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return [
-            p for p in repo_root.rglob("*")
-            if p.is_file() and not _should_exclude(p, repo_root)
-        ]
-
-    if result.returncode != 0:
-        return [
-            p for p in repo_root.rglob("*")
-            if p.is_file() and not _should_exclude(p, repo_root)
-        ]
-
-    files: list[Path] = []
-    for line in result.stdout.splitlines():
-        line = line.strip()
-        if line:
-            files.append(repo_root / line)
-    return files
 
 
 def _extract_csharp_symbols(content: str, file_path: str) -> list[SourceSymbol]:
@@ -403,27 +379,19 @@ def run_assessment(
     if diff_base:
         changed_files = _get_changed_files(diff_base, repo_root)
 
-    repo_files = _get_repository_files(repo_root)
-
     # Enumerate documentation files
     doc_files_set: set[Path] = set()
-    for p in repo_files:
-        if not p.is_file() or _should_exclude(p, repo_root):
-            continue
-        rel = str(p.relative_to(repo_root))
-        for glob_pattern in doc_globs:
-            if p.match(glob_pattern):
+    for glob_pattern in doc_globs:
+        for p in repo_root.glob(glob_pattern):
+            if p.is_file() and not _should_exclude(p, repo_root):
                 doc_files_set.add(p)
-                break
-        # Fallback: accept any file whose suffix matches common doc globs
-        _ = rel  # used in the loop above
 
     # Enumerate source files
     source_files: dict[str, str] = {}  # path -> content
     source_symbols: list[SourceSymbol] = []
     symbol_names: set[str] = set()
 
-    for p in repo_files:
+    for p in _iter_git_files(repo_root):
         if not p.is_file() or _should_exclude(p, repo_root):
             continue
 
@@ -481,14 +449,14 @@ def run_assessment(
 
     # Find benchmark files
     benchmark_files = []
-    for p in repo_files:
+    for p in _iter_git_files(repo_root):
         if not p.is_file() or _should_exclude(p, repo_root):
             continue
         name = p.name.lower()
+        rel = str(p.relative_to(repo_root))
         if "benchmark" in name:
-            benchmark_files.append(str(p.relative_to(repo_root)))
+            benchmark_files.append(rel)
         elif "bench" in name and p.suffix in (".json", ".csv", ".md"):
-            rel = str(p.relative_to(repo_root))
             if rel not in benchmark_files:
                 benchmark_files.append(rel)
 
@@ -743,7 +711,8 @@ def run_compilability_check(
                         content,
                     )
                     for param in named_params:
-                        pattern = rf"\b{re.escape(param)}\b"  # nosemgrep: skill-ldap-injection
+                        pattern = rf"\b{re.escape(param)}\b"
+                        # nosemgrep: skill-ldap-injection
                         if not re.search(pattern, actual.signature):
                             finding_counter += 1
                             findings.append(Finding(

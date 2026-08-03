@@ -1,5 +1,4 @@
 {
-  "version": 1,
   "corpus_root": ".claude/skills",
   "description": "Pinned findings for the differential gate. Edit only when removing a detection deliberately; explain why in the commit message.",
   "findings": {
@@ -27,7 +26,7 @@
       49
     ],
     "doc-accuracy/scripts/doc_accuracy.py": [
-      381
+      357
     ],
     "github/scripts/issue/edit_issue_body.py": [
       129
@@ -203,5 +202,6 @@
     "style-enforcement/scripts/check_style.py": [
       476
     ]
-  }
+  },
+  "version": 1
 }

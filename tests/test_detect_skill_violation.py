@@ -660,3 +660,92 @@ class TestViolationDataclass:
         v2 = Violation(file="other.md", pattern="pattern", line=1)
 
         assert v1 != v2
+
+
+class TestGetAllFilesGitPath:
+    """Tests for the git ls-files primary path in get_all_files."""
+
+    def test_git_ls_files_used_when_git_available(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """get_all_files returns paths from git ls-files output, not os.walk."""
+        import subprocess as _sp
+
+        (tmp_path / "tracked.md").write_text("# tracked")
+        (tmp_path / "ignored.md").write_text("# ignored")
+        (tmp_path / "ignored.txt").write_text("plain text")
+
+        def fake_run(cmd, **kwargs):
+            if cmd[:3] == ["git", "-C", str(tmp_path)] and "ls-files" in cmd:
+                result = _sp.CompletedProcess(cmd, 0, stdout="tracked.md\n", stderr="")
+                return result
+            raise AssertionError(f"unexpected subprocess call: {cmd}")
+
+        monkeypatch.setattr(_sp, "run", fake_run)
+
+        result = get_all_files(tmp_path)
+
+        assert result == ["tracked.md"]
+        assert "ignored.md" not in result
+
+    def test_falls_back_to_os_walk_when_git_unavailable(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """get_all_files uses os.walk fallback when git is not available."""
+        import subprocess as _sp
+
+        (tmp_path / "file.md").write_text("# markdown")
+
+        def fake_run(cmd, **kwargs):
+            raise FileNotFoundError("git not found")
+
+        monkeypatch.setattr(_sp, "run", fake_run)
+
+        result = get_all_files(tmp_path)
+
+        assert "file.md" in result
+
+    def test_excludes_gitignored_file_via_git_ls_files(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A file absent from git ls-files output is excluded from the result."""
+        import subprocess as _sp
+
+        (tmp_path / "real.py").write_text("# real")
+        (tmp_path / "generated.py").write_text("# generated - gitignored")
+
+        def fake_run(cmd, **kwargs):
+            if "ls-files" in cmd:
+                result = _sp.CompletedProcess(cmd, 0, stdout="real.py\n", stderr="")
+                return result
+            raise AssertionError(f"unexpected call: {cmd}")
+
+        monkeypatch.setattr(_sp, "run", fake_run)
+
+        result = get_all_files(tmp_path)
+
+        assert "real.py" in result
+        assert "generated.py" not in result
+
+    def test_extension_filter_applied_to_git_ls_files_output(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Files with excluded extensions are filtered out even if git reports them."""
+        import subprocess as _sp
+
+        def fake_run(cmd, **kwargs):
+            if "ls-files" in cmd:
+                result = _sp.CompletedProcess(
+                    cmd, 0, stdout="valid.md\nignored.txt\nscript.py\n", stderr=""
+                )
+                return result
+            raise AssertionError(f"unexpected call: {cmd}")
+
+        monkeypatch.setattr(_sp, "run", fake_run)
+
+        result = get_all_files(tmp_path)
+
+        assert "valid.md" in result
+        assert "script.py" in result
+        # .txt is not in VALID_EXTENSIONS
+        assert "ignored.txt" not in result
