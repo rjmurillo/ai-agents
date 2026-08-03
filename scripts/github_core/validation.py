@@ -140,6 +140,7 @@ def _candidate_git_dir_roots() -> list[str]:
             ["git", "rev-parse", "--git-dir"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=5,
             check=False,
         )
