@@ -62,6 +62,20 @@ def _isolate_git_config_for_test_git() -> Iterator[None]:
 
 
 @pytest.fixture(autouse=True)
+def _clear_ci_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Clear CI from every test so behavior does not depend on ambient env.
+
+    Tests that need CI set must do so explicitly via monkeypatch.setenv.
+    Mirrors the same fixture in tests/validation/conftest.py, which only
+    covers files under that package. The twelve test_validation_*.py files
+    in tests/ root and any other file in this directory that reads CI
+    inherit ambient CI from the caller's environment without this fixture.
+    See issue #4380.
+    """
+    monkeypatch.delenv("CI", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def _default_project_repo(monkeypatch: pytest.MonkeyPatch) -> None:
     """Default every test to the ai-agents project repo (issue #2610).
 
@@ -85,6 +99,20 @@ def _isolate_tmp_path_from_parent_git_repo(
     if "tmp_path" not in request.fixturenames:
         return
     tmp_path = request.getfixturevalue("tmp_path")
+    # GIT_DIR (and related pointer variables) bypass GIT_CEILING_DIRECTORIES
+    # entirely -- if they are inherited from the test runner environment, git
+    # commands inside the test find the outer repository regardless of the
+    # ceiling. Unset them first so discovery falls back to the walk-and-stop
+    # behaviour that GIT_CEILING_DIRECTORIES controls. (Issue #4287.)
+    for _var in (
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_COMMON_DIR",
+        "GIT_INDEX_FILE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    ):
+        monkeypatch.delenv(_var, raising=False)
     existing = os.environ.get("GIT_CEILING_DIRECTORIES")
     ceiling = str(tmp_path.parent)
     value = ceiling if not existing else f"{ceiling}{os.pathsep}{existing}"

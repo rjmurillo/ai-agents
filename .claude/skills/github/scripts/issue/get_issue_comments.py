@@ -7,7 +7,7 @@ decisions, maintainer keep-open calls, or bot plans through the skill (Issue
 #2475). This script fills that gap: it pages through
 ``repos/{owner}/{repo}/issues/{n}/comments`` and emits the standard ADR-056
 envelope with ``Data.comments`` as a list of
-``{id, nodeId, author, authorId, createdAt, updatedAt, body, url}``.
+``{id, node_id, author, author_id, createdAt, updatedAt, body, url}``.
 
 Exit codes follow ADR-035:
     0 - Success
@@ -156,9 +156,9 @@ def _normalize(item: dict[str, object]) -> dict[str, object]:
         # reply to a comment does not have to parse the #issuecomment-<id>
         # fragment back out of html_url (issue #4378).
         "id": item.get("id"),
-        "nodeId": item.get("node_id"),
+        "node_id": item.get("node_id"),
         "author": author,
-        "authorId": author_id,
+        "author_id": author_id,
         "createdAt": item.get("created_at"),
         "updatedAt": item.get("updated_at"),
         "body": item.get("body") or "",

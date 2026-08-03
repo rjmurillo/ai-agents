@@ -947,7 +947,15 @@ def _generate_report(
     error_count: int,
 ) -> int:
     """Aggregate records and write report. Halts on >30% flakiness."""
-    aggregator = ReportAggregator(records, model_id=model_id)
+    # Same resolution order the transport uses (`_eval_api_adapter`): the
+    # CLI writes --provider into EVAL_PROVIDER before the run starts, so
+    # the cost basis is read from the one place that already names the
+    # transport that will be billed.
+    aggregator = ReportAggregator(
+        records,
+        model_id=model_id,
+        provider=os.environ.get("EVAL_PROVIDER"),
+    )
     system_fingerprints = sorted(
         {
             record.system_fingerprint

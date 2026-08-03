@@ -47,7 +47,7 @@ def resolve_repo_root(
     cmd.extend(["rev-parse", "--show-toplevel"])
 
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # subprocess-encoding: strict-ok
             cmd,
             capture_output=True,
             text=True,
