@@ -200,6 +200,13 @@ pre-commit:
               - "**/*.yml"
               - "**/*.ipynb"
 
+          - name: subprocess-encoding
+            timeout: 2m
+            run: uv run --frozen python scripts/validation/check_subprocess_encoding.py --changed-files
+            glob: "**/*.py"
+            skip:
+              - merge
+
     - group:
         piped: true
         jobs:
