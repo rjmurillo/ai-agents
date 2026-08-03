@@ -31,6 +31,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from scripts.validation import check_skill_md_exec_portability as cep  # noqa: E402
 from scripts.validation import check_skill_md_portability as cmp  # noqa: E402
+from scripts.validation import check_skill_portability as csp  # noqa: E402
 from scripts.validation.portability_common import (  # noqa: E402
     refuse_uncovered_scan,
     tracked_coverage_by_root,
@@ -384,3 +385,66 @@ class TestWorktreeGapCoverage:
         argv = ["--repo-root", str(tmp_path), "--baseline", "baseline.json", "--update-baseline"]
         assert module.main(argv) == 2
         assert baseline.read_bytes() == before
+
+
+class TestScriptCheckerSymlinkRefusal:
+    """Per-consumer wiring test for check_skill_portability.py (Issue #4252).
+
+    This class is the test that would have caught an unwired security guard
+    on the day it shipped. It drives the consumer's real entry point (main())
+    twice over the same skills tree, differing only in whether the baseline is
+    a symlink, which is the condition the guard rejects.
+
+    The positive control (real file) confirms the consumer calls the guard and
+    the guard permits the write. The negative control (symlinked baseline)
+    confirms the consumer calls the guard and the guard refuses. If
+    check_skill_portability.py were ever unwired from write_baseline_json,
+    the symlink check would be skipped and the negative control would return 0,
+    failing this test.
+
+    Exemplar for SHOULD-6 in .claude/rules/testing.md.
+    """
+
+    def _populate(self, root: Path) -> None:
+        skills = root / ".claude" / "skills"
+        skills.mkdir(parents=True)
+        (skills / "my-skill").mkdir()
+        (skills / "my-skill" / "run.py").write_text(
+            "# no upstream paths\nprint('hello')\n", encoding="utf-8"
+        )
+        _git(root, "init", "-q", "-b", "main")
+        _git(root, "add", "-A")
+        _git(root, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "seed")
+
+    def test_positive_real_baseline_file_permits_write(
+        self, tmp_path: Path
+    ) -> None:
+        """Positive control: normal baseline file, guard permits the write."""
+        self._populate(tmp_path)
+        baseline = tmp_path / "skill_portability_baseline.json"
+        argv = ["--repo-root", str(tmp_path), "--baseline", str(baseline), "--update-baseline"]
+        assert csp.main(argv) == 0
+        assert baseline.is_file()
+        import json
+        data = json.loads(baseline.read_text(encoding="utf-8"))
+        assert "files" in data
+
+    def test_negative_symlinked_baseline_refuses_write(
+        self, tmp_path: Path
+    ) -> None:
+        """Negative control: symlinked baseline, guard refuses the write.
+
+        If check_skill_portability.py stops calling write_baseline_json (the
+        function that contains the symlink check), this test returns 0 instead
+        of 2 and fails. That is the wiring test catching the unwired consumer.
+        """
+        if __import__("os").name == "nt":
+            import pytest as _pytest
+            _pytest.skip("Symlink creation requires elevated Windows privileges")
+        self._populate(tmp_path)
+        real_target = tmp_path / "real_baseline.json"
+        real_target.write_text("{}", encoding="utf-8")
+        baseline = tmp_path / "skill_portability_baseline.json"
+        baseline.symlink_to(real_target)
+        argv = ["--repo-root", str(tmp_path), "--baseline", str(baseline), "--update-baseline"]
+        assert csp.main(argv) == 2
