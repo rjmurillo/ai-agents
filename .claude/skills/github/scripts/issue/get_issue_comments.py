@@ -7,7 +7,7 @@ decisions, maintainer keep-open calls, or bot plans through the skill (Issue
 #2475). This script fills that gap: it pages through
 ``repos/{owner}/{repo}/issues/{n}/comments`` and emits the standard ADR-056
 envelope with ``Data.comments`` as a list of
-``{author, createdAt, updatedAt, body, url}``.
+``{id, nodeId, author, createdAt, updatedAt, body, url}``.
 
 Exit codes follow ADR-035:
     0 - Success
@@ -149,6 +149,11 @@ def _normalize(item: dict[str, object]) -> dict[str, object]:
     user = item.get("user")
     author = user.get("login") if isinstance(user, dict) else None
     return {
+        # REST id and GraphQL node id, so a caller that wants to react to or
+        # reply to a comment does not have to parse the #issuecomment-<id>
+        # fragment back out of html_url (issue #4378).
+        "id": item.get("id"),
+        "nodeId": item.get("node_id"),
         "author": author,
         "createdAt": item.get("created_at"),
         "updatedAt": item.get("updated_at"),

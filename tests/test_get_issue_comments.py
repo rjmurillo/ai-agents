@@ -252,6 +252,41 @@ class TestMain:
         assert data["comments"][0]["author"] is None
         assert data["comments"][0]["body"] == "ghost"
 
+    def test_preserves_rest_id_and_node_id(self, capsys):
+        """Issue #4378: callers must not have to parse the html_url fragment."""
+        item = _api_comment("alice", "hi")
+        item["id"] = 5161211275
+        item["node_id"] = "IC_kwDOQoWRls8AAAABM6HViw"
+        with (
+            patch("get_issue_comments.assert_gh_authenticated"),
+            patch(
+                "get_issue_comments.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("subprocess.run", side_effect=[_slurped([item])]),
+        ):
+            rc = main(["--issue", "1"])
+        assert rc == 0
+        comment = _envelope(capsys)["Data"]["comments"][0]
+        assert comment["id"] == 5161211275
+        assert comment["nodeId"] == "IC_kwDOQoWRls8AAAABM6HViw"
+
+    def test_absent_identifiers_are_none_not_missing(self, capsys):
+        """A payload without id/node_id still carries both keys."""
+        with (
+            patch("get_issue_comments.assert_gh_authenticated"),
+            patch(
+                "get_issue_comments.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("subprocess.run", side_effect=[_slurped([_api_comment("alice", "hi")])]),
+        ):
+            rc = main(["--issue", "1"])
+        assert rc == 0
+        comment = _envelope(capsys)["Data"]["comments"][0]
+        assert comment["id"] is None
+        assert comment["nodeId"] is None
+
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-v"]))
