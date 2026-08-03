@@ -75,10 +75,17 @@ def _gh_base_ref(repo_root: Path) -> str | None:
     Asks the gh CLI for the PR's base branch name, then prefixes
     ``origin/`` so callers can pass the result to ``git diff`` directly.
 
+    When the local branch name differs from the PR head (e.g. a worktree
+    checked out as ``pr-4294`` tracking ``origin/fix/gc-report-time-budget``),
+    ``gh pr view`` without ``--head`` fails to find the PR. This function
+    detects that case and retries using the configured upstream branch name
+    (``branch.<name>.merge`` via ``git rev-parse --abbrev-ref @{u}``).
+
     Behavior:
     - If gh is not on PATH, return None.
     - If gh succeeds but no PR exists for the current branch (empty
       output), return None.
+    - If the initial lookup fails, retry with ``--head <upstream-branch>``.
     - If gh exits non-zero (auth, network, unknown error), return None.
 
     A related helper (``_gh_base_ref``) lives in
@@ -97,9 +104,48 @@ def _gh_base_ref(repo_root: Path) -> str | None:
         timeout=5,
         cwd=repo_root,
     )
-    if exit_code != 0:
+    base = stdout.strip() if exit_code == 0 else ""
+    if base:
+        return f"origin/{base}"
+
+    # Initial lookup failed. This happens when the local branch name differs
+    # from the PR head (common in isolated-worktree checkout: local branch
+    # ``pr-4294`` tracks ``origin/fix/gc-report-time-budget``). Retry using
+    # the configured upstream branch name stripped of its remote prefix.
+    upstream_rc, upstream_out, _ = _run_subprocess(
+        ["git", "rev-parse", "--abbrev-ref", "@{u}"],
+        timeout=5,
+        cwd=repo_root,
+    )
+    if upstream_rc != 0:
         return None
-    base = stdout.strip()
+    upstream = upstream_out.strip()
+    # upstream is "origin/fix/foo"; strip the leading "origin/" to get the
+    # branch name the remote knows.
+    if upstream.startswith("origin/"):
+        upstream_branch = upstream[len("origin/"):]
+    else:
+        upstream_branch = upstream
+    if not upstream_branch:
+        return None
+    retry_rc, retry_out, _ = _run_subprocess(
+        [
+            "gh",
+            "pr",
+            "view",
+            "--head",
+            upstream_branch,
+            "--json",
+            "baseRefName",
+            "-q",
+            ".baseRefName",
+        ],
+        timeout=5,
+        cwd=repo_root,
+    )
+    if retry_rc != 0:
+        return None
+    base = retry_out.strip()
     if not base:
         return None
     return f"origin/{base}"
