@@ -47,6 +47,7 @@ from checks_coverage import (
 )
 from checks_dash import validate_dash_prohibition
 from checks_plugin import (
+    validate_agent_content_parity,
     validate_copilot_agent_frontmatter,
     validate_hook_anchoring,
     validate_install_parity,
