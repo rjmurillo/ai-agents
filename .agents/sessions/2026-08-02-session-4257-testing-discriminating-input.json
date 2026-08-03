@@ -1,0 +1,115 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4257,
+    "date": "2026-08-02",
+    "branch": "docs/testing-discriminating-input",
+    "startingCommit": "9c6bc856d481af861beccd8e94fc23e4e023a5ce",
+    "objective": "Record the rule that a regression test must be justified by an input the unfixed implementation gets wrong, and that the justification is demonstrated by restoring the defect rather than by coverage."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "complete": false,
+        "evidence": "Serena MCP tools were not exposed in this harness; used the documented file-tree fallback."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "complete": false,
+        "evidence": "Tool unavailable in this harness."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Read .agents/HANDOFF.md at session start."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "This file."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "git branch --show-current reports docs/testing-discriminating-input in ~/src/scratch/wt-testrule."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Working in the wt-testrule worktree on docs/testing-discriminating-input."
+      }
+    },
+    "sessionEnd": {
+      "validationRun": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "uv run --frozen python scripts/validation/pre_pr.py run on this branch before push."
+      },
+      "sessionLogValidated": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "uv run --frozen python scripts/validate_session_json.py on this file returned exit 0."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Did not edit .agents/HANDOFF.md."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "complete": false,
+        "evidence": "The finding binds every contributor when editing tests, so it went to .claude/rules/testing.md and both generated mirrors rather than to a memory, per the knowledge-persistence rule."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Push completed with exit 0, which runs the full gate chain including the test suite."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Commit 1f5b71b0a carries the rule and both mirrors."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "markdownlint-cli2 v0.23.2 run on all three changed markdown files (.claude/rules/testing.md, .github/instructions/testing.instructions.md, src/copilot-cli/instructions/testing.instructions.md): 3 files linted, 0 issues. An earlier revision of this entry claimed the paths were ignored by .markdownlint-cli2.yaml; that was wrong. The ignores list covers .agents/** and .serena/**, not .claude/rules/** or the instruction mirrors."
+      },
+      "checklistComplete": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Rule written to the canonical file and both generated mirrors, and the branch pushed with exit 0."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-08-02T12:00:00-07:00",
+      "action": "found a test that could not observe the defect it was named for",
+      "evidence": "test_a_trailing_slash_on_the_worktree_path_is_tolerated in tests/test_gc_worktrees_occupancy.py passed with the defect present, because its cwd was a subdirectory and the prefix branch matches whether or not the left operand is normalized."
+    },
+    {
+      "time": "2026-08-02T12:20:00-07:00",
+      "action": "identified why coverage could not have caught it",
+      "evidence": "In the short-circuit disjunction the defective operand executes, yields the wrong value, and the sibling operand supplies the right answer, so the line is covered and the branch is taken while the assertion still holds."
+    },
+    {
+      "time": "2026-08-02T12:40:00-07:00",
+      "action": "found the sole discriminating input and proved it",
+      "evidence": "A cwd equal to the worktree root is the only input on which the fixed and unfixed implementations disagree. It failed on its first run once added, and the control showed the original test passing with the defect either present or absent."
+    },
+    {
+      "time": "2026-08-02T13:00:00-07:00",
+      "action": "wrote the rule to the canonical file and regenerated both mirrors",
+      "evidence": "Added SHOULD 9 to .claude/rules/testing.md, with the identical text mirrored to .github/instructions/testing.instructions.md and src/copilot-cli/instructions/testing.instructions.md so Claude, Codex and Copilot all inherit it."
+    },
+    {
+      "time": "2026-08-02T13:20:00-07:00",
+      "action": "checked the diff shape before proposing it as a pull request",
+      "evidence": "git diff against the origin/main tip showed 35 files and 3001 deletions, which reads as a mass revert. Diffing against the merge base instead showed the true change: 3 files, 3 insertions. The branch was 4 commits behind main, and those 4 commits' additions appear as deletions when the tip is used as the left side."
+    }
+  ],
+  "nextSteps": [],
+  "endingCommit": "1f5b71b0a73f9e5d9f9baa94babb54db901eac51"
+}

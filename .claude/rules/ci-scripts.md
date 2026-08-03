@@ -83,10 +83,12 @@ Decide by the check's input, not by which paths look related:
 | The diff | Correct | May skip |
 | The whole tree | Wrong on the mainline | MUST run |
 
-Force the mainline run in Python, not in a YAML `if:` (ADR-006).
-`scripts/workflows/determine_should_run_from_filters.py` reads
-`FORCE_RUN_EVENTS`, so a whole-tree check sets `FORCE_RUN_EVENTS: push` on its
-determine step and leaves the job conditions alone.
+Delete the filter, do not force one event past it. `instruction-budget.yml`
+now runs one unconditional job. Forcing only `push` leaves every PR
+unmeasured, so two PRs each green against their own base still merge to a
+breaching union. `determine_should_run_from_filters.py` still reads
+`FORCE_RUN_EVENTS` for a diff-shaped check that wants a mainline run; no
+workflow uses it today.
 
 Do not reach for the concurrency group instead. Within one group GitHub keeps
 one run in flight and one queued, and a newly queued run cancels the previously

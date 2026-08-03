@@ -25,6 +25,22 @@ import pytest
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SPEC_MD = PROJECT_ROOT / ".claude" / "commands" / "spec.md"
 SKILL_MD = PROJECT_ROOT / "src" / "copilot-cli" / "skills" / "spec" / "SKILL.md"
+SPEC_STEP0_GATES = (
+    PROJECT_ROOT / ".claude" / "skills" / "spec-generator" / "references" / "spec-step0-gates.md"
+)
+SKILL_STEP0_GATES = (
+    PROJECT_ROOT
+    / "src" / "copilot-cli" / "skills" / "spec-generator" / "references" / "spec-step0-gates.md"
+)
+SPEC_PRIOR_ART_SCHEMA = (
+    PROJECT_ROOT
+    / ".claude" / "skills" / "spec-generator" / "references" / "spec-prior-art-schema.md"
+)
+SKILL_PRIOR_ART_SCHEMA = (
+    PROJECT_ROOT
+    / "src" / "copilot-cli" / "skills" / "spec-generator" / "references"
+    / "spec-prior-art-schema.md"
+)
 
 sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
 
@@ -45,6 +61,30 @@ def skill_text() -> str:
     return SKILL_MD.read_text(encoding="utf-8")
 
 
+@pytest.fixture(scope="module")
+def spec_step0_gates_text() -> str:
+    """Step 0 gate logic (halt format, auto-mode) after issue #3632."""
+    return SPEC_STEP0_GATES.read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def skill_step0_gates_text() -> str:
+    """Copilot mirror of spec-step0-gates.md (verbatim copy)."""
+    return SKILL_STEP0_GATES.read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def spec_prior_art_text() -> str:
+    """Step 0.5 halt format + steps 1-9 after issue #3632."""
+    return SPEC_PRIOR_ART_SCHEMA.read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def skill_prior_art_text() -> str:
+    """Copilot mirror of spec-prior-art-schema.md (verbatim copy)."""
+    return SKILL_PRIOR_ART_SCHEMA.read_text(encoding="utf-8")
+
+
 def _section(text: str, start_marker: str, end_marker: str) -> str:
     """Return the slice of ``text`` from ``start_marker`` up to ``end_marker``.
 
@@ -63,11 +103,14 @@ def _section(text: str, start_marker: str, end_marker: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def test_step0_halt_section_documents_redaction_pre_emit(spec_text: str) -> None:
+def test_step0_halt_section_documents_redaction_pre_emit(spec_step0_gates_text: str) -> None:
     """AC: Step 0 halt section names the redaction pre-emit rule, the redactor,
-    the policy file, and the CWE references, scoped to the Step 0 halt block."""
+    the policy file, and the CWE references, scoped to the Step 0 halt block.
+
+    After issue #3632, the Step 0 halt format lives in spec-step0-gates.md.
+    """
     section = _section(
-        spec_text,
+        spec_step0_gates_text,
         "**Halt emission format**",
         "**Auto-mode behavior**",
     )
@@ -78,11 +121,14 @@ def test_step0_halt_section_documents_redaction_pre_emit(spec_text: str) -> None
     assert "CWE-532" in section
 
 
-def test_step0_halt_redaction_targets_answer_field(spec_text: str) -> None:
+def test_step0_halt_redaction_targets_answer_field(spec_step0_gates_text: str) -> None:
     """AC: Step 0 redaction prose targets the `answer` field (the verbatim
-    author text) and names the `[redacted: <reason>]` output placeholder."""
+    author text) and names the `[redacted: <reason>]` output placeholder.
+
+    After issue #3632, the Step 0 halt format lives in spec-step0-gates.md.
+    """
     section = _section(
-        spec_text,
+        spec_step0_gates_text,
         "**Halt emission format**",
         "**Auto-mode behavior**",
     )
@@ -90,11 +136,14 @@ def test_step0_halt_redaction_targets_answer_field(spec_text: str) -> None:
     assert "[redacted: <reason>]" in section
 
 
-def test_step0_5_halt_section_documents_redaction_pre_emit(spec_text: str) -> None:
+def test_step0_5_halt_section_documents_redaction_pre_emit(spec_prior_art_text: str) -> None:
     """AC: Step 0.5 halt section names the redaction pre-emit rule for the
-    `evidence` field, scoped to the Step 0.5 halt block format section."""
+    `evidence` field, scoped to the Step 0.5 halt block format section.
+
+    After issue #3632, the Step 0.5 halt format lives in spec-prior-art-schema.md.
+    """
     section = _section(
-        spec_text,
+        spec_prior_art_text,
         "#### Step 0.5 halt block format",
         "#### Step 0.5 supplemental traversal hook",
     )
@@ -106,17 +155,21 @@ def test_step0_5_halt_section_documents_redaction_pre_emit(spec_text: str) -> No
     assert "CWE-532" in section
 
 
-def test_halt_sections_note_durable_git_history(spec_text: str) -> None:
-    """AC: both halt sections warn that the emitted block lands in git history
-    (PR descriptions, session logs, tally) so the author does not paste live
-    secrets. Each section carries its own warning."""
+def test_halt_sections_note_durable_git_history(
+    spec_step0_gates_text: str, spec_prior_art_text: str
+) -> None:
+    """AC: both halt sections warn that the emitted block lands in git history.
+
+    After issue #3632: Step 0 gate logic is in spec-step0-gates.md; Step 0.5
+    halt format is in spec-prior-art-schema.md.
+    """
     step0 = _section(
-        spec_text,
+        spec_step0_gates_text,
         "**Halt emission format**",
         "**Auto-mode behavior**",
     )
     step0_5 = _section(
-        spec_text,
+        spec_prior_art_text,
         "#### Step 0.5 halt block format",
         "#### Step 0.5 supplemental traversal hook",
     )
@@ -129,10 +182,11 @@ def test_halt_sections_note_durable_git_history(spec_text: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_skill_md_mirrors_step0_redaction(skill_text: str) -> None:
-    """AC: the Copilot CLI mirror carries the Step 0 redaction pre-emit prose."""
+def test_skill_md_mirrors_step0_redaction(skill_step0_gates_text: str) -> None:
+    """AC: the Copilot CLI mirror of spec-step0-gates.md carries the Step 0
+    redaction pre-emit prose verbatim."""
     section = _section(
-        skill_text,
+        skill_step0_gates_text,
         "**Halt emission format**",
         "**Auto-mode behavior**",
     )
@@ -140,10 +194,11 @@ def test_skill_md_mirrors_step0_redaction(skill_text: str) -> None:
     assert "scripts/redact_secrets.py" in section
 
 
-def test_skill_md_mirrors_step0_5_redaction(skill_text: str) -> None:
-    """AC: the Copilot CLI mirror carries the Step 0.5 redaction pre-emit prose."""
+def test_skill_md_mirrors_step0_5_redaction(skill_prior_art_text: str) -> None:
+    """AC: the Copilot CLI mirror of spec-prior-art-schema.md carries the Step 0.5
+    redaction pre-emit prose verbatim."""
     section = _section(
-        skill_text,
+        skill_prior_art_text,
         "#### Step 0.5 halt block format",
         "#### Step 0.5 supplemental traversal hook",
     )
@@ -152,18 +207,21 @@ def test_skill_md_mirrors_step0_5_redaction(skill_text: str) -> None:
 
 
 def test_redaction_prose_byte_identical_between_spec_and_skill(
-    spec_text: str, skill_text: str
+    spec_prior_art_text: str, skill_prior_art_text: str
 ) -> None:
     """AC-10 style: the Step 0.5 halt block section is byte-identical between
-    spec.md and the generated SKILL.md, so the redaction rule cannot drift
-    between the two surfaces."""
+    spec-prior-art-schema.md and its Copilot mirror, so the redaction rule
+    cannot drift between the two surfaces.
+
+    After issue #3632, both files are reference files copied verbatim.
+    """
     spec_section = _section(
-        spec_text,
+        spec_prior_art_text,
         "#### Step 0.5 halt block format",
         "#### Step 0.5 supplemental traversal hook",
     )
     skill_section = _section(
-        skill_text,
+        skill_prior_art_text,
         "#### Step 0.5 halt block format",
         "#### Step 0.5 supplemental traversal hook",
     )
