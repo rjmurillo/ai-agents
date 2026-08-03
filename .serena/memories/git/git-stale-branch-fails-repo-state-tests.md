@@ -144,7 +144,29 @@ prints `changed measured input: <path>` for a long list of files your diff never
 touched, because it is diffing the whole corpus against a baseline that moved on
 `main`.
 
-The tell in all three: the named files or numbers have nothing to do with your
+The always-on instruction budget is the fourth instance, and the one whose
+output looks least like a staleness problem, because it reports a percentage
+rather than a file list:
+
+```
+.md         9     83516     83000     21998   100.6%    FAIL
+FAIL: One or more languages exceed the always-on instruction ceiling.
+```
+
+A percentage reads as a property of your branch's content. It is a property of
+the corpus, and the corpus is whatever your branch last saw. Measured
+2026-08-03 on a branch 9 commits behind whose entire diff was two
+`.serena/memories/*.md` files, which are not always-on instructions and cannot
+move that total: `pre_pr.py` on `origin/main` reported `All validations passed`,
+the same command on the stale branch failed Count Ratchets, Skill Markdown
+Portability, and Instruction Budget, and one `git merge origin/main` cleared all
+three with no other edit.
+
+Run `pre_pr.py` on current `main` first whenever a gate fails on a branch whose
+diff plausibly cannot reach it. Main passing and the branch failing localizes
+the cause to the branch's age in one command, before you read any diagnostic.
+
+The tell in all four: the named files or numbers have nothing to do with your
 diff. Before reading one line of the diagnostic, run:
 
 ```bash
