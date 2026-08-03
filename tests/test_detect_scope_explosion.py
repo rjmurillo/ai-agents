@@ -562,3 +562,141 @@ class TestMain:
             exit_code = main()
             assert exit_code == 1
 
+
+
+class TestReportBypassHint:
+    """Tests that the bypass hint names the verb that can actually bypass.
+
+    Issue #4334: at pre-push the gate blocks the push, so `git commit` cannot
+    bypass it. Only `git push` can. `report()` takes `is_push` to branch the
+    hint and the remediation steps.
+    """
+
+    @staticmethod
+    def _blocked() -> ScopeResult:
+        return ScopeResult(
+            file_count=BLOCK_THRESHOLD + 5,
+            merge_base="abc123",
+            current_branch="feat/big",
+            files=tuple(f"file{i}.py" for i in range(BLOCK_THRESHOLD + 5)),
+        )
+
+    def test_block_hint_names_push_when_is_push(
+        self, capsys: CaptureFixture[str]
+    ) -> None:
+        assert report(self._blocked(), is_push=True) == 1
+        assert "SKIP_SCOPE_CHECK=1 git push" in capsys.readouterr().out
+
+    def test_block_hint_names_commit_when_not_is_push(
+        self, capsys: CaptureFixture[str]
+    ) -> None:
+        assert report(self._blocked(), is_push=False) == 1
+        assert "SKIP_SCOPE_CHECK=1 git commit" in capsys.readouterr().out
+
+    def test_push_hint_does_not_also_name_commit(
+        self, capsys: CaptureFixture[str]
+    ) -> None:
+        # Negative case from issue #4334: the hint must not name both verbs.
+        # A hint listing both is as useless as naming the wrong one.
+        report(self._blocked(), is_push=True)
+        assert "git commit" not in capsys.readouterr().out
+
+    def test_commit_hint_does_not_also_name_push(
+        self, capsys: CaptureFixture[str]
+    ) -> None:
+        report(self._blocked(), is_push=False)
+        assert "git push" not in capsys.readouterr().out
+
+    def test_push_remediation_omits_stash_step(
+        self, capsys: CaptureFixture[str]
+    ) -> None:
+        # `git stash` saves uncommitted work. At push time the work is already
+        # committed, so the step is noise.
+        report(self._blocked(), is_push=True)
+        assert "git stash" not in capsys.readouterr().out
+
+    def test_commit_remediation_keeps_stash_step(
+        self, capsys: CaptureFixture[str]
+    ) -> None:
+        report(self._blocked(), is_push=False)
+        assert "git stash" in capsys.readouterr().out
+
+    def test_strong_warn_remediation_branches_on_is_push(
+        self, capsys: CaptureFixture[str]
+    ) -> None:
+        # The warn band prints remediation too, and it must branch the same way.
+        warned = ScopeResult(
+            file_count=STRONG_WARN_THRESHOLD,
+            merge_base="abc123",
+            current_branch="feat/mid",
+            files=tuple(f"file{i}.py" for i in range(STRONG_WARN_THRESHOLD)),
+        )
+        assert report(warned, is_push=True) == 0
+        assert "Commit current work" not in capsys.readouterr().out
+
+    def test_default_is_push_is_false(self, capsys: CaptureFixture[str]) -> None:
+        # Callers that predate the flag must keep the commit-context hint.
+        report(self._blocked())
+        assert "SKIP_SCOPE_CHECK=1 git commit" in capsys.readouterr().out
+
+
+class TestMainBypassHintRouting:
+    """Tests that `main()` derives push context from `--base-branch` presence.
+
+    Only the pre-push hook passes `--base-branch` (lefthook.yml), so its
+    presence is the push-context sentinel.
+    """
+
+    @staticmethod
+    def _blocked() -> ScopeResult:
+        return ScopeResult(
+            file_count=BLOCK_THRESHOLD + 5,
+            merge_base="abc123",
+            current_branch="feat/big",
+            files=tuple(f"file{i}.py" for i in range(BLOCK_THRESHOLD + 5)),
+        )
+
+    def _run(self, argv: list[str]) -> tuple[int, str]:
+        env = os.environ.copy()
+        env.pop("SKIP_SCOPE_CHECK", None)
+        with patch.dict(os.environ, env, clear=True), patch(
+            "scripts.detect_scope_explosion.detect_scope",
+            return_value=self._blocked(),
+        ) as spy, patch("sys.argv", ["detect_scope_explosion.py", *argv]):
+            code = main()
+        self.last_base_ref = spy.call_args[0][0]
+        return code, ""
+
+    def test_base_branch_flag_routes_as_push(
+        self, capsys: CaptureFixture[str]
+    ) -> None:
+        code, _ = self._run(["--base-branch", "main"])
+        assert code == 1
+        assert "SKIP_SCOPE_CHECK=1 git push" in capsys.readouterr().out
+
+    def test_no_base_branch_flag_routes_as_commit(
+        self, capsys: CaptureFixture[str]
+    ) -> None:
+        code, _ = self._run([])
+        assert code == 1
+        assert "SKIP_SCOPE_CHECK=1 git commit" in capsys.readouterr().out
+
+    def test_base_branch_value_reaches_detect_scope(
+        self, capsys: CaptureFixture[str]
+    ) -> None:
+        # Discriminating control. A routing fix that reads only the flag's
+        # presence and always compares against "main" would pass every other
+        # test in this class. This one pins that the value is still honored.
+        self._run(["--base-branch", "develop"])
+        capsys.readouterr()
+        assert self.last_base_ref == "develop"
+
+    def test_absent_base_branch_still_defaults_to_main(
+        self, capsys: CaptureFixture[str]
+    ) -> None:
+        # The argparse default moved from "main" to None, so the "main"
+        # fallback now lives in main(). Pin it, or the default silently
+        # becomes None and detect_scope compares against nothing.
+        self._run([])
+        capsys.readouterr()
+        assert self.last_base_ref == "main"
