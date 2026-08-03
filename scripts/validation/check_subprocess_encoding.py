@@ -168,6 +168,32 @@ def _is_exempt(path: Path, repo_root: Path) -> bool:
     return str(rel).startswith(_FIXTURE_PREFIX)
 
 
+def _print_violations(
+    path: Path, repo_root: Path, violations: list[tuple[int, str]]
+) -> int:
+    """Print violations for *path* and return the count."""
+    count = 0
+    for lineno, msg in violations:
+        try:
+            rel = path.relative_to(repo_root)
+        except ValueError:
+            rel = path
+        print(f"{rel}:{lineno}: {msg}")
+        count += 1
+    return count
+
+
+def _exit_code(total_violations: int) -> int:
+    """Return the exit code for the checker."""
+    if total_violations:
+        print(
+            f"\ncheck_subprocess_encoding: {total_violations} violation(s) found.",
+            file=sys.stderr,
+        )
+        return 1
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     import argparse
 
@@ -229,22 +255,9 @@ def main(argv: list[str] | None = None) -> int:
         except ValueError as exc:
             print(f"ERROR: {exc}", file=sys.stderr)
             return 3
-        for lineno, msg in violations:
-            try:
-                rel = path.relative_to(repo_root)
-            except ValueError:
-                rel = path
-            print(f"{rel}:{lineno}: {msg}")
-            total_violations += 1
+        total_violations += _print_violations(path, repo_root, violations)
 
-    if total_violations:
-        print(
-            f"\ncheck_subprocess_encoding: {total_violations} violation(s) found.",
-            file=sys.stderr,
-        )
-        return 1
-
-    return 0
+    return _exit_code(total_violations)
 
 
 if __name__ == "__main__":

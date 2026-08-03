@@ -49,6 +49,55 @@ def _run_tests(repo_root: Path) -> int:
     return result.returncode
 
 
+def _run_mutation(
+    name: str,
+    original: str,
+    replacement: str,
+    must_kill: bool,
+    fail_msg: str | None,
+    original_source: str,
+    checker: Path,
+    repo_root: Path,
+    failures: list[str],
+) -> None:
+    print(f"\n=== {name} ===")
+    try:
+        mutated = _apply_mutation(original_source, original, replacement)
+    except ValueError as exc:
+        print(f"  SKIP: {exc}")
+        if must_kill:
+            failures.append(f"{name}: mutation did not apply (DID-NOT-APPLY)")
+        return
+
+    checker.write_text(mutated, encoding="utf-8")
+    _purge_cache(repo_root)
+    rc = _run_tests(repo_root)
+    checker.write_text(original_source, encoding="utf-8")
+    _purge_cache(repo_root)
+
+    restored = checker.read_text(encoding="utf-8")
+    if restored != original_source:
+        print("  ERROR: restore failed")
+        failures.append(f"{name}: restore failed")
+        return
+
+    if must_kill:
+        if rc in (1, 2):
+            print(f"  KILLED (rc={rc})")
+        elif rc == 4:
+            print(f"  FALSE KILL: pytest exit 4 (collection error, not a kill) rc={rc}")
+            failures.append(f"{name}: pytest exit 4 is a collection error, not a kill")
+        else:
+            print(f"  SURVIVED (rc={rc}) -- {fail_msg}")
+            failures.append(f"{name}: {fail_msg}")
+    else:
+        if rc == 0:
+            print("  SURVIVED (as expected, rc=0)")
+        else:
+            print(f"  KILLED (rc={rc}) -- cosmetic mutation should not kill tests")
+            failures.append(f"{name}: cosmetic mutation killed tests (false kill)")
+
+
 def main() -> int:
     repo_root = Path(
         subprocess.run(
@@ -107,46 +156,10 @@ def main() -> int:
     ]
 
     for name, original, replacement, must_kill, fail_msg in mutations:
-        print(f"\n=== {name} ===")
-        try:
-            mutated = _apply_mutation(original_source, original, replacement)
-        except ValueError as exc:
-            print(f"  SKIP: {exc}")
-            if must_kill:
-                failures.append(f"{name}: mutation did not apply (DID-NOT-APPLY)")
-            continue
-
-        checker.write_text(mutated, encoding="utf-8")
-        _purge_cache(repo_root)
-
-        rc = _run_tests(repo_root)
-
-        checker.write_text(original_source, encoding="utf-8")
-        _purge_cache(repo_root)
-
-        # Verify restore applied (size check)
-        restored = checker.read_text(encoding="utf-8")
-        if restored != original_source:
-            print("  ERROR: restore failed")
-            failures.append(f"{name}: restore failed")
-            continue
-
-        if must_kill:
-            if rc in (1, 2):
-                print(f"  KILLED (rc={rc})")
-            elif rc == 4:
-                print(f"  FALSE KILL: pytest exit 4 (collection error, not a kill) rc={rc}")
-                failures.append(f"{name}: pytest exit 4 is a collection error, not a kill")
-            else:
-                print(f"  SURVIVED (rc={rc}) -- {fail_msg}")
-                failures.append(f"{name}: {fail_msg}")
-        else:
-            # Cosmetic: must NOT kill (tests should still pass)
-            if rc == 0:
-                print("  SURVIVED (as expected, rc=0)")
-            else:
-                print(f"  KILLED (rc={rc}) -- cosmetic mutation should not kill tests")
-                failures.append(f"{name}: cosmetic mutation killed tests (false kill)")
+        _run_mutation(
+            name, original, replacement, must_kill, fail_msg,
+            original_source, checker, repo_root, failures,
+        )
 
     # Verify baseline green
     _purge_cache(repo_root)
