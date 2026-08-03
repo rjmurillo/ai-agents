@@ -1,0 +1,124 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 9011,
+    "date": "2026-08-03",
+    "branch": "docs/grep-ere-pipe-escape",
+    "startingCommit": "7906793b3",
+    "objective": "Record the MD056-escape-breaks-ERE-grep Eureka as a Serena memory"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP unavailable in this Copilot CLI session; used the committed fallback under .serena/memories/ as AGENTS.md directs."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP unavailable; read .serena/memories/memory-index.md directly to locate prior art before writing the new memory."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md read-only; no edits (ADR-014)."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/memory/scripts/ and .claude/skills/session-init/scripts/ before invoking either."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used the memory skill's count_memory_tokens.py for the index size rather than estimating, per Skill-First."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md and AGENTS.md boundaries via the injected repository instructions."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Searched .serena/memories/ for an existing grep or markdownlint memory before writing; none covered ERE alternation, so the entry is net-new."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "docs/grep-ere-pipe-escape"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On docs/grep-ere-pipe-escape"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "7906793b3"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart and sessionEnd MUST items carry evidence above."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git diff origin/main --name-only lists no HANDOFF.md entry; the dashboard is untouched."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Added .serena/memories/patterns/pattern-escaping-a-pipe-for-md056-breaks-ere-grep.md (661 tokens) and its memory-index.md entry; memory_index.py --ci reports PASSED."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 run over the branch's changed .md files: 0 issues. Both changed .md files sit under .serena/, which the repo config excludes, so 0 files were linted."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Content work committed as 3fd6805db; this commit lands the session log, leaving the tree clean."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py exits 0 on this file."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [],
+  "endingCommit": "3fd6805db",
+  "nextSteps": []
+}
