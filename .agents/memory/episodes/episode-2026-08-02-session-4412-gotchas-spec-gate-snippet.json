@@ -69,7 +69,9 @@
       "type": "commit",
       "content": "Commit: e6c387ff2",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e009"
+      ],
       "_source_session": "2026-08-02-session-4412-gotchas-spec-gate-snippet"
     },
     {
@@ -89,6 +91,17 @@
       "caused_by": [],
       "leads_to": [],
       "_source_session": "2026-08-02-session-4412-gotchas-spec-gate-snippet"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 1654e6bda62492248e8f043f38182a40aadf1a4b",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4412-gotchas-spec-gate-snippet"
     }
   ],
   "metrics": {
@@ -96,7 +109,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 3
   },
   "lessons": []

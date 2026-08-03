@@ -49,7 +49,7 @@
       "sessionLogValidated": {
         "level": "MUST",
         "complete": true,
-        "evidence": "uv run --frozen python scripts/validate_session_json.py .agents/sessions/2026-08-02-session-3710-session-protocol-lint-scope.json returned exit 0."
+        "evidence": "uv run --frozen python scripts/validate_session_json.py .agents/sessions/2026-08-02-session-4412-gotchas-spec-gate-snippet.json returned exit 0."
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -69,7 +69,7 @@
       "changesCommitted": {
         "level": "MUST",
         "complete": true,
-        "evidence": "SESSION-PROTOCOL.md edit and this log committed together so the adr-review evidence lands with the change it authorizes."
+        "evidence": "GOTCHAS.md, the memory episode, and this session log were committed together in 1654e6bda62492248e8f043f38182a40aadf1a4b."
       },
       "markdownLintRun": {
         "level": "MUST",
@@ -79,7 +79,7 @@
       "checklistComplete": {
         "level": "MUST",
         "complete": true,
-        "evidence": "adr-review debate closed, both P0 findings resolved, change committed."
+        "evidence": "The GOTCHAS.md ratchet and spec-gate snippets were corrected, reviewed against source, and committed in 1654e6bda62492248e8f043f38182a40aadf1a4b."
       }
     }
   },
