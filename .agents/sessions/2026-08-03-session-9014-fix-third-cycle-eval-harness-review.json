@@ -74,12 +74,12 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All required start and end evidence recorded"
+        "Evidence": "All MUST items verified and validation passed"
       },
       "handoffPreserved": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/HANDOFF.md unchanged; per-issue handoff refreshed"
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Code, memory, and final main merges committed through 4ad00c94f"
+        "Evidence": "All changes committed (HEAD: 6e01c96f0)"
       },
       "validationPassed": {
         "level": "MUST",
@@ -110,6 +110,11 @@
         "level": "SHOULD",
         "Complete": false,
         "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
       }
     }
   },
@@ -147,7 +152,7 @@
       "outcome": "Executed the required done update for fix-eval-harness-p2 and verified exactly one row changed"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "6e01c96f0",
   "nextSteps": [
     "Route the external process and metadata boundaries to security PIV before merge",
     "Keep #4123 open until this typed refusal implementation lands",
