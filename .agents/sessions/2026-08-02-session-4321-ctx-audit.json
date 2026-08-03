@@ -129,5 +129,6 @@
   "nextSteps": [
     "Areas 2, 3, and 4 from #4321 (examples vs interfaces, cross-layer conflicts, scope literalness) require a broader multi-session pass; filed as follow-up scope in the PR body.",
     "#4229 should be closed via a comment referencing PR #4280."
-  ]
+  ],
+  "reviewed_at": "2026-08-02T00:00:00Z"
 }
