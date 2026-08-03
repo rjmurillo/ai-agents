@@ -26,24 +26,28 @@ All test nodes assert:
 Counting occurs before each mutation; DID-NOT-APPLY is reported if the literal
 is absent (count == 0) and is an error exit.
 
-Isolation (Issue #4457): mutations are applied to a temporary shadow copy of
-scripts/validation/git_hook_policy.py so the tracked source file is never
-modified.  The subprocess runs with PYTHONPATH pointing at the shadow tree, so
-it imports the mutated module without touching the working tree.
+Isolation (Issue #4457): mutations are applied inside a temporary git worktree
+so the tracked source file in the caller's working tree is never modified.
+The worktree is created once per test session and removed on teardown; abrupt
+termination leaves only an orphan worktree under ~/src/scratch/, not a dirty
+tracked file.
 """
 
 from __future__ import annotations
 
-import shutil
+import os
 import subprocess
 import sys
 import time
+from collections.abc import Generator
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
-TARGET = REPO_ROOT / "scripts" / "validation" / "git_hook_policy.py"
-# Target by filesystem path, never dotted module name. Keep the mutation run
-# narrow so it stays below pytest-timeout when the full suite is running.
+# Path relative to repo root; used to locate the file inside the mutation worktree.
+TARGET_REL = Path("scripts") / "validation" / "git_hook_policy.py"
+# Keep the mutation run narrow so it stays below pytest-timeout when the full suite is running.
 TESTS = [
     "tests/test_lefthook_integration.py::test_adr_review_policy_missing_critique_dir_fails"
 ]
@@ -51,46 +55,78 @@ TESTS = [
 _OUTCOME_DEAD = "DEAD"
 _OUTCOME_SURVIVED = "SURVIVED"
 _OUTCOME_DID_NOT_APPLY = "DID-NOT-APPLY"
+# Scratch directory for mutation worktrees (never /tmp; survives SIGKILL for recovery).
+_SCRATCH = Path(os.path.expanduser("~/src/scratch"))
 
 
-def _build_shadow(tmp_dir: Path) -> tuple[Path, Path]:
-    """Copy scripts/ into a shadow tree under tmp_dir.
+# ---------------------------------------------------------------------------
+# Session-scoped worktree fixture
+# ---------------------------------------------------------------------------
 
-    Returns (shadow_root, shadow_target) where shadow_root is the directory to
-    prepend to PYTHONPATH and shadow_target is the mutable copy of TARGET.
 
-    The full scripts/ tree is copied so that the shadow
-    scripts/validation/__init__.py (which imports scripts.validation.models and
-    other submodules) resolves correctly without touching the production tree.
+@pytest.fixture(scope="session")
+def mutation_worktree() -> Generator[tuple[Path, Path], None, None]:
+    """Create a temporary git worktree for the session; remove it on teardown.
+
+    Yields (wt_root, wt_target) where wt_root is the worktree root and
+    wt_target is the path to git_hook_policy.py inside the worktree.
+
+    The worktree is detached from any branch so mutations to wt_target never
+    appear in the caller's working tree or index.
     """
-    shadow_scripts = tmp_dir / "scripts"
-    shutil.copytree(
-        REPO_ROOT / "scripts",
-        shadow_scripts,
-        symlinks=False,
-        ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+
+    wt_path = _SCRATCH / f"mut-debate-{os.getpid()}"
+
+    subprocess.run(
+        ["git", "worktree", "add", "--detach", str(wt_path), "HEAD"],
+        cwd=str(REPO_ROOT),
+        check=True,
+        capture_output=True,
     )
-    shadow_target = shadow_scripts / "validation" / "git_hook_policy.py"
-    return tmp_dir, shadow_target
+
+    # Bootstrap the venv inside the worktree so `uv run` resolves modules
+    # from wt_path/scripts/, not the caller's scripts/.
+    subprocess.run(
+        ["uv", "run", "--frozen", "python", "-c", "import scripts.validation.git_hook_policy"],
+        cwd=str(wt_path),
+        check=True,
+        capture_output=True,
+    )
+
+    wt_target = wt_path / TARGET_REL
+
+    def _gen() -> Generator[tuple[Path, Path], None, None]:
+        try:
+            yield wt_path, wt_target
+        finally:
+            subprocess.run(
+                ["git", "worktree", "remove", "--force", str(wt_path)],
+                cwd=str(REPO_ROOT),
+                check=False,
+                capture_output=True,
+            )
+
+    yield from _gen()
 
 
-def _run_tests(shadow_root: Path) -> subprocess.CompletedProcess[str]:
-    env_path = str(shadow_root)
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _run_tests(wt_root: Path) -> subprocess.CompletedProcess[str]:
     cmd = [sys.executable, "-m", "pytest", "--tb=short", "-q", *TESTS]
-    import os
-
-    env = os.environ.copy()
-    # Prepend shadow_root so the mutated module shadows the production one.
-    existing = env.get("PYTHONPATH", "")
-    env["PYTHONPATH"] = env_path if not existing else f"{env_path}:{existing}"
+    # Use the worktree's own Python so imports resolve from wt_root/scripts/.
+    wt_python = wt_root / ".venv" / "bin" / "python"
+    if wt_python.exists():
+        cmd[0] = str(wt_python)
     return subprocess.run(
         cmd,
-        cwd=str(REPO_ROOT),
+        cwd=str(wt_root),
         capture_output=True,
         text=True,
         encoding="utf-8",
         errors="replace",
-        env=env,
     )
 
 
@@ -107,14 +143,14 @@ def _assert_suite_ran(result: subprocess.CompletedProcess[str], label: str) -> N
 
 
 def _apply_positive_mutant(
-    shadow_target: Path,
+    wt_target: Path,
     original: bytes,
     original_fragment: bytes,
     mutant_fragment: bytes,
     label: str,
-    shadow_root: Path,
+    wt_root: Path,
 ) -> str:
-    """Apply a mutant to the shadow copy and assert the suite detects it (DEAD)."""
+    """Apply a mutant to the worktree copy and assert the suite detects it (DEAD)."""
     count = original.count(original_fragment)
     if count == 0:
         raise AssertionError(
@@ -129,14 +165,18 @@ def _apply_positive_mutant(
     mutated = original.replace(original_fragment, mutant_fragment, 1)
     assert mutated != original, f"Mutation {label} produced a byte-identical file"
 
-    shadow_target.write_bytes(mutated)
+    # Purge cached bytecode before writing the mutant.
+    _purge_pycache(wt_target.parent)
+
+    wt_target.write_bytes(mutated)
     time.sleep(1.1)  # defeat 1-second bytecode mtime granularity
 
-    result = _run_tests(shadow_root)
+    result = _run_tests(wt_root)
     _assert_suite_ran(result, label)
 
-    # Restore shadow copy regardless of outcome so later mutants start clean.
-    shadow_target.write_bytes(original)
+    # Restore worktree copy regardless of outcome so later mutants start clean.
+    _purge_pycache(wt_target.parent)
+    wt_target.write_bytes(original)
     time.sleep(1.1)
 
     assert result.returncode != 0, (
@@ -145,10 +185,19 @@ def _apply_positive_mutant(
         f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
     )
 
-    restored = shadow_target.read_bytes()
-    assert restored == original, f"Shadow not restored byte-identically after {label}"
+    restored = wt_target.read_bytes()
+    assert restored == original, f"Worktree file not restored byte-identically after {label}"
 
     return _OUTCOME_DEAD
+
+
+def _purge_pycache(directory: Path) -> None:
+    """Remove __pycache__ dirs under directory to defeat stale bytecode."""
+    for cache in directory.rglob("__pycache__"):
+        if cache.is_dir():
+            import shutil  # noqa: PLC0415
+
+            shutil.rmtree(cache, ignore_errors=True)
 
 
 # ---------------------------------------------------------------------------
@@ -159,15 +208,15 @@ _M1_ORIGINAL = b'    critique_dir = repo_root / ".agents" / "critique"\n'
 _M1_MUTANT = b'    critique_dir = repo_root / ".agents" / "analysis"  # M1 mutant\n'
 
 
-def test_m1_directory_name_reverted_is_detected(tmp_path: Path) -> None:
-    shadow_root, shadow_target = _build_shadow(tmp_path)
-    original = shadow_target.read_bytes()
+def test_m1_directory_name_reverted_is_detected(mutation_worktree: tuple[Path, Path]) -> None:
+    wt_root, wt_target = mutation_worktree
+    original = wt_target.read_bytes()
     outcome = _apply_positive_mutant(
-        shadow_target, original, _M1_ORIGINAL, _M1_MUTANT, "M1-dir-name", shadow_root
+        wt_target, original, _M1_ORIGINAL, _M1_MUTANT, "M1-dir-name", wt_root
     )
     assert outcome == _OUTCOME_DEAD
     # Inverted verification: suite still passes after restore.
-    result = _run_tests(shadow_root)
+    result = _run_tests(wt_root)
     _assert_suite_ran(result, "M1-restore-check")
     assert result.returncode == 0, (
         "Tests failed after restoring original (M1).\n"
@@ -190,14 +239,14 @@ _M2_MUTANT = (
 )
 
 
-def test_m2_error_message_path_changed_is_detected(tmp_path: Path) -> None:
-    shadow_root, shadow_target = _build_shadow(tmp_path)
-    original = shadow_target.read_bytes()
+def test_m2_error_message_path_changed_is_detected(mutation_worktree: tuple[Path, Path]) -> None:
+    wt_root, wt_target = mutation_worktree
+    original = wt_target.read_bytes()
     outcome = _apply_positive_mutant(
-        shadow_target, original, _M2_ORIGINAL, _M2_MUTANT, "M2-error-msg", shadow_root
+        wt_target, original, _M2_ORIGINAL, _M2_MUTANT, "M2-error-msg", wt_root
     )
     assert outcome == _OUTCOME_DEAD
-    result = _run_tests(shadow_root)
+    result = _run_tests(wt_root)
     _assert_suite_ran(result, "M2-restore-check")
     assert result.returncode == 0, (
         "Tests failed after restoring original (M2).\n"
@@ -223,14 +272,16 @@ _M3_MUTANT = (
 )
 
 
-def test_m3_missing_debate_log_gate_removed_is_detected(tmp_path: Path) -> None:
-    shadow_root, shadow_target = _build_shadow(tmp_path)
-    original = shadow_target.read_bytes()
+def test_m3_missing_debate_log_gate_removed_is_detected(
+    mutation_worktree: tuple[Path, Path],
+) -> None:
+    wt_root, wt_target = mutation_worktree
+    original = wt_target.read_bytes()
     outcome = _apply_positive_mutant(
-        shadow_target, original, _M3_ORIGINAL, _M3_MUTANT, "M3-gate-removed", shadow_root
+        wt_target, original, _M3_ORIGINAL, _M3_MUTANT, "M3-gate-removed", wt_root
     )
     assert outcome == _OUTCOME_DEAD
-    result = _run_tests(shadow_root)
+    result = _run_tests(wt_root)
     _assert_suite_ran(result, "M3-restore-check")
     assert result.returncode == 0, (
         "Tests failed after restoring original (M3).\n"
@@ -262,11 +313,11 @@ _IC_MUTANT = (
 )
 
 
-def test_ic_comment_only_change_survives(tmp_path: Path) -> None:
+def test_ic_comment_only_change_survives(mutation_worktree: tuple[Path, Path]) -> None:
     """Inverted control: a comment-only mutation must NOT be detected (rc == 0)."""
-    shadow_root, shadow_target = _build_shadow(tmp_path)
-    original = shadow_target.read_bytes()
+    wt_root, wt_target = mutation_worktree
 
+    original = wt_target.read_bytes()
     count = original.count(_IC_ORIGINAL)
     if count == 0:
         raise AssertionError(
@@ -279,20 +330,22 @@ def test_ic_comment_only_change_survives(tmp_path: Path) -> None:
     mutated = original.replace(_IC_ORIGINAL, _IC_MUTANT, 1)
     assert mutated != original, "IC mutation produced a byte-identical file"
 
-    shadow_target.write_bytes(mutated)
+    _purge_pycache(wt_target.parent)
+    wt_target.write_bytes(mutated)
     time.sleep(1.1)
 
-    result = _run_tests(shadow_root)
+    result = _run_tests(wt_root)
     _assert_suite_ran(result, "IC")
 
-    shadow_target.write_bytes(original)
+    _purge_pycache(wt_target.parent)
+    wt_target.write_bytes(original)
     time.sleep(1.1)
 
     assert result.returncode == 0, (
-        f"INVERTED CONTROL FAILED (IC): suite rejected a comment-only change. "
+        "INVERTED CONTROL FAILED (IC): suite rejected a comment-only change. "
         "The harness is over-sensitive or a test matches comments.\n"
         f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
     )
 
-    restored = shadow_target.read_bytes()
-    assert restored == original, "Shadow not restored byte-identically after IC"
+    restored = wt_target.read_bytes()
+    assert restored == original, "Worktree file not restored byte-identically after IC"
