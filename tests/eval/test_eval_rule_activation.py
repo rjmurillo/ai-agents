@@ -376,8 +376,49 @@ class TestParseJudgeResponseEvidence:
 
 
 # ---------------------------------------------------------------------------
-# _load_scenarios_file() path validation
+# Model identity on sample record (#3975)
 # ---------------------------------------------------------------------------
+
+
+class TestSampleModelIdentity:
+    """judge_model must appear on every sample record so per-model claims are checkable."""
+
+    def _score(self, monkeypatch, raw_text: str, model: str = "claude-test") -> dict:
+        monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_kw: raw_text)
+        return eval_mod.score_response(
+            "sk-test",
+            {"input": "x", "expected_gate": "apply-rule"},
+            "response",
+            model=model,
+        )
+
+    def test_successful_parse_records_model(self, monkeypatch):
+        good = (
+            '{"activation_score": 3, "citation_score": 3, "behavior_score": 3, "reasoning": "ok"}'
+        )
+        result = self._score(monkeypatch, good, model="claude-opus-5")
+        assert result.get("judge_model") == "claude-opus-5"
+
+    def test_parse_failure_records_model(self, monkeypatch):
+        result = self._score(monkeypatch, "not json at all", model="claude-haiku-4")
+        assert result.get("judge_model") == "claude-haiku-4"
+
+    def test_non_object_json_records_model(self, monkeypatch):
+        result = self._score(monkeypatch, "[1, 2, 3]", model="gpt-5")
+        assert result.get("judge_model") == "gpt-5"
+
+    def test_default_model_is_recorded(self, monkeypatch):
+        good = (
+            '{"activation_score": 3, "citation_score": 3, "behavior_score": 3, "reasoning": "ok"}'
+        )
+        monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_kw: good)
+        result = eval_mod.score_response(
+            "sk-test",
+            {"input": "x", "expected_gate": "apply-rule"},
+            "response",
+        )
+        assert "judge_model" in result
+        assert result["judge_model"] == eval_mod.DEFAULT_MODEL
 
 
 class TestLoadScenariosFile:

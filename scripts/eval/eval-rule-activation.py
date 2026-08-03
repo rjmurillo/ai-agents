@@ -593,6 +593,7 @@ Respond in JSON only, no other text:
                 text,
                 "judge response could not be parsed as JSON",
                 raw_judge_response=text,
+                judge_model=model,
             )
         # _recover_verdict only returns text it already parsed with
         # _strict_json_loads, so this cannot raise.
@@ -623,21 +624,24 @@ Respond in JSON only, no other text:
             return _failed_judge(
                 "ambiguous judge output names two verdicts",
                 raw_judge_response=text,
+                judge_model=model,
             )
     if not isinstance(parsed, dict):
         return _failed_judge(
             "judge returned non-object JSON",
             raw_judge_response=text,
+            judge_model=model,
         )
     score_error = _judge_score_shape_error(parsed)
     if score_error is not None:
-        return _judge_parse_failure(text, score_error, raw_judge_response=text)
+        return _judge_parse_failure(text, score_error, raw_judge_response=text, judge_model=model)
     result = {
         "activation_score": _clamp_score(parsed["activation_score"]),
         "citation_score": _clamp_score(parsed["citation_score"]),
         "behavior_score": _clamp_score(parsed["behavior_score"]),
         "reasoning": str(parsed.get("reasoning", ""))[:300],
         "judge_failed": False,
+        "judge_model": model,
     }
     if recovered_from_prefix:
         # The whole payload did not parse; the verdict came from its leading
@@ -1530,6 +1534,7 @@ def _judge_parse_failure(
     text: str,
     reason: str,
     raw_judge_response: str | None = None,
+    judge_model: str | None = None,
 ) -> dict[str, Any]:
     """Build a failed-judge record, salvaging scores when they are recoverable."""
     salvaged = _salvage_scores(text)
@@ -1544,11 +1549,17 @@ def _judge_parse_failure(
         }
         if raw_judge_response is not None:
             result["raw_judge_response"] = raw_judge_response
+        if judge_model is not None:
+            result["judge_model"] = judge_model
         return result
-    return _failed_judge(reason, raw_judge_response=raw_judge_response)
+    return _failed_judge(reason, raw_judge_response=raw_judge_response, judge_model=judge_model)
 
 
-def _failed_judge(reason: str, raw_judge_response: str | None = None) -> dict[str, Any]:
+def _failed_judge(
+    reason: str,
+    raw_judge_response: str | None = None,
+    judge_model: str | None = None,
+) -> dict[str, Any]:
     result: dict[str, Any] = {
         "activation_score": 0,
         "citation_score": 0,
@@ -1558,6 +1569,8 @@ def _failed_judge(reason: str, raw_judge_response: str | None = None) -> dict[st
     }
     if raw_judge_response is not None:
         result["raw_judge_response"] = raw_judge_response
+    if judge_model is not None:
+        result["judge_model"] = judge_model
     return result
 
 
