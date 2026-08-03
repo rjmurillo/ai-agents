@@ -77,6 +77,7 @@ def _run_tests(test_filter: str) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
         cwd=REPO_ROOT,
     )
 
@@ -234,12 +235,12 @@ def build_mutations() -> list[Mutation]:
             target_file=pr_val_workflow,
             old_bytes=(
                 b"      - name: Run ADR-006 run-block ratchet\n"
-                b"        run: python3 scripts/ci/adr006_run_block_scanner.py --exact 1\n"
+                b"        run: python3 scripts/ci/adr006_run_block_scanner.py --max 0\n"
             ),
             new_bytes=(
                 b"      - name: Run ADR-006 run-block ratchet\n"
                 b"        if: steps.should-run.outputs.skip != 'true'\n"
-                b"        run: python3 scripts/ci/adr006_run_block_scanner.py --exact 1\n"
+                b"        run: python3 scripts/ci/adr006_run_block_scanner.py --max 0\n"
             ),
             test_filter=f"{guard_class}::test_adr006_ratchet_is_unconditional",
         ),

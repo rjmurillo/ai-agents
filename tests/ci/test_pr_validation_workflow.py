@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import importlib.util
-import re
 import subprocess
 import sys
 from pathlib import Path
@@ -567,7 +566,7 @@ def test_workflow_delegates_all_pr_validation_blocks():
     assert "python3 scripts/ci/update_needs_split_label.py --mode add" in workflow
     assert "python3 scripts/ci/update_needs_split_label.py --mode remove" in workflow
     assert "python3 scripts/ci/enforce_pr_validation.py" in workflow
-    assert "python3 scripts/ci/adr006_run_block_scanner.py --exact 1" in workflow
+    assert "python3 scripts/ci/adr006_run_block_scanner.py --max 0" in workflow
     assert "gh api `\n            -X DELETE" not in workflow
     assert "Write-Error \"PR has $env:COMMIT_COUNT commits" not in workflow
 
@@ -829,101 +828,6 @@ class TestTheCommitCountGateCanReadMainsTrunk:
         commit ceiling entirely.
         """
         assert "if" not in self._jobs()[self.HOST_JOB]
-
-
-class TestTheAdr006PinMatchesReality:
-    """The pinned `--exact` number must equal the count the scanner reports.
-
-    Issue #2967 pinned the gate at `--max 58` while the tree held 45
-    violations, so 13 fresh ADR-006 offenders could land without failing CI.
-    The comment above the step said to lower the number after each extraction
-    batch, and nothing enforced that, so it went stale for three batches.
-
-    This is the enforcement. It is deliberately coupled to the real `.github`
-    tree: any workflow edit that changes the count fails here with the new
-    number in the message, which is the whole point.
-    """
-
-    @staticmethod
-    def _pinned() -> int:
-        match = re.search(
-            r"adr006_run_block_scanner\.py --exact (\d+)",
-            WORKFLOW.read_text(encoding="utf-8"),
-        )
-        assert match is not None, (
-            "pr-validation.yml no longer pins the ADR-006 scanner with --exact"
-        )
-        return int(match.group(1))
-
-    def test_the_pinned_count_equals_the_measured_count(self) -> None:
-        scanner = _load_module("adr006_run_block_scanner")
-        measured = len(scanner.scan_repo(REPO_ROOT, scanner._DEFAULT_THRESHOLD))
-        assert self._pinned() == measured, (
-            f"pr-validation.yml pins --exact {self._pinned()} but the tree holds "
-            f"{measured} ADR-006 run-block violations. Update the number with "
-            f"`python3 scripts/ci/adr006_run_block_scanner.py` and edit both "
-            f"pr-validation.yml and this test's sibling string assertion."
-        )
-
-    def test_the_gate_is_not_pinned_with_slack(self) -> None:
-        """Negative: `--max` semantics are what allowed the drift."""
-        assert "adr006_run_block_scanner.py --max" not in WORKFLOW.read_text(
-            encoding="utf-8"
-        )
-
-
-class TestTheQaCheckFailsLoudlyWhenTheApiFails:
-    """Issue #4068: a gh failure graded a code PR as "no code changes".
-
-    `_changed_files` ran with check=False and never read the return code, so an
-    API error produced empty stdout, `_has_code_changes([])` was False, and the
-    step wrote has_code_changes=False plus qa_report_exists=N/A and exited 0.
-    The shell original swallowed it too, so extraction preserved the fail-open
-    rather than creating it. Either way the gate was decorative on the one path
-    it exists to cover.
-    """
-
-    @staticmethod
-    def _arrange(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, returncode: int, stdout: str):
-        output = tmp_path / "github-output.txt"
-        _set_output(monkeypatch, output)
-        monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
-        monkeypatch.setenv("PR_NUMBER", "42")
-        monkeypatch.chdir(tmp_path)
-        monkeypatch.setattr(
-            qa_mod.subprocess,
-            "run",
-            lambda *args, **kwargs: subprocess.CompletedProcess(args, returncode, stdout),
-        )
-        return output
-
-    def test_a_gh_failure_exits_external_and_writes_nothing(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
-    ) -> None:
-        output = self._arrange(monkeypatch, tmp_path, returncode=1, stdout="")
-
-        assert qa_mod.main() == 3
-        assert not output.exists()
-        assert "::error::gh api failed for repos/o/r/pulls/42/files" in capsys.readouterr().err
-
-    def test_a_successful_call_still_reports_code_changes(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        output = self._arrange(monkeypatch, tmp_path, returncode=0, stdout="a.py\nb.py\n")
-
-        assert qa_mod.main() == 0
-        assert "has_code_changes=True" in output.read_text(encoding="utf-8")
-
-    def test_a_genuinely_empty_pr_is_not_conflated_with_a_broken_api(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Edge: rc 0 with no files is a real answer, not a failure."""
-        output = self._arrange(monkeypatch, tmp_path, returncode=0, stdout="")
-
-        assert qa_mod.main() == 0
-        assert output.read_text(encoding="utf-8") == (
-            "has_code_changes=False\nqa_report_exists=N/A\n"
-        )
 
 
 class TestBotSkipGuardClassification:

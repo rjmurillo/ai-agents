@@ -21,6 +21,8 @@ import yaml
 
 from scripts.validation import git_hook_policy as policy
 
+pytestmark = pytest.mark.windows_path
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 LEFTHOOK = shutil.which("lefthook")
 SEMGREP = shutil.which("semgrep")
@@ -764,6 +766,7 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "extract-session-episodes",
         "commit-file-count",
         "memory-size",
+        "adr-review-policy",
         "taste-advisory",
     }
     pure_jobs = {
@@ -779,7 +782,6 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "memory-index",
         "memory-tier",
         "memory-skill-format",
-        "adr-review-policy",
     }
     for name in merge_exempt_jobs:
         skip = pre_commit_jobs[name].get("skip", [])
