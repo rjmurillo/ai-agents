@@ -6,6 +6,7 @@
 |protocol blocking gate RFC MUST verification template legacy: [skills-protocol-index](skills-protocol-index.md) (245)
 
 [GitHub and PR Operations]
+|new_pr create stale main ref session end validation failed opaque diff: [new-pr-stale-main-ref-trap](new-pr-stale-main-ref-trap.md) (1827)
 |github pr issue cli gh api review comment batch response: [skills-github-cli-index](skills-github-cli-index.md) (552), [skills-pr-review-index](skills-pr-review-index.md) (1019), [pr-review/pr-review-batch-response-pattern](pr-review/pr-review-batch-response-pattern.md) (699), [project/project-labels-milestones](project/project-labels-milestones.md) (325)
 |graphql mutation query resolve thread reply batch nested: [skills-graphql-index](skills-graphql-index.md) (111)
 |jq json parse filter select map array object string: [skills-jq-index](skills-jq-index.md) (356)
@@ -50,6 +51,7 @@
 |CI CD workflow actions runner ARM: [skills-ci-infrastructure-index](skills-ci-infrastructure-index.md) (845)
 |workflow pattern composite matrix artifact verdict report: [skills-workflow-patterns-index](skills-workflow-patterns-index.md) (284)
 |dorny paths-filter checkout base ref PR changes: [ci/ci-infrastructure-dorny-paths-filter-checkout](ci/ci-infrastructure-dorny-paths-filter-checkout.md) (930)
+|lefthook group parallel serial summary sum arithmetic config authoritative derive: [decision-read-the-config-not-the-run-summary](decision-read-the-config-not-the-run-summary.md) (964)
 
 [Documentation and Planning]
 |documentation PRD spec user-facing migration self-contained: [skills-documentation-index](skills-documentation-index.md) (311)
