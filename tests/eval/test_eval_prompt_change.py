@@ -1537,7 +1537,11 @@ class TestMainCLI:
             eval_mod.main()
         assert exc.value.code == 3
 
-    def test_github_models_retirement_brownout_exits_zero(self, tmp_path, monkeypatch, capsys):
+    def test_github_models_retirement_brownout_exits_nonzero(self, tmp_path, monkeypatch, capsys):
+        """The retirement brownout is a permanent failure, not a transient outage.
+        After removing the three retirement markers from _is_provider_outage()
+        (issue #4339), a brownout response surfaces as an execution fault (exit 3)
+        rather than a neutral skip (exit 0)."""
         scen = self._make_scenarios_file(tmp_path)
         before = tmp_path / "a.md"
         before.write_text("p", encoding="utf-8")
@@ -1559,8 +1563,7 @@ class TestMainCLI:
         ])
         with pytest.raises(SystemExit) as exc:
             eval_mod.main()
-        assert exc.value.code == 0
-        assert "SKIP: behavioral eval could not run" in capsys.readouterr().err
+        assert exc.value.code == 3
 
     def test_identical_before_after_warning_emitted(self, tmp_path, monkeypatch, capsys):
         scen = self._make_scenarios_file(tmp_path)
@@ -1599,10 +1602,6 @@ class TestIsProviderOutage:
         [
             "Anthropic API returned HTTP 400: usage limits, regain 2026-07-01",
             "GitHub Models API returned HTTP 429: too many requests",
-            (
-                "GitHub Models API returned HTTP 410: Error code: 410 - "
-                "{'error': {'code': 'github_models_retirement_brownout'}}"
-            ),
             "OpenAI API request timed out",
             "OpenAI API network error: ConnectionError",
             "GitHub Models API returned HTTP 503",
@@ -1619,6 +1618,15 @@ class TestIsProviderOutage:
             "Unknown EVAL_PROVIDER 'bogus'. Valid: anthropic, github, openai",
             "Scenario file not found: tests/evals/x.json",
             "could not parse judge response",
+            # GitHub Models retired 2026-07-30; the skip-net no longer covers
+            # its retirement response. A permanent-retirement error must surface
+            # as a real failure so the gate is not silently dead. (issue #4339)
+            (
+                "GitHub Models API returned HTTP 410: Error code: 410 - "
+                "{'error': {'code': 'github_models_retirement_brownout'}}"
+            ),
+            "retirement brownout",
+            "github models is temporarily unavailable",
         ],
     )
     def test_non_outage_errors_are_not_skippable(self, message: str) -> None:

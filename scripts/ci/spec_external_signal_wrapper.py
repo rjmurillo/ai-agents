@@ -47,6 +47,7 @@ def _pr_body_fallback(pr_number: str, repository: str) -> str:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
         check=False,
     )
     return result.stdout.strip() if result.returncode == 0 else ""
@@ -78,6 +79,7 @@ def run(_argv: list[str] | None = None) -> int:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
         env=env,
         check=False,
     )

@@ -2283,6 +2283,172 @@ class TestUngradedCellsExcludedFromAverage:
         assert "2/2" in table
 
 
+# ---------------------------------------------------------------------------
+# Report identity: which model and seed produced these scores
+#
+# optimize-artifact.py refuses to gate two extractions whose provenance
+# disagrees, and upstream_model is one of the keys it compares. It can only
+# compare what the report records. Before this, the report recorded neither the
+# model nor the seed, so the extractor wrote the literal "not-applicable" and
+# two runs on two different models compared equal at the gate.
+#
+# The producer is the only place that knows these values, so it is the place
+# that has to write them down.
+# ---------------------------------------------------------------------------
+
+
+class TestReportRecordsRunIdentity:
+    @staticmethod
+    def _scenario_file(tmp_path):
+        path = tmp_path / "scenarios.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "rule_path": ".claude/rules/working-with-legacy-code.md",
+                    "scenarios": [{"id": "S1", "input": "do the thing"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        return path
+
+    def _run(self, tmp_path, monkeypatch, *extra):
+        """Drive main() past the API calls and stop at the writer.
+
+        `_process_scenario_file` returning None is its "this file is done, keep
+        going" answer, so stubbing it exercises the real assembly and the real
+        writer without spending a call.
+        """
+        out = tmp_path / "out.json"
+        monkeypatch.setattr(eval_mod, "_load_api_key", lambda *a, **k: "key")
+        monkeypatch.setattr(eval_mod, "verify_model_available", lambda *a, **k: None)
+        monkeypatch.setattr(eval_mod, "_process_scenario_file", lambda *a, **k: None)
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "eval-rule-activation.py",
+                "--scenarios",
+                str(self._scenario_file(tmp_path)),
+                "--output",
+                str(out),
+                *extra,
+            ],
+        )
+        eval_mod.main()
+        return out
+
+    def test_report_records_the_model(self, tmp_path, monkeypatch):
+        out = self._run(tmp_path, monkeypatch, "--model", "openai/gpt-4o-mini")
+        assert json.loads(out.read_text(encoding="utf-8"))["model_id"] == "openai/gpt-4o-mini"
+
+    def test_report_records_the_seed(self, tmp_path, monkeypatch):
+        out = self._run(tmp_path, monkeypatch, "--seed", "7")
+        assert json.loads(out.read_text(encoding="utf-8"))["seed"] == 7
+
+    def test_report_records_a_zero_seed(self, tmp_path, monkeypatch):
+        """The default seed is 0, so the common case is the falsy one."""
+        out = self._run(tmp_path, monkeypatch)
+        assert json.loads(out.read_text(encoding="utf-8"))["seed"] == 0
+
+    def test_report_records_the_default_model_when_none_is_given(self, tmp_path, monkeypatch):
+        out = self._run(tmp_path, monkeypatch)
+        assert json.loads(out.read_text(encoding="utf-8"))["model_id"] == eval_mod.DEFAULT_MODEL
+
+    def test_metadata_does_not_displace_the_scores(self, tmp_path, monkeypatch):
+        """The consumer reads `rules`; the metadata sits beside it, not inside.
+
+        A metadata key written under `rules` would be read as a rule name and
+        scored, which fails closed on a missing `scenarios` list.
+        """
+        out = self._run(tmp_path, monkeypatch)
+        report = json.loads(out.read_text(encoding="utf-8"))
+        assert "rules" in report
+        assert set(report["rules"]) == set()
+        assert "model_id" not in report["rules"]
+
+    def test_a_dry_run_still_writes_nothing(self, tmp_path, monkeypatch):
+        """Unchanged behavior. A plan that spends no calls has no identity."""
+        out = self._run(tmp_path, monkeypatch, "--dry-run")
+        assert not out.exists()
+
+
+# ---------------------------------------------------------------------------
+# Dry-run cost: do not invent a dollar figure for a provider that bills in
+# requests
+#
+# The summary multiplied estimated tokens by 3, the sonnet per-million input
+# rate, and printed the product unconditionally. Measured before the fix, the
+# same plan under two transports:
+#
+#   $ eval-rule-activation.py --scenarios <file> --dry-run
+#     Estimated tokens: ~126,000 (~$0.38 sonnet input rate)
+#   $ EVAL_PROVIDER=github-models eval-rule-activation.py ... --dry-run
+#     Estimated tokens: ~126,000 (~$0.38 sonnet input rate)
+#
+# The second run spends no dollars and does not use sonnet. A wrong number is
+# worse than no number, because a reader budgets against it.
+#
+# The basis comes from cost_basis(), which resolves the provider exactly as the
+# transport does. Asking it rather than re-deriving it here is the point: two
+# functions answering "which provider is this" is how they come to disagree.
+# ---------------------------------------------------------------------------
+
+
+class TestDryRunCostBasis:
+    def test_anthropic_still_prints_the_usd_estimate(self, monkeypatch, capsys):
+        monkeypatch.delenv("EVAL_PROVIDER", raising=False)
+        eval_mod._print_dry_run_summary(36)
+        out = capsys.readouterr().out
+        assert "$0.38" in out
+        assert "sonnet" in out
+
+    def test_a_quota_billed_provider_prints_no_dollar_figure(self, monkeypatch, capsys):
+        monkeypatch.setenv("EVAL_PROVIDER", "github-models")
+        eval_mod._print_dry_run_summary(36)
+        out = capsys.readouterr().out
+        assert "$" not in out
+        assert "request" in out
+
+    def test_the_call_count_is_printed_under_either_basis(self, monkeypatch, capsys):
+        """The count is the one figure that is true regardless of who bills."""
+        monkeypatch.setenv("EVAL_PROVIDER", "github-models")
+        eval_mod._print_dry_run_summary(36)
+        quota = capsys.readouterr().out
+        monkeypatch.delenv("EVAL_PROVIDER", raising=False)
+        eval_mod._print_dry_run_summary(36)
+        usd = capsys.readouterr().out
+        assert "Total calls planned: 36" in quota
+        assert "Total calls planned: 36" in usd
+
+    @pytest.mark.parametrize("value", ["GitHub-Models", "  github  ", "GITHUB"])
+    def test_the_basis_follows_the_transport_s_own_normalization(
+        self, monkeypatch, capsys, value
+    ):
+        """These all route to GitHub Models, so none of them bills in dollars.
+
+        Deferring to cost_basis() is what makes this true without a second
+        normalization rule living here.
+        """
+        monkeypatch.setenv("EVAL_PROVIDER", value)
+        eval_mod._print_dry_run_summary(36)
+        assert "$" not in capsys.readouterr().out
+
+    def test_an_unrecognized_provider_keeps_the_usd_estimate(self, monkeypatch, capsys):
+        """Fall back to the priced basis rather than silently dropping cost.
+
+        An unknown transport is not evidence of a free one.
+        """
+        monkeypatch.setenv("EVAL_PROVIDER", "some-new-vendor")
+        eval_mod._print_dry_run_summary(36)
+        assert "$0.38" in capsys.readouterr().out
+
+    def test_a_zero_call_plan_is_still_reported(self, monkeypatch, capsys):
+        monkeypatch.setenv("EVAL_PROVIDER", "github-models")
+        eval_mod._print_dry_run_summary(0)
+        out = capsys.readouterr().out
+        assert "Total calls planned: 0" in out
+        assert "$" not in out
 _ARCHIVE_DIR = (
     REPO_ROOT
     / ".agents"
