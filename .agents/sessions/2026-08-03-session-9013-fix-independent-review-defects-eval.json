@@ -1,0 +1,147 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 9013,
+    "date": "2026-08-03",
+    "branch": "fix/eval-harness-p2",
+    "startingCommit": "1e5f3d57e",
+    "objective": "Fix independent review defects in eval harness P2"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "API harness has no Serena MCP surface; completed the AGENTS.md file fallback under .serena/memories"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md initialization guidance and reused the loaded memory index"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read and verified .agents/sessions/handoffs/2026-08-03-4123-handoff.md before edits"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub skill inventory remained loaded from session 9011; no GitHub operation was required"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Reused .serena/memories/usage-mandatory.md from the immediately preceding branch session"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read build/AGENTS.md and reused root, scripts, Python, testing, and generated-artifact instructions"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded and updated .serena/memories/eval-harness-observations.md"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/eval-harness-p2"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/eval-harness-p2"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Clean branch at 1e5f3d57e before the new session log"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "1e5f3d57e"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All required start and end evidence recorded"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md unchanged; per-issue handoff updated"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Updated eval-harness-observations.md in commit 234225aac"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Only .agents Markdown changed; repository markdownlint configuration excludes .agents"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Review fixes and memory committed through 234225aac"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py and validate_session_json.py exit 0"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "UPDATE todos set fix-eval-harness-p2 to done; one row affected and verified"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Reproduced stale plugin library behavior before mutation",
+      "outcome": "sync_plugin_lib.py --check reported .claude/lib/ai_review_common/retry.py stale; canonical rejected zero attempts while both shipped copies fabricated All 0 attempts failed"
+    },
+    {
+      "action": "Ran the canonical library sync followed by the full generator",
+      "outcome": "Both shipped retry copies now reject zero attempts with ValueError; committed as a6e47e351 and both drift checks exit 0"
+    },
+    {
+      "action": "Added one-call tests for response and judge metadata failures",
+      "outcome": "Both tests failed before implementation because generic RuntimeError recovery consumed MalformedProviderMetadataError"
+    },
+    {
+      "action": "Propagated typed metadata errors through both rule-activation recovery scopes",
+      "outcome": "The first malformed response or judge fingerprint now ends evaluation after one call; focused helper extraction keeps all modified functions within C901 10"
+    },
+    {
+      "action": "Ran final tests, mutations, static checks, generation, and pre-PR validation",
+      "outcome": "718 passed and 1 unrelated skip in full touched modules; each rethrow mutant failed its dedicated test; ruff, mypy, C901, sync, generation, and pre-PR all exit 0"
+    },
+    {
+      "action": "Updated the orchestrator todo ledger",
+      "outcome": "Executed the required done update for fix-eval-harness-p2 and verified exactly one row changed"
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Route the external-provider boundary change to QA and security PIV before merge",
+    "Push or open a pull request only after explicit user approval"
+  ]
+}
