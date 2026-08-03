@@ -350,6 +350,93 @@ class TestMain:
 _is_bot = _mod._is_bot
 
 
+class TestAliasCanonicalization:
+    """One integration under several logins is one reviewer (issue #4378)."""
+
+    def test_copilot_aliases_collapse_to_one_reviewer(self, capsys):
+        pr_data = _pr_json(author="alice", reviews=[{"author": {"login": "Copilot"}}])
+        review_comments = [
+            {"user": {"login": "copilot-pull-request-reviewer[bot]", "type": "Bot"}},
+        ]
+        issue_comments = [
+            {"user": {"login": "copilot-swe-agent[bot]", "type": "Bot"}},
+        ]
+        with patch(
+            "get_pr_reviewers.assert_gh_authenticated",
+        ), patch(
+            "get_pr_reviewers.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            return_value=_completed(stdout=pr_data, rc=0),
+        ), patch(
+            "get_pr_reviewers.gh_api_paginated",
+            side_effect=[review_comments, issue_comments],
+        ):
+            rc = main(["--pull-request", "10"])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["total_reviewers"] == 1
+        assert output["bot_count"] == 1
+        entry = output["reviewers"][0]
+        assert entry["login"] == "github-copilot[bot]"
+        assert entry["total_comments"] == 2
+        assert sorted(entry["aliases"]) == [
+            "Copilot",
+            "copilot-pull-request-reviewer[bot]",
+            "copilot-swe-agent[bot]",
+        ]
+
+    def test_distinct_humans_are_not_collapsed(self, capsys):
+        pr_data = _pr_json(author="alice")
+        review_comments = [
+            {"user": {"login": "bob", "type": "User"}},
+            {"user": {"login": "carol", "type": "User"}},
+        ]
+        with patch(
+            "get_pr_reviewers.assert_gh_authenticated",
+        ), patch(
+            "get_pr_reviewers.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            return_value=_completed(stdout=pr_data, rc=0),
+        ), patch(
+            "get_pr_reviewers.gh_api_paginated",
+            side_effect=[review_comments, []],
+        ):
+            rc = main(["--pull-request", "10"])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["total_reviewers"] == 2
+        for entry in output["reviewers"]:
+            assert entry["aliases"] == [entry["login"]]
+
+    def test_exclude_author_matches_an_aliased_author(self, capsys):
+        pr_data = _pr_json(author="copilot-swe-agent[bot]")
+        review_comments = [
+            {"user": {"login": "Copilot", "type": "Bot"}},
+            {"user": {"login": "bob", "type": "User"}},
+        ]
+        with patch(
+            "get_pr_reviewers.assert_gh_authenticated",
+        ), patch(
+            "get_pr_reviewers.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            return_value=_completed(stdout=pr_data, rc=0),
+        ), patch(
+            "get_pr_reviewers.gh_api_paginated",
+            side_effect=[review_comments, []],
+        ):
+            rc = main(["--pull-request", "10", "--exclude-author"])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        logins = [r["login"] for r in output["reviewers"]]
+        assert logins == ["bob"]
+
+
 class TestIsBot:
     def test_bot_type(self):
         assert _is_bot("some-login", "Bot") is True
