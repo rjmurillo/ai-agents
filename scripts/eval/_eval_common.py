@@ -6,6 +6,7 @@ duplication of score aggregation logic.
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 # ---------------------------------------------------------------------------
@@ -42,6 +43,49 @@ MODEL_PRICING_RATES_USD_PER_1K_TOKENS: dict[str, dict[str, float]] = {
     # PR #4005.
 }
 PRICING_RATE_AS_OF = "2026-08-01"
+
+# Providers that meter requests against an account allowance instead of
+# charging a published per-token USD rate. GitHub Models bills this way, so a
+# dollar figure for a run routed through it is a number nobody publishes.
+# Copilot CLI bills this way too: it shells out to an authenticated `copilot`
+# binary covered by a subscription, so it spends no per-token dollars at all.
+# Naming these providers lets the plan report the request count it will spend
+# and leave the USD figure empty, rather than either inventing a third-party
+# price or refusing to run a provider the transport already supports.
+# Spellings match the aliases in `_providers._REGISTRY`. Every name registered
+# there must appear either here or in the per-token default deliberately;
+# `TestEveryRegisteredProviderIsClassified` fails when a new provider is added
+# without that decision being made, because the default is silent and the
+# omission of `copilot-cli` from this set is what made a subscription CLI quote
+# a Claude Sonnet token rate.
+QUOTA_BILLED_PROVIDERS: frozenset[str] = frozenset(
+    {"github", "github-models", "copilot", "copilot-cli"}
+)
+
+
+def cost_basis(provider: str | None) -> str:
+    """Return how *provider* bills: ``"usd"`` per token or ``"requests"``.
+
+    The biller is the provider, not the model. The same model id served
+    through GitHub Models is metered against a request allowance, and served
+    through a per-token vendor is metered in dollars, so the basis has to
+    follow the transport that will actually be charged.
+
+    *provider* is resolved exactly as ``_providers.resolve_provider`` resolves
+    it, ``(name or EVAL_PROVIDER or "anthropic").strip().lower()``, because the
+    transport that resolution selects is the one that gets billed. Resolving
+    any other way lets the two disagree: selecting GitHub Models through the
+    environment alone, or spelling it ``GitHub-Models``, would route to a
+    request-metered transport while this function still answered ``"usd"``,
+    so the plan would promise dollars for a run that spends request quota.
+
+    An unrecognized or absent provider answers ``"usd"``. That keeps the
+    default Anthropic path, and any per-token vendor added later, on the
+    existing rule: a missing rate is a real gap an operator must fill, not a
+    licence to print a price.
+    """
+    selected = (provider or os.environ.get("EVAL_PROVIDER") or "anthropic").strip().lower()
+    return "requests" if selected in QUOTA_BILLED_PROVIDERS else "usd"
 
 
 def aggregate_multi_run_scores(

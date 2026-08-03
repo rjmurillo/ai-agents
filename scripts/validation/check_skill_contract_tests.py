@@ -32,6 +32,23 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _SCRIPT_DIR.parent.parent
+
+# `portability_baseline` imports `scripts.validation.portability_floor` by its
+# absolute package path, so the repo root must be importable even when this
+# runs as a plain script rather than via `python -m` (issues #3073, #4210).
+# The sibling directory alone is not enough: it resolves the flat import on the
+# next line but not the absolute one that import performs in turn.
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+sys.path.insert(0, str(_SCRIPT_DIR))
+from portability_baseline import (  # noqa: E402
+    refuse_oversized_baseline,
+    refuse_symlinked_baseline,
+    refuse_undiffable_baseline,
+)
+
 SCAN_ROOTS = ("src/copilot-cli/skills", ".claude/skills")
 TEST_ROOT = "tests"
 
@@ -124,6 +141,13 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     baseline_path = repo_root / args.baseline
+    # Refuse a baseline whose diff attribute is unset (issue #4249).
+    if refuse_symlinked_baseline(repo_root, baseline_path):
+        return 2
+    if refuse_undiffable_baseline(repo_root, baseline_path):
+        return 2
+    if refuse_oversized_baseline(baseline_path):
+        return 2
     baseline: set[str] = set()
     if baseline_path.is_file():
         baseline = {

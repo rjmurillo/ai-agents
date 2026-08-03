@@ -38,6 +38,8 @@ from typing import Any
 
 import pytest
 
+pytestmark = pytest.mark.windows_path
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 sys.path.insert(0, str(REPO_ROOT / "build"))
