@@ -35,7 +35,9 @@
       "timestamp": "2026-07-03T00:00:00+00:00",
       "type": "test",
       "content": "uv run pytest tests/test_memory_sync/test_cli.py -q returned 18 passed in 0.32s; python3 -m py_compile passed for scripts/memory_sync/cli.py and tests/test_memory_sync/test_cli.py.",
-      "caused_by": [],
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": []
     },
     {
@@ -76,7 +78,9 @@
       "type": "commit",
       "content": "Commit: ba023bf21",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e004"
+      ]
     }
   ],
   "metrics": {
@@ -87,5 +91,7 @@
     "commits": 1,
     "files_changed": 4
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 1"
 }

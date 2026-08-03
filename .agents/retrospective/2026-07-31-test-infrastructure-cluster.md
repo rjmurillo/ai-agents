@@ -55,7 +55,10 @@ bytecode, and test files that wrote to the repo working tree.
    The source is a read-only operation. A detector must check which arg is
    the write target.
 
-5. The `flock /tmp/aiagents-push.lock` serialization prevents concurrent push
-   races but the pre-push hook takes 7+ minutes, so main can advance during
-   that window. Always verify the push landed with
+5. The global `flock /tmp/aiagents-push.lock` was adopted to prevent concurrent
+   push races, but the race is per-ref, not per-repo. Two pushes to different
+   branches cannot collide. The global lock serialized the entire fleet behind the
+   7 to 15 minute pre-push hook, producing a 28-waiter convoy (issue #4283).
+   Use a per-branch lock instead; see the GOTCHAS.md "Concurrent pushes" entry.
+   Always verify the push landed with
    `git fetch origin <branch> && git log --oneline origin/<branch> -3`.

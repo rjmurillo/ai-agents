@@ -28,7 +28,12 @@ Scripts under `scripts/validation/`, `build/`, and `.github/workflows/` gate eve
 8. **Anchor helper resolution on the absolute top level**. A resolver that walks candidate roots to find a repository helper MUST anchor its in-repo rung on `git rev-parse --show-toplevel`, and MUST order that rung ahead of any out-of-repo root. A bare relative `.claude` rung only resolves when cwd happens to be the repository root; invoked from a subdirectory it falls through to a copy under `~/.copilot/installed-plugins` or `~/.claude/plugins/cache`, which can be arbitrarily old. `check_skill_resolver_anchoring.py` enforces this for `SKILL.md` resolvers; the same requirement binds resolvers written anywhere else, where nothing enforces it for you.
 9. **Read the state you are asserting about, and name the ref**. A claim about what the repository *contains* MUST be computed from a named ref: `git ls-tree -r -z --name-only HEAD` for a path inventory, the full `git ls-tree -r -z HEAD` wherever entry mode matters, and `git log HEAD` for history. Use `-z`; paths are not newline-safe, and `--name-only` hides modes, so the tracked `memory_enhancement` symlink is indistinguishable from a regular file. Such a claim MUST NOT come from `git log --all` or from a directory walk. `--all` reads every ref the clone holds rather than the branch: at diagnosis this clone held 2054 `refs/remotes/pr/*` refs while `remote.origin.fetch` covered only branch heads, and deleting one of them flipped a shipped test from failing to passing without changing a byte of the repository (Issue #3753). Prefer `HEAD` to `origin/main`, since a guard scoped to the base branch cannot see what the current change does. Reads of the working tree, the index, and untracked files remain correct and required wherever that state is itself the subject, as in regeneration drift and pre-commit checks. Their findings describe local state and MUST NOT be restated as claims about a ref: a directory walk reported three skills as unusable when what remained on disk was untracked residue from a deletion in PR #2359, and the resulting Issue #3420 was closed NOT_PLANNED.
 10. **Convert every failure signal into a non-zero exit before the step ends**. When a `run:` block moves into a Python module under ADR-006, the shell semantics it is replacing MUST be preserved at the boundary: under `set -e` any non-zero command aborted the step, so the module MUST return a non-zero code to `sys.exit` for the same conditions. Returning a findings list, an error string, `None`, or `False` to a caller that ignores it converts a red step into a green one, and the extraction is then a silent-pass detector rather than a check. Six confirmed instances are tracked in Issue #4068. A green step whose behavior changed in this direction is worse than the shell it replaced, because the shell failed loudly and the module reports success. Verify by running the module against input known to be bad and reading `$?`, not by reading the log.
-11. **Distinguish a run that did nothing from a run that succeeded**. A workflow or gate that early-returns when there is no work MUST NOT report that outcome the same way it reports completed work, or the signal inverts: the job goes green exactly when it is idle and red exactly when it acts, and the failure hides inside a mostly-green history. Measured: an auto-bump workflow's only passing run was the one that found nothing to commit and returned before reaching its push, while every run that had work failed against a branch rule; the run history read 3 of 4 passing and the true rate on runs that did work was 0 of 3.
+11. **Convert every detected violation into a non-zero exit**. A script that detects a violation and prints a message but exits 0 has the same observable behavior as a script that found nothing. Hooks and CI steps read the exit code; they do not parse output. If the script found a problem, it MUST exit non-zero. If it found nothing to check (empty input set, no files matched), it MUST exit 0 and SHOULD print a count of examined items so a caller can tell the difference between "zero violations in N items" and "zero violations because nothing was examined".
+12. **Distinguish a run that did nothing from a run that succeeded**. A workflow, checker, or gate that early-returns when there is no work MUST NOT report that outcome the same way it reports completed work, or the signal inverts: the job goes green exactly when it is idle and red exactly when it acts, and the failure hides inside a mostly-green history. Always print the examined count alongside the violation count: "0 violations in 381 files" is verifiable; "OK" is not. A mutation harness MUST report DID-NOT-APPLY when the target literal is absent so that a moved or renamed target does not become an undetected surviving mutant.
+13. **A PR introducing a gate MUST demonstrate the gate passing against the full corpus before merge**. A unit test over fixtures proves the checker's logic; it proves nothing about whether the existing corpus satisfies the gate. Those are separate claims and only the second determines whether main goes red. The PR body or a PR comment MUST quote the output of the gate's own command run against the full corpus on the PR branch. A gate that ships with known outstanding violations blocks every subsequent push by every contributor and must not merge. Measured cost: two violations in a single episode file blocked the entire repository for a multi-hour window after PR #4219 merged, driving three hook-bypass attempts, each of which is a policy violation under ADR-086:95-98 (Issue #4262).
+
+12. **Merge `origin/main` and re-measure before hunting a tripped count ratchet**. The count ratchets under `scripts/ci/` compare the branch's whole tree against a baseline integer that main lowers whenever main adds an exemption or clears violations. A branch behind main therefore reports an increase indistinguishable from a self-inflicted regression, and the failure text names the branch as the party that raised the baseline. Measured on PR #4055: pre-push reported `taste count ratchet: BASELINE RAISED. 601 -> 602` and `ruff count ratchet: 326 -> 329`, and `git merge origin/main` alone returned both to `601` and `326` with no source edit, because commit `aea3a49cd9` had added `# taste-lint: ignore file-size` to `tests/validation/test_check_vendor_portability.py` while the branch still carried the pre-exemption copy of that same file. PR #4109 failed `test_the_shipped_baseline_matches_the_tracked_tree` with `baseline is 602 but current tree has 603` and passed after the same merge, again with no source edit. The merge is the first diagnostic step, not the last resort. Re-fetch immediately before measuring, and treat a `main` ref fetched earlier in the same session as already stale: this repository merges several times an hour, so a long operation is enough to fall behind. Measured in one session: four branches were rebased onto a `main` fetched fifteen minutes earlier, all four then reported `602 > 601`, and the count that looked like a shared regression in main was a suppression that had landed in `c02f61ddd2` during the rebase. Re-fetching and rebasing again returned all four to `601` with no source edit. The distinguishing check is `git rev-parse main` against the remote, not a re-run of the ratchet, which reports the same number either way. A baseline MUST NOT be raised to clear a count the branch did not introduce.
+13. **Diff violations on `(file, rule)` identity, never on the rendered message**. A taste message embeds the measurement it is reporting (`File exceeds 500 lines (566 lines)`), so a text diff of two trees' violation lists reports nearly every violation as both removed and added once any file's length changes. Diffing `(file, rule)` tuples collapsed one such comparison from 16-versus-15 noise to the true signal of exactly one added violation.
 
 ## SHOULD
 
@@ -57,6 +62,39 @@ uv run --frozen --extra dev python scripts/ci/ruff_count_ratchet.py --update
 
 **The failure never names the offending file.** It reports a delta, and the remediation command it suggests prints the same aggregate. Locate the offender by diffing per-file counts against `origin/main`; the linter needs `--format json -- <files>` because with no file arguments it scans nothing and reports zero, which reads as a clean tree. Prove attribution instead of inferring it: `git rm --cached <suspect>` and re-run; if the ratchet returns OK, that file was the whole delta.
 
+## Path filters gate the diff, never the tree
+
+A path filter states that the verdict cannot change unless those paths change.
+That is true for a check whose input is the diff. It is false for a check that
+scores the whole tree. When the filter misses on a whole-tree check, the gated
+job is skipped and its companion skip job reports success in its place. Nothing
+is inherited from a previous run. A fresh green tick is manufactured, and it
+asserts only that the diff was uninteresting.
+
+Decide by the check's input, not by which paths look related:
+
+| Check reads | Path filter | On `push` to `main` |
+| --- | --- | --- |
+| The diff | Correct | May skip |
+| The whole tree | Wrong on the mainline | MUST run |
+
+Force the mainline run in Python, not in a YAML `if:` (ADR-006).
+`scripts/workflows/determine_should_run_from_filters.py` reads
+`FORCE_RUN_EVENTS`, so a whole-tree check sets `FORCE_RUN_EVENTS: push` on its
+determine step and leaves the job conditions alone.
+
+Do not reach for the concurrency group instead. Within one group GitHub keeps
+one run in flight and one queued, and a newly queued run cancels the previously
+queued one whatever `cancel-in-progress` says; that setting governs only the
+running run. Measured 2026-08-02: 21 commits to `main` in 45 seconds produced 20
+cancelled runs, each with `jobs=0` and a lifetime of 2 to 5 seconds.
+
+Cancellation alone is survivable for a whole-tree check, because the surviving
+run measures the tree as it now stands and nobody needs the intermediate states.
+It stopped being survivable because the survivor also skipped on the path
+filter. That window produced zero measurements and one green tick on a tree 201
+bytes over its ceiling.
+
 ## References
 
 - `.agents/architecture/ADR-006-thin-workflows-testable-modules.md`. Workflow pattern
@@ -67,3 +105,4 @@ uv run --frozen --extra dev python scripts/ci/ruff_count_ratchet.py --update
 - Issue #1711. validator change that blocked all PRs
 - Issue #3402. worktree identity and stale helper resolution
 - Issue #3408. a linked worktree's imported session log wedging `check_branch_context`
+- Issue #4262. gate merged red against its own corpus and blocked all pushes

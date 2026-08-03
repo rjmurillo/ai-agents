@@ -1,4 +1,4 @@
-"""Canonical: scripts/github_core/protocol.py. Sync via scripts/sync_plugin_lib.py."""
+"""GitHubClient protocol: transport-layer abstraction for testable API access."""
 
 from __future__ import annotations
 
