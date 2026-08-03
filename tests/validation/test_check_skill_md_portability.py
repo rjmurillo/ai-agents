@@ -1135,10 +1135,10 @@ class TestUnexpectedScanException:
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
 
-        def _exploding_scan(skills_dir: Path) -> None:
+        def _exploding_scan(root: Path) -> None:
             raise RuntimeError("simulated markdown-it internal error")
 
-        monkeypatch.setattr(cmp, "scan_skill_markdown", _exploding_scan)
+        monkeypatch.setattr(cmp, "scan_all", _exploding_scan)
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
         assert rc == 2
 
@@ -1152,10 +1152,10 @@ class TestUnexpectedScanException:
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
 
-        def _exploding_scan(skills_dir: Path) -> None:
+        def _exploding_scan(root: Path) -> None:
             raise TypeError("bad token type")
 
-        monkeypatch.setattr(cmp, "scan_skill_markdown", _exploding_scan)
+        monkeypatch.setattr(cmp, "scan_all", _exploding_scan)
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
         assert rc == 2
         err = capsys.readouterr().err
