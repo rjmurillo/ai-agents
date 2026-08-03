@@ -192,7 +192,7 @@ class _OpenAIProviderTransport:
             kwargs["seed"] = self._seed
         text = self._provider.complete(**kwargs)
         fingerprint = getattr(self._provider, "system_fingerprint", None)
-        self.system_fingerprint = require_str_or_none(fingerprint, "system_fingerprint")
+        self.system_fingerprint = _constants.normalize_fingerprint(fingerprint)
         return text
 
 
@@ -217,7 +217,7 @@ class _AnthropicTransport:
             ),
         )
         fingerprint = metadata.get("system_fingerprint")
-        self.system_fingerprint = require_str_or_none(fingerprint, "system_fingerprint")
+        self.system_fingerprint = _constants.normalize_fingerprint(fingerprint)
         return text
 
 

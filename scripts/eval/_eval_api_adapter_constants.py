@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import re
 
+from _eval_common import require_str_or_none
+
 ERR_RATE_LIMIT: str = "rate_limit"
 ERR_SERVER_ERROR: str = "server_error"
 ERR_TIMEOUT: str = "timeout"
@@ -39,6 +41,13 @@ ALLOWED_LOG_FIELDS: frozenset[str] = frozenset(
         "error_category",
     }
 )
+
+
+def normalize_fingerprint(value: object) -> str | None:
+    """Apply the shared string-or-absence provider metadata policy."""
+    return require_str_or_none(value, "system_fingerprint")
+
+
 BANNED_LOG_FIELDS: frozenset[str] = frozenset(
     {
         "api_key",
