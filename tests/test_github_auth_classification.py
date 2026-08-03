@@ -328,12 +328,44 @@ _HEALTHY_PAYLOAD = json.dumps(
 class TestRateLimitGateProbe:
     """Issue #4326 defect 2: healthy quota numbers during a live refusal."""
 
-    def test_healthy_payload_and_served_probe_passes(self):
-        calls = [_completed(stdout=_HEALTHY_PAYLOAD, rc=0), _completed(rc=0)]
+    def test_healthy_payload_and_served_probes_pass(self):
+        # rate_limit payload, REST probe, GraphQL probe.
+        calls = [
+            _completed(stdout=_HEALTHY_PAYLOAD, rc=0),
+            _completed(rc=0),
+            _completed(rc=0),
+        ]
         with patch("subprocess.run", side_effect=calls):
             result = check_workflow_rate_limit({"core": 100, "graphql": 50})
         assert result.success is True
         assert result.probe_error == ""
+
+    def test_graphql_only_refusal_closes_the_gate(self):
+        """REST and GraphQL refuse independently (issue #4326 defect 2).
+
+        A core-only probe reports the API healthy right through the
+        GraphQL-only window that issues #4344, #4333, and #4335 were all filed
+        from, because `gh api meta` keeps answering.
+        """
+        calls = [
+            _completed(stdout=_HEALTHY_PAYLOAD, rc=0),
+            _completed(rc=0),
+            _completed(stderr=GRAPHQL_QUOTA, rc=1),
+        ]
+        with patch("subprocess.run", side_effect=calls):
+            result = check_workflow_rate_limit({"core": 100, "graphql": 50})
+
+        assert result.success is False
+        assert "GraphQL" in result.probe_error
+        assert "REFUSED" in result.summary_markdown
+
+    def test_a_rest_only_caller_does_not_pay_for_a_graphql_probe(self):
+        calls = [_completed(stdout=_HEALTHY_PAYLOAD, rc=0), _completed(rc=0)]
+        with patch("subprocess.run", side_effect=calls) as run:
+            result = check_workflow_rate_limit({"core": 100})
+
+        assert result.success is True
+        assert run.call_count == 2
 
     def test_healthy_payload_with_refused_probe_fails(self):
         calls = [
@@ -355,7 +387,7 @@ class TestRateLimitGateProbe:
                 }
             }
         )
-        calls = [_completed(stdout=drained, rc=0), _completed(rc=0)]
+        calls = [_completed(stdout=drained, rc=0), _completed(rc=0), _completed(rc=0)]
         with patch("subprocess.run", side_effect=calls):
             result = check_workflow_rate_limit({"core": 100, "graphql": 50})
         assert result.success is False

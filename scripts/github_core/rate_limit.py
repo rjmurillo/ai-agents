@@ -46,16 +46,20 @@ class RateLimitResult:
 # might not.
 _PROBE_ENDPOINT = "meta"
 
+# REST and GraphQL carry separate quotas and refuse independently, so a REST
+# probe alone reports the API healthy through a GraphQL-only refusal. That is
+# the window issues #4344, #4333, and #4335 were all filed from, and it is the
+# half of #4326 defect 2 a core-only probe cannot see. The GraphQL rung runs
+# only when the caller asked about the graphql bucket, so a REST-only caller
+# does not pay for a transport it will not use.
+_GRAPHQL_PROBE_ARGS = ("api", "graphql", "-f", "query=query { viewer { login } }")
 
-def _probe_api_serving() -> str:
-    """Issue one non-exempt REST call and return its refusal text, else "".
 
-    The returned string is the observed failure, so a caller can report why the
-    gate failed rather than pointing at healthy quota numbers.
-    """
+def _run_probe(args: tuple[str, ...]) -> str:
+    """Run one non-exempt gh call and return its refusal text, else ""."""
     try:
         result = subprocess.run(
-            ["gh", "api", _PROBE_ENDPOINT],
+            ["gh", *args],
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -66,6 +70,23 @@ def _probe_api_serving() -> str:
     if result.returncode == 0:
         return ""
     return (result.stderr or result.stdout).strip() or "probe returned a non-zero exit"
+
+
+def _probe_api_serving(probe_graphql: bool = True) -> str:
+    """Return the first observed refusal across the probed transports, else "".
+
+    The returned string is the observed failure, so a caller can report why the
+    gate failed rather than pointing at healthy quota numbers.
+    """
+    rest_error = _run_probe(("api", _PROBE_ENDPOINT))
+    if rest_error:
+        return f"REST (`gh api {_PROBE_ENDPOINT}`): {rest_error}"
+    if not probe_graphql:
+        return ""
+    graphql_error = _run_probe(_GRAPHQL_PROBE_ARGS)
+    if graphql_error:
+        return f"GraphQL (viewer): {graphql_error}"
+    return ""
 
 
 def _probe_failure_is_a_refusal(probe_error: str) -> bool:
@@ -191,19 +212,17 @@ def check_workflow_rate_limit(
             resources[resource] = entry
         summary_lines.append(row)
 
-    probe_error = _probe_api_serving()
+    probe_error = _probe_api_serving(probe_graphql="graphql" in resource_thresholds)
     if probe_error and _probe_failure_is_a_refusal(probe_error):
         all_passed = False
         summary_lines.append("| live probe | N/A | served | X REFUSED |")
         summary_lines.append("")
-        summary_lines.append(
-            f"Live probe (`gh api {_PROBE_ENDPOINT}`) was refused: {probe_error}"
-        )
+        summary_lines.append(f"Live probe was refused: {probe_error}")
     elif probe_error:
         summary_lines.append("| live probe | N/A | served | ! UNRESOLVED |")
         summary_lines.append("")
         summary_lines.append(
-            f"Live probe (`gh api {_PROBE_ENDPOINT}`) did not complete: {probe_error}. "
+            f"Live probe did not complete: {probe_error}. "
             "Not a quota refusal, so the gate is not closed on it."
         )
 
