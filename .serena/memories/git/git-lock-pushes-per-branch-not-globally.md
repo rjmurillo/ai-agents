@@ -86,6 +86,7 @@ Observed live on 2026-08-02, not reasoned. Two processes were pushing the same
 branch at the same time under two lock paths that cannot see each other:
 
 ```
+push-lock-historical: a ps census of the schemes that were live, not a recipe
 PID 761266  cwd ai-agents3-rebase-wt/pr4095
             flock /tmp/aiagents-push-2.lock
             git push --force-with-lease origin HEAD:fix/escaped-pipes-claude-skills
