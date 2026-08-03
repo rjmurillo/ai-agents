@@ -102,8 +102,31 @@ class TestScriptCommit:
         ):
             assert _mod._script_commit() == "unknown"
 
+    def test_git_log_suppresses_show_signature(self):
+        """Issue #4343: log.showSignature=true prepends GPG headers to output."""
+        script_path = "/repo/.claude/skills/github/scripts/pr/test_pr_merge_ready.py"
+        completed = [
+            _mod.subprocess.CompletedProcess(["git"], 0, stdout="/repo\n", stderr=""),
+            _mod.subprocess.CompletedProcess(["git"], 0, stdout="", stderr=""),
+            _mod.subprocess.CompletedProcess(["git"], 0, stdout="abc1234\n", stderr=""),
+        ]
 
-# ---------------------------------------------------------------------------
+        with (
+            patch.object(_mod, "__file__", script_path),
+            patch.object(_mod.subprocess, "run", side_effect=completed) as run,
+        ):
+            result = _mod._script_commit()
+
+        assert result == "abc1234"
+        log_call = run.call_args_list[2]
+        cmd = log_call.args[0]
+        # The git log invocation must include -c log.showSignature=false.
+        assert "-c" in cmd
+        idx = cmd.index("-c")
+        assert cmd[idx + 1] == "log.showSignature=false", (
+            "git log must pass -c log.showSignature=false to suppress GPG headers"
+        )
+
 # Helpers
 # ---------------------------------------------------------------------------
 
