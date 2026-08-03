@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -207,9 +208,14 @@ def test_pre_pr_push_lock_gate_calls_the_real_validator() -> None:
         sys.path.insert(0, str(validation_dir))
     import pre_pr_sequence  # noqa: PLC0415 - bare-name import, see #2223
 
-    callbacks: dict[str, object] = {}
+    callbacks: dict[str, Callable[[], bool]] = {}
 
-    def capture(name: str, _state: object, callback, skip: bool = False) -> bool:  # noqa: ANN001
+    def capture(
+        name: str,
+        _state: object,
+        callback: Callable[[], bool],
+        skip: bool = False,
+    ) -> bool:
         callbacks[name] = callback
         return True
 
@@ -220,7 +226,12 @@ def test_pre_pr_push_lock_gate_calls_the_real_validator() -> None:
 
     seen: list[Path] = []
     original = checker.validate_push_lock_paths
-    pre_pr_sequence.validate_push_lock_paths = lambda root: seen.append(root) or True
+
+    def fake_validate_push_lock_paths(root: Path) -> bool:
+        seen.append(root)
+        return True
+
+    pre_pr_sequence.validate_push_lock_paths = fake_validate_push_lock_paths
     try:
         callbacks["Push Lock Path Agreement"]()
     finally:

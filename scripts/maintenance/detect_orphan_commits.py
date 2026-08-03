@@ -69,6 +69,8 @@ def find_orphan_commits(
     for pr in merged_prs:
         branch = str(pr.get("headRefName") or "")
         merged_head = str(pr.get("headRefOid") or "")
+        raw_number = pr.get("number")
+        number = raw_number if isinstance(raw_number, int) else int(str(raw_number or 0))
         if not branch or not merged_head:
             continue
         current_tip = remote_tips.get(branch)
@@ -76,7 +78,7 @@ def find_orphan_commits(
             continue
         findings.append(
             OrphanFinding(
-                number=int(pr.get("number") or 0),
+                number=number,
                 branch=branch,
                 merged_head=merged_head,
                 current_tip=current_tip,
@@ -100,7 +102,7 @@ def _run(args: Sequence[str], timeout: int) -> subprocess.CompletedProcess[str]:
     )
 
 
-def fetch_merged_prs(limit: int, repo: str | None = None) -> list[dict]:
+def fetch_merged_prs(limit: int, repo: str | None = None) -> list[dict[str, object]]:
     """Return recently merged PRs with the head SHA GitHub recorded at merge."""
     args = ["gh", "pr", "list", "--state", "merged", "--limit", str(limit)]
     if repo:
@@ -109,7 +111,14 @@ def fetch_merged_prs(limit: int, repo: str | None = None) -> list[dict]:
     result = _run(args, _GH_TIMEOUT)
     if result.returncode != 0:
         raise RuntimeError(f"gh pr list failed: {result.stderr.strip()}")
-    return json.loads(result.stdout or "[]")
+    payload = json.loads(result.stdout or "[]")
+    if not isinstance(payload, list):
+        raise RuntimeError("gh pr list returned a non-list payload")
+    return [
+        {str(key): value for key, value in item.items()}
+        for item in payload
+        if isinstance(item, dict)
+    ]
 
 
 def fetch_remote_tips(remote: str = "origin") -> dict[str, str]:

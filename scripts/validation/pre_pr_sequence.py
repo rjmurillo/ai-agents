@@ -25,7 +25,7 @@ import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Protocol, cast
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
@@ -146,7 +146,8 @@ def _root_only(validator: Callable[[Path], bool]) -> Callable[[Path, argparse.Na
     name = validator.__name__
 
     def _run(repo_root: Path, _args: argparse.Namespace) -> bool:
-        return globals().get(name, validator)(repo_root)
+        current = cast("Callable[[Path], bool]", globals().get(name, validator))
+        return current(repo_root)
 
     return _run
 
