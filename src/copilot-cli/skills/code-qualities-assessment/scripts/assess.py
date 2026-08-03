@@ -1176,34 +1176,98 @@ def check_thresholds(
     return 0
 
 
-def main(argv: list[str] | None = None) -> int:
-    """Main entry point"""
-    args = parse_args(argv)
-
-    # Load configuration
-    config = load_config(args.config)
-
-    try:
-        gate_mode = resolve_gate_mode(args.gate_mode, args.changed_only, args.base)
-    except ValueError as e:
-        print(f"ERROR: {e}", file=sys.stderr)
-        return 1
-
-    # Validate target path to prevent path traversal (CWE-22)
+def _resolve_target_path(target: str) -> str:
+    """Return an absolute target path inside the current working directory."""
     import os
 
+    allowed_base = os.path.abspath(".")
+    target_path = os.path.abspath(target)
+    if not target_path.startswith(allowed_base):
+        raise ValueError(f"Path traversal attempt detected in --target: {target}")
+    return target_path
+
+
+def _assess_files(
+    files: list[Path],
+    context: str,
+    use_serena: bool,
+) -> list[FileAssessment]:
+    """Assess every readable file and report per-file failures."""
+    assessments: list[FileAssessment] = []
+    for file_path in files:
+        try:
+            assessments.append(assess_file(file_path, context, use_serena))
+        except Exception as e:
+            print(f"Error assessing {file_path}: {e}", file=sys.stderr)
+    return assessments
+
+
+def _build_regression_inputs(
+    assessments: list[FileAssessment],
+    gate_mode: str,
+    base: str | None,
+    tolerance: float,
+) -> tuple[list[FileComparison], list[FileAssessment]]:
+    """Build comparisons only when regression mode is active."""
+    if gate_mode != "regression":
+        return [], []
+    if base is None:
+        raise ValueError("--gate-mode regression requires --base")
+    return build_comparisons(assessments, base, tolerance)
+
+
+def _render_report(
+    output_format: str,
+    assessments: list[FileAssessment],
+    comparisons: list[FileComparison],
+    config: dict[str, Any],
+    gate_mode: str,
+) -> str:
+    """Render the selected report format."""
+    if output_format == "markdown":
+        report = generate_markdown_report(assessments, config)
+        section = generate_regression_section(comparisons)
+        return f"{report}\n\n{section}" if section else report
+    if output_format == "json":
+        return generate_json_report(assessments, comparisons, gate_mode)
+    return "HTML format not yet implemented"
+
+
+def _write_report(report: str, output: str | None) -> None:
+    """Write the report to a file or stdout."""
+    if output:
+        with open(output, "w", encoding="utf-8") as f:
+            f.write(report)
+        print(f"Report written to {output}")
+        return
+    print(report)
+
+
+def _gate_result(
+    gate_mode: str,
+    comparisons: list[FileComparison],
+    new_file_assessments: list[FileAssessment],
+    assessments: list[FileAssessment],
+    config: dict[str, Any],
+    context: str,
+) -> int:
+    """Apply the gate policy selected for this run."""
+    if gate_mode == "regression":
+        return check_regression(comparisons, new_file_assessments, config, context)
+    return check_thresholds(assessments, config, context)
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Main entry point."""
+    args = parse_args(argv)
+    config = load_config(args.config)
     try:
-        allowed_base = os.path.abspath(".")
-        target_path = os.path.abspath(args.target)
-        if not target_path.startswith(allowed_base):
-            raise ValueError(f"Path traversal attempt detected in --target: {args.target}")
+        gate_mode = resolve_gate_mode(args.gate_mode, args.changed_only, args.base)
+        target_path = _resolve_target_path(args.target)
+        files = get_files_to_assess(target_path, args.changed_only, args.base)
     except ValueError as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
-
-    # Get files to assess
-    try:
-        files = get_files_to_assess(target_path, args.changed_only, args.base)
     except Exception as e:
         print(f"Error getting files: {e}", file=sys.stderr)
         return 1
@@ -1212,55 +1276,28 @@ def main(argv: list[str] | None = None) -> int:
         print("No files to assess", file=sys.stderr)
         return 1
 
-    # Determine Serena availability
-    use_serena = args.use_serena == "yes"
-    if args.use_serena == "auto":
-        # Try to detect Serena (simplified - real version would check MCP)
-        use_serena = False
+    assessments = _assess_files(files, args.context, args.use_serena == "yes")
+    try:
+        comparisons, new_file_assessments = _build_regression_inputs(
+            assessments,
+            gate_mode,
+            args.base,
+            args.regression_tolerance,
+        )
+    except ValueError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 1
 
-    # Assess each file
-    assessments = []
-    for file_path in files:
-        try:
-            assessment = assess_file(file_path, args.context, use_serena)
-            assessments.append(assessment)
-        except Exception as e:
-            print(f"Error assessing {file_path}: {e}", file=sys.stderr)
-            continue
-
-    comparisons: list[FileComparison] = []
-    new_file_assessments: list[FileAssessment] = []
-    if gate_mode == "regression":
-        try:
-            comparisons, new_file_assessments = build_comparisons(
-                assessments, args.base, args.regression_tolerance
-            )
-        except ValueError as e:
-            print(f"ERROR: {e}", file=sys.stderr)
-            return 1
-
-    # Generate report
-    if args.format == "markdown":
-        report = generate_markdown_report(assessments, config)
-        section = generate_regression_section(comparisons)
-        if section:
-            report = f"{report}\n\n{section}"
-    elif args.format == "json":
-        report = generate_json_report(assessments, comparisons, gate_mode)
-    else:  # HTML
-        report = "HTML format not yet implemented"
-
-    # Output report
-    if args.output:
-        with open(args.output, "w", encoding="utf-8") as f:
-            f.write(report)
-        print(f"Report written to {args.output}")
-    else:
-        print(report)
-
-    if gate_mode == "regression":
-        return check_regression(comparisons, new_file_assessments, config, args.context)
-    return check_thresholds(assessments, config, args.context)
+    report = _render_report(args.format, assessments, comparisons, config, gate_mode)
+    _write_report(report, args.output)
+    return _gate_result(
+        gate_mode,
+        comparisons,
+        new_file_assessments,
+        assessments,
+        config,
+        args.context,
+    )
 
 
 if __name__ == "__main__":
