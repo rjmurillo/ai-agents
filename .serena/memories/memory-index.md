@@ -23,7 +23,7 @@
 |copilot cli agent frontmatter regression version pin auto-update diagnostic: [skills-copilot-index](skills-copilot-index.md) (316), [copilot/copilot-cli-frontmatter-regression-runbook](copilot/copilot-cli-frontmatter-regression-runbook.md) (1875)
 |triage stale closure verify history bot superseded duplicate: [pr-review/triage-001-verify-before-stale-closure](pr-review/triage-001-verify-before-stale-closure.md) (435), [pr-review/triage-002-bot-closure-verification](pr-review/triage-002-bot-closure-verification.md) (452)
 |pr validation gate status check blocker merge: [validation/validation-pr-gates](validation/validation-pr-gates.md) (1245)
-|pr checks read rollup truncation cancelled superseded severity required rerun get_pr_checks: [pr-review/use-get-pr-checks-not-raw-rollup](pr-review/use-get-pr-checks-not-raw-rollup.md) (1418)
+|pr checks read rollup truncation cancelled superseded severity required rerun get_pr_checks: [pr-review/use-get-pr-checks-not-raw-rollup](pr-review/use-get-pr-checks-not-raw-rollup.md) (1483)
 |blocked pr mergeStateStatus ruleset required contexts thread resolution commit limit bypass diagnose: [diagnosing-a-blocked-pr](diagnosing-a-blocked-pr.md) (908)
 
 [Scripting and Testing]
@@ -99,7 +99,7 @@
 |retrospective learning session failure skill persistence extract artifact: [skills-retrospective-index](skills-retrospective-index.md) (376), [retrospective/retrospective-artifact-efficiency-pattern](retrospective/retrospective-artifact-efficiency-pattern.md) (986)
 |skill sidecar observations learnings eval-harness fixtures build-model parity drift prompt-optimization ci-infrastructure: [agent-prompt-optimization-observations](agent-prompt-optimization-observations.md) (2449), [eval-harness-observations](eval-harness-observations.md) (935), [ci-infrastructure-observations](ci-infrastructure-observations.md) (924)
 |eval fixture provenance corpus closed-loop author-worded synthetic trigger-eval upper-bound: [decision-eval-fixture-provenance-closed-loop](decision-eval-fixture-provenance-closed-loop.md) (1509)
-|implementation contracts PreToolUse advisory envelope hookSpecificOutput two-pipeline agent mirror recipe generate_agents drift eval multiprovider transport EVAL_PROVIDER openai github-models LSP-first enforcement ADR-062 conditional fail-open: [hooks-pretooluse-advisory-envelope-contract](hooks-pretooluse-advisory-envelope-contract.md) (393), [agents-two-pipeline-mirror-recipe](agents-two-pipeline-mirror-recipe.md) (952), [eval-multiprovider-transport](eval-multiprovider-transport.md) (391), [lsp-first-enforcement-adr062](lsp-first-enforcement-adr062.md) (425)
+|implementation contracts PreToolUse advisory envelope hookSpecificOutput two-pipeline agent mirror recipe generate_agents drift eval multiprovider transport EVAL_PROVIDER openai github-models LSP-first enforcement ADR-062 conditional fail-open: [hooks-pretooluse-advisory-envelope-contract](hooks-pretooluse-advisory-envelope-contract.md) (393), [agents-two-pipeline-mirror-recipe](agents-two-pipeline-mirror-recipe.md) (1133), [eval-multiprovider-transport](eval-multiprovider-transport.md) (391), [lsp-first-enforcement-adr062](lsp-first-enforcement-adr062.md) (425)
 
 [Memory and Context]
 |context engineering token optimization progressive disclosure just-in-time: [memory/context-engineering-principles](memory/context-engineering-principles.md) (594), [memory/memory-token-efficiency](memory/memory-token-efficiency.md) (861)

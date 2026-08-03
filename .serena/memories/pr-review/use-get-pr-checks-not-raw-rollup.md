@@ -110,9 +110,12 @@ the defect you notice, because the row count looks wrong. Severity mapping and
 re-run supersession are the ones that hand you a confident, complete-looking
 answer with the sign flipped.
 
-`cancelled` on its own means superseded or auto-cancelled by a newer run, not
-broken. Treating it as a failure costs a re-run of a green suite at best, and a
-false defect report against working CI at worst.
+A `cancelled` row with a sibling `success` on the same check name means superseded
+by a re-run, not broken. The group passes because the `success` supersedes the
+`cancelled`. A `cancelled`-only group, with no sibling success, still surfaces as a
+failure: the script puts it in the failing set intentionally so it stays visible.
+Treating every `cancelled` as a hard failure (no sibling check) costs a re-run of
+a green suite at best, and a false defect report against working CI at worst.
 
 ## Related
 
