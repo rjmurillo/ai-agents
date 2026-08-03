@@ -215,7 +215,8 @@ class TestFingerprintGuardProvidersOpenAI:
         """Inject a minimal fake openai module so no real SDK is needed."""
         import types
 
-        fake_openai = types.ModuleType("openai")
+        fake_openai_raw = types.ModuleType("openai")
+        fake_openai: Any = fake_openai_raw
 
         class _FakeMessage:
             def __init__(self) -> None:
