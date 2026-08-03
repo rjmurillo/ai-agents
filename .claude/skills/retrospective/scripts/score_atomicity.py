@@ -37,8 +37,9 @@ includes ``effective`` because the canonical worked example scores "The caching
 strategy was effective" as vague (lines 222-226 of the reference). ``careful``,
 ``important``, and ``matters`` are added because common platitudes built on
 those words carry no concrete guidance (issue #4306). The no-action deduction
-fires for statements shorter than ``_MIN_ACTIONABLE_WORDS`` words, because
-fewer than four words cannot express a specific, reproducible action. The 70
+fires for statements shorter than ``_MIN_ACTIONABLE_WORDS`` words; this
+scorer treats fewer than four words as too short to express a specific,
+reproducible action. The 70
 percent persistence threshold used by the SKILL.md Phase 5 contract is the
 boundary of the "Good" band above.
 
@@ -87,8 +88,9 @@ _MAX_WORDS = 15
 _MISSING_EVIDENCE_PENALTY = 25
 # No actionable guidance costs 30% (canonical table).
 _NO_ACTION_PENALTY = 30
-# Minimum word count for a statement to be considered actionable. Fewer than
-# this many words cannot convey specific, reproducible guidance (issue #4306).
+# Minimum word count for a statement to be considered actionable. This scorer
+# treats fewer than this many words as too short to convey specific, reproducible
+# guidance (issue #4306).
 _MIN_ACTIONABLE_WORDS = 4
 
 
@@ -152,8 +154,8 @@ def _is_actionable(text: str) -> bool:
     state. Statements shaped like "The caching strategy was effective" describe
     an outcome without telling a future reader what to do, so they fail.
 
-    Statements with fewer than ``_MIN_ACTIONABLE_WORDS`` words cannot express
-    a specific, reproducible action regardless of their vocabulary; single
+    This scorer treats statements with fewer than ``_MIN_ACTIONABLE_WORDS``
+    words as too short to express a specific, reproducible action; single
     letters and keyboard mash are not actionable by definition (issue #4306).
     """
     stripped = text.strip()
