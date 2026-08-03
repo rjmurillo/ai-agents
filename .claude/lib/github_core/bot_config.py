@@ -272,10 +272,9 @@ _BOT_SUFFIXES = ("[bot]", "-bot")
 #
 # REST spells BOTH accounts ``Copilot`` in some fields (PR 3235's ``.user.login``
 # is the coding agent; PR 4298's review-comment authors are the reviewer), so
-# that one string cannot be resolved from the login alone. It maps to the
-# reviewer, which is where .github/bot-authors.yml lists it and which is the
-# spelling reviewers actually arrive under. Separating them for certain needs the
-# numeric account id, which no caller carries today.
+# that one string cannot be resolved from the login alone. Numeric account IDs
+# are authoritative when the API supplies them. The login map remains the
+# fallback for API shapes that expose only a login.
 _DEFAULT_BOT_ALIASES: dict[str, list[str]] = {
     "github-copilot[bot]": [
         "Copilot",
@@ -290,6 +289,11 @@ _DEFAULT_BOT_ALIASES: dict[str, list[str]] = {
     ],
 }
 
+_DEFAULT_BOT_ACCOUNT_IDS: dict[int, str] = {
+    175728472: "github-copilot[bot]",
+    198982749: "copilot-swe-agent[bot]",
+}
+
 # Lowercased alias to canonical login. Built once from the table above, which is
 # a literal, so there is nothing to invalidate and no cache to keep.
 _BOT_ALIAS_MAP: dict[str, str] = {
@@ -299,13 +303,22 @@ _BOT_ALIAS_MAP: dict[str, str] = {
 }
 
 
-def canonicalize_login(login: str) -> str:
+def canonicalize_login(login: str, account_id: int | None = None) -> str:
     """Return the canonical login for *login*, or *login* itself when unmapped.
+
+    A known numeric account ID wins over the login because GitHub reports both
+    the Copilot reviewer and the Copilot coding agent as ``Copilot`` in some
+    REST objects. Callers should pass REST ``user.id`` or GraphQL
+    ``databaseId`` when available.
 
     Matching is case-insensitive because GitHub logins are. An unmapped login
     comes back unchanged, so this is safe to apply to every actor rather than
     only to the ones a caller already believes are bots.
     """
+    if account_id is not None:
+        canonical = _DEFAULT_BOT_ACCOUNT_IDS.get(account_id)
+        if canonical is not None:
+            return canonical
     return _BOT_ALIAS_MAP.get(login.lower(), login)
 
 
