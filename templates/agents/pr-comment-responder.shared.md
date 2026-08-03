@@ -628,6 +628,21 @@ gh api repos/[owner]/[repo]/issues/[number]/comments --jq '.[] | {
 
 </details>
 
+### Comment Map Status Vocabulary
+
+Every `**Status**` field in the comment map MUST be exactly one of these values.
+No other values are valid.
+
+| Status | Meaning | Terminal? | Gate behavior |
+|--------|---------|-----------|---------------|
+| `[NEW]` | Comment received, not yet acknowledged | No | Counts as pending in Phase 8.1 |
+| `[ACKNOWLEDGED]` | Acknowledged, work in progress | No | Counts as pending in Phase 8.1 |
+| `[COMPLETE]` | Resolution implemented and verified | Yes | Counts as addressed |
+| `[WONTFIX]` | Intentionally not addressed (with reason) | Yes | Counts as addressed |
+
+Phase 8.1 counts pending (`[NEW]` + `[ACKNOWLEDGED]`) and blocks with `exit 1` when any remain.
+Phase 8.2 requires all GitHub conversation threads resolved before merge.
+
 ### Phase 2: Comment Map Generation
 
 Create a persistent map of all comments. Save to `.agents/pr-comments/PR-[number]/comments.md`.
@@ -1141,9 +1156,9 @@ TOTAL=$TOTAL_COMMENTS
 echo "Verification: $((ADDRESSED + WONTFIX)) / $TOTAL comments addressed"
 
 if [ "$((ADDRESSED + WONTFIX))" -lt "$TOTAL" ]; then
-  echo "[WARNING] INCOMPLETE: $((TOTAL - ADDRESSED - WONTFIX)) comments remaining"
+  echo "[BLOCKED] INCOMPLETE: $((TOTAL - ADDRESSED - WONTFIX)) comments remaining"
   grep -E -B 5 "^\*\*Status\*\*: \[ACKNOWLEDGED\]|^\*\*Status\*\*: pending|^\*\*Status\*\*: \[NEW\]" "$COMMENT_MAP" || true
-  # Return to Phase 3 for unaddressed comments
+  exit 1
 fi
 ```
 
