@@ -764,6 +764,7 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "extract-session-episodes",
         "commit-file-count",
         "memory-size",
+        "taste-advisory",
     }
     pure_jobs = {
         "action-pin-policy",
@@ -779,7 +780,6 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "memory-tier",
         "memory-skill-format",
         "adr-review-policy",
-        "taste-advisory",
     }
     for name in merge_exempt_jobs:
         skip = pre_commit_jobs[name].get("skip", [])
@@ -4254,6 +4254,11 @@ def test_mypy_policy_aggregates_failures_and_ignores_deleted_files(
 
     assert policy.run_mypy(["deleted.py"], tmp_path) == 0
     assert policy.run_mypy(["source.py", "deleted.py"], tmp_path) == 1
+
+
+def test_mypy_policy_rejects_empty_paths(tmp_path: Path) -> None:
+    """#3966: run_mypy with no file arguments must return rc=2 (false green guard)."""
+    assert policy.run_mypy([], tmp_path) == 2
 
 
 def test_mypy_policy_rejects_unsafe_paths_and_symlinks(
