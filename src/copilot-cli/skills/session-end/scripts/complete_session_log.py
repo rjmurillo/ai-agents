@@ -413,8 +413,10 @@ def main(argv: list[str] | None = None) -> int:
     if not session_path:
         session_path = _find_current_session_log(sessions_dir)
         if not session_path:
+            branch = _get_current_branch()
+            where = f"branch '{branch}'" if branch else "detached HEAD (no current branch)"
             print(
-                "[FAIL] No session log found for the current branch in .agents/sessions/. "
+                f"[FAIL] No session log found for {where} in {sessions_dir}. "
                 "Use --session-path to specify the log explicitly.",
                 file=sys.stderr,
             )
