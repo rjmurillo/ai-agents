@@ -53,6 +53,20 @@ def test_unquoted_canonical_path_is_accepted() -> None:
     assert checker.scan_text("flock $HOME/src/scratch/locks/push-lock-x.lock git push") == []
 
 
+def test_variable_reassignment_uses_the_last_value_before_flock() -> None:
+    text = "\n".join(
+        [
+            "```bash",
+            "LOCK=/tmp/bad.lock",
+            'LOCK="$HOME/src/scratch/locks/push-lock-$SLUG.lock"',
+            'flock "$LOCK" git push',
+            "```",
+        ]
+    )
+
+    assert checker.scan_text(text) == []
+
+
 def test_a_lock_path_outside_the_canonical_directory_is_rejected() -> None:
     findings = checker.scan_text('flock "$HOME/locks/push-lock-x.lock" git push')
 

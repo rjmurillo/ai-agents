@@ -117,7 +117,7 @@ def _assignments(block: Sequence[str], start: int) -> dict[str, tuple[int, str]]
     found: dict[str, tuple[int, str]] = {}
     for offset, line in enumerate(block):
         for name, value in _ASSIGNMENT.findall(line):
-            found.setdefault(name, (start + offset + 1, value.strip("\"'")))
+            found[name] = (start + offset + 1, value.strip("\"'"))
     return found
 
 
@@ -126,7 +126,9 @@ def _candidate_tokens(block: Sequence[str], start: int) -> list[tuple[int, str]]
     candidates: list[tuple[int, str]] = []
     for offset, line in enumerate(block):
         number = start + offset + 1
-        candidates.extend((number, match.group(0)) for match in _LOCK_PATH.finditer(line))
+        assignment_only = _ASSIGNMENT.search(line) is not None and _FLOCK.search(line) is None
+        if not assignment_only:
+            candidates.extend((number, match.group(0)) for match in _LOCK_PATH.finditer(line))
         candidates.extend((number, match.group(1)) for match in _EXEC_REDIRECT.finditer(line))
         argument = _flock_argument(line)
         if argument is not None:

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import builtins
 import importlib.util
+import shlex
 import subprocess
 import sys
 import threading
@@ -954,7 +955,11 @@ def test_run_pytest_stops_on_the_first_failing_command(
 # The #4293 pre-push guard must not reject this script's own lease push
 # ---------------------------------------------------------------------------
 
-_PRE_PUSH_HOOK = '''#!{interpreter}
+_PRE_PUSH_HOOK = """#!/bin/sh
+exec {interpreter} "$0.py"
+"""
+
+_PRE_PUSH_HOOK_PY = '''
 import sys
 from pathlib import Path
 
@@ -980,8 +985,11 @@ def _install_non_fast_forward_hook(repo: Path) -> None:
     hooks.mkdir(parents=True, exist_ok=True)
     hook = hooks / "pre-push"
     hook.write_text(
-        _PRE_PUSH_HOOK.format(
-            interpreter=sys.executable,
+        _PRE_PUSH_HOOK.format(interpreter=shlex.quote(sys.executable)),
+        encoding="utf-8",
+    )
+    (hooks / "pre-push.py").write_text(
+        _PRE_PUSH_HOOK_PY.format(
             repo_root=str(Path(__file__).resolve().parents[1]),
             work=str(repo),
         ),
