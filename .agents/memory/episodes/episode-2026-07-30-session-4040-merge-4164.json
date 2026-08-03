@@ -1,0 +1,47 @@
+{
+  "id": "episode-2026-07-30-session-4040-merge-4164",
+  "session": "2026-07-30-session-4040-merge-4164",
+  "timestamp": "2026-07-30T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix taste ratchet failures in PR #4164 merge (restore taste-lint suppressions and update baselines)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix missing taste-lint suppressions",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-30-session-4040-merge-4164"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Update ruff and taste count baselines",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-30-session-4040-merge-4164"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 29f9589567",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-30-session-4040-merge-4164"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 31
+  },
+  "lessons": []
+}
