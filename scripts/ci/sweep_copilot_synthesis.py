@@ -40,6 +40,7 @@ def _process_issue(issue_number: str) -> bool:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
     )
     if gh_result.returncode == 0:
         print(f"::notice::Issue #{issue_number} - Removed copilot-ready label")

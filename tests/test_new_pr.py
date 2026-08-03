@@ -50,6 +50,46 @@ def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
     return subprocess.CompletedProcess(args=[], returncode=rc, stdout=stdout, stderr=stderr)
 
 
+def _fake_git(
+    repo_root: str = "/repo",
+    *,
+    diff: str = "",
+    pr_create_rc: int = 0,
+    pr_create_stderr: str = "",
+    remotes: str = "origin\n",
+):
+    """Dispatch a fake subprocess on argv instead of on call order.
+
+    Positional ``side_effect`` lists broke every time ``main`` gained a
+    subprocess call, and their comments drifted out of alignment with the real
+    sequence: passing ``--head`` skips the ``git branch`` lookup entirely, so
+    the entry labelled ``git branch`` was being consumed by the next call.
+    """
+
+    def _run(cmd, *_args, **_kwargs):
+        argv = list(cmd)
+        if argv[0] == sys.executable:
+            return _completed(stdout="{}", rc=0)
+        if argv[:3] == ["gh", "pr", "create"]:
+            return _completed(stdout="https://pr", stderr=pr_create_stderr, rc=pr_create_rc)
+        if argv[0] == "gh":
+            return _completed(rc=0)
+        if argv[:2] == ["git", "rev-parse"]:
+            if "--show-toplevel" in argv:
+                return _completed(stdout=repo_root, rc=0)
+            return _completed(rc=0)
+        if argv[:2] == ["git", "remote"]:
+            return _completed(stdout=remotes, rc=0)
+        if argv[:2] == ["git", "branch"]:
+            return _completed(stdout="feat/branch\n", rc=0)
+        if argv[:2] == ["git", "diff"]:
+            return _completed(stdout=diff, rc=0)
+        raise AssertionError(f"unstubbed subprocess call: {argv}")
+
+    return _run
+
+
+
 # ---------------------------------------------------------------------------
 # Tests: build_parser
 # ---------------------------------------------------------------------------
@@ -141,30 +181,12 @@ class TestMain:
         assert rc == 2
 
     def test_successful_pr_creation(self, tmp_path):
-        with patch(
-            "subprocess.run",
-            side_effect=[
-                _completed(stdout=str(tmp_path), rc=0),  # git rev-parse
-                _completed(rc=0),  # gh --version
-                _completed(stdout="feat/branch\n", rc=0),  # git branch
-                _completed(stdout="", rc=0),  # git diff (validations)
-                _completed(stdout="{}", stderr="", rc=0),  # PR description validation
-                _completed(rc=0),  # gh pr create
-            ],
-        ):
+        with patch("subprocess.run", side_effect=_fake_git(str(tmp_path))):
             rc = main(["--title", "feat: test", "--head", "feat/branch"])
         assert rc == 0
 
     def test_body_file_not_found_returns_2(self, tmp_path):
-        with patch(
-            "subprocess.run",
-            side_effect=[
-                _completed(stdout=str(tmp_path), rc=0),  # git rev-parse
-                _completed(rc=0),  # gh --version
-                _completed(stdout="feat/branch\n", rc=0),  # git branch
-                _completed(stdout="", rc=0),  # git diff
-            ],
-        ):
+        with patch("subprocess.run", side_effect=_fake_git(str(tmp_path))):
             rc = main([
                 "--title", "feat: test", "--head", "feat/branch",
                 "--body-file", "/nonexistent/file.md",
@@ -174,11 +196,9 @@ class TestMain:
     def test_gh_pr_create_failure_returns_exit_code(self, tmp_path):
         with patch(
             "subprocess.run",
-            side_effect=[
-                _completed(stdout=str(tmp_path), rc=0),  # git rev-parse
-                _completed(rc=0),  # gh --version
-                _completed(rc=1, stderr="error creating PR"),  # gh pr create
-            ],
+            side_effect=_fake_git(
+                str(tmp_path), pr_create_rc=1, pr_create_stderr="error creating PR"
+            ),
         ), patch("new_pr.run_validations"):
             rc = main(["--title", "feat: test", "--head", "feat/branch"])
         assert rc == 1
@@ -296,6 +316,7 @@ class TestMain:
             side_effect=[
                 _completed(stdout=str(tmp_path), rc=0),  # git rev-parse
                 _completed(rc=0),  # gh --version
+                _completed(rc=0),  # git rev-parse origin/main (comparison base)
                 _completed(stdout="", rc=0),  # git diff (validations)
                 _completed(stdout="{}", stderr="", rc=0),  # PR description validation
                 _completed(rc=0),  # gh pr create
@@ -1180,3 +1201,171 @@ class TestValidation6EscapedNewlineCheck:
         out = capsys.readouterr().out
         for step in range(1, 7):
             assert f"[{step}/6]" in out, f"missing step {step}/6"
+
+
+# ---------------------------------------------------------------------------
+# Tests: resolve_comparison_base
+# ---------------------------------------------------------------------------
+
+
+def _remote_then(probe_rc: int, remotes: str = "origin\n"):
+    """side_effect for the resolver's two calls: git remote, then rev-parse."""
+    return [_completed(stdout=remotes, rc=0), _completed(rc=probe_rc)]
+
+
+class TestResolveComparisonBase:
+    """The diff base must prefer the remote-tracking ref.
+
+    A local ``main`` goes stale while you work on feature branches. Diffing
+    against it inflates the changed-file set with everything merged upstream
+    since, which makes Session End validation pick a stranger's session log.
+    """
+
+    def test_prefers_remote_tracking_ref_when_it_exists(self):
+        with patch("subprocess.run", side_effect=_remote_then(0)):
+            assert _mod.resolve_comparison_base("main") == "refs/remotes/origin/main"
+
+    def test_probes_a_fully_qualified_ref_not_the_dwim_shorthand(self):
+        # A local branch literally named origin/main outranks refs/remotes in
+        # git's rev search order, so the shorthand would silently resolve to the
+        # wrong commit and reintroduce the stale-base bug.
+        with patch("subprocess.run", side_effect=_remote_then(0)) as run:
+            _mod.resolve_comparison_base("main")
+        probed = run.call_args_list[-1][0][0]
+        assert "refs/remotes/origin/main^{commit}" in probed
+        assert "origin/main^{commit}" not in probed
+
+    def test_falls_back_when_remote_ref_is_missing(self):
+        with patch("subprocess.run", side_effect=_remote_then(128)):
+            assert _mod.resolve_comparison_base("local-only") == "local-only"
+
+    def test_base_already_remote_qualified_is_left_alone(self):
+        # refs/remotes/origin/origin/main never exists, so the probe fails.
+        with patch("subprocess.run", side_effect=_remote_then(128)):
+            assert _mod.resolve_comparison_base("origin/main") == "origin/main"
+
+    def test_slashed_branch_name_still_resolves(self):
+        with patch("subprocess.run", side_effect=_remote_then(0)):
+            assert (
+                _mod.resolve_comparison_base("release/1.0")
+                == "refs/remotes/origin/release/1.0"
+            )
+
+    def test_single_non_origin_remote_is_used(self):
+        with patch("subprocess.run", side_effect=_remote_then(0, "upstream\n")):
+            assert (
+                _mod.resolve_comparison_base("main") == "refs/remotes/upstream/main"
+            )
+
+    def test_several_remotes_without_origin_falls_back(self):
+        # No non-arbitrary choice exists, so do not guess.
+        with patch(
+            "subprocess.run", side_effect=[_completed(stdout="fork\nupstream\n", rc=0)]
+        ):
+            assert _mod.resolve_comparison_base("main") == "main"
+
+    def test_no_remotes_at_all_falls_back(self):
+        with patch("subprocess.run", side_effect=[_completed(stdout="", rc=0)]):
+            assert _mod.resolve_comparison_base("main") == "main"
+
+    def test_git_remote_failure_falls_back(self):
+        with patch("subprocess.run", side_effect=[_completed(rc=128)]):
+            assert _mod.resolve_comparison_base("main") == "main"
+
+    def test_both_calls_strip_git_hook_env_overrides(self, monkeypatch):
+        monkeypatch.setenv("GIT_DIR", "/wrong/git")
+        with patch("subprocess.run", side_effect=_remote_then(0)) as run:
+            _mod.resolve_comparison_base("main")
+        for call in run.call_args_list:
+            assert "GIT_DIR" not in call.kwargs["env"]
+
+
+class TestComparisonBaseIsNotThePullRequestTarget:
+    """Validation diffs against the remote ref; the PR still targets the base.
+
+    Resolving the PR target too would ask gh to open a pull request against a
+    branch named ``refs/remotes/origin/main``, which does not exist on the
+    server.
+    """
+
+    def test_validation_uses_remote_ref_but_pr_targets_plain_base(self):
+        seen: dict = {}
+
+        def _fake_validations(repo_root, base, head, **kwargs):
+            seen["validation_base"] = base
+
+        with patch.object(_mod, "run_validations", _fake_validations), patch(
+            "subprocess.run",
+            side_effect=[
+                _completed(stdout="/tmp/repo", rc=0),      # git rev-parse --show-toplevel
+                _completed(rc=0),                           # gh --version
+                _completed(stdout="origin\n", rc=0),        # git remote
+                _completed(rc=0),                           # git rev-parse refs/remotes/...
+                _completed(stdout="https://pr", rc=0),      # gh pr create
+            ],
+        ) as run:
+            main(["--title", "feat: test", "--head", "feat/x", "--body", "b"])
+
+        assert seen["validation_base"] == "refs/remotes/origin/main"
+        gh_args = run.call_args_list[-1][0][0]
+        assert gh_args[:3] == ["gh", "pr", "create"]
+        assert gh_args[gh_args.index("--base") + 1] == "main"
+
+
+class TestSessionEndFailureIsDiagnosable:
+    """The abort must say which log it chose and why, and show the validator.
+
+    The bare one-line form was byte-identical to the failure you get from
+    amending after recording endingCommit, so readers hunted for an amend they
+    never made.
+    """
+
+    def _fail_on(self, tmp_path, changed: str):
+        repo = tmp_path
+        (repo / "scripts").mkdir(parents=True, exist_ok=True)
+        (repo / "scripts" / "validate_session_json.py").write_text("")
+
+        def _side_effect(cmd, *a, **kw):
+            if cmd[:2] == ["git", "diff"]:
+                return _completed(stdout=changed, rc=0)
+            if cmd and cmd[0] == sys.executable:
+                return _completed(
+                    stdout="[FAIL] endingCommit is not an ancestor\n",
+                    stderr="detail on stderr\n",
+                    rc=1,
+                )
+            return _completed(rc=0)
+
+        with patch("subprocess.run", side_effect=_side_effect), patch.object(
+            _mod, "_session_log_for_validation"
+        ) as ctx:
+            ctx.return_value.__enter__ = lambda s: str(
+                repo / "scripts" / "validate_session_json.py"
+            )
+            ctx.return_value.__exit__ = lambda s, *a: False
+            with pytest.raises(SystemExit):
+                run_validations(str(repo), "main", "feat/x", title="feat: t", body="b")
+
+    def test_names_the_selected_log_and_prints_validator_output(self, tmp_path, capsys):
+        self._fail_on(
+            tmp_path,
+            ".agents/sessions/2026-01-01-session-9-mine.json\n"
+            ".agents/sessions/2026-01-02-session-10-someone-else.json\n",
+        )
+        err = capsys.readouterr().err
+        # The newest by (date, session number) is the one it validated.
+        assert "2026-01-02-session-10-someone-else.json" in err
+        assert "newest" in err
+        assert "fetch" in err
+        assert "endingCommit is not an ancestor" in err  # validator stdout
+        assert "detail on stderr" in err                  # validator stderr
+
+    def test_sorts_numerically_not_lexically(self, tmp_path, capsys):
+        self._fail_on(
+            tmp_path,
+            ".agents/sessions/2026-01-01-session-9-nine.json\n"
+            ".agents/sessions/2026-01-01-session-10-ten.json\n",
+        )
+        err = capsys.readouterr().err
+        assert "session-10-ten.json" in err
+        assert "session-9-nine.json" not in err

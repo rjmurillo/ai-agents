@@ -60,7 +60,7 @@ from _anthropic_api import call_api as _call_api
 from _anthropic_api import (
     load_api_key_for_selected_provider as _load_api_key,
 )
-from _eval_common import EST_TOKENS_PER_CALL
+from _eval_common import EST_TOKENS_PER_CALL, cost_basis
 
 # ---------------------------------------------------------------------------
 # Config
@@ -2342,11 +2342,55 @@ def _process_one_rule(
     result_paths = {"target_path": str(primary_path.relative_to(REPO_ROOT))}
     if reference_path is not None:
         result_paths["reference_path"] = str(reference_path.relative_to(REPO_ROOT))
-    return rule_id, {
-        **result_paths,
-        "summary": summary,
-        "scenarios": scenario_results,
-    }, n_calls
+    return (
+        rule_id,
+        {
+            **result_paths,
+            "summary": summary,
+            "scenarios": scenario_results,
+        },
+        n_calls,
+    )
+
+
+def _build_run_provenance(args: argparse.Namespace) -> dict[str, Any]:
+    """Collect run metadata so result artifacts are self-describing (issue #3956)."""
+    commit_sha = ""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=5,
+            check=False,
+            cwd=REPO_ROOT,
+        )
+        if result.returncode == 0:
+            commit_sha = result.stdout.strip()
+    except (FileNotFoundError, OSError, subprocess.SubprocessError):
+        pass
+
+    scenario_hash = ""
+    try:
+        h = hashlib.sha256()
+        for sf in sorted(args.scenarios):
+            path = Path(sf)
+            if path.exists():
+                h.update(path.read_bytes())
+        scenario_hash = h.hexdigest()[:16]
+    except OSError:
+        pass
+
+    provider = os.environ.get("EVAL_PROVIDER") or "anthropic"
+    return {
+        "provider": provider,
+        "requested_model": args.model,
+        "timestamp_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "git_commit": commit_sha,
+        "scenario_hash": scenario_hash,
+    }
 
 
 def main() -> int:
@@ -2370,8 +2414,18 @@ def main() -> int:
             print(f"ERROR: {e}", file=sys.stderr)
             return 2
 
+    # Recorded beside `rules`, not inside it, because the consumer reads
+    # `rules` as a mapping of rule name to result and would score a metadata
+    # key as a rule. optimize-artifact.py refuses to gate two extractions whose
+    # provenance disagrees, and `upstream_model` is one of the keys it
+    # compares, so a report that does not name its model lets a run scored on
+    # one model be compared against a run scored on another. This is the only
+    # place that knows these values.
     all_results: dict[str, Any] = {
         "schema_version": RESULTS_SCHEMA_VERSION,
+        "run": _build_run_provenance(args),
+        "model_id": args.model,
+        "seed": args.seed,
         "rules": {},
     }
     state = _RunState()
@@ -2484,9 +2538,20 @@ def _classify_verdict(verdict: str) -> int:
 
 
 def _print_dry_run_summary(total_calls: int) -> None:
+    """Print the plan, pricing it only when the transport bills in dollars.
+
+    `cost_basis` resolves the provider the same way the transport does, so this
+    does not re-derive it. A provider metered against a request allowance gets
+    the call count and no dollar figure: there is no public per-token rate to
+    convert, and a fabricated one is worse than none because a reader budgets
+    against it.
+    """
     est_tokens = total_calls * EST_TOKENS_PER_CALL
-    est_cost = est_tokens / 1_000_000 * 3
     print(f"\nTotal calls planned: {total_calls}")
+    if cost_basis(None) == "requests":
+        print(f"Estimated tokens: ~{est_tokens:,} (metered as requests, not billed per token)")
+        return
+    est_cost = est_tokens / 1_000_000 * 3
     print(f"Estimated tokens: ~{est_tokens:,} (~${est_cost:.2f} sonnet input rate)")
 
 

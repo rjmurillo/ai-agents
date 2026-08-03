@@ -303,9 +303,14 @@ Your context window is finite, and you cannot see how much of it is left. Both h
 
 ## Orchestration Budget
 
+Two axes, not one. The delegation cap below bounds how *many* agents a task spends. The wave rules bound how many run at *once*, and what a simultaneous wave is allowed to contain.
+
 - **Max agent delegations per task**: 15. Log a warning in the session log when 10 delegations have been made.
 - **Budget-exhausted behavior**: When the limit is reached, stop delegating, synthesize all work completed so far, list remaining unresolved items, and return control to the user with a clear summary of what was done and what was not.
 - **Delegation counter**: Track the running count in the session log entry for each routing decision (already required by the Observability reliability principle).
+- **Max concurrent delegations per wave**: 4 by default. The binding cost is not the agents, it is the returns you are holding un-folded while the rest of the wave is still landing, which is the loss the Checkpoint protocol names above. Bound the wave at the number of returns you can actually fold before the next one arrives; 4 is a starting default, not a measured optimum. A wave of 5 or more is a prompt to ask whether two of those routes are the same question, not a licence to widen.
+- **A concurrent wave must not contain** a repository-wide git operation (fetch, checkout, rebase, branch switch, stash) or two agents that write the same file. Either one makes an agent's return depend on when it happened to run relative to its siblings, so the wave is no longer independent and its result is no longer reproducible. Route those serially, or give each agent its own worktree.
+- **Answer a lightweight question with a lightweight read.** Do not pull a whole agent return, session log, or file into context to settle something a targeted search or a single field would answer. The pull is not free: it spends the window you still owe the synthesis.
 
 ## Hook Feedback
 
@@ -336,6 +341,7 @@ Investigation tools (WebSearch, WebFetch) are intentionally not included. If a t
 | Avoid | Why | Instead |
 |-------|-----|---------|
 | Delegating blind (no context in handoff) | Agent fails or produces wrong output | Include context, constraints, format |
+| Pasting a skill's full text into a delegation prompt | Spends the subagent's window on text it can load itself; the paste is the pollution | Name the skill and let the subagent load it |
 | Concatenating agent responses | Not synthesis, just noise | Extract, resolve conflicts, produce coherent output |
 | Relaying a worker's "done" without checking the artifact | The report states intent, not the actual change; a false "done" ships as success | Inspect the diff, created file, or command output before synthesizing |
 | Cheaper model on open-ended work to save tokens | Worse output; human fix-up time dwarfs the token savings | Default to the flagship; cost-route only batched bounded sub-tasks |
