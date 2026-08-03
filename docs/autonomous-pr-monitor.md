@@ -757,9 +757,17 @@ SHA="<known-good-sha>"
 BRANCH="<branch-name>"
 # The head.sha you already read from get_pr_context.py before starting work.
 EXPECTED_REMOTE_SHA="<observed-head-sha>"
-git push origin "${SHA}:refs/heads/${BRANCH}" \
+FORCE_PUSH_OK=1 git push origin "${SHA}:refs/heads/${BRANCH}" \
   --force-with-lease="refs/heads/${BRANCH}:${EXPECTED_REMOTE_SHA}"
 ```
+
+`FORCE_PUSH_OK=1` is required, not optional. The pre-push hook cannot read
+argv, so `_check_non_fast_forward` in `scripts/validation/git_hook_policy.py`
+sees a rewrite and exits 1 whether or not a lease is pinned. The variable is
+the one escape `.claude/rules/universal.md` MUST NOT 1 sanctions for a pinned
+lease, and it narrows that single guard while every other pre-push job runs
+(issue #4293). `.github/scripts/safe_push_pr_branch.py` sets it for you, so
+prefer that helper over the raw command.
 
 Pin the lease to an explicit SHA; never use bare `--force-with-lease` here.
 Bare `--force-with-lease` takes its expected value from
