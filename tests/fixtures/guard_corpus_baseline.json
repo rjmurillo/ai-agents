@@ -1,207 +1,489 @@
 {
+  "version": 2,
   "corpus_root": ".claude/skills",
-  "description": "Pinned findings for the differential gate. Edit only when removing a detection deliberately; explain why in the commit message.",
+  "description": "Pinned findings for the differential gate. Edit only when removing a detection deliberately; explain why in the commit message. Keys are [normalized_line_text, occurrence_index] per issue #4286.",
   "findings": {
     "adr-review/scripts/detect_adr_changes.py": [
-      84
+      [
+        "return subprocess.run(",
+        0
+      ]
     ],
     "analysis-provenance/scripts/check_provenance.py": [
-      246
+      [
+        "result = subprocess.run(",
+        0
+      ]
     ],
     "chestertons-fence/scripts/investigate.py": [
-      86,
-      155
+      [
+        "result = subprocess.run(  # nosemgrep: dangerous-subprocess-use-tainted-env-args",
+        0
+      ],
+      [
+        "result = subprocess.run(  # nosemgrep: dangerous-subprocess-use-tainted-env-args",
+        1
+      ]
     ],
     "code-qualities-assessment/scripts/assess.py": [
-      414
+      [
+        "result = subprocess.run(",
+        0
+      ]
     ],
     "codeql-scan/scripts/invoke_codeql_scan.py": [
-      59
+      [
+        "result = subprocess.run(",
+        0
+      ]
     ],
     "codeql-scan/scripts/invoke_codeql_scan_skill.py": [
-      36
+      [
+        "result = subprocess.run(",
+        0
+      ]
     ],
     "context-optimizer/scripts/path_validation.py": [
-      28,
-      49
+      [
+        "result = subprocess.run(",
+        0
+      ],
+      [
+        "result = subprocess.run(",
+        1
+      ]
     ],
     "doc-accuracy/scripts/doc_accuracy.py": [
-      357
+      [
+        "result = subprocess.run(",
+        0
+      ]
     ],
     "github/scripts/issue/edit_issue_body.py": [
-      129
+      [
+        "result = subprocess.run(",
+        0
+      ]
     ],
     "github/scripts/issue/list_issues.py": [
-      176
+      [
+        "result = subprocess.run(",
+        0
+      ]
     ],
     "github/scripts/issue/set_issue_assignee.py": [
-      82
+      [
+        "result = subprocess.run(",
+        0
+      ]
     ],
     "github/scripts/notifications/get_actionable_items.py": [
-      84,
-      100,
-      126,
-      159,
-      192
+      [
+        "result = subprocess.run(",
+        0
+      ],
+      [
+        "result = subprocess.run(",
+        1
+      ],
+      [
+        "result = subprocess.run(",
+        2
+      ],
+      [
+        "result = subprocess.run(",
+        3
+      ],
+      [
+        "result = subprocess.run(",
+        4
+      ]
     ],
     "github/scripts/pr/close_pr.py": [
-      76,
-      104,
-      112
+      [
+        "close_result = subprocess.run(",
+        0
+      ],
+      [
+        "state_result = subprocess.run(",
+        0
+      ],
+      [
+        "subprocess.run(",
+        0
+      ]
     ],
     "github/scripts/pr/detect_copilot_followup_pr.py": [
-      79,
-      101,
-      116,
-      155,
-      278
+      [
+        "result = subprocess.run(",
+        0
+      ],
+      [
+        "result = subprocess.run(",
+        1
+      ],
+      [
+        "result = subprocess.run(",
+        2
+      ],
+      [
+        "result = subprocess.run(",
+        3
+      ],
+      [
+        "result = subprocess.run(",
+        4
+      ]
     ],
     "github/scripts/pr/get_pr_check_logs.py": [
-      308,
-      318,
-      328
+      [
+        "result = subprocess.run(",
+        0
+      ],
+      [
+        "result = subprocess.run(",
+        1
+      ],
+      [
+        "result = subprocess.run(",
+        2
+      ]
     ],
     "github/scripts/pr/get_pr_comments_by_reviewer.py": [
-      69
+      [
+        "result = subprocess.run(",
+        0
+      ]
     ],
     "github/scripts/pr/get_pr_context.py": [
-      98,
-      157,
-      164
+      [
+        "diff_result = subprocess.run(",
+        0
+      ],
+      [
+        "files_result = subprocess.run(",
+        0
+      ],
+      [
+        "pr_result = subprocess.run(",
+        0
+      ]
     ],
     "github/scripts/pr/get_pr_review_comments.py": [
-      136,
-      160,
-      207
+      [
+        "result = subprocess.run(",
+        0
+      ],
+      [
+        "result = subprocess.run(",
+        1
+      ],
+      [
+        "result = subprocess.run(",
+        2
+      ]
     ],
     "github/scripts/pr/get_pr_reviewers.py": [
-      94
+      [
+        "pr_result = subprocess.run(",
+        0
+      ]
     ],
     "github/scripts/pr/get_pull_requests.py": [
-      150
+      [
+        "result = subprocess.run(",
+        0
+      ]
     ],
     "github/scripts/pr/get_thread_conversation_history.py": [
-      108
+      [
+        "result = subprocess.run(",
+        0
+      ]
     ],
     "github/scripts/pr/invoke_pr_comment_processing.py": [
-      126,
-      141,
-      172
+      [
+        "result = subprocess.run(",
+        0
+      ],
+      [
+        "result = subprocess.run(",
+        1
+      ],
+      [
+        "result = subprocess.run(",
+        2
+      ]
     ],
     "github/scripts/pr/post_pr_comment_reply.py": [
-      96
+      [
+        "result = subprocess.run(",
+        0
+      ]
     ],
     "github/scripts/pr/resolve_pr_review_thread.py": [
-      102
+      [
+        "result = subprocess.run(",
+        0
+      ]
     ],
     "github/scripts/pr/run_completion_gate.py": [
-      655
+      [
+        "proc = subprocess.run(",
+        0
+      ]
     ],
     "github/scripts/pr/unresolve_pr_review_thread.py": [
-      105
+      [
+        "result = subprocess.run(",
+        0
+      ]
     ],
     "github/scripts/pr/wait_for_unresolved_zero.py": [
-      154
+      [
+        "completed = runner(  # type: ignore[operator]",
+        0
+      ]
     ],
     "github/scripts/test_workflow_locally.py": [
-      52,
-      146,
-      365,
-      380,
-      481
+      [
+        "act_version = subprocess.run(",
+        0
+      ],
+      [
+        "docker_result = subprocess.run(",
+        0
+      ],
+      [
+        "probe = subprocess.run(",
+        0
+      ],
+      [
+        "result = subprocess.run(",
+        0
+      ],
+      [
+        "token_result = subprocess.run(",
+        0
+      ]
     ],
     "guard-maturity/scripts/run_report.py": [
-      134,
-      146
+      [
+        "proc = subprocess.run(",
+        0
+      ],
+      [
+        "proc = subprocess.run(cmd, capture_output=True, text=True, check=False)",
+        0
+      ]
     ],
     "memory/memory_core/schema_validation.py": [
-      77
+      [
+        "result = subprocess.run(",
+        0
+      ]
     ],
     "memory/scripts/convert_index_table_links.py": [
-      27
+      [
+        "result = subprocess.run(",
+        0
+      ]
     ],
     "memory/scripts/convert_memory_references.py": [
-      28
+      [
+        "result = subprocess.run(",
+        0
+      ]
     ],
     "memory/scripts/improve_memory_graph_density.py": [
-      33
+      [
+        "result = subprocess.run(",
+        0
+      ]
     ],
     "merge-resolver/scripts/verify_no_conflict_markers.py": [
-      64
+      [
+        "return subprocess.run(",
+        0
+      ]
     ],
     "metrics/collect_metrics.py": [
-      65,
-      101
+      [
+        "result = subprocess.run(",
+        0
+      ],
+      [
+        "result = subprocess.run(",
+        1
+      ]
     ],
     "orphan-ref-validator/scripts/scan.py": [
-      593
+      [
+        "completed = subprocess.run(",
+        0
+      ]
     ],
     "orphan-ref-validator/tests/test_scan.py": [
-      2317,
-      2324
+      [
+        "log = subprocess.run(",
+        0
+      ],
+      [
+        "shallow = subprocess.run(",
+        0
+      ]
     ],
     "pr-comment-responder/tests/test_cluster_threads.py": [
-      322
+      [
+        "return subprocess.run(",
+        0
+      ]
     ],
     "retrospective/scripts/extract_evidence.py": [
-      289
+      [
+        "result = subprocess.run(",
+        0
+      ]
     ],
     "retrospective/tests/test_extract_evidence.py": [
-      476
+      [
+        "result = subprocess.run(",
+        0
+      ]
     ],
     "retrospective/tests/test_run_retrospective.py": [
-      311
+      [
+        "result = subprocess.run(",
+        0
+      ]
     ],
     "retrospective/tests/test_score_atomicity.py": [
-      213
+      [
+        "result = subprocess.run(",
+        0
+      ]
     ],
     "review/scripts/validate_findings_scope.py": [
-      90
+      [
+        "result = subprocess.run(",
+        0
+      ]
     ],
     "security-detection/detect_infrastructure.py": [
-      83
+      [
+        "result = subprocess.run(",
+        0
+      ]
     ],
     "security-scan/scripts/scan_vulnerabilities.py": [
-      166
-    ],
-    "session/scripts/test_investigation_eligibility.py": [
-      56
+      [
+        "result = subprocess.run(",
+        0
+      ]
     ],
     "session-end/scripts/complete_session_log.py": [
-      79,
-      95,
-      178,
-      192,
-      210,
-      222,
-      244,
-      251,
-      271,
-      288
+      [
+        "result = subprocess.run(",
+        0
+      ],
+      [
+        "result = subprocess.run(",
+        1
+      ],
+      [
+        "result = subprocess.run(",
+        2
+      ],
+      [
+        "result = subprocess.run(",
+        3
+      ],
+      [
+        "result = subprocess.run(",
+        4
+      ],
+      [
+        "result = subprocess.run(",
+        5
+      ],
+      [
+        "result = subprocess.run(",
+        6
+      ],
+      [
+        "result = subprocess.run(",
+        7
+      ],
+      [
+        "staged = subprocess.run(",
+        0
+      ],
+      [
+        "unstaged = subprocess.run(",
+        0
+      ]
     ],
     "session-end/scripts/rework_warning.py": [
-      82
+      [
+        "result = subprocess.run(",
+        0
+      ]
     ],
     "session-init/scripts/new_session_log.py": [
-      121,
-      184
+      [
+        "result = subprocess.run(",
+        0
+      ],
+      [
+        "result = subprocess.run(",
+        1
+      ]
     ],
     "session-init/scripts/new_session_log_json.py": [
-      94,
-      107,
-      125
+      [
+        "result = subprocess.run(",
+        0
+      ],
+      [
+        "result = subprocess.run(",
+        1
+      ],
+      [
+        "result = subprocess.run(",
+        2
+      ]
     ],
     "session-init/session_init/git_helpers.py": [
-      21
+      [
+        "result = subprocess.run(",
+        0
+      ]
     ],
     "session-log-fixer/scripts/get_validation_errors.py": [
-      39,
-      50,
-      133
+      [
+        "log_result = subprocess.run(",
+        0
+      ],
+      [
+        "pr_result = subprocess.run(",
+        0
+      ],
+      [
+        "runs_result = subprocess.run(",
+        0
+      ]
+    ],
+    "session/scripts/test_investigation_eligibility.py": [
+      [
+        "result = subprocess.run(",
+        0
+      ]
     ],
     "style-enforcement/scripts/check_style.py": [
-      476
+      [
+        "result = subprocess.run(",
+        0
+      ]
     ]
-  },
-  "version": 1
+  }
 }
