@@ -1,0 +1,105 @@
+{
+  "id": "episode-2026-08-02-session-4290-retrospective-seam-before-suppress",
+  "session": "2026-08-02-session-4290-retrospective-seam-before-suppress",
+  "timestamp": "2026-08-02T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Run a retrospective on the PR #4290 suppression decision, then correct that retrospective after discovering its premise was false. PR #4302 did not falsify the #4290 rationale; the repository owner closed #4302 as the wrong fix and stated the suppression's rationale is correct on the merits.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured taste_count_ratchet.py against a clean origin/main worktree at ede9fd1fe and got OK at baseline 601, exit 0, which showed main was not red.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4290-retrospective-seam-before-suppress"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read PR #4302's diff and wrongly concluded it falsified the PR #4290 suppression rationale, then wrote a retrospective and an always-on rule change on that premise.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4290-retrospective-seam-before-suppress"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Surveyed PR state and found #4302 CLOSED, with the author stating it is the wrong fix and that the suppression's rationale is correct on the merits.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4290-retrospective-seam-before-suppress"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Found that the ratchet memory's split-not-suppress guidance is scoped to test files, so quoting it for a registration module stripped the population it was measured on.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4290-retrospective-seam-before-suppress"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reverted the rule change and both regenerated instruction mirrors, and confirmed instruction_budget.py independently rejects the addition at 83100 of 83000 bytes.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4290-retrospective-seam-before-suppress"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rewrote the retrospective to record the real failure, which is that a self-blaming conclusion skipped the evidence bar applied to every other conclusion.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4290-retrospective-seam-before-suppress"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: c1754ba9eb8b",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-02-session-4290-retrospective-seam-before-suppress"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: f776ed987fc4",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4290-retrospective-seam-before-suppress"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 8d9d644cd61c27d9513f84ae11f6e03454dd9392",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4290-retrospective-seam-before-suppress"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 6
+  },
+  "lessons": []
+}
