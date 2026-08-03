@@ -3,7 +3,22 @@
 **Atomicity**: 94%
 **Category**: CI design, first-principles contradiction
 **Source**: 2026-08-02 fleet session. Issue #4345, PR #4351, commits a72ee868c
-through 160d1670a.
+through 160d1670a. Extended 2026-08-03 with the concurrency-supersession
+mechanism, issues #4350 and #4176.
+
+**Scope note.** A gate on `main` can fail to measure the tree for three
+independent reasons. This file covers all three because they compose, and
+fixing one leaves the others live:
+
+1. The run is **cancelled while pending** and never creates a job. See
+   "Mechanism three" below. Largest hole: 25 to 43 percent of main pushes.
+2. The run executes but the job is **path-filter skipped**, and the skip job
+   reports success. The original subject of this file.
+3. The breach itself is admitted because **required checks are not strict**,
+   so each PR passes honestly against its own base and only the union breaks.
+
+Diagnosing one and stopping is the trap. All three were live simultaneously in
+this repo on 2026-08-02.
 
 ## The conventional wisdom this contradicts
 
@@ -44,9 +59,22 @@ Ext     Files     Bytes   Ceiling   Tokens~    Usage  Status
 .md         9     83201     83000     21949   100.2%    FAIL
 ```
 
-The workflow run for that same SHA reported `conclusion success`, via a
-`Skip budget (no changes)` job, because the squash of #4105 touched no rule
-files.
+The workflow run for that same SHA reported `conclusion success`. Job level,
+which is the proof rather than the inference:
+
+```
+gh api repos/rjmurillo/ai-agents/actions/runs/30768626850/jobs
+  Detect changes            => success
+  Skip budget (no changes)  => success
+  Validate budget           => skipped
+```
+
+The measurement that would have failed was `skipped`, and the job that reported
+`success` measured nothing. The squash of #4105 touched no rule files.
+
+Always go to the **jobs**, not the run conclusion. A run whose only executed job
+is a skip-announcer is indistinguishable from a run that verified the tree if
+you stop at `conclusion`.
 
 The same validator runs in the pre-push hook, so while CI was green, **every
 push in the repository failed**, on every branch, regardless of content. Two of
@@ -84,8 +112,132 @@ Measured at `160d1670a`:
 ```
 
 That is **8 bytes** of headroom. Any rule edit adding a single short sentence
-re-breaches, and because the path filter is still in place, the re-breach will
-again be silent.
+re-breaches.
+
+`PR #4361` (`06299410b`) later added `FORCE_RUN_EVENTS: push` to
+`instruction-budget.yml`, with the comment "a push to main always validates,
+because the budget scores the whole corpus and the skip path reports a fresh
+green tick without measuring the tree." That closes mechanism two on push to
+main. It does **not** close mechanism three below: a run cancelled while pending
+never reaches the job, so forcing the job to run inside it changes nothing.
+Verify such a fix against run **jobs** across a burst of merges, never against
+the workflow source.
+
+Running an absolute ceiling at 100.0 percent utilization under
+`strict_required_status_checks_policy: false` guarantees recurrence, because
+admission is not serialized. The capacity answer is a **reserve band**: fail or
+warn at PR time when the merged result would leave less than a threshold of
+headroom, so two concurrent PRs cannot each consume the last bytes. That works
+with non-strict checks instead of fighting them.
+
+## Mechanism three: a pending run is evicted regardless of cancel-in-progress
+
+This one is larger than the path filter and was invisible for two days because
+it leaves **no artifact anywhere**. Found 2026-08-03.
+
+The conventional reading of GitHub's docs is that `cancel-in-progress: false`
+means "runs in this group are never cancelled." That reading is wrong.
+`cancel-in-progress` governs runs that are **already running**. It says nothing
+about the queue, and a concurrency group holds **at most one pending run**. When
+a third run arrives while one is running and one is pending, the pending one is
+**evicted and marked `cancelled`**, and `cancel-in-progress: false` does not
+suppress the eviction.
+
+So during a merge burst, only the last push in the burst survives.
+
+Measured on `instruction-budget.yml`, whose concurrency block at the time
+already read `cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}`:
+
+```
+2026-08-02T21:46:20Z ev=push concl=success   head=a72ee868c
+2026-08-02T21:46:18Z ev=push concl=cancelled head=8fccc019c
+2026-08-02T21:46:16Z ev=push concl=cancelled head=7b5279967
+... 16 more consecutive cancellations ...
+2026-08-02T21:45:35Z ev=push concl=cancelled head=3a1bf9df7
+```
+
+19 consecutive cancelled pushes to `main` in 45 seconds, one survivor. Note the
+compounding: the single survivor is the one that then **skipped** via mechanism
+two. Twenty-one merges, zero measurements.
+
+The eviction happens before any job is created, which is why nothing is left to
+find:
+
+```
+gh api repos/rjmurillo/ai-agents/actions/runs/30768601554
+created=2026-08-02T21:45:41Z updated=2026-08-02T21:45:45Z concl=cancelled
+
+gh api repos/rjmurillo/ai-agents/actions/runs/30768601554/jobs
+(zero jobs)
+```
+
+Cancelled four seconds after creation with zero jobs. Consequently
+`gh api repos/OWNER/REPO/commits/<sha>/check-runs` returns **no entry for that
+workflow at all**. Not a failure, not a skip: absent. Both the git side and the
+check-runs side look clean.
+
+### Blast radius, measured 2026-08-03
+
+`gh api ".../actions/workflows/<id>/runs?branch=main&event=push&per_page=100"`,
+counting `cancelled`:
+
+| workflow | cancelled / 100 |
+|---|---|
+| pytest.yml | 43 |
+| codeql-analysis.yml | 32 |
+| cli-smoke.yml | 28 |
+| instruction-budget.yml | 25 |
+| passive-context-budget.yml | 25 |
+| skill-passive-compliance.yml | 25 |
+| skillbook-validation.yml | 25 |
+| validate-generated-agents.yml | 25 |
+| yaml-lint.yml | 25 |
+
+The post-merge safety net on `main` has a 25 to 43 percent hole, by workflow.
+
+### Why the previous fix did not work
+
+Issue #4176 diagnosed this class on 2026-08-01 and closed after changing
+`cancel-in-progress: true` to `cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}`
+in six workflows. That expression is correct and does evaluate to `false` on
+main. The burst above is from 2026-08-02, a day later, with that fix already in
+the tree (verified by `git show 7b5279967:.github/workflows/instruction-budget.yml`).
+Necessary, not sufficient.
+
+The bug is in the **group key**, not in `cancel-in-progress`. Every push to main
+shares the group `<workflow>-refs/heads/main`, so every push is a candidate for
+eviction. Give main pushes a group per commit and there is nothing to evict:
+
+```yaml
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.ref == 'refs/heads/main' && github.sha || 'shared' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+```
+
+Push to main gets a unique group per commit. Branch pushes and pull requests end
+in the constant `shared` and keep today's stale-run cancellation. Preserve each
+workflow's existing group prefix; `codeql-analysis.yml` uses a literal
+`codeql-analysis-` and `validate-generated-agents.yml` uses `validate-agents-`.
+
+Enumerate the class rather than trusting a list:
+
+```bash
+for f in $(git ls-tree -r --name-only origin/main -- .github/workflows | grep -E '\.ya?ml$'); do
+  body=$(git show "origin/main:$f"); grep -q '^concurrency:' <<<"$body" || continue
+  grp=$(sed -n '/^concurrency:/,/^[a-z]/p' <<<"$body" | grep -m1 'group:'); [ -z "$grp" ] && continue
+  if grep -qE 'github\.ref' <<<"$grp" && ! grep -qE 'github\.sha' <<<"$grp"; then
+    grep -qE '^\s*push:' <<<"$body" && echo "  $(basename $f)"
+  fi
+done
+```
+
+### The generalization
+
+A concurrency group is a **serialization point**. Putting a post-merge verifier
+inside a group shared by every merge means the verifier can only observe the
+tree as fast as merges arrive. Under a burst it observes nothing. Anything whose
+job is to witness every commit must be keyed per commit; group only the things
+you are willing to lose.
 
 ## How to recognize this class
 
@@ -97,6 +249,38 @@ baselines, and the memory index counts.
 A useful smell: a workflow that has a `Skip <thing> (no changes)` job which
 reports success. For a per-file check that is correct. For a whole-corpus check,
 a skipped measurement reporting success is precisely the defect.
+
+Then ask the second question: **is this gate the only thing that would witness a
+bad commit?** If yes, it must not share a concurrency group with other commits.
+Check the group key, not `cancel-in-progress`.
+
+## Auditing whether a gate actually ran
+
+Neither the workflow source nor the run conclusion answers this. Three levels,
+each of which can lie about the one above:
+
+| Level | Command | Lies when |
+|---|---|---|
+| workflow source | `git show main:.github/workflows/X.yml` | the run was cancelled while pending, or the job was skipped |
+| run conclusion | `gh api .../actions/runs/<id>` | the only executed job was a skip-announcer |
+| **run jobs** | `gh api .../actions/runs/<id>/jobs` | authoritative |
+
+And a run that never existed leaves nothing at any level. To detect that, list
+runs by branch and look for gaps and for `cancelled` with zero jobs:
+
+```bash
+gh api "repos/OWNER/REPO/actions/workflows/<id>/runs?branch=main&event=push&per_page=100" \
+  --jq '.workflow_runs[] | "\(.created_at) \(.conclusion) \(.head_sha[0:9])"'
+```
+
+Get `<id>` from `gh api "repos/OWNER/REPO/actions/workflows?per_page=100"`. The
+default page size is 30 and this repo has 72 workflows, so an unpaged lookup
+silently misses two thirds of them; that cost a wrong "NOID" result once.
+
+Check-runs on a **squash** merge commit are not the PR's checks. The repo is
+squash-only, so `gh api repos/.../commits/<merge_sha>/check-runs` shows only what
+ran on the push to main. To see what a PR ran, resolve
+`gh api repos/.../pulls/N --jq .head.sha` first and query that SHA.
 
 ## Diagnosis when it bites you
 
@@ -143,3 +327,8 @@ sets are not the same.
   including the count ratchet that says BASELINE RAISED when `main` lowered it.
 - Issue #4057 asks that required checks evaluate the actual merge tree, which is
   the second half of this defect.
+- Issue #4350 tracks mechanism three (`pytest.yml`, 43 of 100 main pushes
+  cancelled). Issue #4176 is its predecessor, closed 2026-08-01 on a fix that
+  measurement later showed to be necessary but not sufficient.
+- Issue #4345 is the instruction-budget breach itself; `PR #4361` shipped the
+  push-to-main force-run.
