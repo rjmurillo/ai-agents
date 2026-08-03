@@ -934,6 +934,7 @@ class TestBotSkipGuardClassification:
     _ALLOWED_BEHIND_GUARD: frozenset[str] = frozenset(
         {
             "Checkout repository",
+            "Setup uv",
             "Setup PowerShell",
             "Validate PR Description vs Diff",
             "Validate PR Description Standards",
@@ -952,7 +953,6 @@ class TestBotSkipGuardClassification:
             "Setup uv",
         }
     )
-
     def test_adr006_ratchet_is_unconditional(self) -> None:
         """Positive: the ADR-006 gate must run for bot-authored PRs.
 
