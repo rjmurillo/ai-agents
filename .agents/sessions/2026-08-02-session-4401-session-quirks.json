@@ -144,7 +144,7 @@
       "result": "code-review agent on gpt-5.6-terra, a different model family than the author, tasked to verify the git semantics from the man page rather than folklore, reproduce the three-row table, and check which side of --left-right is the behind count."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "b055e5270",
   "nextSteps": [
     "Record the ending commit in a follow-up commit, never by amending the commit that carries this log.",
     "Issue #4401 tracks the ADR-043 correction note."
