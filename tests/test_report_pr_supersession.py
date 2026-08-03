@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -337,3 +339,44 @@ class TestMain:
         payload = json.loads(capsys.readouterr().out)
         assert rc == 0
         assert payload["findings"][0]["reasons"] == [REASON_STALE]
+
+
+class TestWorkflowInvocation:
+    """The `summarize` job of pr-maintenance.yml runs this file with bare `python3`.
+
+    Under pytest the repo root is already on sys.path, so every test above passes
+    whether or not the module can be imported the way CI imports it. These two
+    reproduce the CI invocation instead (.claude/rules/ci-scripts.md MUST 16).
+    """
+
+    REPO_ROOT = Path(__file__).resolve().parents[1]
+    WORKFLOW = REPO_ROOT / ".github/workflows/pr-maintenance.yml"
+    SCRIPT = "scripts/report_pr_supersession.py"
+
+    def _step_line(self) -> str:
+        lines = [
+            line
+            for line in self.WORKFLOW.read_text(encoding="utf-8").splitlines()
+            if self.SCRIPT in line and "run:" in line
+        ]
+        assert len(lines) == 1, f"expected one run: step invoking {self.SCRIPT}, got {lines}"
+        return lines[0]
+
+    def test_script_imports_under_a_bare_interpreter(self):
+        # -S -E strips site-packages and PYTHONPATH, so the editable install of the
+        # `scripts` package cannot stand in for the runner's ambient interpreter.
+        result = subprocess.run(
+            [sys.executable, "-S", "-E", self.SCRIPT, "--help"],
+            cwd=self.REPO_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert "ModuleNotFoundError" not in result.stderr
+
+    def test_step_does_not_pipe_away_the_exit_code(self):
+        # The default `run:` shell is `bash -e {0}` with no pipefail, so a pipeline
+        # reports the last command's status and a crash here reads as a green step.
+        assert "|" not in self._step_line()

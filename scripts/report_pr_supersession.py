@@ -52,9 +52,16 @@ import logging
 import subprocess
 import sys
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Any
 
-from scripts.github_core import resolve_repo_params
+# `pr-maintenance.yml` invokes this file as `python3 scripts/report_pr_supersession.py`,
+# so sys.path[0] is `scripts/` and the `scripts` package is unreachable without this
+# (.claude/rules/ci-scripts.md MUST 16). Everything reached from here must stay stdlib:
+# that job runs `actions/checkout` and nothing else.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from scripts.github_core.api import resolve_repo_params  # noqa: E402
 
 logger = logging.getLogger(__name__)
 

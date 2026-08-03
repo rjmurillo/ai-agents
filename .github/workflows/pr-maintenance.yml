@@ -250,4 +250,4 @@ jobs:
       - name: Report PR supersession candidates
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
-        run: python3 scripts/report_pr_supersession.py | tee -a "$GITHUB_STEP_SUMMARY"
+        run: python3 scripts/report_pr_supersession.py >> "$GITHUB_STEP_SUMMARY"
