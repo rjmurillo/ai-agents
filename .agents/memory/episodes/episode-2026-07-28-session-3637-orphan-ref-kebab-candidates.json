@@ -24,7 +24,7 @@
       "content": "Reproduced the issue against the real corpus",
       "caused_by": [],
       "leads_to": [
-        "e002"
+        "e012"
       ]
     },
     {
@@ -32,11 +32,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Refuted the issue's own suggested fix with measurement",
-      "caused_by": [
-        "e001"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e003"
+        "e012"
       ]
     },
     {
@@ -44,11 +42,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Chose the union rule and verified it against precedent",
-      "caused_by": [
-        "e002"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e004"
+        "e012"
       ]
     },
     {
@@ -56,11 +52,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Rejected git history as the runtime evidence source",
-      "caused_by": [
-        "e003"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e005"
+        "e012"
       ]
     },
     {
@@ -68,11 +62,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Implemented and re-measured against the running code",
-      "caused_by": [
-        "e004"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e006"
+        "e012"
       ]
     },
     {
@@ -80,11 +72,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Ran two isolating negative controls",
-      "caused_by": [
-        "e005"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e007"
+        "e012"
       ]
     },
     {
@@ -92,11 +82,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Retyped 29 fixture references rather than weaken assertions",
-      "caused_by": [
-        "e006"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e008"
+        "e012"
       ]
     },
     {
@@ -104,11 +92,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Measured KEBAB_DENYLIST and left it alone deliberately",
-      "caused_by": [
-        "e007"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e009"
+        "e012"
       ]
     },
     {
@@ -116,11 +102,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Fixed vendor-portability drift the pre-push hook caught",
-      "caused_by": [
-        "e008"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e010"
+        "e012"
       ]
     },
     {
@@ -128,11 +112,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Scoped the drift guard to the canonical catalog after the mirror run failed",
-      "caused_by": [
-        "e009"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e011"
+        "e012"
       ]
     },
     {
@@ -140,17 +122,29 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Dropped the ScanResult annotation on the _skill_names test helper",
-      "caused_by": [
-        "e010"
-      ],
-      "leads_to": []
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
     },
     {
       "id": "e012",
-      "timestamp": "2026-07-28T00:00:00+00:00",
+      "timestamp": "2026-07-29T00:12:56+00:00",
       "type": "commit",
       "content": "Commit: b4e257631",
-      "caused_by": [],
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010",
+        "e011"
+      ],
       "leads_to": []
     }
   ],
