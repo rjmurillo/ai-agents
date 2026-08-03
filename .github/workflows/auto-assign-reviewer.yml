@@ -33,7 +33,10 @@ jobs:
   assign-reviewer:
     name: Add Bot Reviewer
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 2
+    # Checkout plus a worst-case retry budget (three 30s gh calls with 5s and
+    # 10s backoff) runs past the old 2 minute cap, which would kill the retry
+    # this job now depends on. Issue #4335.
+    timeout-minutes: 5
 
     # Skip if the PR author is the bot itself (avoid self-review)
     if: github.event.pull_request.user.login != 'rjmurillo-bot'
