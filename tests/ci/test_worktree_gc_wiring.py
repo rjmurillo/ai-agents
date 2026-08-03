@@ -118,6 +118,13 @@ def _guarded_command(stub: str) -> str:
     return run.replace(invocation, stub)
 
 
+# The callers below hand this string to ``bash -c`` on purpose. The behaviour
+# under test is the ``||`` operator itself, which only exists inside a shell,
+# so running the command argv-style would test nothing. The explicit
+# interpreter form is used instead of ``shell=True`` so the command is one
+# argv element that no later edit can accidentally extend (CWE-78).
+
+
 def test_a_failing_report_does_not_fail_the_push() -> None:
     """Issue 4257 acceptance criterion 1, exercised rather than asserted.
 
@@ -127,8 +134,7 @@ def test_a_failing_report_does_not_fail_the_push() -> None:
     it absorbs the failure.
     """
     completed = subprocess.run(
-        _guarded_command("sh -c 'exit 2'"),
-        shell=True,
+        ["bash", "-c", _guarded_command("sh -c 'exit 2'")],
         capture_output=True,
         encoding="utf-8",
         errors="replace",
@@ -141,8 +147,7 @@ def test_a_failing_report_does_not_fail_the_push() -> None:
 def test_a_failing_report_says_so_instead_of_failing_silently() -> None:
     """Swallowing without disclosing would hide a broken reporter forever."""
     completed = subprocess.run(
-        _guarded_command("sh -c 'exit 2'"),
-        shell=True,
+        ["bash", "-c", _guarded_command("sh -c 'exit 2'")],
         capture_output=True,
         encoding="utf-8",
         errors="replace",
@@ -162,8 +167,7 @@ def test_without_the_guard_the_same_failure_does_fail_the_push() -> None:
     """
     unguarded = _guarded_command("sh -c 'exit 2'").split("||")[0].strip()
     completed = subprocess.run(
-        unguarded,
-        shell=True,
+        ["bash", "-c", unguarded],
         capture_output=True,
         encoding="utf-8",
         errors="replace",
@@ -183,8 +187,7 @@ def test_a_slow_report_is_still_absorbed_when_it_exits_non_zero() -> None:
     an ordinary non-zero exit and must not reject the push.
     """
     completed = subprocess.run(
-        _guarded_command("sh -c 'sleep 1; exit 3'"),
-        shell=True,
+        ["bash", "-c", _guarded_command("sh -c 'sleep 1; exit 3'")],
         capture_output=True,
         encoding="utf-8",
         errors="replace",
