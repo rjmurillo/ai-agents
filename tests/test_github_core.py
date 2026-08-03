@@ -1039,6 +1039,30 @@ class TestGetBotAuthors:
         assert len(result) == len(set(b for v in _DEFAULT_BOTS.values() for b in v))
 
 
+class TestCanonicalizeLogin:
+    """Issue #4378: one integration under several logins is one actor."""
+
+    def test_known_alias_maps_to_canonical(self):
+        assert bot_config.canonicalize_login("Copilot") == "github-copilot[bot]"
+
+    def test_alias_matching_is_case_insensitive(self):
+        assert bot_config.canonicalize_login("COPILOT-SWE-AGENT[BOT]") == "github-copilot[bot]"
+
+    def test_canonical_login_is_a_fixed_point(self):
+        assert bot_config.canonicalize_login("github-copilot[bot]") == "github-copilot[bot]"
+
+    def test_unmapped_login_is_returned_unchanged(self):
+        assert bot_config.canonicalize_login("alice") == "alice"
+
+    def test_empty_login_is_returned_unchanged(self):
+        assert bot_config.canonicalize_login("") == ""
+
+    def test_every_alias_resolves_to_a_bot(self):
+        for canonical, aliases in bot_config._DEFAULT_BOT_ALIASES.items():
+            for alias in [canonical, *aliases]:
+                assert bot_config.is_bot(bot_config.canonicalize_login(alias)) is True
+
+
 # ---------------------------------------------------------------------------
 # PR review threads
 # ---------------------------------------------------------------------------

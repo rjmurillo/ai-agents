@@ -256,6 +256,47 @@ def get_bot_authors(category: str = "all") -> list[str]:
 
 _BOT_SUFFIXES = ("[bot]", "-bot")
 
+# One GitHub integration reaches the API under several logins depending on the
+# path it came in through: the REST reviews array reports ``Copilot``, a review
+# request reports ``copilot-pull-request-reviewer``, and the coding agent's own
+# comments report ``copilot-swe-agent[bot]``. A caller that keys an aggregate on
+# the raw login counts one actor as three, inflating reviewer counts and bot
+# counts (issue #4378). Map every observed spelling onto one canonical login.
+_DEFAULT_BOT_ALIASES: dict[str, list[str]] = {
+    "github-copilot[bot]": [
+        "Copilot",
+        "copilot-pull-request-reviewer",
+        "copilot-pull-request-reviewer[bot]",
+        "copilot-swe-agent",
+        "copilot-swe-agent[bot]",
+    ],
+}
+
+_bot_alias_map_cache: dict[str, str] | None = None
+
+
+def _build_alias_map() -> dict[str, str]:
+    """Return a map from lowercased alias to canonical login."""
+    alias_map: dict[str, str] = {}
+    for canonical, aliases in _DEFAULT_BOT_ALIASES.items():
+        alias_map[canonical.lower()] = canonical
+        for alias in aliases:
+            alias_map[alias.lower()] = canonical
+    return alias_map
+
+
+def canonicalize_login(login: str) -> str:
+    """Return the canonical login for *login*, or *login* itself when unmapped.
+
+    Matching is case-insensitive because GitHub logins are. An unmapped login
+    comes back unchanged, so this is safe to apply to every actor rather than
+    only to the ones a caller already believes are bots.
+    """
+    global _bot_alias_map_cache  # noqa: PLW0603
+    if _bot_alias_map_cache is None:
+        _bot_alias_map_cache = _build_alias_map()
+    return _bot_alias_map_cache.get(login.lower(), login)
+
 
 def is_bot(login: str, user_type: str | None = None) -> bool:
     """Determine if a GitHub login belongs to a bot account.
