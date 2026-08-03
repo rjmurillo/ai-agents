@@ -40,11 +40,21 @@ EXCLUDED_PREFIXES = (
     ".agents/archive/",
 )
 
-_FLOCK_PATH = re.compile(r"\bflock\b[^\n]*?([\"']?)(\S*?\.lock)\1")
+_FLOCK = re.compile(r"\bflock\b")
+# A lock path token anywhere on a line. The character class stops at the shell
+# metacharacters that cannot appear inside a path, so `exec 9>/tmp/x.lock`
+# yields `/tmp/x.lock` rather than `9>/tmp/x.lock`. The `+` requires at least
+# one character before the suffix, so prose that writes the bare extension is
+# not mistaken for a path.
+_LOCK_PATH = re.compile(r"[A-Za-z0-9_./$~{}@%+-]+\.lock\b")
 _CANONICAL_PATH = re.compile(
     r"^(?:\$HOME|\$\{HOME\})/src/scratch/locks/push-lock-[^/]*\.lock$"
 )
 _FENCE = re.compile(r"^\s*(?:```|~~~)")
+NO_PATH_MESSAGE = (
+    "flock recipe names no canonical lock path in this block "
+    "(expected {template}; see .claude/rules/push-lock.md, issue #4366)"
+)
 
 
 def is_canonical(path: str) -> bool:
@@ -79,25 +89,82 @@ def _historical_line_numbers(lines: Sequence[str]) -> set[int]:
     return skipped
 
 
-def scan_text(text: str) -> list[tuple[int, str]]:
-    """Return (line number, offending path) for every non-canonical lock path."""
-    lines = text.splitlines()
-    skipped = _historical_line_numbers(lines)
+def _scan_block(lines: Sequence[str], start: int, end: int) -> list[tuple[int, str]]:
+    """Scan one fenced block that mentions ``flock``.
+
+    The block, not the line, is the unit. A recipe reaches its lock path four
+    ways and only the first keeps ``flock`` and the path together:
+
+        flock /tmp/a.lock git push
+        LOCK=/tmp/a.lock ; flock "$LOCK" git push
+        exec 9>/tmp/a.lock ; flock -n 9
+        flock \\ (newline) /tmp/a.lock \\ (newline) git push
+
+    A same-line pattern sees only the first, so the other three used to pass
+    the gate and land a fifth scheme. Every ``.lock`` token in the block must
+    be canonical, and a block that reaches its lock some other way (an
+    extensionless file, a variable defined elsewhere) is reported for naming no
+    canonical path at all.
+    """
     findings: list[tuple[int, str]] = []
-    for index, line in enumerate(lines, start=1):
-        if index in skipped:
-            continue
-        for match in _FLOCK_PATH.finditer(line):
-            candidate = match.group(2)
-            if not is_canonical(candidate):
-                findings.append((index, candidate))
+    saw_canonical = False
+    flock_line = start + 1
+    for offset, line in enumerate(lines[start:end]):
+        line_number = start + offset + 1
+        if _FLOCK.search(line) and flock_line == start + 1:
+            flock_line = line_number
+        for match in _LOCK_PATH.finditer(line):
+            candidate = match.group(0)
+            if is_canonical(candidate):
+                saw_canonical = True
+            else:
+                findings.append((line_number, candidate))
+    if not saw_canonical and not findings:
+        findings.append((flock_line, ""))
     return findings
 
 
+def scan_text(text: str) -> list[tuple[int, str]]:
+    """Return (line number, offending path) for every non-canonical lock path.
+
+    An empty path means the block invokes ``flock`` without naming the
+    canonical path anywhere in it.
+    """
+    lines = text.splitlines()
+    skipped = _historical_line_numbers(lines)
+    findings: list[tuple[int, str]] = []
+    fenced: set[int] = set()
+    for start, end in _fenced_blocks(lines):
+        fenced.update(range(start + 1, end + 1))
+        if any(number in skipped for number in range(start + 1, end + 1)):
+            continue
+        if not any(_FLOCK.search(line) for line in lines[start:end]):
+            continue
+        findings.extend(_scan_block(lines, start, end))
+    for index, line in enumerate(lines, start=1):
+        if index in skipped or index in fenced or not _FLOCK.search(line):
+            continue
+        findings.extend(
+            (index, match.group(0))
+            for match in _LOCK_PATH.finditer(line)
+            if not is_canonical(match.group(0))
+        )
+    return sorted(findings)
+
+
 def tracked_markdown(repo_root: Path) -> list[str]:
-    """Return tracked Markdown paths in scope, read from HEAD (ci-scripts MUST 9)."""
+    """Return tracked Markdown paths in scope, read from the index.
+
+    ci-scripts MUST 9 wants a named ref for a claim about what the repository
+    *contains*, and exempts a check whose subject is the state about to be
+    committed. This is that second kind: it runs from ``pre_pr.py`` before a
+    commit or a push, and it reads content from the working tree. Taking the
+    inventory from ``HEAD`` instead left a staged new Markdown file invisible
+    to the gate, so a fifth lock scheme could be committed through it. The
+    index is the inventory that matches the content being read.
+    """
     result = subprocess.run(
-        ["git", "-C", str(repo_root), "ls-tree", "-r", "-z", "--name-only", "HEAD"],
+        ["git", "-C", str(repo_root), "ls-files", "-z", "--cached"],
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -105,7 +172,7 @@ def tracked_markdown(repo_root: Path) -> list[str]:
         check=False,
     )
     if result.returncode != 0:
-        raise RuntimeError(f"git ls-tree failed: {result.stderr.strip()}")
+        raise RuntimeError(f"git ls-files failed: {result.stderr.strip()}")
     paths = [entry for entry in result.stdout.split("\0") if entry.endswith(".md")]
     return [path for path in paths if not path.startswith(EXCLUDED_PREFIXES)]
 
@@ -122,10 +189,14 @@ def check_paths(repo_root: Path, paths: Iterable[str]) -> tuple[list[str], int]:
             continue
         examined += 1
         for line_number, candidate in scan_text(text):
-            violations.append(
-                f"{relative}:{line_number}: push lock '{candidate}' is not "
-                f"{CANONICAL_TEMPLATE} (see .claude/rules/push-lock.md, issue #4366)"
-            )
+            if candidate:
+                detail = (
+                    f"push lock '{candidate}' is not {CANONICAL_TEMPLATE} "
+                    "(see .claude/rules/push-lock.md, issue #4366)"
+                )
+            else:
+                detail = NO_PATH_MESSAGE.format(template=CANONICAL_TEMPLATE)
+            violations.append(f"{relative}:{line_number}: {detail}")
     return violations, examined
 
 
@@ -138,7 +209,7 @@ def validate_push_lock_paths(repo_root: Path) -> bool:
     try:
         paths = tracked_markdown(repo_root)
     except (RuntimeError, OSError) as error:
-        print(f"[FAIL] push-lock check could not read HEAD: {error}", file=sys.stderr)
+        print(f"[FAIL] push-lock check could not read the index: {error}", file=sys.stderr)
         return False
     violations, examined = check_paths(repo_root, paths)
     if not violations:

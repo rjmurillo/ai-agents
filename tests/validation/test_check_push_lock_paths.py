@@ -8,7 +8,9 @@ found them.
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -153,16 +155,146 @@ def test_main_exits_2_outside_a_git_repository(
 
 
 def test_pre_pr_runs_the_push_lock_check() -> None:
-    """Wiring: the checker is dead code unless the pre-PR sequence calls it."""
-    source = (
-        Path(__file__).resolve().parents[2]
-        / "scripts"
-        / "validation"
-        / "pre_pr_sequence.py"
-    ).read_text(encoding="utf-8")
+    """Wiring: drive the real sequence, do not grep its source.
 
-    assert "from check_push_lock_paths import validate_push_lock_paths" in source
-    assert "validate_push_lock_paths(repo_root)" in source
+    A substring assertion over ``pre_pr_sequence.py`` passes when the call has
+    become unreachable, when it sits inside a dead branch, and when the name
+    survives only in a comment (testing MUST 9). Driving
+    ``run_all_validations`` with a recording callback fails the moment the
+    consumer stops reaching the gate. Mirrors
+    ``tests/validation/test_pre_pr_model_pin_wiring.py``.
+    """
+    validation_dir = Path(__file__).resolve().parents[2] / "scripts" / "validation"
+    if str(validation_dir) not in sys.path:
+        sys.path.insert(0, str(validation_dir))
+    import pre_pr_sequence  # noqa: PLC0415 - bare-name import, see #2223
+
+    recorded: list[str] = []
+
+    def fake_run_validation(
+        name: str, _state: object, _callback: object, skip: bool = False
+    ) -> bool:
+        recorded.append(name)
+        return True
+
+    state = SimpleNamespace(total=0, passed=0, failed=0, skipped=0)
+    args = SimpleNamespace(quick=True, skip_tests=False, verbose=False)
+    pre_pr_sequence.run_all_validations(
+        Path(__file__).resolve().parents[2], args, state, fake_run_validation
+    )
+
+    assert "Push Lock Path Agreement" in recorded
+
+
+def test_pre_pr_push_lock_gate_calls_the_real_validator() -> None:
+    """The recorded step must invoke this module, not merely carry its name."""
+    validation_dir = Path(__file__).resolve().parents[2] / "scripts" / "validation"
+    if str(validation_dir) not in sys.path:
+        sys.path.insert(0, str(validation_dir))
+    import pre_pr_sequence  # noqa: PLC0415 - bare-name import, see #2223
+
+    callbacks: dict[str, object] = {}
+
+    def capture(name: str, _state: object, callback, skip: bool = False) -> bool:  # noqa: ANN001
+        callbacks[name] = callback
+        return True
+
+    state = SimpleNamespace(total=0, passed=0, failed=0, skipped=0)
+    args = SimpleNamespace(quick=True, skip_tests=False, verbose=False)
+    repo_root = Path(__file__).resolve().parents[2]
+    pre_pr_sequence.run_all_validations(repo_root, args, state, capture)
+
+    seen: list[Path] = []
+    original = checker.validate_push_lock_paths
+    pre_pr_sequence.validate_push_lock_paths = lambda root: seen.append(root) or True
+    try:
+        callbacks["Push Lock Path Agreement"]()
+    finally:
+        pre_pr_sequence.validate_push_lock_paths = original
+
+    assert seen == [repo_root]
+
+
+# ---------------------------------------------------------------------------
+# The four ways a recipe reaches its lock path (issue #4366 refutation)
+# ---------------------------------------------------------------------------
+
+
+def _fence(*lines: str) -> str:
+    return "\n".join(["```bash", *lines, "```", ""])
+
+
+def test_a_lock_path_held_in_a_variable_is_caught() -> None:
+    text = _fence('LOCK="/tmp/push-lock-$SLUG.lock"', 'flock "$LOCK" git push')
+
+    assert checker.scan_text(text) == [(2, "/tmp/push-lock-$SLUG.lock")]
+
+
+def test_the_file_descriptor_form_is_caught() -> None:
+    text = _fence("exec 9>/tmp/aiagents-push.lock", "flock -n 9", "git push")
+
+    assert checker.scan_text(text) == [(2, "/tmp/aiagents-push.lock")]
+
+
+def test_a_path_on_a_continuation_line_is_caught() -> None:
+    text = _fence("flock \\", "  /tmp/push-lock.lock \\", "  git push")
+
+    assert checker.scan_text(text) == [(3, "/tmp/push-lock.lock")]
+
+
+def test_a_flock_recipe_naming_no_canonical_path_is_reported() -> None:
+    """The extensionless case: no `.lock` token exists to compare."""
+    text = _fence("flock /tmp/aiagents-push git push")
+
+    assert checker.scan_text(text) == [(2, "")]
+
+
+def test_the_canonical_recipe_across_two_lines_is_accepted() -> None:
+    text = _fence(
+        'LOCK="$HOME/src/scratch/locks/push-lock-$SLUG.lock"',
+        'mkdir -p "$(dirname "$LOCK")"',
+        'flock "$LOCK" git push origin "$BR"',
+    )
+
+    assert checker.scan_text(text) == []
+
+
+def test_a_fence_without_flock_is_left_alone() -> None:
+    """A lock path in unrelated prose is not a push-lock prescription."""
+    text = _fence("cat /var/lib/apt/lists/lock.lock")
+
+    assert checker.scan_text(text) == []
+
+
+def test_a_historical_fence_is_still_skipped_under_the_block_scan() -> None:
+    text = _fence(
+        "# push-lock-historical: the census scheme, evidence not a recipe",
+        "flock /tmp/aiagents-push.lock git push",
+    )
+
+    assert checker.scan_text(text) == []
+
+
+def test_prose_naming_flock_without_a_path_is_not_a_violation() -> None:
+    text = "`flock` excludes only processes that open the same path.\n"
+
+    assert checker.scan_text(text) == []
+
+
+def test_a_staged_but_uncommitted_file_is_examined(tmp_path: Path) -> None:
+    """The inventory reads the index, so a new staged file cannot slip through.
+
+    Reading it from ``HEAD`` made a staged Markdown file invisible to the gate,
+    which is the whole window a pre-commit check exists to close.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo, {"docs/push.md": CANONICAL_LINE + "\n"})
+    new_file = repo / "docs" / "rogue.md"
+    new_file.write_text("flock /tmp/push-lock-rogue.lock git push\n", encoding="utf-8")
+    subprocess.run(["git", "add", "docs/rogue.md"], cwd=repo, check=True)
+
+    assert "docs/rogue.md" in checker.tracked_markdown(repo)
+    assert checker.validate_push_lock_paths(repo) is False
 
 
 def test_validate_entry_point_returns_false_on_a_violation(tmp_path: Path) -> None:

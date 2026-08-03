@@ -75,6 +75,15 @@ uv run python scripts/validation/check_push_lock_paths.py
 Exits 0 and prints the examined file count when every prescription agrees.
 Exits 1 and names file, line, and offending path otherwise.
 
+The unit is the fenced block, not the line. A recipe reaches its lock four
+ways and only the first keeps `flock` and the path on one line: inline,
+through a variable (`LOCK=...` then `flock "$LOCK"`), through a file
+descriptor (`exec 9>...` then `flock -n 9`), and across a `\` continuation.
+Every `.lock` token inside a block that mentions `flock` must be canonical,
+and a block that names no canonical path at all is reported too, which is what
+catches a lock file written without the `.lock` suffix. The inventory comes
+from the index, so a staged but uncommitted file is checked.
+
 ## References
 
 - Issue #4366. The three-scheme census and the `/tmp` wipe.
