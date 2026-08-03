@@ -51,14 +51,23 @@
       "caused_by": [],
       "leads_to": [],
       "_source_session": "2026-08-03-session-4229-hook-redirect-regression"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: dd0719237bdbd323f62f39bbc6e9b2db2a52cd4c",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4229-hook-redirect-regression"
     }
   ],
   "metrics": {
-    "duration_minutes": 0,
-    "tool_calls": 0,
+    "duration_minutes": 30,
+    "tool_calls": 20,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 3
   },
   "lessons": []

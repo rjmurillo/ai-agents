@@ -153,7 +153,7 @@
       ]
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "dd0719237bdbd323f62f39bbc6e9b2db2a52cd4c",
   "nextSteps": [
     "Push branch fix/subtools-session-log",
     "Create PR with Fixes #4229"
