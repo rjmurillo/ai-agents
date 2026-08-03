@@ -9,12 +9,32 @@ commit refusal on a change of one file.
 
 ## Statement
 
-`git rebase origin/main` on a branch whose tip is already published rewrites
-every commit, so the next push is a non-fast-forward and is rejected. The
-rejection arrives **after** the pre-push hook group completes, because lefthook
-runs the group before git contacts the remote. The suite is the long pole at
-roughly 1000 seconds, so the whole cost is paid before git reports that the push
-was never going to land.
+`git rebase origin/main` on a published branch that is not already based on
+`origin/main` rewrites the published tip, so the next push is a non-fast-forward
+and is rejected. When the branch is already linearly based on the target, rebase
+is a no-op and this whole memory does not apply.
+
+The rejection arrives **after** the pre-push hook group completes. The cause is
+not that the hook runs before git contacts the remote; it does not. Git fetches
+the remote's advertised refs, classifies the non-fast-forward on the client,
+runs `pre-push` anyway, and only then reports the rejection.
+
+The consequence is the part worth remembering: git **omits the already-rejected
+ref from the hook's stdin**, so the hook is handed an empty ref list. No
+pre-push hook can detect this case and short-circuit, because git never tells it
+which push is doomed. The suite is the long pole at roughly 1000 seconds, and it
+is spent in full on a push that was decided before it started.
+
+Reproduced on git 2.43.0 with a bare local remote, an amended tip, and a
+`pre-push` hook that appends its stdin to a file. The hook logged its run marker
+and an empty stdin between the start and end markers, and the push then failed
+with `Updates were rejected`:
+
+| observation | result |
+|---|---|
+| hook invoked on a doomed push | yes |
+| refs on hook stdin | none |
+| rejection reported | after the hook exited |
 
 Force-pushing is the obvious repair and policy forbids it. The compliant repair
 is to merge the remote tip back, which then trips a second defect:
@@ -36,17 +56,37 @@ Issue #4418 records the identical shape at 635 reported against 17 real.
 
 ## Prevention
 
-Ask whether the branch is published before rebasing it. One command, no
-network round trip after a fetch:
+Ask whether the branch is published before rebasing it. Ask the remote, not a
+remote-tracking ref:
 
 ```bash
-git fetch -q origin
-git rev-parse --verify --quiet "origin/$(git branch --show-current)"
+branch=$(git symbolic-ref --quiet --short HEAD) || {
+  echo "detached HEAD: finish or abort the rebase before asking this question"; }
+git ls-remote --exit-code --heads \
+  "$(git config --get "branch.$branch.remote" || echo origin)" "$branch"
 ```
 
-Non-empty output means the branch is published, so integrate with `git merge`
-rather than `git rebase`. Empty output means it is local only and a rebase is
-free.
+Exit 0 means the branch is published, so integrate with `git merge` rather than
+`git rebase`. Exit 2 means it is not published and a rebase is free.
+
+The obvious one-liner, `git rev-parse --verify --quiet
+"origin/$(git branch --show-current)"`, is wrong in three ways, and each failure
+returns empty, which reads as "local only, rebase is free":
+
+- **Detached HEAD prints nothing**, so the lookup becomes `origin/` and fails.
+  This is not hypothetical: a conflicted rebase leaves you detached, which is
+  exactly the state in which you are most likely to be asking. Worse, a `| tail`
+  anywhere in the command chain masks the rebase's non-zero exit, so a following
+  `&&` still fires and pushes from that detached state. Use `${PIPESTATUS[0]}`
+  or `set -o pipefail` in any chain that gates a push.
+- **A triangular workflow may push elsewhere.** The push destination is
+  `branch.<name>.remote`, which need not be `origin`.
+- **A stale remote-tracking ref reports published when it is not**, unless the
+  fetch pruned. This checkout sets `fetch.prune=true`; that is local
+  configuration, not a property of the command.
+
+`git ls-remote` costs one round trip and has none of these failure modes.
+Against a 1000-second hook run, the round trip is free.
 
 ## Repair, once you are already in it
 
