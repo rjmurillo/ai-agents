@@ -135,7 +135,7 @@
       "detail": "Recorded that four agent surfaces are hand-maintained, not two, and that build/scripts/generate_agents.py does not exist as a file."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "685af5d12",
   "nextSteps": [
     "Push the branch and confirm Validate PR is green.",
     "Merge #4069 once checks settle."
