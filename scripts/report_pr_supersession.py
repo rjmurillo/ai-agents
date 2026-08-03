@@ -23,6 +23,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Any, cast
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_PROJECT_ROOT))
@@ -45,7 +46,7 @@ def _sleep() -> None:
     time.sleep(0.4)
 
 
-def _get_open_prs(owner: str, repo: str, limit: int) -> list[dict]:
+def _get_open_prs(owner: str, repo: str, limit: int) -> list[dict[str, Any]]:
     """Fetch open PRs via REST. Returns list of minimal PR dicts."""
     result = _run_gh([
         "api",
@@ -60,7 +61,7 @@ def _get_open_prs(owner: str, repo: str, limit: int) -> list[dict]:
         print(f"ERROR: Failed to fetch PRs: {result.stderr}", file=sys.stderr)
         return []
     try:
-        return json.loads(result.stdout)
+        return cast(list[dict[str, Any]], json.loads(result.stdout))
     except json.JSONDecodeError:
         print("ERROR: Failed to parse PR list", file=sys.stderr)
         return []
@@ -99,7 +100,7 @@ def _get_issue_state(owner: str, repo: str, issue_number: int) -> str:
         return "unknown"
     try:
         data = json.loads(result.stdout)
-        return data.get("state", "unknown")
+        return str(data.get("state", "unknown"))
     except (json.JSONDecodeError, KeyError):
         return "unknown"
 
@@ -115,13 +116,14 @@ def _commits_behind(owner: str, repo: str, base: str, head: str) -> int | None:
         return None
     try:
         data = json.loads(result.stdout)
-        return data.get("behind_by")
-    except (json.JSONDecodeError, KeyError):
+        behind_by = data.get("behind_by")
+        return int(behind_by) if behind_by is not None else None
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
         return None
 
 
-def _build_report(owner: str, repo: str, prs: list[dict]) -> list[dict]:
-    rows: list[dict] = []
+def _build_report(owner: str, repo: str, prs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
     for pr in prs:
         number = pr.get("number", 0)
         title = pr.get("title", "")
@@ -135,7 +137,7 @@ def _build_report(owner: str, repo: str, prs: list[dict]) -> list[dict]:
         closing_issues = _get_closing_issues(owner, repo, number)
 
         # Issue states
-        issue_details: list[dict] = []
+        issue_details: list[dict[str, Any]] = []
         for iss_num in closing_issues:
             state = _get_issue_state(owner, repo, iss_num)
             issue_details.append({"number": iss_num, "state": state})
@@ -155,7 +157,7 @@ def _build_report(owner: str, repo: str, prs: list[dict]) -> list[dict]:
     return rows
 
 
-def _print_report(rows: list[dict], output_format: str) -> None:
+def _print_report(rows: list[dict[str, Any]], output_format: str) -> None:
     if output_format == "json":
         print(json.dumps(rows, indent=2))
         return
