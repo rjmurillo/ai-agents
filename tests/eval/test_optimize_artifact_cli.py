@@ -11547,3 +11547,162 @@ class TestEveryFlagDocumentsItself:
         # Naming the flag is not describing it; the text has to say what to write.
         assert "rejected" in help_text
         assert "example" in help_text
+
+
+class TestRuleUpstreamProvenance:
+    """The rule kind must name the model that produced its scores.
+
+    `_provenance_mismatch` compares `upstream_model` across the two sides of a
+    gate, so a comparison between a run on one model and a run on another is
+    refused. That protection was live for the agent kind and dead for the rule
+    kind: the rule branch never passed the report to `_extract_provenance`, so
+    both sides recorded the literal string "not-applicable" and compared equal.
+
+    Measured before the fix, from a live rule run over
+    tests/evals/rule-scenarios/secret-redaction.json on openai/gpt-4o-mini:
+
+        rule  A upstream_model = 'not-applicable'
+        rule  B upstream_model = 'not-applicable'
+        rule  verdict          : COMPARED (no refusal)
+        agent A upstream_model = 'claude-sonnet-4-6'
+        agent B upstream_model = 'openai/gpt-4o-mini'
+        agent verdict          : extraction parameter mismatch: upstream_model differs
+
+    "not-applicable" is also simply false for a kind whose every score comes
+    from a model call. The producer records the id; this reads it.
+    """
+
+    @staticmethod
+    def _scenario(sid: str, score: int) -> dict:
+        return {
+            "id": sid,
+            "negative_case": False,
+            "mechanisms": {
+                "full": {
+                    "scores": {
+                        "activation_score": score,
+                        "citation_score": score,
+                        "behavior_score": score,
+                    }
+                }
+            },
+        }
+
+    def _envelope(self, **meta) -> dict:
+        envelope: dict = {
+            "rules": {
+                "refactoring": {
+                    "rule_path": ".claude/rules/refactoring.md",
+                    "scenarios": [self._scenario("S1", 5)],
+                }
+            }
+        }
+        envelope.update(meta)
+        return envelope
+
+    def test_records_the_model_the_report_names(self, tmp_path, capsys):
+        path = _write(tmp_path, "rules.json", self._envelope(model_id="openai/gpt-4o-mini"))
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_OK
+        assert out["provenance"]["upstream_model"] == "openai/gpt-4o-mini"
+
+    def test_records_the_seed_the_report_names(self, tmp_path, capsys):
+        path = _write(tmp_path, "rules.json", self._envelope(model_id="m", seed=7))
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_OK
+        assert out["provenance"]["upstream_seed"] == "7"
+
+    def test_a_zero_seed_is_recorded_not_dropped(self, tmp_path, capsys):
+        """`--seed` defaults to 0, so the common case is the falsy one.
+
+        An `or`-based fallback would read 0 as absent and record the default
+        string instead of the seed the run actually used.
+        """
+        path = _write(tmp_path, "rules.json", self._envelope(model_id="m", seed=0))
+        _, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert out["provenance"]["upstream_seed"] == "0"
+
+    def test_a_legacy_report_records_unknown_not_not_applicable(self, tmp_path, capsys):
+        """Reports written before the producer recorded the id still parse.
+
+        "unknown-model" is honest about ignorance. "not-applicable" asserts the
+        run used no model, which is false for this kind, and two such reports
+        compare equal.
+        """
+        path = _write(tmp_path, "rules.json", self._envelope())
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_OK
+        assert out["provenance"]["upstream_model"] == "unknown-model"
+        assert out["provenance"]["upstream_seed"] == "unseeded"
+
+    def test_agreeing_runs_record_the_shared_model(self, tmp_path, capsys):
+        a = _write(tmp_path, "a.json", self._envelope(model_id="m", seed=1))
+        b = _write(tmp_path, "b.json", self._envelope(model_id="m", seed=1))
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", a, b)
+        assert code == EXIT_OK
+        assert out["provenance"]["upstream_model"] == "m"
+
+    def test_runs_disagreeing_on_model_are_refused(self, tmp_path, capsys):
+        """Reducing across runs assumes the runs are comparable.
+
+        Two models are two populations. Averaging them produces a number that
+        describes neither, so this fails closed the way a rule-name mismatch
+        already does.
+        """
+        a = _write(tmp_path, "a.json", self._envelope(model_id="claude-sonnet-4-6"))
+        b = _write(tmp_path, "b.json", self._envelope(model_id="openai/gpt-4o-mini"))
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", a, b)
+        assert code == EXIT_CONFIG
+        assert "model" in out["error"]
+
+    def test_runs_disagreeing_on_seed_are_refused(self, tmp_path, capsys):
+        a = _write(tmp_path, "a.json", self._envelope(model_id="m", seed=1))
+        b = _write(tmp_path, "b.json", self._envelope(model_id="m", seed=2))
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", a, b)
+        assert code == EXIT_CONFIG
+        assert "seed" in out["error"]
+
+    def test_the_explicit_flag_still_wins(self, tmp_path, capsys):
+        path = _write(tmp_path, "rules.json", self._envelope(model_id="from-report"))
+        _, out = _run(
+            capsys,
+            "extract",
+            "--kind",
+            "rule",
+            "--input",
+            path,
+            "--upstream-model",
+            "from-flag",
+        )
+        assert out["provenance"]["upstream_model"] == "from-flag"
+
+    def test_a_non_scalar_model_id_is_a_config_error(self, tmp_path, capsys):
+        path = _write(tmp_path, "rules.json", self._envelope(model_id={"nested": "no"}))
+        code, _ = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_CONFIG
+
+    def test_cross_model_rule_extractions_no_longer_compare(self, tmp_path, capsys):
+        """The defect, stated as the gate sees it.
+
+        Two extractions that differ only in the model behind them must not
+        reach a verdict. Before the fix both carried "not-applicable" and
+        `_provenance_mismatch` returned None.
+        """
+        a = _write(tmp_path, "a.json", self._envelope(model_id="claude-sonnet-4-6"))
+        b = _write(tmp_path, "b.json", self._envelope(model_id="openai/gpt-4o-mini"))
+        _, out_a = _run(capsys, "extract", "--kind", "rule", "--input", a)
+        _, out_b = _run(capsys, "extract", "--kind", "rule", "--input", b)
+        mismatch = oa._provenance_mismatch(out_a["provenance"], out_b["provenance"])
+        assert mismatch is not None
+        assert "upstream_model" in mismatch
+
+    def test_a_bare_scenario_array_still_has_no_model(self, tmp_path, capsys):
+        """The un-enveloped shape carries no place to put metadata.
+
+        It must stay accepted and record ignorance rather than raise, because
+        the bare array is a documented input for gating one rule by hand.
+        """
+        path = _write(tmp_path, "scen.json", [self._scenario("S1", 5)])
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_OK
+        assert out["provenance"]["upstream_model"] == "unknown-model"
