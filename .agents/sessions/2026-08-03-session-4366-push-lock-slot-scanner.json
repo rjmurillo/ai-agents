@@ -1,0 +1,87 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4366,
+    "date": "2026-08-03",
+    "branch": "fix/push-lock-consolidation-4366",
+    "startingCommit": "944a237b4b",
+    "objective": "Replace per-branch and fixed-hash push-lock recipes with the slot-scanner recipe (flock -n --conflict-exit-code 99) across all four documented surfaces"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena MCP tools not available in this harness; .serena/memories/ read directly."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "No Serena MCP tools available."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md; not modified."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/push-lock-consolidation-4366"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/push-lock-consolidation-4366"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All four documented surfaces updated to slot-scanner recipe. Ratchets verified OK."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not staged or modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Updated .serena/memories/git/git-lock-pushes-per-branch-not-globally.md and .serena/memories/git/git-detached-push-dies-if-log-dir-vanishes.md and .serena/memories/bash/bash-anchor-grep-patterns-on-test-logs.md."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre-commit markdown-check passed (files excluded by .markdownlint-cli2.yaml)."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed in fix(push-lock) commit on fix/push-lock-consolidation-4366."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py exits 0; all three ratchets OK against origin/main."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Updated all four documented push-lock surfaces",
+      "detail": "Replaced per-branch blocking flock and fixed-hash 4-slot recipes with slot-scanner (flock -n --conflict-exit-code 99 scanning /tmp/aiagents-push-$s.lock slots 0..3). Updated git-lock-pushes-per-branch-not-globally.md, git-detached-push-dies-if-log-dir-vanishes.md, bash-anchor-grep-patterns-on-test-logs.md, and .agents/governance/GOTCHAS.md."
+    }
+  ],
+  "endingCommit": "944a237b4b",
+  "nextSteps": [
+    "Push and confirm checks pass.",
+    "Update PR #4437 body to reflect the corrected recipe."
+  ]
+}

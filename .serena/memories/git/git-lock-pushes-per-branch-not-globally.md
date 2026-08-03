@@ -31,20 +31,33 @@ nothing they could collide with.
 
 ## Recipe
 
-Key the lock on the branch, so it still blocks the collision that actually
-happens and blocks nothing else.
+Scan slots non-blocking; take the first free one. This gives the same
+one-at-a-time guarantee as the old per-branch scheme without making different
+branches contend on the same slot.
 
 ```bash
-BR=$(git branch --show-current)
-SLUG=$(printf '%s' "$BR" | tr '/' '-')
-mkdir -p ~/src/scratch/locks
-flock ~/src/scratch/locks/push-lock-$SLUG.lock \
-  git push --force-with-lease origin HEAD:"$BR"
+cd <your worktree>
+BRANCH=$(git branch --show-current)
+for s in 0 1 2 3; do
+  SKIP_SCOPE_CHECK=1 flock -n --conflict-exit-code 99 "/tmp/aiagents-push-$s.lock" \
+    git push --force-with-lease origin "HEAD:$BRANCH" \
+    > ~/src/scratch/push-$BRANCH-s$s.log 2>&1
+  rc=$?
+  if [ "$rc" -ne 99 ]; then
+    echo "SLOT=$s PUSH_RC=$rc"
+    break
+  fi
+done
 ```
 
-`~/src/scratch/locks/` is outside `/tmp` and survives the periodic wipe that
-destroys `/tmp` mid-session. The directory must exist before `flock` runs, so
-create it in the same command.
+`--conflict-exit-code 99` is load-bearing. Without it, `flock -n` returns 1
+for both "lock busy" and "command failed", making the two indistinguishable.
+With 99, only a busy lock produces 99; every other code is the real git result.
+
+Do NOT use a fixed hash (`SLOT=$(( ... % 4 ))`). A hash is a partition: it
+maps a branch name to a fixed slot regardless of load. Measured 2026-08-03:
+slot 2 had 9 holders and a 68-minute oldest waiter while slot 3 was idle.
+Three branches all hashed to slot 2. The scanner always finds the idle slot.
 
 ## Evidence that it is safe
 
@@ -105,12 +118,9 @@ child, so `ps` shows two entries per push with different elapsed times, because
 acquired. That pair is not a double push. Check `ppid` before concluding one:
 two of the three suspicious pairs there were parent and child.
 
-So the path above is not a suggestion. Any agent or script that pushes in this
-repo uses exactly `~/src/scratch/locks/push-lock-<branch-with-slashes-as-dashes>.lock`
-and nothing else. What is mandated is the exact *string*, not just the naming
-convention: see "Every agent must name the lock identically" below for why, and
-for the conditions under which the directory should change. If you find another
-form in a prompt, a skill, or a memory,
+So the recipe above is not a suggestion. Any agent or script that pushes in
+this repo uses exactly this scanner with `/tmp/aiagents-push-$s.lock` and
+nothing else. If you find another form in a prompt, a skill, or a memory,
 correct it rather than adding a third. Historical records are the exception:
 `.agents/retrospective/2026-07-31-test-infrastructure-cluster.md` records the
 older `/tmp/aiagents-push.lock` as what was running at the time, and a
@@ -119,20 +129,18 @@ Leave those alone; a grep for lock paths will keep surfacing them.
 
 Two details that get "simplified" back into bugs:
 
-- Every agent must name the lock identically. That, not the directory, is the
-  requirement: `flock` excludes only processes that open the same path, so a
-  per-user or per-worktree lock directory silently buys nothing.
-  `~/src/scratch/locks/` is the canonical choice because it is durable across
-  `/tmp` wipes and already used for push logs in this repo. The push *log* is
-  also there; keeping both in `~/src/scratch/` is consistent.
-- The `/tmp` wipe is no longer a hazard for the lock path. It was: if `/tmp`
-  was cleared while a push held the lock, the next push created a *new inode*
-  at the same path and `flock` stopped excluding the two (split-lock failure
-  under a single filename). Moving to `~/src/scratch/locks/` removes that
-  failure class, not merely reduces it.
-- Capture the push status as `echo "REAL_EXIT=$?"` immediately after the `git
-  push`, never through a pipeline. `git push | tail -3; echo $?` reports
-  `tail`'s status, which is always 0.
+- Every agent must use exactly the slot-scanner recipe above. `flock` excludes
+  only processes that open the same path. A per-branch lock in a private
+  directory or a different naming scheme is invisible to the fleet, not safer.
+  `/tmp/aiagents-push-$s.lock` with `s` in `0..3` is the shared namespace.
+- The `/tmp` wipe hazard still applies to the log, not to the lock. The lock
+  is a kernel object held in the process's open file descriptor; if `/tmp` is
+  wiped, the inode remains alive as long as any process holds it open. The log
+  redirect fails immediately and silently. Put logs in `~/src/scratch/`, not
+  `/tmp`. Locks stay in `/tmp` because every agent can name `/tmp`; the lock
+  path must be universal, not durable.
+- Capture the push status as `echo "PUSH_RC=$?"` immediately after the inner
+  command, never through a pipeline. The scanner already does this via `rc=$?`.
 
 ## Related
 

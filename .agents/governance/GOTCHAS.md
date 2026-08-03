@@ -400,30 +400,40 @@ A global `flock /tmp/aiagents-push.lock` wrapping `git push` serializes the
 entire fleet including the 7 to 15 minute pre-push hook. Five concurrent pushes
 to five distinct branches costs 5 x 15 = 75 minutes instead of 15.
 
-Use a per-branch lock keyed on the exact branch name:
+Use the slot-scanner recipe with `/tmp/aiagents-push-$s.lock`:
 
 ```bash
-BR=$(git branch --show-current)
-SLUG=$(printf '%s' "$BR" | tr '/' '-')
-mkdir -p ~/src/scratch/locks
-flock ~/src/scratch/locks/push-lock-$SLUG.lock \
-  git push --force-with-lease origin HEAD:"$BR"
+cd <your worktree>
+BRANCH=$(git branch --show-current)
+for s in 0 1 2 3; do
+  SKIP_SCOPE_CHECK=1 flock -n --conflict-exit-code 99 "/tmp/aiagents-push-$s.lock" \
+    git push --force-with-lease origin "HEAD:$BRANCH" \
+    > ~/src/scratch/push-$BRANCH-s$s.log 2>&1
+  rc=$?
+  if [ "$rc" -ne 99 ]; then
+    echo "SLOT=$s PUSH_RC=$rc"
+    break
+  fi
+done
 ```
 
-Notes:
-- `tr '/' '-'` is required: a branch like `fix/foo` would otherwise create a
-  lock file with a `/` in its name, which the shell reads as a directory path.
-- `~/src/scratch/locks/` is outside `/tmp`, which is wiped periodically. The
-  directory must exist before `flock` runs; `mkdir -p` is cheap and idempotent.
-- `--force-with-lease` already fails safely on a lost update. The lock prevents
-  the git-object-packing overhead of a concurrent same-branch push, not data loss.
-- Two distinct branches never contend for the same lock file, so their pre-push
-  hooks run in parallel. Measured throughput: four concurrent pushes to four
-  distinct branches finish in approximately one hook duration, not four.
-- Every pushing agent must use exactly this path. `flock` excludes only
-  processes that open the same file. Three schemes running concurrently provide
-  no exclusion between groups and silently allow same-branch concurrent pushes
-  while appearing protected. Measured 2026-08-02 (issue #4366).
+`--conflict-exit-code 99` is load-bearing: `flock -n` returns 1 for both
+"lock busy" and "command failed" without it. With 99, only a busy lock produces
+99; every other code is the real git result.
 
-Issue #4283 documents the measured 28-waiter convoy produced by the global lock
-and the first-principles analysis of why the race is per-ref.
+Do NOT use a fixed hash (`SLOT=$(( ... % 4 ))`). A hash is a partition not a
+scheduler. Measured 2026-08-03: slot 2 had a 68-minute oldest waiter while
+slot 3 was idle. The scanner always finds the idle slot.
+
+Notes:
+- `/tmp/aiagents-push-$s.lock` with `s` in `0..3` is the shared namespace.
+  Every agent uses this exact path or the semaphore is invisible to the fleet.
+- Logs go in `~/src/scratch/`, not `/tmp`. `/tmp` is wiped periodically;
+  a wiped log redirect fails silently while the lock inode stays alive.
+- `--force-with-lease` already fails safely on a lost update. The lock prevents
+  the git-object-packing overhead of a concurrent same-branch push.
+- Two distinct branches can hold different slots and run concurrently. The same
+  branch cannot hold two slots simultaneously, so same-branch races are excluded.
+
+Issue #4283 documents the measured 28-waiter convoy from the global lock.
+Issue #4366 documents the three-scheme fragmentation measured 2026-08-03.

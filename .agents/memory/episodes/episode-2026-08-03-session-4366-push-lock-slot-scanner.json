@@ -1,0 +1,29 @@
+{
+  "id": "episode-2026-08-03-session-4366-push-lock-slot-scanner",
+  "session": "2026-08-03-session-4366-push-lock-slot-scanner",
+  "timestamp": "2026-08-03T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Replace per-branch and fixed-hash push-lock recipes with the slot-scanner recipe (flock -n --conflict-exit-code 99) across all four documented surfaces",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated all four documented push-lock surfaces",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4366-push-lock-slot-scanner"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 7
+  },
+  "lessons": []
+}
