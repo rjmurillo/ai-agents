@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
-"""Fetch the comment thread (discourse) of a GitHub Issue.
+"""Fetch submitted reviews for a GitHub Pull Request.
 
-``get_issue_context.py`` returns issue metadata but no comments, so an agent
-asked to "review the discourse" before triaging could not read prior triage
-decisions, maintainer keep-open calls, or bot plans through the skill (Issue
-#2475). This script fills that gap: it pages through
-``repos/{owner}/{repo}/issues/{n}/comments`` and emits the standard ADR-056
-envelope with ``Data.comments`` as a list of
-``{author, createdAt, updatedAt, body, url}``.
+Returns each review's id, node_id, author, state, body, submitted timestamp,
+and URL. Paginates via REST so large review threads do not truncate.
+
+Issue #4378: ``get_pr_reviewers.py`` discards review state and body, so an
+agent cannot read APPROVED/REQUEST_CHANGES verdicts or their accompanying
+text through the skill surface. This script fills that gap.
 
 Exit codes follow ADR-035:
     0 - Success
     1 - Invalid parameters / logic error
-    2 - File not found / config error
+    2 - Not found
     3 - External error (API failure)
-    4 - Auth error (not authenticated)
+    4 - Auth error
 """
 
 from __future__ import annotations
@@ -37,7 +36,7 @@ else:
     )
 if not os.path.isdir(_lib_dir):
     print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
-    sys.exit(2)  # Config error per ADR-035
+    sys.exit(2)
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
@@ -52,7 +51,16 @@ from github_core.output import (  # noqa: E402
     write_skill_output,
 )
 
-_SCRIPT = "get_issue_comments.py"
+_SCRIPT = "get_pr_reviews.py"
+
+# Canonical alias map for known bot identities.
+# Maps each observed alias to the canonical name kept in output.
+# The raw alias is preserved in the ``aliases`` list for audit.
+_BOT_ALIASES: dict[str, str] = {
+    "copilot-pull-request-reviewer": "Copilot",
+    "github-actions": "github-actions[bot]",
+}
+
 _AUTH_ERROR_MARKERS = (
     "credential",
     "not logged in",
@@ -65,16 +73,12 @@ _AUTH_ERROR_MARKERS = (
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Fetch the comment thread of a GitHub Issue.",
+        description="Fetch submitted reviews for a GitHub Pull Request.",
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
-    parser.add_argument("--issue", type=int, required=True, help="Issue number")
     parser.add_argument(
-        "--limit",
-        type=int,
-        default=0,
-        help="Return only the most recent N comments (0 = all, default).",
+        "--pull-request", type=int, required=True, help="Pull request number",
     )
     add_output_format_arg(parser)
     return parser
@@ -93,68 +97,83 @@ def _exit_code_for(message: str, *, not_found: bool) -> tuple[int, str]:
     return 3, "ApiError"
 
 
-def _fetch_comments(owner: str, repo: str, issue: int, fmt: str) -> list[dict[str, object]]:
-    """Page through the issue's comments via gh api. Raises SystemExit on error."""
+def _fetch_reviews(
+    owner: str, repo: str, pr: int, fmt: str,
+) -> list[dict[str, object]]:
+    """Page through the PR's reviews via REST. Raises SystemExit on error."""
     result = subprocess.run(
         [
-            "gh",
-            "api",
-            f"repos/{owner}/{repo}/issues/{issue}/comments?per_page=100",
+            "gh", "api",
+            f"repos/{owner}/{repo}/pulls/{pr}/reviews?per_page=100",
             "--paginate",
             "--slurp",
         ],
         capture_output=True,
-        text=True,
         encoding="utf-8",
+        errors="replace",
         timeout=60,
         check=False,
     )
     if result.returncode != 0:
         error_str = result.stderr.strip() or result.stdout.strip()
-        not_found = "Could not resolve" in error_str or "not found" in error_str.lower()
+        not_found = "not found" in error_str.lower() or "Could not resolve" in error_str
         code, error_type = _exit_code_for(error_str, not_found=not_found)
         write_skill_error(
-            f"Failed to fetch comments for issue #{issue}: {error_str}",
+            f"Failed to fetch reviews for PR #{pr}: {error_str}",
             code,
             error_type=error_type,
             output_format=fmt,
             script_name=_SCRIPT,
-            extra={"issue": issue},
+            extra={"pull_request": pr},
         )
         raise SystemExit(code)
     try:
         payload = json.loads(result.stdout or "[]")
     except json.JSONDecodeError as exc:
         write_skill_error(
-            f"Failed to parse comments for issue #{issue}: {exc}",
+            f"Failed to parse reviews for PR #{pr}: {exc}",
             3,
             error_type="ApiError",
             output_format=fmt,
             script_name=_SCRIPT,
-            extra={"issue": issue},
+            extra={"pull_request": pr},
         )
         raise SystemExit(3) from exc
-    # --slurp wraps each page's array in an outer list; flatten one level.
+    # --slurp wraps each page array in an outer list; flatten one level.
     pages = payload if isinstance(payload, list) else [payload]
-    comments: list[dict[str, object]] = []
+    reviews: list[dict[str, object]] = []
     for page in pages:
         items = page if isinstance(page, list) else [page]
         for item in items:
             if isinstance(item, dict):
-                comments.append(item)
-    return comments
+                reviews.append(item)
+    return reviews
+
+
+def _canonicalize_login(login: str) -> tuple[str, list[str]]:
+    """Return (canonical_login, aliases) for a reviewer login.
+
+    Known bot aliases are normalized to a single canonical name to prevent
+    the same actor appearing as multiple distinct reviewers (issue #4378).
+    The raw alias is preserved in the returned list for audit.
+    """
+    canonical = _BOT_ALIASES.get(login, login)
+    aliases = [login] if canonical != login else []
+    return canonical, aliases
 
 
 def _normalize(item: dict[str, object]) -> dict[str, object]:
     user = item.get("user")
-    author = user.get("login") if isinstance(user, dict) else None
+    raw_login = user.get("login") if isinstance(user, dict) else ""
+    canonical, aliases = _canonicalize_login(raw_login or "")
     return {
         "id": item.get("id"),
         "node_id": item.get("node_id"),
-        "author": author,
-        "createdAt": item.get("created_at"),
-        "updatedAt": item.get("updated_at"),
+        "author": canonical,
+        "aliases": aliases,
+        "state": item.get("state"),
         "body": item.get("body") or "",
+        "submittedAt": item.get("submitted_at"),
         "url": item.get("html_url"),
     }
 
@@ -162,39 +181,26 @@ def _normalize(item: dict[str, object]) -> dict[str, object]:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     fmt = get_output_format(args.output_format)
-    issue: int = args.issue
-
-    if args.limit < 0:
-        write_skill_error(
-            "--limit must be 0 or greater",
-            1,
-            error_type="InvalidParams",
-            output_format=fmt,
-            script_name=_SCRIPT,
-            extra={"issue": issue, "limit": args.limit},
-        )
-        return 1
+    pr: int = args.pull_request
 
     assert_gh_authenticated()
     resolved = resolve_repo_params(args.owner, args.repo)
     owner, repo = resolved.owner, resolved.repo
 
-    raw = _fetch_comments(owner, repo, issue, fmt)
-    comments = [_normalize(c) for c in raw]
-    if args.limit > 0:
-        comments = comments[-args.limit :]
+    raw = _fetch_reviews(owner, repo, pr, fmt)
+    reviews = [_normalize(r) for r in raw]
 
     data = {
-        "issue": issue,
+        "pull_request": pr,
         "owner": owner,
         "repo": repo,
-        "count": len(comments),
-        "comments": comments,
+        "count": len(reviews),
+        "reviews": reviews,
     }
     write_skill_output(
         data,
         output_format=fmt,
-        human_summary=f"Issue #{issue}: {len(comments)} comment(s)",
+        human_summary=f"PR #{pr}: {len(reviews)} review(s)",
         status="PASS",
         script_name=_SCRIPT,
     )
