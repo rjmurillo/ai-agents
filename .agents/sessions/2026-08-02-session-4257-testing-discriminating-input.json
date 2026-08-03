@@ -4,7 +4,7 @@
     "number": 4257,
     "date": "2026-08-02",
     "branch": "docs/testing-discriminating-input",
-    "startingCommit": "1f5b71b0a73f9e5d9f9baa94babb54db901eac51",
+    "startingCommit": "9c6bc856d481af861beccd8e94fc23e4e023a5ce",
     "objective": "Record the rule that a regression test must be justified by an input the unfixed implementation gets wrong, and that the justification is demonstrated by restoring the defect rather than by coverage."
   },
   "protocolCompliance": {
