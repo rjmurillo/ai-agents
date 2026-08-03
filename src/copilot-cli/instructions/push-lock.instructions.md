@@ -4,6 +4,14 @@ applyTo: '**'
 
 # One Push Lock Path
 
+Scoped to the trees that carry push recipes rather than `**`. The always-on
+`.md` ceiling in `scripts/validation/instruction_budget.py` had 998 bytes of
+headroom when this rule was written and a universal copy failed it at 102.7
+percent, which blocks every contributor's push. Nothing is lost by the narrower
+scope: the binding half is
+`scripts/validation/check_push_lock_paths.py`, which `pre_pr.py` runs on every
+push whatever rules the harness loaded.
+
 `flock` excludes only processes that open the same path. Two agents pushing the
 same branch under two different lock names run concurrently while both believe
 they are serialized, which is the lost ref update the lock exists to prevent.
