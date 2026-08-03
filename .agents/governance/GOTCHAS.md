@@ -99,6 +99,34 @@ protocol literally (create and stage at start) cannot pass both gates.
 Symptom: a commit is rejected by one of the two policies no matter which order
 you try. Refs #3904.
 
+## Never record `endingCommit` and then amend
+
+`endingCommit` must name a commit that is still reachable:
+`scripts/validation/session_scope.py` runs `git merge-base --is-ancestor <sha>
+HEAD`. Amending the commit that carried the log rewrites it, so the SHA you
+just recorded no longer exists on the branch and the check fails.
+
+Record the SHA of the commit carrying the work, then commit that edit as a
+**follow-up commit**. A commit is its own ancestor, so naming current `HEAD`
+and committing the change on top passes.
+
+Two traps make this expensive rather than merely annoying:
+
+- A `[PASS]` from `scripts/validate_session_json.py` does not survive an amend.
+  The validator reads the SHA against the `HEAD` of the moment. Re-run it after
+  any amend, not just after the first write.
+- The check runs inside the push hook **after** the Python suite, which
+  measured 1116 seconds on one run. A one-line metadata error therefore costs
+  roughly twenty minutes to surface.
+
+Symptom, from the push hook rather than from the standalone validator:
+
+```text
+endingCommit '<sha>' names a commit that is not an ancestor of HEAD
+```
+
+Refs #3618.
+
 ## Run validation with `uv run python`, never bare `python3`
 
 `scripts/validation/checks_spec.py` shells out to child validators with

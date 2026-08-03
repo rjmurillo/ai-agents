@@ -59,7 +59,7 @@
       "changesCommitted": {
         "level": "MUST",
         "complete": true,
-        "evidence": "1 commit, 2 files: the GOTCHAS.md entry and this log. endingCommit records cc7ea8f9b, the commit this log was first written into; amending to add the SHA necessarily produces a new one, so the recorded value names its content-identical predecessor."
+        "evidence": "2 commits: the GOTCHAS.md entries, this log, and the hook-generated episode file. endingCommit records 6bc73e912, the commit carrying the work. The first attempt recorded a SHA that a later amend orphaned, and the push hook rejected it; per issue #3618 the SHA is recorded in a follow-up commit rather than by amending afterwards."
       },
       "validationPassed": {
         "level": "MUST",
@@ -114,7 +114,7 @@
     "Issue #4369 proposes the one-flag fix for the stale AI-SPEC-VALIDATION comment.",
     "PR #4294 is blocked separately on the taste count ratchet at 600 to 601 after main advanced, not on anything in this change."
   ],
-  "endingCommit": "cc7ea8f9b",
+  "endingCommit": "6bc73e912",
   "issues": [
     4369
   ],
