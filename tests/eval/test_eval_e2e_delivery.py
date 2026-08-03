@@ -350,7 +350,7 @@ def test_dry_run_makes_no_api_call(monkeypatch, capsys):
         raise AssertionError("call_api must not run during --dry-run")
 
     monkeypatch.setattr(runner, "call_api", _boom)
-    monkeypatch.setattr(runner, "load_api_key", _boom)
+    monkeypatch.setattr(runner, "load_api_key_for_selected_provider", _boom)
     rc = runner.main(["--fixtures", str(FIXTURES), "--dry-run", "--runs", "2"])
     assert rc == 0
     out = json.loads(capsys.readouterr().out)
