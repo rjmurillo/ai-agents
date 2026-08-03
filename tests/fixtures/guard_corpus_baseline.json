@@ -13,11 +13,6 @@
       86,
       155
     ],
-    "code-qualities-assessment/scripts/assess.py": [
-      455,
-      491,
-      512
-    ],
     "codeql-scan/scripts/invoke_codeql_scan.py": [
       59
     ],

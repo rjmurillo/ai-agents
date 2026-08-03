@@ -215,6 +215,33 @@ def test_corpus_gate_current_guard_finds_all_baseline_findings() -> None:
     )
 
 
+@pytest.mark.skipif(
+    not CORPUS_ROOT.exists(),
+    reason=".claude/skills not present",
+)
+def test_corpus_gate_reports_no_finding_the_baseline_does_not_carry() -> None:
+    """A new unpinned call must fail here, not be written into the baseline.
+
+    The removed-only assertion above is one-directional: it catches a guard that
+    stopped detecting, and says nothing about a script that started offending.
+    A branch could add two unpinned subprocess calls, add both line numbers to
+    the baseline, and pass. Measured clean at the head of this branch: 0 added,
+    0 removed across the whole corpus.
+    """
+    from scripts.guard_diff import diff_findings, scan_corpus
+
+    guard = _real_guard()
+    baseline = _load_baseline()
+    current = scan_corpus(guard, CORPUS_ROOT)
+    added, _removed = diff_findings(baseline, current)
+
+    assert added == set(), (
+        "New unpinned subprocess text=True call(s). Pass encoding=\"utf-8\" (or "
+        "read bytes) instead of adding the line to the baseline.\n"
+        f"Added: {sorted(added)}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Negative control: prove the gate goes red when a rule is removed
 # ---------------------------------------------------------------------------

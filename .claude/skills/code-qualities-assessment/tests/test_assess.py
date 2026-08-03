@@ -1087,7 +1087,7 @@ def test_get_file_at_revision_returns_none_for_an_absent_path(
     _commit(tmp_path, "seed.py", _FOCUSED, "base")
     monkeypatch.chdir(tmp_path)
 
-    assert get_file_at_revision(Path("seed.py"), "main") == _FOCUSED
+    assert get_file_at_revision(Path("seed.py"), "main") == _FOCUSED.encode("utf-8")
     assert get_file_at_revision(Path("never_existed.py"), "main") is None
 
 
@@ -1181,3 +1181,101 @@ def test_an_improvement_is_never_a_regression() -> None:
 
     assert comparison.regressions == []
     assert _delta(comparison, "cohesion").delta > 0
+
+
+# --------------------------------------------------------------------------- #
+# Inputs a real pull request produces and the fixture above does not: a base
+# branch that moved after the fork, a changed file with no language, a base
+# revision that is not UTF-8, and ordinary additive work (issue #4364).
+# --------------------------------------------------------------------------- #
+
+
+def test_a_base_that_moved_after_the_fork_is_not_charged_to_the_branch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Selection uses the merge base, so scoring must use it too.
+
+    Main improves the file after the fork. Scored against main's tip the branch
+    looks like it sprawled a focused file; scored against the fork point it
+    added one comment, which is what it actually did.
+    """
+    _init_repo(tmp_path)
+    _commit(tmp_path, "legacy.py", _SPRAWLING, "base")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    _commit(tmp_path, "legacy.py", "# added note\n" + _SPRAWLING, "comment only")
+    _run_git(tmp_path, "checkout", "main")
+    _commit(tmp_path, "legacy.py", _FOCUSED, "main focuses the file")
+    _run_git(tmp_path, "checkout", "feature")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(_regression_argv()) == 0
+
+
+def test_a_changed_binary_file_does_not_fail_the_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The reported repro plus one PNG: 26 binary files are tracked in this repo."""
+    _init_repo(tmp_path)
+    _commit(tmp_path, "legacy.py", _SPRAWLING, "base")
+    (tmp_path / "img.png").write_bytes(b"\x89PNG\r\n\x1a\n" + bytes(range(256)))
+    _run_git(tmp_path, "add", "img.png")
+    _run_git(tmp_path, "commit", "-m", "add image")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    _commit(tmp_path, "legacy.py", "# added note\n" + _SPRAWLING, "head")
+    (tmp_path / "img.png").write_bytes(b"\x89PNG\r\n\x1a\nchanged")
+    _run_git(tmp_path, "add", "img.png")
+    _run_git(tmp_path, "commit", "-m", "change image")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(_regression_argv()) == 0
+
+
+def test_a_source_file_that_is_not_utf8_at_base_scores_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unreadable base is unmeasurable, not a regression and not an error."""
+    _init_repo(tmp_path)
+    (tmp_path / "legacy.py").write_bytes(b"# caf\xe9 latin-1\n" + _SPRAWLING.encode("utf-8"))
+    _run_git(tmp_path, "add", "legacy.py")
+    _run_git(tmp_path, "commit", "-m", "base")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    _commit(tmp_path, "legacy.py", "# added note\n" + _SPRAWLING, "head")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(_regression_argv()) == 0
+
+
+def test_adding_one_small_function_is_not_a_regression(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ordinary additive work moves a size-derived score by tenths."""
+    healthy = "".join(f'def f{i}(a, b):\n    """Doc."""\n    return a + b\n\n' for i in range(5))
+    _repo_with_change(
+        tmp_path, monkeypatch, healthy, healthy + 'def g(a):\n    """Doc."""\n    return a\n'
+    )
+
+    assert main(_regression_argv()) == 0
+
+
+def test_the_default_tolerance_still_fails_a_real_degradation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Control for the test above: half a point separates noise from signal."""
+    _repo_with_change(tmp_path, monkeypatch, _FOCUSED, _SPRAWLING)
+
+    assert main(_regression_argv()) == 10
+
+
+def test_get_file_at_revision_returns_bytes_it_did_not_decode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Locale must not decide how the base revision is read."""
+    _init_repo(tmp_path)
+    (tmp_path / "a.py").write_bytes(b"S = 'caf\xc3\xa9'\n")
+    _run_git(tmp_path, "add", "a.py")
+    _run_git(tmp_path, "commit", "-m", "base")
+    monkeypatch.chdir(tmp_path)
+
+    raw = get_file_at_revision(Path("a.py"), resolve_revision("HEAD"))
+
+    assert raw == b"S = 'caf\xc3\xa9'\n"

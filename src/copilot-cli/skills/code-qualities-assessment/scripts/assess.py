@@ -46,6 +46,14 @@ _LANGUAGE_BY_SUFFIX = {
     ".go": "go",
 }
 
+# Every score here is size-derived, so adding one small function to a healthy
+# module moves a quality by a few tenths with nothing wrong. Measured: adding one
+# 2-line function to a 5-function module drops cohesion 8.7 -> 8.3. A zero
+# tolerance fails that change, which is the inherited-debt complaint of issue
+# #4364 in a new form. Real degradations move whole points (10.0 -> 3.3 in the
+# same harness), so half a point separates noise from signal.
+_DEFAULT_REGRESSION_TOLERANCE = 0.5
+
 # Single-line comment prefixes, used to exclude comment lines from the
 # lines-of-code count. Block comments are intentionally not stripped: this is an
 # approximation, not a parser.
@@ -383,8 +391,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--regression-tolerance",
         type=float,
-        default=0.0,
-        help="Score drop tolerated before a quality counts as regressed (default 0.0)",
+        default=_DEFAULT_REGRESSION_TOLERANCE,
+        help=(
+            "Score drop tolerated before a quality counts as regressed "
+            f"(default {_DEFAULT_REGRESSION_TOLERANCE})"
+        ),
     )
     parser.add_argument(
         "--format", choices=["markdown", "json", "html"], default="markdown", help="Output format"
@@ -456,6 +467,7 @@ def get_files_to_assess(target: str, changed_only: bool, base: str | None = None
             ["git", "diff", "--name-only", "--end-of-options", revision_range],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         )
         files = [Path(f) for f in result.stdout.splitlines() if f]
@@ -492,6 +504,7 @@ def resolve_revision(revision: str) -> str:
         ["git", "rev-parse", "--verify", "--end-of-options", f"{revision}^{{commit}}"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
     if result.returncode != 0:
@@ -499,12 +512,42 @@ def resolve_revision(revision: str) -> str:
     return result.stdout.strip()
 
 
-def get_file_at_revision(file_path: Path, revision: str) -> str | None:
-    """Return the file's content at *revision*, or None when absent there.
+def resolve_comparison_base(base: str) -> str:
+    """Return the commit the head is compared against: the merge base with HEAD.
+
+    ``get_files_to_assess`` selects with ``base...HEAD``, which git resolves from
+    the merge base. Reading content at the tip of *base* instead charges the
+    branch for every change that landed on the base branch after the fork, which
+    is the inherited-debt failure this gate exists to prevent (issue #4364).
+    Falls back to the resolved commit when the two histories share no merge base.
+    """
+    import subprocess
+
+    revision = resolve_revision(base)
+    result = subprocess.run(
+        ["git", "merge-base", "--end-of-options", revision, "HEAD"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+    merge_base = result.stdout.strip()
+    if result.returncode != 0 or not merge_base:
+        return revision
+    return merge_base
+
+
+def get_file_at_revision(file_path: Path, revision: str) -> bytes | None:
+    """Return the file's bytes at *revision*, or None when absent there.
 
     None means the path did not exist in that commit, which the regression gate
     reads as a new file. Callers MUST have run ``resolve_revision`` first so a
     bad revision cannot masquerade as every file being new.
+
+    Bytes, not text: ``text=True`` would decode with the locale codec, so the
+    same file scores from different characters on a UTF-8 runner and a cp1252
+    one, and a file that is not decodable at all raises UnicodeDecodeError
+    (a ValueError) that reads as a bad ``--base``.
     """
     import subprocess
 
@@ -512,7 +555,6 @@ def get_file_at_revision(file_path: Path, revision: str) -> str | None:
     result = subprocess.run(
         ["git", "show", "--end-of-options", f"{revision}:{file_path.as_posix()}"],
         capture_output=True,
-        text=True,
         check=False,
     )
     if result.returncode != 0:
@@ -617,18 +659,30 @@ def build_comparisons(
     files that did not exist at base. New files carry no delta, so they are
     handed to the absolute gate instead.
     """
-    revision = resolve_revision(base)
+    revision = resolve_comparison_base(base)
     comparisons: list[FileComparison] = []
     new_files: list[FileAssessment] = []
     for head in assessments:
         path = Path(head.file_path)
-        content = get_file_at_revision(path, revision)
-        if content is None:
+        raw = get_file_at_revision(path, revision)
+        if raw is None:
             comparisons.append(compare_assessments(None, head, tolerance))
             new_files.append(head)
             continue
-        comparisons.append(compare_assessments(assess_content(path, content), head, tolerance))
+        comparisons.append(compare_assessments(_assess_base_bytes(path, raw), head, tolerance))
     return comparisons, new_files
+
+
+def _assess_base_bytes(path: Path, raw: bytes) -> FileAssessment:
+    """Score the base revision's bytes, or record it as unmeasurable.
+
+    An undecodable base scores nothing, so every quality reads as newly scored
+    and no delta is fabricated from a file the assessor could not read.
+    """
+    try:
+        return assess_content(path, raw.decode("utf-8"))
+    except UnicodeDecodeError as exc:
+        return _unreadable_assessment(path, f"decode failed at base: {exc}")
 
 
 def check_regression(
