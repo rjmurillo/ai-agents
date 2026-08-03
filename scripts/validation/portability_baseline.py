@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import time
@@ -48,7 +49,7 @@ else:
 
     def _lock_file(fd: int) -> None:
         """Acquire an exclusive lock on an open file descriptor (POSIX)."""
-        fcntl.flock(fd, fcntl.LOCK_EX)
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
     def _unlock_file(fd: int) -> None:
         """Release the lock on an open file descriptor (POSIX)."""
@@ -60,6 +61,11 @@ from scripts.validation.portability_floor import (
     read_previous_sections,
 )
 from scripts.validation.portability_git import run_git
+
+
+def _run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes] | None:
+    """Private alias of run_git kept for internal use and test mocking."""
+    return run_git(repo_root, *args)
 
 __all__ = [
     "COUNTED_SECTIONS",
@@ -295,6 +301,52 @@ def refuse_undiffable_baseline(repo_root: Path, baseline_path: Path) -> bool:
     return False
 
 
+def _diff_attribute(repo_root: Path, path: Path) -> str | None:
+    """Return the git diff attribute for path, None if git cannot answer."""
+    try:
+        rel = str(path.resolve().relative_to(repo_root.resolve()))
+    except (OSError, ValueError):
+        return None
+    proc = _run_git(repo_root, "check-attr", "diff", "--", rel)
+    if proc is None or proc.returncode != 0:
+        return None
+    # Output: "<path>: diff: <value>" where value is set/unset/unspecified/<driver>
+    parts = proc.stdout.decode(errors="replace").strip().split(": ", 2)
+    return parts[2] if len(parts) == 3 else None
+
+
+def refuse_diff_suppressed_baseline(repo_root: Path, baseline_path: Path) -> bool:
+    """Refuse to write a baseline whose diff attribute is 'unset'.
+
+    A single .gitattributes line such as:
+        scripts/validation/*_portability_baseline.json -diff
+    makes git treat the baseline as binary for diff purposes. GitHub honors
+    the head-branch attributes when rendering a PR, so a count lowered from
+    5 to 1 shows only "Binary files differ" and the change is invisible to
+    reviewers. The content is unchanged so CI still parses the real number
+    and passes. Refusing to write when diff is unset means the only way to
+    suppress diffs is to also break every --update-baseline run, making the
+    suppression observable before it can be exploited.
+    """
+    attr = _diff_attribute(repo_root, baseline_path)
+    if attr is None:
+        print(
+            f"Refusing to write a baseline: git check-attr failed for {baseline_path}. "
+            "Cannot confirm the baseline is visible in code review diffs.",
+            file=sys.stderr,
+        )
+        return True
+    if attr != "unset":
+        return False
+    print(
+        f"Refusing to write a baseline whose diff attribute is 'unset': "
+        f"{baseline_path}. A .gitattributes entry is hiding this file's changes "
+        "from code review. Remove the -diff override for this path, then rerun.",
+        file=sys.stderr,
+    )
+    return True
+
+
 @contextmanager
 def _baseline_write_lock(
     lock_path: Path,
@@ -393,6 +445,9 @@ def write_baseline_json(
             if refuse_symlinked_baseline(repo_root, baseline_path):
                 return 2
 
+            if refuse_diff_suppressed_baseline(repo_root, baseline_path):
+                return 2
+
             previous, problem = read_previous_sections(repo_root, baseline_path)
             if refuse_dropped_entries(previous, counted, unit, allow_shrink, problem):
                 return 2
@@ -402,3 +457,38 @@ def write_baseline_json(
         print(f"Could not write baseline {baseline_path}: {exc}", file=sys.stderr)
         return 2
     return 0
+
+
+# 10x the largest current baseline (skill_md_portability_baseline.json at ~18 KB).
+# Stated as a constant so the ceiling is re-derivable from the population it guards.
+_BASELINE_SIZE_CEILING = 200_000  # bytes
+
+
+def refuse_oversized_baseline(baseline_path: Path) -> bool:
+    """Refuse when the baseline file exceeds the reviewability ceiling.
+
+    Padding a baseline past the forge's diff-rendering limit hides a lowered
+    count as effectively as marking it -diff. The ceiling is 10x the largest
+    current baseline in the population this module guards. A legitimate machine-
+    generated baseline has no reason to approach that size; only padding does.
+
+    Unlike the diff-attribute guard, this check does not need a git repository:
+    the file size is measurable from disk and the protection is useful in every
+    context.
+
+    Returns True when the baseline is too large and the caller must refuse.
+    """
+    try:
+        size = baseline_path.stat().st_size
+    except OSError:
+        return False  # missing file is handled by downstream loader
+    if size > _BASELINE_SIZE_CEILING:
+        print(
+            f"Refusing baseline {baseline_path}: file is {size} bytes, "
+            f"which exceeds the reviewability ceiling of {_BASELINE_SIZE_CEILING} bytes. "
+            "A legitimate baseline should not approach this size. "
+            "Remove padding or regenerate from scratch.",
+            file=sys.stderr,
+        )
+        return True
+    return False

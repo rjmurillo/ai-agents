@@ -206,6 +206,10 @@ class ExecutionPlan:
     planned_calls: int
     estimated_tokens_in: int
     estimated_tokens_out: int
-    estimated_cost_usd: float
+    # None for quota-billed providers (GitHub Models, Copilot CLI) where no
+    # public per-token price exists. ``"usd"`` vs ``"requests"`` in cost_basis
+    # tells callers which display path to take.
+    estimated_cost_usd: float | None
     pricing_rate_as_of: str
+    cost_basis: str = "usd"
     schema_version: int = SCHEMA_VERSION
