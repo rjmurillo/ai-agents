@@ -214,16 +214,13 @@ import json  # noqa: E402 -- placed here to group with the AC3/4/5 block it serv
 # runners) the tests skip gracefully.
 # ---------------------------------------------------------------------------
 
-_CONTEXT_MODE_HOOKS_JSON = (
+_CONTEXT_MODE_HOOKS_ROOT = (
     Path.home()
     / ".claude"
     / "plugins"
     / "cache"
     / "context-mode"
     / "context-mode"
-    / "1.0.169"
-    / "hooks"
-    / "hooks.json"
 )
 
 # Hard-coded tool base names the context-mode hook names when it denies
@@ -250,7 +247,12 @@ def _context_mode_tool_patterns() -> list[str]:
 
 
 def _plugin_installed() -> bool:
-    return _CONTEXT_MODE_HOOKS_JSON.exists()
+    return _context_mode_hooks_json() is not None
+
+
+def _context_mode_hooks_json() -> Path | None:
+    manifests = sorted(_CONTEXT_MODE_HOOKS_ROOT.glob("*/hooks/hooks.json"), reverse=True)
+    return manifests[0] if manifests else None
 
 
 def test_context_mode_plugin_hooks_json_contains_webfetch_matcher() -> None:
@@ -262,7 +264,9 @@ def test_context_mode_plugin_hooks_json_contains_webfetch_matcher() -> None:
     if not _plugin_installed():
         pytest.skip("context-mode plugin not installed")
 
-    hooks = json.loads(_CONTEXT_MODE_HOOKS_JSON.read_text())
+    hooks_path = _context_mode_hooks_json()
+    assert hooks_path is not None
+    hooks = json.loads(hooks_path.read_text(encoding="utf-8"))
     matchers = [
         h.get("matcher", "")
         for h in hooks.get("hooks", {}).get("PreToolUse", [])
@@ -287,12 +291,7 @@ def test_context_mode_redirect_targets_absent_from_research_allowed_tools(
 
     The test also fails if the allowed-tools line disappears entirely, because
     the guard only works when an explicit tool list is present.
-
-    Skips when the plugin is absent.
     """
-    if not _plugin_installed():
-        pytest.skip("context-mode plugin not installed")
-
     allowed = _allowed_tools_line(research_text)
     for pattern in _context_mode_tool_patterns():
         assert pattern not in allowed, (
