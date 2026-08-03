@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-28T05:18:53.542312+00:00",
+  "updated": "2026-08-03T01:00:52.010009+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -23320,6 +23320,51 @@
         "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
       ],
       "created": "2026-07-28T05:06:51.357047+00:00"
+    },
+    {
+      "id": "56ec889678af",
+      "type": "milestone",
+      "label": "milestone: Read kanban task t_4e0b0cc0, repo status, test file structure, and related validation code.",
+      "episodes": [
+        "episode-2026-08-03-session-4352-split-oversized-pre-pr-validation-tests"
+      ],
+      "created": "2026-08-03T01:00:52.001614+00:00"
+    },
+    {
+      "id": "af5cbd480915",
+      "type": "milestone",
+      "label": "milestone: Split tests/test_validation_pre_pr.py into focused modules under tests/validation_pre_pr while preserving 93 collected tests.",
+      "episodes": [
+        "episode-2026-08-03-session-4352-split-oversized-pre-pr-validation-tests"
+      ],
+      "created": "2026-08-03T01:00:52.001758+00:00"
+    },
+    {
+      "id": "9c771f147a12",
+      "type": "milestone",
+      "label": "milestone: Ran each split test module independently, combined 93-test suite, ruff, taste-lints, full pytest tests/ -x, and pre_pr --quick --skip-tests.",
+      "episodes": [
+        "episode-2026-08-03-session-4352-split-oversized-pre-pr-validation-tests"
+      ],
+      "created": "2026-08-03T01:00:52.001889+00:00"
+    },
+    {
+      "id": "1cfe33f8091f",
+      "type": "milestone",
+      "label": "milestone: Handled pre-push security suppression policy by removing copied noqa comments from new files; added retrospective evidence after pre-push policy required it.",
+      "episodes": [
+        "episode-2026-08-03-session-4352-split-oversized-pre-pr-validation-tests"
+      ],
+      "created": "2026-08-03T01:00:52.002015+00:00"
+    },
+    {
+      "id": "1b04efaf2eae",
+      "type": "outcome",
+      "label": "Outcome: success - Split oversized pre-PR validation tests for issue 4352",
+      "episodes": [
+        "episode-2026-08-03-session-4352-split-oversized-pre-pr-validation-tests"
+      ],
+      "created": "2026-08-03T01:00:52.002140+00:00"
     }
   ],
   "patterns": [
