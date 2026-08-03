@@ -108,6 +108,11 @@
       "time": "2026-08-02T18:02:00-07:00",
       "action": "started from origin/main rather than salvaging the stale branch",
       "evidence": "git switch -c docs/gotchas-spec-gate-snippet origin/main. Rebasing a branch whose commits were already merged risks conflicts and replays content that is on main, so a fresh branch keeps the diff to the one hunk that is genuinely new."
+    },
+    {
+      "timestamp": "2026-08-03T00:10:00Z",
+      "action": "Added a GOTCHAS section for the count ratchets blocking a branch that is behind origin/main, measured after a 22-minute push failure.",
+      "outcome": "Verified this is a different mechanism from the existing per-file mypy/ruff ratchet section: quoted the real BASELINE ABOVE BASE string from scripts/ci/count_ratchet.py:330, and timed the four gates locally at 2 seconds"
     }
   ],
   "nextSteps": [

@@ -214,6 +214,42 @@ eight will fail the push with all nine printed.
 Symptom: a wall of errors on lines you did not touch. Count them against the
 merge base before assuming the change is yours.
 
+## A branch behind main fails the count ratchets after the full test suite
+
+The count ratchets (`ruff_count_ratchet.py`, `taste_count_ratchet.py`,
+`type_ignore_count_ratchet.py`) compare this tree's recorded baseline against
+the baseline at `origin/main`, and the baseline may only fall. A branch that is
+behind carries the older, higher value, so the gate blocks even when the branch
+added nothing:
+
+```text
+BASELINE ABOVE BASE. This tree records <N>, origin/main records <M> (+K).
+The measured count is <N>, which origin/main already allows, so nothing in
+this tree added a violation.
+```
+
+This is a different mechanism from the per-file case above. That one is about
+errors you added to one file; this one is about a repo-wide number your branch
+never touched.
+
+The cost is the ordering. These gates run at pre-push, after the full test
+suite, so the failure arrives about 22 minutes in. Rebase before you push, or
+run the four gates yourself first. They take about 2 seconds:
+
+```bash
+for s in ruff_count_ratchet taste_count_ratchet type_ignore_count_ratchet; do
+  uv run --frozen python scripts/ci/$s.py --base-ref origin/main
+done
+RUFF_RATCHET_BASE_REF=origin/main \
+  uv run --frozen --extra dev python scripts/ci/ruff_ratchet.py
+```
+
+A rebase also orphans the `endingCommit` recorded in your session log, because
+the SHA stops being an ancestor of the new HEAD. Repoint it. Amending is safe
+only when `endingCommit` points at `HEAD~1`; when the last content commit *is*
+the recorded one, add a follow-up commit instead, since a commit is its own
+ancestor.
+
 ## Eval harness
 
 These matter only when running `scripts/eval/`. Full detail lives in
