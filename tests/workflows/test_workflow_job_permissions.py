@@ -37,6 +37,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import yaml
 
 WORKFLOW_DIR = Path(__file__).resolve().parents[2] / ".github/workflows"
@@ -217,6 +218,21 @@ class TestJobsInheritingWrite:
     def test_non_mapping_jobs_are_skipped(self) -> None:
         doc = {"permissions": {"issues": "write"}, "jobs": {"oops": "not-a-mapping"}}
         assert jobs_inheriting_write(doc) == {}
+
+    @pytest.mark.parametrize("jobs", [[], "nope", 7, True])
+    def test_a_non_mapping_jobs_key_is_skipped(self, jobs: object) -> None:
+        """Edge: ``jobs`` itself is not a mapping, so there is nothing to walk.
+
+        Distinct from the test above, where ``jobs`` is a mapping and one job
+        value is not. A ``jobs: []`` document reaches ``.items()`` on a list
+        and raises ``AttributeError`` unless ``_jobs`` type-checks the key.
+
+        The isinstance check that prevents this cannot be deleted without
+        failing ``test_a_workflow_with_no_jobs_is_clean``, but it can be
+        weakened to ``jobs is None``, which passes every other test in this
+        module and reinstates the crash. This case is what catches that.
+        """
+        assert jobs_inheriting_write({"permissions": {"issues": "write"}, "jobs": jobs}) == {}
 
     def test_a_non_mapping_document_is_clean(self) -> None:
         assert jobs_inheriting_write("---") == {}

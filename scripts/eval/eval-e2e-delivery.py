@@ -44,7 +44,7 @@ if str(_EVAL_DIR) not in sys.path:
 from _anthropic_api import (  # noqa: E402
     DEFAULT_MODEL,
     call_api,
-    load_api_key,
+    load_api_key_for_selected_provider,
     verify_model_available,
 )
 from _e2e_delivery_core import (  # noqa: E402
@@ -102,9 +102,7 @@ def _resolve_agents(names: list[str], ref: str | None) -> dict[str, str]:
     for name in names:
         rel = AGENT_REGISTRY.get(name)
         if rel is None:
-            raise RuntimeError(
-                f"unknown agent {name!r}; known: {sorted(AGENT_REGISTRY)}"
-            )
+            raise RuntimeError(f"unknown agent {name!r}; known: {sorted(AGENT_REGISTRY)}")
         resolved[name] = _load_prompt(rel, ref)
     return resolved
 
@@ -147,22 +145,16 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="End-to-end delivery eval (plan-rubric proxy, #2859)."
     )
-    parser.add_argument(
-        "--fixtures", required=True, help="Path to fixtures JSON file"
-    )
+    parser.add_argument("--fixtures", required=True, help="Path to fixtures JSON file")
     parser.add_argument(
         "--agents",
         default="orchestrator,autoplan",
         help="Comma-separated agent names (default: orchestrator,autoplan)",
     )
     parser.add_argument("--model", default=DEFAULT_MODEL, help="Model id")
-    parser.add_argument(
-        "--runs", type=int, default=3, help="Runs per cell (default 3)"
-    )
+    parser.add_argument("--runs", type=int, default=3, help="Runs per cell (default 3)")
     parser.add_argument("--ref", default=None, help="Git ref for agent prompts")
-    parser.add_argument(
-        "--limit", type=int, default=None, help="Only run the first N fixtures"
-    )
+    parser.add_argument("--limit", type=int, default=None, help="Only run the first N fixtures")
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -209,7 +201,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
 
-    api_key = load_api_key()
+    api_key = load_api_key_for_selected_provider()
     if not os.environ.get("EVAL_SKIP_MODEL_PREFLIGHT"):
         verify_model_available(api_key, model=args.model)
     provider = os.environ.get("EVAL_PROVIDER") or None

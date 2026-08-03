@@ -22,6 +22,18 @@ tracked count of 361 and made that gate report a phantom regression outside CI.
 Tracked files are the only thing a PR can change, so they are the only thing a
 baseline should freeze.
 
+The baseline is a committed absolute number, so two branches can each remove one
+violation and write the same lowered value. Git merges the identical one-line
+edits without a conflict, and the merged tree is then improved twice against a
+baseline that fell once, which reads as STALE on the default branch (issue
+#4057). Nothing in this module can see the other branch, so the failure text
+offers that as the usual cause and the fix stays a baseline-only commit.
+Blocking the second merge is a branch-policy gate, not a code change here: the
+enforcement point chosen for issue #4057, and the alternatives rejected, are
+recorded in ``.github/AGENTS.md`` under "Ratchet Baselines and the Concurrent
+Merge Race". The regression test that proves the gate blocks lives in
+``tests/ci/test_count_ratchet_concurrent_merge.py``.
+
 Stdlib only: these gates run by path in CI (``python scripts/ci/<name>.py``) and
 must not depend on the project's import graph.
 
@@ -289,6 +301,72 @@ def build_parser(description: str, default_baseline: Path) -> argparse.ArgumentP
     return parser
 
 
+def _above_base_message(
+    base_ref: str, *, label: str, baseline: int, base: int, count: int
+) -> str:
+    """Report a baseline above the base ref without guessing who raised it.
+
+    Two histories land on identical numbers here: a branch cut before the base
+    ref lowered its baseline, and a branch that raised the baseline itself. A
+    branch behind a base ref that dropped three violations reads
+    ``baseline 334, base 331, count 334``, and so does a branch that added
+    three violations and widened the allowance to cover them. Telling either
+    author which one they are needs the fork point, and two endpoint reads
+    cannot supply it. The base ref also arrives via ``git fetch --depth=1``
+    (``.github/workflows/pytest.yml``), so its history is not guaranteed to be
+    there to read. Naming a cause anyway is the defect issue #4066 was filed
+    for, so this states what was measured and carries both remedies.
+
+    The count is worth stating on its own: when it is one the base ref already
+    allows, nothing in this tree added a violation, and that much IS measured.
+    """
+    measured = f"The measured count is {count}. "
+    if count <= base:
+        measured = (
+            f"The measured count is {count}, which {base_ref} already allows, "
+            f"so nothing in this tree added a violation. "
+        )
+    return (
+        f"{label}: BASELINE ABOVE BASE. This tree records {baseline}, "
+        f"{base_ref} records {base} (+{baseline - base}). {measured}"
+        f"The baseline may only fall. If this branch did not edit the "
+        f"baseline, it is behind {base_ref}: merge or rebase to pick up the "
+        f"lowered value. If it did raise the baseline, restore {base} and fix "
+        f"the violations instead of widening the allowance."
+    )
+
+
+def _base_ref_verdict(
+    args: argparse.Namespace, *, label: str, baseline: int, count: int
+) -> int | None:
+    """Exit code when ``--base-ref`` blocks the run, or None to keep going.
+
+    A baseline above the one at the base ref always blocks. ``count`` has to be
+    measured before this runs so the verdict can report it (issue #4066).
+    """
+    root = args.repo_root.resolve()
+    if baseline_absent_at_ref(root, args.base_ref, args.baseline):
+        print(
+            f"{label}: bootstrap. {args.base_ref} records no baseline yet, "
+            f"so there is no earlier value to raise. The one-directional "
+            f"check starts once this baseline lands."
+        )
+        return None
+    base = baseline_at_ref(root, args.base_ref, args.baseline)
+    if base is None:
+        print(f"error: could not read the baseline at {args.base_ref}", file=sys.stderr)
+        return EXIT_EXTERNAL
+    if baseline <= base:
+        return None
+    print(
+        _above_base_message(
+            args.base_ref, label=label, baseline=baseline, base=base, count=count
+        ),
+        file=sys.stderr,
+    )
+    return EXIT_REGRESSION
+
+
 def run(
     args: argparse.Namespace,
     *,
@@ -318,39 +396,9 @@ def run(
         return EXIT_EXTERNAL
 
     if args.base_ref:
-        root = args.repo_root.resolve()
-        if baseline_absent_at_ref(root, args.base_ref, args.baseline):
-            print(
-                f"{label}: bootstrap. {args.base_ref} records no baseline yet, "
-                f"so there is no earlier value to raise. The one-directional "
-                f"check starts once this baseline lands."
-            )
-        else:
-            base = baseline_at_ref(root, args.base_ref, args.baseline)
-            if base is None:
-                print(
-                    f"error: could not read the baseline at {args.base_ref}",
-                    file=sys.stderr,
-                )
-                return EXIT_EXTERNAL
-            if baseline > base:
-                if count <= base:
-                    print(
-                        f"{label}: BRANCH BEHIND. Baseline file records {baseline}, "
-                        f"but {args.base_ref} records {base} and current count is "
-                        f"{count}. Merge or rebase onto {args.base_ref} to pick up "
-                        "the lowered baseline.",
-                        file=sys.stderr,
-                    )
-                else:
-                    print(
-                        f"{label}: BASELINE RAISED. {base} -> {baseline} "
-                        f"(+{baseline - base}) against {args.base_ref}. The baseline "
-                        f"may only fall. Current count is {count}; fix the "
-                        f"violations instead of widening the allowance.",
-                        file=sys.stderr,
-                    )
-                return EXIT_REGRESSION
+        verdict = _base_ref_verdict(args, label=label, baseline=baseline, count=count)
+        if verdict is not None:
+            return verdict
 
     if count > baseline:
         print(
