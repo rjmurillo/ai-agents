@@ -121,6 +121,10 @@
     {
       "action": "Corrected generated episode metrics",
       "detail": "Set the generated review-repair episode commit count to 1 so the committed episode-store ratchet stays at its baseline."
+    },
+    {
+      "action": "Commit: 6dbab8a5d",
+      "detail": "Episode metrics fix commit for the review-repair session."
     }
   ],
   "endingCommit": "eebeb5ccd7c154821decfa464477a52775598832",
