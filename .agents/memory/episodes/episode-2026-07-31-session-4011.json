@@ -1,0 +1,227 @@
+{
+  "id": "episode-2026-07-31-session-4011",
+  "session": "2026-07-31-session-4011",
+  "timestamp": "2026-07-31T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix memory cluster issues 4010, 4011, 4071: id shape, hook registration and exit contracts, episode edge flattening",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Issue #4010: search emitted a bare stem while verify --memory-id required the path-relative id",
+      "caused_by": [],
+      "leads_to": [
+        "e019"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "test",
+      "content": "One derivation helper in serena_integration; search threads memories_dir through rank_results. 81 passed in tests/test_memory_search.py, tests/test_memory_cli.py, tests/test_memory_serena_integration.py",
+      "caused_by": [],
+      "leads_to": [
+        "e019"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Issue #4071: _dedupe_events flattened commit timestamps to midnight, dropping every milestone-to-commit causal edge",
+      "caused_by": [],
+      "leads_to": [
+        "e019"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "test",
+      "content": "Commit events keep the real committer date; main() warns on an edge-count drop. 340 passed in tests/skills/memory/",
+      "caused_by": [],
+      "leads_to": [
+        "e019"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Issue #4011: the three memory hooks were never registered, and two carried the wrong exit contract",
+      "caused_by": [],
+      "leads_to": [
+        "e019"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "test",
+      "content": "Payload and exit-code fixes plus three invokers registered in .claude/settings.json. 14 passed in tests/test_memory_hook_registration.py, including a subprocess run that proves confidence scores reach disk",
+      "caused_by": [],
+      "leads_to": [
+        "e019"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Review finding: settings.json registers all three hooks as python3, which cannot import python-frontmatter, so recall and reflection were silent no-ops",
+      "caused_by": [],
+      "leads_to": [
+        "e019"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "test",
+      "content": "memory_enhancement.interpreter re-execs under .venv when the dependency is missing. The registered command now emits <memory-context> under python3. 12 passed in tests/test_memory_hook_interpreter.py",
+      "caused_by": [],
+      "leads_to": [
+        "e019"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Review finding: the registration test launched the invokers with sys.executable, the uv venv interpreter, so it stayed green against two inert hooks",
+      "caused_by": [],
+      "leads_to": [
+        "e019"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "test",
+      "content": "The test parses the command out of settings.json and drops VIRTUAL_ENV from the subprocess PATH. Removing the re-exec now fails two tests. 16 passed in tests/test_memory_hook_registration.py",
+      "caused_by": [],
+      "leads_to": [
+        "e019"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Review finding: registering the SessionEnd hook turned reinforce_memories into a live writer over 879 tracked memory files, stripping ## Links blocks",
+      "caused_by": [],
+      "leads_to": [
+        "e019"
+      ]
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "test",
+      "content": "The write is gone: confidence is recomputed on every read and nothing consumed the stored value. git status stays clean after a real session end. 19 passed in tests/test_memory_hook_reflection.py",
+      "caused_by": [],
+      "leads_to": [
+        "e019"
+      ]
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Review finding: the capture hook fired on any output containing .py or .md, so 8 of 20 ordinary commands injected an empty memory suggestion",
+      "caused_by": [],
+      "leads_to": [
+        "e019"
+      ]
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "test",
+      "content": "The success path is gone and error matching rejects an indicator glued to _ or -. 0 of 15 ordinary commands fire; ValueError and Permission denied still do. 40 passed in tests/test_memory_extraction.py and tests/test_memory_hook_capture.py",
+      "caused_by": [],
+      "leads_to": [
+        "e019"
+      ]
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Issue #4071 sub-claim 7: repair the episodes the flattening already damaged",
+      "caused_by": [],
+      "leads_to": [
+        "e019"
+      ]
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "test",
+      "content": "repair_episode_causal_links.py restamps commit events from git and rebuilds the chain from the episode file alone. 121 of 363 episodes repaired, 44 unrepairable because their commit SHA no longer resolves, 2 invalid before this change. Second run reports 0 repaired. 10 passed in tests/skills/memory/test_repair_episode_causal_links.py",
+      "caused_by": [],
+      "leads_to": [
+        "e019"
+      ]
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Review finding: provenance.md carried a third copy of the hook registration counts, falsified by the command in its own row",
+      "caused_by": [],
+      "leads_to": [
+        "e019"
+      ]
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "test",
+      "content": "Counts corrected on both trees and the counts test now reads provenance.md. 25 passed in tests/build_scripts/test_hook_contract_knowledge.py",
+      "caused_by": [],
+      "leads_to": [
+        "e019"
+      ]
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-07-31T06:15:59+00:00",
+      "type": "commit",
+      "content": "Commit: 6f3581992",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010",
+        "e011",
+        "e012",
+        "e013",
+        "e014",
+        "e015",
+        "e016",
+        "e017",
+        "e018"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 123
+  },
+  "lessons": []
+}
