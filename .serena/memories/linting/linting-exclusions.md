@@ -69,6 +69,13 @@ means nothing. The trailing count in the summary is *files with issues*, so
 `0 issues in 0 files` and a real clean run are indistinguishable without the
 `Linting:` line.
 
+The obvious escape does not work. `--no-globs` does not disable `ignores`. It
+only controls whether the config's `globs` key contributes extra input paths,
+which is the behaviour described under the out-of-tree procedure below. Measured
+2026-08-02 with markdownlint-cli2 v0.23.2: `markdownlint-cli2
+.agents/SESSION-PROTOCOL.md` and the same command with `--no-globs` both print
+`Linting: 0 files`. Use the out-of-tree procedure instead.
+
 This surface is large. At the time of writing, `ignores` held 44 patterns
 covering 89.7% of tracked markdown (3,529 of 3,935 files), including
 `.claude/skills/**`, `src/copilot-cli/skills/**`, `.serena/**`, `.agents/**`,

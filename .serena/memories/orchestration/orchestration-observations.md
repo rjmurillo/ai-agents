@@ -45,7 +45,7 @@
 
 ## Edge Cases (MED confidence)
 
-None yet.
+- A delegated review sub-agent told to verify claims empirically writes files into the target worktree, and instructing it to leave the tree exactly as it found it does not prevent that. A `code-review` agent asked to restore a defect, clear the bytecode cache, and rerun the suite did restore every tracked file correctly, then left `coverage.json`, `fix.py`, `test_cov.py`, and `worktree_occupancy.py.patch` untracked in the worktree it had reviewed. Check `git status --porcelain` for untracked entries after any delegated empirical review, not only for modified ones. The repository forbids leaving files in the working tree, and the next broad `git add` or a commit-file-count check sweeps them in. Move them out rather than deleting, per the standing prohibition on `rm -rf`. (2026-08-02, adversarial review of the worktree occupancy fix)
 
 ## Notes for Review (LOW confidence)
 
