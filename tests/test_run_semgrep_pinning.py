@@ -13,7 +13,6 @@ No real semgrep binary is used; subprocess is mocked throughout.
 from __future__ import annotations
 
 import subprocess
-import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
