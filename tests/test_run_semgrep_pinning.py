@@ -12,6 +12,7 @@ No real semgrep binary is used; subprocess is mocked throughout.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -20,6 +21,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from scripts.security.run_semgrep import (
+    _INSTALL_HINT,
     SemgrepScanner,
     _probe_semgrep_version,
     _resolve_semgrep_executable,
@@ -39,6 +41,105 @@ def _make_scanner(repo_root: Path) -> SemgrepScanner:
 
 def _pyproject(tmp_path: Path, content: str) -> None:
     (tmp_path / "pyproject.toml").write_text(content, encoding="utf-8")
+
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_SCRIPT = _REPO_ROOT / "scripts/security/run_semgrep.py"
+
+#: Pin written into the fixture repo. Independent of this repo's real pin so
+#: the test does not move when renovate bumps semgrep.
+_FIXTURE_PIN = "1.171.0"
+#: Version the fake binary reports. Never equal to _FIXTURE_PIN.
+_FAKE_VERSION = "9.9.9"
+
+_posix_shim_only = pytest.mark.skipif(
+    os.name == "nt",
+    reason="the fake semgrep is a POSIX shell shim",
+)
+
+#: Filename production looks for beside the interpreter, mirroring
+#: _resolve_semgrep_executable. Duplicated rather than imported on purpose: an
+#: independent oracle fails when production flips the mapping, while an imported
+#: constant would follow it.
+_SIBLING_NAME = "semgrep.exe" if os.name == "nt" else "semgrep"
+#: The other platform's filename. Production must never resolve it on this host.
+_DECOY_SIBLING_NAME = "semgrep" if os.name == "nt" else "semgrep.exe"
+
+
+def _write_sibling(bin_dir: Path, name: str) -> Path:
+    """Create an executable file called ``name`` inside ``bin_dir``."""
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    sibling = bin_dir / name
+    sibling.write_text("#!/bin/sh\n", encoding="utf-8")
+    sibling.chmod(0o755)
+    return sibling
+
+
+def _fixture_repo(tmp_path: Path) -> Path:
+    """Create a real git repo carrying a semgrep pin.
+
+    A real repo is required: SemgrepScanner.__init__ resolves the repo root via
+    git and raises before any semgrep code runs when the cwd is not a work
+    tree, which exits 1 on a traceback and proves nothing about pinning.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(
+        ["git", "init", "--quiet"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    _pyproject(repo, f'[project]\ndependencies = [\n    "semgrep=={_FIXTURE_PIN}",\n]\n')
+    return repo
+
+
+def _fresh_venv_python(tmp_path: Path) -> Path:
+    """Create a venv with no semgrep sibling and return its interpreter."""
+    venv = tmp_path / "venv"
+    subprocess.run(
+        [sys.executable, "-m", "venv", "--without-pip", str(venv)],
+        check=True,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    return venv / "bin" / "python"
+
+
+def _write_fake_semgrep(directory: Path) -> Path:
+    """Write an executable semgrep shim that reports _FAKE_VERSION."""
+    directory.mkdir(parents=True, exist_ok=True)
+    shim = directory / "semgrep"
+    shim.write_text(f"#!/bin/sh\necho {_FAKE_VERSION}\n", encoding="utf-8")
+    shim.chmod(0o755)
+    return shim
+
+
+def _run_scanner(
+    interpreter: Path,
+    repo: Path,
+    path_prefix: Path | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run the scanner as a process from inside the fixture repo."""
+    env = dict(os.environ)
+    # The scanner imports scripts.github_core.repo; a bare venv has no
+    # editable install of this project, so hand it the source tree.
+    env["PYTHONPATH"] = str(_REPO_ROOT)
+    if path_prefix is not None:
+        env["PATH"] = f"{path_prefix}{os.pathsep}{env['PATH']}"
+    return subprocess.run(
+        [str(interpreter), str(_SCRIPT), "--dry-run"],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        timeout=60,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -128,18 +229,74 @@ class TestProbeSemgrepVersion:
 
 
 class TestResolveSemgrepExecutable:
-    def test_uses_sibling_if_present(self, tmp_path: Path) -> None:
-        _pyproject(tmp_path, '[project]\ndependencies = [\n    "semgrep==1.171.0",\n]\n')
-        sibling = tmp_path / "bin" / "semgrep"
-        sibling.parent.mkdir(parents=True)
-        sibling.write_text("#!/bin/sh\n")
-        sibling.chmod(0o755)
+    def test_uses_sibling_when_version_matches(self, tmp_path: Path) -> None:
+        """The platform-correct sibling wins over the other platform's name.
 
-        with patch("scripts.security.run_semgrep.sys") as mock_sys:
+        Discriminating input: both names exist in the interpreter directory, so
+        a flipped platform mapping resolves the decoy and fails the assertion.
+        """
+        _pyproject(tmp_path, '[project]\ndependencies = [\n    "semgrep==1.171.0",\n]\n')
+        sibling = _write_sibling(tmp_path / "bin", _SIBLING_NAME)
+        _write_sibling(tmp_path / "bin", _DECOY_SIBLING_NAME)
+
+        with (
+            patch("scripts.security.run_semgrep.sys") as mock_sys,
+            patch(
+                "scripts.security.run_semgrep._probe_semgrep_version",
+                return_value="1.171.0",
+            ),
+        ):
             mock_sys.executable = str(tmp_path / "bin" / "python")
             result = _resolve_semgrep_executable(tmp_path)
 
         assert result == str(sibling)
+
+    def test_ignores_sibling_named_for_the_other_platform(self, tmp_path: Path) -> None:
+        """A sibling carrying the other platform's name must not be used.
+
+        Reaching PATH (FileNotFoundError, since which() returns None) proves the
+        sibling branch did not fire; a resolver ignoring os.name would return it.
+        """
+        _pyproject(tmp_path, '[project]\ndependencies = [\n    "semgrep==1.171.0",\n]\n')
+        _write_sibling(tmp_path / "bin", _DECOY_SIBLING_NAME)
+
+        with (
+            patch("scripts.security.run_semgrep.sys") as mock_sys,
+            patch("scripts.security.run_semgrep.shutil.which", return_value=None) as mock_which,
+            patch(
+                "scripts.security.run_semgrep._probe_semgrep_version",
+                return_value="1.171.0",
+            ),
+        ):
+            mock_sys.executable = str(tmp_path / "bin" / "python")
+            with pytest.raises(FileNotFoundError, match="semgrep not found on PATH"):
+                _resolve_semgrep_executable(tmp_path)
+
+        assert mock_which.call_count == 1, "resolver must fall through to PATH"
+
+    def test_raises_when_sibling_version_mismatches(self, tmp_path: Path) -> None:
+        """A stale venv sibling must fail, not shortcut the pin check.
+
+        The sibling slot is exactly where a manual `pip install semgrep` or a
+        venv left over from an older pin lands. Returning it unverified lets
+        the scan pass against a different ruleset than CI runs.
+        """
+        _pyproject(tmp_path, '[project]\ndependencies = [\n    "semgrep==1.171.0",\n]\n')
+        _write_sibling(tmp_path / "bin", _SIBLING_NAME)
+
+        with (
+            patch("scripts.security.run_semgrep.sys") as mock_sys,
+            patch(
+                "scripts.security.run_semgrep._probe_semgrep_version",
+                return_value="9.9.9",
+            ),
+            patch("scripts.security.run_semgrep.shutil.which") as mock_which,
+        ):
+            mock_sys.executable = str(tmp_path / "bin" / "python")
+            with pytest.raises(_SemgrepExecutableError, match="version mismatch"):
+                _resolve_semgrep_executable(tmp_path)
+
+        assert mock_which.call_count == 0, "a mismatched sibling must not fall back to PATH"
 
     def test_raises_file_not_found_when_not_on_path(self, tmp_path: Path) -> None:
         _pyproject(tmp_path, '[project]\ndependencies = [\n    "semgrep==1.171.0",\n]\n')
@@ -218,39 +375,46 @@ class TestRunExitCode:
         with patch.object(scanner, "_check_semgrep_installed", return_value=False):
             assert scanner.run() == 2
 
-    def test_run_exits_2_as_subprocess_when_semgrep_wrong_version(
+    @_posix_shim_only
+    def test_run_exits_2_as_subprocess_when_path_semgrep_mismatches(
         self, tmp_path: Path
     ) -> None:
-        """Process exit code must be nonzero when semgrep is missing.
+        """A PATH semgrep off the pin exits 2 from a real process.
 
-        This tests the exit-code contract at the process boundary, not just
-        the helper return value.
+        Hermetic: a throwaway git repo carrying its own pin, a fresh venv with
+        no semgrep sibling, and a fake semgrep first on PATH. Nothing here
+        reads the developer's installed semgrep or this repo's pin.
         """
-        _pyproject(tmp_path, '[project]\ndependencies = [\n    "semgrep==1.171.0",\n]\n')
-        script = Path(__file__).parent.parent / "scripts/security/run_semgrep.py"
+        repo = _fixture_repo(tmp_path)
+        interpreter = _fresh_venv_python(tmp_path)
+        fake_bin = tmp_path / "fakebin"
+        _write_fake_semgrep(fake_bin)
 
-        result = subprocess.run(
-            [
-                sys.executable,
-                str(script),
-                "--dry-run",
-            ],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            env={
-                **__import__("os").environ,
-                # Point git to a tmp dir that is not a real repo so _find_repo_root
-                # raises -- but we only care about the semgrep resolution path.
-            },
-            cwd=str(tmp_path),
-        )
+        result = _run_scanner(interpreter, repo, path_prefix=fake_bin)
 
-        # semgrep is not installed in this venv or PATH differs -- either way,
-        # the scanner must exit nonzero (2) when resolution fails.
-        assert result.returncode in (0, 1, 2), (
-            f"unexpected exit code {result.returncode}: {result.stderr}"
-        )
+        assert result.returncode == 2, f"stdout={result.stdout} stderr={result.stderr}"
+        assert "version mismatch" in result.stderr
+        assert _INSTALL_HINT in result.stderr
+
+    @_posix_shim_only
+    def test_run_exits_2_as_subprocess_when_venv_sibling_mismatches(
+        self, tmp_path: Path
+    ) -> None:
+        """A stale venv sibling exits 2 instead of reporting a clean pass.
+
+        Discriminating input: with the sibling returned unverified, the scan
+        gets past the install check, finds no tracked files in the fixture
+        repo, logs "PASS: No files to scan" and exits 0. The wrong semgrep
+        reads as green.
+        """
+        repo = _fixture_repo(tmp_path)
+        interpreter = _fresh_venv_python(tmp_path)
+        _write_fake_semgrep(interpreter.parent)
+
+        result = _run_scanner(interpreter, repo)
+
+        assert result.returncode == 2, f"stdout={result.stdout} stderr={result.stderr}"
+        assert "version mismatch" in result.stderr
 
     def test_run_uses_pinned_executable_in_run_semgrep(self, tmp_path: Path) -> None:
         """_run_semgrep must call the pinned executable, not bare 'semgrep'."""

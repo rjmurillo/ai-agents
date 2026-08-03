@@ -91,7 +91,11 @@ class ModelResult:
     per_fixture_agent_rates: dict[str, list[float]]
     tokens_in: int = 0
     tokens_out: int = 0
-    cost_usd: float = 0.0
+    cost_usd: float | None = 0.0
+    # None on the "requests" basis, where the provider meters an allowance and
+    # publishes no per-token price. Not 0.0: that renders a "free run" and
+    # hides the missing price, the same trap `_report_aggregator` avoids.
+    cost_basis: str = "usd"
     error_count: int = 0
     fixture_set_sha: str = ""
 
@@ -488,7 +492,8 @@ def build_report(
                 "n_fixtures": len(r.per_fixture_agent_rates),
                 "tokens_in": r.tokens_in,
                 "tokens_out": r.tokens_out,
-                "cost_usd": round(r.cost_usd, 4),
+                "cost_usd": None if r.cost_usd is None else round(r.cost_usd, 4),
+                "cost_basis": r.cost_basis,
                 "error_count": r.error_count,
             }
             for r in rank(results, ids)

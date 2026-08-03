@@ -1,262 +1,141 @@
-"""Tests for scripts/validation/push_ref_staleness.py (issue #3862)."""
+"""Tests for push_ref_staleness.py (issue #3862).
+
+Covers:
+- Positive: remote matches cached SHA -> exit 0
+- Positive: new branch (no remote) -> exit 0
+- Positive: empty stdin -> exit 0
+- Positive: deletion push (zeros) -> exit 0
+- Positive: remote advanced but we already merged it (ancestor) -> exit 0
+- Negative: remote advanced and we haven't merged it -> exit 3
+- Edge: multiple refs, one stale -> exit 3
+- Edge: multiple refs, all clean -> exit 0
+- Edge: malformed stdin line -> skip gracefully
+"""
 
 from __future__ import annotations
 
+import importlib.util
+import sys
 from io import StringIO
-from unittest.mock import MagicMock, patch
+from pathlib import Path
+from unittest.mock import patch
 
-import pytest
-
-from scripts.validation.push_ref_staleness import (
-    _current_remote_sha,
-    _is_zero_sha,
-    _parse_stdin,
-    _PushRef,
-    check_refs,
-    main,
+_SCRIPT = (
+    Path(__file__).resolve().parents[1]
+    / "scripts" / "validation" / "push_ref_staleness.py"
 )
 
-# ---------------------------------------------------------------------------
-# Helpers / fixtures
-# ---------------------------------------------------------------------------
 
-_SHA_A = "a" * 40
-_SHA_B = "b" * 40
-_SHA_ZERO = "0" * 40
-_SHA_SHORT = "abc123"
-
-
-def _make_ref(
-    *,
-    local_sha: str = _SHA_A,
-    remote_sha: str = _SHA_B,
-    remote_ref: str = "refs/heads/fix/test",
-) -> _PushRef:
-    return _PushRef("refs/heads/fix/test", local_sha, remote_ref, remote_sha)
+def _import_script(name: str):
+    spec = importlib.util.spec_from_file_location(name, _SCRIPT)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[name] = mod
+    spec.loader.exec_module(mod)
+    return mod
 
 
-# ---------------------------------------------------------------------------
-# _is_zero_sha
-# ---------------------------------------------------------------------------
+_mod = _import_script("push_ref_staleness_test")
+main = _mod.main
+
+_LOCAL_SHA = "a" * 40
+_REMOTE_SHA_OLD = "b" * 40
+_REMOTE_SHA_NEW = "c" * 40
+_REF = "refs/heads/feature"
 
 
-class TestIsZeroSha:
-    def test_all_zeros_40(self) -> None:
-        assert _is_zero_sha("0" * 40)
-
-    def test_all_zeros_64(self) -> None:
-        assert _is_zero_sha("0" * 64)
-
-    def test_nonzero_sha(self) -> None:
-        assert not _is_zero_sha(_SHA_A)
-
-    def test_mixed_sha(self) -> None:
-        assert not _is_zero_sha("0" * 39 + "1")
-
-    def test_short_all_zeros(self) -> None:
-        assert not _is_zero_sha("0" * 7)
+def _make_stdin(local_sha=_LOCAL_SHA, remote_sha=_REMOTE_SHA_OLD, ref=_REF):
+    return StringIO(f"{ref} {local_sha} {ref} {remote_sha}\n")
 
 
-# ---------------------------------------------------------------------------
-# _parse_stdin
-# ---------------------------------------------------------------------------
+def _mock_remote_sha(sha_or_none):
+    """Return a patcher that makes _remote_sha return sha_or_none."""
+    return patch.object(_mod, "_remote_sha", return_value=sha_or_none)
 
 
-class TestParseStdin:
-    def test_single_valid_line(self) -> None:
-        lines = [f"refs/heads/main {_SHA_A} refs/heads/main {_SHA_B}"]
-        refs = _parse_stdin(lines)
-        assert len(refs) == 1
-        assert refs[0].local_sha == _SHA_A
-        assert refs[0].remote_sha == _SHA_B
-
-    def test_multiple_valid_lines(self) -> None:
-        lines = [
-            f"refs/heads/main {_SHA_A} refs/heads/main {_SHA_B}",
-            f"refs/heads/feat {_SHA_B} refs/heads/feat {_SHA_A}",
-        ]
-        assert len(_parse_stdin(lines)) == 2
-
-    def test_new_branch_zero_remote(self) -> None:
-        lines = [f"refs/heads/new {_SHA_A} refs/heads/new {_SHA_ZERO}"]
-        refs = _parse_stdin(lines)
-        assert refs[0].remote_sha == _SHA_ZERO
-
-    def test_deletion_zero_local(self) -> None:
-        lines = [f"refs/heads/gone {_SHA_ZERO} refs/heads/gone {_SHA_B}"]
-        refs = _parse_stdin(lines)
-        assert refs[0].local_sha == _SHA_ZERO
-
-    def test_malformed_too_few_fields_exits_2(self) -> None:
-        with pytest.raises(SystemExit) as exc_info:
-            _parse_stdin(["refs/heads/main"])
-        assert exc_info.value.code == 2
-
-    def test_malformed_short_sha_exits_2(self) -> None:
-        with pytest.raises(SystemExit) as exc_info:
-            _parse_stdin([f"refs/heads/main {_SHA_SHORT} refs/heads/main {_SHA_B}"])
-        assert exc_info.value.code == 2
-
-    def test_empty_input(self) -> None:
-        assert _parse_stdin([]) == []
+def _mock_is_ancestor(result):
+    return patch.object(_mod, "_is_ancestor", return_value=result)
 
 
-# ---------------------------------------------------------------------------
-# _current_remote_sha
-# ---------------------------------------------------------------------------
+class TestEmptyAndDeletion:
+    def test_empty_stdin_exits_zero(self):
+        with patch("sys.stdin", StringIO("")):
+            assert main([]) == 0
+
+    def test_deletion_push_exits_zero(self):
+        # Deletion: local_sha is all zeros
+        zeros = "0" * 40
+        stdin = StringIO(f"{_REF} {zeros} {_REF} {_REMOTE_SHA_OLD}\n")
+        with patch("sys.stdin", stdin), _mock_remote_sha(_REMOTE_SHA_NEW):
+            assert main([]) == 0
 
 
-class TestCurrentRemoteSha:
-    def test_returns_sha_when_ref_exists(self) -> None:
-        ls_output = f"{_SHA_A}\trefs/heads/main\n"
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0, stdout=ls_output, stderr="")
-            result = _current_remote_sha("origin", "refs/heads/main")
-        assert result == _SHA_A
+class TestRemoteUnchanged:
+    def test_remote_matches_cached_sha_exits_zero(self):
+        # live_sha == cached remote sha: no race
+        with patch("sys.stdin", _make_stdin(remote_sha=_REMOTE_SHA_OLD)), \
+                _mock_remote_sha(_REMOTE_SHA_OLD):
+            assert main([]) == 0
 
-    def test_returns_none_when_ref_absent(self) -> None:
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-            result = _current_remote_sha("origin", "refs/heads/gone")
-        assert result is None
-
-    def test_raises_on_nonzero_returncode(self) -> None:
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=128, stdout="", stderr="network error")
-            with pytest.raises(RuntimeError, match="network error"):
-                _current_remote_sha("origin", "refs/heads/main")
+    def test_no_remote_ref_exits_zero(self):
+        # New branch: ls-remote returns None
+        with patch("sys.stdin", _make_stdin()), _mock_remote_sha(None):
+            assert main([]) == 0
 
 
-# ---------------------------------------------------------------------------
-# check_refs
-# ---------------------------------------------------------------------------
+class TestRemoteAdvanced:
+    def test_remote_advanced_and_not_merged_exits_three(self):
+        # live != cached, and local does NOT contain the new remote commit
+        with patch("sys.stdin", _make_stdin(remote_sha=_REMOTE_SHA_OLD)), \
+                _mock_remote_sha(_REMOTE_SHA_NEW), \
+                _mock_is_ancestor(False):
+            assert main([]) == 3
+
+    def test_remote_advanced_but_already_merged_exits_zero(self):
+        # live != cached, but local IS an ancestor of the new remote
+        with patch("sys.stdin", _make_stdin(remote_sha=_REMOTE_SHA_OLD)), \
+                _mock_remote_sha(_REMOTE_SHA_NEW), \
+                _mock_is_ancestor(True):
+            assert main([]) == 0
 
 
-class TestCheckRefs:
-    def _mock_ls_remote(self, sha: str) -> MagicMock:
-        return MagicMock(returncode=0, stdout=f"{sha}\trefs/heads/fix/test\n", stderr="")
+class TestMultipleRefs:
+    def test_all_clean_exits_zero(self):
+        stdin_text = (
+            f"refs/heads/a {_LOCAL_SHA} refs/heads/a {_REMOTE_SHA_OLD}\n"
+            f"refs/heads/b {_LOCAL_SHA} refs/heads/b {_REMOTE_SHA_OLD}\n"
+        )
+        with patch("sys.stdin", StringIO(stdin_text)), \
+                _mock_remote_sha(_REMOTE_SHA_OLD):
+            assert main([]) == 0
 
-    def test_unchanged_ref_passes(self) -> None:
-        ref = _make_ref(remote_sha=_SHA_B)
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = self._mock_ls_remote(_SHA_B)
-            assert check_refs([ref]) is True
+    def test_one_stale_exits_three(self):
+        sha_clean = "d" * 40
+        sha_stale_cached = "e" * 40
+        sha_stale_live = "f" * 40
+        stdin_text = (
+            f"refs/heads/ok {_LOCAL_SHA} refs/heads/ok {sha_clean}\n"
+            f"refs/heads/bad {_LOCAL_SHA} refs/heads/bad {sha_stale_cached}\n"
+        )
 
-    def test_advanced_ref_returns_false(self) -> None:
-        ref = _make_ref(remote_sha=_SHA_B)
-        advanced_sha = "c" * 40
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = self._mock_ls_remote(advanced_sha)
-            assert check_refs([ref]) is False
+        def _fake_remote_sha(_remote, refspec):
+            if "bad" in refspec:
+                return sha_stale_live
+            return sha_clean
 
-    def test_new_branch_skips_check(self) -> None:
-        ref = _make_ref(remote_sha=_SHA_ZERO)
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = self._mock_ls_remote(_SHA_A)
-            assert check_refs([ref]) is True
-        mock_run.assert_not_called()
-
-    def test_deletion_skips_check(self) -> None:
-        ref = _make_ref(local_sha=_SHA_ZERO, remote_sha=_SHA_B)
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = self._mock_ls_remote(_SHA_B)
-            assert check_refs([ref]) is True
-        mock_run.assert_not_called()
-
-    def test_ref_absent_on_remote_passes(self) -> None:
-        ref = _make_ref(remote_sha=_SHA_B)
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-            assert check_refs([ref]) is True
-
-    def test_ls_remote_failure_exits_3(self) -> None:
-        ref = _make_ref(remote_sha=_SHA_B)
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(
-                returncode=128, stdout="", stderr="fatal: unable to connect"
-            )
-            with pytest.raises(SystemExit) as exc_info:
-                check_refs([ref])
-        assert exc_info.value.code == 3
-
-    def test_multiple_refs_all_unchanged(self) -> None:
-        refs = [
-            _make_ref(remote_sha=_SHA_A, remote_ref="refs/heads/a"),
-            _make_ref(remote_sha=_SHA_B, remote_ref="refs/heads/b"),
-        ]
-        with patch("subprocess.run") as mock_run:
-            mock_run.side_effect = [
-                MagicMock(returncode=0, stdout=f"{_SHA_A}\trefs/heads/a\n", stderr=""),
-                MagicMock(returncode=0, stdout=f"{_SHA_B}\trefs/heads/b\n", stderr=""),
-            ]
-            assert check_refs(refs) is True
-
-    def test_one_of_two_refs_advanced_returns_false(self) -> None:
-        refs = [
-            _make_ref(remote_sha=_SHA_A, remote_ref="refs/heads/a"),
-            _make_ref(remote_sha=_SHA_B, remote_ref="refs/heads/b"),
-        ]
-        advanced = "d" * 40
-        with patch("subprocess.run") as mock_run:
-            mock_run.side_effect = [
-                MagicMock(returncode=0, stdout=f"{_SHA_A}\trefs/heads/a\n", stderr=""),
-                MagicMock(returncode=0, stdout=f"{advanced}\trefs/heads/b\n", stderr=""),
-            ]
-            assert check_refs(refs) is False
+        with patch("sys.stdin", StringIO(stdin_text)), \
+                patch.object(_mod, "_remote_sha", side_effect=_fake_remote_sha), \
+                _mock_is_ancestor(False):
+            assert main([]) == 3
 
 
-# ---------------------------------------------------------------------------
-# main()
-# ---------------------------------------------------------------------------
+class TestMalformedInput:
+    def test_short_line_skipped(self):
+        stdin = StringIO("only two fields\n")
+        with patch("sys.stdin", stdin):
+            assert main([]) == 0
 
-
-class TestMain:
-    def test_clean_push_exits_0(self) -> None:
-        stdin_text = f"refs/heads/main {_SHA_A} refs/heads/main {_SHA_B}\n"
-        ls_output = f"{_SHA_B}\trefs/heads/main\n"
-        with (
-            patch("sys.stdin", StringIO(stdin_text)),
-            patch("sys.argv", ["push_ref_staleness.py"]),
-            patch("subprocess.run") as mock_run,
-        ):
-            mock_run.return_value = MagicMock(returncode=0, stdout=ls_output, stderr="")
-            main()
-
-    def test_stale_push_exits_3(self) -> None:
-        stdin_text = f"refs/heads/main {_SHA_A} refs/heads/main {_SHA_B}\n"
-        advanced = "c" * 40
-        ls_output = f"{advanced}\trefs/heads/main\n"
-        with (
-            patch("sys.stdin", StringIO(stdin_text)),
-            patch("sys.argv", ["push_ref_staleness.py"]),
-            patch("subprocess.run") as mock_run,
-        ):
-            mock_run.return_value = MagicMock(returncode=0, stdout=ls_output, stderr="")
-            with pytest.raises(SystemExit) as exc_info:
-                main()
-        assert exc_info.value.code == 3
-
-    def test_empty_stdin_exits_0(self) -> None:
-        with (
-            patch("sys.stdin", StringIO("")),
-            patch("sys.argv", ["push_ref_staleness.py"]),
-        ):
-            main()
-
-    def test_unexpected_args_exits_2(self) -> None:
-        with (
-            patch("sys.argv", ["push_ref_staleness.py", "--some-arg"]),
-            pytest.raises(SystemExit) as exc_info,
-        ):
-            main()
-        assert exc_info.value.code == 2
-
-    def test_new_branch_not_checked(self) -> None:
-        stdin_text = f"refs/heads/new {_SHA_A} refs/heads/new {_SHA_ZERO}\n"
-        with (
-            patch("sys.stdin", StringIO(stdin_text)),
-            patch("sys.argv", ["push_ref_staleness.py"]),
-            patch("subprocess.run") as mock_run,
-        ):
-            main()
-        mock_run.assert_not_called()
+    def test_empty_lines_skipped(self):
+        stdin = StringIO("\n\n\n")
+        with patch("sys.stdin", stdin):
+            assert main([]) == 0

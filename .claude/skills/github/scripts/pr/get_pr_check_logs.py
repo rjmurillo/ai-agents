@@ -173,6 +173,22 @@ def _merge_ref_unusable(payload: dict[str, object]) -> bool:
     return payload.get("MergeRefUsable") is False
 
 
+def _write_merge_ref_warning(payload: dict[str, object], fmt: str) -> None:
+    """Emit a non-fatal warning when the merge ref is unusable.
+
+    Unlike the original hard-exit version, this prints a human-readable
+    warning and returns so the caller can still fetch logs for any checks
+    that have a known DetailsUrl (issue #3911).
+    """
+    warning = payload.get("MergeStateWarning")
+    message = (
+        warning
+        if isinstance(warning, str) and warning
+        else "PR merge ref cannot be built; check logs are incomplete"
+    )
+    print(f"[WARNING] {message}", file=sys.stderr)
+
+
 def _write_merge_ref_error(payload: dict[str, object], fmt: str) -> None:
     warning = payload.get("MergeStateWarning")
     message = (
@@ -438,6 +454,8 @@ def main(argv: list[str] | None = None) -> int:
     fmt = get_output_format(args.output_format)
     pr_number = args.pull_request
     failing_checks: list[dict[str, Any]] = []
+    merge_ref_unusable = False
+    merge_ref_payload: dict[str, object] = {}
     merge_ref_warning: str | None = None
 
     checks_input = args.checks_input
@@ -487,6 +505,10 @@ def main(argv: list[str] | None = None) -> int:
             pr_number = payload["Number"]
 
         merge_ref_unusable = _merge_ref_unusable(payload)
+        if merge_ref_unusable:
+            _write_merge_ref_warning(payload, fmt)
+            merge_ref_payload = payload
+
         checks_list = _coerce_checks_list(payload)
         if checks_list is None:
             if merge_ref_unusable:
@@ -567,6 +589,9 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 3
         merge_ref_unusable = _merge_ref_unusable(payload)
+        if merge_ref_unusable:
+            _write_merge_ref_warning(payload, fmt)
+            merge_ref_payload = payload
         checks_list = _coerce_checks_list(payload)
         if checks_list is None:
             if merge_ref_unusable:
@@ -602,6 +627,11 @@ def main(argv: list[str] | None = None) -> int:
 
     # No failing checks
     if not failing_checks:
+        if merge_ref_unusable:
+            # Merge ref is unusable AND no failing checks visible: the check set
+            # is incomplete. Return non-zero so callers know logs are unavailable.
+            _write_merge_ref_error(merge_ref_payload, fmt)
+            return 1
         output = {
             "Owner": owner,
             "Repo": repo,

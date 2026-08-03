@@ -1128,8 +1128,81 @@ class TestMergePreserving:
         merged = extract_session_episode.merge_preserving(new, existing, session_id="")
         assert merged["events"][0]["timestamp"] == "garbage"
 
+    def test_commit_events_keep_real_committer_timestamp(self):
+        """Commit events must not have their timestamp overwritten with midnight.
 
-class TestPreserveCli:
+        Issue #4071: _dedupe_events() applied the midnight stamp to ALL event
+        types, including commit events that already carry the real committer
+        timestamp from _git_commit_timestamp(). After the fix, only non-commit
+        events get the midnight stamp.
+        """
+        commit_ts = "2026-01-08T23:47:12+00:00"
+        existing = {
+            "timestamp": "2026-01-08T00:00:00+00:00",
+            "events": [
+                {
+                    "id": "e001",
+                    "timestamp": commit_ts,
+                    "type": "commit",
+                    "content": "abc1234: fix the thing",
+                    "caused_by": [],
+                    "leads_to": [],
+                }
+            ],
+            "decisions": [],
+            "lessons": [],
+            "metrics": {},
+        }
+        new = {"timestamp": "", "events": [], "decisions": [], "lessons": [], "metrics": {}}
+        merged = extract_session_episode.merge_preserving(
+            new, existing, session_id="2026-01-08-session-807"
+        )
+        commit_events = [e for e in merged["events"] if e["type"] == "commit"]
+        assert len(commit_events) == 1
+        assert commit_events[0]["timestamp"] == commit_ts, (
+            f"commit event timestamp was overwritten: {commit_events[0]['timestamp']!r}"
+        )
+
+    def test_commit_timestamp_difference_enables_causal_ordering(self):
+        """A commit at 23:47 after a milestone at midnight must be orderable.
+
+        When _dedupe_events() stamps the commit with midnight, both events share
+        the same timestamp and _event_order_relation() returns None
+        (incomparable), producing no causal edge. After the fix the timestamps
+        differ, enabling strict ordering.
+        """
+        commit_ts = "2026-01-08T23:47:12+00:00"
+        midnight = "2026-01-08T00:00:00+00:00"
+        events = extract_session_episode._dedupe_events(
+            existing=[
+                {
+                    "id": "e001",
+                    "timestamp": commit_ts,
+                    "type": "commit",
+                    "content": "abc1234: fix",
+                    "caused_by": [],
+                    "leads_to": [],
+                },
+                {
+                    "id": "e002",
+                    "timestamp": "2026-01-08T10:00:00+00:00",
+                    "type": "milestone",
+                    "content": "reached goal",
+                    "caused_by": [],
+                    "leads_to": [],
+                },
+            ],
+            new=[],
+            midnight=midnight,
+            session_id="2026-01-08-session-807",
+        )
+        commit_ev = next(e for e in events if e["type"] == "commit")
+        milestone_ev = next(e for e in events if e["type"] == "milestone")
+        # Commit keeps its real timestamp; milestone gets midnight.
+        assert commit_ev["timestamp"] == commit_ts
+        assert milestone_ev["timestamp"] == midnight
+        # Timestamps differ, so ordering is well-defined.
+        assert commit_ev["timestamp"] != milestone_ev["timestamp"]
     """--preserve end-to-end and flag exclusivity (#2170)."""
 
     def _write_log(self, tmp_path, sha="bbbbbbb1234"):

@@ -1544,7 +1544,6 @@ class TestMain:
         mock_fetch: MagicMock,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.delenv("CI", raising=False)
         mock_repo.return_value = RepoInfo(owner="o", repo="r")
         mock_fetch.return_value = {
             "title": "Test",
@@ -1576,7 +1575,6 @@ class TestMain:
         mock_fetch: MagicMock,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.delenv("CI", raising=False)
         mock_fetch.return_value = {
             "title": "T",
             "body": "",
@@ -1595,7 +1593,6 @@ class TestMain:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """`--owner` set, `--repo` omitted: git remote fills repo only."""
-        monkeypatch.delenv("CI", raising=False)
         monkeypatch.delenv("REPO_NAME", raising=False)
         monkeypatch.delenv("REPO_OWNER", raising=False)
         mock_repo.return_value = RepoInfo(owner="git_owner", repo="git_repo")
@@ -1613,7 +1610,6 @@ class TestMain:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """`--repo` set, `--owner` omitted: git remote fills owner only."""
-        monkeypatch.delenv("CI", raising=False)
         monkeypatch.delenv("REPO_NAME", raising=False)
         monkeypatch.delenv("REPO_OWNER", raising=False)
         mock_repo.return_value = RepoInfo(owner="git_owner", repo="git_repo")
@@ -1763,7 +1759,6 @@ class TestBypassLabel:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Without --ci, CRITICAL never blocks regardless of label state."""
-        monkeypatch.delenv("CI", raising=False)
         mock_repo.return_value = RepoInfo(owner="o", repo="r")
         mock_fetch.return_value = {
             "title": "T",

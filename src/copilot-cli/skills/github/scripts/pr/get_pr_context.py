@@ -55,8 +55,7 @@ _JSON_FIELDS = (
     "number,title,body,headRefName,headRefOid,baseRefName,baseRefOid,state,author,labels,"
     "reviewRequests,reviews,reviewDecision,commits,additions,deletions,changedFiles,"
     "mergeable,mergeStateStatus,autoMergeRequest,isDraft,"
-    "headRepository,headRepositoryOwner,"
-    "mergedAt,mergedBy,createdAt,updatedAt"
+    "headRepository,headRepositoryOwner,mergedAt,mergedBy,createdAt,updatedAt"
 )
 
 
@@ -121,7 +120,7 @@ def main(argv: list[str] | None = None) -> int:
     author = pr_data.get("author")
     merged_by = pr_data.get("mergedBy")
     head_repo = pr_data.get("headRepository") or {}
-    head_repo_owner = pr_data.get("headRepositoryOwner") or {}
+    head_repo_owner = pr_data.get("headRepositoryOwner") or (head_repo.get("owner") or {})
     auto_merge = pr_data.get("autoMergeRequest")
     reviews_raw = pr_data.get("reviews") or []
     review_counts: dict[str, int] = {}
@@ -134,11 +133,12 @@ def main(argv: list[str] | None = None) -> int:
         "title": pr_data.get("title"),
         "body": pr_data.get("body"),
         "state": pr_data.get("state"),
-        "is_draft": pr_data.get("isDraft"),
+        "is_draft": pr_data.get("isDraft", False),
         "author": author.get("login") if isinstance(author, dict) else None,
         "head_branch": pr_data.get("headRefName"),
         "head_sha": pr_data.get("headRefOid"),
         "head_repo": head_repo.get("nameWithOwner"),
+        "head_repo_name": head_repo.get("name"),
         "head_repo_owner": head_repo_owner.get("login"),
         "base_branch": pr_data.get("baseRefName"),
         "base_sha": pr_data.get("baseRefOid"),
@@ -149,9 +149,11 @@ def main(argv: list[str] | None = None) -> int:
         "changed_files": pr_data.get("changedFiles"),
         "mergeable": pr_data.get("mergeable"),
         "merge_state_status": pr_data.get("mergeStateStatus"),
+        "auto_merge": auto_merge is not None,
         "auto_merge_method": (
             auto_merge.get("mergeMethod") if isinstance(auto_merge, dict) else None
         ),
+        "reviews": reviews_raw,
         "review_decision": pr_data.get("reviewDecision"),
         "review_counts": review_counts,
         "merged": bool(pr_data.get("mergedAt")),
