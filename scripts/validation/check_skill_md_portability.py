@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, validator keeps path grammar and scan policy together.
 """Markdown vendor-portability ratchet for skill instruction files (issue #2050).
 
 Companion to ``check_skill_portability.py``. That validator scopes to skill
@@ -44,10 +45,14 @@ Baseline ratchet:
 Scope: ``*.md`` under the ``skills/`` tree of every plugin root listed in
 ``PLUGIN_ROOTS``, plus the flat source trees in ``EXTRA_SCAN_ROOTS``
 (``.claude/commands`` and ``templates/agents``). These extra directories ship
-to consumers but sit outside the skills tree; their generated mirrors in
-``src/copilot-cli/skills/`` are already covered by the plugin-root scan, so
-only the sources are listed. See issues #3578 (plugin-root widening) and
-#3646 (commands and templates/agents widening).
+or generate shipped output, but sit outside plugin-root ``skills/`` sources.
+``.claude/commands`` generates Copilot CLI skills under
+``src/copilot-cli/skills/`` via ``build/scripts/generate_commands.py``; that
+mirror is scanned by the plugin-root pass. ``templates/agents`` generates
+Copilot CLI agents under ``src/copilot-cli/agents/`` via
+``build/generate_agents.py``; this validator does not scan agent outputs, so
+the template source is the only covered surface. See issues #3578
+(plugin-root widening) and #3646 (commands and templates/agents widening).
 
 Exit codes:
   0 - no drift (counts at or below baseline), or --update-baseline wrote the file
@@ -252,12 +257,13 @@ PLUGIN_ROOTS: tuple[str, ...] = (".claude", "src/claude", "src/copilot-cli")
 # from this set because it ships agents and rules and has no skills tree today.
 REQUIRED_SKILLS_ROOTS: frozenset[str] = frozenset({".claude", "src/copilot-cli"})
 
-# Non-skills directories that also ship to consumers and carry upstream-path
-# prose. These are source-only: their generated mirrors (e.g.
-# src/copilot-cli/skills/<name>/SKILL.md produced by generate_commands.py and
-# src/copilot-cli/agents/ produced by generate_agents.py) are already covered
-# by the skills-tree scan once a fix propagates through the generator.
-# Scanning only the sources avoids double-counting. Issue #3646.
+# Non-skills directories that also ship to consumers or generate shipped output
+# and carry upstream-path prose. ``.claude/commands`` generates Copilot CLI
+# skills, whose mirror under ``src/copilot-cli/skills`` is covered by the
+# plugin-root scan. ``templates/agents`` generates Copilot CLI agents under
+# ``src/copilot-cli/agents``, which this validator deliberately does not scan.
+# Scanning these source trees covers the otherwise unscanned source surface and
+# avoids double-counting command mirrors. Issue #3646.
 EXTRA_SCAN_ROOTS: tuple[str, ...] = (".claude/commands", "templates/agents")
 
 
@@ -410,10 +416,13 @@ def skills_dirs(root: Path) -> list[Path]:
 def extra_scan_dirs(root: Path) -> list[Path]:
     """Return existing directories from ``EXTRA_SCAN_ROOTS``.
 
-    These are flat source trees that ship to consumers but are not under a
-    plugin root's ``skills/`` subtree. Their generated mirrors are already
-    covered by the skills-tree scan, so only the source directory is listed
-    here (issue #3646).
+    These are flat source trees that ship to consumers or generate shipped
+    output, but are not under a plugin root's ``skills/`` subtree.
+    ``.claude/commands`` mirrors into ``src/copilot-cli/skills``, which the
+    plugin-root scan covers. ``templates/agents`` mirrors into
+    ``src/copilot-cli/agents``, which this validator deliberately does not
+    scan. Listing the source keeps those template references covered without
+    double-counting command mirrors (issue #3646).
 
     Absent directories are skipped: a checkout that does not have
     ``.claude/commands`` is not broken, it may just be a minimal clone.
@@ -445,8 +454,11 @@ def scan_plugin_roots(root: Path) -> dict[str, int]:
     read, and one root's count would silently overwrite the other's.
 
     Extra dirs (``EXTRA_SCAN_ROOTS``) are scanned after the plugin roots. They
-    are flat source trees whose generated mirrors are already covered by the
-    plugin-root scan (issue #3646).
+    are flat source trees that are not under any plugin-root ``skills/``
+    subtree. ``.claude/commands`` mirrors into the scanned
+    ``src/copilot-cli/skills`` tree; ``templates/agents`` mirrors into
+    ``src/copilot-cli/agents``, which this validator deliberately does not
+    scan (issue #3646).
     """
     counts: dict[str, int] = {}
     for skills_dir in skills_dirs(root):
@@ -964,9 +976,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     regressions, improvements = diff_against_baseline(current, baseline)
-    marker_regressions, marker_improvements = diff_marker_baseline(
-        marker_current, marker_baseline
-    )
+    marker_regressions, marker_improvements = diff_marker_baseline(marker_current, marker_baseline)
     regressions.extend(marker_regressions)
     improvements.extend(marker_improvements)
     _report(
