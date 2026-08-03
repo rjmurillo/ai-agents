@@ -7,13 +7,13 @@
 
 [GitHub and PR Operations]
 |new_pr create stale main ref session end validation failed opaque diff: [new-pr-stale-main-ref-trap](new-pr-stale-main-ref-trap.md) (1827)
-|github pr issue cli gh api review comment batch response: [skills-github-cli-index](skills-github-cli-index.md) (552), [skills-pr-review-index](skills-pr-review-index.md) (1019), [pr-review/pr-review-batch-response-pattern](pr-review/pr-review-batch-response-pattern.md) (699), [project/project-labels-milestones](project/project-labels-milestones.md) (325)
+|github pr issue cli gh api review comment batch response: [skills-github-cli-index](skills-github-cli-index.md) (552), [skills-pr-review-index](skills-pr-review-index.md) (1054), [pr-review/pr-review-batch-response-pattern](pr-review/pr-review-batch-response-pattern.md) (699), [project/project-labels-milestones](project/project-labels-milestones.md) (325)
 |graphql mutation query resolve thread reply batch nested: [skills-graphql-index](skills-graphql-index.md) (111)
 |jq json parse filter select map array object string: [skills-jq-index](skills-jq-index.md) (356)
 |gh extension notify combine metrics milestone webhook grep sub-issue: [skills-gh-extensions-index](skills-gh-extensions-index.md) (346)
 |label milestone issue create tag priority: [project/project-labels-milestones](project/project-labels-milestones.md) (325)
-|copilot review false-positive triage response: [skills-copilot-index](skills-copilot-index.md) (316)
-|copilot cli agent frontmatter regression version pin auto-update diagnostic: [skills-copilot-index](skills-copilot-index.md) (316), [copilot/copilot-cli-frontmatter-regression-runbook](copilot/copilot-cli-frontmatter-regression-runbook.md) (1875)
+|copilot review false-positive triage response: [skills-copilot-index](skills-copilot-index.md) (497)
+|copilot cli agent frontmatter regression version pin auto-update diagnostic: [skills-copilot-index](skills-copilot-index.md) (497), [copilot/copilot-cli-frontmatter-regression-runbook](copilot/copilot-cli-frontmatter-regression-runbook.md) (1875)
 |triage stale closure verify history bot superseded duplicate: [pr-review/triage-001-verify-before-stale-closure](pr-review/triage-001-verify-before-stale-closure.md) (435), [pr-review/triage-002-bot-closure-verification](pr-review/triage-002-bot-closure-verification.md) (452)
 |pr validation gate status check blocker merge: [validation/validation-pr-gates](validation/validation-pr-gates.md) (1245)
 
