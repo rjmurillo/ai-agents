@@ -290,17 +290,13 @@ _DEFAULT_BOT_ALIASES: dict[str, list[str]] = {
     ],
 }
 
-_bot_alias_map_cache: dict[str, str] | None = None
-
-
-def _build_alias_map() -> dict[str, str]:
-    """Return a map from lowercased alias to canonical login."""
-    alias_map: dict[str, str] = {}
-    for canonical, aliases in _DEFAULT_BOT_ALIASES.items():
-        alias_map[canonical.lower()] = canonical
-        for alias in aliases:
-            alias_map[alias.lower()] = canonical
-    return alias_map
+# Lowercased alias to canonical login. Built once from the table above, which is
+# a literal, so there is nothing to invalidate and no cache to keep.
+_BOT_ALIAS_MAP: dict[str, str] = {
+    alias.lower(): canonical
+    for canonical, aliases in _DEFAULT_BOT_ALIASES.items()
+    for alias in (canonical, *aliases)
+}
 
 
 def canonicalize_login(login: str) -> str:
@@ -310,10 +306,7 @@ def canonicalize_login(login: str) -> str:
     comes back unchanged, so this is safe to apply to every actor rather than
     only to the ones a caller already believes are bots.
     """
-    global _bot_alias_map_cache  # noqa: PLW0603
-    if _bot_alias_map_cache is None:
-        _bot_alias_map_cache = _build_alias_map()
-    return _bot_alias_map_cache.get(login.lower(), login)
+    return _BOT_ALIAS_MAP.get(login.lower(), login)
 
 
 def is_bot(login: str, user_type: str | None = None) -> bool:
