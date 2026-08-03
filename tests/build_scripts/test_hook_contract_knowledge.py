@@ -556,6 +556,33 @@ def test_operational_skills_match_current_hook_registration_counts() -> None:
         assert settings_prose in surface
         assert plugin_prose in surface
 
+    # The provenance table is the third copy of these counts and states them in
+    # a slash form the two assertions above cannot see. It sat at "3 events / 4
+    # groups" while the command printed in its own row returned 5 and 7, which
+    # discredits every other row in the skill's evidence layer. Pin both trees.
+    settings_slash = f"{len(settings)} events / {sum(map(len, settings.values()))} groups"
+    plugin_slash = f"{len(plugin)} events / {sum(map(len, plugin.values()))} groups"
+    copilot_slash = (
+        f"{len(copilot)} events / {sum(map(len, copilot.values()))} registrations"
+    )
+    provenance_paths = (
+        REPO_ROOT
+        / ".claude"
+        / "skills"
+        / "ai-agents-architecture-contract"
+        / "references"
+        / "provenance.md",
+        COPILOT_SKILL_ROOT
+        / "ai-agents-architecture-contract"
+        / "references"
+        / "provenance.md",
+    )
+    for path in provenance_paths:
+        surface = path.read_text(encoding="utf-8")
+        assert settings_slash in surface, path
+        assert plugin_slash in surface, path
+        assert copilot_slash in surface, path
+
 
 def test_dispatcher_adrs_match_current_generated_metrics() -> None:
     hooks_root = REPO_ROOT / "src" / "copilot-cli" / "hooks"

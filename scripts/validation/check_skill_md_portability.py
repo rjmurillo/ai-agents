@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, validator keeps path grammar and scan policy together.
 """Markdown vendor-portability ratchet for skill instruction files (issue #2050).
 
 Companion to ``check_skill_portability.py``. That validator scopes to skill
@@ -42,9 +43,16 @@ Baseline ratchet:
   so the baseline can be tightened with ``--update-baseline``.
 
 Scope: ``*.md`` under the ``skills/`` tree of every plugin root listed in
-``PLUGIN_ROOTS``. Scanning only ``.claude/skills`` left thirty nine references
-unratcheted in ``src/copilot-cli/skills``, which is generated from
-``.claude/commands`` and so was covered by neither path. See issue #3578.
+``PLUGIN_ROOTS``, plus the flat source trees in ``EXTRA_SCAN_ROOTS``
+(``.claude/commands`` and ``templates/agents``). These extra directories ship
+or generate shipped output, but sit outside plugin-root ``skills/`` sources.
+``.claude/commands`` generates Copilot CLI skills under
+``src/copilot-cli/skills/`` via ``build/scripts/generate_commands.py``; that
+mirror is scanned by the plugin-root pass. ``templates/agents`` generates
+Copilot CLI agents under ``src/copilot-cli/agents/`` via
+``build/generate_agents.py``; this validator does not scan agent outputs, so
+the template source is the only covered surface. See issues #3578
+(plugin-root widening) and #3646 (commands and templates/agents widening).
 
 Exit codes:
   0 - no drift (counts at or below baseline), or --update-baseline wrote the file
@@ -249,6 +257,15 @@ PLUGIN_ROOTS: tuple[str, ...] = (".claude", "src/claude", "src/copilot-cli")
 # from this set because it ships agents and rules and has no skills tree today.
 REQUIRED_SKILLS_ROOTS: frozenset[str] = frozenset({".claude", "src/copilot-cli"})
 
+# Non-skills directories that also ship to consumers or generate shipped output
+# and carry upstream-path prose. ``.claude/commands`` generates Copilot CLI
+# skills, whose mirror under ``src/copilot-cli/skills`` is covered by the
+# plugin-root scan. ``templates/agents`` generates Copilot CLI agents under
+# ``src/copilot-cli/agents``, which this validator deliberately does not scan.
+# Scanning these source trees covers the otherwise unscanned source surface and
+# avoids double-counting command mirrors. Issue #3646.
+EXTRA_SCAN_ROOTS: tuple[str, ...] = (".claude/commands", "templates/agents")
+
 
 def has_portability_marker(text: str) -> bool:
     """Return True if the file self-declares its upstream path dependencies.
@@ -396,6 +413,23 @@ def skills_dirs(root: Path) -> list[Path]:
     return [root / name / "skills" for name in PLUGIN_ROOTS if (root / name / "skills").is_dir()]
 
 
+def extra_scan_dirs(root: Path) -> list[Path]:
+    """Return existing directories from ``EXTRA_SCAN_ROOTS``.
+
+    These are flat source trees that ship to consumers or generate shipped
+    output, but are not under a plugin root's ``skills/`` subtree.
+    ``.claude/commands`` mirrors into ``src/copilot-cli/skills``, which the
+    plugin-root scan covers. ``templates/agents`` mirrors into
+    ``src/copilot-cli/agents``, which this validator deliberately does not
+    scan. Listing the source keeps those template references covered without
+    double-counting command mirrors (issue #3646).
+
+    Absent directories are skipped: a checkout that does not have
+    ``.claude/commands`` is not broken, it may just be a minimal clone.
+    """
+    return [root / name for name in EXTRA_SCAN_ROOTS if (root / name).is_dir()]
+
+
 def missing_required_roots(root: Path) -> list[str]:
     """Return the required roots whose skills tree is absent, in declared order.
 
@@ -412,17 +446,27 @@ def missing_required_roots(root: Path) -> list[str]:
 
 
 def scan_plugin_roots(root: Path) -> dict[str, int]:
-    """Return {repo_relative_posix_path: count} across every plugin root.
+    """Return {repo_relative_posix_path: count} across every plugin root and extra dirs.
 
     Keys are relative to the repository root rather than to the skills dir's
     parent. Both roots hold a ``skills/spec/SKILL.md``, so the parent-relative
     key that a single-root scan could use collides the moment a second root is
     read, and one root's count would silently overwrite the other's.
+
+    Extra dirs (``EXTRA_SCAN_ROOTS``) are scanned after the plugin roots. They
+    are flat source trees that are not under any plugin-root ``skills/``
+    subtree. ``.claude/commands`` mirrors into the scanned
+    ``src/copilot-cli/skills`` tree; ``templates/agents`` mirrors into
+    ``src/copilot-cli/agents``, which this validator deliberately does not
+    scan (issue #3646).
     """
     counts: dict[str, int] = {}
     for skills_dir in skills_dirs(root):
         for rel, n in scan_skill_markdown(skills_dir).counts.items():
             counts[(skills_dir.parent.relative_to(root) / rel).as_posix()] = n
+    for extra_dir in extra_scan_dirs(root):
+        for rel, n in scan_skill_markdown(extra_dir).counts.items():
+            counts[(extra_dir.parent.relative_to(root) / rel).as_posix()] = n
     return counts
 
 
@@ -581,6 +625,11 @@ def check_semantic_baseline_conflict(
     except ValueError:
         return []
     if baseline_rel not in changed:
+        return []
+    # When the scanner script itself changes (e.g. extending EXTRA_SCAN_ROOTS),
+    # the baseline MUST be regenerated to match the new scan scope. That co-change
+    # is intentional, not a conflict. Skip the guard in this case. Issue #4195.
+    if any(rel in _MEASURED_SCANNER_FILES for rel in changed):
         return []
     return [rel for rel in changed if rel != baseline_rel and _is_measured_input(rel)]
 
@@ -875,7 +924,7 @@ def _report(
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     root = _resolve_root(args.repo_root)
-    scanned = skills_dirs(root)
+    scanned = skills_dirs(root) + extra_scan_dirs(root)
     missing = missing_required_roots(root)
     if missing:
         absent = ", ".join(f"{name}/skills" for name in missing)
@@ -927,9 +976,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     regressions, improvements = diff_against_baseline(current, baseline)
-    marker_regressions, marker_improvements = diff_marker_baseline(
-        marker_current, marker_baseline
-    )
+    marker_regressions, marker_improvements = diff_marker_baseline(marker_current, marker_baseline)
     regressions.extend(marker_regressions)
     improvements.extend(marker_improvements)
     _report(

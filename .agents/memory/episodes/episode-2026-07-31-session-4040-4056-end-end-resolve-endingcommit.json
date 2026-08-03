@@ -13,7 +13,9 @@
       "type": "milestone",
       "content": "Read PR 4056 in full: body, 12 comments, the single review thread, all check runs, both linked issues, and the commit series",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e011"
+      ]
     },
     {
       "id": "e002",
@@ -21,7 +23,9 @@
       "type": "milestone",
       "content": "Reproduced the review finding against current code with scripts/validate_session_json.py",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e011"
+      ]
     },
     {
       "id": "e003",
@@ -29,7 +33,9 @@
       "type": "milestone",
       "content": "Merged origin/main after the PR went CONFLICTING mid-session",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e011"
+      ]
     },
     {
       "id": "e004",
@@ -37,7 +43,9 @@
       "type": "milestone",
       "content": "Ran an independent adversarial review of the diff",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e011"
+      ]
     },
     {
       "id": "e005",
@@ -45,7 +53,9 @@
       "type": "milestone",
       "content": "Fixed _is_valid_score to ask finiteness of floats only, and added a regression test",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e011"
+      ]
     },
     {
       "id": "e006",
@@ -53,10 +63,11 @@
       "type": "test",
       "content": "303 passed, 1 skipped. As a negative control the test reproduces the original OverflowError against the pre-fix source, and the source restores byte-identical.",
       "caused_by": [
-        "e008",
-        "e010"
+        "e008"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e011"
+      ]
     },
     {
       "id": "e007",
@@ -64,7 +75,9 @@
       "type": "milestone",
       "content": "Recorded endingCommit 7116afe11 on the session 3989 log and dropped the now-completed nextStep that asked for it",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e011"
+      ]
     },
     {
       "id": "e008",
@@ -82,26 +95,35 @@
       "type": "milestone",
       "content": "Re-checked the remote before pushing and found the branch had moved to 67bc91cb8 with rounds 4 and 5",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e011"
+      ]
     },
     {
       "id": "e010",
-      "timestamp": "2026-07-31T00:00:00+00:00",
+      "timestamp": "2026-07-31T01:21:47+00:00",
       "type": "commit",
       "content": "Commit: 3dce9b208a640ee60ec2b399f68e9ca3358aabe4",
       "caused_by": [
         "e011"
       ],
-      "leads_to": [
-        "e006"
-      ]
+      "leads_to": []
     },
     {
       "id": "e011",
-      "timestamp": "2026-07-31T00:00:00+00:00",
+      "timestamp": "2026-07-31T01:21:47+00:00",
       "type": "commit",
       "content": "Commit: bc4f7944c",
-      "caused_by": [],
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e009"
+      ],
       "leads_to": [
         "e010"
       ]
