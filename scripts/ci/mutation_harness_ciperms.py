@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Mutation harness for CI security permission tests.
 
-Tests three outcome classes per mutation:
+Tests four outcome classes per mutation:
   DEAD         - mutant introduced, test caught it (good)
   SURVIVED     - mutant introduced, test passed anyway (BAD - test is weak)
   DID-NOT-APPLY - target literal absent in file; patch was a no-op (harness defect)
