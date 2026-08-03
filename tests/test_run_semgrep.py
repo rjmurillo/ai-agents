@@ -32,6 +32,24 @@ def scanner() -> SemgrepScanner:
         return SemgrepScanner()
 
 
+@pytest.fixture(autouse=True)
+def _stub_pinned_executable():
+    """Stub semgrep executable resolution for every test in this module.
+
+    ``_resolve_semgrep_executable`` verifies the resolved binary against the
+    pyproject.toml pin, which costs a ``semgrep --version`` subprocess. The
+    tests below mock ``subprocess.run`` to script the *scan* call, so an
+    unstubbed probe consumes that mock and the scan never runs. Resolution has
+    its own coverage in ``tests/test_run_semgrep_pinning.py``; here it is an
+    external boundary and is stubbed like one.
+    """
+    with patch(
+        "scripts.security.run_semgrep._resolve_semgrep_executable",
+        return_value="/pinned/semgrep",
+    ):
+        yield
+
+
 def _completed(returncode: int, stdout: str = "", stderr: str = "") -> MagicMock:
     result = MagicMock()
     result.returncode = returncode

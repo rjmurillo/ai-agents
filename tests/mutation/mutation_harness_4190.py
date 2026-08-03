@@ -57,22 +57,24 @@ def run_mutants() -> None:
             "remove venv sibling semgrep check",
             b"    sibling = Path(sys.executable).parent / sibling_name\n"
             b"    if sibling.is_file() and os.access(sibling, os.X_OK):\n"
-            b"        return str(sibling)",
+            b"        return _verify_pinned_version(str(sibling), repo_root)",
             b"    sibling = Path(sys.executable).parent / sibling_name\n"
             b"    if False:  # MUTANT-DELETED-4190\n"
-            b"        return str(sibling)",
+            b"        return _verify_pinned_version(str(sibling), repo_root)",
         ),
         (
-            "remove version mismatch check in _resolve_semgrep_executable",
+            "remove version mismatch check in _verify_pinned_version",
             b"    if version != pinned:\n"
             b"        raise _SemgrepExecutableError(\n"
             b"            f\"semgrep version mismatch: pyproject.toml pins {pinned!r}, \"\n"
-            b"            f\"but {resolved} reports {version!r}\"\n"
+            b"            f\"but {executable} reports {version!r}. \"\n"
+            b"            f\"Reinstall the pin with: {_INSTALL_HINT}\"\n"
             b"        )",
             b"    if False:  # MUTANT-DELETED-4190\n"
             b"        raise _SemgrepExecutableError(\n"
             b"            f\"semgrep version mismatch: pyproject.toml pins {pinned!r}, \"\n"
-            b"            f\"but {resolved} reports {version!r}\"\n"
+            b"            f\"but {executable} reports {version!r}. \"\n"
+            b"            f\"Reinstall the pin with: {_INSTALL_HINT}\"\n"
             b"        )",
         ),
         (
