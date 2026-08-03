@@ -111,17 +111,16 @@ jobs:
         env:
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
         run: |
-          echo "## Copilot Context Synthesis Complete :robot:" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Issue**: #${ISSUE_NUMBER}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Actions Taken" >> $GITHUB_STEP_SUMMARY
-          echo "- Synthesized context from trusted sources" >> $GITHUB_STEP_SUMMARY
-          echo "- Posted/updated synthesis comment with @copilot mention" >> $GITHUB_STEP_SUMMARY
-          echo "- Assigned copilot-swe-agent to the issue" >> $GITHUB_STEP_SUMMARY
-          echo "- Removed copilot-ready label (processing complete)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Copilot will now create a PR based on the synthesized context." >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## Copilot Context Synthesis Complete :robot:"
+            echo "**Issue**: #${ISSUE_NUMBER}"
+            echo "### Actions Taken"
+            echo "- Synthesized context from trusted sources"
+            echo "- Posted/updated synthesis comment with @copilot mention"
+            echo "- Assigned copilot-swe-agent to the issue"
+            echo "- Removed copilot-ready label (processing complete)"
+            echo "Copilot will now create a PR based on the synthesized context."
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # ===========================================================================
   # Job 2: Sweep for Missed Issues (scheduled or manual without issue number)

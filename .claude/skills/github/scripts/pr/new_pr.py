@@ -365,7 +365,14 @@ def run_validations(
                             timeout=60,
                         )
                         if vresult.returncode != 0:
-                            print("Session End validation failed", file=sys.stderr)
+                            print(
+                                f"Session End validation failed for {session_log}",
+                                file=sys.stderr,
+                            )
+                            if vresult.stdout:
+                                print(vresult.stdout, end="", file=sys.stderr)
+                            if vresult.stderr:
+                                print(vresult.stderr, end="", file=sys.stderr)
                             raise SystemExit(1)
         elif not has_legacy_md:
             print("  WARNING: No session log found but .agents/ files changed", file=sys.stderr)
