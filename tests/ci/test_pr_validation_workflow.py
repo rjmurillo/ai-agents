@@ -934,6 +934,7 @@ class TestBotSkipGuardClassification:
     _ALLOWED_BEHIND_GUARD: frozenset[str] = frozenset(
         {
             "Checkout repository",
+            "Setup uv",
             "Setup PowerShell",
             "Validate PR Description vs Diff",
             "Validate PR Description Standards",

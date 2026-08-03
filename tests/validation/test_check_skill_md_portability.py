@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size, this suite covers one validator end to end.
 """Tests for the Markdown vendor-portability ratchet (issue #2050).
 
 scripts/validation/check_skill_md_portability.py is the Markdown counterpart to
