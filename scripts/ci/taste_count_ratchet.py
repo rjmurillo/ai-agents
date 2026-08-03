@@ -81,6 +81,14 @@ def current_count(repo_root: Path) -> int | None:
     Returning None rather than 0 on any failure is load-bearing. A zero from a
     crashed linter would look like a clean tree, and ``--update`` would write
     that zero into the baseline and permanently disarm the gate.
+
+    "Any failure" includes a report that parsed as JSON but is not a mapping.
+    ``format_json`` in ``.claude/skills/taste-lints/scripts/taste_lints.py``
+    only ever emits an object, so a list, a string, or a bare null came from
+    something else. Reading ``error_count`` off one raised ``AttributeError``,
+    and the traceback left the process exiting 1: the ratchet's own code for a
+    REGRESSION. An unreadable report is an external error and must exit 3, or a
+    broken linter reads as new violations a contributor cannot find.
     """
     files = tracked_files(repo_root, ("*",))
     if files is None:
@@ -112,12 +120,117 @@ def current_count(repo_root: Path) -> int | None:
         except json.JSONDecodeError as exc:
             sys.stderr.write(f"taste-lints emitted unparseable JSON: {exc}\n")
             return None
+        if not isinstance(report, dict):
+            sys.stderr.write("taste-lints report was not a JSON object\n")
+            return None
         count = report.get("error_count")
         if not isinstance(count, int):
             sys.stderr.write("taste-lints report has no integer error_count\n")
             return None
         total += count
     return total
+
+
+_REQUIRED_FIELDS = ("severity", "file", "rule", "message")
+
+
+def _batch_findings(repo_root: Path, batch: Sequence[str]) -> list[object] | None:
+    """The ``violations`` list from one linter batch, or None when unusable.
+
+    Canonical shape, quoted from ``format_json`` in
+    ``.claude/skills/taste-lints/scripts/taste_lints.py``::
+
+        data = {
+            "files_scanned": result.files_scanned,
+            "files_by_category": result.files_by_category,
+            "error_count": result.error_count,
+            "warning_count": result.warning_count,
+            "violations": [ ... for v in result.violations ],
+        }
+
+    So the top level is always an object and ``violations`` is always a list.
+    A report that is neither did not come from a healthy run of that emitter,
+    and reading it as "no violations" would report a clean tree from a broken
+    scan: the same silent diagnostic this work exists to remove. Both shapes
+    return None and name themselves on stderr instead.
+
+    Reading them as empty was not theoretical. A report keyed ``findings`` (the
+    name this lister used before #3902) rendered nothing at all, and a report
+    whose ``violations`` value was null or a number raised ``TypeError``
+    straight out of the pre-push hook.
+
+    Every ``return None`` leg names its cause. ``run`` prints the list under
+    ``if violations:``, so a lister that returns None prints exactly as much as
+    a clean tree: nothing.
+    """
+    try:
+        proc = subprocess.run(
+            [sys.executable, str(_LINTER), "--format", "json", "--", *batch],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            errors="replace",
+            encoding="utf-8",
+            check=False,
+        )
+    except (FileNotFoundError, OSError) as exc:
+        sys.stderr.write(f"taste-lint diagnostic unavailable: {exc}\n")
+        return None
+    if proc.returncode not in (_EXIT_CLEAN, _EXIT_VIOLATIONS):
+        sys.stderr.write(f"taste-lint diagnostic unavailable: linter exit {proc.returncode}\n")
+        sys.stderr.write(proc.stderr)
+        return None
+    try:
+        report = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        sys.stderr.write("taste-lint diagnostic unavailable: linter output was not JSON\n")
+        return None
+    if not isinstance(report, dict):
+        sys.stderr.write("taste-lint diagnostic unavailable: report was not a JSON object\n")
+        return None
+    findings = report.get("violations")
+    if not isinstance(findings, list):
+        sys.stderr.write("taste-lint diagnostic unavailable: report carried no violations list\n")
+        return None
+    return findings
+
+
+def _violation_fields(finding: object) -> dict[str, str] | None:
+    """The four fields a rendered line needs, or None when the entry is malformed.
+
+    ``Violation`` in ``.claude/skills/taste-lints/scripts/taste_lints.py``
+    declares ``rule: str``, ``severity: str``, ``file: str``, ``line: int``,
+    ``message: str``, ``remediation: str``, ``category: str``, and
+    ``format_json`` copies each field straight across. Every entry from a
+    healthy scan therefore carries all four names this renders, each a string.
+
+    An entry that does not is a broken emitter, not a violation to describe,
+    and the old fallbacks hid exactly that: a missing ``file`` rendered
+    ``"?: [file-size] ..."`` and a missing ``rule`` and ``message`` rendered
+    ``"a.md: [?] "``. Both look like real diagnostic output, so a contributor
+    read a line that named no file and went looking for a violation the
+    renderer had already lost. Naming the cause once beats printing a screen of
+    placeholders.
+
+    Every entry is checked, warnings included. The severity filter runs on the
+    caller's side of this, so a malformed warning is still a malformed report
+    and still means the list cannot be trusted.
+    """
+    if not isinstance(finding, dict):
+        sys.stderr.write(
+            "taste-lint diagnostic unavailable: a violation entry was not a JSON object\n"
+        )
+        return None
+    fields: dict[str, str] = {}
+    for name in _REQUIRED_FIELDS:
+        value = finding.get(name)
+        if not isinstance(value, str):
+            sys.stderr.write(
+                f"taste-lint diagnostic unavailable: a violation entry has no string {name}\n"
+            )
+            return None
+        fields[name] = value
+    return fields
 
 
 def list_violations(
@@ -133,6 +246,9 @@ def list_violations(
     emission order alone buries the branch's own violation: on issue #3902's PR
     the one added violation was at index 596 and never printed. Ordering is
     stable within each group, so the rest of the list keeps scan order.
+
+    None means the scan could not be read, which is not the same as a clean
+    tree and never renders as one. Every leg that returns it says why.
     """
     files = tracked_files(repo_root, ("*",))
     if files is None:
@@ -143,36 +259,19 @@ def list_violations(
     lines: list[str] = []
     deferred: list[str] = []
     for batch in chunk(files):
-        try:
-            proc = subprocess.run(
-                [sys.executable, str(_LINTER), "--format", "json", "--", *batch],
-                cwd=repo_root,
-                capture_output=True,
-                text=True,
-                errors="replace",
-                encoding="utf-8",
-                check=False,
-            )
-        except (FileNotFoundError, OSError):
+        findings = _batch_findings(repo_root, batch)
+        if findings is None:
             return None
-        if proc.returncode not in (_EXIT_CLEAN, _EXIT_VIOLATIONS):
-            return None
-        try:
-            report = json.loads(proc.stdout)
-        except json.JSONDecodeError:
-            return None
-        # taste_lints.py emits {"violations": [...]} with a "file" key per item.
-        # Reading "findings"/"path" here silently produced an empty diagnostic.
-        for finding in report.get("violations", []):
-            if not isinstance(finding, dict):
+        # Each item carries "file", not "path". Reading "path" here rendered
+        # every line as "?" while still looking like a working diagnostic.
+        for finding in findings:
+            fields = _violation_fields(finding)
+            if fields is None:
+                return None
+            if fields["severity"] != "error":
                 continue
-            if finding.get("severity") != "error":
-                continue
-            path = finding.get("file", "?")
-            rule = finding.get("rule", "?")
-            msg = finding.get("message", "")
-            target = lines if path in priority_paths else deferred
-            target.append(f"{path}: [{rule}] {msg}")
+            target = lines if fields["file"] in priority_paths else deferred
+            target.append(f"{fields['file']}: [{fields['rule']}] {fields['message']}")
     return lines + deferred
 
 
