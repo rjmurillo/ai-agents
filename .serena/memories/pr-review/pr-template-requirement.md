@@ -39,14 +39,26 @@ Then structure the PR body to match all sections.
 
 ## Fixing Existing PRs
 
-If a PR was created without the template, fix it using REST API:
+Write the body to a file and apply it with `--body-file`:
 
 ```bash
-gh api repos/{owner}/{repo}/pulls/{number} --method PATCH -f body="$(cat .github/PULL_REQUEST_TEMPLATE.md)"
-# Then manually fill in sections
+gh pr edit <N> --body-file <path>
 ```
 
-**Evidence**: PR 354 body updated via REST API to use proper template format.
+Do NOT use `gh api ... -f body="$(cat file)"`. Command substitution runs the body
+through the shell, so any backtick or `$` in it is expanded before it is sent. PR
+bodies routinely contain backticked paths, so that form corrupts the body it is
+meant to fix.
+
+## These sections are advisory, not blocking
+
+Missing sections here produce `TEMPLATE_STATUS=WARN`, which
+`scripts/ci/build_pr_validation_report.py` appends to `warnings` and never
+promotes to `status`. A template WARN does not red the `Validate PR` check.
+
+Use the template because it makes PRs readable, not because CI forces it. When the
+check is actually red, the cause is a different signal. See
+[ci-validate-pr-has-four-signals-but-only-one-blocks](../ci/ci-validate-pr-has-four-signals-but-only-one-blocks.md).
 
 ## Related
 
