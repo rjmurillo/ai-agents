@@ -13,7 +13,7 @@
       "content": "Root cause is two disagreeing sources of truth, not a misplaced file. The execution-plans skill writes to completed/ and abandoned/, while the archive README and the decision memory name .agents/archive/plans/.",
       "caused_by": [],
       "leads_to": [
-        "e002"
+        "e005"
       ]
     },
     {
@@ -21,11 +21,9 @@
       "timestamp": "2026-07-29T00:00:00+00:00",
       "type": "milestone",
       "content": "No code path or CI gate reads the two staging directories. Move is documentation-only.",
-      "caused_by": [
-        "e001"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e003"
+        "e005"
       ]
     },
     {
@@ -33,11 +31,9 @@
       "timestamp": "2026-07-29T00:00:00+00:00",
       "type": "milestone",
       "content": "13 plans in .agents/archive/plans/, both READMEs agree, zero em or en dashes.",
-      "caused_by": [
-        "e002"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e004"
+        "e005"
       ]
     },
     {
@@ -45,17 +41,22 @@
       "timestamp": "2026-07-29T00:00:00+00:00",
       "type": "milestone",
       "content": "All three corrected. The sessionEnd copy is the notable one: reusing a prior log as a template put false compliance evidence in the record, and only the bot review caught it.",
-      "caused_by": [
-        "e003"
-      ],
-      "leads_to": []
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ]
     },
     {
       "id": "e005",
-      "timestamp": "2026-07-29T00:00:00+00:00",
+      "timestamp": "2026-07-29T13:16:07+00:00",
       "type": "commit",
       "content": "Commit: be6c0878",
-      "caused_by": [],
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004"
+      ],
       "leads_to": []
     }
   ],
