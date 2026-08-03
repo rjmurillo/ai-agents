@@ -1965,7 +1965,7 @@ def test_adjacent_string_literals_are_a_known_undetected_shape(monkeypatch):
     assert result["activation_score"] == 1
 
 
-def test_a_verdict_recovered_from_the_prefix_is_marked_salvaged(
+def test_trailing_prose_marks_payload_as_judge_failed_and_preserves_raw_response(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Trailing prose after a valid JSON object now marks the cell as judge_failed.
