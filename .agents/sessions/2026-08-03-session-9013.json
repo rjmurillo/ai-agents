@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "This commit lands the rule, the governance entry, both generated mirrors, and this log."
+        "Evidence": "Commit ee9d10dfb lands the rule, the governance entry, both generated mirrors, and this log. This follow-up commit records the ending commit so the extracted episode can derive metrics.commits."
       },
       "validationPassed": {
         "level": "MUST",
@@ -114,6 +114,6 @@
     }
   },
   "workLog": [],
-  "endingCommit": "",
+  "endingCommit": "ee9d10dfb",
   "nextSteps": []
 }
