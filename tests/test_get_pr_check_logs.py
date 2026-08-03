@@ -534,7 +534,9 @@ class TestMergeRefUnusableWithFailingChecks:
             "Data": {
                 "Number": 3771,
                 "MergeRefUsable": False,
-                "MergeStateWarning": "PR merge ref cannot be built because GitHub reports merge conflicts",
+                "MergeStateWarning": (
+                    "PR merge ref cannot be built because GitHub reports merge conflicts"
+                ),
                 "Checks": [
                     {
                         "Name": "Validate PR",
