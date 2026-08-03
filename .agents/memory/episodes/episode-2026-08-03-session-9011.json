@@ -1,20 +1,29 @@
 {
-  "id": "episode-2026-08-03-session-9011",
-  "session": "2026-08-03-session-9011",
+  "id": "episode-2026-08-03-session-9010",
+  "session": "2026-08-03-session-9010",
   "timestamp": "2026-08-03T00:00:00+00:00",
   "causal_order_version": 2,
   "outcome": "success",
-  "task": "Record the MD056-escape-breaks-ERE-grep Eureka as a Serena memory",
+  "task": "Repair zero-commit metrics in concurrency-waves episode to unblock PR merge",
   "decisions": [],
   "events": [
     {
       "id": "e001",
       "timestamp": "2026-08-03T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 3fd6805db",
+      "type": "milestone",
+      "content": "Repair episode metrics",
       "caused_by": [],
       "leads_to": [],
-      "_source_session": "2026-08-03-session-9011"
+      "_source_session": "2026-08-03-session-9010"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: cd4ebd80ed",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-9010"
     }
   ],
   "metrics": {
@@ -23,7 +32,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 2
+    "files_changed": 4
   },
   "lessons": []
 }

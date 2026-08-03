@@ -13,6 +13,19 @@ and does not prove.
 - Generator: `build/generate_agents.py` (+ `build/generate_agents_common.py`),
   invoked by `build/scripts/build_all.py::_build_agents` which calls
   `generate_agents.main([...])` across all platform configs.
+- Destination 1 (Copilot CLI mirror): `src/copilot-cli/agents/<name>.agent.md`.
+- Destination 2 (VS Code mirror): `src/vs-code-agents/<name>.agent.md`.
+
+Correction, verified 2026-07-31: an earlier version of this note listed
+`.claude/agents/<name>.md` as a generated destination. It is not. It is one of
+three hand-maintained copies, alongside `src/claude/<name>.md` and
+`.github/agents/<name>.agent.md`, per `.agents/governance/GENERATOR-FILES.md`
+lines 31 to 33. Negative control: revert only `.claude/agents/orchestrator.md`
+to `origin/main`, run `build/scripts/build_all.py` (exit 0), and the reverted
+content stays reverted. A generated file would have been restored. Believing
+`.claude/agents/` regenerates is how PR #1715 shipped an orchestrator section
+to the Claude copies and never to Copilot. See
+`.serena/memories/decision-agent-files-are-not-canonical.md`.
 
 | Tree | Written by the generator? |
 |---|---|
@@ -21,6 +34,11 @@ and does not prove.
 | `src/claude/<name>.md` | no, hand-maintained |
 | `.claude/agents/<name>.md` | no, hand-maintained |
 | `.github/agents/<name>.agent.md` | no, hand-maintained |
+
+A single behavioral change (for example a severity rubric on
+silent-failure-hunter) is made ONCE in the `.shared.md` body, flows to the two
+generated trees on regeneration, and must then be hand-applied to the three
+hand-maintained copies.
 
 The generated pair is exactly the `outputDir` set for agents in
 `templates/platforms/*.yaml`: `src/copilot-cli/agents` and `src/vs-code-agents`.

@@ -94,6 +94,11 @@ def check_docs(
 
     Returns a list of (doc_path, line_number, script_rel_path, bad_imports).
     An empty list means no violations.
+
+    Raises OSError when a listed doc exists but cannot be read (a directory
+    passed as a doc, a permission denial). ``main`` maps that to exit code 2
+    per the module contract; the scanner itself does not swallow it, because a
+    doc that was never scanned is not a doc that passed.
     """
     violations: list[tuple[Path, int, str, set[str]]] = []
 
@@ -136,7 +141,11 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = Path(args.repo_root).resolve()
     doc_paths = [repo_root / d for d in args.docs]
 
-    violations = check_docs(doc_paths, repo_root)
+    try:
+        violations = check_docs(doc_paths, repo_root)
+    except OSError as exc:
+        print(f"ERROR: cannot read documentation file: {exc}", file=sys.stderr)
+        return 2
 
     if not violations:
         print("OK: no bare-python3 invocations of dependency-importing scripts found")
