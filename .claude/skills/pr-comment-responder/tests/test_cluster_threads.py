@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, PR 1897 fixture keeps 16 review threads in one test.
 """Tests for the pr-comment-responder cluster_threads.py Phase 0 step.
 
 The headline regression fixture (``PR_1897_ROUND7_THREADS``) reconstructs the
