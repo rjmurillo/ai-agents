@@ -640,7 +640,8 @@ def main(argv: list[str] | None = None) -> int:
             resource_thresholds={"core": 200, "graphql": 100}
         )
         if not rate_result.success:
-            logger.error("Insufficient API rate limit. Exiting.")
+            reason = rate_result.probe_error or "thresholds not met"
+            logger.error("API rate limit gate failed (%s). Exiting.", reason)
             return 2
     except RuntimeError:
         logger.exception("Failed to check rate limit")
