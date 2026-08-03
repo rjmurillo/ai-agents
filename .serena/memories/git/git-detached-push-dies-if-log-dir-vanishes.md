@@ -45,7 +45,43 @@ ps -eo pid,etime,args | grep "git push" | grep -v grep
 An absent log file five seconds in means the launch failed, not that the push
 is quiet.
 
-## Two adjacent traps
+The log alone cannot tell you which of four states you are in. Read it together
+with the process table and the `REAL_EXIT` sentinel.
+
+| Log | `REAL_EXIT` | Process | State |
+|---|---|---|---|
+| missing | absent | none | launch failed, the redirect had nowhere to write |
+| growing | absent | alive | still working, leave it alone |
+| full, ends on a success line | absent | none | killed midway, relaunch is correct |
+| any | present | none | finished, read the code |
+
+Measured on 2026-08-02: a 78 KB push log ended on `pre_pr.py` printing
+`Ready to create pull request!`, which reads exactly like completion. There was
+no `REAL_EXIT` line, no process, and `git ls-remote` still showed the old head.
+The push had been killed under machine load with the whole test suite still to
+run. The sentinel is the only completion signal in the log that means anything.
+
+Detect the process by the branch name, never by the refspec. The command is
+usually written `git push origin HEAD:<branch>`, so a grep for
+`git push origin <branch>` matches nothing while the push is very much alive.
+That miss reads as "the push died" and invites a relaunch, which queues behind
+the first one on the flock and doubles the machine load.
+
+```bash
+# reliable: the branch alone, plus the worktree the push runs in
+ps -eo pid,etimes,args | grep "$BR" | grep -v grep
+for p in $(ps -eo pid --no-headers); do
+  case "$(readlink /proc/$p/cwd 2>/dev/null)" in
+    *"$(basename "$WT")"*) echo "$p $(tr '\0' ' ' < /proc/$p/cmdline)";;
+  esac
+done
+```
+
+Measured on 2026-08-02: `grep 'git push origin docs/memory'` returned nothing
+against a push that had been running for 650 seconds as
+`git push origin HEAD:docs/memory-red-main-blocks-push`.
+
+## Three adjacent traps
 
 Use `nohup setsid`. An async process merely backgrounded from the agent session
 is killed when that session shuts down, for example at context compaction. Two
@@ -62,6 +98,26 @@ An empty `git ls-remote` result for a branch that should exist is worth a second
 look rather than a conclusion: after a squash merge GitHub deletes the source
 branch, so "no remote ref" can mean "already merged" rather than "never pushed".
 Check `gh pr view <n> --json state,headRefOid` before concluding anything.
+
+Put the `cd` inside the process you launch. Writing
+`cd "$WT" && nohup setsid ... &` backgrounds the entire `&&` list, so the `cd`
+happens in the subshell and the parent shell never moves. Every command after
+it in the same invocation runs in the original directory. With several
+worktrees sharing one repository that is silent and dangerous: `git rev-parse
+HEAD` answers for a different branch and the output looks completely normal.
+
+```bash
+# wrong: the cd is backgrounded along with everything else
+cd "$WT" && nohup setsid bash -c "git push origin $BR > $S/p.log 2>&1" &
+
+# right: the cd belongs to the launched shell, and follow-ups name the path
+nohup setsid bash -c "cd '$WT' && git push origin $BR > $S/p.log 2>&1; \
+  echo REAL_EXIT=\$? >> $S/p.log" >/dev/null 2>&1 &
+git -C "$WT" rev-parse HEAD
+```
+
+Demonstrated 2026-08-02: `cd alpha && sleep 0.2 &` followed by `pwd` in the
+same invocation printed `beta`, the starting directory.
 
 ## Generalization
 
