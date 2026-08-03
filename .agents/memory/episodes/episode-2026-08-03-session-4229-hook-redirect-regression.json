@@ -1,0 +1,65 @@
+{
+  "id": "episode-2026-08-03-session-4229-hook-redirect-regression",
+  "session": "2026-08-03-session-4229-hook-redirect-regression",
+  "timestamp": "2026-08-03T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Add regression tests for issue #4229 AC3/4/5: test that applies real hook policy to research manifest, fails when hook names absent tool, names recovery path.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Triaged #4229 against current tests in tests/commands/test_research_command_contract.py",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4229-hook-redirect-regression"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read hooks.json and routing.mjs to determine redirect targets",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4229-hook-redirect-regression"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added 6 new tests covering AC3/4/5",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4229-hook-redirect-regression"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Mutation proof 1: removed recovery guard from research.md",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4229-hook-redirect-regression"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Mutation proof 2: added context-mode pattern to research.md allowed-tools",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4229-hook-redirect-regression"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 3
+  },
+  "lessons": []
+}

@@ -1,0 +1,161 @@
+{
+  "schemaVersion": "1.1",
+  "session": {
+    "number": 4229,
+    "date": "2026-08-03",
+    "branch": "fix/subtools-session-log",
+    "startingCommit": "c3e91b50ad7c",
+    "objective": "Add regression tests for issue #4229 AC3/4/5: test that applies real hook policy to research manifest, fails when hook names absent tool, names recovery path."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Copilot CLI harness; Serena MCP not available"
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena not available"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read HANDOFF.md and issue #4229 via gh api"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read agent-harness-reference/SKILL.md"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md and CLAUDE.md loaded"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read PROJECT-CONSTRAINTS.md"
+      },
+      "memoriesLoaded": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena not available"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/subtools-session-log"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/subtools-session-log, not main"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status verified"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "c3e91b50ad7c"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All gates addressed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not modified"
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena not available"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Ruff and ratchets all pass"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Staged in this commit"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All ratchets pass; 31 tests pass"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Work log below records each step"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not run for this targeted fix"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": 1,
+      "action": "Triaged #4229 against current tests in tests/commands/test_research_command_contract.py",
+      "result": "25 tests covered text presence but AC3/4/5 (hook-manifest contract) were absent.",
+      "files": [
+        "tests/commands/test_research_command_contract.py"
+      ]
+    },
+    {
+      "step": 2,
+      "action": "Read hooks.json and routing.mjs to determine redirect targets",
+      "result": "WebFetch PreToolUse hook redirects to ctx_fetch_and_index and ctx_execute; neither in research.md allowed-tools.",
+      "files": []
+    },
+    {
+      "step": 3,
+      "action": "Added 6 new tests covering AC3/4/5",
+      "result": "All 31 tests pass. Ruff 311, taste 598, type-ignore 44.",
+      "files": [
+        "tests/commands/test_research_command_contract.py"
+      ]
+    },
+    {
+      "step": 4,
+      "action": "Mutation proof 1: removed recovery guard from research.md",
+      "result": "test_research_command_has_recovery_path_when_webfetch_denied[claude] exit 1. Restored OK.",
+      "files": [
+        ".claude/commands/research.md"
+      ]
+    },
+    {
+      "step": 5,
+      "action": "Mutation proof 2: added context-mode pattern to research.md allowed-tools",
+      "result": "test_context_mode_redirect_targets_absent_from_research_allowed_tools[claude] exit 1. Restored OK.",
+      "files": [
+        ".claude/commands/research.md"
+      ]
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Push branch fix/subtools-session-log",
+    "Create PR with Fixes #4229"
+  ]
+}
