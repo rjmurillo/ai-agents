@@ -48,7 +48,7 @@ issue, or write-up. All commands run from the repo root.
 | ADR-068 status is Accepted as of 2026-07-30 | `sed -n '1,10p' .agents/architecture/ADR-068-consolidated-hook-dispatcher.md` |
 | Rule-activation eval exists with a no-spend path | `python3 scripts/eval/eval-rule-activation.py --help` |
 | Rule scenario fixtures | `set -- tests/evals/rule-scenarios/*; echo $#` |
-| Corpus size across skills, rules, retros, memories | `python3 -c "from pathlib import Path as P; print(len(list(P('.claude/skills').glob('*/SKILL.md'))),'skills',len(list(P('.claude/rules').glob('*.md'))),'rules',sum(1 for p in P('.agents/retrospective').glob('*.md') if p.is_file()),'retros',sum(1 for p in P('.serena/memories').rglob('*.md') if p.is_file()),'memories')"` |
+| Corpus size across skills, rules, retros, memories | `python3 -c "from pathlib import Path as P; print(len(list(P('.claude/skills').glob('*/SKILL.md'))),'skills',len(list(P('.claude/rules').glob('*.md'))),'rules',sum(1 for p in P('.agents/retrospective').glob('*.md') if p.is_file() and p.name != 'INDEX.md'),'retros',sum(1 for p in P('.serena/memories').rglob('*.md') if p.is_file()),'memories')"` |
 | Runtime contract tests pass | `uv run pytest tests/build_scripts/test_generate_hooks_runtime_contract.py -q` |
 | Apply-step hooks unregistered | `uv run pytest -q "tests/build_scripts/test_copilot_dispatcher_artifact.py::TestDispatcherArtifacts::test_retired_hooks_are_absent_and_keepers_are_plugin_only"` |
 

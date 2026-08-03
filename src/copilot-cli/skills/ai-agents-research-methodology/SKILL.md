@@ -273,7 +273,7 @@ volatile facts:
 | eval scripts and `--dry-run` | `scripts/eval/eval-prompt-change.py:567`; `scripts/eval/` listing | `ls scripts/eval/ && grep -n "dry-run" scripts/eval/eval-prompt-change.py` |
 | Contradiction log format | `.claude/rules/search-before-building.md` | `grep -n "decision-" .claude/rules/search-before-building.md` |
 | ADR-069 still proposed | `.agents/architecture/ADR-069-context-corpus-is-the-product.md:2` | `head -5 .agents/architecture/ADR-069-context-corpus-is-the-product.md` |
-| Retro corpus size | `.agents/retrospective/` | `python3 -c "import pathlib;print(len(list(pathlib.Path('.agents/retrospective').glob('*.md'))))"` |
+| Retro corpus size | `.agents/retrospective/` | `python3 -c "import pathlib;print(sum(1 for p in pathlib.Path('.agents/retrospective').glob('*.md') if p.name != 'INDEX.md'))"` |
 | guard-maturity tiers | `.claude/skills/guard-maturity/SKILL.md` | `grep -n "Budding" .claude/skills/guard-maturity/SKILL.md` |
 
 Uncertainty flag: the `EVENT=` telemetry consumer pipeline beyond the
