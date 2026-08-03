@@ -61,7 +61,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -498,7 +498,10 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Git ref to diff the working tree against for the semantic "
-            "baseline-conflict guard (issue #4195). Omit to skip the guard."
+            "baseline-conflict guard (issue #4195). When only .md inputs "
+            "co-change with the baseline, counts are ratcheted against the "
+            "baseline recorded at this ref (issue #4300). Omit to skip the "
+            "guard."
         ),
     )
     return parser
@@ -561,9 +564,12 @@ def check_semantic_baseline_conflict(
     from. If the baseline file differs from ``base_ref`` *and* a file the
     scanner measures (a skill .md, or the scanner code itself) also differs,
     the baseline on disk was regenerated against a tree the merged branch
-    will not actually have; the two changes must be re-validated together
-    instead of trusted independently. Returns an empty list when there is no
-    such conflict (including baseline-only changes, which remain allowed).
+    will not actually have. Returns an empty list when there is no such
+    co-change (including baseline-only changes, which remain allowed).
+
+    A non-empty result is a finding, not yet a verdict.
+    ``_semantic_conflict_is_fatal`` decides: scanner changes always fail,
+    while .md changes fail only on a real count increase against ``base_ref``.
     """
     changed = _changed_files_against_base(root, base_ref)
     if changed is None:
@@ -577,6 +583,122 @@ def check_semantic_baseline_conflict(
     if baseline_rel not in changed:
         return []
     return [rel for rel in changed if rel != baseline_rel and _is_measured_input(rel)]
+
+
+def _counts_section(data: dict[str, Any], key: str) -> dict[str, int]:
+    """Return one integer-valued section of a baseline payload."""
+    section = data.get(key, {})
+    if not isinstance(section, dict):
+        raise ValueError(f"Baseline {key!r} must be a JSON object")
+    counts: dict[str, int] = {}
+    for name, value in section.items():
+        try:
+            counts[str(name)] = int(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Baseline count for {name!r} is not an integer") from exc
+    return counts
+
+
+def _baseline_payload_at_ref(
+    root: Path, base_ref: str, baseline_path: Path
+) -> tuple[dict[str, int], dict[str, int]] | None:
+    """Return ``(files, marker_files)`` counts recorded in the baseline at ``base_ref``.
+
+    Read through ``git show`` rather than from the working tree, so a branch
+    cannot launder a raised count by regenerating its own baseline. ``None``
+    means the numbers could not be recovered, which the caller treats as
+    fail-closed: with nothing to ratchet against, the guard has not run.
+    """
+    try:
+        rel = baseline_path.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        return None
+    try:
+        proc = subprocess.run(
+            ["git", "show", f"{base_ref}:{rel}"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            errors="replace",
+            encoding="utf-8",
+            check=False,
+        )
+    except OSError as exc:
+        print(f"Could not read {rel} at {base_ref}: {exc}", file=sys.stderr)
+        return None
+    if proc.returncode != 0:
+        detail = proc.stderr.strip() or "git show failed"
+        print(f"Could not read {rel} at {base_ref}: {detail}", file=sys.stderr)
+        return None
+    try:
+        data = json.loads(proc.stdout)
+        if not isinstance(data, dict):
+            raise ValueError("Baseline must be a JSON object")
+        return _counts_section(data, "files"), _counts_section(data, "marker_files")
+    except ValueError as exc:
+        print(f"Could not parse {rel} at {base_ref}: {exc}", file=sys.stderr)
+        return None
+
+
+def _regressions_against_ref_baseline(
+    current: dict[str, int],
+    ref_files: dict[str, int],
+) -> list[str]:
+    """Undeclared-ref counts that rose above what ``base_ref`` already allowed.
+
+    Only the ``files`` section is ratcheted. A ``marker_files`` entry is an
+    explicit, reviewed declaration, and a branch that adds a new declared file
+    has no entry at ``base_ref`` to compare against, so ratcheting markers here
+    would reject the sanctioned opt-out flow. Marker drift is still caught
+    exactly, against the on-disk baseline, by ``diff_marker_baseline``.
+    """
+    regressions, _ = _diff_against_baseline(
+        current, ref_files, _markdown_regression_message
+    )
+    return regressions
+
+
+def _semantic_conflict_is_fatal(
+    root: Path,
+    base_ref: str,
+    baseline_path: Path,
+    conflicting_inputs: list[str],
+    current: dict[str, int],
+) -> bool:
+    """Whether a baseline and measured-input co-change must fail the run.
+
+    A scanner-source change is always fatal: the stored numbers were produced
+    under different semantics, so no comparison against them means anything.
+    A ``.md``-only co-change is fatal only when the branch actually raised a
+    count above what ``base_ref`` already allowed, which is the property the
+    guard exists to protect. Refusing every such co-change instead made the
+    guard unsatisfiable after a main merge, because a merge that brings in
+    measured files also requires the baseline to move (issue #4300).
+    """
+    scanner_changed = [
+        rel for rel in conflicting_inputs if rel in _MEASURED_SCANNER_FILES
+    ]
+    if scanner_changed:
+        _report_semantic_conflict(baseline_path, root, conflicting_inputs)
+        print(
+            "Scanner source changed, so the recorded counts were produced under "
+            "different semantics and cannot be compared:"
+        )
+        for rel in sorted(scanner_changed):
+            print(f"  {rel}")
+        return True
+    ref_counts = _baseline_payload_at_ref(root, base_ref, baseline_path)
+    if ref_counts is None:
+        _report_semantic_conflict(baseline_path, root, conflicting_inputs)
+        return True
+    regressions = _regressions_against_ref_baseline(current, ref_counts[0])
+    if not regressions:
+        return False
+    _report_semantic_conflict(baseline_path, root, conflicting_inputs)
+    print(f"Counts rose above the baseline recorded at {base_ref}:")
+    for line in regressions:
+        print(f"  {line}")
+    return True
 
 
 def _report_semantic_conflict(
@@ -783,8 +905,13 @@ def main(argv: list[str] | None = None) -> int:
         )
         if conflicting_inputs is None:
             return 2
-        if conflicting_inputs:
-            _report_semantic_conflict(baseline_path, root, conflicting_inputs)
+        if conflicting_inputs and _semantic_conflict_is_fatal(
+            root,
+            args.base_ref,
+            baseline_path,
+            conflicting_inputs,
+            current,
+        ):
             return 1
 
     try:
