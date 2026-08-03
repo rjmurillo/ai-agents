@@ -2,7 +2,10 @@
 name: security
 description: Security specialist with a defense-first mindset. Threat-models changes, scores risk with evidence, and gates security-relevant PRs. Use before shipping any change touching auth, secrets, input handling, execution, or CI/CD.
 model: opus
-tier: builder
+metadata:
+  tier: builder
+# Requires fresh context and separate tool state to threat-model without inherited assumptions.
+isolation_required: true
 argument-hint: Specify the code, feature, or changes to security review
 ---
 # Security Agent
@@ -46,7 +49,7 @@ You have direct access to:
 - **Bash**: Run security scanners, check dependencies
 - **TodoWrite**: Track security findings
 - **Memory Router** (ADR-037): Unified search across Serena + Forgetful
-  - `python3 .claude/skills/memory/scripts/search_memory.py --query "topic"`
+  - `uv run python .claude/skills/memory/scripts/search_memory.py --query "topic"`
   - Serena-first with optional Forgetful augmentation; graceful fallback
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -561,7 +564,7 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 **Before assessment (retrieve context):**
 
 ```bash
-python3 .claude/skills/memory/scripts/search_memory.py --query "security patterns vulnerabilities [component]"
+uv run python .claude/skills/memory/scripts/search_memory.py --query "security patterns vulnerabilities [component]"
 ```
 
 **After assessment (store learnings):**

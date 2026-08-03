@@ -153,9 +153,7 @@ def test_a_stale_branch_message_is_not_baseline_raised(tmp_path, monkeypatch, ca
     assert "Fix the violations" not in captured.err
 
 
-def test_a_real_raised_baseline_still_reports_baseline_raised(
-    tmp_path, monkeypatch, capsys
-):
+def test_a_real_raised_baseline_still_reports_baseline_raised(tmp_path, monkeypatch, capsys):
     baseline = _write_baseline(tmp_path, "700")
     monkeypatch.setattr(subprocess, "run", _fake_scan(10, 650, base_baseline="615"))
     rc = ratchet.main(_base_ref_argv(baseline, tmp_path))
@@ -334,6 +332,22 @@ def test_unparseable_report_is_an_external_error(tmp_path, monkeypatch):
     assert rc == ratchet.EXIT_EXTERNAL
 
 
+def test_a_non_mapping_report_is_an_external_error(tmp_path, monkeypatch):
+    """A report that parsed as JSON but is not an object (review of #4284).
+
+    ``report.get("error_count")`` raised AttributeError on a list, a string, or
+    a bare null, and the traceback left the process exiting 1: the ratchet's
+    own code for a REGRESSION. An unreadable report is an external error and
+    must exit 3, or a broken linter reads as new violations a contributor
+    cannot find.
+    """
+    baseline = _write_baseline(tmp_path, "615")
+    for payload in ("null", "7", '"hello"', '[{"error_count": 3}]'):
+        monkeypatch.setattr(subprocess, "run", _fake_scan(10, 0, lint_stdout=payload))
+        rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path)])
+        assert rc == ratchet.EXIT_EXTERNAL, payload
+
+
 def test_report_without_an_integer_count_is_an_external_error(tmp_path, monkeypatch):
     baseline = _write_baseline(tmp_path, "615")
     monkeypatch.setattr(
@@ -415,7 +429,8 @@ def test_a_git_that_cannot_be_launched_is_not_bootstrap(tmp_path, monkeypatch):
             raise FileNotFoundError("git: not found")
         if cmd[0] == "git" and "rev-parse" in cmd:
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
-        return real_run(cmd, **kwargs)
+        kwargs.pop("encoding", None)
+        return real_run(cmd, encoding="utf-8", **kwargs)
 
     monkeypatch.setattr(subprocess, "run", _run)
     baseline = tmp_path / "baseline.txt"

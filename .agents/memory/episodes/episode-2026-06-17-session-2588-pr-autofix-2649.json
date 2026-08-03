@@ -35,7 +35,9 @@
       "timestamp": "2026-06-17T00:00:00+00:00",
       "type": "test",
       "content": "Created .agents/qa/pr-2649-m4-overlap-eval.md QA report.   Covers generator fix verification, 55 passing tests, eval artifact integrity, verdict correctness. Satisfies Check QA Report Exists gate.",
-      "caused_by": [],
+      "caused_by": [
+        "e013"
+      ],
       "leads_to": []
     },
     {
@@ -83,7 +85,9 @@
       "timestamp": "2026-06-17T00:00:00+00:00",
       "type": "test",
       "content": "Created .agents/qa/pr-2649-m4-overlap-eval.md QA report covering generator fix, 55 passing tests, eval artifact integrity, verdict spot-check.   Satisfies Check QA Report Exists gate (*pr-2649*.md present in .agents/qa/).",
-      "caused_by": [],
+      "caused_by": [
+        "e013"
+      ],
       "leads_to": []
     },
     {
@@ -108,7 +112,10 @@
       "type": "commit",
       "content": "Commit: eb367099e",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e004",
+        "e010"
+      ]
     }
   ],
   "metrics": {
@@ -119,5 +126,7 @@
     "commits": 2,
     "files_changed": 4
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 2"
 }

@@ -34,7 +34,7 @@ Key requirements:
 You have direct access to:
 
 - **Read/Grep/Glob**: Analyze codebase and project state
-- **Bash**: Run gh commands to query issues, PRs, and project health
+- **GitHub skill scripts first**: Query issues, PRs, and project health through repo wrappers when available; use Bash only when no wrapper exists
 - **Memory Router** (ADR-037): Unified search across Serena + Forgetful
   - `uv run python .claude/skills/memory/scripts/search_memory.py --query "topic"`
   - Serena-first with optional Forgetful augmentation; graceful fallback

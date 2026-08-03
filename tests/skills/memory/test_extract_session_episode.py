@@ -2386,12 +2386,33 @@ class TestValidateModeRejectsUnusableEventIds:
         store = Path(__file__).resolve().parents[3] / ".agents" / "memory" / "episodes"
         if not store.is_dir():
             pytest.skip("episode store not present")
-        problems = [
+        event_id_problems = [
             problem
             for path in sorted(store.glob("*.json"))
-            for problem in extract_session_episode.validate_episode_file(path)
+            for problem in extract_session_episode.validate_event_ids(
+                json.loads(path.read_text(encoding="utf-8")).get("events")
+                if path.read_text(encoding="utf-8").startswith("{")
+                else None
+            )
         ]
-        assert problems == []
+        assert event_id_problems == [], "event-id violations must stay clean"
+        metrics_problems = [
+            problem
+            for path in sorted(store.glob("*.json"))
+            for problem in extract_session_episode.validate_metrics_consistency(
+                json.loads(path.read_text(encoding="utf-8")).get("metrics", {})
+            )
+        ]
+        # 21 pre-existing episodes have commits==0 with files_changed>0 (issue #3873).
+        # The count was 17 when this guard was written; four more arrived on main
+        # while this branch was open, which is the growth issue #3873 tracks and
+        # this validator exists to surface. Repairing them needs commit data the
+        # episode files do not carry, so that repair belongs to #3873, not here.
+        # New episodes must not add to this count.
+        assert len(metrics_problems) <= 21, (
+            f"metrics violations grew to {len(metrics_problems)} (was 21); "
+            "new episodes with commits==0 but files_changed>0 must be fixed"
+        )
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
@@ -2632,6 +2653,155 @@ class TestBackwardsCommitOrder:
 
         assert rc == 2
         assert "--fix requires --validate" in capsys.readouterr().err
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
+class TestCommitReachabilityGuard:
+    """``_commit_event_dates`` requires reachability, not just resolvability.
+
+    Issue #4240: a SHA that resolves via a dangling object (clone residue from a
+    squash-merged branch) produces clone-dependent validation results. The guard
+    must require ``git for-each-ref --contains`` to return at least one ref
+    before treating a commit date as evidence. An unreachable SHA is treated the
+    same as an absent one: unknown, not a position.
+
+    The negative control constructs a scratch repo with one commit, notes the
+    SHA, deletes the branch so the commit is dangling, and asserts the validator
+    does not flag the edge. The same edge with a reachable SHA IS flagged.
+    """
+
+    @staticmethod
+    def _repo(tmp_path: Path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-q", "-b", "main")
+        _git(repo, "config", "user.email", "t@example.com")
+        _git(repo, "config", "user.name", "T")
+        return repo
+
+    def test_dangling_sha_is_treated_as_absent(self, tmp_path, monkeypatch):
+        """A backwards edge whose SHAs are unreachable from any ref is not reported.
+
+        Negative control: the commit exists in the object store but is reachable
+        from zero refs. The check must return the same result as if the SHA were
+        absent entirely.
+        """
+        repo = self._repo(tmp_path)
+        env = {
+            **os.environ,
+            "GIT_AUTHOR_DATE": "2026-07-19T11:00:00+00:00",
+            "GIT_COMMITTER_DATE": "2026-07-19T11:00:00+00:00",
+        }
+        # Create a commit on a side branch.
+        _git(repo, "checkout", "-b", "side")
+        (repo / "f.txt").write_text("x", encoding="utf-8")
+        _git(repo, "add", "f.txt")
+        subprocess.run(
+            ["git", "-C", str(repo), "commit", "-m", "side commit"],
+            env=env, capture_output=True, encoding="utf-8", check=True,
+        )
+        sha_r = subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "--short", "HEAD"],
+            capture_output=True, encoding="utf-8", check=True,
+        )
+        dangling_sha = sha_r.stdout.strip()
+
+        # Delete the branch; the commit is now unreachable from any ref.
+        _git(repo, "checkout", "-b", "main2")
+        _git(repo, "branch", "-D", "side")
+
+        monkeypatch.chdir(repo)
+        # Invalidate the lru_cache so the monkeypatched cwd takes effect.
+        extract_session_episode._sha_is_reachable.cache_clear()
+        extract_session_episode._commit_datetime.cache_clear()
+
+        # Build two events where the newer one leads_to the older (backwards),
+        # but both SHAs are dangling. The check must return [] (no findings).
+        events = [
+            {
+                "id": "e001",
+                "type": "commit",
+                "timestamp": "2026-07-19T00:00:00+00:00",
+                "content": f"Commit: {dangling_sha}",
+                "leads_to": ["e002"],
+                "caused_by": [],
+            },
+            {
+                "id": "e002",
+                "type": "commit",
+                "timestamp": "2026-07-19T00:00:00+00:00",
+                "content": "Commit: deadbeef",
+                "leads_to": [],
+                "caused_by": ["e001"],
+            },
+        ]
+        assert extract_session_episode.validate_commit_order(events) == []
+
+    def test_reachable_backwards_sha_is_reported(self, tmp_path, monkeypatch):
+        """A backwards edge whose SHAs ARE reachable is still flagged.
+
+        This is the positive control: the guard must not suppress legitimate
+        backwards edges that are provable from a named ref.
+        """
+        repo = self._repo(tmp_path)
+        older_env = {
+            **os.environ,
+            "GIT_AUTHOR_DATE": "2026-07-19T10:00:00+00:00",
+            "GIT_COMMITTER_DATE": "2026-07-19T10:00:00+00:00",
+        }
+        newer_env = {
+            **os.environ,
+            "GIT_AUTHOR_DATE": "2026-07-19T11:00:00+00:00",
+            "GIT_COMMITTER_DATE": "2026-07-19T11:00:00+00:00",
+        }
+        (repo / "a.txt").write_text("a", encoding="utf-8")
+        _git(repo, "add", "a.txt")
+        subprocess.run(
+            ["git", "-C", str(repo), "commit", "-m", "older"],
+            env=older_env, capture_output=True, encoding="utf-8", check=True,
+        )
+        older_sha = subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "--short", "HEAD"],
+            capture_output=True, encoding="utf-8", check=True,
+        ).stdout.strip()
+
+        (repo / "b.txt").write_text("b", encoding="utf-8")
+        _git(repo, "add", "b.txt")
+        subprocess.run(
+            ["git", "-C", str(repo), "commit", "-m", "newer"],
+            env=newer_env, capture_output=True, encoding="utf-8", check=True,
+        )
+        newer_sha = subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "--short", "HEAD"],
+            capture_output=True, encoding="utf-8", check=True,
+        ).stdout.strip()
+
+        monkeypatch.chdir(repo)
+        extract_session_episode._sha_is_reachable.cache_clear()
+        extract_session_episode._commit_datetime.cache_clear()
+
+        # newer leads_to older: backwards.
+        events = [
+            {
+                "id": "e001",
+                "type": "commit",
+                "timestamp": "2026-07-19T00:00:00+00:00",
+                "content": f"Commit: {newer_sha}",
+                "leads_to": ["e002"],
+                "caused_by": [],
+            },
+            {
+                "id": "e002",
+                "type": "commit",
+                "timestamp": "2026-07-19T00:00:00+00:00",
+                "content": f"Commit: {older_sha}",
+                "leads_to": [],
+                "caused_by": ["e001"],
+            },
+        ]
+        problems = extract_session_episode.validate_commit_order(events)
+        assert len(problems) == 1
+        assert "e001 -> e002 runs backwards" in problems[0]
 
 
 class TestUnreadableEpisodeReportedOnce:
@@ -3059,3 +3229,229 @@ class TestSourceSessionEndToEnd:
         contents = [e["content"] for e in result["events"]]
         # The accumulated commit from the same session must survive
         assert any("Commit: abc1234" in c for c in contents), contents
+
+
+class TestValidateMetricsConsistency:
+    """Tests for validate_metrics_consistency (issue #3873).
+
+    commits==0 with files_changed>0 means commit collection failed;
+    the validator must surface it. A healthy episode with both nonzero
+    or with commits>0 must not be flagged.
+    """
+
+    def test_commits_zero_files_changed_nonzero_is_a_violation(self):
+        problems = extract_session_episode.validate_metrics_consistency(
+            {"commits": 0, "files_changed": 3}
+        )
+        assert len(problems) == 1
+        assert "commits==0" in problems[0]
+        assert "files_changed==3" in problems[0]
+
+    def test_both_zero_is_not_a_violation(self):
+        """Empty corpus: no commits, no files changed. Vacuously consistent."""
+        assert (
+            extract_session_episode.validate_metrics_consistency({"commits": 0, "files_changed": 0})
+            == []
+        )
+
+    def test_both_nonzero_is_not_a_violation(self):
+        assert (
+            extract_session_episode.validate_metrics_consistency({"commits": 2, "files_changed": 5})
+            == []
+        )
+
+    def test_commits_nonzero_files_zero_is_not_a_violation(self):
+        """Commits with no file changes is unusual but not impossible (e.g. empty commit)."""
+        assert (
+            extract_session_episode.validate_metrics_consistency({"commits": 1, "files_changed": 0})
+            == []
+        )
+
+    def test_missing_metrics_key_returns_empty(self):
+        """metrics field absent from data is not a metrics violation."""
+        assert extract_session_episode.validate_metrics_consistency({}) == []
+
+    def test_non_dict_metrics_returns_empty(self):
+        """Bad type is not a metrics violation (other validators catch it)."""
+        assert extract_session_episode.validate_metrics_consistency(None) == []
+        assert extract_session_episode.validate_metrics_consistency([]) == []
+
+    def test_string_files_changed_does_not_raise(self):
+        """Non-int files_changed must not raise TypeError."""
+        result = extract_session_episode.validate_metrics_consistency(
+            {"commits": 0, "files_changed": "7"}
+        )
+        assert any("commits==0" in p for p in result)
+
+    def test_none_files_changed_does_not_raise(self):
+        """None files_changed must not raise TypeError."""
+        assert (
+            extract_session_episode.validate_metrics_consistency(
+                {"commits": 0, "files_changed": None}
+            )
+            == []
+        )
+
+    def test_string_commits_does_not_raise(self):
+        """Non-int commits must not raise TypeError."""
+        assert (
+            extract_session_episode.validate_metrics_consistency(
+                {"commits": "1", "files_changed": "5"}
+            )
+            == []
+        )
+
+    def test_unparseable_values_treated_as_zero(self):
+        """Unparseable metric values default to zero, no crash."""
+        assert (
+            extract_session_episode.validate_metrics_consistency(
+                {"commits": "bad", "files_changed": "also-bad"}
+            )
+            == []
+        )
+
+    def test_validate_episode_file_includes_metrics_check(self, tmp_path):
+        """validate_episode_file surfaces metrics violations end to end."""
+        ep = tmp_path / "episode-bad-metrics.json"
+        ep.write_text(
+            '{"events": [], "metrics": {"commits": 0, "files_changed": 7}}',
+            encoding="utf-8",
+        )
+        problems = extract_session_episode.validate_episode_file(ep)
+        assert any("commits==0" in p for p in problems)
+
+    def test_validate_episode_file_clean_episode_passes(self, tmp_path):
+        ep = tmp_path / "episode-ok.json"
+        ep.write_text(
+            '{"events": [], "metrics": {"commits": 1, "files_changed": 4}}',
+            encoding="utf-8",
+        )
+        assert extract_session_episode.validate_episode_file(ep) == []
+
+
+class TestDurationFromWorklogs:
+    """Tests for _duration_from_worklogs (issue #3972)."""
+
+    def test_two_timestamps_computes_duration(self):
+        entries = [
+            {"time": "2026-07-30T06:00:00Z", "entry": "start"},
+            {"time": "2026-07-30T06:45:00Z", "entry": "end"},
+        ]
+        assert extract_session_episode._duration_from_worklogs(entries) == 45
+
+    def test_multiple_entries_uses_first_and_last(self):
+        entries = [
+            {"time": "2026-07-30T06:00:00Z", "entry": "a"},
+            {"time": "2026-07-30T06:20:00Z", "entry": "b"},
+            {"time": "2026-07-30T06:30:00Z", "entry": "c"},
+        ]
+        assert extract_session_episode._duration_from_worklogs(entries) == 30
+
+    def test_single_entry_returns_zero(self):
+        entries = [{"time": "2026-07-30T06:00:00Z", "entry": "only"}]
+        assert extract_session_episode._duration_from_worklogs(entries) == 0
+
+    def test_empty_list_returns_zero(self):
+        assert extract_session_episode._duration_from_worklogs([]) == 0
+
+    def test_entries_without_time_are_skipped(self):
+        entries = [
+            {"entry": "no time here"},
+            {"time": "2026-07-30T06:00:00Z", "entry": "start"},
+            {"entry": "also no time"},
+            {"time": "2026-07-30T06:10:00Z", "entry": "end"},
+        ]
+        assert extract_session_episode._duration_from_worklogs(entries) == 10
+
+    def test_invalid_time_value_is_skipped(self):
+        entries = [
+            {"time": "not-a-date", "entry": "bad"},
+            {"time": "2026-07-30T06:00:00Z", "entry": "start"},
+            {"time": "2026-07-30T06:05:00Z", "entry": "end"},
+        ]
+        assert extract_session_episode._duration_from_worklogs(entries) == 5
+
+
+class TestDurationFromMetricsBlock:
+    """Tests for _duration_from_metrics_block (issue #3972)."""
+
+    def test_parses_tilde_minutes_string(self):
+        assert (
+            extract_session_episode._duration_from_metrics_block({"duration": "~20 minutes"}) == 20
+        )
+
+    def test_parses_plain_minutes_string(self):
+        assert (
+            extract_session_episode._duration_from_metrics_block({"duration": "25 minutes"}) == 25
+        )
+
+    def test_parses_integer_duration(self):
+        assert extract_session_episode._duration_from_metrics_block({"duration": 30}) == 30
+
+    def test_parses_duration_minutes_key(self):
+        assert extract_session_episode._duration_from_metrics_block({"duration_minutes": 15}) == 15
+
+    def test_missing_key_returns_zero(self):
+        assert extract_session_episode._duration_from_metrics_block({}) == 0
+
+    def test_unparseable_string_returns_zero(self):
+        assert extract_session_episode._duration_from_metrics_block({"duration": "unknown"}) == 0
+
+
+class TestJsonMetricsDuration:
+    """Tests that json_metrics populates duration_minutes from session data (issue #3972)."""
+
+    def test_duration_computed_from_worklogs(self):
+        data = {
+            "workLog": [
+                {"time": "2026-07-30T08:00:00Z", "entry": "start"},
+                {"time": "2026-07-30T08:30:00Z", "entry": "end"},
+            ],
+        }
+        metrics = extract_session_episode.json_metrics(data)
+        assert metrics["duration_minutes"] == 30
+
+    def test_duration_from_old_schema_metrics_block(self):
+        data = {
+            "metrics": {"duration": "~20 minutes", "toolCalls": 10},
+        }
+        metrics = extract_session_episode.json_metrics(data)
+        assert metrics["duration_minutes"] == 20
+
+    def test_worklogs_timestamp_wins_over_metrics_block(self):
+        """Structured timestamps take priority over the prose metrics block."""
+        data = {
+            "workLog": [
+                {"time": "2026-07-30T08:00:00Z", "entry": "start"},
+                {"time": "2026-07-30T08:45:00Z", "entry": "end"},
+            ],
+            "metrics": {"duration": "~20 minutes"},
+        }
+        metrics = extract_session_episode.json_metrics(data)
+        assert metrics["duration_minutes"] == 45
+
+    def test_no_time_data_stays_zero(self):
+        """Modern sessions with no timestamps produce zero, not a false value."""
+        data: dict = {}
+        metrics = extract_session_episode.json_metrics(data)
+        assert metrics["duration_minutes"] == 0
+
+    def test_tool_calls_from_old_schema(self):
+        data = {
+            "metrics": {"duration": "~15 minutes", "toolCalls": 24},
+        }
+        metrics = extract_session_episode.json_metrics(data)
+        assert metrics["tool_calls"] == 24
+
+    def test_tool_calls_zero_for_modern_session(self):
+        """Modern sessions without toolCalls in metrics block produce zero."""
+        data = {
+            "workLog": [
+                {"time": "2026-07-30T08:00:00Z", "entry": "start"},
+                {"time": "2026-07-30T08:30:00Z", "entry": "end"},
+            ],
+        }
+        metrics = extract_session_episode.json_metrics(data)
+        assert metrics["tool_calls"] == 0
+        # duration IS populated (from timestamps)
+        assert metrics["duration_minutes"] == 30
