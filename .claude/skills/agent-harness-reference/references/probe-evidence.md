@@ -258,16 +258,30 @@ call and no preceding `Grep`, `Glob`, or `Read`. So "past the ceiling means not
 auto-invocable" is false, the saturation mechanism is unsettled, and the
 strongest argument for converting skills does not hold.
 
-**Not measured: GitHub Copilot CLI.** It is a separate product and no number
-here transfers to it. Observed there without instrumentation: some skills appear
-with full descriptions and the rest under a name-only list, so it truncates too,
-by an unmeasured rule.
+Copilot CLI 1.0.78-3 was probed separately with an isolated project containing
+two valid skills and one negative control:
+
+- `probe-default` had ordinary frontmatter.
+- `probe-disabled` added `disable-model-invocation: true`.
+- `probe-invalid` carried a 1,025-character description.
+
+Command: `copilot -C <fixture> skill list --json`.
+
+Both valid skills appeared with their full, unique descriptions and
+`enabled: true`. The disabled fixture therefore had no observable inventory
+effect. The negative control did not load, and stderr reported `Skill
+description must be at most 1024 characters`, proving the command parsed and
+validated supported frontmatter rather than accepting every field blindly.
+This probe establishes inventory behavior only. It does not establish
+prompt-token cost or auto-invocation behavior.
 
 Authoring consequence, which is the decision this evidence supports: set
-`disable-model-invocation: true` when a skill should never be reached by
-anything but a human typing its name, and judge that on invocation semantics,
-not on context accounting. Do not set it to save tokens. The saving saturates,
-and the flag removes automatic invocation by design.
+`disable-model-invocation: true` when Claude Code should require direct human
+invocation, and judge that on invocation semantics, not on context accounting.
+Do not set it to save tokens. The saving saturates, and Claude Code removes
+automatic invocation by design. Copilot CLI 1.0.78-3 showed no inventory
+effect, so this evidence does not support a claim that the same frontmatter
+creates user-only behavior there.
 
 Re-measure before relying on the numbers: server-side prompt changes can move
 them without a CLI version bump.
