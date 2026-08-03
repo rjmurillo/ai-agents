@@ -38,6 +38,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import Protocol
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _VALIDATION_PACKAGE_SENTINEL = _PROJECT_ROOT / "scripts" / "validation" / "models.py"
@@ -62,6 +63,7 @@ from scripts.validation.token_budget import estimate_token_count
 __all__ = [
     "DEFAULT_CEILINGS_BYTES",
     "INSTRUCTIONS_SUBDIR",
+    "BudgetVerdict",
     "ExtensionResult",
     "InstructionFile",
     "UnsupportedApplyToError",
@@ -140,7 +142,23 @@ def evaluate(
     ]
 
 
-def _status_of(result: ExtensionResult) -> str:
+class BudgetVerdict(Protocol):
+    """The two flags `_status_of` reads, narrower than the whole measurement.
+
+    Declared structurally rather than taking `ExtensionResult` directly so the
+    FAIL-over-WARN ordering stays observable. `ExtensionResult.under_reserve`
+    is guarded on `over_budget`, so the concrete type can never report both
+    flags at once and cannot exercise the precedence at all.
+    """
+
+    @property
+    def over_budget(self) -> bool: ...
+
+    @property
+    def under_reserve(self) -> bool: ...
+
+
+def _status_of(result: BudgetVerdict) -> str:
     """Classify one measurement as FAIL, WARN, or PASS."""
     if result.over_budget:
         return "FAIL"
