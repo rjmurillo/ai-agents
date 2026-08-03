@@ -645,7 +645,8 @@ def validate_evidence_agrees_with_session(data: dict[str, Any], result: Validati
         if problem is not None:
             result.errors.append(
                 f"endingCommit {ending!r} {problem}; the SHA was most likely "
-                "orphaned by amending or rebasing the commit that carried it. "
+                "orphaned by amending or rebasing the commit that carried it, "
+                "or by a squash merge that rewrites the branch tip. "
                 "Record the SHA in a follow-up commit instead of amending "
                 "afterwards (issue #3618)"
             )
