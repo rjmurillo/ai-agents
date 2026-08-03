@@ -6,8 +6,8 @@ Conventional reading: a failing check name tells you what broke. `gh pr checks`
 prints one name per row, so the name looks like an identifier.
 
 It is not. GitHub reports the **job name**, and job names are not unique across
-workflows in this repository. Twelve names are shared by two or more jobs, and
-eleven of those run on `pull_request`.
+workflows in this repository. Twelve display names are shared by two or more job
+definitions, and ten of those collide entirely among `pull_request` jobs.
 
 ## The case that costs the most
 
@@ -18,24 +18,52 @@ eleven of those run on `pull_request`.
 ```
 
 These measure different corpora with different validators and different units.
-`instruction-budget.yml` runs `scripts.validation.instruction_budget` over the
-always-on `.github/instructions/*.instructions.md` set, scored in **bytes per
-language extension** against `DEFAULT_CEILINGS_BYTES`.
+`instruction-budget.yml` runs `scripts.validation.instruction_budget`, which
+reads `.github/instructions/*.instructions.md` and scores only the rules whose
+`applyTo` glob is universal for a language (`is_language_universal`), in **bytes
+per language extension** against `DEFAULT_CEILINGS_BYTES`.
 `passive-context-budget.yml` runs `scripts/validation/passive_context_budget.py`
-over per-file passive context (`AGENTS.md`, `CLAUDE.md`, `memory-index.md`),
-scored in **tokens per file**. A red row reading `Validate budget` does not say
-which. Editing the wrong corpus costs a full push and CI cycle to learn nothing.
+over three whole files, in **tokens**:
+
+```python
+DEFAULT_BUDGETS: dict[str, int] = {
+    "AGENTS.md": 2000,
+    "CLAUDE.md": 2000,
+    ".claude/CLAUDE.md": 4000,
+}
+```
+
+That module's own docstring claims it also covers `memory-index.md`. It does
+not. Read `DEFAULT_BUDGETS`, not the docstring. A red row reading
+`Validate budget` says neither which workflow nor which corpus, and editing the
+wrong one costs a full push and CI cycle to learn nothing.
 
 ## Two kinds of collision
 
-**Benign: the run/skip shim.** `YAML Lint` (`lint` and `skip-lint`),
-`Run Python Tests` (`test` and `skip-tests`), `Validate Skillbook`, and
-`Agent Drift Detection` declare the same name on mutually exclusive jobs inside
-one workflow, so the path filter guarantees only one reports. That pattern is
-deliberate: it keeps a required check green-and-present when the filter skips it.
+**Same name, mutually exclusive jobs.** `YAML Lint` (`lint` and `skip-lint`) and
+`Validate Skillbook` declare one name on a pair whose `if:` conditions are exact
+complements, so at most one can fail. That pattern is deliberate: it keeps a
+required check present when the path filter skips the real work. Both still
+appear in `gh run view`, one `success` and one `skipped`.
 
-**Dangerous: cross-workflow reuse.** Different workflows, different subsystems,
-same name, both able to run:
+**Same name, jobs that both run.** The complement is not guaranteed, and two
+workflows get this wrong:
+
+```
+pytest.yml                 test           if: <none>          <- always runs
+                           skip-tests     if: python-changed != 'true'
+agent-drift-detection.yml  check-paths    if: <none>          <- always runs
+                           validate / bypass-warning / skip    (one of three)
+```
+
+`test` carries no job-level `if:`, so when Python did not change, both
+`Run Python Tests` jobs complete in the same run. `Agent Drift Detection` names
+four jobs, and `check-paths` always runs alongside whichever of the other three
+fires. Observed on PR 4438: two rows named `Run Python Tests`, **both FAILURE**.
+Do not assume a duplicated name means one row is a skip shim.
+
+**Cross-workflow reuse.** Different workflows, different subsystems, same name,
+both able to run and to fail:
 
 | Name | Defs | Workflows |
 |---|---|---|
@@ -48,17 +76,19 @@ same name, both able to run:
 
 ## What to do instead
 
-Resolve the name to a run before acting. The `link` field carries the workflow and
-job id:
+Resolve the name to a run before acting. The `link` field carries the run and
+job id, and the job id is the last path segment:
 
 ```bash
-gh pr checks <N> --json name,state,link \
-  -q '.[]|select(.state=="FAILURE")|.name+" -> "+.link'
-gh run view --job <job-id> --log-failed | tail -25
+job=$(gh pr checks <N> --json name,state,link \
+  -q '.[]|select(.state=="FAILURE")|.link' | head -1 | sed 's#.*/job/##')
+gh run view --job "$job"                    # header names the workflow
+gh run view --job "$job" --log-failed | tail -25
 ```
 
-The log names the workflow, so the ambiguity resolves in one call. Grepping
-`.github/workflows/` for the display name also works and is cheaper:
+`gh run view --job` prints the workflow name in its header, so the ambiguity
+resolves without reading a log. Grepping for the display name is cheaper but
+only lists candidates; it cannot say which one is red on your PR:
 
 ```bash
 grep -rn "name: Validate budget" .github/workflows/
@@ -80,11 +110,16 @@ for k, v in sorted(n.items()):
 '
 ```
 
-Measured 2026-08-03 at `origin/main` `db5aab393`: 113 named jobs, 12 colliding
-names.
+Measured 2026-08-03 at `origin/main` `db5aab393`: **138 job definitions carry a
+`name:`, spanning 113 unique display names.** Twelve of those names are used by
+more than one definition; ten collide entirely among `pull_request` jobs. Count
+definitions, not names: the two numbers differ by 25 and are easy to conflate.
 
 ## Related
 
+- [ci-a-red-check-on-your-pr-may-be-inherited-from-main](ci-a-red-check-on-your-pr-may-be-inherited-from-main.md).
+  The inverse: two check names, one underlying bug, and the bug is not yours.
+  This memory is one name over two systems; that one is one cause under two names.
 - [ci-validate-pr-is-many-gates-only-some-read-the-body](ci-validate-pr-is-many-gates-only-some-read-the-body.md).
   The same trap one level down: within a job, a step name does not describe what
   the step does either. A bad PR description surfaces as `Enforce Blocking Issues`.
