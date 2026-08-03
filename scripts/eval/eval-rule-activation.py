@@ -64,7 +64,7 @@ from _anthropic_api import call_api as _call_api
 from _anthropic_api import (
     load_api_key_for_selected_provider as _load_api_key,
 )
-from _eval_common import EST_TOKENS_PER_CALL
+from _eval_common import EST_TOKENS_PER_CALL, require_str_or_none
 
 # ---------------------------------------------------------------------------
 # Config
@@ -644,8 +644,10 @@ Respond in JSON only, no other text:
         # object. Marking it is what makes the recovery auditable after the
         # run, which the searching version it replaced never was.
         result["judge_salvaged"] = True
-    fingerprint = metadata.get("system_fingerprint")
-    if isinstance(fingerprint, str):
+    fingerprint = require_str_or_none(
+        metadata.get("system_fingerprint"), "system_fingerprint"
+    )
+    if fingerprint is not None:
         result["judge_system_fingerprint"] = fingerprint
     return result
 
@@ -1770,8 +1772,10 @@ def eval_one_scenario(
         }
         if routing is not None:
             mechanism_result["routing"] = routing
-        fingerprint = metadata.get("system_fingerprint")
-        if isinstance(fingerprint, str):
+        fingerprint = require_str_or_none(
+            metadata.get("system_fingerprint"), "system_fingerprint"
+        )
+        if fingerprint is not None:
             mechanism_result["system_fingerprint"] = fingerprint
         result["mechanisms"][mechanism] = mechanism_result
     return result

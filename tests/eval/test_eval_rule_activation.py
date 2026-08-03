@@ -1210,6 +1210,47 @@ def _score_with_judge_text(monkeypatch: pytest.MonkeyPatch, judge_text: str) -> 
     )
 
 
+class TestJudgeFingerprintPolicy:
+    """The judge fingerprint is provenance, so a malformed one is refused.
+
+    Before #4123 a non-string value was dropped, and the report then read as
+    "the judge provider supplied no fingerprint" for a response that supplied
+    something unreadable. Absent and malformed are different observations.
+    """
+
+    def _score(self, monkeypatch: pytest.MonkeyPatch, fingerprint: object) -> dict[str, Any]:
+        def _fake_call_api(*_args: Any, **kwargs: Any) -> str:
+            if fingerprint is not None:
+                kwargs["metadata"]["system_fingerprint"] = fingerprint
+            return _JUDGE
+
+        monkeypatch.setattr(eval_mod, "_call_api", _fake_call_api)
+        return eval_mod.score_response(
+            "sk-test",
+            {"input": "x", "expected_gate": "apply-rule"},
+            "response",
+        )
+
+    @pytest.mark.parametrize("malformed", [1234, 4.5, True, {"id": "fp"}, ["fp"]])
+    def test_a_non_string_judge_fingerprint_is_refused(
+        self, monkeypatch: pytest.MonkeyPatch, malformed: object
+    ) -> None:
+        with pytest.raises(RuntimeError, match="non-string system_fingerprint"):
+            self._score(monkeypatch, malformed)
+
+    def test_a_string_judge_fingerprint_is_recorded(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        result = self._score(monkeypatch, "fp-4123")
+        assert result["judge_system_fingerprint"] == "fp-4123"
+
+    def test_an_absent_judge_fingerprint_leaves_the_key_out(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        result = self._score(monkeypatch, None)
+        assert "judge_system_fingerprint" not in result
+
+
 def test_extract_json_object_refuses_a_leading_cli_tool_trace():
     """A payload that leads with prose has no readable verdict.
 
