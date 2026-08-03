@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size
 """Tests for `scripts/eval/_optimizer_adapters.py`.
 
 The adapters are the reason the held-out gate generalizes past skills. Each

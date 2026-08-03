@@ -62,7 +62,7 @@ import sys
 from pathlib import Path
 from typing import Any, cast
 
-from _anthropic_api import call_api, load_api_key
+from _anthropic_api import call_api, load_api_key_for_selected_provider
 
 MODEL = "claude-sonnet-4-6"
 BEFORE_REF = "origin/main"
@@ -74,6 +74,7 @@ REQUIRED_FIXTURE_FIELDS = {"id", "query", "candidates", "correct"}
 # ---------------------------------------------------------------------------
 # Fixture loading and validation
 # ---------------------------------------------------------------------------
+
 
 def load_fixtures(path: str) -> list[dict[str, Any]]:
     """Load and validate the fixtures file.
@@ -97,9 +98,7 @@ def load_fixtures(path: str) -> list[dict[str, Any]]:
         ) from exc
 
     if not isinstance(data, list):
-        raise RuntimeError(
-            f"Invalid fixtures file {path}: expected a top-level JSON array."
-        )
+        raise RuntimeError(f"Invalid fixtures file {path}: expected a top-level JSON array.")
     if not data:
         raise RuntimeError(f"Fixtures file {path} has 0 cases; need at least 1.")
 
@@ -109,14 +108,11 @@ def load_fixtures(path: str) -> list[dict[str, Any]]:
     return data
 
 
-def _validate_fixture(
-    fx: object, index: int, path: str, seen_ids: set[str]
-) -> None:
+def _validate_fixture(fx: object, index: int, path: str, seen_ids: set[str]) -> None:
     """Validate one fixture's shape. Raises RuntimeError on any violation."""
     if not isinstance(fx, dict):
         raise RuntimeError(
-            f"Fixture at index {index} in {path} is not an object "
-            f"(got {type(fx).__name__})."
+            f"Fixture at index {index} in {path} is not an object (got {type(fx).__name__})."
         )
     missing = REQUIRED_FIXTURE_FIELDS - set(fx.keys())
     if missing:
@@ -139,8 +135,7 @@ def _validate_fixture(
     if not isinstance(candidates, list) or not (2 <= len(candidates) <= 4):
         got = len(candidates) if isinstance(candidates, list) else type(candidates).__name__
         raise RuntimeError(
-            f"Fixture {fid} in {path}: 'candidates' must be a list of 2-4 names "
-            f"(got {got})."
+            f"Fixture {fid} in {path}: 'candidates' must be a list of 2-4 names (got {got})."
         )
     if len(set(candidates)) != len(candidates):
         raise RuntimeError(f"Fixture {fid} in {path}: 'candidates' contains duplicates.")
@@ -160,6 +155,7 @@ def _validate_fixture(
 # ---------------------------------------------------------------------------
 # Candidate resolution: name -> repo-relative path
 # ---------------------------------------------------------------------------
+
 
 def resolve_candidate_path(name: str, repo_root: Path) -> str:
     """Resolve a candidate name to its repo-relative description-bearing file.
@@ -186,6 +182,7 @@ def resolve_candidate_path(name: str, repo_root: Path) -> str:
 # Description extraction
 # ---------------------------------------------------------------------------
 
+
 def extract_description(markdown: str, source_label: str) -> str:
     """Extract the YAML frontmatter `description` field from a SKILL/agent file.
 
@@ -203,9 +200,7 @@ def extract_description(markdown: str, source_label: str) -> str:
     try:
         import yaml  # lazy: only the description path needs it
     except ModuleNotFoundError as exc:  # pragma: no cover - env guard
-        raise RuntimeError(
-            "PyYAML is required to parse frontmatter but is not installed."
-        ) from exc
+        raise RuntimeError("PyYAML is required to parse frontmatter but is not installed.") from exc
 
     try:
         front = yaml.safe_load(match.group(1))
@@ -256,9 +251,8 @@ def load_description_after(rel_path: str, repo_root: Path) -> str:
 # Prompt construction
 # ---------------------------------------------------------------------------
 
-def build_router_prompt(
-    query: str, candidates: list[str], descriptions: dict[str, str]
-) -> str:
+
+def build_router_prompt(query: str, candidates: list[str], descriptions: dict[str, str]) -> str:
     """Build the router user message for one fixture/variant.
 
     Lists ONLY the candidate skills and their descriptions, then the user query,
@@ -273,13 +267,15 @@ def build_router_prompt(
     ]
     for name in candidates:
         lines.append(f"- {name}: {descriptions[name]}")
-    lines.extend([
-        "",
-        f"User request: {query}",
-        "",
-        "Reply with EXACTLY one skill name from the candidate list above and nothing",
-        "else. No punctuation, no explanation, no code fences.",
-    ])
+    lines.extend(
+        [
+            "",
+            f"User request: {query}",
+            "",
+            "Reply with EXACTLY one skill name from the candidate list above and nothing",
+            "else. No punctuation, no explanation, no code fences.",
+        ]
+    )
     return "\n".join(lines)
 
 
@@ -294,6 +290,7 @@ def resolve_variant_descriptions(
 # ---------------------------------------------------------------------------
 # Response parsing
 # ---------------------------------------------------------------------------
+
 
 def parse_pick(raw: str, candidates: list[str]) -> str:
     """Parse the model's chosen skill from its raw reply.
@@ -320,6 +317,7 @@ def parse_pick(raw: str, candidates: list[str]) -> str:
 # ---------------------------------------------------------------------------
 # API call (live path only; lazily imports the SDK)
 # ---------------------------------------------------------------------------
+
 
 def call_router(api_key: str, prompt: str) -> str:
     """Call the Anthropic Messages API and return the assistant's text.
@@ -350,9 +348,8 @@ def call_router(api_key: str, prompt: str) -> str:
 # Eval execution
 # ---------------------------------------------------------------------------
 
-def build_plan(
-    fixtures: list[dict[str, Any]], repo_root: Path
-) -> list[dict[str, Any]]:
+
+def build_plan(fixtures: list[dict[str, Any]], repo_root: Path) -> list[dict[str, Any]]:
     """Resolve paths and both-variant descriptions/prompts for every fixture.
 
     This is the shared work for dry-run and live runs: it touches `git show` and
@@ -367,14 +364,16 @@ def build_plan(
         paths = {name: resolve_candidate_path(name, repo_root) for name in candidates}
         before_desc = resolve_variant_descriptions(candidates, paths, repo_root, "before")
         after_desc = resolve_variant_descriptions(candidates, paths, repo_root, "after")
-        plan.append({
-            "fixture": fx,
-            "paths": paths,
-            "prompts": {
-                "before": build_router_prompt(fx["query"], candidates, before_desc),
-                "after": build_router_prompt(fx["query"], candidates, after_desc),
-            },
-        })
+        plan.append(
+            {
+                "fixture": fx,
+                "paths": paths,
+                "prompts": {
+                    "before": build_router_prompt(fx["query"], candidates, before_desc),
+                    "after": build_router_prompt(fx["query"], candidates, after_desc),
+                },
+            }
+        )
     return plan
 
 
@@ -399,14 +398,16 @@ def run_eval(plan: list[dict[str, Any]], api_key: str) -> dict[str, Any]:
         before_ok_count += int(before_ok)
         after_ok_count += int(after_ok)
 
-        per_fixture.append({
-            "id": fx["id"],
-            "before_pick": before_pick,
-            "after_pick": after_pick,
-            "correct": correct,
-            "before_ok": before_ok,
-            "after_ok": after_ok,
-        })
+        per_fixture.append(
+            {
+                "id": fx["id"],
+                "before_pick": before_pick,
+                "after_pick": after_pick,
+                "correct": correct,
+                "before_ok": before_ok,
+                "after_ok": after_ok,
+            }
+        )
 
     return {
         "accuracy_before": round(before_ok_count / total, 4),
@@ -420,26 +421,28 @@ def run_eval(plan: list[dict[str, Any]], api_key: str) -> dict[str, Any]:
 # Main
 # ---------------------------------------------------------------------------
 
+
 def _parse_args() -> argparse.Namespace:
     """Parse and validate command-line arguments."""
     parser = argparse.ArgumentParser(
         description="Skill-router eval: before/after SKIP-clause disambiguation accuracy."
     )
     parser.add_argument(
-        "--fixtures", type=str, required=True,
-        help="Path to the fixtures JSON array."
+        "--fixtures", type=str, required=True, help="Path to the fixtures JSON array."
     )
     parser.add_argument(
-        "--repo-root", type=str, default=".",
-        help="Repository root holding .claude/ and origin/main (default: cwd)."
+        "--repo-root",
+        type=str,
+        default=".",
+        help="Repository root holding .claude/ and origin/main (default: cwd).",
     )
     parser.add_argument(
-        "--limit", type=int, default=None,
-        help="Evaluate only the first N fixtures."
+        "--limit", type=int, default=None, help="Evaluate only the first N fixtures."
     )
     parser.add_argument(
-        "--dry-run", action="store_true",
-        help="Build prompts and resolve all before+after descriptions; no API calls."
+        "--dry-run",
+        action="store_true",
+        help="Build prompts and resolve all before+after descriptions; no API calls.",
     )
     args = parser.parse_args()
     if args.limit is not None and args.limit < 1:
@@ -475,20 +478,26 @@ def main() -> int:
 
     if args.dry_run:
         planned_calls = len(plan) * 2  # one before + one after per fixture
-        print("\n  DRY RUN: prompts built, descriptions resolved, no API calls made.",
-              file=sys.stderr)
-        print(json.dumps({
-            "dry_run": True,
-            "fixtures": len(plan),
-            "variants": ["before", "after"],
-            "planned_api_calls": planned_calls,
-            "model": MODEL,
-            "before_ref": BEFORE_REF,
-        }, indent=2))
+        print(
+            "\n  DRY RUN: prompts built, descriptions resolved, no API calls made.", file=sys.stderr
+        )
+        print(
+            json.dumps(
+                {
+                    "dry_run": True,
+                    "fixtures": len(plan),
+                    "variants": ["before", "after"],
+                    "planned_api_calls": planned_calls,
+                    "model": MODEL,
+                    "before_ref": BEFORE_REF,
+                },
+                indent=2,
+            )
+        )
         return 0
 
     try:
-        api_key = load_api_key()
+        api_key = load_api_key_for_selected_provider()
     except RuntimeError as exc:
         # A missing ANTHROPIC_API_KEY is an absent environment variable, which
         # ADR-035 classifies as a configuration/environment error (exit 2), not
