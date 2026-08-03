@@ -64,7 +64,7 @@ from _anthropic_api import call_api as _call_api
 from _anthropic_api import (
     load_api_key_for_selected_provider as _load_api_key,
 )
-from _eval_common import EST_TOKENS_PER_CALL
+from _eval_common import EST_TOKENS_PER_CALL, cost_basis
 
 # ---------------------------------------------------------------------------
 # Config
@@ -3037,9 +3037,18 @@ def main() -> int:
             print(f"ERROR: {e}", file=sys.stderr)
             return 2
 
+    # Recorded beside `rules`, not inside it, because the consumer reads
+    # `rules` as a mapping of rule name to result and would score a metadata
+    # key as a rule. optimize-artifact.py refuses to gate two extractions whose
+    # provenance disagrees, and `upstream_model` is one of the keys it
+    # compares, so a report that does not name its model lets a run scored on
+    # one model be compared against a run scored on another. This is the only
+    # place that knows these values.
     all_results: dict[str, Any] = {
         "schema_version": RESULTS_SCHEMA_VERSION,
         "run": _build_run_provenance(args),
+        "model_id": args.model,
+        "seed": args.seed,
         "rules": {},
     }
     state = _RunState()
@@ -3146,9 +3155,20 @@ def _classify_verdict(verdict: str) -> int:
 
 
 def _print_dry_run_summary(total_calls: int) -> None:
+    """Print the plan, pricing it only when the transport bills in dollars.
+
+    `cost_basis` resolves the provider the same way the transport does, so this
+    does not re-derive it. A provider metered against a request allowance gets
+    the call count and no dollar figure: there is no public per-token rate to
+    convert, and a fabricated one is worse than none because a reader budgets
+    against it.
+    """
     est_tokens = total_calls * EST_TOKENS_PER_CALL
-    est_cost = est_tokens / 1_000_000 * 3
     print(f"\nTotal calls planned: {total_calls}")
+    if cost_basis(None) == "requests":
+        print(f"Estimated tokens: ~{est_tokens:,} (metered as requests, not billed per token)")
+        return
+    est_cost = est_tokens / 1_000_000 * 3
     print(f"Estimated tokens: ~{est_tokens:,} (~${est_cost:.2f} sonnet input rate)")
 
 
