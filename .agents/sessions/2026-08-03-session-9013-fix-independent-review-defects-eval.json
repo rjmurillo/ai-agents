@@ -74,12 +74,12 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All required start and end evidence recorded"
+        "Evidence": "All MUST items verified and validation passed"
       },
       "handoffPreserved": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/HANDOFF.md unchanged; per-issue handoff updated"
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Review fixes and memory committed through 234225aac"
+        "Evidence": "All changes committed (HEAD: 13fe4e3ca)"
       },
       "validationPassed": {
         "level": "MUST",
@@ -139,7 +139,7 @@
       "outcome": "Executed the required done update for fix-eval-harness-p2 and verified exactly one row changed"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "13fe4e3ca",
   "nextSteps": [
     "Route the external-provider boundary change to QA and security PIV before merge",
     "Push or open a pull request only after explicit user approval"
