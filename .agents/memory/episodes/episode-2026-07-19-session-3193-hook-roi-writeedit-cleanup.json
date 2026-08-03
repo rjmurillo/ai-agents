@@ -12,7 +12,9 @@
       "type": "milestone",
       "content": "Removed the three phase-A hook shims from dispatch_groups.json",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e005"
+      ]
     },
     {
       "id": "e002",
@@ -20,7 +22,9 @@
       "type": "milestone",
       "content": "Removed the two deleted-group dispatchers from the canonical plugin manifest",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e005"
+      ]
     },
     {
       "id": "e003",
@@ -28,7 +32,9 @@
       "type": "milestone",
       "content": "Deleted the 3 hook files and 5 test files and cleaned all live references",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e005"
+      ]
     },
     {
       "id": "e004",
@@ -36,14 +42,21 @@
       "type": "milestone",
       "content": "Regenerated the Copilot mirror and bumped both plugin manifests",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e005"
+      ]
     },
     {
       "id": "e005",
-      "timestamp": "2026-07-19T00:00:00+00:00",
+      "timestamp": "2026-07-19T10:20:34+00:00",
       "type": "commit",
       "content": "Commit: db7ab3d3de1c29f2f66b16cdc6e240970795a50a",
-      "caused_by": [],
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004"
+      ],
       "leads_to": []
     }
   ],

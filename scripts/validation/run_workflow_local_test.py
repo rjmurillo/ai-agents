@@ -69,6 +69,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 from collections.abc import Callable, Sequence
@@ -219,6 +220,30 @@ def _decode_partial(raw: bytes | str | None) -> str:
     return raw
 
 
+def _killpg_safe(pid: int) -> None:
+    """Send SIGTERM then SIGKILL to the process group containing ``pid``.
+
+    Uses SIGTERM first (giving the group a chance to clean up open ports such
+    as the gh-act artifact server), then SIGKILL after a short grace window.
+    Guards against signalling the current process group when ``setsid`` did not
+    fire (Windows, or a failed exec where the child reuses our PGID).
+    """
+    try:
+        pgid = os.getpgid(pid)
+    except OSError:
+        return
+    if pgid == os.getpgid(0):
+        return
+    try:
+        os.killpg(pgid, signal.SIGTERM)
+    except OSError:
+        pass
+    try:
+        os.killpg(pgid, signal.SIGKILL)
+    except OSError:
+        pass
+
+
 def _run(
     cmd: list[str],
     *,
@@ -231,32 +256,52 @@ def _run(
     When ``env`` is provided it replaces the child environment entirely, so a
     caller that only wants to add a variable should merge it with
     ``os.environ`` first.
+
+    On timeout the whole process group is killed, not just the direct child.
+    This matters for ``gh act``: the gh-act artifact server is a grandchild of
+    gh, so a ``proc.kill()`` leaves it holding port 34567 and every later
+    invocation fails with "address already in use" (Issue #3948).
     """
+    _supports_pgroup = hasattr(os, "killpg")
     try:
-        proc = subprocess.run(
+        proc = subprocess.Popen(
             cmd,
             cwd=str(cwd) if cwd else None,
             env=env,
-            capture_output=True,
-            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             encoding="utf-8",
             errors="replace",
-            check=False,
-            timeout=timeout,
+            start_new_session=_supports_pgroup,
         )
     except FileNotFoundError:
         return -1, "", f"command not found: {cmd[0]}"
-    except subprocess.TimeoutExpired as exc:
-        # Keep whatever the child managed to emit before the kill. It is the only
-        # evidence of what the run was doing when the budget ran out, and the act
-        # stage reads it to tell a cold action cache apart from a slow run
-        # (Issue #3949). Without this branch the partial output is dropped and
-        # the operator gets a bare "timed out after N seconds".
-        detail = f"{type(exc).__name__}: {exc}\n{_decode_partial(exc.stderr)}".rstrip()
-        return -1, _decode_partial(exc.stdout), detail
-    except (OSError, subprocess.SubprocessError) as exc:
+    except OSError as exc:
         return -1, "", f"{type(exc).__name__}: {exc}"
-    return proc.returncode, proc.stdout, proc.stderr
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+        # Kill the full process group so grandchildren (gh-act artifact server)
+        # do not survive to hold ports open (Issue #3948).
+        if _supports_pgroup:
+            _killpg_safe(proc.pid)
+        else:
+            proc.kill()
+        # Collect whatever the child had written before we killed it. The act
+        # stage reads this to distinguish a cold-cache run from a slow one
+        # (Issue #3949).
+        stdout_raw, stderr_raw = proc.communicate()
+        out = _decode_partial(exc.stdout) or stdout_raw
+        err_head = f"{type(exc).__name__}: {exc}\n{_decode_partial(exc.stderr) or stderr_raw}"
+        return -1, out, err_head.rstrip()
+    except BaseException:
+        if _supports_pgroup:
+            _killpg_safe(proc.pid)
+        else:
+            proc.kill()
+        proc.communicate()
+        raise
+    return proc.returncode, stdout, stderr
 
 
 def _read_worktree_gitdir(repo_root: Path) -> str | None:
