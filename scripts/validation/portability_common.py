@@ -13,6 +13,7 @@ from pathlib import Path
 from scripts.validation.portability_baseline import (
     read_previous_sections,
     refuse_dropped_entries,
+    refuse_oversized_baseline,
     refuse_symlinked_baseline,
     refuse_undiffable_baseline,
     write_baseline_json,
@@ -191,6 +192,8 @@ def resolve_checked_baseline(
         return None
     if refuse_undiffable_baseline(root, resolved):
         return None
+    if refuse_oversized_baseline(resolved):
+        return None
     return resolved
 
 
@@ -258,6 +261,7 @@ def _git_lines(repo_root: Path, args: list[str]) -> list[str] | None:
             capture_output=True,
             text=True,
             encoding="utf-8",
+            errors="replace",
             env=env,
             check=False,
         )

@@ -210,6 +210,7 @@ def _tracked_test_files(repo_root: Path) -> list[Path]:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
         check=False,
     )
     paths = []

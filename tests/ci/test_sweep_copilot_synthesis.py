@@ -140,7 +140,7 @@ def test_gh_label_failure_logged_as_warning(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     def _run(argv: list[str], **kwargs: object):
-        rc = 1 if "gh" in str(argv) else 0
+        rc = 1 if argv and argv[0] == "gh" else 0
         return subprocess.CompletedProcess(argv, rc, "", "label error")
 
     with patch.object(sweep_copilot_synthesis.subprocess, "run", _run):

@@ -34,6 +34,7 @@ def collect_metrics(since: str, output_format: str, report_path: Path) -> bool:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
         check=False,
     )
     report_path.write_text(result.stdout, encoding="utf-8")

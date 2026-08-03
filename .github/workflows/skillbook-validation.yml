@@ -80,7 +80,7 @@ jobs:
           enable-git-hooks: false
 
       - name: Validate skillbook registry against schemas
-        run: python3 scripts/validation/validate_skillbook.py
+        run: uv run --frozen python scripts/validation/validate_skillbook.py
 
   # Pass-through job: satisfies the required "Validate Skillbook" check when no
   # skillbook files changed. GitHub branch protection requires SUCCESS (not
