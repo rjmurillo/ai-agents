@@ -1,4 +1,4 @@
-# `gh issue list` and `gh api` draw on different rate-limit budgets, and `--paginate` trips a third limiter
+# `gh issue list` and `gh api` draw on different rate-limit budgets, and `--paginate` can trip the secondary rate limiter
 
 ## Question
 
