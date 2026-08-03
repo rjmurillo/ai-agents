@@ -451,8 +451,7 @@ class AnthropicAPIAdapter:
                 continue
 
             fingerprint = require_str_or_none(
-                getattr(transport, "system_fingerprint", None),
-                "system_fingerprint",
+                getattr(transport, "system_fingerprint", None), "system_fingerprint"
             )
             # Success path. Token counts are estimated from text length until
             # `_anthropic_api.call_api` surfaces a `usage` envelope; callers
