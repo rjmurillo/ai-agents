@@ -29,6 +29,36 @@ class RateLimitResult:
     resources: dict[str, dict]
     summary_markdown: str
     core_remaining: int
+    probe_error: str = ""
+
+
+# GitHub refuses calls with "API rate limit exceeded" while ``gh api
+# rate_limit`` still reports the matching bucket as nearly unused, because the
+# rate_limit endpoint is exempt from the limit it reports. Reading only
+# ``remaining`` therefore reports the API as healthy during a refusal that
+# fails every real call (issue #4326). One non-exempt probe closes the gap.
+_PROBE_ENDPOINT = "user"
+
+
+def _probe_api_serving() -> str:
+    """Issue one non-exempt REST call and return its refusal text, else "".
+
+    The returned string is the observed failure, so a caller can report why the
+    gate failed rather than pointing at healthy quota numbers.
+    """
+    try:
+        result = subprocess.run(
+            ["gh", "api", _PROBE_ENDPOINT],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return f"probe call failed: {exc}"
+    if result.returncode == 0:
+        return ""
+    return (result.stderr or result.stdout).strip() or "probe returned a non-zero exit"
 
 
 def _fetch_rate_limit() -> dict:
@@ -95,11 +125,20 @@ def check_workflow_rate_limit(
 ) -> RateLimitResult:
     """Check GitHub API rate limits before workflow execution.
 
+    Reports ``success=True`` only when every threshold passes AND one live
+    non-exempt call is actually served. Callers read this as "the API will serve
+    requests" (``scripts/invoke_pr_maintenance.py``,
+    ``.github/scripts/invoke_pr_maintenance.py``,
+    ``scripts/update_reviewer_signal_stats.py``), and before issue #4326 the
+    payload-only check reported healthy quota during refusals that failed every
+    real call.
+
     Args:
         resource_thresholds: Map of resource name to minimum remaining threshold.
 
     Returns:
-        RateLimitResult with pass/fail per resource and markdown summary.
+        RateLimitResult with pass/fail per resource, the probe outcome, and a
+        markdown summary.
     """
     if resource_thresholds is None:
         resource_thresholds = dict(DEFAULT_RATE_THRESHOLDS)
@@ -124,6 +163,15 @@ def check_workflow_rate_limit(
             resources[resource] = entry
         summary_lines.append(row)
 
+    probe_error = _probe_api_serving()
+    if probe_error:
+        all_passed = False
+        summary_lines.append("| live probe | N/A | served | X REFUSED |")
+        summary_lines.append("")
+        summary_lines.append(
+            f"Live probe (`gh api {_PROBE_ENDPOINT}`) was refused: {probe_error}"
+        )
+
     return RateLimitResult(
         success=all_passed,
         resources=resources,
@@ -131,4 +179,5 @@ def check_workflow_rate_limit(
         core_remaining=((rate_limit.get("resources") or {}).get("core") or {}).get(
             "remaining", 0
         ),
+        probe_error=probe_error,
     )
