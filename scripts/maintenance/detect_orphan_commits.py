@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from collections.abc import Callable, Iterable, Mapping, Sequence
@@ -161,6 +162,50 @@ def format_report(findings: Sequence[OrphanFinding], examined: int) -> str:
     return "\n".join(lines)
 
 
+def format_step_summary(findings: Sequence[OrphanFinding], examined: int) -> str:
+    """Render the Markdown block appended to the GitHub Actions job summary."""
+    heading = f"## Orphan commits on merged PR branches ({len(findings)} in {examined})"
+    if not findings:
+        return f"{heading}\n\nNo merged PR branch moved after its merge.\n"
+    rows = [
+        heading,
+        "",
+        "A commit pushed to a merged PR's branch runs no checks and merges nowhere.",
+        "",
+        "| PR | Branch | Merged at SHA | Branch now at | On main | Recover |",
+        "| --- | --- | --- | --- | --- | --- |",
+    ]
+    for finding in findings:
+        landed = "yes" if finding.landed_anyway else "**no**"
+        rows.append(
+            f"| #{finding.number} | `{finding.branch}` | `{finding.merged_head[:12]}` "
+            f"| `{finding.current_tip[:12]}` | {landed} "
+            f"| `git diff {finding.merged_head[:12]} {finding.current_tip[:12]}` |"
+        )
+    return "\n".join(rows) + "\n"
+
+
+def write_step_summary(text: str, summary_path: str | None) -> bool:
+    """Append ``text`` to the job summary file. Return True when it was written.
+
+    The detector runs ``continue-on-error: true`` so a finding never blocks the
+    hourly sweep, which means its exit code reaches nobody and its stdout is
+    buried in the log of an always-green step. The job summary is the surface a
+    human actually reads, and the discovery step immediately above already
+    writes there through ``scripts/ci/write_pr_discovery_summary.py``
+    (issue #4316).
+    """
+    if not summary_path:
+        return False
+    try:
+        with open(summary_path, "a", encoding="utf-8") as handle:
+            handle.write(text)
+    except OSError as error:
+        print(f"WARNING: could not write the job summary: {error}", file=sys.stderr)
+        return False
+    return True
+
+
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--limit", type=int, default=DEFAULT_LIMIT)
@@ -191,6 +236,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     else:
         print(format_report(findings, len(merged_prs)))
+    write_step_summary(
+        format_step_summary(findings, len(merged_prs)),
+        os.environ.get("GITHUB_STEP_SUMMARY"),
+    )
     return 1 if findings else 0
 
 

@@ -200,3 +200,103 @@ def test_the_hourly_sweep_runs_the_detector_without_blocking() -> None:
     assert matching[0]["continue-on-error"] is True, (
         "the detector warns; a finding must not fail the maintenance sweep"
     )
+
+
+# ---------------------------------------------------------------------------
+# Reporting: continue-on-error means the exit code reaches nobody (issue #4316)
+# ---------------------------------------------------------------------------
+
+
+def _wire_one_orphan(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(detector, "fetch_merged_prs", lambda *_a, **_k: [_pr()])
+    monkeypatch.setattr(
+        detector,
+        "fetch_remote_tips",
+        lambda *_a, **_k: {"fix/debate-log-canonical-path": POST_MERGE_TIP},
+    )
+    monkeypatch.setattr(detector, "make_is_landed", lambda *_a, **_k: _never_landed)
+
+
+def test_main_writes_every_finding_to_the_job_summary(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _wire_one_orphan(monkeypatch)
+    summary = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+
+    assert detector.main([]) == 1
+
+    written = summary.read_text(encoding="utf-8")
+    assert "#4274" in written
+    assert "fix/debate-log-canonical-path" in written
+    assert POST_MERGE_TIP[:12] in written
+
+
+def test_a_clean_sweep_still_names_the_examined_count_in_the_job_summary(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(detector, "fetch_merged_prs", lambda *_a, **_k: [_pr()])
+    monkeypatch.setattr(
+        detector,
+        "fetch_remote_tips",
+        lambda *_a, **_k: {"fix/debate-log-canonical-path": MERGED_HEAD},
+    )
+    monkeypatch.setattr(detector, "make_is_landed", lambda *_a, **_k: _never_landed)
+    summary = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+
+    assert detector.main([]) == 0
+
+    assert "(0 in 1)" in summary.read_text(encoding="utf-8")
+
+
+def test_main_appends_rather_than_truncating_an_existing_summary(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _wire_one_orphan(monkeypatch)
+    summary = tmp_path / "summary.md"
+    summary.write_text("## Earlier step\n", encoding="utf-8")
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+
+    detector.main([])
+
+    assert summary.read_text(encoding="utf-8").startswith("## Earlier step\n")
+
+
+def test_main_still_reports_on_stdout_when_no_summary_file_exists(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _wire_one_orphan(monkeypatch)
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+
+    assert detector.main([]) == 1
+    assert "PR #4274" in capsys.readouterr().out
+
+
+def test_an_unwritable_summary_path_warns_without_changing_the_exit_code(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _wire_one_orphan(monkeypatch)
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(tmp_path / "missing-dir" / "s.md"))
+
+    assert detector.main([]) == 1
+    assert "could not write the job summary" in capsys.readouterr().err
+
+
+def test_the_sweep_step_leaves_the_job_summary_variable_alone() -> None:
+    """Wiring: the runner sets GITHUB_STEP_SUMMARY, so the step must not shadow it.
+
+    Overriding or clearing it in the step env silently returns the detector to
+    stdout-only reporting inside an always-green step, which is the exact
+    non-report issue #4316(b) is about.
+    """
+    workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+
+    steps = workflow["jobs"]["discover-prs"]["steps"]
+    step = next(
+        s
+        for s in steps
+        if "scripts/maintenance/detect_orphan_commits.py" in str(s.get("run", ""))
+    )
+
+    assert "GITHUB_STEP_SUMMARY" not in step.get("env", {})
