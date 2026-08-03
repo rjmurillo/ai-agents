@@ -257,18 +257,36 @@ def get_bot_authors(category: str = "all") -> list[str]:
 _BOT_SUFFIXES = ("[bot]", "-bot")
 
 # One GitHub integration reaches the API under several logins depending on the
-# path it came in through: the REST reviews array reports ``Copilot``, a review
-# request reports ``copilot-pull-request-reviewer``, and the coding agent's own
-# comments report ``copilot-swe-agent[bot]``. A caller that keys an aggregate on
+# path it came in through: REST review comments report ``Copilot``, the REST
+# reviews array reports ``copilot-pull-request-reviewer[bot]``, and GraphQL
+# reports ``copilot-pull-request-reviewer``. A caller that keys an aggregate on
 # the raw login counts one actor as three, inflating reviewer counts and bot
 # counts (issue #4378). Map every observed spelling onto one canonical login.
+#
+# The code reviewer and the coding agent are two accounts, not one, and
+# .github/bot-authors.yml files them under different categories. Measured on
+# this repository: the reviewer is account id 175728472 and the coding agent is
+# 198982749. Collapsing them makes the reviewer's comments read as the author's
+# own on the 121 PRs the coding agent has opened here, and every self-comment
+# filter then drops the review. They stay separate.
+#
+# REST spells BOTH accounts ``Copilot`` in some fields (PR 3235's ``.user.login``
+# is the coding agent; PR 4298's review-comment authors are the reviewer), so
+# that one string cannot be resolved from the login alone. It maps to the
+# reviewer, which is where .github/bot-authors.yml lists it and which is the
+# spelling reviewers actually arrive under. Separating them for certain needs the
+# numeric account id, which no caller carries today.
 _DEFAULT_BOT_ALIASES: dict[str, list[str]] = {
     "github-copilot[bot]": [
         "Copilot",
         "copilot-pull-request-reviewer",
         "copilot-pull-request-reviewer[bot]",
+    ],
+    "copilot-swe-agent[bot]": [
         "copilot-swe-agent",
-        "copilot-swe-agent[bot]",
+        # gh pr view --json author returns this spelling, so an author read that
+        # way must land on the coding agent rather than fall through unmapped.
+        "app/copilot-swe-agent",
     ],
 }
 

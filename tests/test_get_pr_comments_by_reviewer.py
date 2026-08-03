@@ -378,7 +378,7 @@ class TestGetPrCommentsByReviewer:
                 _make_review_comment("Copilot", user_type="Bot"),
                 _make_review_comment("copilot-pull-request-reviewer[bot]", user_type="Bot"),
             ],
-            issue_comments=[_make_issue_comment("copilot-swe-agent[bot]", user_type="Bot")],
+            issue_comments=[_make_issue_comment("copilot-pull-request-reviewer", user_type="Bot")],
         )
         assert result["total_reviewers"] == 1
         entry = result["reviewers"][0]
@@ -386,8 +386,21 @@ class TestGetPrCommentsByReviewer:
         assert entry["total_comments"] == 3
         assert sorted(entry["aliases"]) == [
             "Copilot",
+            "copilot-pull-request-reviewer",
             "copilot-pull-request-reviewer[bot]",
+        ]
+
+    def test_the_coding_agent_stays_separate_from_the_code_reviewer(self):
+        """Two accounts (issue #4378): merging them hides the review."""
+        result = self._run(
+            review_comments=[
+                _make_review_comment("copilot-pull-request-reviewer[bot]", user_type="Bot"),
+                _make_review_comment("copilot-swe-agent[bot]", user_type="Bot"),
+            ],
+        )
+        assert sorted(r["login"] for r in result["reviewers"]) == [
             "copilot-swe-agent[bot]",
+            "github-copilot[bot]",
         ]
 
     def test_distinct_humans_stay_separate(self):
@@ -404,7 +417,7 @@ class TestGetPrCommentsByReviewer:
     def test_include_filter_accepts_any_alias(self):
         result = self._run(
             review_comments=[
-                _make_review_comment("copilot-swe-agent[bot]", user_type="Bot"),
+                _make_review_comment("copilot-pull-request-reviewer[bot]", user_type="Bot"),
                 _make_review_comment("alice"),
             ],
             include_reviewers=["Copilot"],
@@ -416,7 +429,7 @@ class TestGetPrCommentsByReviewer:
         result = self._run(
             review_comments=[
                 _make_review_comment("Copilot", user_type="Bot"),
-                _make_review_comment("copilot-swe-agent[bot]", user_type="Bot"),
+                _make_review_comment("copilot-pull-request-reviewer[bot]", user_type="Bot"),
                 _make_review_comment("alice"),
             ],
             exclude_reviewers=["copilot-pull-request-reviewer"],
@@ -424,8 +437,20 @@ class TestGetPrCommentsByReviewer:
         assert [r["login"] for r in result["reviewers"]] == ["alice"]
 
     def test_self_comments_match_an_aliased_author(self):
+        """gh reports the author as app/..., its own comments as ...[bot]."""
         result = self._run(
-            review_comments=[_make_review_comment("Copilot", user_type="Bot")],
-            pr_author="copilot-swe-agent[bot]",
+            review_comments=[_make_review_comment("copilot-swe-agent[bot]", user_type="Bot")],
+            pr_author="app/copilot-swe-agent",
         )
         assert result["total_comments"] == 0
+
+    def test_a_review_of_a_coding_agent_pr_is_not_read_as_a_self_comment(self):
+        """The failure the merged map produced: the review vanished."""
+        result = self._run(
+            review_comments=[
+                _make_review_comment("copilot-pull-request-reviewer[bot]", user_type="Bot")
+            ],
+            pr_author="app/copilot-swe-agent",
+        )
+        assert result["total_comments"] == 1
+        assert [r["login"] for r in result["reviewers"]] == ["github-copilot[bot]"]

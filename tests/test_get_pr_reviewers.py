@@ -359,7 +359,7 @@ class TestAliasCanonicalization:
             {"user": {"login": "copilot-pull-request-reviewer[bot]", "type": "Bot"}},
         ]
         issue_comments = [
-            {"user": {"login": "copilot-swe-agent[bot]", "type": "Bot"}},
+            {"user": {"login": "copilot-pull-request-reviewer", "type": "Bot"}},
         ]
         with patch(
             "get_pr_reviewers.assert_gh_authenticated",
@@ -383,9 +383,35 @@ class TestAliasCanonicalization:
         assert entry["total_comments"] == 2
         assert sorted(entry["aliases"]) == [
             "Copilot",
+            "copilot-pull-request-reviewer",
             "copilot-pull-request-reviewer[bot]",
-            "copilot-swe-agent[bot]",
         ]
+
+    def test_the_coding_agent_does_not_collapse_into_the_code_reviewer(self, capsys):
+        """Two accounts, so a review of a Copilot-authored PR stays visible."""
+        pr_data = _pr_json(author="app/copilot-swe-agent")
+        review_comments = [
+            {"user": {"login": "copilot-pull-request-reviewer[bot]", "type": "Bot"}},
+        ]
+        issue_comments = [
+            {"user": {"login": "copilot-swe-agent[bot]", "type": "Bot"}},
+        ]
+        with patch(
+            "get_pr_reviewers.assert_gh_authenticated",
+        ), patch(
+            "get_pr_reviewers.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            return_value=_completed(stdout=pr_data, rc=0),
+        ), patch(
+            "get_pr_reviewers.gh_api_paginated",
+            side_effect=[review_comments, issue_comments],
+        ):
+            rc = main(["--pull-request", "10", "--exclude-author"])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert [r["login"] for r in output["reviewers"]] == ["github-copilot[bot]"]
 
     def test_distinct_humans_are_not_collapsed(self, capsys):
         pr_data = _pr_json(author="alice")
@@ -413,9 +439,10 @@ class TestAliasCanonicalization:
             assert entry["aliases"] == [entry["login"]]
 
     def test_exclude_author_matches_an_aliased_author(self, capsys):
-        pr_data = _pr_json(author="copilot-swe-agent[bot]")
+        """gh reports the author as app/..., its own comments as ...[bot]."""
+        pr_data = _pr_json(author="app/copilot-swe-agent")
         review_comments = [
-            {"user": {"login": "Copilot", "type": "Bot"}},
+            {"user": {"login": "copilot-swe-agent[bot]", "type": "Bot"}},
             {"user": {"login": "bob", "type": "User"}},
         ]
         with patch(

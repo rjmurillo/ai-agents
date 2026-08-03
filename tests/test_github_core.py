@@ -1046,7 +1046,18 @@ class TestCanonicalizeLogin:
         assert bot_config.canonicalize_login("Copilot") == "github-copilot[bot]"
 
     def test_alias_matching_is_case_insensitive(self):
-        assert bot_config.canonicalize_login("COPILOT-SWE-AGENT[BOT]") == "github-copilot[bot]"
+        assert (
+            bot_config.canonicalize_login("COPILOT-PULL-REQUEST-REVIEWER")
+            == "github-copilot[bot]"
+        )
+
+    def test_the_coding_agent_is_a_different_actor_from_the_code_reviewer(self):
+        """Two accounts (ids 175728472 and 198982749), not one (issue #4378)."""
+        assert bot_config.canonicalize_login("copilot-swe-agent[bot]") == "copilot-swe-agent[bot]"
+        assert bot_config.canonicalize_login("app/copilot-swe-agent") == "copilot-swe-agent[bot]"
+        assert bot_config.canonicalize_login("copilot-pull-request-reviewer[bot]") != (
+            bot_config.canonicalize_login("copilot-swe-agent[bot]")
+        )
 
     def test_canonical_login_is_a_fixed_point(self):
         assert bot_config.canonicalize_login("github-copilot[bot]") == "github-copilot[bot]"
