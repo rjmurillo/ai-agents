@@ -2337,6 +2337,12 @@ def _mypy_result_blocks(
 
 
 def run_mypy(paths: Sequence[str], repo_root: Path) -> int:
+    if not paths:
+        print(
+            "ERROR: run_mypy called with no file arguments; refusing (bare mypy is a false green)",
+            file=sys.stderr,
+        )
+        return 2
     checked_paths: list[str] = []
     for raw_path in paths:
         path = _safe_relative_path(raw_path)
