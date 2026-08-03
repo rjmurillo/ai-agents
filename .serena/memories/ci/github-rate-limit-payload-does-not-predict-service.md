@@ -105,3 +105,50 @@ before waiting.
 This fired every few minutes with about ten concurrent agents. Prefer one wide
 query over several narrow ones, avoid parallel API reads across agents, and
 budget for the backoff rather than treating each refusal as a new problem.
+
+## There are two refusal modes, and the failing response tells you which
+
+The guidance above ("the numbers will look fine", "treat it as a 60 second
+backoff") holds for one of two modes. A later measurement found the other, and
+the two want opposite responses. The discriminator is the response header on the
+refused call itself, which neither `gh api rate_limit` nor the error body
+carries.
+
+Read it with `-i`:
+
+```
+$ gh api user -i
+Date: Mon, 03 Aug 2026 18:30:15 GMT
+X-Ratelimit-Remaining: 0
+X-Ratelimit-Reset: 1785781966
+X-Ratelimit-Resource: core
+```
+
+| Mode | `X-Ratelimit-Remaining` on the refusal | Meaning | Response |
+|---|---|---|---|
+| Velocity | non-zero (4948 of 5000 in the readings above) | request rate, not quota | back off about 60 seconds, retry once |
+| Exhaustion | `0`, with `X-Ratelimit-Resource` naming the bucket | the bucket really is drained | sleep until `X-Ratelimit-Reset`, then proceed |
+
+In the exhaustion reading above, the reset epoch decoded to 11:32:46 PDT, two
+and a half minutes out. Sleeping to that timestamp and issuing one call returned
+`rjmurillo` on the first try. No polling, no retry loop, no re-auth.
+
+So the earlier advice not to reconcile against `rate_limit` still stands, and for
+the reason already given: that endpoint is exempt and reports a bucket state that
+does not describe your call. It is the wrong instrument, not a broken one. The
+right instrument is the header on the response you were actually refused.
+
+Do not infer the mode from how long the outage has lasted. Read the header.
+
+## Two costs worth avoiding
+
+`gh pr list --json statusCheckRollup --limit 100` returns `HTTP 504: We couldn't
+respond to your request in time` against this repository. The check-rollup
+expansion over that many pull requests exceeds GitHub's GraphQL time budget.
+Split it: fetch `number,mergeStateStatus,isDraft,title` for the whole list, then
+fetch `statusCheckRollup` per pull request only for the ones you need.
+
+`mergeStateStatus` comes back `UNKNOWN` on a first query because GitHub computes
+mergeability lazily. The first query enqueues the computation. Wait about a
+minute and query again rather than treating `UNKNOWN` as a state. In one reading
+48 of 55 were `UNKNOWN` on the first pass and 0 on the second.

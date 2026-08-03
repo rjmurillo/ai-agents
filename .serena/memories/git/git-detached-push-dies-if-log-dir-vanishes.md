@@ -27,12 +27,13 @@ the slot-scanner recipe; the log path uses `~/src/scratch/` to survive `/tmp`
 wipes.
 
 ```bash
-S=~/src/scratch; mkdir -p "$S"
+S=~/src/scratch/locks; mkdir -p "$S"
+SCRATCH=~/src/scratch; mkdir -p "$SCRATCH"
 BRANCH=<branch>
 for s in 0 1 2 3; do
-  SKIP_SCOPE_CHECK=1 flock -n --conflict-exit-code 99 "/tmp/aiagents-push-$s.lock" \
+  SKIP_SCOPE_CHECK=1 flock -n --conflict-exit-code 99 "$S/aiagents-push-$s.lock" \
     git push --force-with-lease origin "HEAD:$BRANCH" \
-    > "$S/push-$BRANCH-s$s.log" 2>&1
+    > "$SCRATCH/push-$BRANCH-s$s.log" 2>&1
   rc=$?
   if [ "$rc" -ne 99 ]; then
     echo "SLOT=$s PUSH_RC=$rc"
@@ -41,10 +42,12 @@ for s in 0 1 2 3; do
 done
 ```
 
-The `/tmp` lock survives a `/tmp` wipe because the inode stays alive as long as
-any process holds the file descriptor open. The log does not survive because it
-is opened once at redirect time; after a wipe there is no inode to write to.
-So locks in `/tmp`, logs in `~/src/scratch/`.
+Both lock files and logs go in `~/src/scratch/` (locks under `~/src/scratch/locks/`).
+`/tmp` is wiped periodically: a wiped log redirect fails silently, and even the
+inode-survives-wipe argument for lock files breaks when the lock file is unlinked
+while held. A new push recreates the path and `flock` opens a fresh inode, so two
+processes can hold different inodes at the same path simultaneously. Keep both
+locks and logs out of `/tmp`.
 
 The log alone cannot tell you which of four states you are in. Read it together
 with the process table and the `REAL_EXIT` sentinel.

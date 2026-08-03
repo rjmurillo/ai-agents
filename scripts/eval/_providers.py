@@ -46,6 +46,7 @@ from typing import TYPE_CHECKING, Any, Protocol, cast
 # uses. A package-qualified import would bind a second copy of the module
 # when a caller has the repo root on sys.path, and a monkeypatch applied to
 # one copy would not reach the other.
+import _eval_api_adapter_constants as _constants
 from _copilot_cli import _CopilotCLIProvider
 
 # GitHub Models inference endpoint (OpenAI-compatible). Verified 2026-06:
@@ -250,7 +251,7 @@ class _OpenAICompatibleProvider:
                 f"{self._provider_label} API returned non-text content for model {model}."
             )
         fingerprint = getattr(resp, "system_fingerprint", None)
-        self.system_fingerprint = fingerprint if isinstance(fingerprint, str) else None
+        self.system_fingerprint = _constants.normalize_fingerprint(fingerprint)
         return content
 
 

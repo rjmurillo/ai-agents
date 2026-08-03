@@ -635,3 +635,48 @@ def test_default_model_matches_base_evaluator():
     match = re.search(r'^DEFAULT_MODEL\s*=\s*"([^"]+)"', text, re.MULTILINE)
     assert match, "could not find DEFAULT_MODEL in eval-agent-vs-baseline.py"
     assert match.group(1) == sweep.DEFAULT_MODEL
+
+
+def _quota_report(cost_estimate_usd, cost_basis):
+    """A child report shaped like one a quota-billed provider writes."""
+    return {
+        "agent_recall": 1.0,
+        "fixture_set_sha": "sha-abc",
+        "per_fixture_pass_rates": {"f1": {"agent": [1.0]}},
+        "total_tokens_in": 100,
+        "total_tokens_out": 200,
+        "cost_estimate_usd": cost_estimate_usd,
+        "cost_basis": cost_basis,
+        "error_count": 0,
+    }
+
+
+def test_parse_report_accepts_null_cost_from_quota_billed_child():
+    """A request-metered child writes cost_estimate_usd=null; parsing must survive.
+
+    The sweep runs a paid child evaluation first, so crashing here throws away
+    work that was already spent.
+    """
+    result = sweep.parse_report(
+        _quota_report(None, "requests"), model_id="openai/gpt-4o-mini"
+    )
+    assert result.cost_usd is None
+    assert result.cost_basis == "requests"
+
+
+def test_parse_report_keeps_usd_cost_from_per_token_child():
+    """The USD path is unchanged: a priced child still yields a float."""
+    result = sweep.parse_report(
+        _quota_report(0.05, "usd"), model_id="claude-sonnet-4-6"
+    )
+    assert result.cost_usd == 0.05
+    assert result.cost_basis == "usd"
+
+
+def test_parse_report_defaults_basis_to_usd_when_absent():
+    """A report predating cost_basis reads as usd, preserving old behavior."""
+    report = _quota_report(0.05, "usd")
+    del report["cost_basis"]
+    result = sweep.parse_report(report, model_id="m1")
+    assert result.cost_usd == 0.05
+    assert result.cost_basis == "usd"

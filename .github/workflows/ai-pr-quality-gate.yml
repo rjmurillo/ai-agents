@@ -574,6 +574,10 @@ jobs:
         if: steps.should-run-review.outputs.skip != 'true'
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
+      - name: Set up uv
+        if: steps.should-run-review.outputs.skip != 'true'
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+
       - name: Check for failed agents
         if: steps.should-run-review.outputs.skip != 'true'
         id: failed-agents
@@ -655,7 +659,7 @@ jobs:
           OBSERVABILITY_VERDICT: ${{ steps.aggregate.outputs.observability_verdict }}
           AGENT_SAFETY_VERDICT: ${{ steps.aggregate.outputs['agent-safety_verdict'] }}
           DECISION_RIGOR_VERDICT: ${{ steps.aggregate.outputs['decision-rigor_verdict'] }}
-        run: python3 scripts/quality_gate/external_signal_gate.py
+        run: uv run --frozen python scripts/quality_gate/external_signal_gate.py
 
       - name: Generate Report
         if: steps.should-run-review.outputs.skip != 'true'
@@ -732,4 +736,4 @@ jobs:
           OBSERVABILITY_VERDICT: ${{ steps.aggregate.outputs.observability_verdict }}
           AGENT_SAFETY_VERDICT: ${{ steps.aggregate.outputs['agent-safety_verdict'] }}
           DECISION_RIGOR_VERDICT: ${{ steps.aggregate.outputs['decision-rigor_verdict'] }}
-        run: python3 scripts/quality_gate/check_critical_failures.py
+        run: uv run --frozen python scripts/quality_gate/check_critical_failures.py
