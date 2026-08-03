@@ -37,6 +37,15 @@
   samples. Both must propagate `MalformedProviderMetadataError` first, or a
   malformed fingerprint permits more paid calls. The response and judge
   regression tests each assert exactly one call.
+- `scripts/eval/_copilot_cli.py` may inspect bounded subprocess stderr only to
+  classify a fixed safe error hint. It must never append raw stderr to an
+  exception because rule-activation persists ordinary exception text in both
+  mechanism and judge artifacts. The credential regression writes both paths
+  to a temporary JSON artifact and asserts the token is absent.
+- A present non-string `assistant.message.data.model` is corruption, not
+  missing attribution. Route it through `require_str_or_none` before the
+  unverified-model opt-in. Normal and opted-in tests both assert one subprocess
+  call and `MalformedProviderMetadataError`.
 - Regression evidence:
   `TestTransportsRefuseAMalformedFingerprint` in
   `tests/evals/test_eval_agent_vs_baseline.py`. Removing the typed boundary
