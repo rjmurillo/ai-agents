@@ -24,12 +24,15 @@ import argparse
 import os
 import sys
 
+# Two rungs, both portable. The plugin-root variables win when the host exports
+# them; otherwise walk up from this file, which lands on the lib directory of
+# whichever plugin root ships this copy. Sibling scripts carry a third rung
+# built from a hard-coded ".claude/lib" under GITHUB_WORKSPACE; that rung names
+# a layout only the upstream checkout has, and the walk-up already covers the
+# case it was there for.
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
-_workspace = os.environ.get("GITHUB_WORKSPACE")
 if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
     _lib_dir = os.path.join(_plugin_root, "lib")
-elif _workspace:
-    _lib_dir = os.path.join(_workspace, ".claude", "lib")
 else:
     _lib_dir = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
