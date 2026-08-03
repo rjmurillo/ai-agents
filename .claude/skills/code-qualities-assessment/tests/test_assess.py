@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import builtins
 import importlib.util
+import json
 import subprocess
 import tempfile
 from pathlib import Path
@@ -31,8 +32,16 @@ assert _spec is not None and _spec.loader is not None
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
+assess_content = _mod.assess_content
 assess_file = _mod.assess_file
+build_comparisons = _mod.build_comparisons
+check_regression = _mod.check_regression
 check_thresholds = _mod.check_thresholds
+compare_assessments = _mod.compare_assessments
+get_file_at_revision = _mod.get_file_at_revision
+main = _mod.main
+resolve_gate_mode = _mod.resolve_gate_mode
+resolve_revision = _mod.resolve_revision
 detect_language = _mod.detect_language
 get_files_to_assess = _mod.get_files_to_assess
 classify_file_category = _mod.classify_file_category
@@ -885,3 +894,290 @@ def test_assess_non_utf8_file_does_not_crash(tmp_path: Path) -> None:
     assessment = assess_file(binary, "production", False)
 
     assert assessment.category in {"authored", "test"}
+
+
+# --------------------------------------------------------------------------- #
+# Regression gate mode (issue #4364)
+#
+# --changed-only used to select changed files and then apply absolute
+# thresholds, so a comment-only edit to a legacy file failed the gate on debt
+# it did not introduce. Exit 10 was documented and unreachable.
+# --------------------------------------------------------------------------- #
+
+_FOCUSED = "def alpha():\n    return 1\n"
+# 21 definitions: enough to score cohesion well below the default minimum of 7.
+_SPRAWLING = _FOCUSED + "".join(f"def f{i}():\n    return {i}\n" for i in range(20))
+
+
+def _init_repo(tmp_path: Path) -> None:
+    _run_git(tmp_path, "init")
+    _run_git(tmp_path, "checkout", "-b", "main")
+    _run_git(tmp_path, "config", "user.email", "test@example.com")
+    _run_git(tmp_path, "config", "user.name", "Test")
+
+
+def _commit(tmp_path: Path, name: str, body: str, message: str) -> Path:
+    path = _write(tmp_path, name, body)
+    _run_git(tmp_path, "add", name)
+    _run_git(tmp_path, "commit", "-m", message)
+    return path
+
+
+def _repo_with_change(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    base_body: str,
+    head_body: str,
+    name: str = "legacy.py",
+) -> None:
+    _init_repo(tmp_path)
+    _commit(tmp_path, name, base_body, "base")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    _commit(tmp_path, name, head_body, "head")
+    monkeypatch.chdir(tmp_path)
+
+
+def _regression_argv() -> list[str]:
+    return ["--target", ".", "--changed-only", "--base", "main", "--format", "json"]
+
+
+def test_regression_mode_passes_a_comment_only_change_to_a_legacy_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The reported repro: legacy debt plus one comment must not fail the gate."""
+    _repo_with_change(tmp_path, monkeypatch, _SPRAWLING, "# added note\n" + _SPRAWLING)
+
+    assert main(_regression_argv()) == 0
+
+
+def test_absolute_mode_still_fails_the_same_legacy_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Control for the test above: the two modes disagree on the same tree."""
+    _repo_with_change(tmp_path, monkeypatch, _SPRAWLING, "# added note\n" + _SPRAWLING)
+
+    assert main([*_regression_argv(), "--gate-mode", "absolute"]) == 11
+
+
+def test_regression_mode_passes_an_improved_legacy_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _repo_with_change(tmp_path, monkeypatch, _SPRAWLING, _FOCUSED)
+
+    assert main(_regression_argv()) == 0
+
+
+def test_regression_mode_fails_a_degraded_file_and_names_the_quality(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _repo_with_change(tmp_path, monkeypatch, _FOCUSED, _SPRAWLING)
+
+    assert main(_regression_argv()) == 10
+    assert "cohesion regressed" in capsys.readouterr().err
+
+
+def test_regression_mode_gates_a_new_file_absolutely(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A file absent at base has no delta, so absolute thresholds decide."""
+    _init_repo(tmp_path)
+    _commit(tmp_path, "seed.py", _FOCUSED, "base")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    _commit(tmp_path, "newly_added.py", _SPRAWLING, "add file")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(_regression_argv()) == 11
+
+
+def test_regression_mode_passes_a_new_file_that_meets_thresholds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _init_repo(tmp_path)
+    _commit(tmp_path, "seed.py", _FOCUSED, "base")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    _commit(tmp_path, "newly_added.py", _FOCUSED, "add file")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(_regression_argv()) == 0
+
+
+def test_json_report_carries_base_head_and_delta(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _repo_with_change(tmp_path, monkeypatch, _FOCUSED, _SPRAWLING)
+
+    main(_regression_argv())
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["gate_mode"] == "regression"
+    cohesion = next(
+        d
+        for c in payload["comparisons"]
+        for d in c["deltas"]
+        if d["quality"] == "cohesion"
+    )
+    assert cohesion["base"] is not None
+    assert cohesion["head"] is not None
+    assert cohesion["delta"] < 0
+    assert cohesion["status"] == "compared"
+
+
+def test_regression_mode_rejects_a_missing_base(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    rc = main(["--target", ".", "--changed-only", "--gate-mode", "regression"])
+
+    assert rc == 1
+
+
+def test_regression_mode_rejects_a_missing_changed_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    rc = main(["--target", ".", "--base", "main", "--gate-mode", "regression"])
+
+    assert rc == 1
+
+
+def test_unresolvable_base_is_an_error_not_a_pass(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A typo in --base must not read as 'every file is new' and pass."""
+    _repo_with_change(tmp_path, monkeypatch, _FOCUSED, _SPRAWLING)
+
+    with pytest.raises(ValueError):
+        resolve_revision("no-such-ref")
+
+
+@pytest.mark.parametrize(
+    ("gate_mode", "changed_only", "base", "expected"),
+    [
+        ("auto", True, "main", "regression"),
+        ("auto", True, None, "absolute"),
+        ("auto", False, "main", "absolute"),
+        ("auto", False, None, "absolute"),
+        ("absolute", True, "main", "absolute"),
+        ("regression", True, "main", "regression"),
+    ],
+)
+def test_resolve_gate_mode(
+    gate_mode: str, changed_only: bool, base: str | None, expected: str
+) -> None:
+    assert resolve_gate_mode(gate_mode, changed_only, base) == expected
+
+
+def test_resolve_revision_rejects_option_like_base() -> None:
+    """CWE-88: an option-like --base is rejected before git runs."""
+    with pytest.raises(ValueError):
+        resolve_revision("--output=/tmp/should_not_be_written")
+
+
+def test_get_file_at_revision_rejects_option_like_revision() -> None:
+    with pytest.raises(ValueError):
+        get_file_at_revision(Path("a.py"), "--upload-pack=touch")
+
+
+def test_get_file_at_revision_returns_none_for_an_absent_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _init_repo(tmp_path)
+    _commit(tmp_path, "seed.py", _FOCUSED, "base")
+    monkeypatch.chdir(tmp_path)
+
+    assert get_file_at_revision(Path("seed.py"), "main") == _FOCUSED
+    assert get_file_at_revision(Path("never_existed.py"), "main") is None
+
+
+def test_build_comparisons_separates_new_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _init_repo(tmp_path)
+    _commit(tmp_path, "seed.py", _FOCUSED, "base")
+    monkeypatch.chdir(tmp_path)
+    existing = assess_file(Path("seed.py"), "production", False)
+    fresh = assess_content(Path("brand_new.py"), _FOCUSED)
+
+    comparisons, new_files = build_comparisons([existing, fresh], "main")
+
+    assert [c.is_new_file for c in comparisons] == [False, True]
+    assert [a.file_path for a in new_files] == ["brand_new.py"]
+
+
+# --------------------------------------------------------------------------- #
+# compare_assessments: per-quality independence
+# --------------------------------------------------------------------------- #
+
+
+def _delta(comparison: Any, quality: str) -> Any:
+    return next(d for d in comparison.deltas if d.quality == quality)
+
+
+def test_unscored_qualities_are_never_compared() -> None:
+    """A quality unscored in both revisions produces no delta and no verdict."""
+    base = assess_content(Path("a.rb"), "puts 1\n")
+    head = assess_content(Path("a.rb"), "puts 2\n")
+
+    comparison = compare_assessments(base, head)
+
+    assert _delta(comparison, "testability").status == "not_scored"
+    assert _delta(comparison, "testability").delta is None
+    assert comparison.regressions == []
+
+
+def test_newly_scored_quality_reports_no_fabricated_delta() -> None:
+    unscored = assess_content(Path("a.py"), "x = 1\n")
+    unscored.cohesion.confidence = 0.0
+    head = assess_content(Path("a.py"), "x = 1\n")
+
+    comparison = compare_assessments(unscored, head)
+
+    delta = _delta(comparison, "cohesion")
+    assert delta.status == "newly_scored"
+    assert delta.base is None
+    assert delta.delta is None
+    assert comparison.regressions == []
+
+
+def test_scored_to_unscored_is_evidence_loss() -> None:
+    base = assess_content(Path("a.py"), _FOCUSED)
+    head = assess_content(Path("a.py"), _FOCUSED)
+    head.cohesion.confidence = 0.0
+
+    comparison = compare_assessments(base, head)
+
+    assert comparison.evidence_loss == ["cohesion"]
+    assert check_regression([comparison], [], _default_config(), "production") == 10
+
+
+def test_evidence_loss_is_forgiven_for_a_generated_artifact() -> None:
+    base = assess_content(Path("a.py"), _FOCUSED)
+    head = assess_content(Path("a.py"), _FOCUSED)
+    head.category = "generated"
+    head.cohesion.confidence = 0.0
+
+    comparison = compare_assessments(base, head)
+
+    assert comparison.evidence_loss == []
+    assert check_regression([comparison], [], _default_config(), "production") == 0
+
+
+def test_tolerance_absorbs_a_small_drop() -> None:
+    base = assess_content(Path("a.py"), _FOCUSED)
+    head = assess_content(Path("a.py"), _FOCUSED)
+    head.cohesion.value = base.cohesion.value - 0.2
+
+    assert compare_assessments(base, head, tolerance=0.0).regressions == ["cohesion"]
+    assert compare_assessments(base, head, tolerance=0.5).regressions == []
+
+
+def test_an_improvement_is_never_a_regression() -> None:
+    base = assess_content(Path("a.py"), _SPRAWLING)
+    head = assess_content(Path("a.py"), _FOCUSED)
+
+    comparison = compare_assessments(base, head)
+
+    assert comparison.regressions == []
+    assert _delta(comparison, "cohesion").delta > 0
