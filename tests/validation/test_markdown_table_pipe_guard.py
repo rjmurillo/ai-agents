@@ -51,7 +51,7 @@ def _is_table_data_row(line: str) -> bool:
 
 def _scan_skill_files() -> list[Path]:
     """Collect all Markdown files in skill directories."""
-    files = []
+    files: list[Path] = []
     for root in (
         _REPO_ROOT / ".claude" / "skills",
         _REPO_ROOT / "src" / "copilot-cli" / "skills",
