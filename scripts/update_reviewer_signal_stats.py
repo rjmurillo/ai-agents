@@ -128,6 +128,7 @@ class ReviewerStats:
     prs_with_comments: set[int] = field(default_factory=set)
     comments: list[CommentData] = field(default_factory=list)
     verified_actionable: int = 0
+    actor_ids: set[int] = field(default_factory=set)
 
 
 @dataclass
@@ -169,7 +170,11 @@ def get_comments_by_reviewer(
         # Canonical identity on both sides: one integration reaches the API
         # under several logins, so a raw-login key counts it as several
         # reviewers in the committed statistics (issue #4378).
-        pr_author = canonicalize_login((pr.get("author") or {}).get("login", ""))
+        pr_author_data = pr.get("author") or {}
+        pr_author = canonicalize_login(
+            pr_author_data.get("login", ""),
+            pr_author_data.get("databaseId"),
+        )
 
         threads = pr.get("reviewThreads", {}).get("nodes", [])
         for thread in threads:
@@ -178,8 +183,11 @@ def get_comments_by_reviewer(
             comments_nodes = thread.get("comments", {}).get("nodes", [])
 
             for comment in comments_nodes:
+                comment_author_data = comment.get("author") or {}
+                comment_author_id = comment_author_data.get("databaseId")
                 comment_author = canonicalize_login(
-                    (comment.get("author") or {}).get("login", "")
+                    comment_author_data.get("login", ""),
+                    comment_author_id,
                 )
 
                 # Skip self-comments (reviewer commenting on their own PR)
@@ -190,6 +198,8 @@ def get_comments_by_reviewer(
                     reviewer_stats[comment_author] = ReviewerStats()
 
                 stats = reviewer_stats[comment_author]
+                if isinstance(comment_author_id, int):
+                    stats.actor_ids.add(comment_author_id)
                 stats.total_comments += 1
                 stats.prs_with_comments.add(pr.get("number", 0))
                 stats.comments.append(

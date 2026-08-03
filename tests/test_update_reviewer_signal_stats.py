@@ -54,6 +54,8 @@ def _make_pr(
     author: str,
     comments: list[tuple[str, str]],
     is_resolved: bool = False,
+    author_id: int | None = None,
+    comment_ids: list[int | None] | None = None,
 ) -> dict[str, Any]:
     """Build a PR dict matching GraphQL shape.
 
@@ -62,12 +64,15 @@ def _make_pr(
         author: PR author login.
         comments: List of (comment_author, comment_body) tuples.
         is_resolved: Whether the thread is resolved.
+        author_id: Optional GraphQL database ID for the PR author.
+        comment_ids: Optional GraphQL database IDs aligned with comments.
     """
+    actor_ids = comment_ids or [None] * len(comments)
     comment_nodes = [
         {
             "id": f"c{i}",
             "body": body,
-            "author": {"login": comment_author},
+            "author": {"login": comment_author, "databaseId": actor_ids[i]},
             "createdAt": datetime.now(UTC).isoformat(),
             "path": "file.py",
         }
@@ -76,7 +81,7 @@ def _make_pr(
 
     return {
         "number": number,
-        "author": {"login": author},
+        "author": {"login": author, "databaseId": author_id},
         "reviewThreads": {
             "nodes": [
                 {
@@ -323,6 +328,36 @@ class TestCommentsByReviewer:
         """The reviewer and the coding agent are two accounts, not one."""
         prs = [
             _make_pr(1, "app/copilot-swe-agent", [("copilot-pull-request-reviewer[bot]", "R")])
+        ]
+        result = get_comments_by_reviewer(prs)
+        assert list(result) == ["github-copilot[bot]"]
+
+    def test_shared_copilot_login_is_separated_by_account_id(self) -> None:
+        prs = [
+            _make_pr(
+                1,
+                "author1",
+                [("Copilot", "Reviewer"), ("Copilot", "Coding agent")],
+                comment_ids=[175728472, 198982749],
+            )
+        ]
+        result = get_comments_by_reviewer(prs)
+        assert set(result) == {
+            "github-copilot[bot]",
+            "copilot-swe-agent[bot]",
+        }
+        assert result["github-copilot[bot]"].actor_ids == {175728472}
+        assert result["copilot-swe-agent[bot]"].actor_ids == {198982749}
+
+    def test_ids_keep_an_ambiguous_author_separate_from_the_reviewer(self) -> None:
+        prs = [
+            _make_pr(
+                1,
+                "Copilot",
+                [("Copilot", "Review")],
+                author_id=198982749,
+                comment_ids=[175728472],
+            )
         ]
         result = get_comments_by_reviewer(prs)
         assert list(result) == ["github-copilot[bot]"]
