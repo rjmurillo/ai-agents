@@ -1,0 +1,19 @@
+{
+  "id": "episode-2026-08-03-session-4392-episode-metric-correction",
+  "session": "2026-08-03-session-4392-episode-metric-correction",
+  "timestamp": "2026-08-03T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Correct the session-4234 episode files_changed metric to match git ground truth for PR 4392",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 3
+  },
+  "lessons": []
+}
