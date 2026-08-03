@@ -2,51 +2,78 @@
 
 ## First: a red `Validate PR` is usually not about the description at all
 
-`Validate PR` is a 22-step job. Description validation is steps 5 through 10.
-Steps 11 through 22 are separate gates that share the check name and can red it on
-their own. Parse the workflow rather than grepping it; a grep for step names
-overcounts and picks up neighbours:
+`Validate PR` is a 23-step job as of `origin/main` at `03dc6a9ca` (2026-08-03).
+Description validation is steps 5 through 10. Steps 11 through 23 are separate gates
+that share the check name and can red it on their own.
+
+Parse the workflow rather than grepping it, and parse it in a tree that is actually
+at current `origin/main`. A grep for step names miscounts, and the shared checkout at
+`~/src/GitHub/rjmurillo/ai-agents` sits on a detached HEAD that is usually behind
+main, so a parse there answers about the wrong commit:
 
 ```bash
 uv run --frozen python -c "import yaml,pathlib;\
 d=yaml.safe_load(pathlib.Path('.github/workflows/pr-validation.yml').read_text());\
-[print(i,s.get('name'),'SOFT' if s.get('continue-on-error') else 'HARD') \
+[print(i,'SOFT' if s.get('continue-on-error') else 'HARD','if' if s.get('if') else '--',s.get('name')) \
  for i,s in enumerate(d['jobs']['validate-pr']['steps'],1)]"
 ```
 
-Measured 2026-08-03 against `.github/workflows/pr-validation.yml`:
-
 | Step | Hard? | Fails when |
 |---|---|---|
-| 5. Validate PR Description vs Diff | hard | the body claims a file the diff does not touch |
+| 5. Validate PR Description vs Diff | **no** | never. Maps the verdict into `validation_result` and returns 0 |
 | 6. Validate PR Description Standards | hard | the standards validator errors |
-| 7. Check QA Report Exists | hard | the step itself errors, a missing report only warns |
-| 8. Generate Validation Report | hard | `description` came back `FAIL` or `ERROR` |
+| 7. Check QA Report Exists | hard | the step errors; a missing report only warns |
+| 8. Generate Validation Report | **no** | never. `build_pr_validation_report.py` ends in an unconditional `return 0` |
 | 9. Post PR Comment | **soft** | never reds the job |
 | 11. Check PR commit count | hard | the counting step errors |
 | 12, 13. needs-split label ops | **soft** | never red the job |
-| 14. Enforce Blocking Issues | hard | a linked issue is marked blocking |
-| 15. ADR-006 run-block ratchet | hard | inline logic added to workflow YAML |
-| 18. Validate workflow YAML | hard | a changed workflow does not parse or lint |
-| 19. taste-lint error-count ratchet | hard | the recorded baseline sits above the base branch's |
-| 20. type-ignore count ratchet | hard | type-ignore count rose |
-| 21. Check for conflict markers | hard | a merge marker survived into the diff |
-| 22. Enforce model pin policy | hard | a model reference is unpinned |
+| 14. Enforce Blocking Issues | hard | `OVERALL_STATUS` is `FAIL`/`ERROR`, or `COMMIT_STATUS` is `BLOCKED` |
+| 17. Validate workflow YAML | hard | a changed workflow does not parse or lint |
+| 18. Check bare-python3 documentation entrypoints | hard | docs invoke bare `python3` where `uv run` is required |
+| 19. ADR-006 run-block ratchet | hard | inline logic added to workflow YAML |
+| 20. taste-lint error-count ratchet | hard | the recorded baseline sits above the base branch's |
+| 21. type-ignore count ratchet | hard | type-ignore count rose |
+| 22. Check for conflict markers | hard | a merge marker survived into the diff |
+| 23. Enforce model pin policy | hard | a model reference is unpinned |
 
-Two consequences that are easy to miss.
+Three consequences that are easy to miss.
 
-**Steps 17 through 22 carry no `if` guard.** Every earlier step is gated on
-`steps.should-run.outputs.skip != 'true'`. So on a PR where description validation
-is skipped entirely, `Validate PR` still runs six gates and can still go red. A red
-check is not evidence that the description was even read.
+**A description failure surfaces as `Enforce Blocking Issues`, not as a description
+step.** This is the single most misleading thing about this job. Steps 5 and 8 both
+compute a verdict and then exit 0, writing it into a step output instead of failing:
+
+```python
+# scripts/ci/map_pr_description_result.py  (step 5)
+return _append_output("validation_result", _status_for_exit_code(result.returncode))
+```
+
+`scripts/ci/enforce_pr_validation.py` (step 14) is the only script in the description
+path that returns 1:
+
+```python
+if overall_status in {"FAIL", "ERROR"}: ... return 1
+if commit_status == "BLOCKED": ...      return 1
+```
+
+Its name reads as "a linked issue is blocking." It has no linked-issue logic at all.
+It aggregates the earlier step outputs. So the advice one section down, "read the
+failing step name," is necessary but not sufficient: the name you get for a bad
+description is `Enforce Blocking Issues`, and chasing issue links from there wastes
+the trip. Read the step's `OVERALL_STATUS` and `COMMIT_STATUS` inputs instead.
+
+**Steps 16 through 23 carry no `if` guard.** Steps 3 through 14 are gated on
+`steps.should-run.outputs.skip != 'true'`, and step 15 runs only on the inverse. So on
+a PR where description validation is skipped, `Validate PR` still runs eight gates and
+can still go red. A red check is not evidence that the description was even read.
 
 **The count ratchets fail on branch staleness, not on anything the branch did.**
 `BASELINE ABOVE BASE. This tree records 598, FETCH_HEAD records 597` means main
-lowered the baseline after this branch forked. Merging main fixes it. See
+lowered the baseline after this branch forked. `gh pr update-branch <N>` merges main
+server-side and fixes it without a local worktree. See
 [ci-count-ratchets-require-branch-freshness](ci-count-ratchets-require-branch-freshness.md).
 
 Measured 2026-08-03: PRs #4438, #4411, and #4392 were red on `Validate PR` with
-descriptions that passed the description validator cleanly. All three were step 19
+descriptions that passed the description validator cleanly. All three were step 20
 at 598 versus 597.
 
 **So read the failing step name before touching the PR body.**
@@ -138,8 +165,22 @@ The recurring trap is naming a *tool* or a *reference* under `## Changes`:
 or `## Testing`, or drop the extension so it stops looking like a path.
 
 Escape hatch of last resort: the `description-validation-bypass` label. It suppresses
-CRITICALs and downgrades the verdict to `BYPASSED`, which is recorded in the job
-summary with the suppressed count.
+**file-mention** CRITICALs and downgrades the verdict to `BYPASSED`, which is recorded
+in the job summary with the suppressed count.
+
+It does not suppress everything. `scripts/validation/pr_description.py:872` carves out
+the dash rule and checks it before the bypass:
+
+```python
+dash_issue_types = {"Em/en-dash in PR title", "Em/en-dash in PR description"}
+has_dash_critical = any(...)
+if args.ci and has_dash_critical:
+    return print_results(issues, ci=args.ci)   # exits 1 regardless of the label
+```
+
+So a body with an em-dash stays red with the label applied. Reaching for the bypass on
+a dash failure looks like a broken escape hatch and is working as designed. Fix the
+dash.
 
 ## Evidence
 
@@ -148,10 +189,12 @@ description check with `[CRITICAL] File mentioned but not in diff`. None was a
 template WARN. Template-only fixes applied to #4428 and #4412 in an earlier pass left
 both PRs red, which is what exposed the mistake.
 
-Fixing all eight descriptions turned `Validate PR` green on only five. The other
-three were red for a second, unrelated reason in the same job, which is why the first
-section of this memory exists. Two independent causes can hide behind one check name,
-and clearing one of them proves nothing about the other.
+Fixing the descriptions did not turn every one of those PRs green. Several stayed red
+on a second, unrelated gate inside the same job, which is why the first section of
+this memory exists. Two independent causes can hide behind one check name, and
+clearing one of them proves nothing about the other. #4438, #4411, and #4392 were the
+confirmed cases: all three were step 20 at 598 versus 597, with descriptions that
+passed the description validator cleanly.
 
 ## Related
 

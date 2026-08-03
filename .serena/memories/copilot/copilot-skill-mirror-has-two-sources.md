@@ -19,8 +19,13 @@ written by **two** generators, and only one of them reads `.claude/skills/`.
 
 Copilot CLI plugins have no native custom slash-command surface. The command bridge
 exists because a `user-invocable: true` skill fires as `/SKILL-NAME`, which is the
-only way to give a Claude slash command a Copilot equivalent. So every
+only way to give a Claude slash command a Copilot equivalent. So a top-level
 `.claude/commands/<name>.md` lands in the **skills** tree on the Copilot side.
+
+Top-level only. `_iter_source_files` uses `iterdir()`, not `rglob()`, and skips any
+child that is not a `*.md` file, so the nested `forgetful/` and `pr-quality/`
+directories under `.claude/commands/` are **not** bridged. A command in a
+subdirectory has no Copilot equivalent and is not drift.
 
 `push-pr` is the worked example. `.claude/skills/push-pr/` does not exist and never
 did. `.claude/commands/push-pr.md` is the canonical source, and

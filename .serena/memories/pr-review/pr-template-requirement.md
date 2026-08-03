@@ -45,10 +45,22 @@ Write the body to a file and apply it with `--body-file`:
 gh pr edit <N> --body-file <path>
 ```
 
-Do NOT use `gh api ... -f body="$(cat file)"`. Command substitution runs the body
-through the shell, so any backtick or `$` in it is expanded before it is sent. PR
-bodies routinely contain backticked paths, so that form corrupts the body it is
-meant to fix.
+`--body-file` sends the file byte for byte. The older
+`gh api ... -f body="$(cat file)"` form in this memory's history worked, but command
+substitution strips every trailing newline, so a body ending in a fenced block loses
+its final blank line:
+
+```bash
+$ printf 'a\n\n```\ncode\n```\n\n' > b.md; wc -c < b.md          # 24
+$ v="$(cat b.md)"; printf '%s' "$v" | wc -c                     # 22
+```
+
+Two bytes is cosmetic on its own. It matters because it makes a round trip lossy: read
+the body, edit it, write it back, and the file shrinks each pass. Use `--body-file`.
+
+Note for the record: command substitution does **not** re-expand backticks or `$` in
+the file's contents. A quoted `"$(cat f)"` passes them through literally. An earlier
+version of this memory claimed otherwise and was wrong.
 
 ## These sections are advisory, not blocking
 
