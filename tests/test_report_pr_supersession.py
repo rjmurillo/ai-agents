@@ -370,6 +370,8 @@ class TestWorkflowInvocation:
             cwd=self.REPO_ROOT,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=60,
         )
 

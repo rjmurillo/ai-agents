@@ -666,9 +666,13 @@ def post_lease_comment(owner: str, repo: str, pr: int, body: str) -> None:
 class LeaseResult:
     """Outcome of a lease operation. ``action`` is ACT or SKIP.
 
-    ``base_sha`` is the PR's head SHA read from GitHub (ADR-076 part 1).
-    ``local_head_sha`` is what the caller's checkout had at ``HEAD``, or
-    None when git could not answer. The two differ whenever acquire runs
+    ``base_sha`` is the PR's head SHA read from GitHub (ADR-076 part 1), and
+    is populated only on the ACT path. ``acquire`` returns SKIP before it
+    reads the PR head, so both ``base_sha`` and ``local_head_sha`` stay None
+    on that path; a caller must not read them as evidence about the PR.
+
+    On ACT, ``local_head_sha`` is what the caller's checkout had at ``HEAD``,
+    or None when git could not answer. The two differ whenever acquire runs
     from a checkout that is not the PR branch; the caller reports both so
     the divergence is visible instead of silently recorded as the PR's head
     (issue #4357 acceptance criterion 4).
