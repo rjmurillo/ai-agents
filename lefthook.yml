@@ -177,6 +177,8 @@ pre-commit:
             glob:
               - ".agents/architecture/ADR-*.md"
               - ".agents/SESSION-PROTOCOL.md"
+            skip:
+              - merge
 
           - name: taste-advisory
             timeout: 5m
