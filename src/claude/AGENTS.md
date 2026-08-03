@@ -1,10 +1,16 @@
 # Claude Code Agents
 
-This document describes the 18 AI agents defined for Claude Code CLI and the critical workflow rules for maintaining them.
+This document describes the 19 AI agents defined for Claude Code CLI and the critical workflow rules for maintaining them.
 
 ## Overview
 
 The `src/claude/` directory contains **hand-maintained** agent definitions for Claude Code CLI. Unlike VS Code and Copilot CLI agents (which are generated from templates), Claude agents are the primary source for Claude-specific features.
+
+Before changing an agent for cross-harness behavior, read
+`agent-harness-reference`. If the change affects event handling, hook-driven
+routing, generated Copilot agents, or runtime contracts, execute it through
+`ai-agents-portability-campaign`. Do not repeat vendor research already pinned
+in the reference sidecar.
 
 > **Governing ADR**: [ADR-036: Two-Source Agent Template Architecture](../../.agents/architecture/ADR-036-two-source-agent-template-architecture.md)
 
@@ -135,6 +141,7 @@ flowchart TD
 | orchestrator | `orchestrator.md` | Task routing and coordination |
 | milestone-planner | `milestone-planner.md` | Milestone and work package creation |
 | task-decomposer | `task-decomposer.md` | Atomic task generation |
+| backlog-generator | `backlog-generator.md` | Proactive task discovery |
 
 ### Analysis Agents
 
@@ -152,6 +159,7 @@ flowchart TD
 | qa | `qa.md` | Test strategy and verification |
 | devops | `devops.md` | CI/CD pipelines |
 | security | `security.md` | Vulnerability assessment |
+| merge-resolver | `merge-resolver.md` | Git conflict resolution |
 
 ### Strategic Agents
 
@@ -238,7 +246,7 @@ PR Review:
 Claude agents use MCP tool prefix syntax:
 
 ```text
-python3 .claude/skills/memory/scripts/search_memory.py --query "topic"  # Memory Router (ADR-037)
+uv run python .claude/skills/memory/scripts/search_memory.py --query "topic"  # Memory Router (ADR-037)
 mcp__serena__write_memory  # Serena write tools
 mcp__deepwiki__ask_question
 mcp__serena__find_symbol

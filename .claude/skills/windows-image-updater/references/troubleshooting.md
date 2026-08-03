@@ -70,13 +70,13 @@ error CS0246: The type or namespace name 'SomeType' could not be found
 
 1. Continue polling at 5-minute intervals
 
-3. Some repositories have long build times — this is normal
+3. Some repositories have long build times, which is normal
 4. If stuck for >1 hour, check for infrastructure issues in the pipeline
 
 ---
 
 ## General Tips
 
-1. **Always check exit codes** — Don't assume success; verify with `$LASTEXITCODE` or `$?`
-3. **One fix at a time** — When resolving package conflicts, fix one error, rebuild, then fix the next
-5. **Ask the user** — If stuck on a non-obvious error, ask for guidance rather than guessing
+1. **Always check exit codes**. Don't assume success; verify with `$LASTEXITCODE` or `$?`
+3. **One fix at a time**. When resolving package conflicts, fix one error, rebuild, then fix the next
+5. **Ask the user**. If stuck on a non-obvious error, ask for guidance rather than guessing

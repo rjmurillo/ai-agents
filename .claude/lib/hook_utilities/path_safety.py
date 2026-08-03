@@ -1,4 +1,4 @@
-"""Canonical: scripts/hook_utilities/path_safety.py. Sync via scripts/sync_plugin_lib.py."""
+"""Path safety helpers for plugin-distributed scripts."""
 
 from __future__ import annotations
 

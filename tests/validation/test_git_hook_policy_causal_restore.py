@@ -11,11 +11,10 @@ evidence. The exception is a merge in progress: an ADR reviewed on main arrives
 in the merge commit with no evidence of its own, and blocking there would wedge
 every merge that touches architecture.
 
-Do not run ``ruff format`` on this file. The fixtures below split their
-suppression tokens across adjacent string literals on purpose, so the push
-gate's own scanner does not flag this file as introducing what it tests for.
-Joining them, which the formatter does, re-arms the trap. Nothing in CI or the
-hooks runs ``ruff format``, so the split form survives.
+The fixtures below use ``+``-concatenated string literals to build suppression
+tokens (e.g. ``"# " + "nos" + "ec"``). This form is formatter-stable: ``ruff
+format`` does not collapse it into a single string, so the push gate cannot
+detect the token in source. See issue #4153.
 
 The filename is historical. This file now covers suppression policy and ADR
 merge scope, not causal restore. Renaming it remains separate scope because
@@ -192,7 +191,7 @@ class TestPushedSuppressionPolicy:
         monkeypatch,
         capsys,
     ):
-        comment = "# no" "qa"
+        comment = "# no" + "qa"
         analyzer_file = tmp_path / "ruff_bare_noqa.py"
         analyzer_file.write_text(f"import os  {comment}\n", encoding="utf-8")
         analyzer = _run([_tool("ruff"), "check", "--select", "F401", str(analyzer_file)], _ROOT)
@@ -212,7 +211,7 @@ class TestPushedSuppressionPolicy:
         tmp_path,
         monkeypatch,
     ):
-        comment = "# type" ": ignore"
+        comment = "# type" + ": ignore"
         analyzer_file = tmp_path / "mypy_bare_type_ignore.py"
         analyzer_file.write_text(f"value: int = 'wrong'  {comment}\n", encoding="utf-8")
         analyzer = _run([_tool("mypy"), "--show-error-codes", str(analyzer_file)], _ROOT)
@@ -227,7 +226,7 @@ class TestPushedSuppressionPolicy:
         assert _run_suppression_push(monkeypatch, tmp_path, diff) == 0
 
     def test_newly_added_type_ignore_is_allowed(self, tmp_path, monkeypatch):
-        suppression = "# type" ": ignore[arg-type]"
+        suppression = "# type" + ": ignore[arg-type]"
         diff = f"""diff --git a/pkg/module.py b/pkg/module.py
 --- a/pkg/module.py
 +++ b/pkg/module.py
@@ -249,7 +248,7 @@ class TestPushedSuppressionPolicy:
         assert _run_suppression_push(monkeypatch, tmp_path, diff) == 0
 
     def test_added_file_with_type_ignore_is_allowed(self, tmp_path, monkeypatch):
-        suppression = "# type" ": ignore[assignment]"
+        suppression = "# type" + ": ignore[assignment]"
         diff = f"""diff --git a/pkg/new.py b/pkg/new.py
 new file mode 100644
 --- /dev/null
@@ -266,7 +265,7 @@ new file mode 100644
         tmp_path,
         monkeypatch,
     ):
-        suppression = "# no" "sec"
+        suppression = "# nos" + "ec"
         diff = f"""diff --git a/pkg/module.py b/pkg/module.py
 --- a/pkg/module.py
 +++ b/pkg/module.py
@@ -279,7 +278,7 @@ new file mode 100644
         assert _run_suppression_push(monkeypatch, tmp_path, diff) == 0
 
     def test_added_plus_plus_line_with_nosec_is_blocked(self, tmp_path, monkeypatch, capsys):
-        suppression = "# no" "sec"
+        suppression = "# nos" + "ec"
         diff = f"""diff --git a/pkg/module.py b/pkg/module.py
 --- a/pkg/module.py
 +++ b/pkg/module.py
@@ -291,7 +290,7 @@ new file mode 100644
         assert "pkg/module.py:4" in capsys.readouterr().err
 
     def test_no_prefix_diff_with_nosec_addition_is_blocked(self, tmp_path, monkeypatch, capsys):
-        suppression = "# no" "sec"
+        suppression = "# nos" + "ec"
         diff = f"""diff --git pkg/module.py pkg/module.py
 --- pkg/module.py
 +++ pkg/module.py
@@ -311,7 +310,7 @@ new file mode 100644
         _init_push_repo(repo)
         _git(repo, "checkout", "main")
         source = repo / "source.py"
-        source.write_text("import os  # no" "qa\n", encoding="utf-8")
+        source.write_text("import os  # no" + "qa\n", encoding="utf-8")
         _commit(repo, "add suppression")
         _point_origin_main_at_head(repo)
 
@@ -331,8 +330,10 @@ new file mode 100644
         _init_push_repo(repo)
         _git(repo, "checkout", "main")
         source = repo / "source.py"
-        content = "value = call()  # no" "sec\n" + "".join(
-            f"value_{index} = {index}\n" for index in range(10)
+        content = (
+            "value = call()  # nos"
+            + "ec\n"
+            + "".join(f"value_{index} = {index}\n" for index in range(10))
         )
         source.write_text(content, encoding="utf-8")
         _commit(repo, "add suppression")
@@ -356,7 +357,7 @@ new file mode 100644
         _init_push_repo(repo)
         _git(repo, "checkout", "main")
         payload = repo / "payload.txt"
-        payload.write_text("value = call()  # no" "sec\n", encoding="utf-8")
+        payload.write_text("value = call()  # nos" + "ec\n", encoding="utf-8")
         _commit(repo, "add unscanned suppression")
         _point_origin_main_at_head(repo)
 
@@ -374,7 +375,7 @@ new file mode 100644
         monkeypatch,
         capsys,
     ):
-        suppression = "# no" "sec"
+        suppression = "# nos" + "ec"
         diff = f"""diff --git a/source.py b/source.py
 new file mode 100644
 --- /dev/null
@@ -405,7 +406,7 @@ new file mode 100644
         monkeypatch,
         capsys,
     ):
-        suppression = "# no" "sec"
+        suppression = "# nos" + "ec"
         diff = f"""diff --git a/source.py b/source.py
 new file mode 100644
 --- /dev/null
@@ -433,7 +434,7 @@ new file mode 100644
         monkeypatch,
         capsys,
     ):
-        suppression = "# no" "sec"
+        suppression = "# nos" + "ec"
         diff = f"""diff --git a/pkg/module.py b/pkg/module.py
 --- a/pkg/module.py
 +++ b/pkg/module.py
@@ -449,7 +450,7 @@ new file mode 100644
         repo = tmp_path / "repo"
         repo.mkdir()
         _init_push_repo(repo)
-        suppression = "# no" "sec"
+        suppression = "# nos" + "ec"
         (repo / ".gitattributes").write_text("scripts/tls_probe.py -diff\n", encoding="utf-8")
         script = repo / "scripts" / "tls_probe.py"
         script.parent.mkdir()
@@ -467,7 +468,7 @@ new file mode 100644
         stub.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
         stub.chmod(0o755)
         _git(repo, "config", "diff.external", str(stub))
-        suppression = "# no" "sec"
+        suppression = "# nos" + "ec"
         path = repo / "pkg" / "module.py"
         path.parent.mkdir()
         path.write_text(f"import ssl\nssl.PROTOCOL_SSLv3  {suppression}\n", encoding="utf-8")
@@ -481,7 +482,7 @@ new file mode 100644
         _init_push_repo(repo)
         _git(repo, "config", "diff.hide.textconv", "true")
         (repo / ".gitattributes").write_text("*.py diff=hide\n", encoding="utf-8")
-        suppression = "# no" "sec"
+        suppression = "# nos" + "ec"
         path = repo / "pkg" / "module.py"
         path.parent.mkdir()
         path.write_text(f"import ssl\nssl.PROTOCOL_SSLv3  {suppression}\n", encoding="utf-8")
@@ -499,7 +500,7 @@ new file mode 100644
         monkeypatch,
         capsys,
     ):
-        comment = "# no" "qa"
+        comment = "# no" + "qa"
         analyzer_file = tmp_path / "stub.pyi"
         analyzer_file.write_text(f"import os  {comment}\n", encoding="utf-8")
         analyzer = _run([_tool("ruff"), "check", "--select", "F401", str(analyzer_file)], _ROOT)
@@ -518,13 +519,11 @@ new file mode 100644
         repo = tmp_path / "repo"
         repo.mkdir()
         _init_push_repo(repo)
-        comment = "# no" "sec"
+        comment = "# nos" + "ec"
         path = repo / "tools" / "legacy_tls.pyw"
         path.parent.mkdir()
         path.write_text(
-            "import ssl\n"
-            "ssl.wrap_socket(ssl_version=ssl.PROTOCOL_SSLv3)  "
-            f"{comment}\n",
+            f"import ssl\nssl.wrap_socket(ssl_version=ssl.PROTOCOL_SSLv3)  {comment}\n",
             encoding="utf-8",
         )
         analyzer = _run([_tool("bandit"), "-q", str(path)], _ROOT)
@@ -542,9 +541,9 @@ new file mode 100644
         _init_push_repo(repo)
         path = repo / "notebooks" / "analysis.ipynb"
         path.parent.mkdir()
-        _write_ruff_notebook(path, "import os  # no" "qa\n")
+        _write_ruff_notebook(path, "import os  # no" + "qa\n")
         path.write_text(
-            path.read_text(encoding="utf-8").replace("no" "qa", "no\\u0071a"),
+            path.read_text(encoding="utf-8").replace("noqa", "no\\u0071a"),
             encoding="utf-8",
         )
         analyzer = _run([_tool("ruff"), "check", "--select", "F401", str(path)], _ROOT)
@@ -554,7 +553,7 @@ new file mode 100644
         assert _run_real_suppression_push(repo, head) == 1
 
     def test_true_orphan_branch_scans_from_empty_tree(self, tmp_path, monkeypatch, capsys):
-        suppression = "# no" "sec"
+        suppression = "# nos" + "ec"
         diff = f"""diff --git a/source.py b/source.py
 new file mode 100644
 --- /dev/null
@@ -584,7 +583,7 @@ new file mode 100644
         monkeypatch,
         capsys,
     ):
-        suppression = "# no" "sec"
+        suppression = "# nos" + "ec"
         diff = f"""diff --git a/source.py b/source.py
 new file mode 100644
 --- /dev/null
@@ -612,7 +611,7 @@ new file mode 100644
 
     def test_non_security_noqa_is_not_blocked_by_push_gate(self, tmp_path, monkeypatch):
         # noqa: E402 is not a security rule; after the regex narrowing it must pass.
-        comment = "# no" "qa: E402"
+        comment = "# noqa: E402"
         diff = f"""diff --git a/pkg/module.py b/pkg/module.py
 --- a/pkg/module.py
 +++ b/pkg/module.py
@@ -623,7 +622,7 @@ new file mode 100644
 
     def test_security_noqa_is_still_blocked_by_push_gate(self, tmp_path, monkeypatch, capsys):
         # A suppression carrying an S-prefixed rule must still be blocked.
-        comment = "# no" "qa: S603"
+        comment = "# no" + "qa: S603"
         diff = f"""diff --git a/pkg/module.py b/pkg/module.py
 --- a/pkg/module.py
 +++ b/pkg/module.py
@@ -636,7 +635,7 @@ new file mode 100644
     def test_moved_security_noqa_is_allowed(self, tmp_path, monkeypatch):
         # A noqa: S603 that appears on both a removed and an added line (the line
         # was refactored but not newly suppressed) must not be flagged.
-        comment = "# no" "qa: S603"
+        comment = "# no" + "qa: S603"
         diff = f"""diff --git a/pkg/module.py b/pkg/module.py
 --- a/pkg/module.py
 +++ b/pkg/module.py
@@ -648,7 +647,7 @@ new file mode 100644
 
     def test_moved_nosemgrep_is_allowed(self, tmp_path, monkeypatch):
         # A nosemgrep comment that moves (same payload on - and + line) must pass.
-        comment = "# no" "semgrep: python.lang.security.insecure-subprocess-call"
+        comment = "# nos" + "emgrep: python.lang.security.insecure-subprocess-call"
         diff = f"""diff --git a/pkg/module.py b/pkg/module.py
 --- a/pkg/module.py
 +++ b/pkg/module.py
@@ -663,7 +662,7 @@ new file mode 100644
     ):
         # One removal + two additions: the first addition consumes the removal
         # credit; the second is net-new and must be blocked.
-        comment = "# no" "qa: S603"
+        comment = "# no" + "qa: S603"
         diff = f"""diff --git a/pkg/module.py b/pkg/module.py
 --- a/pkg/module.py
 +++ b/pkg/module.py
@@ -677,7 +676,7 @@ new file mode 100644
 
     def test_mixed_noqa_with_security_rule_is_blocked(self, tmp_path, monkeypatch, capsys):
         # A suppression listing E402, S603 includes a security rule; must be blocked.
-        comment = "# no" "qa: E402, S603"
+        comment = "# no" + "qa: E402, S603"
         diff = f"""diff --git a/pkg/module.py b/pkg/module.py
 --- a/pkg/module.py
 +++ b/pkg/module.py
@@ -689,7 +688,7 @@ new file mode 100644
 
     def test_ann_noqa_is_not_blocked(self, tmp_path, monkeypatch):
         # ANN rules are not security rules; noqa: ANN001 must pass.
-        comment = "# no" "qa: ANN001"
+        comment = "# noqa: ANN001"
         diff = f"""diff --git a/pkg/module.py b/pkg/module.py
 --- a/pkg/module.py
 +++ b/pkg/module.py
@@ -715,9 +714,7 @@ class _GitStub:
         self._paths = paths
         self._rename_status_output = rename_status_output
 
-    def __call__(
-        self, repo: Path, args: list[str]
-    ) -> subprocess.CompletedProcess[str]:
+    def __call__(self, repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
         if "--name-only" in args:
             stdout = "\0".join((*self._paths, ""))
         elif "--name-status" in args:
@@ -752,7 +749,7 @@ class TestStagedSuppressionPolicy:
         return policy.check_staged_suppressions(repo_root)
 
     def test_staged_security_noqa_is_blocked(self, tmp_path, monkeypatch, capsys):
-        comment = "# no" "qa: S603"
+        comment = "# no" + "qa: S603"
         diff = f"""diff --git a/pkg/module.py b/pkg/module.py
 --- a/pkg/module.py
 +++ b/pkg/module.py
@@ -763,7 +760,7 @@ class TestStagedSuppressionPolicy:
         assert "pkg/module.py:1" in capsys.readouterr().err
 
     def test_staged_non_security_noqa_is_not_blocked(self, tmp_path, monkeypatch):
-        comment = "# no" "qa: E402"
+        comment = "# noqa: E402"
         diff = f"""diff --git a/pkg/module.py b/pkg/module.py
 --- a/pkg/module.py
 +++ b/pkg/module.py
@@ -775,11 +772,11 @@ class TestStagedSuppressionPolicy:
     @pytest.mark.parametrize(
         "directive",
         (
-            "# ruff: no" "qa",
-            "# ruff: no" "qa: S602",
-            "# flake8: no" "qa",
-            "# no" "qa: E501 S602",
-            "# no" "qa: ANN001 S603",
+            "# ruff: no" + "qa",
+            "# ruff: no" + "qa: S602",
+            "# flake8: no" + "qa",
+            "# no" + "qa: E501 S602",
+            "# no" + "qa: ANN001 S603",
         ),
     )
     def test_staged_file_level_security_noqa_is_blocked(
@@ -801,7 +798,7 @@ class TestStagedSuppressionPolicy:
         tmp_path,
         monkeypatch,
     ):
-        directive = "# ruff: no" "qa: E402"
+        directive = "# ruff: noqa: E402"
         diff = f"""diff --git a/pkg/module.py b/pkg/module.py
 --- a/pkg/module.py
 +++ b/pkg/module.py
@@ -815,7 +812,7 @@ class TestStagedSuppressionPolicy:
         tmp_path,
         monkeypatch,
     ):
-        directive = "# NO" "QA: S603"
+        directive = "# NO" + "QA: S603"
         diff = f"""diff --git a/pkg/module.py b/pkg/module.py
 --- a/pkg/module.py
 +++ b/pkg/module.py
@@ -829,7 +826,7 @@ class TestStagedSuppressionPolicy:
         tmp_path,
         monkeypatch,
     ):
-        directive = "# code" "ql[js/xss]"
+        directive = "# code" + "ql[js/xss]"
         diff = f"""diff --git a/pkg/module.py b/pkg/module.py
 --- a/pkg/module.py
 +++ b/pkg/module.py
@@ -843,7 +840,7 @@ class TestStagedSuppressionPolicy:
         tmp_path,
         monkeypatch,
     ):
-        directive = "# no" "qa: E501  # explains the S3 bucket"
+        directive = "# noqa: E501  # explains the S3 bucket"
         diff = f"""diff --git a/pkg/module.py b/pkg/module.py
 --- a/pkg/module.py
 +++ b/pkg/module.py
@@ -860,7 +857,7 @@ class TestStagedSuppressionPolicy:
 
     def test_staged_moved_security_noqa_is_allowed(self, tmp_path, monkeypatch):
         # Same suppression on removed and added line: move, not a new suppression.
-        comment = "# no" "qa: S603"
+        comment = "# no" + "qa: S603"
         diff = f"""diff --git a/pkg/module.py b/pkg/module.py
 --- a/pkg/module.py
 +++ b/pkg/module.py
@@ -875,7 +872,7 @@ class TestStagedSuppressionPolicy:
         tmp_path,
         monkeypatch,
     ):
-        suppression = "# no" "sec"
+        suppression = "# nos" + "ec"
         diff = f"""diff --git a/docs/example.md b/docs/example.md
 --- a/docs/example.md
 +++ b/docs/example.md
@@ -898,7 +895,7 @@ class TestStagedSuppressionPolicy:
         _init_push_repo(repo)
         path = repo / "notebooks" / "analysis.ipynb"
         path.parent.mkdir()
-        _write_ruff_notebook(path, "import os  # no" "qa: S603\n")
+        _write_ruff_notebook(path, "import os  # no" + "qa: S603\n")
         _git(repo, "add", str(path.relative_to(repo)))
 
         assert policy.check_staged_suppressions(repo) == 1
@@ -924,7 +921,7 @@ class TestStagedSuppressionPolicy:
         path.symlink_to("README.md")
         _commit(repo, "add Python symlink")
         path.unlink()
-        path.write_text("import subprocess  # no" "sec\n", encoding="utf-8")
+        path.write_text("import subprocess  # nos" + "ec\n", encoding="utf-8")
         _git(repo, "add", str(path.relative_to(repo)))
 
         assert policy.check_staged_suppressions(repo) == 1
@@ -935,7 +932,7 @@ class TestStagedSuppressionPolicy:
         repo.mkdir()
         _init_push_repo(repo)
         path = repo / "café.py"
-        path.write_text("import subprocess  # no" "sec\n", encoding="utf-8")
+        path.write_text("import subprocess  # nos" + "ec\n", encoding="utf-8")
         _git(repo, "add", str(path.relative_to(repo)))
 
         assert policy.check_staged_suppressions(repo) == 1
@@ -946,7 +943,7 @@ class TestStagedSuppressionPolicy:
         repo.mkdir()
         _init_push_repo(repo)
         path = repo / "old.py"
-        path.write_text("import subprocess  # no" "sec\n", encoding="utf-8")
+        path.write_text("import subprocess  # nos" + "ec\n", encoding="utf-8")
         _commit(repo, "add suppression")
         _git(repo, "mv", "old.py", "new.py")
 
@@ -957,8 +954,10 @@ class TestStagedSuppressionPolicy:
         repo.mkdir()
         _init_push_repo(repo)
         path = repo / "old.py"
-        source = "import subprocess  # no" "sec\n" + "".join(
-            f"value_{index} = {index}\n" for index in range(10)
+        source = (
+            "import subprocess  # nos"
+            + "ec\n"
+            + "".join(f"value_{index} = {index}\n" for index in range(10))
         )
         path.write_text(source, encoding="utf-8")
         _commit(repo, "add suppression")
@@ -973,7 +972,7 @@ class TestStagedSuppressionPolicy:
         repo.mkdir()
         _init_push_repo(repo)
         path = repo / "payload.txt"
-        path.write_text("value = call()  # no" "sec\n", encoding="utf-8")
+        path.write_text("value = call()  # nos" + "ec\n", encoding="utf-8")
         _commit(repo, "add unscanned suppression")
         _git(repo, "mv", "payload.txt", "payload.py")
 
@@ -985,7 +984,7 @@ class TestStagedSuppressionPolicy:
         repo.mkdir()
         _init_push_repo(repo)
         path = repo / "old.ipynb"
-        _write_ruff_notebook(path, "import os  # no" "qa: S603\n")
+        _write_ruff_notebook(path, "import os  # no" + "qa: S603\n")
         _commit(repo, "add notebook suppression")
         _git(repo, "mv", "old.ipynb", "new.ipynb")
 
@@ -997,7 +996,7 @@ class TestStagedSuppressionPolicy:
         _init_push_repo(repo)
         _git(repo, "checkout", "main")
         incoming = repo / "incoming.py"
-        incoming.write_text("import subprocess  # no" "sec\n", encoding="utf-8")
+        incoming.write_text("import subprocess  # nos" + "ec\n", encoding="utf-8")
         _commit(repo, "incoming suppression")
         _point_origin_main_at_head(repo)
 
@@ -1024,7 +1023,7 @@ class TestStagedSuppressionPolicy:
 
         _git(repo, "checkout", "topic")
         local = repo / "local.py"
-        local.write_text("import subprocess  # no" "sec\n", encoding="utf-8")
+        local.write_text("import subprocess  # nos" + "ec\n", encoding="utf-8")
         _commit(repo, "local suppression")
         merge = _run(["git", "merge", "--no-edit", "--no-commit", "main"], repo)
         assert merge.returncode == 0, merge.stderr
@@ -1042,7 +1041,7 @@ class TestStagedSuppressionPolicy:
         _init_push_repo(repo)
         _git(repo, "checkout", "-b", "side", "main")
         side = repo / "side.py"
-        side.write_text("import subprocess  # no" "sec\n", encoding="utf-8")
+        side.write_text("import subprocess  # nos" + "ec\n", encoding="utf-8")
         _commit(repo, "side suppression")
 
         _git(repo, "checkout", "topic")
@@ -2092,7 +2091,7 @@ class TestAdrReviewPolicyMergeScope:
         _git(repo, "init", "-b", "main")
         _git(repo, "config", "user.email", "t@example.com")
         _git(repo, "config", "user.name", "T")
-        directory = repo / '.agents' / 'arch"itecture'
+        directory = repo / ".agents" / 'arch"itecture'
         directory.mkdir(parents=True)
         name = '.agents/arch"itecture/ADR-101-quoted.md'
         (repo / name).write_text("decision\n", encoding="utf-8")
@@ -2250,11 +2249,7 @@ class TestAdrReviewPolicyMergeScope:
         adr = ".agents/architecture/ADR-098-deleted.md"
         records = (
             ":100644 000000 "
-            "1111111111111111111111111111111111111111 "
-            + "0" * 40
-            + " D\0"
-            + adr
-            + "\0"
+            "1111111111111111111111111111111111111111 " + "0" * 40 + " D\0" + adr + "\0"
             ":100644 000000 " + "2" * 64 + " " + "0" * 64 + " D\0" + adr + "\0"
             ":100644 100644 "
             "3333333333333333333333333333333333333333 "
@@ -2358,9 +2353,7 @@ class TestAdrReviewPolicyMergeScope:
 
         Found by review on PR #3680.
         """
-        repo, target, only_ever_elsewhere = _repo_where_a_merge_linked_two_adrs(
-            tmp_path
-        )
+        repo, target, only_ever_elsewhere = _repo_where_a_merge_linked_two_adrs(tmp_path)
 
         carried = policy._origin_main_blob_ids(repo, target)
 
@@ -2548,9 +2541,7 @@ class TestGovernedDocumentIdentity:
         """The name after the number is free to change; the number is not."""
         assert policy._governed_document_identity(
             ".agents/architecture/ADR-201-old-name.md"
-        ) == policy._governed_document_identity(
-            ".agents/architecture/ADR-201-new-name.md"
-        )
+        ) == policy._governed_document_identity(".agents/architecture/ADR-201-new-name.md")
 
     def test_a_number_written_in_either_case_is_one_record(self):
         """The path test ignores case, so the identity read out of it must too.
@@ -2562,16 +2553,12 @@ class TestGovernedDocumentIdentity:
         """
         assert policy._governed_document_identity(
             ".agents/architecture/adr-201-old-name.md"
-        ) == policy._governed_document_identity(
-            ".agents/architecture/ADR-201-new-name.md"
-        )
+        ) == policy._governed_document_identity(".agents/architecture/ADR-201-new-name.md")
 
     def test_two_numbers_are_two_records(self):
         assert policy._governed_document_identity(
             ".agents/architecture/ADR-201-first.md"
-        ) != policy._governed_document_identity(
-            ".agents/architecture/ADR-202-second.md"
-        )
+        ) != policy._governed_document_identity(".agents/architecture/ADR-202-second.md")
 
     def test_the_protocol_stands_for_itself(self):
         """It carries no number, and it is not any record's."""
@@ -2592,14 +2579,10 @@ class TestGovernedDocumentIdentity:
         """
         nested = ".agents/ADR-201-old/ADR-202-new.md"
 
-        assert policy._governed_document_identity(
-            nested
-        ) == policy._governed_document_identity(
+        assert policy._governed_document_identity(nested) == policy._governed_document_identity(
             ".agents/architecture/ADR-202-second.md"
         )
-        assert policy._governed_document_identity(
-            nested
-        ) != policy._governed_document_identity(
+        assert policy._governed_document_identity(nested) != policy._governed_document_identity(
             ".agents/architecture/ADR-201-first.md"
         )
 
@@ -2607,9 +2590,7 @@ class TestGovernedDocumentIdentity:
         """The path test accepts a backslash, so reading the number must too."""
         assert policy._governed_document_identity(
             r".agents\ADR-201-old\ADR-202-new.md"
-        ) == policy._governed_document_identity(
-            ".agents/architecture/ADR-202-second.md"
-        )
+        ) == policy._governed_document_identity(".agents/architecture/ADR-202-second.md")
 
     @pytest.mark.parametrize(
         "path",
@@ -3090,7 +3071,7 @@ class TestSuppressionDiff:
     """
 
     def test_new_nosec_in_diff_is_blocked(self, tmp_path, monkeypatch, capsys):
-        comment = "# no" "sec"
+        comment = "# nos" + "ec"
         diff = (
             "diff --git a/pkg/module.py b/pkg/module.py\n"
             "--- a/pkg/module.py\n"
@@ -3102,7 +3083,7 @@ class TestSuppressionDiff:
         assert "pkg/module.py:1" in capsys.readouterr().err
 
     def test_new_s_rule_noqa_in_diff_is_blocked(self, tmp_path, monkeypatch, capsys):
-        comment = "# no" "qa: S101"
+        comment = "# no" + "qa: S101"
         diff = (
             "diff --git a/pkg/module.py b/pkg/module.py\n"
             "--- a/pkg/module.py\n"
@@ -3114,7 +3095,7 @@ class TestSuppressionDiff:
         assert "pkg/module.py:1" in capsys.readouterr().err
 
     def test_non_security_noqa_in_diff_is_allowed(self, tmp_path, monkeypatch):
-        comment = "# no" "qa: E402"
+        comment = "# noqa: E402"
         diff = (
             "diff --git a/pkg/module.py b/pkg/module.py\n"
             "--- a/pkg/module.py\n"
@@ -3167,13 +3148,16 @@ class TestSuppressionDiff:
     def test_pure_rename_suppression_is_allowed(self, tmp_path, monkeypatch):
         """A suppression that moved via a pure rename is not flagged as new."""
         rename_output = "R100\0old/module.py\0new/module.py"
-        assert _run_suppression_diff(
-            monkeypatch,
-            tmp_path,
-            "",
-            changed_paths=("new/module.py",),
-            rename_status_output=rename_output,
-        ) == 0
+        assert (
+            _run_suppression_diff(
+                monkeypatch,
+                tmp_path,
+                "",
+                changed_paths=("new/module.py",),
+                rename_status_output=rename_output,
+            )
+            == 0
+        )
 
     def test_non_py_extension_is_not_scanned(self, tmp_path, monkeypatch):
         """Files with extensions outside SECURITY_SUPPRESSION_SUFFIXES are skipped."""
@@ -3279,5 +3263,6 @@ def test_commit_text_for_base_returns_none_on_git_error(tmp_path, monkeypatch, c
     captured = capsys.readouterr()
     assert "bad object" in captured.out or "bad object" in captured.err
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__]))

@@ -6,6 +6,7 @@
 |protocol blocking gate RFC MUST verification template legacy: [skills-protocol-index](skills-protocol-index.md) (245)
 
 [GitHub and PR Operations]
+|new_pr create stale main ref session end validation failed opaque diff: [new-pr-stale-main-ref-trap](new-pr-stale-main-ref-trap.md) (1827)
 |github pr issue cli gh api review comment batch response: [skills-github-cli-index](skills-github-cli-index.md) (552), [skills-pr-review-index](skills-pr-review-index.md) (1019), [pr-review/pr-review-batch-response-pattern](pr-review/pr-review-batch-response-pattern.md) (699), [project/project-labels-milestones](project/project-labels-milestones.md) (325)
 |graphql mutation query resolve thread reply batch nested: [skills-graphql-index](skills-graphql-index.md) (111)
 |jq json parse filter select map array object string: [skills-jq-index](skills-jq-index.md) (356)
@@ -50,6 +51,7 @@
 |CI CD workflow actions runner ARM: [skills-ci-infrastructure-index](skills-ci-infrastructure-index.md) (845)
 |workflow pattern composite matrix artifact verdict report: [skills-workflow-patterns-index](skills-workflow-patterns-index.md) (284)
 |dorny paths-filter checkout base ref PR changes: [ci/ci-infrastructure-dorny-paths-filter-checkout](ci/ci-infrastructure-dorny-paths-filter-checkout.md) (930)
+|lefthook group parallel serial summary sum arithmetic config authoritative derive: [decision-read-the-config-not-the-run-summary](decision-read-the-config-not-the-run-summary.md) (964)
 
 [Documentation and Planning]
 |documentation PRD spec user-facing migration self-contained: [skills-documentation-index](skills-documentation-index.md) (311)
@@ -78,11 +80,13 @@
 [Retrospective and Learning]
 |retrospective learning session failure skill persistence extract artifact: [skills-retrospective-index](skills-retrospective-index.md) (376), [retrospective/retrospective-artifact-efficiency-pattern](retrospective/retrospective-artifact-efficiency-pattern.md) (986)
 |skill sidecar observations learnings eval-harness fixtures build-model parity drift prompt-optimization ci-infrastructure: [agent-prompt-optimization-observations](agent-prompt-optimization-observations.md) (2449), [eval-harness-observations](eval-harness-observations.md) (935), [ci-infrastructure-observations](ci-infrastructure-observations.md) (924)
+|eval fixture provenance corpus closed-loop author-worded synthetic trigger-eval upper-bound: [decision-eval-fixture-provenance-closed-loop](decision-eval-fixture-provenance-closed-loop.md) (1509)
 |implementation contracts PreToolUse advisory envelope hookSpecificOutput two-pipeline agent mirror recipe generate_agents drift eval multiprovider transport EVAL_PROVIDER openai github-models LSP-first enforcement ADR-062 conditional fail-open: [hooks-pretooluse-advisory-envelope-contract](hooks-pretooluse-advisory-envelope-contract.md) (393), [agents-two-pipeline-mirror-recipe](agents-two-pipeline-mirror-recipe.md) (554), [eval-multiprovider-transport](eval-multiprovider-transport.md) (391), [lsp-first-enforcement-adr062](lsp-first-enforcement-adr062.md) (425)
 
 [Memory and Context]
 |context engineering token optimization progressive disclosure just-in-time: [memory/context-engineering-principles](memory/context-engineering-principles.md) (594), [memory/memory-token-efficiency](memory/memory-token-efficiency.md) (861)
 |passive context AGENTS.md skills decision-point retrieval-led compression: [memory/passive-context-vs-skills-vercel-research](memory/passive-context-vs-skills-vercel-research.md) (447), [claude/claude-md-anthropic-best-practices](claude/claude-md-anthropic-best-practices.md) (683), [claude/claude-code-skills-official-guidance](claude/claude-code-skills-official-guidance.md) (623)
+|instruction budget always-on ceiling applyTo scope headroom rule authoring: [decision-the-instruction-budget-gate-already-exists](decision-the-instruction-budget-gate-already-exists.md) (1856)
 
 [Root Cause Patterns (PR #908)]
 |governance enforcement ADR limits commits files programmatic gate: [root-cause-governance-enforcement](root-cause-governance-enforcement.md) (603)

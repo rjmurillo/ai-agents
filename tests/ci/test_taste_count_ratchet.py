@@ -142,27 +142,45 @@ def test_a_raised_baseline_fails_against_the_base_ref(tmp_path, monkeypatch):
     assert rc == ratchet.EXIT_REGRESSION
 
 
-def test_a_stale_branch_message_is_not_baseline_raised(tmp_path, monkeypatch, capsys):
+def test_a_stale_branch_is_told_what_the_base_ref_already_allows(
+    tmp_path, monkeypatch, capsys
+):
+    """Baseline 700, base 615, count 600: nothing here added a violation.
+
+    The verdict must not accuse this author of raising an allowance. It does
+    not name a cause it cannot measure either (issue #4066), so it reports the
+    count, states that the base ref already allows it, and leads with the sync
+    remedy.
+    """
     baseline = _write_baseline(tmp_path, "700")
     monkeypatch.setattr(subprocess, "run", _fake_scan(10, 600, base_baseline="615"))
     rc = ratchet.main(_base_ref_argv(baseline, tmp_path))
     captured = capsys.readouterr()
     assert rc == ratchet.EXIT_REGRESSION
-    assert "BRANCH BEHIND" in captured.err
-    assert "BASELINE RAISED" not in captured.err
-    assert "Fix the violations" not in captured.err
+    assert "BASELINE ABOVE BASE" in captured.err
+    assert "The measured count is 600" in captured.err
+    assert "nothing in this tree added a violation" in captured.err
+    assert captured.err.index("merge or rebase") < captured.err.index(
+        "fix the violations"
+    )
 
 
-def test_a_real_raised_baseline_still_reports_baseline_raised(
+def test_a_count_the_base_ref_does_not_allow_is_not_excused(
     tmp_path, monkeypatch, capsys
 ):
+    """Baseline 700, base 615, count 650: the base ref does not allow 650.
+
+    The exoneration in the test above must not be handed out here, or the two
+    cases read alike and the message stops discriminating.
+    """
     baseline = _write_baseline(tmp_path, "700")
     monkeypatch.setattr(subprocess, "run", _fake_scan(10, 650, base_baseline="615"))
     rc = ratchet.main(_base_ref_argv(baseline, tmp_path))
     captured = capsys.readouterr()
     assert rc == ratchet.EXIT_REGRESSION
-    assert "BASELINE RAISED" in captured.err
-    assert "BRANCH BEHIND" not in captured.err
+    assert "BASELINE ABOVE BASE" in captured.err
+    assert "The measured count is 650" in captured.err
+    assert "nothing in this tree added a violation" not in captured.err
 
 
 def test_a_lowered_baseline_passes_against_the_base_ref(tmp_path, monkeypatch):
@@ -208,7 +226,26 @@ def _base_ref_argv(baseline: Path, tmp_path: Path) -> list[str]:
     ]
 
 
-def test_a_base_ref_without_a_baseline_yet_is_the_bootstrap_case(tmp_path, monkeypatch, capsys):
+def test_a_stale_branch_is_named_as_behind_at_the_cli(tmp_path, monkeypatch, capsys):
+    """The CLI, not just ``run``, must carry the corrected verdict.
+
+    Baseline file 700, base ref 615, measured count 615: the base ref already
+    allows what this tree measures, so nothing here added a violation and the
+    sync remedy leads (issue #4066).
+    """
+    baseline = _write_baseline(tmp_path, "700")
+    monkeypatch.setattr(subprocess, "run", _fake_scan(10, 615, base_baseline="615"))
+    rc = ratchet.main(_base_ref_argv(baseline, tmp_path))
+    assert rc == ratchet.EXIT_REGRESSION
+    err = capsys.readouterr().err
+    assert "BASELINE ABOVE BASE" in err
+    assert "nothing in this tree added a violation" in err
+    assert err.index("merge or rebase") < err.index("fix the violations")
+
+
+def test_a_base_ref_without_a_baseline_yet_is_the_bootstrap_case(
+    tmp_path, monkeypatch, capsys
+):
     """The PR that introduces a ratchet is the PR that adds its baseline.
 
     Its base branch therefore has no baseline file, so the one-directional
@@ -334,6 +371,22 @@ def test_unparseable_report_is_an_external_error(tmp_path, monkeypatch):
     assert rc == ratchet.EXIT_EXTERNAL
 
 
+def test_a_non_mapping_report_is_an_external_error(tmp_path, monkeypatch):
+    """A report that parsed as JSON but is not an object (review of #4284).
+
+    ``report.get("error_count")`` raised AttributeError on a list, a string, or
+    a bare null, and the traceback left the process exiting 1: the ratchet's
+    own code for a REGRESSION. An unreadable report is an external error and
+    must exit 3, or a broken linter reads as new violations a contributor
+    cannot find.
+    """
+    baseline = _write_baseline(tmp_path, "615")
+    for payload in ("null", "7", '"hello"', '[{"error_count": 3}]'):
+        monkeypatch.setattr(subprocess, "run", _fake_scan(10, 0, lint_stdout=payload))
+        rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path)])
+        assert rc == ratchet.EXIT_EXTERNAL, payload
+
+
 def test_report_without_an_integer_count_is_an_external_error(tmp_path, monkeypatch):
     baseline = _write_baseline(tmp_path, "615")
     monkeypatch.setattr(
@@ -415,7 +468,8 @@ def test_a_git_that_cannot_be_launched_is_not_bootstrap(tmp_path, monkeypatch):
             raise FileNotFoundError("git: not found")
         if cmd[0] == "git" and "rev-parse" in cmd:
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
-        return real_run(cmd, **kwargs)
+        kwargs.pop("encoding", None)
+        return real_run(cmd, encoding="utf-8", **kwargs)
 
     monkeypatch.setattr(subprocess, "run", _run)
     baseline = tmp_path / "baseline.txt"

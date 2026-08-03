@@ -1,0 +1,114 @@
+{
+  "id": "episode-2026-07-31-session-9009-ci-fix-infrastructure",
+  "session": "2026-07-31-session-9009-ci-fix-infrastructure",
+  "timestamp": "2026-07-31T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix false-green mypy gate (#3966), kill process group on gh-act timeout (#3948/#3949), detect dangling skill-relative scripts (#3916), remove yaml dependency (#3791), delete inverted heuristic (#3936), add permissions ratchet (#3964)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-07-31-session-9009-ci-fix-infrastructure"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-07-31-session-9009-ci-fix-infrastructure"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-07-31-session-9009-ci-fix-infrastructure"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-07-31-session-9009-ci-fix-infrastructure"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-07-31-session-9009-ci-fix-infrastructure"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-07-31-session-9009-ci-fix-infrastructure"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-07-31-session-9009-ci-fix-infrastructure"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-01T00:00:23+00:00",
+      "type": "commit",
+      "content": "Commit: b7f8faff3b5789916748565711348bcfae4efd44",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-9009-ci-fix-infrastructure"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}

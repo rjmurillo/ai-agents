@@ -615,6 +615,47 @@ The repository implements several strategies to reduce the impact of race condit
 - [Issue #803](https://github.com/rjmurillo/ai-agents/issues/803) - Real-world example of race condition impact
 - [PR #806](https://github.com/rjmurillo/ai-agents/pull/806) - Fix for PR context confusion
 
+### Ratchet Baselines and the Concurrent Merge Race
+
+Concurrency groups coalesce runs on one branch. They do nothing about two
+branches whose results are each correct alone and wrong together. The count
+ratchets (`scripts/ci/ruff_count_ratchet.py`, `scripts/ci/taste_count_ratchet.py`)
+hit that case, and issue #4057 is where it was reported.
+
+**The race.** Each ratchet freezes a repo-wide violation total in a one-line
+file. Two PRs can each remove one violation and lower the same file from 331 to
+330. Both pass their own leg. Both write byte-identical content, so git merges
+them without a conflict. The merged tree has improved twice while the file fell
+once, so `main` measures 329 against a baseline of 330.
+
+**Resolution: the ratchet does not block that state.** PR #4214 made a count
+below the baseline pass (`scripts/ci/count_ratchet.py`, `count < baseline`
+returns exit 0), so the merged tree above is green and concurrent cleanup PRs
+never conflict on the shared line. The earlier proposal, arming
+`strict_required_status_checks_policy` on ruleset `11104075` so the second PR
+had to be current before merging, is not needed for this race: with the ratchet
+tolerating the drift there is no red `main` to prevent.
+
+**Residual cost.** The baseline sits above the true count until someone records
+it, and that gap absorbs one later regression without firing. `--update` closes
+it. `tests/ci/test_count_ratchet_concurrent_merge.py` pins both the tolerance
+and the cost, including the case where a reintroduced violation lands inside the
+slack unnoticed.
+
+**Rejected alternatives.**
+
+| Option | Why not |
+|--------|---------|
+| Block on a count below the baseline | What this replaced. It turns every concurrent cleanup pair into a red `main` or a stuck queue, which is the harm rather than the fix. |
+| Merge queue (`merge_group` trigger) | Every required workflow has to answer the `merge_group` event or the queue stalls with no way to merge. That is a change to 17 contexts for a race the ratchet no longer treats as a failure. |
+| Self-healing baseline commit on push to `main` | A workflow that commits a corrected baseline to the default branch needs write access, bot-actor exclusion, and loop prevention, to repair a state that is no longer an error. |
+| Make the baseline conflict on concurrent edits | Two branches would have to write different bytes for git to refuse the merge, which means the file stops being a count. That redesigns what both ratchets measure and every consumer that reads them. |
+
+**Scope.** This covers the two single-integer baselines only. The JSON allowlist
+(`rule_activation_coverage_baseline.json`) and the inline `--max` in
+`pr-validation.yml` do not share the race: removing an entry from either
+produces a real merge conflict rather than an identical edit.
+
 ### Monitoring Coalescing Effectiveness
 
 The repository includes automated monitoring of workflow run coalescing effectiveness:
