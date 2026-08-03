@@ -35,8 +35,8 @@ class _Resp(io.BytesIO):
     def __enter__(self) -> _Resp:
         return self
 
-    def __exit__(self, *_: object) -> bool:
-        return False
+    def __exit__(self, *_: object) -> None:
+        return None
 
 
 def _models_payload(ids: list[str]) -> bytes:
