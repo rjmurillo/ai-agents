@@ -1,0 +1,147 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 9011,
+    "date": "2026-08-03",
+    "branch": "fix/eval-harness-p2",
+    "startingCommit": "f947e98a5",
+    "objective": "Reconstruct and complete eval harness P2 issue triage"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "API harness has no Serena MCP surface; completed the AGENTS.md file fallback under .serena/memories"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md initialization guidance and loaded .serena/memories/memory-index.md"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read; no matching 4123 or eval-harness issue handoff exists"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github/scripts and used repository scripts for GitHub reads"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/usage-mandatory.md"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md and matching path instructions"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded memory-index, eval-harness-observations, decision-eval-fixture-provenance-closed-loop, and eval-multiprovider-transport"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/eval-harness-p2"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/eval-harness-p2"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Initial status clean on fix/eval-harness-p2; branch was 4 commits ahead and 7 behind the then-cached origin/main"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "f947e98a5"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All required start and end evidence recorded in this log"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md unchanged"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Updated eval-harness-observations.md in commit 482a23e75"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 exited 0 under repository configuration; all four requested reference paths are configured ignores"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation, methodology, generated mirrors, and memory committed through 482a23e75"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py exit 0"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Reconstructed the branch dossier from local history, the fresh origin/main diff, direct issues, related pull requests, reviews, and recursive issue context",
+      "outcome": "Triaged #3957, #4121, and #4123 as P2 fixes that remain merited; linked #4119, #4120, #3592, #3588, and #3779 are closed or superseded"
+    },
+    {
+      "action": "Compared the three competing #4123 implementations against the issue contract and current persistence guard",
+      "outcome": "Found PR #4451 records a valid string sentinel instead of raising; changed its unsupported Fixes #4123 line to Refs #4123 with the contract divergence stated"
+    },
+    {
+      "action": "Closed the malformed-fingerprint signal loss at the retry and injectable-transport boundaries",
+      "outcome": "MalformedProviderMetadataError now bypasses provider retries, and call_model validates metadata before any success log or record; committed as a835bdb3a"
+    },
+    {
+      "action": "Completed the #3957 registration review",
+      "outcome": "Corrected the eight-run versus sign-count wording and removed a contradictory magnitude threshold while keeping canonical and generated references identical; commits 247649eaf and d38f6a46e"
+    },
+    {
+      "action": "Ran discriminating tests and mutation inversions",
+      "outcome": "1097 branch-touched tests passed with 1 unrelated skip; removing retry guards failed 7 tests, coercing fingerprints failed 20 tests, and the two new end-to-end tests failed before the boundary fix"
+    },
+    {
+      "action": "Ran scoped quality and security checks",
+      "outcome": "Ruff, mypy, complexity C901, build_all --check, git diff checks, and security path detection passed; Bandit reported six pre-existing findings outside changed lines"
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Route the external-provider boundary change to QA and security PIV before merge",
+    "Push or open a pull request only after explicit user approval"
+  ]
+}
