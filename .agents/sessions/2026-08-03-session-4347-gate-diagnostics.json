@@ -101,7 +101,12 @@
     }
   ],
   "nextSteps": [],
-  "endingCommit": "",
-  "issues": [4347, 4349],
-  "closedIssues": [4355]
+  "endingCommit": "52698ae2d1699af4e2a1e09f442dfc4e662a3e1c",
+  "issues": [
+    4347,
+    4349
+  ],
+  "closedIssues": [
+    4355
+  ]
 }
