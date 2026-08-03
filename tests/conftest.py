@@ -85,6 +85,20 @@ def _isolate_tmp_path_from_parent_git_repo(
     if "tmp_path" not in request.fixturenames:
         return
     tmp_path = request.getfixturevalue("tmp_path")
+    # GIT_DIR (and related pointer variables) bypass GIT_CEILING_DIRECTORIES
+    # entirely -- if they are inherited from the test runner environment, git
+    # commands inside the test find the outer repository regardless of the
+    # ceiling. Unset them first so discovery falls back to the walk-and-stop
+    # behaviour that GIT_CEILING_DIRECTORIES controls. (Issue #4287.)
+    for _var in (
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_COMMON_DIR",
+        "GIT_INDEX_FILE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    ):
+        monkeypatch.delenv(_var, raising=False)
     existing = os.environ.get("GIT_CEILING_DIRECTORIES")
     ceiling = str(tmp_path.parent)
     value = ceiling if not existing else f"{ceiling}{os.pathsep}{existing}"
