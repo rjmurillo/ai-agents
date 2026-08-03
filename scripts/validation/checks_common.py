@@ -96,8 +96,49 @@ def _gh_base_ref(repo_root: Path) -> str | None:
         timeout=5,
         cwd=repo_root,
     )
-    if exit_code != 0:
-        return None
+    if exit_code != 0 or not stdout.strip():
+        # The local branch name may differ from the PR head branch (for
+        # example, a reviewer checks out the PR as ``pr-4294`` while the
+        # actual PR head is ``fix/some-feature``). Try the upstream
+        # tracking ref as an explicit --head argument so gh can find the
+        # right PR even when the current branch name does not match.
+        clean_env = _git_subprocess_env()
+        up_rc, up_out, _ = _run_subprocess(
+            [
+                "git",
+                "-C",
+                str(repo_root),
+                "rev-parse",
+                "--abbrev-ref",
+                "--symbolic-full-name",
+                "@{u}",
+            ],
+            env=clean_env,
+            timeout=10,
+        )
+        if up_rc == 0 and up_out.strip() and "@{" not in up_out:
+            upstream = up_out.strip()
+            # upstream is typically "origin/<branch>"; strip the remote prefix
+            head_branch = upstream.removeprefix("origin/")
+            exit_code, stdout, _ = _run_subprocess(
+                [
+                    "gh",
+                    "pr",
+                    "view",
+                    "--head",
+                    head_branch,
+                    "--json",
+                    "baseRefName",
+                    "-q",
+                    ".baseRefName",
+                ],
+                timeout=5,
+                cwd=repo_root,
+            )
+            if exit_code != 0 or not stdout.strip():
+                return None
+        else:
+            return None
     base = stdout.strip()
     if not base:
         return None
