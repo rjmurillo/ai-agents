@@ -16,8 +16,10 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
+import json
 import math
 import os
+import subprocess
 import sys
 import time
 
@@ -63,6 +65,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
     repository(owner: $owner, name: $repo) {
         pullRequest(number: $number) {
             number
+            baseRefName
             mergeable
             mergeStateStatus
             commits(last: 1) {
@@ -151,6 +154,53 @@ _FAILING_CONCLUSIONS = {
     "FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED",
     "STALE", "STARTUP_FAILURE",
 }
+
+
+
+# ---------------------------------------------------------------------------
+# Ruleset required-context fetch (#4359)
+# ---------------------------------------------------------------------------
+
+
+def fetch_ruleset_required_contexts(owner: str, repo: str, base_branch: str) -> list[str]:
+    """Return required check context names from branch rulesets.
+
+    Uses the REST rules/branches endpoint to find the ground-truth set of
+    required status checks independent of whether any check has reported.
+    A check that never ran produces no row in statusCheckRollup and has no
+    isRequired annotation; the only way to detect it is to diff the ruleset
+    list against the reported set.
+
+    Returns an empty list on any error so callers can fail-open: if the
+    rulesets endpoint is unavailable, the script degrades to the old
+    isRequired-only behaviour rather than crashing.
+    """
+    result = subprocess.run(
+        [
+            "gh", "api",
+            f"repos/{owner}/{repo}/rules/branches/{base_branch}",
+            "--jq",
+            (
+                "[.[]"
+                "| select(.type==\"required_status_checks\")"
+                "| .parameters.required_status_checks[].context]"
+            ),
+        ],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
+        check=False,
+    )
+    if result.returncode != 0:
+        return []
+    try:
+        raw = result.stdout.strip()
+        if not raw:
+            return []
+        return list(json.loads(raw))
+    except Exception:  # noqa: BLE001
+        return []
 
 
 # ---------------------------------------------------------------------------
@@ -351,11 +401,13 @@ def fetch_checks(
     mergeable = pr.get("mergeable")
     merge_state_status = pr.get("mergeStateStatus")
     merge_state = "UNKNOWN" if mergeable is None else str(mergeable)
+    base_branch = pr.get("baseRefName", "")
 
     commits = pr.get("commits", {}).get("nodes", [])
     if not commits:
         return {
             "Number": pr.get("number"),
+            "BaseBranch": base_branch,
             "MergeState": merge_state,
             "MergeStateStatus": merge_state_status,
             "Checks": [],
@@ -369,6 +421,7 @@ def fetch_checks(
     if not rollup:
         return {
             "Number": pr.get("number"),
+            "BaseBranch": base_branch,
             "MergeState": merge_state,
             "MergeStateStatus": merge_state_status,
             "Checks": [],
@@ -404,6 +457,7 @@ def fetch_checks(
 
     return {
         "Number": pr.get("number"),
+        "BaseBranch": pr.get("baseRefName", ""),
         "MergeState": merge_state,
         "MergeStateStatus": merge_state_status,
         "Checks": checks,
@@ -418,12 +472,19 @@ def build_output(
     owner: str,
     repo: str,
     required_only: bool = False,
+    ruleset_required: list[str] | None = None,
 ) -> dict:
     """Build the final output object from check data.
 
     Groups checks by name and ORs the required status across all rows
     for each name, matching test_pr_merge_ready.py semantics. Returns
     structured lists of pending and failed required checks.
+
+    ruleset_required: list of context names that the branch ruleset declares
+    as required, obtained from the rules/branches REST endpoint. When
+    provided, the set-difference against reported check names surfaces checks
+    that are required but never reported (issue #4359). When absent (empty
+    list or None), behaviour is unchanged from the previous version.
     """
     checks_value = check_data.get("Checks")
     if checks_value is None:
@@ -495,6 +556,17 @@ def build_output(
         merge_state_warning = (
             "PR merge state status is unknown; do not treat the current check set as complete"
         )
+
+    # Set-difference: required contexts from the ruleset that never appeared
+    # in the statusCheckRollup at all.  A check that never ran has no row and
+    # no isRequired annotation; absence is the only signal.
+    reported_names: set[str] = set(checks_by_name)
+    missing_required: list[str] = []
+    if ruleset_required:
+        missing_required = sorted(
+            ctx for ctx in ruleset_required if ctx not in reported_names
+        )
+
     all_passing = (
         has_checks
         and len(filtered_checks) > 0
@@ -502,6 +574,7 @@ def build_output(
         and pending_count == 0
         and not checks_incomplete
         and merge_ref_usable
+        and not missing_required
     )
 
     # Extract lists of pending and failed required checks for structured
@@ -545,6 +618,10 @@ def build_output(
         # failed ones and from non-required checks.
         "PendingRequiredChecks": pending_required,
         "FailedRequiredChecks": failed_required,
+        # Checks required by the branch ruleset that produced no row in the
+        # status check rollup (i.e. never ran). Populated when the
+        # rules/branches endpoint is reachable; empty list when not.
+        "MissingRequiredChecks": missing_required,
     }
 
 
@@ -596,6 +673,13 @@ def _resolve_status(
             "(empty rollup; not treated as passing)",
             "WARNING",
         )
+    missing = output.get("MissingRequiredChecks") or []
+    if missing:
+        return (
+            f"PR #{number}: {len(missing)} required check(s) never reported "
+            f"(MISSING: {', '.join(missing[:3])}{'...' if len(missing) > 3 else ''})",
+            "FAIL",
+        )
     if output["FailedCount"] > 0:
         return f"PR #{number}: {output['FailedCount']} check(s) failed", "FAIL"
     if timed_out_pending:
@@ -627,6 +711,7 @@ def main(argv: list[str] | None = None) -> int:
     iteration = 0
     settled = False
     checks_incomplete = False
+    ruleset_required: list[str] = []
 
     while True:
         iteration += 1
@@ -655,7 +740,17 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 3
 
-        output = build_output(check_data, owner, repo, args.required_only)
+        # Fetch ruleset required contexts once (on the first iteration);  # ctrl the
+        # base branch does not change across poll iterations.
+        if iteration == 1:
+            base_branch = check_data.get("BaseBranch", "")
+            if base_branch:
+                ruleset_required = fetch_ruleset_required_contexts(owner, repo, base_branch)
+
+        output = build_output(
+            check_data, owner, repo, args.required_only,
+            ruleset_required=ruleset_required,
+        )
         checks_incomplete = checks_incomplete or bool(
             output.get("ChecksIncomplete", False)
         )
@@ -700,7 +795,8 @@ def main(argv: list[str] | None = None) -> int:
         script_name="get_pr_checks.py",
     )
 
-    if output["FailedCount"] > 0:
+    missing = output.get("MissingRequiredChecks") or []
+    if output["FailedCount"] > 0 or missing:
         return 1
     if not output.get("MergeRefUsable", True):
         return 1
