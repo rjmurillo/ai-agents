@@ -2,7 +2,10 @@
 
 Covers:
 - aggregate() verdict outcomes (PASS, FAIL_THRESHOLD, FAIL_NO_DELTA,
-  FAIL_JUDGE_ERRORS, NO_POSITIVE_CASES)
+  FAIL_JUDGE_ERRORS, NO_POSITIVE_CASES, FAIL_OVER_ACTIVATION)
+- _reduce_score_samples() mixed pass/fail sample handling
+- _mechanism_summary() graded_count and failure field naming
+- _build_run_provenance() presence of required keys
 - _load_scenarios_file() target validation: rule paths must resolve under
   .claude/rules/ and skill references must resolve under one skill's
   references/ directory.
@@ -172,8 +175,108 @@ class TestAggregateVerdicts:
         # judge_failed forces the FAIL_JUDGE_ERRORS path before averages decide
         assert summary["verdict"] == "FAIL_JUDGE_ERRORS"
 
+    def test_negative_overactivation_fails_verdict(self):
+        # Negative scenarios with LOW scores show poor restraint (model activated
+        # where it should not). With inverted rubric, score < MIN_RESTRAINT_SCORE
+        # signals FAIL_OVER_ACTIVATION.
+        poor_restraint = 1  # description scores 1 on a negative case (poor restraint)
+        scenarios = [
+            _make_scenario(baseline=1, description=4, full=5),  # positive
+            _make_scenario(baseline=5, description=poor_restraint, full=2, negative=True),
+        ]
+        summary = eval_mod.aggregate(scenarios)
+        assert summary["verdict"] == "FAIL_OVER_ACTIVATION"
 
-class TestScoreResponseJudgeShape:
+    def test_high_negative_restraint_score_gives_pass(self):
+        # Negative scenarios with HIGH scores show good restraint (model did NOT
+        # activate). With inverted rubric, score >= MIN_RESTRAINT_SCORE gives PASS.
+        scenarios = [
+            _make_scenario(baseline=1, description=4, full=5),  # positive
+            _make_scenario(baseline=5, description=5, full=5, negative=True),
+        ]
+        summary = eval_mod.aggregate(scenarios)
+        assert summary["verdict"] == "PASS"
+
+    def test_aggregate_exposes_total_judge_failure_samples(self):
+        scenarios = [
+            _make_scenario(baseline=1, description=4, full=5, judge_failed=True),
+        ]
+        summary = eval_mod.aggregate(scenarios)
+        assert "total_judge_failure_samples" in summary
+
+    def test_aggregate_exposes_judge_failure_cells_and_samples_per_mechanism(self):
+        scenarios = [
+            _make_scenario(baseline=1, description=4, full=5, judge_failed=True),
+        ]
+        summary = eval_mod.aggregate(scenarios)
+        for mech in eval_mod.MECHANISMS:
+            mech_summary = summary["per_mechanism"][mech]
+            assert "judge_failure_cells" in mech_summary
+            assert "judge_failure_samples" in mech_summary
+
+    def test_graded_count_present_in_mechanism_summary(self):
+        scenarios = [
+            _make_scenario(baseline=1, description=4, full=5),
+        ]
+        summary = eval_mod.aggregate(scenarios)
+        assert summary["per_mechanism"]["description"]["graded_count"] == 1
+
+class TestRunProvenance:
+    def test_build_run_provenance_contains_required_keys(self, tmp_path):
+        import argparse as _ap
+
+        args = _ap.Namespace(
+            model="claude-opus-5",
+            scenarios=[str(tmp_path / "s.json")],
+        )
+        prov = eval_mod._build_run_provenance(args)
+        for key in ("provider", "requested_model", "timestamp_utc", "git_commit", "scenario_hash"):
+            assert key in prov, f"missing key: {key}"
+
+    def test_build_run_provenance_requested_model_matches(self, tmp_path):
+        import argparse as _ap
+
+        args = _ap.Namespace(model="my-model", scenarios=[])
+        prov = eval_mod._build_run_provenance(args)
+        assert prov["requested_model"] == "my-model"
+
+    def test_all_results_contains_run_key(self, tmp_path, monkeypatch):
+        scenario_file = tmp_path / "scenarios.json"
+        scenario_file.write_text(
+            json.dumps(
+                {
+                    "rule_path": ".claude/rules/working-with-legacy-code.md",
+                    "scenarios": [{"id": "S1", "input": "test input"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        old_argv = sys.argv
+        sys.argv = [
+            "eval-rule-activation.py",
+            "--scenarios",
+            str(scenario_file),
+            "--dry-run",
+        ]
+        try:
+            # dry_run does not write output; just verify the results dict shape
+            import argparse as _ap
+
+            args = _ap.Namespace(
+                model="test-model",
+                scenarios=[str(scenario_file)],
+                dry_run=True,
+                output=None,
+                seed=0,
+                judge_repeats=1,
+                judge_reducer="median",
+            )
+            results: dict = {"run": eval_mod._build_run_provenance(args), "rules": {}}
+            assert "run" in results
+            assert "provider" in results["run"]
+        finally:
+            sys.argv = old_argv
+
     @pytest.mark.parametrize(
         "judge_json",
         [
@@ -201,6 +304,75 @@ class TestScoreResponseJudgeShape:
 
         assert scores["judge_failed"] is True
         assert scores["activation_score"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Judge parse failure evidence preservation (#3975)
+# ---------------------------------------------------------------------------
+
+
+class TestParseJudgeResponseEvidence:
+    """Parse failures must preserve the full raw response, not a 200-char prefix."""
+
+    def _score(self, monkeypatch, raw_text: str) -> dict:
+        monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_kw: raw_text)
+        return eval_mod.score_response(
+            "sk-test",
+            {"input": "x", "expected_gate": "apply-rule"},
+            "response",
+        )
+
+    def test_invalid_json_sets_judge_failed(self, monkeypatch):
+        result = self._score(monkeypatch, "not json at all")
+        assert result["judge_failed"] is True
+
+    def test_invalid_json_stores_full_raw_response(self, monkeypatch):
+        payload = "x" * 500
+        result = self._score(monkeypatch, payload)
+        assert result["raw_judge_response"] == payload
+
+    def test_invalid_json_reasoning_is_neutral(self, monkeypatch):
+        # reasoning must not contain a fabricated cause derived from truncated text
+        result = self._score(monkeypatch, "not json at all")
+        assert "not json at all" not in result["reasoning"]
+        assert "200" not in result["reasoning"]
+
+    def test_non_object_json_sets_judge_failed(self, monkeypatch):
+        result = self._score(monkeypatch, "[1, 2, 3]")
+        assert result["judge_failed"] is True
+
+    def test_non_object_json_stores_full_raw_response(self, monkeypatch):
+        payload = "[" + ", ".join(str(i) for i in range(200)) + "]"
+        result = self._score(monkeypatch, payload)
+        assert result["raw_judge_response"] == payload
+
+    def test_non_object_json_reasoning_is_neutral(self, monkeypatch):
+        result = self._score(monkeypatch, "[1, 2, 3]")
+        assert "[1, 2, 3]" not in result["reasoning"]
+
+    def test_large_payload_preserved_without_truncation(self, monkeypatch):
+        # 201 chars triggers the old truncation; the full payload must survive
+        payload = "A" * 201
+        result = self._score(monkeypatch, payload)
+        assert result.get("raw_judge_response") == payload
+
+    def test_successful_parse_has_no_raw_judge_response(self, monkeypatch):
+        # Storage cost: successful parse must NOT write raw_judge_response
+        good = (
+            '{"activation_score": 3, "citation_score": 3, "behavior_score": 3, "reasoning": "ok"}'
+        )
+        result = self._score(monkeypatch, good)
+        assert result["judge_failed"] is False
+        assert "raw_judge_response" not in result
+
+    def test_successful_parse_scores_are_intact(self, monkeypatch):
+        good = (
+            '{"activation_score": 4, "citation_score": 2, "behavior_score": 5, "reasoning": "fine"}'
+        )
+        result = self._score(monkeypatch, good)
+        assert result["activation_score"] == 4
+        assert result["citation_score"] == 2
+        assert result["behavior_score"] == 5
 
 
 # ---------------------------------------------------------------------------
@@ -405,9 +577,7 @@ class TestLoadScenariosFile:
         assert reference_path is not None
         assert reference_path.name == "working-with-legacy-code.md"
 
-    def test_rejects_skill_reference_outside_reference_directory(
-        self, tmp_path: Path, capsys
-    ):
+    def test_rejects_skill_reference_outside_reference_directory(self, tmp_path: Path, capsys):
         f = tmp_path / "bad_skill_ref.json"
         f.write_text(
             json.dumps(
@@ -944,7 +1114,12 @@ class TestJudgeSampleReduction:
         full = result["mechanisms"]["full"]
         assert full["score_samples"][1]["judge_failed"] is True
         assert "judge API failure" in full["score_samples"][1]["reasoning"]
+        # 2/3 samples graded successfully; failed sample excluded from scoring
+        # (issue #3915). judge_failed is True because any failure is flagged;
+        # graded_sample_count reflects how many samples were actually scored.
         assert full["scores"]["judge_failed"] is True
+        assert full["scores"]["graded_sample_count"] == 2
+        assert full["scores"]["failed_sample_count"] == 1
 
     def test_dry_run_counts_repeated_judge_calls(self, tmp_path, capsys):
         rule_path = REPO_ROOT / ".claude" / "rules" / "working-with-legacy-code.md"
@@ -1684,8 +1859,6 @@ def test_a_value_token_past_the_integer_conversion_limit_does_not_raise(
     assert result["judge_failed"] is True
 
 
-
-
 def test_a_leading_zero_spelling_is_not_an_exact_restatement(monkeypatch):
     """``05`` is not a JSON integer, so it cannot establish equality exactly.
 
@@ -1868,8 +2041,7 @@ def test_a_nested_verdict_disagreeing_on_a_later_field_is_still_detected(
             "citation_score": 4,
             "behavior_score": 5,
             "reasoning": (
-                'Corrected verdict: {"activation_score":5,'
-                '"citation_score":1,"behavior_score":1}'
+                'Corrected verdict: {"activation_score":5,"citation_score":1,"behavior_score":1}'
             ),
         }
     )
@@ -1888,14 +2060,6 @@ def test_a_nested_verdict_disagreeing_on_a_later_field_is_still_detected(
     )
 
     assert result["judge_failed"] is True
-
-
-
-
-
-
-
-
 
 
 def test_the_ambiguity_walkers_terminate_on_a_self_referential_object():
@@ -1972,8 +2136,6 @@ def test_a_verdict_spelled_with_unicode_escapes_is_still_two_verdicts(monkeypatc
     )
     assert control["judge_failed"] is False
     assert control["activation_score"] == 5
-
-
 
 
 def test_a_healthy_payload_with_deep_nesting_still_scores(monkeypatch):
@@ -2739,7 +2901,7 @@ def test_a_mismatched_quote_pair_is_not_a_key():
     """
     single_verdict = (
         '{"activation_score":5,"citation_score":3,"behavior_score":4,'
-        "\"reasoning\":\"the rubric line read \\\"activation_score': high\\\"\"}"
+        '"reasoning":"the rubric line read \\"activation_score\': high\\""}'
     )
 
     assert eval_mod._names_a_score_field_twice(single_verdict) is False
@@ -2892,9 +3054,10 @@ def test_a_fenced_exemplar_after_the_verdict_does_not_win(
 
     assert result["judge_failed"] is True
     assert result["activation_score"] == 0
-    # The recorded payload is the original, not the fence body, so the
-    # archived error prefix shows what the judge actually emitted.
-    assert "actual verdict" in result["reasoning"]
+    # After #3975, reasoning carries a neutral message; the full payload is
+    # preserved in raw_judge_response so the archived evidence is unfabricated.
+    assert result["reasoning"] == "judge response could not be parsed as JSON"
+    assert "actual verdict" in result["raw_judge_response"]
 
 
 def test_a_lone_fenced_verdict_is_recovered_and_marked(
@@ -3405,9 +3568,7 @@ def test_every_published_cell_still_scores_to_its_archived_triple(monkeypatch):
         f"{len(archived_keys - set(published))} archived-only, "
         f"{len(set(published) - archived_keys)} published-only"
     )
-    sources = [
-        (e["source_session"], e["source_event_index"]) for e in recovered["payloads"]
-    ]
+    sources = [(e["source_session"], e["source_event_index"]) for e in recovered["payloads"]]
     assert len(set(sources)) == len(sources), (
         "a source judge call is attributed to more than one published cell; "
         "at most one of those attributions can be right"
@@ -3423,9 +3584,7 @@ def test_every_published_cell_still_scores_to_its_archived_triple(monkeypatch):
             entry["sample_index"],
         )
         sample = published[key]
-        monkeypatch.setattr(
-            eval_mod, "_call_api", lambda *_a, _p=entry["raw"], **_k: _p
-        )
+        monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, _p=entry["raw"], **_k: _p)
         result = eval_mod.score_response(
             "sk-test",
             {"input": "x", "expected_gate": "apply-rule"},
@@ -4109,9 +4268,9 @@ class TestArchivedSummariesStillAggregate:
             "route_mismatch_count",
             "avg_score_exact",
             "rounding_would_change_verdict",
-    "delta_full_vs_baseline_measured",
-    "delta_description_vs_baseline_measured",
-    "delta_rounding_disagrees",
+            "delta_full_vs_baseline_measured",
+            "delta_description_vs_baseline_measured",
+            "delta_rounding_disagrees",
         }
     )
 
@@ -4126,9 +4285,7 @@ class TestArchivedSummariesStillAggregate:
 
     def test_the_archive_is_the_size_this_suite_believes_it_is(self):
         runs = list(self._runs())
-        cells = sum(
-            len(s["mechanisms"]) for _, _, rule in runs for s in rule["scenarios"]
-        )
+        cells = sum(len(s["mechanisms"]) for _, _, rule in runs for s in rule["scenarios"])
 
         assert len(runs) == self.EXPECTED_ARTIFACTS
         assert cells == self.EXPECTED_CELLS
@@ -4196,8 +4353,7 @@ class TestArchivedSummariesStillAggregate:
             {
                 "negative_case": False,
                 "mechanisms": {
-                    m: {"scores": {"cell_score": 4, "graded": True}}
-                    for m in eval_mod.MECHANISMS
+                    m: {"scores": {"cell_score": 4, "graded": True}} for m in eval_mod.MECHANISMS
                 },
             }
         ]
@@ -4215,9 +4371,7 @@ class TestArchivedSummariesStillAggregate:
         recomputed = eval_mod.aggregate(rule["scenarios"])
         corrupted = dict(rule["summary"], baseline_avg=-999.0)
 
-        mismatches = [
-            f for f in self.PUBLISHED_FIELDS if corrupted[f] != recomputed.get(f)
-        ]
+        mismatches = [f for f in self.PUBLISHED_FIELDS if corrupted[f] != recomputed.get(f)]
 
         assert mismatches == ["baseline_avg"]
 
@@ -4496,9 +4650,7 @@ class TestTableDisclosesItsPopulations:
             }
         )
 
-        table = eval_mod.render_table(
-            "r", eval_mod.aggregate([_make_scenario(1, 5, 5), ungraded])
-        )
+        table = eval_mod.render_table("r", eval_mod.aggregate([_make_scenario(1, 5, 5), ungraded]))
 
         assert "Positive pool incomplete at: description" in table
 
@@ -4524,9 +4676,7 @@ class TestTableDisclosesItsPopulations:
 
     def test_an_always_on_rule_prints_no_exclusion_line(self):
         """Negative control. The line must not appear when nothing is excluded."""
-        table = eval_mod.render_table(
-            "r", eval_mod.aggregate([_make_scenario(1, 5, 5)])
-        )
+        table = eval_mod.render_table("r", eval_mod.aggregate([_make_scenario(1, 5, 5)]))
 
         assert "Excluded as unreachable" not in table
         assert "Positive pool incomplete" not in table
@@ -4870,9 +5020,7 @@ class TestExcludedJudgeFailuresAreDisclosed:
 
     def test_a_run_with_no_divergence_prints_no_disclosure(self):
         """Negative control. The line is a signal, not decoration."""
-        summary = eval_mod.aggregate(
-            [_make_scenario(baseline=1, description=5, full=5)]
-        )
+        summary = eval_mod.aggregate([_make_scenario(baseline=1, description=5, full=5)])
 
         assert summary["excluded_judge_failure_cells"] == []
         assert "Judge failures:" not in eval_mod.render_table("probe", summary)
@@ -5002,7 +5150,6 @@ class TestPartialCoverageReadsTheSameOnBothPools:
         assert summary["delta_description_vs_baseline"] is None
 
 
-
 class TestTheHeadlineNeedsAWholePool:
     """`best_mechanism` is a ranking, so it needs what a delta needs.
 
@@ -5063,8 +5210,7 @@ class TestTheHeadlineNeedsAWholePool:
         assert summary["best_mechanism_partial"] is True
         table = eval_mod.render_table("r", summary)
         assert (
-            "Best mechanism: no reachable rule-enhanced mechanism graded on "
-            "every scenario" in table
+            "Best mechanism: no reachable rule-enhanced mechanism graded on every scenario" in table
         )
         assert "rule-enhanced mechanism measured" not in table
 
@@ -5359,9 +5505,7 @@ class TestRankingAndItsExclusionsShareOnePopulation:
             "negative_case": False,
             "mechanisms": mechanisms,
         }
-        return eval_mod.aggregate(
-            [positive, _make_scenario(5, 5, 5, negative=True)], routed=True
-        )
+        return eval_mod.aggregate([positive, _make_scenario(5, 5, 5, negative=True)], routed=True)
 
     def test_an_unreachable_mechanism_never_takes_the_headline(self):
         summary = self._routed_summary(full_score=5)
@@ -5395,7 +5539,6 @@ class TestRankingAndItsExclusionsShareOnePopulation:
         )
         assert summary["unreachable_mechanisms"] == []
         assert summary["best_mechanism"] == "full"
-
 
 
 class TestEmptyHeadlinesNameTheRankedPopulation:
@@ -5437,8 +5580,7 @@ class TestEmptyHeadlinesNameTheRankedPopulation:
         )
         assert "| full         |     5.0 |" in table
         assert (
-            "Best mechanism: no reachable rule-enhanced mechanism graded on "
-            "every scenario" in table
+            "Best mechanism: no reachable rule-enhanced mechanism graded on every scenario" in table
         )
 
 
@@ -5453,9 +5595,7 @@ class TestEmptyRestraintHeadlinesNameTheGatedPopulation:
 
     @staticmethod
     def _routed(*negatives: dict[str, object]) -> str:
-        summary = eval_mod.aggregate(
-            [_make_scenario(4, 4, 4), *negatives], routed=True
-        )
+        summary = eval_mod.aggregate([_make_scenario(4, 4, 4), *negatives], routed=True)
         return eval_mod.render_table("R", summary)
 
     def test_no_floor_at_all_does_not_deny_the_full_row(self):
@@ -5510,8 +5650,7 @@ class TestEmptyHeadlinesNameEligibilityNotJustReachability:
         assert summary["best_mechanism"] is None
         table = eval_mod.render_table("R", summary)
         assert (
-            "Best mechanism: no reachable rule-enhanced mechanism graded on "
-            "every scenario" in table
+            "Best mechanism: no reachable rule-enhanced mechanism graded on every scenario" in table
         )
 
     def test_an_absent_floor_excludes_baseline_by_name(self):
@@ -5793,9 +5932,7 @@ class TestARoutedCellThatMissedTheTargetIsDisclosed:
         assert per_mech["avg_score"] == 5.0
 
     def test_a_declined_route_on_a_negative_case_is_not_called_a_defect(self):
-        summary = eval_mod.aggregate(
-            [_routed_scenario(False, True), _routed_scenario(True, False)]
-        )
+        summary = eval_mod.aggregate([_routed_scenario(False, True), _routed_scenario(True, False)])
         neg = summary["negative_case_per_mechanism"]["description"]
         assert neg["route_mismatch_count"] == 1
         assert summary["per_mechanism"]["description"]["route_mismatch_count"] == 0
@@ -5859,9 +5996,7 @@ class TestTheRouteRecordsWhichReferenceItActuallyOpened:
                 "reasoning": "picked one",
             }
         )
-        judge = json.dumps(
-            {"activation_score": 5, "citation_score": 5, "behavior_score": 5}
-        )
+        judge = json.dumps({"activation_score": 5, "citation_score": 5, "behavior_score": 5})
 
         def _call(_key, _messages, **kwargs):
             if kwargs.get("max_tokens") == 300:
@@ -5912,9 +6047,7 @@ class TestAGateThatResemblesTheSentinelIsRefused:
 
     @staticmethod
     def _check(gate: str):
-        return eval_mod._validate_scenario_gate(
-            {"expected_gate": gate}, 0, Path("scenarios.json")
-        )
+        return eval_mod._validate_scenario_gate({"expected_gate": gate}, 0, Path("scenarios.json"))
 
     @pytest.mark.parametrize(
         "gate",
@@ -5983,10 +6116,7 @@ class TestAGateThatResemblesTheSentinelIsRefused:
                 if gate and gate != eval_mod.NEGATIVE_GATE:
                     real.add(gate)
         assert real
-        worst = max(
-            difflib.SequenceMatcher(None, g, eval_mod.NEGATIVE_GATE).ratio()
-            for g in real
-        )
+        worst = max(difflib.SequenceMatcher(None, g, eval_mod.NEGATIVE_GATE).ratio() for g in real)
         assert worst < eval_mod._GATE_NEAR_MISS_RATIO
         closest = difflib.SequenceMatcher(
             None, "sikp-rule-not-applicable", eval_mod.NEGATIVE_GATE
@@ -6015,9 +6145,7 @@ class TestARouteThatDeclinedTheSkillIsNotAMatch:
                 "reasoning": "picked one",
             }
         )
-        judge = json.dumps(
-            {"activation_score": 5, "citation_score": 5, "behavior_score": 5}
-        )
+        judge = json.dumps({"activation_score": 5, "citation_score": 5, "behavior_score": 5})
 
         def _call(_key, _messages, **kwargs):
             if kwargs.get("max_tokens") == 300:
@@ -6042,9 +6170,7 @@ class TestARouteThatDeclinedTheSkillIsNotAMatch:
         assert routing["reference_matched"] is True
 
     @pytest.mark.parametrize("skill_value", [None, "", "   ", 7])
-    def test_a_declined_or_unreadable_skill_records_a_miss(
-        self, monkeypatch, skill_value
-    ):
+    def test_a_declined_or_unreadable_skill_records_a_miss(self, monkeypatch, skill_value):
         routing = self._run(monkeypatch, skill_value)
         assert routing["reference_matched"] is False
         assert routing["selected_reference"] == self.TARGET
@@ -6196,10 +6322,7 @@ class TestOneTargetPublishesUnderOneId:
         results: dict[str, Any] = {"rules": {}}
         args = self._args()
         assert args.dry_run is True
-        codes = [
-            eval_mod._process_scenario_file(f, "sk-test", args, results, state)
-            for f in files
-        ]
+        codes = [eval_mod._process_scenario_file(f, "sk-test", args, results, state) for f in files]
         assert codes[1] == 2
         assert results["rules"] == {}
 
@@ -6234,9 +6357,10 @@ class TestTheShippedTemplateTeachesTheDocumentedSchema:
 
     def test_every_template_scenario_declares_a_gate(self):
         for scenario in self._template()["scenarios"]:
-            assert eval_mod._validate_scenario_gate(
-                scenario, 0, Path("example-scenarios.json")
-            ) is None
+            assert (
+                eval_mod._validate_scenario_gate(scenario, 0, Path("example-scenarios.json"))
+                is None
+            )
 
     def test_the_template_demonstrates_a_negative_case(self):
         gates = [s.get("expected_gate") for s in self._template()["scenarios"]]
@@ -6288,8 +6412,7 @@ class TestAFileWithNoPositiveCaseIsRefusedBeforeSpend:
     def _data(self, gates):
         return {
             "scenarios": [
-                {"id": f"S{i}", "input": "x", "expected_gate": g}
-                for i, g in enumerate(gates)
+                {"id": f"S{i}", "input": "x", "expected_gate": g} for i, g in enumerate(gates)
             ]
         }
 
@@ -6300,26 +6423,23 @@ class TestAFileWithNoPositiveCaseIsRefusedBeforeSpend:
         assert code == 2
 
     def test_the_refusal_names_the_sentinel_and_the_remedy(self, tmp_path, capsys):
-        eval_mod._validate_scenarios_shape(
-            self._data([self.NEG]), tmp_path / "s.json"
-        )
+        eval_mod._validate_scenarios_shape(self._data([self.NEG]), tmp_path / "s.json")
         err = capsys.readouterr().err
         assert self.NEG in err
         assert "NO_POSITIVE_CASES" in err
 
     def test_an_empty_scenario_list_is_refused(self, tmp_path):
-        assert eval_mod._validate_scenarios_shape(
-            {"scenarios": []}, tmp_path / "s.json"
-        ) == 2
+        assert eval_mod._validate_scenarios_shape({"scenarios": []}, tmp_path / "s.json") == 2
 
     def test_one_positive_case_is_enough(self, tmp_path):
-        assert eval_mod._validate_scenarios_shape(
-            self._data(["invert-dependency", self.NEG]), tmp_path / "s.json"
-        ) is None
+        assert (
+            eval_mod._validate_scenarios_shape(
+                self._data(["invert-dependency", self.NEG]), tmp_path / "s.json"
+            )
+            is None
+        )
 
-    def test_a_near_miss_of_the_sentinel_is_still_refused_as_a_near_miss(
-        self, tmp_path, capsys
-    ):
+    def test_a_near_miss_of_the_sentinel_is_still_refused_as_a_near_miss(self, tmp_path, capsys):
         """The gate guard must fire first, or a typo would count as positive."""
         code = eval_mod._validate_scenarios_shape(
             self._data(["skipp-rule-not-applicable"]), tmp_path / "s.json"
@@ -6341,9 +6461,7 @@ class TestAFileWithNoPositiveCaseIsRefusedBeforeSpend:
                         "/references/clean-architecture.md"
                     ),
                     "rule_id": "all-negative",
-                    "scenarios": [
-                        {"id": "N1", "input": "x", "expected_gate": self.NEG}
-                    ],
+                    "scenarios": [{"id": "N1", "input": "x", "expected_gate": self.NEG}],
                 }
             )
         )
@@ -6384,13 +6502,8 @@ class TestEveryShippedScenarioFileCanValidateActivation:
     def test_every_shipped_file_declares_a_negative_case(self):
         """Restraint is half the measurement; losing it would go unnoticed."""
         for path in self._shipped():
-            gates = [
-                s.get("expected_gate", "")
-                for s in json.loads(path.read_text())["scenarios"]
-            ]
-            assert any(
-                eval_mod._is_negative_gate(eval_mod._normalize_gate(g)) for g in gates
-            ), path
+            gates = [s.get("expected_gate", "") for s in json.loads(path.read_text())["scenarios"]]
+            assert any(eval_mod._is_negative_gate(eval_mod._normalize_gate(g)) for g in gates), path
 
 
 class TestTheRunAccumulatesTheWorstOutcomeItSaw:
@@ -6457,38 +6570,24 @@ class TestTheRunAccumulatesTheWorstOutcomeItSaw:
     def test_a_passing_run_leaves_the_exit_clean(self, tmp_path, monkeypatch):
         assert self._run(tmp_path, monkeypatch, ["PASS"]).worst_exit == 0
 
-    def test_a_misconfigured_file_surfaces_as_a_config_exit(
-        self, tmp_path, monkeypatch
-    ):
+    def test_a_misconfigured_file_surfaces_as_a_config_exit(self, tmp_path, monkeypatch):
         assert self._run(tmp_path, monkeypatch, ["NO_POSITIVE_CASES"]).worst_exit == 2
 
-    def test_a_later_pass_does_not_erase_an_earlier_failure(
-        self, tmp_path, monkeypatch
-    ):
+    def test_a_later_pass_does_not_erase_an_earlier_failure(self, tmp_path, monkeypatch):
         state = self._run(tmp_path, monkeypatch, ["FAIL_THRESHOLD", "PASS"])
         assert state.worst_exit == 1
 
-    def test_a_config_error_is_not_hidden_by_a_rule_failure(
-        self, tmp_path, monkeypatch
-    ):
+    def test_a_config_error_is_not_hidden_by_a_rule_failure(self, tmp_path, monkeypatch):
         state = self._run(tmp_path, monkeypatch, ["FAIL_THRESHOLD", "NO_POSITIVE_CASES"])
         assert state.worst_exit == 2
 
     def test_an_external_failure_outranks_everything(self, tmp_path, monkeypatch):
-        state = self._run(
-            tmp_path, monkeypatch, ["NO_POSITIVE_CASES", "FAIL_JUDGE_ERRORS", "PASS"]
-        )
+        state = self._run(tmp_path, monkeypatch, ["NO_POSITIVE_CASES", "FAIL_JUDGE_ERRORS", "PASS"])
         assert state.worst_exit == 3
 
-    def test_the_order_targets_are_processed_does_not_matter(
-        self, tmp_path, monkeypatch
-    ):
-        forward = self._run(
-            tmp_path, monkeypatch, ["FAIL_JUDGE_ERRORS", "NO_POSITIVE_CASES"]
-        )
-        backward = self._run(
-            tmp_path, monkeypatch, ["NO_POSITIVE_CASES", "FAIL_JUDGE_ERRORS"]
-        )
+    def test_the_order_targets_are_processed_does_not_matter(self, tmp_path, monkeypatch):
+        forward = self._run(tmp_path, monkeypatch, ["FAIL_JUDGE_ERRORS", "NO_POSITIVE_CASES"])
+        backward = self._run(tmp_path, monkeypatch, ["NO_POSITIVE_CASES", "FAIL_JUDGE_ERRORS"])
         assert forward.worst_exit == backward.worst_exit == 3
 
 
@@ -6500,9 +6599,7 @@ class TestTheProcessExitReportsWhatTheRunAccumulated:
         scenario.write_text("{}")
 
         def fake_process(scenario_file, api_key, args, all_results, state):
-            state.worst_exit = max(
-                state.worst_exit, eval_mod._classify_verdict(verdict)
-            )
+            state.worst_exit = max(state.worst_exit, eval_mod._classify_verdict(verdict))
             return None
 
         monkeypatch.setattr(eval_mod, "_process_scenario_file", fake_process)
@@ -6534,16 +6631,12 @@ class TestALiveRunReportsWhatItAccumulated:
         scenario.write_text("{}")
 
         def fake_process(scenario_file, api_key, args, all_results, state):
-            state.worst_exit = max(
-                state.worst_exit, eval_mod._classify_verdict(verdict)
-            )
+            state.worst_exit = max(state.worst_exit, eval_mod._classify_verdict(verdict))
             return None
 
         monkeypatch.setattr(eval_mod, "_process_scenario_file", fake_process)
         monkeypatch.setattr(eval_mod, "_load_api_key", lambda: "key")
-        monkeypatch.setattr(
-            eval_mod, "verify_model_available", lambda api_key, model: None
-        )
+        monkeypatch.setattr(eval_mod, "verify_model_available", lambda api_key, model: None)
         argv = ["eval", "--scenarios", str(scenario)]
         if output is not None:
             argv += ["--output", str(output)]
@@ -6562,9 +6655,7 @@ class TestALiveRunReportsWhatItAccumulated:
     def test_an_external_failure_exits_three(self, monkeypatch, tmp_path):
         assert self._main_live(monkeypatch, tmp_path, "FAIL_JUDGE_ERRORS") == 3
 
-    def test_writing_the_artifact_does_not_clear_the_exit(
-        self, monkeypatch, tmp_path
-    ):
+    def test_writing_the_artifact_does_not_clear_the_exit(self, monkeypatch, tmp_path):
         """The artifact is written before the exit is returned; both must survive."""
         out = tmp_path / "results.json"
         code = self._main_live(monkeypatch, tmp_path, "FAIL_THRESHOLD", output=out)
@@ -6615,33 +6706,23 @@ class TestAHardRefusalNeverLowersTheExit:
 
         monkeypatch.setattr(eval_mod, "_process_scenario_file", fake_process)
         monkeypatch.setattr(eval_mod, "_load_api_key", lambda: "key")
-        monkeypatch.setattr(
-            eval_mod, "verify_model_available", lambda api_key, model: None
-        )
+        monkeypatch.setattr(eval_mod, "verify_model_available", lambda api_key, model: None)
         monkeypatch.setattr(sys, "argv", ["eval", "--scenarios", *scenarios])
         return eval_mod.main()
 
-    def test_a_config_refusal_does_not_lower_an_earlier_api_failure(
-        self, monkeypatch, tmp_path
-    ):
+    def test_a_config_refusal_does_not_lower_an_earlier_api_failure(self, monkeypatch, tmp_path):
         code = self._main_with(monkeypatch, tmp_path, "FAIL_JUDGE_ERRORS", 2)
         assert code == 3
 
-    def test_a_config_refusal_still_outranks_an_earlier_rule_failure(
-        self, monkeypatch, tmp_path
-    ):
+    def test_a_config_refusal_still_outranks_an_earlier_rule_failure(self, monkeypatch, tmp_path):
         code = self._main_with(monkeypatch, tmp_path, "FAIL_THRESHOLD", 2)
         assert code == 2
 
-    def test_a_refusal_after_a_clean_target_reports_the_refusal(
-        self, monkeypatch, tmp_path
-    ):
+    def test_a_refusal_after_a_clean_target_reports_the_refusal(self, monkeypatch, tmp_path):
         code = self._main_with(monkeypatch, tmp_path, "PASS", 2)
         assert code == 2
 
-    def test_a_refusal_on_the_first_target_reports_the_refusal(
-        self, monkeypatch, tmp_path
-    ):
+    def test_a_refusal_on_the_first_target_reports_the_refusal(self, monkeypatch, tmp_path):
         code = self._main_with(monkeypatch, tmp_path, None, 2)
         assert code == 2
 
@@ -6741,9 +6822,7 @@ class TestRestraintIsNeverCertifiedOnAnEmptyPool:
             ({"desc_avg": 1.0, "baseline_avg": 1.0}, "FAIL_THRESHOLD"),
         ],
     )
-    def test_it_never_preempts_a_verdict_the_run_actually_earned(
-        self, kwargs, expected
-    ):
+    def test_it_never_preempts_a_verdict_the_run_actually_earned(self, kwargs, expected):
         """Placement, not just presence.
 
         Ahead of the other gates this would replace an actionable defect with a
@@ -6855,15 +6934,11 @@ class TestAnUnreachableMechanismNeverDecidesARoutedVerdict:
     def test_the_caveat_is_withheld_when_only_the_unreachable_mechanism_missed(self):
         """The caveat and the gate read one derived number, so they cannot disagree."""
         summary = self._summary({"description": True, "full": False})
-        assert not [
-            c for c in eval_mod._render_caveats(summary) if c.startswith("Routing:")
-        ]
+        assert not [c for c in eval_mod._render_caveats(summary) if c.startswith("Routing:")]
 
     def test_the_caveat_still_fires_for_a_miss_on_the_reachable_cell(self):
         summary = self._summary({"description": False, "full": True})
-        routing = [
-            c for c in eval_mod._render_caveats(summary) if c.startswith("Routing:")
-        ]
+        routing = [c for c in eval_mod._render_caveats(summary) if c.startswith("Routing:")]
         assert len(routing) == 1
         assert "1 positive cell(s) never opened the target reference" in routing[0]
 
@@ -6911,9 +6986,7 @@ class TestAPublishedIdMustSurviveSerialization:
 
     def test_a_null_id_is_accepted(self, tmp_path):
         """Explicit null is the same statement as omitting the key."""
-        result = eval_mod._load_scenarios_file(
-            str(self._write(tmp_path, rule_id=None))
-        )
+        result = eval_mod._load_scenarios_file(str(self._write(tmp_path, rule_id=None)))
         assert not isinstance(result, int)
 
     @pytest.mark.parametrize("bad", [1, 0, 1.5, True, ["x"], {"a": 1}])
@@ -6924,9 +6997,7 @@ class TestAPublishedIdMustSurviveSerialization:
     @pytest.mark.parametrize("blank", ["", "   ", "\t"])
     def test_a_blank_id_is_refused(self, tmp_path, blank, capsys):
         """A blank id silently became the filename, so the key was never declared."""
-        assert (
-            eval_mod._load_scenarios_file(str(self._write(tmp_path, rule_id=blank))) == 2
-        )
+        assert eval_mod._load_scenarios_file(str(self._write(tmp_path, rule_id=blank))) == 2
         assert "rule_id must be a non-empty string" in capsys.readouterr().err
 
     def test_the_skill_id_is_held_to_the_same_rule(self, tmp_path):
@@ -7012,9 +7083,7 @@ class TestAGateReadsTheMeasurementNotThePrintedNumber:
             [_make_scenario(2, 5, 4), _make_scenario(5, 5, 5, negative=True)]
         )
         assert summary["rounding_would_change_verdict"] is False
-        assert not [
-            c for c in eval_mod._render_caveats(summary) if c.startswith("Precision:")
-        ]
+        assert not [c for c in eval_mod._render_caveats(summary) if c.startswith("Precision:")]
 
     @staticmethod
     def _activation_straddle():
@@ -7100,26 +7169,21 @@ class TestTheScenarioCountIsGuidanceNotAGate:
     @staticmethod
     def _write(tmp_path, positives: int, negatives: int = 1):
         scenarios = [
-            {"id": f"P{i}", "input": "x", "expected_gate": "apply-rule"}
-            for i in range(positives)
+            {"id": f"P{i}", "input": "x", "expected_gate": "apply-rule"} for i in range(positives)
         ] + [
             {"id": f"N{i}", "input": "y", "expected_gate": "skip-rule-not-applicable"}
             for i in range(negatives)
         ]
         path = tmp_path / "scenarios.json"
         path.write_text(
-            json.dumps(
-                {"rule_path": ".claude/rules/universal.md", "scenarios": scenarios}
-            ),
+            json.dumps({"rule_path": ".claude/rules/universal.md", "scenarios": scenarios}),
             encoding="utf-8",
         )
         return str(path)
 
     @pytest.mark.parametrize("positives", [1, 2, 3, 5, 20])
     def test_any_non_empty_positive_pool_is_accepted(self, tmp_path, positives):
-        assert not isinstance(
-            eval_mod._load_scenarios_file(self._write(tmp_path, positives)), int
-        )
+        assert not isinstance(eval_mod._load_scenarios_file(self._write(tmp_path, positives)), int)
 
     def test_an_empty_positive_pool_is_still_refused(self, tmp_path):
         """The one count that is a gate stays a gate."""
@@ -7134,18 +7198,14 @@ class TestTheScenarioCountIsGuidanceNotAGate:
                 continue
             counts.append(
                 sum(
-                    1
-                    for s in data["scenarios"]
-                    if s.get("expected_gate") != eval_mod.NEGATIVE_GATE
+                    1 for s in data["scenarios"] if s.get("expected_gate") != eval_mod.NEGATIVE_GATE
                 )
             )
         assert counts, "no scenario files found; the walk is wrong"
         assert min(counts) < 3, "a floor of three is now viable; revisit the README"
 
     def test_the_readme_does_not_claim_a_count_it_cannot_enforce(self):
-        readme = (REPO_ROOT / "scripts" / "eval" / "README.md").read_text(
-            encoding="utf-8"
-        )
+        readme = (REPO_ROOT / "scripts" / "eval" / "README.md").read_text(encoding="utf-8")
         assert "with 3-5 positive scenarios" not in readme
         assert "That range is guidance, not a check." in readme
 
@@ -7189,9 +7249,7 @@ class TestTheLabelNamesTheMechanismTheNumberCameFrom:
         positives = [_make_scenario(1, 4, 4) for _ in range(491)]
         positives += [_make_scenario(1, 3, 3) for _ in range(506)]
         positives += [_make_scenario(1, 3, 4) for _ in range(3)]
-        return eval_mod.aggregate(
-            [*positives, _make_scenario(5, 5, 5, negative=True)]
-        )
+        return eval_mod.aggregate([*positives, _make_scenario(5, 5, 5, negative=True)])
 
     def test_the_best_candidates_are_indistinguishable_once_printed(self):
         """Without this the fixture proves nothing about the printed value."""
@@ -7228,9 +7286,7 @@ class TestThePublishedGapMatchesTheMeasurement:
         positives = [_make_scenario(3, 4, 5) for _ in range(992)]
         positives += [_make_scenario(2, 4, 5) for _ in range(4)]
         positives += [_make_scenario(3, 5, 5) for _ in range(4)]
-        return eval_mod.aggregate(
-            [*positives, _make_scenario(5, 5, 5, negative=True)]
-        )
+        return eval_mod.aggregate([*positives, _make_scenario(5, 5, 5, negative=True)])
 
     def test_the_two_averages_print_as_round_numbers(self):
         """Without this the fixture does not exercise a double rounding."""
@@ -7263,9 +7319,7 @@ class TestThePublishedGapMatchesTheMeasurement:
             [_make_scenario(2, 5, 4), _make_scenario(5, 5, 5, negative=True)]
         )
         assert summary["delta_rounding_disagrees"] is False
-        assert not [
-            c for c in eval_mod._render_caveats(summary) if c.startswith("Delta:")
-        ]
+        assert not [c for c in eval_mod._render_caveats(summary) if c.startswith("Delta:")]
 
     def test_a_partly_graded_pool_publishes_no_measured_gap(self):
         """A gap between a full pool and a partial one describes neither."""
@@ -7289,9 +7343,9 @@ class TestThePublishedGapMatchesTheMeasurement:
 
     def test_no_third_derivation_of_the_gap_exists(self):
         """Pins derive-once: the renderer reads the published value."""
-        source = (
-            REPO_ROOT / "scripts" / "eval" / "eval-rule-activation.py"
-        ).read_text(encoding="utf-8")
+        source = (REPO_ROOT / "scripts" / "eval" / "eval-rule-activation.py").read_text(
+            encoding="utf-8"
+        )
         renderer = source[source.index("def render_table(") :]
         assert "_delta(" not in renderer
         assert "_delta_measured(" not in renderer
@@ -7338,9 +7392,7 @@ class TestAStoredRunStillRenders:
         positives = [_make_scenario(3, 4, 5) for _ in range(992)]
         positives += [_make_scenario(2, 4, 5) for _ in range(4)]
         positives += [_make_scenario(3, 5, 5) for _ in range(4)]
-        summary = eval_mod.aggregate(
-            [*positives, _make_scenario(5, 5, 5, negative=True)]
-        )
+        summary = eval_mod.aggregate([*positives, _make_scenario(5, 5, 5, negative=True)])
         assert summary["delta_description_vs_baseline"] == 1.0
         assert summary["delta_description_vs_baseline_measured"] == 1.01
         assert "+1.01" in eval_mod.render_table("some-rule", summary)
@@ -7480,8 +7532,7 @@ class TestEveryReaderOfAStoredRunIsExercisedAgainstOne:
         readers = {
             name
             for name, fn in vars(eval_mod).items()
-            if inspect.isfunction(fn)
-            and "summary" in inspect.signature(fn).parameters
+            if inspect.isfunction(fn) and "summary" in inspect.signature(fn).parameters
         }
         for name in readers:
             monkeypatch.setattr(eval_mod, name, watch(name, getattr(eval_mod, name)))
@@ -7497,8 +7548,7 @@ class TestEveryReaderOfAStoredRunIsExercisedAgainstOne:
         found = {
             name
             for name, fn in vars(eval_mod).items()
-            if inspect.isfunction(fn)
-            and "summary" in inspect.signature(fn).parameters
+            if inspect.isfunction(fn) and "summary" in inspect.signature(fn).parameters
         }
         # `_decide_verdict` also takes a summary, but only one `aggregate`
         # built, never a stored dict: it needs six further values that
@@ -7604,9 +7654,7 @@ class TestARouteResultMustSayWhetherItMatched:
         with pytest.raises(ValueError, match=r"got str 'no'"):
             eval_mod._route_missed_target(self._cell({"reference_matched": "no"}), "full")
 
-    @pytest.mark.parametrize(
-        "routing", ["corrupt", ["reference_matched"], 1, 0, 0.0, True, "", []]
-    )
+    @pytest.mark.parametrize("routing", ["corrupt", ["reference_matched"], 1, 0, 0.0, True, "", []])
     def test_a_routing_block_that_is_not_a_mapping_is_refused(self, routing):
         """Round 28 pinned this as no-miss, which was the defect, not the fix.
 
@@ -7882,8 +7930,11 @@ class TestAMechanismTheTargetCannotReachIsNotMeasured:
 
     def test_the_two_exclusions_do_not_share_a_key_name(self):
         """A rename that collapsed them again would pass every other test here."""
-        cell_key = next(k for k in eval_mod._declined_cell("") if k not in
-                        ("response_preview", "scores", "system_prompt_chars"))
+        cell_key = next(
+            k
+            for k in eval_mod._declined_cell("")
+            if k not in ("response_preview", "scores", "system_prompt_chars")
+        )
         assert cell_key == "declined"
         assert cell_key not in self._declined_run()
         assert "unreachable_mechanisms" in self._declined_run()
@@ -7931,10 +7982,7 @@ class TestThePublishedArchiveWasNotGradedOnHarnessOutput:
         contaminated = [
             (artifact, coord)
             for artifact, _rule, coord, preview in self._previews()
-            if any(
-                line.lstrip().startswith(self._TRACE_MARKERS)
-                for line in preview.splitlines()
-            )
+            if any(line.lstrip().startswith(self._TRACE_MARKERS) for line in preview.splitlines())
         ]
 
         assert contaminated == []
@@ -7943,7 +7991,4 @@ class TestThePublishedArchiveWasNotGradedOnHarnessOutput:
         """The same predicate, run against the shape it is meant to catch."""
         planted = "\u25cf tool trace\n  \u2502 ls -la\nMODEL ANSWER"
 
-        assert any(
-            line.lstrip().startswith(self._TRACE_MARKERS)
-            for line in planted.splitlines()
-        )
+        assert any(line.lstrip().startswith(self._TRACE_MARKERS) for line in planted.splitlines())
