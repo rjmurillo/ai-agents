@@ -36,11 +36,20 @@ def invoke_with_retry(  # noqa: UP047
     """Execute *func* with exponential backoff on failure.
 
     Raises the last exception after all retries are exhausted.
+
+    Raises `ValueError` when the resolved `max_retries` is below 1. The loop
+    body never runs for such a value, and the fallthrough below then reports
+    `All 0 attempts failed. Last error: None`, which reads as an exhausted
+    retry sequence for a call that was never made. `MAX_RETRIES=0` in the
+    environment reaches this, so it is a live misconfiguration, not only a
+    caller trap (issue #4121).
     """
     if max_retries is None:
         max_retries = _get_config_int("MAX_RETRIES", _DEFAULT_MAX_RETRIES)
     if initial_delay is None:
         initial_delay = _get_config_int("RETRY_DELAY", _DEFAULT_RETRY_DELAY)
+    if max_retries < 1:
+        raise ValueError(f"max_retries must be >= 1, got {max_retries!r}")
 
     delay = initial_delay
     last_error: Exception | None = None
