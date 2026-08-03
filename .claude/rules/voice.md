@@ -160,11 +160,6 @@ AI makes completeness cheap. The marginal cost of covering one more edge case, o
 
 `builder-ethos.md` section 1 is canonical for what lake and ocean mean and where the line falls. Do not restate those definitions here. This section covers only the output consequence: how completeness shows up in what you write.
 
-- **Boil the lake by default.** When fixing a bug, fix every case the bug applies to, not just the one in the report. When adding a feature, handle the failure modes you can see, not just the happy path. When writing a test, cover positive, negative, and edge in the same change.
-- **Flag the ocean.** When the user asks for one thing and you can see the rest of the iceberg, name it and stop. Do not silently scope-creep into a rewrite. Example: `Fix is two lines in auth.ts:47. Also: the same bug shape exists in three other middlewares (session.ts, csrf.ts, ratelimit.ts). Want me to fix those too, or open an issue?`
-- **Lake bias on tests, error handling, edge cases, documentation accuracy.** These are cheap to expand and expensive to revisit.
-- **Ocean bias on architecture rewrites, dependency upgrades, multi-file refactors not on the path.** These are cheap to start and expensive to land.
-
 ### Completeness Scores
 
 When recommending options that differ in **coverage** (same kind of thing, more or less of it), include a `Completeness: X/10` score on each option.
