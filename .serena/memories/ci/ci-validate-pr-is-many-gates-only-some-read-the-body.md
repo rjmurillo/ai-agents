@@ -2,8 +2,8 @@
 
 ## First: a red `Validate PR` is usually not about the description at all
 
-`Validate PR` is a 23-step job as of `origin/main` at `03dc6a9ca` (2026-08-03).
-Description validation is steps 5 through 10. Steps 11 through 23 are separate gates
+`Validate PR` is a 25-step job as of `origin/main` at `092c934d7` (2026-08-03).
+Description validation is steps 6 through 11. Steps 12 through 25 are separate gates
 that share the check name and can red it on their own.
 
 Parse the workflow rather than grepping it, and parse it in a tree that is actually
@@ -20,21 +20,25 @@ d=yaml.safe_load(pathlib.Path('.github/workflows/pr-validation.yml').read_text()
 
 | Step | Hard? | Fails when |
 |---|---|---|
-| 5. Validate PR Description vs Diff | **no** | never. Maps the verdict into `validation_result` and returns 0 |
-| 6. Validate PR Description Standards | hard | the standards validator errors |
-| 7. Check QA Report Exists | hard | the step errors; a missing report only warns |
-| 8. Generate Validation Report | **no** | never. `build_pr_validation_report.py` ends in an unconditional `return 0` |
-| 9. Post PR Comment | **soft** | never reds the job |
-| 11. Check PR commit count | hard | the counting step errors |
-| 12, 13. needs-split label ops | **soft** | never red the job |
-| 14. Enforce Blocking Issues | hard | `OVERALL_STATUS` is `FAIL`/`ERROR`, or `COMMIT_STATUS` is `BLOCKED` |
-| 17. Validate workflow YAML | hard | a changed workflow does not parse or lint |
-| 18. Check bare-python3 documentation entrypoints | hard | docs invoke bare `python3` where `uv run` is required |
-| 19. ADR-006 run-block ratchet | hard | inline logic added to workflow YAML |
-| 20. taste-lint error-count ratchet | hard | the recorded baseline sits above the base branch's |
-| 21. type-ignore count ratchet | hard | type-ignore count rose |
-| 22. Check for conflict markers | hard | a merge marker survived into the diff |
-| 23. Enforce model pin policy | hard | a model reference is unpinned |
+| 6. Validate PR Description vs Diff | **no** | never. Maps the verdict into `validation_result` and returns 0 |
+| 7. Validate PR Description Standards | hard | the standards validator errors |
+| 8. Check QA Report Exists | hard | the step errors; a missing report only warns |
+| 9. Generate Validation Report | **no** | never. `build_pr_validation_report.py` ends in an unconditional `return 0` |
+| 10. Post PR Comment | **soft** | never reds the job |
+| 11. Set Job Summary | hard | the step errors (writes the summary output) |
+| 12. Check PR commit count | hard | the counting step errors |
+| 13, 14. needs-split label ops | **soft** | never red the job |
+| 15. Enforce Blocking Issues | hard | `OVERALL_STATUS` is `FAIL`/`ERROR`, or `COMMIT_STATUS` is `BLOCKED` |
+| 16. Checkout repository for workflow validation | hard | checkout fails |
+| 17. Setup uv for workflow validation | hard | uv setup fails |
+| 18. Validate workflow YAML | hard | a changed workflow does not parse or lint |
+| 19. Check bare-python3 documentation entrypoints | hard | docs invoke bare `python3` where `uv run` is required |
+| 20. Run ADR-006 run-block ratchet | hard | inline logic added to workflow YAML |
+| 21. Run taste-lint error-count ratchet | hard | the recorded baseline sits above the base branch's |
+| 22. Run type-ignore count ratchet | hard | type-ignore count rose |
+| 23. Run merge-tree ratchet | hard | merged result breaches a ratchet ceiling |
+| 24. Check for conflict markers | hard | a merge marker survived into the diff |
+| 25. Enforce model pin policy | hard | a model reference is unpinned |
 
 Three consequences that are easy to miss.
 
@@ -43,11 +47,11 @@ step.** This is the single most misleading thing about this job. Steps 5 and 8 b
 compute a verdict and then exit 0, writing it into a step output instead of failing:
 
 ```python
-# scripts/ci/map_pr_description_result.py  (step 5)
+# scripts/ci/map_pr_description_result.py  (step 6)
 return _append_output("validation_result", _status_for_exit_code(result.returncode))
 ```
 
-`scripts/ci/enforce_pr_validation.py` (step 14) is the only script in the description
+`scripts/ci/enforce_pr_validation.py` (step 15) is the only script in the description
 path that returns 1:
 
 ```python
@@ -61,10 +65,11 @@ failing step name," is necessary but not sufficient: the name you get for a bad
 description is `Enforce Blocking Issues`, and chasing issue links from there wastes
 the trip. Read the step's `OVERALL_STATUS` and `COMMIT_STATUS` inputs instead.
 
-**Steps 16 through 23 carry no `if` guard.** Steps 3 through 14 are gated on
-`steps.should-run.outputs.skip != 'true'`, and step 15 runs only on the inverse. So on
-a PR where description validation is skipped, `Validate PR` still runs eight gates and
-can still go red. A red check is not evidence that the description was even read.
+**Steps 17 through 25 carry no `if` guard.** Steps 3 through 15 are gated on
+`steps.should-run.outputs.skip != 'true'`, and step 16 runs only on the inverse
+(`skip == 'true'`). So on a PR where description validation is skipped, `Validate PR`
+still runs nine gates and can still go red. A red check is not evidence that the
+description was even read.
 
 **The count ratchets fail on branch staleness, not on anything the branch did.**
 `BASELINE ABOVE BASE. This tree records 598, FETCH_HEAD records 597` means main
