@@ -41,6 +41,7 @@ import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -386,7 +387,7 @@ class TestSelect:
 # ===========================================================================
 
 
-def _stamped(lease: Lease, author: str) -> Lease:
+def _stamped(lease: Any, author: str) -> Any:
     from dataclasses import replace
 
     return replace(lease, author=author)
