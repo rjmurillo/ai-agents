@@ -14,7 +14,9 @@
       155
     ],
     "code-qualities-assessment/scripts/assess.py": [
-      414
+      455,
+      491,
+      512
     ],
     "codeql-scan/scripts/invoke_codeql_scan.py": [
       59
@@ -63,7 +65,7 @@
       312
     ],
     "github/scripts/pr/get_pr_comments_by_reviewer.py": [
-      69
+      70
     ],
     "github/scripts/pr/get_pr_context.py": [
       96,
@@ -76,7 +78,7 @@
       207
     ],
     "github/scripts/pr/get_pr_reviewers.py": [
-      94
+      107
     ],
     "github/scripts/pr/get_pull_requests.py": [
       150
