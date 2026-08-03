@@ -40,7 +40,7 @@ def make_repo(tmp_path: Path, files: dict[str, str]) -> Path:
     return tmp_path
 
 
-def write_baseline(repo: Path, files: dict[str, int]) -> Path:
+def write_baseline(repo: Path, files: dict[str, int | list[str]]) -> Path:
     """Write a baseline JSON and return its path."""
     path = repo / "baseline.json"
     path.write_text(json.dumps({"files": files}), encoding="utf-8")
@@ -59,7 +59,7 @@ def test_bare_interpreter_with_third_party_import_is_flagged(tmp_path: Path) -> 
         },
     )
 
-    assert scan(repo) == {"README.md": 1}
+    assert scan(repo) == {"README.md": ["tool.py"]}
 
 
 def test_cli_exits_1_when_a_clean_file_starts_offending(
@@ -89,7 +89,7 @@ def test_transitive_local_import_reaches_third_party(tmp_path: Path) -> None:
     )
 
     assert third_party_imports("entry.py", repo, {"pkg/loader.py", "entry.py"}) == {"yaml"}
-    assert scan(repo) == {"README.md": 1}
+    assert scan(repo) == {"README.md": ["entry.py"]}
 
 
 def test_subprocess_wrapper_reaches_third_party_dependency(tmp_path: Path) -> None:
@@ -112,7 +112,7 @@ def test_subprocess_wrapper_reaches_third_party_dependency(tmp_path: Path) -> No
     )
 
     assert third_party_imports("entry.py", repo, {"entry.py", "validate.py"}) == {"jsonschema"}
-    assert scan(repo) == {"README.md": 1}
+    assert scan(repo) == {"README.md": ["entry.py"]}
 
 
 def test_dot_directory_script_path_is_flagged(tmp_path: Path) -> None:
@@ -130,7 +130,7 @@ def test_dot_directory_script_path_is_flagged(tmp_path: Path) -> None:
         },
     )
 
-    assert scan(repo) == {"README.md": 1}
+    assert scan(repo) == {"README.md": [".claude/skills/x/scripts/tool.py"]}
 
 
 def test_relative_dot_slash_script_path_is_flagged(tmp_path: Path) -> None:
@@ -140,7 +140,7 @@ def test_relative_dot_slash_script_path_is_flagged(tmp_path: Path) -> None:
         {"scripts/tool.py": "import yaml\n", "README.md": "Run `python3 ./scripts/tool.py`.\n"},
     )
 
-    assert scan(repo) == {"README.md": 1}
+    assert scan(repo) == {"README.md": ["scripts/tool.py"]}
 
 
 def test_class_body_import_runs_at_import_time_and_is_flagged(tmp_path: Path) -> None:
@@ -415,7 +415,7 @@ def test_declaration_two_lines_above_does_not_suppress(tmp_path: Path) -> None:
         },
     )
 
-    assert scan(repo) == {"doc.md": 1}
+    assert scan(repo) == {"doc.md": ["tool.py"]}
 
 
 def test_declaration_does_not_cover_a_sibling_offense_in_the_same_file(tmp_path: Path) -> None:
@@ -432,7 +432,7 @@ def test_declaration_does_not_cover_a_sibling_offense_in_the_same_file(tmp_path:
         },
     )
 
-    assert scan(repo) == {"doc.md": 1}
+    assert scan(repo) == {"doc.md": ["tool.py"]}
 
 
 def test_python_usage_docstring_is_an_offense(tmp_path: Path) -> None:
@@ -442,7 +442,7 @@ def test_python_usage_docstring_is_an_offense(tmp_path: Path) -> None:
         {"tool.py": '"""Usage:\n\n    python3 tool.py --check\n"""\n\nimport yaml\n'},
     )
 
-    assert scan(repo) == {"tool.py": 1}
+    assert scan(repo) == {"tool.py": ["tool.py"]}
 
 
 def test_unreadable_baseline_exits_2(tmp_path: Path) -> None:
@@ -463,7 +463,7 @@ def test_update_baseline_writes_current_counts(tmp_path: Path) -> None:
     exit_code = main(["--repo-root", str(repo), "--baseline", str(baseline), "--update-baseline"])
 
     assert exit_code == 0
-    assert json.loads(baseline.read_text(encoding="utf-8"))["files"] == {"README.md": 1}
+    assert json.loads(baseline.read_text(encoding="utf-8"))["files"] == {"README.md": ["tool.py"]}
 
 
 def test_update_baseline_refuses_count_increase(

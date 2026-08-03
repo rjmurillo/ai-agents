@@ -1,24 +1,35 @@
-"""Fact and pattern extraction from tool results.
+"""Failure pattern extraction from tool results.
 
-Extracts learnable patterns from tool failures and facts from
-successful tool output. Used by the post_tool_call hook.
+Extracts a learnable pattern from a tool failure and formats it as a
+memory suggestion. Used by the post_tool_call hook.
 """
 
 from __future__ import annotations
 
 import re
 
-_ERROR_INDICATORS = frozenset({
+_ERROR_INDICATORS = (
     "error", "exception", "traceback", "failed", "failure",
     "permission denied", "not found", "timeout",
-})
+)
+
+# An indicator glued to an identifier separator is part of a name, not a
+# report. A bare substring test read "failure" inside `analyze_pr_failure.py`,
+# so a plain `ls scripts` looked like a tool failure and injected a memory
+# suggestion into the model context (issue #4011). Only `_` and `-` are
+# excluded on each side: a letter boundary must stay open for "ValueError" and
+# a trailing letter must stay open for "3 errors".
+_ERROR_PATTERN = re.compile(
+    r"(?<![-_])(?:"
+    + "|".join(re.escape(word) for word in _ERROR_INDICATORS)
+    + r")(?![-_])",
+    re.IGNORECASE,
+)
 
 # Patterns that look like errors but indicate success (e.g. "0 errors", "no errors").
 _FALSE_POSITIVE_PATTERN = re.compile(
     r"\b(?:0|no|zero|without)\s+(?:error|exception|failure)s?\b", re.IGNORECASE
 )
-
-_CONTENT_INDICATORS = (".py", ".ts", ".js", ".md", "def ", "class ", "function ")
 
 _MAX_PATTERN_LENGTH = 200
 _MAX_SUGGESTION_LENGTH = 300
@@ -48,42 +59,13 @@ def extract_error_pattern(tool_name: str, error_text: str) -> dict[str, str]:
     }
 
 
-def extract_facts(tool_name: str, result_text: str) -> list[dict[str, str]]:
-    """Extract facts from successful tool output.
-
-    Identifies lines containing file paths or code references.
-    Each fact is a dict with tool_name, content, and type.
-
-    Args:
-        tool_name: Name of the tool that produced output.
-        result_text: Output from the tool call.
-
-    Returns:
-        List of dicts with keys: tool_name, content, type.
-    """
-    facts: list[dict[str, str]] = []
-    for line in result_text.splitlines():
-        stripped = line.strip()
-        if not stripped:
-            continue
-        lower = stripped.lower()
-        if any(ind in lower for ind in _CONTENT_INDICATORS):
-            facts.append({
-                "tool_name": tool_name,
-                "content": stripped[:_MAX_SUGGESTION_LENGTH],
-                "type": "observation",
-            })
-    return facts
-
-
 def format_suggestion(pattern: dict[str, str]) -> str:
     """Format a memory suggestion for stderr output.
 
-    Accepts either an error pattern dict or a fact dict and
-    formats it as a tagged suggestion block.
+    Formats an error pattern dict as a tagged suggestion block.
 
     Args:
-        pattern: Dict from extract_error_pattern or extract_facts.
+        pattern: Dict from extract_error_pattern.
 
     Returns:
         Formatted suggestion string for stderr.
@@ -123,24 +105,16 @@ def has_error_indicators(result_text: str) -> bool:
     Filters out false positives like '0 errors' or 'no errors' that
     indicate success rather than failure.
     """
-    lower = result_text.lower()
-    if not any(indicator in lower for indicator in _ERROR_INDICATORS):
+    if not _ERROR_PATTERN.search(result_text):
         return False
     # Strip false-positive phrases before re-checking.
-    cleaned = _FALSE_POSITIVE_PATTERN.sub("", lower)
-    return any(indicator in cleaned for indicator in _ERROR_INDICATORS)
-
-
-def has_notable_content(result_text: str) -> bool:
-    """Check if the result contains file paths or code references."""
-    lower = result_text.lower()
-    return any(ind in lower for ind in _CONTENT_INDICATORS)
+    cleaned = _FALSE_POSITIVE_PATTERN.sub("", result_text)
+    return bool(_ERROR_PATTERN.search(cleaned))
 
 
 def _find_error_line(result_text: str) -> str:
     """Extract the first error-like line from the result."""
     for line in result_text.splitlines():
-        lower = line.lower().strip()
-        if any(ind in lower for ind in _ERROR_INDICATORS):
+        if _ERROR_PATTERN.search(line):
             return line.strip()[:_MAX_PATTERN_LENGTH]
     return result_text[:_MAX_PATTERN_LENGTH]
