@@ -934,6 +934,10 @@ class TestBotSkipGuardClassification:
     _ALLOWED_BEHIND_GUARD: frozenset[str] = frozenset(
         {
             "Checkout repository",
+            # Tool installs, not gates. `Setup uv` must precede the first
+            # `uv run` in the job; skipping it on a bot PR skips nothing the
+            # gate measures because every step that consumes it is guarded too.
+            "Setup uv",
             "Setup PowerShell",
             "Validate PR Description vs Diff",
             "Validate PR Description Standards",
