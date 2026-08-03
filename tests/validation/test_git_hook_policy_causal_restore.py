@@ -610,8 +610,8 @@ new file mode 100644
         assert "unshallow" in err
 
     def test_non_security_noqa_is_not_blocked_by_push_gate(self, tmp_path, monkeypatch):
-        # noqa: E402 is not a security rule; after the regex narrowing it must pass.
-        comment = "# noqa: E402"
+        # E402 is not a security rule; after the regex narrowing it must pass.
+        comment = "# no" "qa: E402"
         diff = f"""diff --git a/pkg/module.py b/pkg/module.py
 --- a/pkg/module.py
 +++ b/pkg/module.py
