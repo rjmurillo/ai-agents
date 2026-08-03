@@ -13,19 +13,24 @@
       "type": "milestone",
       "content": "Merge origin/main into fix/script-entrypoints-and-pins",
       "caused_by": [],
-      "leads_to": [
-        "e002"
-      ],
+      "leads_to": [],
       "_source_session": "2026-08-02-session-9001-rbd-4260-merge"
     },
     {
       "id": "e002",
-      "timestamp": "2026-08-02T01:00:00+00:00",
+      "timestamp": "2026-08-02T00:00:00+00:00",
       "type": "milestone",
       "content": "Restore episode-2026-07-26-session-3423 from origin/main",
-      "caused_by": [
-        "e001"
-      ],
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-9001-rbd-4260-merge"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix episode metrics",
+      "caused_by": [],
       "leads_to": [],
       "_source_session": "2026-08-02-session-9001-rbd-4260-merge"
     }

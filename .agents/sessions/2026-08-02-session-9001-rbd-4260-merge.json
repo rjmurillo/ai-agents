@@ -123,6 +123,10 @@
       "timestamp": "2026-08-02T01:00:00+00:00",
       "action": "Restore episode-2026-07-26-session-3423 from origin/main",
       "details": "PR branch carried old episode version with backward commit edges e005->e006. Restored from origin/main which has the fix from commit 77e305c6e (PR #4282)."
+    },
+    {
+      "action": "fix episode metrics",
+      "detail": "Set commits=1 in episode file (was 0)"
     }
   ],
   "nextSteps": [],
