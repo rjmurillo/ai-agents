@@ -612,6 +612,11 @@ def _baseline_payload_at_ref(
     try:
         rel = baseline_path.resolve().relative_to(root.resolve()).as_posix()
     except ValueError:
+        print(
+            f"Could not read {baseline_path} at {base_ref}: the baseline is "
+            f"outside the repository root {root}",
+            file=sys.stderr,
+        )
         return None
     try:
         proc = subprocess.run(

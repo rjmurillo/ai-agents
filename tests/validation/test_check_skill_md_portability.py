@@ -1564,6 +1564,8 @@ class TestBaselineSemanticConflictGuard:
             check=True,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         ).stdout.strip()
         (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
             "Clean prose.\n", encoding="utf-8"
@@ -1597,6 +1599,43 @@ class TestBaselineSemanticConflictGuard:
 
         assert rc == 1
         assert "Semantic baseline conflict" in capsys.readouterr().out
+
+    def test_a_baseline_outside_the_repo_says_so_instead_of_failing_mutely(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Edge: the one fail-closed path that used to return None in silence.
+
+        Every other way ``_baseline_payload_at_ref`` gives up names the reason
+        on stderr. A baseline resolving outside the repository root did not, so
+        the guard reported nothing and the caller only saw a missing ratchet.
+        """
+        root = tmp_path / "repo"
+        root.mkdir()
+        outside = tmp_path / "elsewhere" / "baseline.json"
+
+        assert cmp._baseline_payload_at_ref(root, "HEAD", outside) is None
+
+        err = capsys.readouterr().err
+        assert str(outside) in err
+        assert str(root) in err
+        assert "outside the repository root" in err
+
+    def test_a_baseline_inside_the_repo_is_not_blamed_on_its_location(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Negative control: an in-tree baseline fails for its own reason.
+
+        Without this, the assertions above pass for a build that prints the
+        outside-the-root complaint on every failure.
+        """
+        self._init_repo(tmp_path)
+        missing = tmp_path / "no-such-baseline.json"
+
+        assert cmp._baseline_payload_at_ref(tmp_path, "HEAD", missing) is None
+
+        err = capsys.readouterr().err
+        assert "outside the repository root" not in err
+        assert "no-such-baseline.json" in err
 
     def test_new_marker_declaration_is_allowed_against_base_ref(
         self, tmp_path: Path
