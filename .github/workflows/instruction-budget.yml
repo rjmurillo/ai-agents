@@ -8,7 +8,9 @@
 # Exit codes: 0 = pass, 1 = budget exceeded, 2 = config error (ADR-035).
 #
 # IMPORTANT: This workflow runs on ALL PRs to satisfy required status checks,
-# but skips actual validation when no relevant files are changed.
+# but skips actual validation when no relevant files are changed. A push to
+# main always validates, because the budget scores the whole corpus and the
+# skip path reports a fresh green tick without measuring the tree.
 
 name: Instruction Budget
 
@@ -60,6 +62,12 @@ jobs:
           FILTER_OUTPUTS: ${{ toJson(steps.filter.outputs) }}
           FILTER_KEYS: rules,validator
           OUTPUT_NAME: should-run-budget
+          # The budget scores the whole .github/instructions corpus, not the
+          # diff, so a push to main must always measure it. When the filter
+          # misses, Validate budget is skipped and Skip budget reports success
+          # in its place, which is a green tick that asserts nothing about the
+          # tree. See the should_run docstring for the measured case.
+          FORCE_RUN_EVENTS: push
         run: python3 scripts/workflows/determine_should_run_from_filters.py
 
   validate-budget:
