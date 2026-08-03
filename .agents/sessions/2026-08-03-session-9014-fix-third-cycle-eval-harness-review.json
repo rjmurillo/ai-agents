@@ -1,0 +1,156 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 9014,
+    "date": "2026-08-03",
+    "branch": "fix/eval-harness-p2",
+    "startingCommit": "7e1eed8d8",
+    "objective": "Fix third-cycle eval harness P2 review defects"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "API harness has no Serena MCP surface; used the AGENTS.md file fallback under .serena/memories"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Reused the loaded memory index and project instructions from the immediately preceding branch sessions"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read and verified .agents/sessions/handoffs/2026-08-03-4123-handoff.md before edits"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used repository GitHub scripts for issue context, reopening #4123, and PR #4451 verification"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Reused .serena/memories/usage-mandatory.md from the preceding branch sessions"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Applied root, scripts, Python, testing, generated-artifact, security, and build instructions"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded and updated .serena/memories/eval-harness-observations.md"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/eval-harness-p2"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/eval-harness-p2"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Clean branch at 7e1eed8d8, 24 ahead and 5 behind before session log creation"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "7e1eed8d8"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All required start and end evidence recorded"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md unchanged; per-issue handoff refreshed"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Updated eval-harness-observations.md in commit c50282b05"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Only .agents Markdown changed; repository markdownlint configuration excludes .agents"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Code, memory, and final main merges committed through 4ad00c94f"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Final pre_pr.py and validate_session_json.py exit 0"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "UPDATE todos set fix-eval-harness-p2 to done; one row affected and verified"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Merged fresh origin/main and resolved the fingerprint conflicts",
+      "outcome": "Kept main's centralized normalize_fingerprint seam while changing its malformed branch to the typed refusal contract; flipped the merged sentinel tests and recorded merges ccf576d63, 27a142f86, and 4ad00c94f"
+    },
+    {
+      "action": "Audited issue and pull request closure claims",
+      "outcome": "PR #4451 is merged but says Refs #4123 and Partially addressed; reopened #4123 with that evidence and verified state OPEN"
+    },
+    {
+      "action": "Removed raw Copilot process output from serializable exceptions",
+      "outcome": "Bounded inspection now selects one fixed safe hint; the persisted-artifact probe writes mechanism and judge errors to JSON and proves a credential token is absent"
+    },
+    {
+      "action": "Validated Copilot transcript model metadata before attribution",
+      "outcome": "Present non-string model values raise MalformedProviderMetadataError before the unverified-model opt-in; normal and opted-in probes each observe one subprocess call"
+    },
+    {
+      "action": "Ran mutation inversions after clearing __pycache__",
+      "outcome": "Raw-stderr serialization failed both credential probes; malformed-as-absent failed both call-count probes"
+    },
+    {
+      "action": "Ran full tests and local quality gates",
+      "outcome": "1113 tests passed with 1 unrelated skip; exact probes passed 4 of 4; ruff, scoped mypy, C901, sync, generation, security-scan, and final pre-PR all exit 0"
+    },
+    {
+      "action": "Ran security scans",
+      "outcome": "security-scan found zero CWE-78 findings across five eval files; Bandit reported six existing low findings and no medium or high finding"
+    },
+    {
+      "action": "Updated the orchestrator todo ledger",
+      "outcome": "Executed the required done update for fix-eval-harness-p2 and verified exactly one row changed"
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Route the external process and metadata boundaries to security PIV before merge",
+    "Keep #4123 open until this typed refusal implementation lands",
+    "Push or open a pull request only after explicit user approval"
+  ]
+}
