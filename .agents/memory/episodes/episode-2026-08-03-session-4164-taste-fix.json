@@ -12,21 +12,17 @@
       "timestamp": "2026-08-03T00:00:00+00:00",
       "type": "milestone",
       "content": "Restore taste-lint ignore comment in .agents/SESSION-PROTOCOL.md",
-      "caused_by": [
-        "e002"
-      ],
+      "caused_by": [],
       "leads_to": [],
       "_source_session": "2026-08-03-session-4164-taste-fix"
     },
     {
       "id": "e002",
-      "timestamp": "2026-08-02T19:10:59+00:00",
+      "timestamp": "2026-08-03T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 90524a8ad",
       "caused_by": [],
-      "leads_to": [
-        "e001"
-      ],
+      "leads_to": [],
       "_source_session": "2026-08-03-session-4164-taste-fix"
     }
   ],

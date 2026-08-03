@@ -130,6 +130,6 @@
       "notes": "Change to SESSION-PROTOCOL.md is a formatting correction (adding taste-lint suppression comment), not an ADR-level protocol change. No ADR Review Protocol needed. adr-review skill not applicable here."
     }
   ],
-  "endingCommit": "62f9bb1c2",
+  "endingCommit": "",
   "nextSteps": []
 }
