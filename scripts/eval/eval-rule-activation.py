@@ -44,11 +44,15 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import datetime
 import difflib
+import hashlib
 import json
 import math
+import os
 import re
 import statistics
+import subprocess
 import sys
 import time
 from collections.abc import Callable, Iterator
@@ -60,7 +64,7 @@ from _anthropic_api import call_api as _call_api
 from _anthropic_api import (
     load_api_key_for_selected_provider as _load_api_key,
 )
-from _eval_common import EST_TOKENS_PER_CALL
+from _eval_common import EST_TOKENS_PER_CALL, cost_basis
 
 # ---------------------------------------------------------------------------
 # Config
@@ -2349,6 +2353,45 @@ def _process_one_rule(
     }, n_calls
 
 
+def _build_run_provenance(args: argparse.Namespace) -> dict[str, Any]:
+    """Collect run metadata so result artifacts are self-describing."""
+    commit_sha = ""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            cwd=REPO_ROOT,
+        )
+        if result.returncode == 0:
+            commit_sha = result.stdout.strip()
+    except (FileNotFoundError, OSError, subprocess.SubprocessError):
+        pass
+
+    scenario_hash = ""
+    try:
+        h = hashlib.sha256()
+        for scenario in args.scenarios:
+            h.update(str(scenario).encode("utf-8"))
+            h.update(b"\0")
+            h.update(Path(scenario).read_bytes())
+        scenario_hash = h.hexdigest()[:16]
+    except OSError:
+        pass
+
+    provider = os.environ.get("EVAL_PROVIDER") or "anthropic"
+    return {
+        "provider": provider,
+        "requested_model": args.model,
+        "timestamp_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "git_commit": commit_sha,
+        "scenario_hash": scenario_hash,
+    }
+
+
 def main() -> int:
     args = _parse_args()
     if args.judge_repeats < 1:
@@ -2372,6 +2415,9 @@ def main() -> int:
 
     all_results: dict[str, Any] = {
         "schema_version": RESULTS_SCHEMA_VERSION,
+        "run": _build_run_provenance(args),
+        "model_id": args.model,
+        "seed": args.seed,
         "rules": {},
     }
     state = _RunState()
@@ -2484,11 +2530,21 @@ def _classify_verdict(verdict: str) -> int:
 
 
 def _print_dry_run_summary(total_calls: int) -> None:
-    est_tokens = total_calls * EST_TOKENS_PER_CALL
-    est_cost = est_tokens / 1_000_000 * 3
-    print(f"\nTotal calls planned: {total_calls}")
-    print(f"Estimated tokens: ~{est_tokens:,} (~${est_cost:.2f} sonnet input rate)")
+    """Print the plan, pricing it only when the transport bills in dollars.
 
+    `cost_basis` resolves the provider the same way the transport does, so this
+    does not re-derive it. A provider metered against a request allowance gets
+    the call count and no dollar figure: there is no public per-token rate to
+    convert, and a fabricated one is worse than none because a reader budgets
+    against it.
+    """
+    est_tokens = total_calls * EST_TOKENS_PER_CALL
+    print(f"\nTotal calls planned: {total_calls}")
+    if cost_basis(None) == "requests":
+        print(f"Estimated tokens: ~{est_tokens:,} (metered as requests, not billed per token)")
+        return
+    est_cost = est_tokens / 1_000_000 * 3
+    print(f"Estimated tokens: ~{est_tokens:,} (~${est_cost:.2f} sonnet input rate)")
 
 if __name__ == "__main__":
     sys.exit(main())
