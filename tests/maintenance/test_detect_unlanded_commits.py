@@ -73,7 +73,7 @@ class TestCommitCount:
 
 
 class TestScan:
-    def _mock_git_responses(self, branches: list[str], tip: str, count: int) -> MagicMock:
+    def _mock_git_responses(self, branches: list[str], tip: str, count: int) -> object:
         def side_effect(args: list[str], _repo: str) -> MagicMock:
             if args[0] == "branch":
                 return _make_run(0, stdout="\n".join(branches) + "\n")
