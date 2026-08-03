@@ -921,7 +921,7 @@ Copy this checklist to each session log and verify completion:
 | MUST | Security review export (if exported): `grep -iE "api[_-]?key|password|token|secret|credential|private[_-]?key" [file].json` | [ ] | Scan result: "Clean" or "Redacted" |
 | MUST | Complete session log (all sections filled) | [ ] | File complete |
 | MUST | Update Serena memory (cross-session context) | [ ] | Memory write confirmed |
-| MUST | Run markdown lint | [ ] | Lint read N files, output clean |
+| MUST | Run markdown lint | [ ] | Lint read N files, output clean, or lint read 0 files with `NOT LINTED` reason recorded |
 | MUST | Route to qa agent (feature implementation) | [ ] | QA report: `.agents/qa/[report].md` OR `SKIPPED: investigation-only` |
 | MUST | Run pre-PR validation: `uv run python scripts/validation/pre_pr.py` | [ ] | Exit code 0 |
 | MUST | Commit all changes (including .serena/memories) | [ ] | Commit SHA: _______ |
