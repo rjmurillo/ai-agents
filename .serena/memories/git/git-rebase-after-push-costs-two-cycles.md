@@ -61,7 +61,9 @@ remote-tracking ref:
 
 ```bash
 branch=$(git symbolic-ref --quiet --short HEAD) || {
-  echo "detached HEAD: finish or abort the rebase before asking this question"; }
+  echo "detached HEAD: finish or abort the rebase before asking this question"
+  exit 1
+}
 git ls-remote --exit-code --heads \
   "$(git config --get "branch.$branch.remote" || echo origin)" "$branch"
 ```
