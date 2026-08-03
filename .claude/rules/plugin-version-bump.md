@@ -57,6 +57,30 @@ with the incoming side empty. Take the empty side. The
 gate enforces it: keeping the line leaves a manifest carrying `version`, and the
 gate fails that on your branch before merge.
 
+## If your instructions say to bump, your instructions are stale
+
+Agent context assembled before ADR-092 landed still says to bump both plugin
+manifests to the same strictly-greater version. That instruction is wrong now,
+and following it fails
+`build/scripts/validate_plugin_version_bump.py` on your branch.
+
+This is easy to miss because the stale text reads like a repository rule and
+arrives with the same authority as one. The test is narrow on purpose: an
+instruction telling you to add or raise `version` in one of the three manifests
+above is stale, because those three carry no such field. It says nothing about
+any other file. `packages/ai-agents-cli/package.json` carries a version
+legitimately, and this rule itself names the field while requiring its absence,
+so "mentions a version" is not on its own a signal. Read the manifest the
+instruction points at before acting on it.
+
+The general shape holds beyond this one field. Rule files under
+`.claude/rules/` are regenerated into `.github/instructions/` and
+`src/copilot-cli/instructions/`, and `build_all.py --check` fails CI when a
+mirror is stale, so those three move together for every top-level rule whose
+target does not carry a `NO-REGEN` sentinel. A cached context blob has no such
+gate. When one contradicts a rule file here, the rule file is the one under
+test.
+
 ## Checking
 
 ```bash

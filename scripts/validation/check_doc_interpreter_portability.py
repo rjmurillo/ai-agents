@@ -330,10 +330,10 @@ def find_offenses(line: str, repo_root: Path, tracked_py: set[str]) -> list[tupl
     return offenses
 
 
-def scan(repo_root: Path, details: dict[str, list[str]] | None = None) -> dict[str, int]:
-    """Return {file path: undeclared unportable invocation count} for in-scope files."""
+def scan(repo_root: Path, details: dict[str, list[str]] | None = None) -> dict[str, list[str]]:
+    """Return {file path: sorted script paths} -- identity keys for swap detection (#4292)."""
     tracked_py = set(tracked_files(repo_root, "*.py"))
-    counts: dict[str, int] = {}
+    counts: dict[str, list[str]] = {}
     for rel in tracked_files(repo_root, "*.md", "*.py"):
         if not is_in_scope(rel):
             continue
@@ -344,24 +344,27 @@ def scan(repo_root: Path, details: dict[str, list[str]] | None = None) -> dict[s
             lines = path.read_text(encoding="utf-8").splitlines()
         except (OSError, UnicodeDecodeError):
             continue
-        total = 0
+        scripts: list[str] = []
         for index, line in enumerate(lines):
             if is_declared(lines, index):
                 continue
             offenses = find_offenses(line, repo_root, tracked_py)
-            total += len(offenses)
-            if details is not None:
-                details.setdefault(rel, []).extend(
-                    f"{rel}:{index + 1}: {script} imports {', '.join(modules)}"
-                    for script, modules in offenses
-                )
-        if total:
-            counts[rel] = total
+            for script, modules in offenses:
+                scripts.append(script)
+                if details is not None:
+                    details.setdefault(rel, []).append(
+                        f"{rel}:{index + 1}: {script} imports {', '.join(modules)}"
+                    )
+        if scripts:
+            counts[rel] = sorted(set(scripts))
     return counts
 
 
-def load_baseline(path: Path) -> dict[str, int]:
-    """Load the grandfathered per-file counts."""
+_BaselineValue = list[str] | int
+
+
+def load_baseline(path: Path) -> dict[str, _BaselineValue]:
+    """Load per-file entries as list (identity) or int (legacy count)."""
     if not path.is_file():
         raise FileNotFoundError(f"Baseline file not found: {path}")
     data = json.loads(path.read_text(encoding="utf-8"))
@@ -370,54 +373,62 @@ def load_baseline(path: Path) -> dict[str, int]:
     files = data.get("files", data)
     if not isinstance(files, dict):
         raise ValueError("Baseline 'files' must be a JSON object")
-    baseline: dict[str, int] = {}
+    out: dict[str, _BaselineValue] = {}
     for key, value in files.items():
-        try:
-            baseline[str(key)] = int(value)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"Baseline count for {key!r} is not an integer") from exc
-    return baseline
+        if isinstance(value, list):
+            out[str(key)] = [str(v) for v in value]
+        else:
+            try:
+                out[str(key)] = int(value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"Baseline value for {key!r} is not valid") from exc
+    return out
 
 
 def diff_against_baseline(
-    current: dict[str, int],
-    baseline: dict[str, int],
+    current: dict[str, list[str]],
+    baseline: dict[str, _BaselineValue],
     details: dict[str, list[str]] | None = None,
 ) -> tuple[list[str], list[str]]:
-    """Return (regressions, improvements) comparing current counts to baseline."""
-    regressions = [
-        f"{rel}: {count} documented bare-interpreter invocation(s) of a script with "
-        f"third-party imports (baseline {baseline.get(rel, 0)}). Use "
-        f"'uv run python <script>' so the project environment supplies the "
-        f"dependencies (issue #3791)."
-        + (f" Offenses: {'; '.join(details.get(rel, []))}" if details else "")
-        for rel, count in sorted(current.items())
-        if count > baseline.get(rel, 0)
-    ]
-    improvements = [
-        f"{rel}: {current.get(rel, 0)} invocations (baseline {allowed})"
-        for rel, allowed in sorted(baseline.items())
-        if current.get(rel, 0) < allowed
-    ]
+    """Return (regressions, improvements). List baseline detects swaps (#4292)."""
+    regressions: list[str] = []
+    for rel, scripts in sorted(current.items()):
+        bval = baseline.get(rel)
+        extra = f" Offenses: {'; '.join(details.get(rel, []))}" if details else ""
+        if isinstance(bval, list):
+            new = sorted(set(scripts) - set(bval))
+            if new:
+                regressions.append(
+                    f"{rel}: new invocation(s): {', '.join(new)} (issue #3791).{extra}"
+                )
+        else:
+            allowed = int(bval) if bval is not None else 0
+            if len(scripts) > allowed:
+                regressions.append(
+                    f"{rel}: {len(scripts)} invocation(s) (baseline {allowed}). "
+                    f"Use 'uv run python <script>' (issue #3791).{extra}"
+                )
+    improvements: list[str] = []
+    for rel, bval in sorted(baseline.items()):
+        cur = len(current.get(rel, []))
+        limit = len(bval) if isinstance(bval, list) else int(bval)
+        if cur < limit:
+            improvements.append(f"{rel}: {cur} invocations (baseline {limit})")
     return regressions, improvements
 
 
 def validate_doc_interpreter_portability(repo_root: Path) -> bool:
-    """Print drift and return True when every file is at or below its baseline."""
+    """Return True when every file is at or below its baseline."""
     return main(["--repo-root", str(repo_root)]) == 0
 
 
 def build_parser() -> argparse.ArgumentParser:
     """Build the CLI parser."""
-    parser = argparse.ArgumentParser(description="Documented-interpreter portability ratchet.")
-    parser.add_argument("--repo-root", type=Path, default=None, help="Repository root.")
-    parser.add_argument("--baseline", type=Path, default=None, help="Baseline JSON path.")
-    parser.add_argument(
-        "--update-baseline",
-        action="store_true",
-        help="Rewrite the baseline from the current scan.",
-    )
-    return parser
+    p = argparse.ArgumentParser(description="Documented-interpreter portability ratchet.")
+    p.add_argument("--repo-root", type=Path, default=None)
+    p.add_argument("--baseline", type=Path, default=None)
+    p.add_argument("--update-baseline", action="store_true")
+    return p
 
 
 def _resolve_roots(args: argparse.Namespace) -> tuple[Path, Path]:
@@ -427,7 +438,7 @@ def _resolve_roots(args: argparse.Namespace) -> tuple[Path, Path]:
 
 
 def _update_baseline(
-    current: dict[str, int],
+    current: dict[str, list[str]],
     baseline_path: Path,
     details: dict[str, list[str]],
 ) -> int:
@@ -441,12 +452,8 @@ def _update_baseline(
         if regressions:
             for line in regressions:
                 print(f"DRIFT {line}", file=sys.stderr)
-            print(
-                "check-doc-interpreter-portability: refusing to raise baseline",
-                file=sys.stderr,
-            )
+            print("check-doc-interpreter-portability: refusing to raise baseline", file=sys.stderr)
             return 1
-
     payload = json.dumps({"files": dict(sorted(current.items()))}, indent=2) + "\n"
     try:
         baseline_path.write_text(payload, encoding="utf-8")
@@ -456,34 +463,28 @@ def _update_baseline(
     print(f"check-doc-interpreter-portability: wrote {baseline_path} ({len(current)} files)")
     return 0
 
-
 def main(argv: list[str] | None = None) -> int:
     """Run the ratchet."""
     args = build_parser().parse_args(argv)
     repo_root, baseline_path = _resolve_roots(args)
-
     try:
         details: dict[str, list[str]] = {}
         current = scan(repo_root, details)
     except (OSError, subprocess.CalledProcessError) as exc:
         print(f"check-doc-interpreter-portability: {exc}", file=sys.stderr)
         return 2
-
     if args.update_baseline:
         return _update_baseline(current, baseline_path, details)
-
     try:
         baseline = load_baseline(baseline_path)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"check-doc-interpreter-portability: {exc}", file=sys.stderr)
         return 2
-
     regressions, improvements = diff_against_baseline(current, baseline, details)
     for line in improvements:
         print(f"IMPROVED {line}")
     for line in regressions:
         print(f"DRIFT {line}", file=sys.stderr)
-
     if regressions:
         print(
             "check-doc-interpreter-portability: FAIL. Rerun with --update-baseline "
@@ -491,7 +492,6 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 1
-
     print("check-doc-interpreter-portability: OK")
     return 0
 
