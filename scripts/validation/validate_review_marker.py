@@ -115,6 +115,7 @@ def _run_git(args: list[str], repo_root: Path) -> tuple[int, str, str]:
             capture_output=True,
             text=True,
             encoding="utf-8",
+            errors="replace",
             timeout=15,
         )
     except subprocess.TimeoutExpired:
