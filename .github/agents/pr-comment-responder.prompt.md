@@ -1082,8 +1082,8 @@ gh pr edit [number] --body "[updated body]"
 
 ```bash
 # Count addressed vs total
-ADDRESSED=$(grep -c "^\*\*Status\*\*: \[COMPLETE\]" .agents/pr-comments/PR-[number]/comments.md)
-WONTFIX=$(grep -c "^\*\*Status\*\*: \[WONTFIX\]" .agents/pr-comments/PR-[number]/comments.md)
+ADDRESSED=$(grep -Ec "^\*\*Status\*\*: \[COMPLETE\]" .agents/pr-comments/PR-[number]/comments.md)
+WONTFIX=$(grep -Ec "^\*\*Status\*\*: \[WONTFIX\]" .agents/pr-comments/PR-[number]/comments.md)
 TOTAL=$TOTAL_COMMENTS
 
 echo "Verification: $((ADDRESSED + WONTFIX)) / $TOTAL comments addressed"
