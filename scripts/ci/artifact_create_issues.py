@@ -13,7 +13,7 @@ ENV:
 
 EXIT CODES (ADR-035):
   0 - completed (some issues may have been skipped as duplicates)
-  1 - FINDINGS_JSON is missing or malformed
+  1 - FINDINGS_JSON is missing or malformed, or one or more gh issue creates failed
 """
 
 from __future__ import annotations
@@ -101,6 +101,7 @@ def run(_argv: list[str] | None = None) -> int:
 
     created_count = 0
     skipped_count = 0
+    failed_count = 0
 
     for finding in findings:
         title = str(finding.get("title", ""))
@@ -137,12 +138,16 @@ def run(_argv: list[str] | None = None) -> int:
         if result.returncode == 0:
             created_count += 1
         else:
-            print(f"::warning::Failed to create issue: {title}")
+            print(f"::error::Failed to create issue: {title}")
+            failed_count += 1
 
     print()
     print("=== SUMMARY ===")
     print(f"Issues created: {created_count}")
     print(f"Duplicates skipped: {skipped_count}")
+    if failed_count:
+        print(f"Failed: {failed_count}")
+        return 1
     return 0
 
 
