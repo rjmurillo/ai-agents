@@ -52,6 +52,7 @@
 |phase3 agent skill session handoff template verification: [agent-workflow/agentworkflow-004-proactive-template-sync-verification-95](agent-workflow/agentworkflow-004-proactive-template-sync-verification-95.md) (485), [agent-workflow/agentworkflow-005-structured-handoff-formats-88](agent-workflow/agentworkflow-005-structured-handoff-formats-88.md) (474)
 
 [CI/CD and Workflows]
+|spec coverage acceptance criteria checkbox observe signal non-blocking required check push-pr body: [ci/ci-spec-coverage-acceptance-signal-is-observe-only](ci/ci-spec-coverage-acceptance-signal-is-observe-only.md) (917)
 |count ratchet baseline branch freshness behind main stale higher baseline merge origin/main: [ci/ci-count-ratchets-require-branch-freshness](ci/ci-count-ratchets-require-branch-freshness.md) (822)
 |stale detached HEAD shared checkout verify wrong commit git show ref path worktree parse fresh input: [workspace/workspace-shared-checkout-is-a-stale-detached-head](workspace/workspace-shared-checkout-is-a-stale-detached-head.md) (654)
 |validate PR check red advisory blocking signal DESCRIPTION_RESULT TEMPLATE_STATUS exit code file mentioned but not in diff CRITICAL WARNING: [ci/ci-validate-pr-is-many-gates-only-some-read-the-body](ci/ci-validate-pr-is-many-gates-only-some-read-the-body.md) (2409)
