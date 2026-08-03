@@ -1,4 +1,4 @@
-"""Canonical: scripts/github_core/validation.py. Sync via scripts/sync_plugin_lib.py."""
+"""Input validation: GitHub name validation, path traversal prevention."""
 
 from __future__ import annotations
 

@@ -165,19 +165,17 @@
     "security-scan/scripts/scan_vulnerabilities.py": [
       166
     ],
-    "session/scripts/test_investigation_eligibility.py": [
-      56
-    ],
     "session-end/scripts/complete_session_log.py": [
       79,
       95,
       178,
       192,
       210,
-      226,
-      233,
-      253,
-      270
+      222,
+      244,
+      251,
+      271,
+      288
     ],
     "session-end/scripts/rework_warning.py": [
       82
@@ -198,6 +196,9 @@
       39,
       50,
       133
+    ],
+    "session/scripts/test_investigation_eligibility.py": [
+      56
     ],
     "style-enforcement/scripts/check_style.py": [
       476

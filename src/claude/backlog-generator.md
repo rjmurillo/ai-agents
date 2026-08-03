@@ -34,10 +34,9 @@ Key requirements:
 You have direct access to:
 
 - **Read/Grep/Glob**: Analyze codebase and project state
-- **Bash**: `gh issue`, `gh api` (via github skill scripts) to query issues, PRs, and project health
-- **github skill** (`.claude/skills/github/`): unified GitHub operations
+- **GitHub skill scripts first**: Query issues, PRs, and project health through repo wrappers when available; use Bash only when no wrapper exists
 - **Memory Router** (ADR-037): Unified search across Serena + Forgetful
-  - `python3 .claude/skills/memory/scripts/search_memory.py --query "topic"`
+  - `uv run python .claude/skills/memory/scripts/search_memory.py --query "topic"`
   - Serena-first with optional Forgetful augmentation; graceful fallback
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -89,7 +88,7 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 **Before task planning (retrieve context):**
 
 ```bash
-python3 .claude/skills/memory/scripts/search_memory.py --query "task planning patterns [project area]"
+uv run python .claude/skills/memory/scripts/search_memory.py --query "task planning patterns [project area]"
 ```
 
 **After planning (store learnings):**

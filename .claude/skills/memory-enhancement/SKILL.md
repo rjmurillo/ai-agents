@@ -208,7 +208,7 @@ Reports the following, and nothing else:
 
 - `total_memories`, `total_citations`
 - `valid_citations`, `stale_citations`, `broken_citations`, `unverified_citations`
-- `health_score` (`(valid + 0.5 * stale) / total`; 1.0 when there are none)
+- `health_score` (`(valid + 0.5 * stale) / total`; 1.0 for an empty corpus, 0.0 when memories exist but carry no citations)
 - `stale_memories` (ids only, unordered)
 - `recommendations` (prose strings)
 
