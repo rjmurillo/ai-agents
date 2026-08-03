@@ -40,7 +40,7 @@
         "marker",
         "not a recipe"
       ],
-      "expected_gate": "skip-rule-historical-evidence",
+      "expected_gate": "historical-evidence-record",
       "rationale": "A census or retrospective records what the old schemes looked like and is evidence, not a prescription. The rule exempts such a fenced block when it carries the push-lock-historical token, and the checker already skips the retrospective, audit, and archive trees."
     },
     {
