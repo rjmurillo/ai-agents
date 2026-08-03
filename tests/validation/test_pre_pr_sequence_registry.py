@@ -33,8 +33,10 @@ from types import SimpleNamespace
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# Import the way production imports (issue #2223): append ``scripts/validation``
-# to ``sys.path`` and import by bare name. Append-only, never restored.
+# Import the way production imports (issue #2223): prepend ``scripts/validation``
+# to ``sys.path`` and import by bare name. The insert is at index 0, so this
+# directory takes import precedence over everything already on the path. Never
+# restored.
 _VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
 if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
