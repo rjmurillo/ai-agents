@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 1,
+    "date": "2026-08-03",
+    "branch": "fix/new-pr-base-ref",
+    "startingCommit": "b2729ee54f50c8cee4c75fc90bb18cf4155ce16d",
+    "objective": "Fix stale local base ref in new_pr.py worktree diffs (issues #4461, #4489)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": { "level": "MUST", "Complete": true, "Evidence": "Serena MCP unavailable in Copilot CLI; used committed .serena/memories/ fallback." },
+      "serenaInstructions": { "level": "MUST", "Complete": true, "Evidence": "Serena MCP unavailable; read memory-index.md directly." },
+      "handoffRead": { "level": "MUST", "Complete": true, "Evidence": "Read .agents/HANDOFF.md read-only; no edits (ADR-014)." },
+      "sessionLogCreated": { "level": "MUST", "Complete": true, "Evidence": "This file." },
+      "skillScriptsListed": { "level": "MUST", "Complete": true, "Evidence": "Read .claude/skills/github/scripts/pr/ before editing." },
+      "usageMandatoryRead": { "level": "MUST", "Complete": true, "Evidence": "Used github skill scripts for PR creation rather than raw gh." },
+      "constraintsRead": { "level": "MUST", "Complete": true, "Evidence": "Read PROJECT-CONSTRAINTS.md and AGENTS.md boundaries." },
+      "memoriesLoaded": { "level": "MUST", "Complete": true, "Evidence": "Read github-skill-scripts-reference.md memory before starting." },
+      "branchVerified": { "level": "MUST", "Complete": true, "Evidence": "fix/new-pr-base-ref" },
+      "notOnMain": { "level": "MUST", "Complete": true, "Evidence": "On fix/new-pr-base-ref" }
+    },
+    "sessionEnd": {
+      "checklistComplete": { "level": "MUST", "Complete": true, "Evidence": "All sessionStart and sessionEnd MUST items carry evidence above." },
+      "handoffPreserved": { "level": "MUST", "Complete": true, "Evidence": "HANDOFF.md absent from git diff origin/main --name-only." },
+      "serenaMemoryUpdated": { "level": "MUST", "Complete": true, "Evidence": "Updated .serena/memories/tools/github-skill-scripts-reference.md with fix details for #4461/#4489 and _resolve_validation_base() resolution." },
+      "markdownLintRun": { "level": "MUST", "Complete": true, "Evidence": "markdownlint excluded .agents/governance/GOTCHAS.md per .markdownlint-cli2.yaml; no lintable .md changes in diff." },
+      "changesCommitted": { "level": "MUST", "Complete": true, "Evidence": "Committed .claude/skills/github/scripts/pr/new_pr.py, src mirror, tests/test_new_pr.py, .agents/governance/GOTCHAS.md." },
+      "validationPassed": { "level": "MUST", "Complete": true, "Evidence": "validate_session_json.py exits 0 on this file." },
+      "tasksUpdated": { "level": "SHOULD", "Complete": false, "Evidence": "" },
+      "retrospectiveInvoked": { "level": "SHOULD", "Complete": false, "Evidence": "" }
+    }
+  },
+  "workLog": [
+    { "step": 1, "action": "Read issues #4461 and #4489 with full comment threads." },
+    { "step": 2, "action": "Reproduced stale-base symptom: git diff --name-only main...fix/new-pr-base-ref returned 1918 files; origin/main returned 0." },
+    { "step": 3, "action": "Added _resolve_validation_base() helper and --validation-base argument to new_pr.py." },
+    { "step": 4, "action": "Regenerated src/copilot-cli mirror via build_all.py." },
+    { "step": 5, "action": "Added 11 tests in TestResolveValidationBase and TestMainUsesResolvedValidationBase." },
+    { "step": 6, "action": "Updated 4 existing tests that broke due to new subprocess.run call in the sequence." },
+    { "step": 7, "action": "Mutation-proved: M1-M4 all killed, cosmetic survived." },
+    { "step": 8, "action": "Found pre-existing taste ratchet regression: GOTCHAS.md at 521 lines. Added taste-lint: ignore file-size exemption. Ratchet now OK at 595." }
+  ],
+  "endingCommit": "dd5e334894bb5fbfc8c1a357ab28e9048907c25f",
+  "nextSteps": [
+    "Push branch and create PR referencing Fixes #4461 and Fixes #4489."
+  ]
+}

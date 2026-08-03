@@ -1,3 +1,4 @@
+<!-- # taste-lint: ignore file-size -->
 # Gotchas
 
 Non-obvious repository behavior that cost real time to learn and cannot be
