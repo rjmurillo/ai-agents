@@ -111,6 +111,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -334,7 +335,7 @@ def parse_lease_block(body: str) -> Lease | None:
     )
 
 
-def _comment_author(comment: dict) -> str:
+def _comment_author(comment: dict[str, Any]) -> str:
     """Return the verified comment author login (``user.login``), or "".
 
     GitHub's REST issue-comments payload carries the authenticated author
@@ -354,7 +355,7 @@ def _comment_author(comment: dict) -> str:
     return login if isinstance(login, str) else ""
 
 
-def select_authoritative_lease(comments: list[dict]) -> Lease | None:
+def select_authoritative_lease(comments: list[dict[str, Any]]) -> Lease | None:
     """Return the lease from the most-recent valid marker comment, or None.
 
     Latest-marker-wins (ADR-076 part 1: "The latest marker comment wins").
@@ -390,7 +391,7 @@ def classify_acquire(
     lease: Lease | None,
     acting_author: str,
     now: datetime,
-) -> dict:
+) -> dict[str, Any]:
     """Decide ACT vs SKIP for an acquire, given the authoritative lease.
 
     Mirrors ``check_pr_live_state.classify_live_state`` verdict shape
@@ -551,10 +552,12 @@ def _gh_pr_head_sha(repo_owner: str, repo: str, pr: int) -> str | None:
             pr, safe_log_str(str(exc)),
         )
         return None
-    sha = (
-        (data.get("repository") or {})
-        .get("pullRequest") or {}
-    ).get("headRefOid", "")
+    sha: str = str(
+        (
+            (data.get("repository") or {})
+            .get("pullRequest") or {}
+        ).get("headRefOid", "")
+    )
     if not sha or not _SHA40.match(sha):
         return None
     return sha
@@ -626,13 +629,13 @@ def _gh_comment_endpoint(owner: str, repo: str, pr: int) -> str:
     return f"repos/{owner}/{repo}/issues/{pr}/comments"
 
 
-def _parse_paginated_json_arrays(raw_stdout: str) -> list[dict]:
+def _parse_paginated_json_arrays(raw_stdout: str) -> list[dict[str, Any]]:
     """Parse one or more JSON array documents emitted by ``gh api --paginate``."""
     raw = raw_stdout.strip()
     if not raw:
         return []
     decoder = json.JSONDecoder()
-    comments: list[dict] = []
+    comments: list[dict[str, Any]] = []
     pos = 0
     while pos < len(raw):
         while pos < len(raw) and raw[pos].isspace():
@@ -648,7 +651,7 @@ def _parse_paginated_json_arrays(raw_stdout: str) -> list[dict]:
     return comments
 
 
-def list_lease_comments(owner: str, repo: str, pr: int) -> list[dict]:
+def list_lease_comments(owner: str, repo: str, pr: int) -> list[dict[str, Any]]:
     """Return PR issue comments (oldest first). Raises LeaseStoreError.
 
     Wraps ``gh api`` paginated read. A non-zero exit or malformed JSON is a

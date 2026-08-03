@@ -1894,6 +1894,8 @@ class TestMirrorParity:
         spec = importlib.util.spec_from_file_location(
             "sync_plugin_lib", _REPO_ROOT / "scripts" / "sync_plugin_lib.py"
         )
+        assert spec is not None
+        assert spec.loader is not None
         spl = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(spl)
 
