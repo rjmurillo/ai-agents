@@ -51,7 +51,9 @@
       "timestamp": "2026-07-02T00:00:00+00:00",
       "type": "test",
       "content": "Verification: uv run pytest tests/test_security_gate_timeouts_2810.py tests/test_memory_sync/test_mcp_client.py => 15 passed; mypy => no issues on the three scripts.",
-      "caused_by": [],
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": []
     },
     {
@@ -60,7 +62,9 @@
       "type": "commit",
       "content": "Commit: f13f73f",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e008",
@@ -79,5 +83,7 @@
     "commits": 1,
     "files_changed": 6
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 1"
 }

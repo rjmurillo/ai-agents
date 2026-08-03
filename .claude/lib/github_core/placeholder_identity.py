@@ -1,4 +1,4 @@
-"""Canonical: scripts/github_core/placeholder_identity.py. Sync via scripts/sync_plugin_lib.py.
+"""Centralized placeholder identity denylist for pr-autofix worktrees.
 
 WHY THIS MODULE EXISTS
 ----------------------

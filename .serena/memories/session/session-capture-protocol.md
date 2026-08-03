@@ -93,11 +93,11 @@ Vague decision, vague rationale, no information for a future agent.
 
 ## Cross-References
 
-- `templates/agents/orchestrator.shared.md` — Session Gate (Blocking) section
+- `templates/agents/orchestrator.shared.md`: Session Gate (Blocking) section
   embeds the protocol inline; this file provides full examples.
-- `.agents/SESSION-PROTOCOL.md` — Phase 1: Documentation Update references
+- `.agents/SESSION-PROTOCOL.md`: Phase 1 Documentation Update references
   this protocol when defining what session-log content is required.
-- `.agents/schemas/session-log.schema.json` — Defines the `workLog`,
+- `.agents/schemas/session-log.schema.json`: defines the `workLog`,
   `decisions`, and `nextSteps` fields this protocol targets.
 
 ## Why This Exists

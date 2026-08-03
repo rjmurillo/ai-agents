@@ -29,7 +29,7 @@ These are corrections that MUST be followed:
 - Bot false positives require code verification before implementing - verify current code state before accepting bot claims (Session 4, PR #918, 2026-01-16)
   - Evidence: Batch 37 - Bot claimed paths incorrect but verification showed paths were correct at current commit
 
-- Use /pr-review per-PR exclusively for review thread resolution — never dispatch custom implementer agents for thread work. User explicit correction: "you really just need to run /pr-review on each of these PRs" (Session 14, 2026-04-26, PR shepherding session)
+- Use /pr-review per-PR exclusively for review thread resolution. Never dispatch custom implementer agents for thread work. User explicit correction: "you really just need to run /pr-review on each of these PRs" (Session 14, 2026-04-26, PR shepherding session)
 - get_unresolved_review_threads.py undercounts when its single-page fetch is truncated (large PRs, mid-update). Session 15 (PR #1965): returned 0 while 12 threads were open. For authoritative thread-by-thread reads, use get_pr_review_threads.py and filter where is_resolved=False. (Session 15, 2026-05-10)
   - Evidence: `unresolved_count` in get_pr_review_threads.py response matched GitHub UI; get_unresolved_review_threads.py response was empty.
   - PR #1989 update (2026-05-24): the script now emits `success` and `fetched_pages_complete` fields. Consumers that trust the count MUST gate on `fetched_pages_complete == true` AND `success == true`; treat a false on either field as a skip, not a pass. The new bot-cascade pre-push phase (`.githooks/pre-push` Phase 5c) and the `wait_for_unresolved_zero.py` stable-zero wrapper both apply this guard, so they remain safe consumers despite the documented undercount risk. The blanket "ALWAYS use get_pr_review_threads.py" is too strong; the right rule is "gate get_unresolved_review_threads.py callers on the completeness flags".
@@ -38,7 +38,7 @@ These are corrections that MUST be followed:
 - Exception handlers that abort a write must `continue` after logging. Without it, the happy-path log line fires even when the write was aborted, producing contradictory double-status output (PR #1965 generate_pr_quality_prompts.py cursor 6hZB). (Session 15, 2026-05-10)
 - Never spray a directive or rule across all agent prompt files. Single-source + reference-line is the only acceptable pattern. PRs #1732 (117 files) and #1723 (20+ files) both rejected for this reason by user. (Session 14, 2026-04-26)
 - description-validation-bypass label must be applied per-PR after manual review, never mass-applied. Validator checks labels at CI run time; false positives (contextual file refs in Summary section) warrant bypass. (Session 14, 2026-04-26)
-- Local Stop hook is correct location for reflection, not GitHub CI workflow. #1761 rejected: "useless...real reflection is in the context of the work" — CI has no session context. (Session 14, 2026-04-26)
+- Local Stop hook is correct location for reflection, not GitHub CI workflow. #1761 rejected: "useless...real reflection is in the context of the work". CI has no session context. (Session 14, 2026-04-26)
 
 ## Preferences (MED confidence)
 
