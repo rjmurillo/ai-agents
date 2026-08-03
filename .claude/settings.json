@@ -25,6 +25,18 @@
         ]
       }
     ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/UserPromptSubmit/invoke_memory_recall.py",
+            "timeout": 10,
+            "statusMessage": "Recalling relevant memories (#4011)"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "mcp__serena__write_memory",
@@ -34,6 +46,28 @@
             "command": "python3 -u .claude/hooks/PostToolUse/invoke_observation_sync.py",
             "timeout": 30,
             "statusMessage": "Syncing observation memories to Forgetful"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PostToolUse/invoke_memory_capture.py",
+            "timeout": 10,
+            "statusMessage": "Suggesting memories from tool output (#4011)"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/SessionEnd/invoke_memory_reflection.py",
+            "timeout": 60,
+            "statusMessage": "Persisting memory confidence scores (#4011)"
           }
         ]
       }
