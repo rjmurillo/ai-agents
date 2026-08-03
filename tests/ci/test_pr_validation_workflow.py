@@ -943,6 +943,13 @@ class TestBotSkipGuardClassification:
             "Set Job Summary",
             "Check PR commit count",
             "Enforce Blocking Issues",
+            # Throughput, not a gate. `Setup uv` only installs the toolchain
+            # that the guarded steps below invoke. Running it for a bot actor
+            # whose validation steps are all skipped buys nothing. It also
+            # cannot fail open: if it were ever skipped while a guarded step
+            # still ran, that step dies with `uv: command not found` (exit
+            # 127) rather than silently passing.
+            "Setup uv",
         }
     )
 
