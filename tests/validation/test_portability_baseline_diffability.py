@@ -458,6 +458,31 @@ class TestEnvironmentOnlyWorktreeIsNotVacuouslyAllowed:
             "The fix for issue #4258 must not block vendored copies and unpacked tarballs."
         )
 
+    def test_guard_allows_when_a_pointer_var_is_exported_empty(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An empty pointer names no repository, so the scrub hid nothing.
+
+        Presence in ``os.environ`` is not the discriminator; a meaningful value
+        is. Measured on git 2.51: ``GIT_DIR=""`` in a non-repository yields
+        ``fatal: not a git repository: ''`` and resolves no repository, the same
+        outcome as an absent variable. Refusing here would block the vendored
+        copy and unpacked tarball case the allow branch exists for.
+        """
+        loose = tmp_path / "loose"
+        loose.mkdir()
+        baseline = loose / "baseline.json"
+        baseline.write_text('{"files": {}}\n')
+
+        monkeypatch.setenv("GIT_DIR", "")
+
+        assert refuse_undiffable_baseline(loose, baseline) is False, (
+            "refuse_undiffable_baseline refused on an exported-but-empty GIT_DIR. "
+            "An empty pointer names no repository, so the GIT_* scrub cannot have "
+            "hidden one, and the refusal is a false positive against vendored "
+            "copies and unpacked tarballs. Refs #4258."
+        )
+
     def test_guard_refuses_when_git_work_tree_is_set(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

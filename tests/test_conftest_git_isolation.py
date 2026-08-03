@@ -40,7 +40,7 @@ def _get_fixture_fn(module: types.ModuleType) -> Callable[..., None]:
     return cast("Callable[..., None]", unwrapped)
 
 
-class TestHostileGitDirIsUnsettledByFixture:
+class TestHostileGitDirIsUnsetByFixture:
     """The isolation fixture must unset GIT_DIR (and siblings) before ceiling."""
 
     def test_git_dir_is_deleted_when_present(self, tmp_path: Path) -> None:

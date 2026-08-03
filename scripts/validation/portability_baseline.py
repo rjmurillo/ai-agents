@@ -254,7 +254,15 @@ def refuse_undiffable_baseline(repo_root: Path, baseline_path: Path) -> bool:
         # Distinguish them by checking whether the scrub removed a pointer.
         # The variables are still readable in os.environ; they were just not
         # forwarded to git.
-        if any(v in os.environ for v in _GIT_POINTER_VARS):
+        #
+        # Presence alone is not the test. An exported-but-empty GIT_DIR names no
+        # repository, so the scrub cannot have hidden one. Measured on git 2.51:
+        # with GIT_DIR set to the empty string, `rev-parse --show-toplevel` in a
+        # non-repository exits 128 with `fatal: not a git repository: ''` and
+        # resolves nothing, exactly as it does with the variable absent.
+        # Refusing on it would block vendored copies and unpacked tarballs, the
+        # case the allow branch exists for.
+        if any(os.environ.get(v) for v in _GIT_POINTER_VARS):
             print(
                 f"Refusing to trust the baseline {baseline_path}: "
                 "the environment contains GIT_DIR or a sibling pointer variable "

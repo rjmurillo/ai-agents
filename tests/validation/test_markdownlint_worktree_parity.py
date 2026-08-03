@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import cast
 
 import yaml
 
@@ -56,11 +55,17 @@ def _markdownlint_worktree_ignores() -> set[str]:
     Strips the trailing /** suffix used by the YAML config and filters to
     entries that match the known worktree root shapes.
     """
-    config = cast(
-        dict[str, object],
-        yaml.safe_load(MARKDOWNLINT_CONFIG.read_text(encoding="utf-8")),
+    config = yaml.safe_load(MARKDOWNLINT_CONFIG.read_text(encoding="utf-8"))
+    assert isinstance(config, dict), (
+        f"{MARKDOWNLINT_CONFIG} did not parse to a mapping (got {type(config).__name__}). "
+        "An empty or restructured config would otherwise surface as an AttributeError "
+        "several frames away from the real cause."
     )
-    ignores = cast(list[str], config.get("ignores", []))
+    ignores = config.get("ignores", [])
+    assert isinstance(ignores, list), (
+        f"{MARKDOWNLINT_CONFIG} 'ignores' is not a list (got {type(ignores).__name__}). "
+        "The parity check reads it as a sequence of glob strings."
+    )
     roots: set[str] = set()
     for entry in ignores:
         if entry.endswith("/**"):
