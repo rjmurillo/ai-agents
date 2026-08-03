@@ -45,6 +45,7 @@ from github_core.api import (  # noqa: E402
     gh_api_paginated,
     resolve_repo_params,
 )
+from github_core.bot_config import canonicalize_login  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Core logic
@@ -116,8 +117,12 @@ def get_pr_comments_by_reviewer(
     """
     since_dt = _parse_iso_date(since)
     until_dt = _parse_iso_date(until)
-    include_set = set(include_reviewers) if include_reviewers else None
-    exclude_set = set(exclude_reviewers) if exclude_reviewers else set()
+    # Canonicalize both the filters and the observed logins so one integration
+    # reaching the API under several logins groups as one reviewer (issue
+    # #4378). Filters are canonicalized too, so a caller naming any alias still
+    # matches the actor.
+    include_set = {canonicalize_login(r) for r in include_reviewers} if include_reviewers else None
+    exclude_set = {canonicalize_login(r) for r in exclude_reviewers} if exclude_reviewers else set()
 
     reviewer_map: dict[str, dict[str, Any]] = {}
     total_comments = 0
@@ -161,11 +166,13 @@ def get_pr_comments_by_reviewer(
                     "pr_number": pr_number,
                 })
 
+        author_key = canonicalize_login(pr_author)
         for comment in comments:
-            login = comment["login"]
-            if not login:
+            observed = comment["login"]
+            if not observed:
                 continue
-            if exclude_self_comments and login == pr_author:
+            login = canonicalize_login(observed)
+            if exclude_self_comments and login == author_key:
                 continue
             if include_set and login not in include_set:
                 continue
@@ -187,9 +194,12 @@ def get_pr_comments_by_reviewer(
                     "issue_comments": 0,
                     "prs": [],
                     "comments": [],
+                    "aliases": [],
                 }
 
             entry = reviewer_map[login]
+            if observed not in entry["aliases"]:
+                entry["aliases"].append(observed)
             entry["total_comments"] += 1
             if comment["comment_type"] == "review":
                 entry["review_comments"] += 1

@@ -366,3 +366,66 @@ class TestGetPrCommentsByReviewer:
         assert result["reviewers"][0]["total_comments"] == 3
         assert result["reviewers"][1]["login"] == "bob"
         assert result["reviewers"][1]["total_comments"] == 1
+
+
+    # -----------------------------------------------------------------------
+    # Bot alias canonicalization (issue #4378)
+    # -----------------------------------------------------------------------
+
+    def test_copilot_aliases_group_as_one_reviewer(self):
+        result = self._run(
+            review_comments=[
+                _make_review_comment("Copilot", user_type="Bot"),
+                _make_review_comment("copilot-pull-request-reviewer[bot]", user_type="Bot"),
+            ],
+            issue_comments=[_make_issue_comment("copilot-swe-agent[bot]", user_type="Bot")],
+        )
+        assert result["total_reviewers"] == 1
+        entry = result["reviewers"][0]
+        assert entry["login"] == "github-copilot[bot]"
+        assert entry["total_comments"] == 3
+        assert sorted(entry["aliases"]) == [
+            "Copilot",
+            "copilot-pull-request-reviewer[bot]",
+            "copilot-swe-agent[bot]",
+        ]
+
+    def test_distinct_humans_stay_separate(self):
+        result = self._run(
+            review_comments=[
+                _make_review_comment("alice"),
+                _make_review_comment("bob"),
+            ],
+        )
+        assert result["total_reviewers"] == 2
+        for entry in result["reviewers"]:
+            assert entry["aliases"] == [entry["login"]]
+
+    def test_include_filter_accepts_any_alias(self):
+        result = self._run(
+            review_comments=[
+                _make_review_comment("copilot-swe-agent[bot]", user_type="Bot"),
+                _make_review_comment("alice"),
+            ],
+            include_reviewers=["Copilot"],
+        )
+        assert result["total_reviewers"] == 1
+        assert result["reviewers"][0]["login"] == "github-copilot[bot]"
+
+    def test_exclude_filter_removes_every_alias(self):
+        result = self._run(
+            review_comments=[
+                _make_review_comment("Copilot", user_type="Bot"),
+                _make_review_comment("copilot-swe-agent[bot]", user_type="Bot"),
+                _make_review_comment("alice"),
+            ],
+            exclude_reviewers=["copilot-pull-request-reviewer"],
+        )
+        assert [r["login"] for r in result["reviewers"]] == ["alice"]
+
+    def test_self_comments_match_an_aliased_author(self):
+        result = self._run(
+            review_comments=[_make_review_comment("Copilot", user_type="Bot")],
+            pr_author="copilot-swe-agent[bot]",
+        )
+        assert result["total_comments"] == 0
