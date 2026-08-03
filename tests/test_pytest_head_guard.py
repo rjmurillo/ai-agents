@@ -13,6 +13,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.windows_path
+
 BEFORE_SHA = "a" * 40
 AFTER_SHA = "c" * 40
 

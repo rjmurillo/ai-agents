@@ -12,14 +12,18 @@
       "type": "milestone",
       "content": "Read six unresolved PR #2507 review threads and applied valid documentation and artifact fixes.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e002"
+      ]
     },
     {
       "id": "e002",
-      "timestamp": "2026-06-09T00:00:00+00:00",
+      "timestamp": "2026-06-09T13:44:27+00:00",
       "type": "commit",
       "content": "Commit: def156e4a81b23a98f3cdc2b482d389ea534d673",
-      "caused_by": [],
+      "caused_by": [
+        "e001"
+      ],
       "leads_to": []
     }
   ],

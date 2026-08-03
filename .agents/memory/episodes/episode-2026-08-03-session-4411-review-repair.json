@@ -1,0 +1,66 @@
+{
+  "id": "episode-2026-08-03-session-4411-review-repair",
+  "session": "2026-08-03-session-4411-review-repair",
+  "timestamp": "2026-08-03T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Resolve PR 4411 review feedback on the session-end markdown lint checklist evidence row.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved PR review thread",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-03-session-4411-review-repair"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected generated episode metrics",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-03-session-4411-review-repair"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Commit: 6dbab8a5d",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-03-session-4411-review-repair"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-03T15:20:53+00:00",
+      "type": "commit",
+      "content": "Commit: 6dbab8a5d",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4411-review-repair"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}

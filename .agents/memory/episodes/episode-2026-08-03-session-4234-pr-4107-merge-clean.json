@@ -1,0 +1,29 @@
+{
+  "id": "episode-2026-08-03-session-4234-pr-4107-merge-clean",
+  "session": "2026-08-03-session-4234-pr-4107-merge-clean",
+  "timestamp": "2026-08-03T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Get PR #4107 merge-clean against main. Fix episode 3646 metrics (issue #3873).",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: ac1e76c74173f949c48262c81a20edc126212b2b",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4234-pr-4107-merge-clean"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}
