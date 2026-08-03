@@ -33,7 +33,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from portability_baseline import (  # noqa: E402
+from portability_baseline import (
     refuse_oversized_baseline,
     refuse_symlinked_baseline,
     refuse_undiffable_baseline,

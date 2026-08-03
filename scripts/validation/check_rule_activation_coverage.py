@@ -59,7 +59,7 @@ from typing import Any
 # resolves the path and requires a default-name parameter that is redundant
 # here.  Importing the two atomic predicates keeps the dependency minimal.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from portability_baseline import (  # noqa: E402
+from portability_baseline import (
     refuse_oversized_baseline,
     refuse_symlinked_baseline,
     refuse_undiffable_baseline,
