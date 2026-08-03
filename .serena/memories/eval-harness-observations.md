@@ -32,6 +32,11 @@
   before retry logging and validates the injectable transport seam again before
   emitting a success record. This second check closes custom transports that do
   not use the built-in provider wrappers.
+- `scripts/eval/eval-rule-activation.py::eval_one_scenario` has two ordinary
+  `RuntimeError` recovery policies, one across mechanisms and one across judge
+  samples. Both must propagate `MalformedProviderMetadataError` first, or a
+  malformed fingerprint permits more paid calls. The response and judge
+  regression tests each assert exactly one call.
 - Regression evidence:
   `TestTransportsRefuseAMalformedFingerprint` in
   `tests/evals/test_eval_agent_vs_baseline.py`. Removing the typed boundary
