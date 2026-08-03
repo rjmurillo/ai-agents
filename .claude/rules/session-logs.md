@@ -38,6 +38,17 @@ universal; that is issue #4317, not a property of this rule.
    (`session_scope.py` short-circuits when `--is-shallow-repository` is true), so
    a green CI run on a shallow checkout is not evidence the SHA is reachable.
 
+3. **Re-point `endingCommit` after any rebase of a branch that carries a session
+   log.** Rebasing rewrites every commit on the branch, so it orphans a recorded
+   SHA exactly the way amending does, and the validator reports the same
+   unreachable-SHA error. The difference that makes this the more likely trap:
+   you amend on purpose and know the log is in play, but you rebase for an
+   unrelated reason (picking up a new base to unblock a push), so nothing
+   prompts you to think about the log at all. The failure then surfaces on the
+   PR, not locally. After rebasing, set `endingCommit` to the post-rebase `HEAD`
+   and commit that edit; `HEAD` becomes an ancestor of the new commit, so the
+   reachability check passes.
+
 ## References
 
 - `.agents/SESSION-PROTOCOL.md`. What a session log contains.

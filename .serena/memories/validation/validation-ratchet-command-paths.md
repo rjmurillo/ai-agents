@@ -73,3 +73,18 @@ culprit: an ERROR fires above 500 lines, a WARNING at 400. Exactly 500 passes.
 Adding a handful of tests to an existing 470 line test file is enough to trip
 it, and the fix is a split along a seam that already exists rather than a
 suppression.
+
+That last sentence is scoped to test files, and the scope is load bearing. A
+test file grows by accumulating independent cases, so a seam always exists and
+splitting along it genuinely reduces what a reader has to hold. A registration
+list does not work that way. `scripts/validation/pre_pr_sequence.py` holds one
+function whose body is 48 ordered `run_validation` calls, so its line count
+tracks how many gates the project has, not how hard it is to read. Splitting it
+moves lines and resets the counter without making anything simpler.
+
+PR #4302 tried exactly that split and its author closed it, writing that "the
+suppression's rationale is correct on the merits, not just expedient" and that
+`run_all_validations` stays a 408 line function afterward, 350 instead. Issue
+#4285 carries the same position in its title and tracks the real fix, a
+table-driven registry. So for a registration list the remedy is a table, not a
+split and not a suppression. Quote this section with its population attached.

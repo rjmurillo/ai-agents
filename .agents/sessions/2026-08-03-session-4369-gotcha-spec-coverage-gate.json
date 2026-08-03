@@ -1,0 +1,122 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4369,
+    "date": "2026-08-03",
+    "branch": "docs/gotcha-spec-coverage-gate",
+    "startingCommit": "22588a0f4",
+    "objective": "Document the Validate Spec Coverage gate in GOTCHAS.md after hitting it on PR #4294 and nearly re-filing into it on PR #4368."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "complete": false,
+        "evidence": "No Serena MCP tools exposed in this agent context."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "complete": false,
+        "evidence": "No Serena MCP tools available; read repository docs directly."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "This file."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "git branch --show-current returned docs/gotcha-spec-coverage-gate, verified non-empty to rule out detached HEAD."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Branch is docs/gotcha-spec-coverage-gate, not main or master."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "HANDOFF.md read earlier in this session."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Read GOTCHAS.md in full before editing it, including the .agents/ session-log rule that governs this commit."
+      }
+    },
+    "sessionEnd": {
+      "logCompleted": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Session log completed and staged in the same commit as the .agents/ change, per the session-policy rule."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "HANDOFF.md not modified."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "2 commits: the GOTCHAS.md entries, this log, and the hook-generated episode file. endingCommit records 6bc73e912, the commit carrying the work. The first attempt recorded a SHA that a later amend orphaned, and the push hook rejected it; per issue #3618 the SHA is recorded in a follow-up commit rather than by amending afterwards."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Byte-level dash check returned 0. markdownlint reports .agents/ is excluded from its glob, so no lint applies. Every claim in the entry was reproduced against the live scripts earlier in this session."
+      },
+      "checklistComplete": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Documentation-only change, scope complete."
+      },
+      "markdownLintRun": {
+        "level": "SHOULD",
+        "complete": true,
+        "evidence": "markdownlint-cli2 run on the file; it resolved 0 files because .agents/** is excluded in the config."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "complete": true,
+        "evidence": "Companion memory ci-spec-coverage-fails-without-checked-acceptance-boxes.md written earlier in this session, committed ac17fa25e on PR #4360."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Triaged the Validate Spec Coverage failure on PR #4294",
+      "result": "Job log read verdict NEEDS_REVIEW, reason closed-loop:external-signal-inconclusive, while the visible PR comment read Final Verdict: PASS with 5 of 5 criteria covered."
+    },
+    {
+      "action": "Traced the mechanism through source rather than inferring it",
+      "result": "gate_aggregator.py requires at least one external signal with a passing or warning verdict; the only one is acceptance-criteria, parsed from PR_BODY_FILE by spec_external_signal_gate.py. No section yields UNKNOWN, which empties the list and blocks."
+    },
+    {
+      "action": "Reproduced the failure and verified the fix offline",
+      "result": "Body as filed exited 1 with NEEDS_REVIEW; body with checked boxes exited 0 with WARN. Replaced a CI round trip with a one-second local run."
+    },
+    {
+      "action": "Confirmed the trap is undocumented",
+      "result": "GOTCHAS.md has 20 entries including the PR description gate, and no mention of spec coverage, acceptance criteria, closed loop, or external signal. Neither the PR template nor any rule file covers it."
+    },
+    {
+      "action": "Nearly re-filed into the same trap on PR #4368",
+      "result": "The prepared body had no acceptance heading and 0 checked boxes. Caught it pre-filing only because the memory was an hour old. That near-miss is the evidence that a Serena memory alone is insufficient, since Serena is MCP-gated and was unavailable in this very context."
+    },
+    {
+      "action": "Filed the stale comment defect as issue #4369",
+      "result": "Root cause is ai-spec-validation.yml calling post_issue_comment.py without --update-if-exists; the upsert path already exists in the script and is simply not enabled."
+    }
+  ],
+  "nextSteps": [
+    "PR #4368 must merge to turn main green; it fixes a test that inherited ambient CI.",
+    "Issue #4369 proposes the one-flag fix for the stale AI-SPEC-VALIDATION comment.",
+    "PR #4294 is blocked separately on the taste count ratchet at 600 to 601 after main advanced, not on anything in this change."
+  ],
+  "endingCommit": "6bc73e912",
+  "issues": [
+    4369
+  ],
+  "closedIssues": []
+}
