@@ -203,12 +203,9 @@ class TestRunSemgrepFailClosed:
     ) -> None:
         """An exec-time OSError must fail closed, not escape _run_semgrep.
 
-        OSError is not a subclass of subprocess.SubprocessError
-        (``issubclass(subprocess.SubprocessError, OSError)`` is False), so the
-        SubprocessError arm alone does not cover it. subprocess.run raises
-        OSError when the spawn itself faults. Uncaught, it escapes
-        _run_semgrep; run() catches only SemgrepScanError, so the gate would
-        die on a traceback with no structured finding.
+        Discriminating input: OSError is not a subclass of
+        subprocess.SubprocessError, so the SubprocessError arm alone lets every
+        case here escape uncaught instead of returning a blocking finding.
         """
         with patch(
             "scripts.security.run_semgrep.subprocess.run",
@@ -223,10 +220,9 @@ class TestRunSemgrepFailClosed:
     def test_os_error_makes_run_exit_1(self, scanner: SemgrepScanner) -> None:
         """End to end: an exec-time OSError blocks the push, never passes it.
 
-        Discriminating input: with the OSError uncaught, run() propagates it
-        and the process dies on a traceback; were _run_semgrep to swallow it
-        and return [], run() would log "PASS: No security findings" and exit 0.
-        Exit 1 is the only fail-closed answer.
+        Discriminating input: uncaught, the OSError escapes run() entirely;
+        swallowed and returned as [], run() would exit 0 on a scan that never
+        ran. Exit 1 is the only fail-closed answer.
         """
         with (
             patch.object(

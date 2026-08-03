@@ -57,13 +57,10 @@ _posix_shim_only = pytest.mark.skipif(
     reason="the fake semgrep is a POSIX shell shim",
 )
 
-#: Filename production looks for beside the interpreter. Mirrors
-#: scripts/security/run_semgrep.py::_resolve_semgrep_executable verbatim:
-#:     sibling_name = "semgrep.exe" if os.name == "nt" else "semgrep"
-#: Duplicated rather than imported on purpose: an independent oracle fails when
-#: production flips the mapping, while an imported constant would follow it.
-#: A fixture hardcoded to "semgrep" left the sibling branch unreachable on
-#: Windows, where resolution fell through to the PATH branch instead.
+#: Filename production looks for beside the interpreter, mirroring
+#: _resolve_semgrep_executable. Duplicated rather than imported on purpose: an
+#: independent oracle fails when production flips the mapping, while an imported
+#: constant would follow it.
 _SIBLING_NAME = "semgrep.exe" if os.name == "nt" else "semgrep"
 #: The other platform's filename. Production must never resolve it on this host.
 _DECOY_SIBLING_NAME = "semgrep" if os.name == "nt" else "semgrep.exe"
@@ -235,13 +232,12 @@ class TestResolveSemgrepExecutable:
     def test_uses_sibling_when_version_matches(self, tmp_path: Path) -> None:
         """The platform-correct sibling wins over the other platform's name.
 
-        Discriminating input: both names exist in the interpreter directory,
-        so a flipped platform mapping in production returns the decoy path and
-        fails this assertion instead of quietly resolving something.
+        Discriminating input: both names exist in the interpreter directory, so
+        a flipped platform mapping resolves the decoy and fails the assertion.
         """
         _pyproject(tmp_path, '[project]\ndependencies = [\n    "semgrep==1.171.0",\n]\n')
         sibling = _write_sibling(tmp_path / "bin", _SIBLING_NAME)
-        decoy = _write_sibling(tmp_path / "bin", _DECOY_SIBLING_NAME)
+        _write_sibling(tmp_path / "bin", _DECOY_SIBLING_NAME)
 
         with (
             patch("scripts.security.run_semgrep.sys") as mock_sys,
@@ -254,15 +250,12 @@ class TestResolveSemgrepExecutable:
             result = _resolve_semgrep_executable(tmp_path)
 
         assert result == str(sibling)
-        assert result != str(decoy), "resolver used the other platform's filename"
 
     def test_ignores_sibling_named_for_the_other_platform(self, tmp_path: Path) -> None:
         """A sibling carrying the other platform's name must not be used.
 
-        On Windows production resolves ``semgrep.exe``; on POSIX, ``semgrep``.
-        Reaching PATH (FileNotFoundError here, since which() returns None)
-        proves the sibling branch did not fire on the wrong filename. Without
-        this check a resolver that ignored os.name would look correct.
+        Reaching PATH (FileNotFoundError, since which() returns None) proves the
+        sibling branch did not fire; a resolver ignoring os.name would return it.
         """
         _pyproject(tmp_path, '[project]\ndependencies = [\n    "semgrep==1.171.0",\n]\n')
         _write_sibling(tmp_path / "bin", _DECOY_SIBLING_NAME)
