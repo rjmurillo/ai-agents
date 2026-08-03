@@ -55,6 +55,10 @@ with the process table and the `REAL_EXIT` sentinel.
 | full, ends on a success line | absent | none | killed midway, relaunch is correct |
 | any | present | none | finished, read the code |
 
+The table answers whether the push finished, never what it carried. A clean
+`REAL_EXIT=0` on a detached worktree pushes the wrong commit and looks identical
+to success; see `git-empty-hook-run-means-an-empty-push` for the content check.
+
 Measured on 2026-08-02: a 78 KB push log ended on `pre_pr.py` printing
 `Ready to create pull request!`, which reads exactly like completion. There was
 no `REAL_EXIT` line, no process, and `git ls-remote` still showed the old head.
