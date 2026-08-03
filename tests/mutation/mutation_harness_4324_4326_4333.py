@@ -14,6 +14,7 @@ Rules:
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -33,14 +34,9 @@ _NEW_PR_TESTS = ["tests/test_new_pr.py"]
 
 
 def _clear_pycache() -> None:
-    result = subprocess.run(
-        ["find", ".", "-name", "__pycache__", "-type", "d"],
-        cwd=_REPO_ROOT,
-        capture_output=True,
-        text=True,
-    )
-    for d in result.stdout.splitlines():
-        subprocess.run(["rm", "-rf", d], cwd=_REPO_ROOT)
+    for path in _REPO_ROOT.rglob("__pycache__"):
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path)
 
 
 def _run_tests(test_paths: list[str]) -> int:
