@@ -87,3 +87,48 @@ each stale signal as a defect to diagnose:
 Owner decision recorded 2026-08-03: enable a merge queue, sequenced after the
 drain rather than before it, since a queue serializes merges and would have made
 the drain slower.
+
+## Corollary: the merged result can be red even when every input was green
+
+The section above is about PRs behind main going red. The sharper failure is the
+other direction: `main` itself goes red after a sweep in which every merged PR
+had a green required-check rollup. Textual mergeability does not imply semantic
+compatibility, and `git merge-tree` cannot see the difference.
+
+Measured 2026-08-03. A 29-PR sweep took the queue from 55 open to 27 and left
+`main` at `b2729ee54` failing 9 tests across 4 unrelated causes. Proof it was
+not the sweeping branch's fault: a clean worktree at `origin/main`, with no
+branch content, ran the same 9 node ids and reported `9 failed, 13 passed`.
+
+Four kinds of file couple PRs that share no bytes:
+
+| Coupling | Instance observed |
+|---|---|
+| Whole-repo ratchet baseline | `.agents/governance/GOTCHAS.md` reached 521 lines in one PR; the baseline stayed 595; count became 596 |
+| Figures measured from the whole tree | `voice.instructions.md` shrank 2097 bytes, so 6 figures in `model-context-doctrine.md` went stale and 5 corpus-claim tests went red |
+| Mutation harness pinned to exact bytes | `mutation_harness_ciperms.py` M7 pinned `--max 58`; a PR lowered the ADR-006 ratchet to `--max 0` |
+| Allowlist keyed by step name | A PR put `Setup uv` behind the bot-skip guard without adding it to `_ALLOWED_BEHIND_GUARD` |
+
+None of those four PRs opened the file that broke.
+
+The operational rule: after merging a batch, run the suite against the resulting
+`main` before declaring the sweep done. Per-PR green does not compose. The four
+global-invariant checks above run in under 10 seconds together and would have
+caught all 9:
+
+```bash
+uv run --frozen pytest -q -p no:randomly \
+  tests/ci/test_count_ratchet_against_real_git.py \
+  tests/ci/test_mutation_harness_ciperms.py \
+  tests/ci/test_pr_validation_workflow.py \
+  tests/validation/test_always_on_corpus_claims.py \
+  tests/validation/test_check_subprocess_encoding.py
+```
+
+This is independent evidence for the merge queue recorded above. A queue tests
+the combined tree before the merge, which is exactly the check that was missing.
+
+It also compounds with the pre-push hook: the red surfaced to me as a blocked
+push with no statement that the failures were pre-existing, so every agent
+pushing during the window paid a full suite run and diagnosed from scratch.
+Filed as issue #4503.
