@@ -1544,7 +1544,7 @@ class TestMainCLI:
         after = tmp_path / "b.md"
         after.write_text("p", encoding="utf-8")
 
-        monkeypatch.setattr(eval_mod, "load_api_key", lambda: "test-key")
+        monkeypatch.setattr(eval_mod, "load_api_key_for_selected_provider", lambda *_: "test-key")
 
         def boom_run(*a, **kw):
             raise RuntimeError(
