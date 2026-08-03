@@ -44,7 +44,8 @@ if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
 from github_core.api import (  # noqa: E402
-    is_gh_authenticated,
+    check_gh_auth,
+    describe_gh_auth_failure,
     resolve_repo_params,
 )
 from github_core.output import (  # noqa: E402
@@ -102,15 +103,20 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
-    if not is_gh_authenticated():
+    # Report the condition gh actually hit. The boolean wrapper collapses a
+    # quota refusal and a 5xx into "not authenticated", which made this script
+    # answer a rate-limit window with "run gh auth login" (issue #4344).
+    auth = check_gh_auth()
+    if not auth.is_authenticated:
+        message, code, error_type = describe_gh_auth_failure(auth)
         write_skill_error(
-            "GitHub CLI (gh) is not installed or not authenticated. Run 'gh auth login' first.",
-            4,
-            error_type="AuthError",
+            message,
+            code,
+            error_type=error_type,
             output_format=fmt,
             script_name="get_pull_requests.py",
         )
-        return 4
+        return code
 
     resolved = resolve_repo_params(args.owner, args.repo)
     owner, repo = resolved.owner, resolved.repo
