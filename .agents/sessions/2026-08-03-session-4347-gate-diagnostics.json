@@ -1,0 +1,107 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4347,
+    "date": "2026-08-03",
+    "branch": "fix/gate-diagnostics-and-stale-pr-report",
+    "startingCommit": "03dc6a9cad3057d02096deb61f530bf12343dcee",
+    "objective": "Fix #4347 (detect_scope_explosion bypass hint says wrong command at pre-push), #4349 (pr-autofix lacks live-state recheck before base refresh). #4355 was already closed by PR #4432 before this session shipped."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "complete": false,
+        "evidence": "Serena MCP tools not available in this agent context."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "complete": false,
+        "evidence": "No Serena MCP tools available."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "This file."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "fix/gate-diagnostics-and-stale-pr-report, not main."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Branch is fix/gate-diagnostics-and-stale-pr-report."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Read HANDOFF.md via summary context at session start."
+      }
+    },
+    "sessionEnd": {
+      "logCompleted": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Session log completed with this commit."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "HANDOFF.md not modified."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "3 files committed: detect_scope_explosion.py, test_detect_scope_explosion.py, pr-autofix.md."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "48 tests pass, ruff/taste/type-ignore ratchets all OK."
+      },
+      "checklistComplete": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "#4347 and #4349 both addressed."
+      },
+      "markdownLintRun": {
+        "level": "SHOULD",
+        "complete": false,
+        "evidence": "Not run; pr-autofix.md change is prose only."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "complete": false,
+        "evidence": "No Serena MCP tools available."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Triaged #4347, #4349, #4355",
+      "outcome": "All three confirmed still real on origin/main before fix. #4355 closed by PR #4432 (landed scripts/report_pr_supersession.py) before this session shipped; dropped from scope."
+    },
+    {
+      "action": "Fixed scripts/detect_scope_explosion.py (#4347)",
+      "outcome": "Added from_prepush parameter to report(). parse_args() --base-branch default changed to None; main() passes from_prepush=args.base_branch is not None. Bypass hint now prints 'git push' at pre-push, 'git commit' at pre-commit. Remediation list also branches: pre-push omits stash steps (work already committed)."
+    },
+    {
+      "action": "Added 6 tests in TestBypassHintContext in tests/test_detect_scope_explosion.py",
+      "outcome": "48 tests total, all pass. Mutation: swapped bypass_cmd condition; 2 tests failed as required. Restored byte-identical."
+    },
+    {
+      "action": "Fixed .claude/commands/pr-autofix.md (#4349)",
+      "outcome": "Branch-behind-main fix pattern now documents a mandatory live-state recheck via check_pr_live_state.py before any git merge origin/main. Documents SKIP handling: preserve unpushed commits with git format-patch, report merged SHA, route to follow-up branch."
+    },
+    {
+      "action": "Merged origin/main twice",
+      "outcome": "First merge after initial work; second after discovering main had shipped report_pr_supersession.py (closing #4355) and lowered taste baseline."
+    }
+  ],
+  "nextSteps": [],
+  "endingCommit": "",
+  "issues": [4347, 4349],
+  "closedIssues": [4355]
+}
