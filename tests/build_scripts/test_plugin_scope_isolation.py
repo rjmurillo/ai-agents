@@ -25,12 +25,18 @@ def _load_frontmatter(md_file: Path) -> dict:
     return yaml.safe_load(text[3:end]) or {}
 
 
+def _assert_plugin_instructions_dir_exists() -> None:
+    assert PLUGIN_INSTRUCTIONS_DIR.is_dir(), (
+        f"{PLUGIN_INSTRUCTIONS_DIR} must exist so plugin scope tests prove "
+        "generated instruction output is still produced"
+    )
+
+
 class TestPluginScopeIsolation:
     """Rules with all-internal paths must not appear in plugin with applyTo:'**'."""
 
     def test_no_all_internal_rule_has_universal_scope_in_plugin(self) -> None:
-        if not PLUGIN_INSTRUCTIONS_DIR.exists():
-            return
+        _assert_plugin_instructions_dir_exists()
         for rule_src in RULES_DIR.glob("*.md"):
             fm = _load_frontmatter(rule_src)
             paths = fm.get("paths", fm.get("applyTo", None))
@@ -51,6 +57,7 @@ class TestPluginScopeIsolation:
 
     def test_known_internal_rules_absent_from_plugin(self) -> None:
         """Regression guard: governance, secret-redaction, session-logs must not be in plugin."""
+        _assert_plugin_instructions_dir_exists()
         for name in ("governance", "secret-redaction", "session-logs"):
             plugin_file = PLUGIN_INSTRUCTIONS_DIR / f"{name}.instructions.md"
             assert not plugin_file.exists(), (
