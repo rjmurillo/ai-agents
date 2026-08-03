@@ -285,3 +285,53 @@ class TestCLIDefaultMemoriesDir:
             "verify",
         ])
         assert exit_code == 0
+
+
+class TestCLISearchVerifyRoundTrip:
+    """A memory_id printed by search must be accepted by verify (issue #4010)."""
+
+    @staticmethod
+    def _write_subdir_memory(tmp_path):
+        mem_dir = tmp_path / "memories"
+        (mem_dir / "workflows").mkdir(parents=True)
+        (mem_dir / "workflows" / "target.md").write_text(
+            "# Target (2026-01-01)\n\nripgrep batching notes\n"
+        )
+        return mem_dir
+
+    @pytest.mark.unit
+    def test_search_json_id_is_accepted_by_verify(self, tmp_path, capsys):
+        import json
+
+        mem_dir = self._write_subdir_memory(tmp_path)
+
+        search_code = main([
+            "--repo-root", str(tmp_path),
+            "--memories-dir", str(mem_dir),
+            "search", "batching", "--json",
+        ])
+        emitted = json.loads(capsys.readouterr().out)
+
+        assert search_code == 0
+        assert [r["memory_id"] for r in emitted] == ["workflows/target"]
+
+        verify_code = main([
+            "--repo-root", str(tmp_path),
+            "--memories-dir", str(mem_dir),
+            "verify", "--memory-id", emitted[0]["memory_id"],
+        ])
+
+        assert verify_code == 0
+
+    @pytest.mark.unit
+    def test_verify_rejects_bare_stem_for_subdirectory_memory(self, tmp_path, capsys):
+        mem_dir = self._write_subdir_memory(tmp_path)
+
+        exit_code = main([
+            "--repo-root", str(tmp_path),
+            "--memories-dir", str(mem_dir),
+            "verify", "--memory-id", "target",
+        ])
+
+        assert exit_code == 1
+        assert "Memory not found: target" in capsys.readouterr().err
