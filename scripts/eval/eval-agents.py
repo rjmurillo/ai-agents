@@ -723,12 +723,15 @@ def decide_dry_run_exit(output: dict[str, Any]) -> tuple[int, str]:
             "threshold.",
         )
 
-    weak = [
-        name
-        for name, data in results.items()
-        if isinstance(data, dict)
-        and (data.get("overall") if data.get("overall") is not None else 0) < 3.5
-    ]
+    weak = []
+    for name, data in results.items():
+        if not isinstance(data, dict):
+            continue
+        overall = data.get("overall")
+        if not isinstance(overall, int | float):
+            overall = 0
+        if overall < 3.5:
+            weak.append(name)
     if weak:
         return (
             1,

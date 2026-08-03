@@ -57,7 +57,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal, TextIO
+from typing import Any, Literal, TextIO, cast
 
 # ---------------------------------------------------------------------------
 # API utilities (shared module). Imported lazily-friendly at module top per the
@@ -159,7 +159,7 @@ def _blended_rate_for_model(model: str) -> float:
             f"No pricing rate for model_id={model!r}. "
             "Add it to MODEL_PRICING_RATES_USD_PER_1K_TOKENS in _eval_common.py."
         )
-    return (rates["input"] + rates["output"]) / 2.0
+    return cast(float, (rates["input"] + rates["output"]) / 2.0)
 
 
 # ---------------------------------------------------------------------------
@@ -587,7 +587,7 @@ def make_response_fn(api_key: str, model: str) -> ResponseFn:
 
     def _respond(prompt: str, system_context: str) -> str:
         messages = [{"role": "user", "content": prompt}]
-        return _call_api(api_key, messages, system=system_context, model=model)
+        return cast(str, _call_api(api_key, messages, system=system_context, model=model))
 
     return _respond
 
