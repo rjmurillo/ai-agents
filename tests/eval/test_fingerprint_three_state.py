@@ -133,24 +133,6 @@ class TestOpenAITransportFingerprintIntegration:
 class TestAnthropicTransportFingerprintIntegration:
     """_AnthropicTransport records the sentinel when metadata holds non-str."""
 
-    def _make_transport_with_metadata(
-        self, fingerprint: Any
-    ) -> tuple[Any, Any]:
-        import _eval_api_adapter as adapter
-
-        def _fake_call_api(**kwargs: Any) -> str:
-            md = kwargs.get("metadata")
-            if isinstance(md, dict):
-                md["system_fingerprint"] = fingerprint
-            return "answer"
-
-        t = adapter._AnthropicTransport.__new__(adapter._AnthropicTransport)
-        t._api_key = "key"
-        t._seed = None
-        t.system_fingerprint = None
-
-        return t, patch("_eval_api_adapter.call_api", side_effect=_fake_call_api)
-
     def test_int_fingerprint_recorded_as_sentinel(self) -> None:
         import _eval_api_adapter as adapter
 

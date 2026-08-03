@@ -39,6 +39,8 @@ ALLOWED_LOG_FIELDS: frozenset[str] = frozenset(
         "error_category",
     }
 )
+
+
 def normalize_fingerprint(value: object) -> str | None:
     """Normalize a raw system_fingerprint value to the three-state contract.
 
@@ -51,7 +53,7 @@ def normalize_fingerprint(value: object) -> str | None:
 
     Rationale: silent coercion (``x if isinstance(x, str) else None``) maps
     malformed to absent, defeating the existing guard in _run_persistence.py
-    that checks for unexpected absence. A malformed fingerprint means the
+    that checks for an unexpected type. A malformed fingerprint means the
     provider changed its response shape, which is exactly the drift that guard
     exists to detect. Recording a distinct sentinel surfaces the drift.
     """
