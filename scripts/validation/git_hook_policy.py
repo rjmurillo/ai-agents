@@ -60,11 +60,11 @@ ADR_REVIEW_PATH_RE = re.compile(
 ADR_ID_RE = re.compile(r"ADR-\d+", re.IGNORECASE)
 FRONTMATTER_FIELD_RE = re.compile(r"^([A-Za-z0-9_-]+):(.*)$")
 ADR_REVIEW_PATTERNS = (
-    re.compile(r"/adr-review"),
-    re.compile(r"adr-review skill"),
-    re.compile(r"ADR Review Protocol"),
-    re.compile(r"multi-agent consensus.{0,200}\bADR\b", re.DOTALL),
-    re.compile(r"\barchitect\b.{0,80}\bplanner\b.{0,80}\bqa\b", re.DOTALL),
+    # Matches /adr-review, adr-review, adr review, ADR Review Protocol, etc.
+    # Case-insensitive; dot matches the hyphen or space separator (Issue #4135).
+    re.compile(r"\badr.review\b", re.IGNORECASE),
+    re.compile(r"multi-agent consensus.{0,200}\bADR\b", re.DOTALL | re.IGNORECASE),
+    re.compile(r"\barchitect\b.{0,80}\bplanner\b.{0,80}\bqa\b", re.DOTALL | re.IGNORECASE),
 )
 RETROSPECTIVE_EVIDENCE_PATTERNS = (
     re.compile(r"(?i)(##\s*retrospective|retrospective\s*section|learnings?\s*captured)"),
@@ -2259,6 +2259,12 @@ def _mypy_result_blocks(
 
 
 def run_mypy(paths: Sequence[str], repo_root: Path) -> int:
+    if not paths:
+        print(
+            "ERROR: run_mypy called with no file arguments; refusing (bare mypy is a false green)",
+            file=sys.stderr,
+        )
+        return 2
     checked_paths: list[str] = []
     for raw_path in paths:
         path = _safe_relative_path(raw_path)
@@ -2368,8 +2374,18 @@ def _check_history_integrity(repo_root: Path) -> int:
         print(f"ERROR: unexpected shallow repository state: {shallow_state}", file=sys.stderr)
         return 2
     if shallow_state == "true":
+        shallow_file = repo_root / ".git" / "shallow"
+        pin_sha = ""
+        if shallow_file.is_file():
+            first_line = shallow_file.read_text(encoding="utf-8").splitlines()
+            pin_sha = first_line[0].strip() if first_line else ""
+        pin_detail = f"  .git/shallow pins history at {pin_sha}." if pin_sha else ""
         print(
-            "ERROR: push validation requires complete Git history; fetch the full history",
+            "ERROR: push validation requires complete Git history."
+            + (f"\n  {pin_detail}" if pin_detail else "")
+            + "\n  A `git fetch --depth=<n>` made this clone shallow,"
+            " most likely while reproducing a CI step locally."
+            "\n  Fix: git fetch --unshallow origin",
             file=sys.stderr,
         )
         return 2
@@ -4907,9 +4923,88 @@ def _fetch_origin_main(repo_root: Path) -> None:
         print("WARNING: could not refresh origin/main; using local ref", file=sys.stderr)
 
 
+# Environment variable that allows force-pushing a branch the actor owns.
+# Set to "1" for a single push of a personal feature branch that has been
+# deliberately rebased.  universal.md MUST NOT #1 still applies: this escape
+# is for branches only the author has touched.  Use the 4-slot semaphore
+# described in AGENTS.md to serialize, not this env var.
+FORCE_PUSH_OK_ENV = "FORCE_PUSH_OK"
+
+
+def _check_non_fast_forward(push_ref: PushRef, repo_root: Path) -> int:
+    """Return 1 when push_ref rewrites published history on a branch ref.
+
+    Detects a force push by testing whether the current remote tip
+    (remote_sha) is reachable from what is about to land (local_sha).  If it
+    is not reachable, the push discards commits the remote already has.
+
+    Returns:
+        0 - fast-forward, new branch, deletion, non-branch ref, or env-var
+            escape active.
+        1 - non-fast-forward detected (history rewrite).
+        2 - remote object absent locally; fetch first.
+    """
+    # Only guard branch refs.
+    if _branch_name(push_ref.remote_ref) is None:
+        return 0
+
+    # Deletions and new branches do not rewrite history.
+    if push_ref.is_deletion or push_ref.is_new:
+        return 0
+
+    if os.environ.get(FORCE_PUSH_OK_ENV) == "1":
+        print(
+            f"WARNING: force-push check bypassed via {FORCE_PUSH_OK_ENV}=1 "
+            f"for {push_ref.remote_ref}",
+            file=sys.stderr,
+        )
+        return 0
+
+    # The remote tip must be present locally before we can test ancestry.
+    # merge-base --is-ancestor exits non-zero both for "not an ancestor" and
+    # for "unknown object", so we must distinguish those two cases first.
+    if not _commit_ref_exists(repo_root, push_ref.remote_sha):
+        print(
+            f"ERROR: remote tip {push_ref.remote_sha[:12]} for "
+            f"{push_ref.remote_ref} is not present in the local object store. "
+            "Run 'git fetch' and retry.",
+            file=sys.stderr,
+        )
+        return 2
+
+    result = _run_git(
+        repo_root,
+        ["merge-base", "--is-ancestor", push_ref.remote_sha, push_ref.local_sha],
+    )
+    if result.returncode == 0:
+        # remote_sha is an ancestor of local_sha: fast-forward push.
+        return 0
+
+    # returncode == 1 means not-an-ancestor; anything else is a git error.
+    # Fail closed in both cases.
+    print(
+        f"ERROR: push to {push_ref.remote_ref} is not a fast-forward. "
+        f"Remote tip {push_ref.remote_sha[:12]} is not reachable from "
+        f"{push_ref.local_sha[:12]}. "
+        "This rewrites published history, which universal.md MUST NOT #1 forbids. "
+        f"To override for a personal branch you own, set {FORCE_PUSH_OK_ENV}=1.",
+        file=sys.stderr,
+    )
+    return 1
+
+
 def _protected_push_destination(push_ref: PushRef) -> str | None:
     branch = _branch_name(push_ref.remote_ref)
     return branch if branch in {"main", "master"} else None
+
+
+def _check_all_non_fast_forward(refs: list[PushRef], repo_root: Path) -> int:
+    """Run _check_non_fast_forward for each ref; return first non-zero result."""
+    for push_ref in refs:
+        result = _check_non_fast_forward(push_ref, repo_root)
+        if result != 0:
+            return result
+    return 0
 
 
 def check_push_refs(stream: TextIO, repo_root: Path) -> int:
@@ -4934,6 +5029,9 @@ def check_push_refs(stream: TextIO, repo_root: Path) -> int:
     if protected is not None:
         print(f"ERROR: cannot delete or update protected branch '{protected}'", file=sys.stderr)
         return 1
+    nff_result = _check_all_non_fast_forward(refs, repo_root)
+    if nff_result != 0:
+        return nff_result
     active_refs = [push_ref for push_ref in refs if not push_ref.is_deletion]
     if active_refs:
         warn_if_push_files_incomplete(active_refs, repo_root)
@@ -4964,13 +5062,17 @@ def warn_if_push_files_incomplete(
         return
     checked_out_head = head_result.stdout.strip()
     push_base = _run_git(repo_root, ["rev-parse", "--verify", "@{push}"])
-    if (
-        len(push_refs) == 1
-        and push_refs[0].local_sha == checked_out_head
-        and push_base.returncode == 0
-        and push_refs[0].remote_sha == push_base.stdout.strip()
-    ):
-        return
+    if len(push_refs) == 1 and push_refs[0].local_sha == checked_out_head:
+        ref = push_refs[0]
+        # Quiet path 1: configured push target matches the remote SHA.
+        if push_base.returncode == 0 and ref.remote_sha == push_base.stdout.strip():
+            return
+        # Quiet path 2: explicit refspec push (HEAD -> differently-named remote
+        # branch). The local commit is checked-out HEAD, so Lefthook {push_files}
+        # does cover the pushed files. The @{push} target is irrelevant here
+        # because the caller named the destination explicitly.
+        if ref.local_ref != ref.remote_ref:
+            return
     print(
         "WARNING: Lefthook {push_files} quality coverage may be incomplete because "
         "the pushed ref set does not match checked-out HEAD and its configured push "
@@ -5249,7 +5351,7 @@ def run_yamllint(paths: Sequence[str], repo_root: Path) -> int:
 def run_skillforge(paths: Sequence[str], repo_root: Path) -> int:
     failed = False
     for path in paths:
-        if _skip_skillforge_path(path):
+        if _skip_skillforge_path(path, repo_root):
             continue
         if _is_skill_frontmatter_only_change(path, repo_root):
             continue
@@ -5266,27 +5368,22 @@ def run_skillforge(paths: Sequence[str], repo_root: Path) -> int:
     return 1 if failed else 0
 
 
-def _skip_skillforge_path(path: str) -> bool:
+def _skip_skillforge_path(path: str, repo_root: Path) -> bool:
+    """Skip evals and the command mirrors build/scripts/generate_commands.py writes.
+
+    A mirror is not an authored skill, so the SkillForge schema (Triggers, Process,
+    Verification) does not describe it and editing it is not how you fix it. The
+    mirror set is derived from `.claude/commands/<name>.md`, the generator's own
+    input, so the two cannot drift. Do not restate the names here or in lefthook.yml.
+    """
     if path.startswith("evals/"):
         return True
-    command_mirrors = {
-        "spec",
-        "plan",
-        "build",
-        "test",
-        "ship",
-        "checkpoint",
-        "pr-review",
-        "retro",
-        "sync",
-    }
     parts = PurePosixPath(path).parts
-    return (
-        len(parts) == 5
-        and parts[:3] == ("src", "copilot-cli", "skills")
-        and parts[3] in command_mirrors
-        and parts[4] == "SKILL.md"
-    )
+    if len(parts) != 5 or parts[:3] != ("src", "copilot-cli", "skills"):
+        return False
+    if parts[4] != "SKILL.md":
+        return False
+    return (repo_root / ".claude" / "commands" / f"{parts[3]}.md").is_file()
 
 
 def run_planning_advisory(repo_root: Path) -> int:

@@ -65,7 +65,7 @@ from typing import Any, Literal, TextIO
 # the sole thing tests mock.
 # ---------------------------------------------------------------------------
 from _anthropic_api import call_api as _call_api
-from _anthropic_api import load_api_key as _load_api_key
+from _anthropic_api import load_api_key_for_selected_provider as _load_api_key_for_selected_provider
 from _eval_common import (
     EST_TOKENS_PER_CALL,
     MODEL_PRICING_RATES_USD_PER_1K_TOKENS,
@@ -358,9 +358,7 @@ def report_verdict_for_pair(report: ReportRef, skill_a: str, skill_b: str) -> st
     verdicts = load_report_verdicts(report)
     key = frozenset({skill_a, skill_b})
     if key not in verdicts:
-        raise ReportVerdictError(
-            f"Pair ({skill_a}, {skill_b}) is absent from the cited report."
-        )
+        raise ReportVerdictError(f"Pair ({skill_a}, {skill_b}) is absent from the cited report.")
     return verdicts[key]
 
 
@@ -480,9 +478,7 @@ def load_pairs_file(path: str) -> PairsConfig:
     return PairsConfig(pairs=pairs, prompts=prompts)
 
 
-def _validate_prompts(
-    path: str, raw_prompts: dict[str, Any]
-) -> dict[str, list[dict[str, Any]]]:
+def _validate_prompts(path: str, raw_prompts: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
     prompts: dict[str, list[dict[str, Any]]] = {}
     for skill_name, items in raw_prompts.items():
         if not isinstance(items, list) or not items:
@@ -554,9 +550,7 @@ def require_skill_dir(skill_name: str, skills_dir: Path = SKILLS_DIR) -> Path:
     return skill_dir
 
 
-def _validate_pair_skill_dirs(
-    pairs: list[tuple[str, str]], skills_dir: Path = SKILLS_DIR
-) -> None:
+def _validate_pair_skill_dirs(pairs: list[tuple[str, str]], skills_dir: Path = SKILLS_DIR) -> None:
     for skill_a, skill_b in pairs:
         require_skill_dir(skill_a, skills_dir)
         require_skill_dir(skill_b, skills_dir)
@@ -632,9 +626,7 @@ def _parse_judge_score(raw: str) -> float:
         try:
             parsed = json.loads(text)
         except json.JSONDecodeError as exc:
-            raise JudgeScoreError(
-                f"Judge score payload is not valid JSON: {text[:100]}"
-            ) from exc
+            raise JudgeScoreError(f"Judge score payload is not valid JSON: {text[:100]}") from exc
     if not isinstance(parsed, dict):
         raise JudgeScoreError(f"Judge score payload is not an object: {text[:100]}")
     score = parsed.get("score")
@@ -751,12 +743,8 @@ def evaluate_pair(
     context_a = load_skill_context(dir_a)
     context_b = load_skill_context(dir_b)
 
-    a_on_a, calls_a = _score_prompt_set(
-        prompts[skill_a], context_a, context_b, respond, judge
-    )
-    b_on_b, calls_b = _score_prompt_set(
-        prompts[skill_b], context_b, context_a, respond, judge
-    )
+    a_on_a, calls_a = _score_prompt_set(prompts[skill_a], context_a, context_b, respond, judge)
+    b_on_b, calls_b = _score_prompt_set(prompts[skill_b], context_b, context_a, respond, judge)
 
     verdict = classify_overlap(a_on_a, b_on_b)
     return PairResult(
@@ -930,7 +918,7 @@ def run(args: argparse.Namespace) -> int:
         return EXIT_OK
 
     try:
-        api_key = _load_api_key()
+        api_key = _load_api_key_for_selected_provider()
     except RuntimeError as exc:
         print(f"ERROR (external): {exc}", file=sys.stderr)
         return EXIT_EXTERNAL

@@ -27,6 +27,14 @@
 
 ## Related
 
+- `decision-a-whole-corpus-gate-cannot-be-path-filtered.md` is the **opposite**
+  failure of the same mechanism. Here the path filter stops a required check
+  from ever reporting, so the PR waits forever and the problem announces itself.
+  There the filter makes a whole-corpus check report **success** without
+  measuring, so a real breach stays invisible until someone edits a filtered
+  file. The discriminator is whether the gate's verdict depends on files outside
+  the diff. If it does, do not path-filter it at all, and `workflow_dispatch` is
+  not the remedy.
 - [ci-infrastructure-001-fail-fast-infrastructure-failures](ci-infrastructure-001-fail-fast-infrastructure-failures.md)
 - [ci-infrastructure-002-explicit-retry-timing](ci-infrastructure-002-explicit-retry-timing.md)
 - [ci-infrastructure-003-job-status-verdict-distinction](ci-infrastructure-003-job-status-verdict-distinction.md)
