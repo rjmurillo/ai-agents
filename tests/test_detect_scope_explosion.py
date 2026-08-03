@@ -716,3 +716,74 @@ class TestMain:
         ), patch("sys.argv", ["detect_scope_explosion.py"]):
             exit_code = main()
             assert exit_code == 1
+
+
+class TestBypassHintContext:
+    """The bypass hint must match the hook stage where it will be used."""
+
+    def _blocked_result(self) -> ScopeResult:
+        return ScopeResult(
+            file_count=BLOCK_THRESHOLD + 5,
+            merge_base="abc123",
+            current_branch="feat/test",
+            files=tuple(f"file{i}.py" for i in range(BLOCK_THRESHOLD + 5)),
+        )
+
+    def test_pre_commit_hint_says_git_commit(self, capsys: CaptureFixture[str]) -> None:
+        """Pre-commit invocation (no --base-branch) prints 'git commit' bypass."""
+        report(self._blocked_result(), from_prepush=False)
+        out = capsys.readouterr().out
+        assert "SKIP_SCOPE_CHECK=1 git commit" in out
+        assert "git push" not in out
+
+    def test_pre_push_hint_says_git_push(self, capsys: CaptureFixture[str]) -> None:
+        """Pre-push invocation (--base-branch set) prints 'git push' bypass."""
+        report(self._blocked_result(), from_prepush=True)
+        out = capsys.readouterr().out
+        assert "SKIP_SCOPE_CHECK=1 git push" in out
+        assert "git commit" not in out.split("Bypass")[1]
+
+    def test_main_without_base_branch_arg_is_pre_commit(
+        self, capsys: CaptureFixture[str]
+    ) -> None:
+        """main() with no --base-branch passes from_prepush=False to report."""
+        blocked = self._blocked_result()
+        env = {k: v for k, v in os.environ.items() if k != "SKIP_SCOPE_CHECK"}
+        with patch.dict(os.environ, env, clear=True), patch(
+            "scripts.detect_scope_explosion.detect_scope", return_value=blocked
+        ), patch("sys.argv", ["detect_scope_explosion.py"]):
+            main()
+        out = capsys.readouterr().out
+        assert "SKIP_SCOPE_CHECK=1 git commit" in out
+
+    def test_main_with_base_branch_arg_is_pre_push(
+        self, capsys: CaptureFixture[str]
+    ) -> None:
+        """main() with --base-branch origin/main passes from_prepush=True to report."""
+        blocked = self._blocked_result()
+        env = {k: v for k, v in os.environ.items() if k != "SKIP_SCOPE_CHECK"}
+        with patch.dict(os.environ, env, clear=True), patch(
+            "scripts.detect_scope_explosion.detect_scope", return_value=blocked
+        ), patch(
+            "sys.argv",
+            ["detect_scope_explosion.py", "--base-branch", "origin/main"],
+        ):
+            main()
+        out = capsys.readouterr().out
+        assert "SKIP_SCOPE_CHECK=1 git push" in out
+
+    def test_pre_commit_remediation_mentions_stash(
+        self, capsys: CaptureFixture[str]
+    ) -> None:
+        """Pre-commit block message includes stash-based remediation steps."""
+        report(self._blocked_result(), from_prepush=False)
+        out = capsys.readouterr().out
+        assert "git stash" in out
+
+    def test_pre_push_remediation_omits_stash(
+        self, capsys: CaptureFixture[str]
+    ) -> None:
+        """Pre-push block message does not suggest stash; work is already committed."""
+        report(self._blocked_result(), from_prepush=True)
+        out = capsys.readouterr().out
+        assert "git stash" not in out

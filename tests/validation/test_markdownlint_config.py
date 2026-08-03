@@ -208,3 +208,42 @@ def test_md040_remains_enabled(config: dict[str, object]) -> None:
 def test_md041_remains_enabled(config: dict[str, object]) -> None:
     """MD041 (first-line-heading) stays on; agent files keep their H1 to pass it."""
     assert cast(dict[str, Any], config["config"]).get("MD041") is True
+
+
+# Worktree-root parity guard (issue #4248)
+# All gitignored worktree root patterns must appear so a full-repo walk
+# does not count duplicate .md files from sibling checkouts.
+_REQUIRED_WORKTREE_IGNORES = [
+    ".claude/worktrees/**",
+    ".worktrees/**",
+    ".wt/**",
+    "worktree-*/**",
+    "worktree--/**",
+    "wt_*/**",
+]
+_REQUIRED_GITIGNORE_WORKTREE = "wt_*/"
+
+
+def test_all_worktree_roots_are_ignored(config: dict[str, object]) -> None:
+    """Every gitignored worktree root pattern must appear in the ignores list.
+
+    A missing entry causes the linter to walk the full worktree and count its
+    .md files as if they were part of this repo (issue #4248).
+    """
+    ignores: list[str] = cast("list[str]", config.get("ignores", []))
+    missing = [p for p in _REQUIRED_WORKTREE_IGNORES if p not in ignores]
+    assert not missing, (
+        f"Missing worktree ignore patterns in .markdownlint-cli2.yaml: {missing}"
+    )
+
+
+def test_wt_star_is_in_gitignore() -> None:
+    """wt_*/ must be in .gitignore so the markdownlint ignore is meaningful.
+
+    If .gitignore does not list wt_*/, the worktree directories are tracked
+    by git and would not be excluded by the YAML ignore pattern alone.
+    """
+    gitignore = REPO_ROOT / ".gitignore"
+    assert gitignore.is_file(), ".gitignore not found"
+    content = gitignore.read_text(encoding="utf-8")
+    assert "wt_*/" in content, ".gitignore is missing the 'wt_*/' entry (issue #4248)"
