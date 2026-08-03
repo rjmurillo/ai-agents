@@ -140,7 +140,10 @@ def test_unknown_group_raises(tmp_path):
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "python3 -u .claude/hooks/invoke_dispatch_claude.py --group nope",
+                        "command": (
+                            "python3 -u .claude/hooks/invoke_dispatch_claude.py "
+                            "--group nope"
+                        ),
                     }
                 ],
             }
