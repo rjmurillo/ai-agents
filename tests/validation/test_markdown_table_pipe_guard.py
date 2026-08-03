@@ -26,6 +26,13 @@ from pathlib import Path
 
 _REPO_ROOT = Path(__file__).parent.parent.parent
 
+# Shell commands that legitimately follow a pipe operator.
+# Used to distinguish ``\|`` as a shell pipe from ``str \| None`` (type annotation).
+_SHELL_CMDS = re.compile(
+    r"\\[|]\s*(?:grep|wc|cut|head|tail|awk|sort|uniq|sed|xargs|tee|cat"
+    r"|find|ls|echo|python3?|uv|git|gh|diff|comm)"
+)
+
 
 def _is_fenced_boundary(line: str) -> bool:
     return bool(re.match(r"^[`~]{3}", line.strip()))
@@ -68,11 +75,6 @@ def _find_escaped_pipe_rows(files: list[Path]) -> list[str]:
 
     Only the shell-pipe form is flagged; the type-annotation form is excluded.
     """
-    # Shell commands that legitimately appear after a pipe operator
-    _SHELL_CMDS = re.compile(
-        r"\\[|]\s*(?:grep|wc|cut|head|tail|awk|sort|uniq|sed|xargs|tee|cat"
-        r"|find|ls|echo|python3?|uv|git|gh|diff|comm)"
-    )
     violations: list[str] = []
     for path in files:
         try:

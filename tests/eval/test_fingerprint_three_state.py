@@ -16,11 +16,12 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 _EVAL_DIR = Path(__file__).parent.parent.parent / "scripts" / "eval"
 sys.path.insert(0, str(_EVAL_DIR))
 
-import _eval_api_adapter_constants as _constants
+import _eval_api_adapter_constants as _constants  # noqa: E402  # sys.path must be set first
 
 
 class TestNormalizeFingerprintContract:
@@ -134,10 +135,8 @@ class TestAnthropicTransportFingerprintIntegration:
 
     def _make_transport_with_metadata(
         self, fingerprint: Any
-    ) -> tuple[Any, dict[str, Any]]:
+    ) -> tuple[Any, Any]:
         import _eval_api_adapter as adapter
-
-        captured_metadata: dict[str, Any] = {}
 
         def _fake_call_api(**kwargs: Any) -> str:
             md = kwargs.get("metadata")
@@ -150,17 +149,7 @@ class TestAnthropicTransportFingerprintIntegration:
         t._seed = None
         t.system_fingerprint = None
 
-        original_call_api = adapter.call_api
-
-        class _Ctx:
-            def __enter__(self) -> _Ctx:
-                adapter.call_api = _fake_call_api  # type: ignore[assignment]
-                return self
-
-            def __exit__(self, *_: object) -> None:
-                adapter.call_api = original_call_api
-
-        return t, _Ctx()
+        return t, patch("_eval_api_adapter.call_api", side_effect=_fake_call_api)
 
     def test_int_fingerprint_recorded_as_sentinel(self) -> None:
         import _eval_api_adapter as adapter
@@ -171,17 +160,13 @@ class TestAnthropicTransportFingerprintIntegration:
                 md["system_fingerprint"] = 99
             return "answer"
 
-        original = adapter.call_api
-        adapter.call_api = _fake_call_api  # type: ignore[assignment]
-        try:
+        with patch("_eval_api_adapter.call_api", side_effect=_fake_call_api):
             t = adapter._AnthropicTransport.__new__(adapter._AnthropicTransport)
             t._api_key = "key"
             t._seed = None
             t.system_fingerprint = None
             t("prompt", "model", "system")
             assert t.system_fingerprint == "<malformed:int>"
-        finally:
-            adapter.call_api = original
 
     def test_none_fingerprint_recorded_as_none(self) -> None:
         import _eval_api_adapter as adapter
@@ -189,14 +174,10 @@ class TestAnthropicTransportFingerprintIntegration:
         def _fake_call_api(**kwargs: Any) -> str:
             return "answer"
 
-        original = adapter.call_api
-        adapter.call_api = _fake_call_api  # type: ignore[assignment]
-        try:
+        with patch("_eval_api_adapter.call_api", side_effect=_fake_call_api):
             t = adapter._AnthropicTransport.__new__(adapter._AnthropicTransport)
             t._api_key = "key"
             t._seed = None
             t.system_fingerprint = None
             t("prompt", "model", "system")
             assert t.system_fingerprint is None
-        finally:
-            adapter.call_api = original
