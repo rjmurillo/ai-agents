@@ -54,6 +54,8 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 RULES_SUBDIR = Path(".claude") / "rules"
 SKILLS_SUBDIR = Path(".claude") / "skills"
 RULE_SCENARIOS_SUBDIR = Path("tests") / "evals" / "rule-scenarios"
