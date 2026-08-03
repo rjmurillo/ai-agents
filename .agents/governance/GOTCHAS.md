@@ -127,6 +127,44 @@ endingCommit '<sha>' names a commit that is not an ancestor of HEAD
 
 Refs #3618.
 
+## The same `endingCommit` error also fires when you never amended anything
+
+The tell is that the SHA in the message is one you have never seen, and the log
+it came from is not yours.
+
+`new_pr.py --base` defaults to the **local** `main` ref, not `origin/main`, and
+uses it for both the PR target and the changed-file set. A stale local `main`
+makes `git diff main...HEAD` report every session log merged upstream since you
+last updated it. The Session End gate then sorts that set by date and session
+number and validates only the highest, which is a stranger's log, against your
+branch. Its `endingCommit` is legitimately not an ancestor of your HEAD, so the
+gate fails your PR for someone else's file, and prints one line with no path:
+
+```text
+Session End validation failed
+```
+
+Measured 2026-08-02 with local `main` 44 commits behind. The gate selected
+`2026-08-02-session-4231-episode-corpus-migration.json` out of 19 candidates;
+the branch's own log passed standalone in the same worktree.
+
+Check staleness first, before reading any session log:
+
+```bash
+git rev-list --left-right --count main...origin/main   # non-zero right = stale
+git fetch origin main:main                             # fast-forward the ref
+```
+
+The fetch is refused when `main` is checked out in a worktree. It usually is
+not: the primary clone here sits on a detached HEAD, and `git worktree list`
+tells you in one line.
+
+Two reasons this is expensive. The message names neither the file it validated
+nor the base it used, so the natural next move is to re-validate your own log,
+which passes and sends you looking for a gate bug. And the same stale ref makes
+`git diff main..HEAD` report thousands of phantom deletions, so the two symptoms
+show up together and look like one catastrophic branch problem.
+
 ## Run validation with `uv run python`, never bare `python3`
 
 `scripts/validation/checks_spec.py` shells out to child validators with

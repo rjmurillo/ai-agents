@@ -1,0 +1,152 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4401,
+    "date": "2026-08-02",
+    "branch": "docs/session-quirks-git-diff",
+    "startingCommit": "27b591b43",
+    "objective": "Record two operational quirks discovered while closing the adr-review debate on the session-end lint scope: the two-dot diff form inventing deletions proportional to how far behind the branch is, and a stale local main making the new_pr.py Session End gate validate a stranger's session log. Both were measured, not recalled."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP not reachable in this harness; read .serena/memories/ from disk instead."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Same fallback; memory tree read from disk."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read, not edited (ADR-014)."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "github skill scripts listed before use; issue/new_issue.py and pr/new_pr.py used rather than raw gh."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Issue #4401 and PR #4404 both created through the github skill scripts."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Knowledge-persistence rule consulted to choose the surface: the git finding extends an existing Serena memory, the gate finding belongs in GOTCHAS.md."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Grepped .serena/memories/ for merge-base, shell-capability and copilotignore prior art before writing. Found git/git-merge-driver-github-disagreement.md already owned the topic, so extended it rather than adding a file."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned docs/session-quirks-git-diff."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "docs/session-quirks-git-diff is not main."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short and git diff --stat read before each commit."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "27b591b43"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Both findings written to the surface that already owned the topic, each with the measurement that produced it."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Extended .serena/memories/git/git-merge-driver-github-disagreement.md with the two-dot deletion trap, inside the 'Controls that lie' section that already collects this class of finding."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Memory append committed as 4d43af4d6; GOTCHAS.md and this log committed together, as session-policy requires for any .agents/ path."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Lint read 0 files: NOT LINTED. Ran the wrapper on both changed paths and it reported 'selected 0 of 2 target(s) ... This PASS means not linted, not clean', because .agents/** and .serena/** are both excluded by .markdownlint-cli2.yaml. A whole-branch run reported 'checked 4 of 6 target(s)', the four being unrelated files main moved ahead on. This is the exact false-clean the protocol change on docs/session-protocol-lint-scope was written to stop, observed live."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/validate_session_json.py"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Session todo table updated as each worktree reached PR."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: a third candidate quirk was dropped after measurement disproved its stated mechanism. The claim was that .agents/sessions/*.json are excluded by a .copilotignore file; no such file exists in the repo, so the exclusion comes from elsewhere and the memory would have taught a false cause. Logging a disproved mechanism is worse than logging nothing."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Closed the 6-agent adr-review debate on the session-end lint scope",
+      "result": "high-level-advisor returned Accept / File issue / Land now, giving 6 of 6 Accept or Disagree-and-Commit. It overruled the architect on ADR-043 on the ground that a stale claim and a mechanically wrong claim are different objects, and scoped the fix to an appended correction so the historical record survives. Filed as issue #4401 after verifying ADR-043 line 60 and the contradicting comment at .markdownlint-cli2.yaml lines 90 to 97."
+    },
+    {
+      "action": "Measured the two-dot versus three-dot diff on a branch 7 commits behind main",
+      "result": "origin/main..HEAD reported 62 files, 207 insertions and 4978 deletions for a change that adds three lines and deletes nothing. origin/main...HEAD and an explicit merge-base diff both reported 4 files, 118 insertions, 0 deletions. The existing memory already told readers to use the three-dot form but never said what the two-dot form does, which is the half that causes the wrong decision."
+    },
+    {
+      "action": "Diagnosed an opaque 'Session End validation failed' from new_pr.py",
+      "result": "The gate diffs against the local main ref, which was 44 commits behind. That surfaced 19 session logs as changed, and the gate validates only the highest-numbered one, which was 2026-08-02-session-4231-episode-corpus-migration.json, a file this branch never touched. Its endingCommit is legitimately not an ancestor of this HEAD. The branch's own log passed standalone in the same worktree under the same interpreter, which is what ruled out every other cause. git fetch origin main:main fast-forwarded the ref and the PR created on the next attempt."
+    },
+    {
+      "action": "Checked the fix was safe before moving the ref",
+      "result": "git rev-list --left-right --count main...origin/main reported 0 ahead and 44 behind, and git worktree list showed the primary clone on a detached HEAD, so main was checked out nowhere and the fast-forward could not discard work or disturb another worktree."
+    },
+    {
+      "action": "Chose the persistence surface for each finding rather than defaulting to a new memory file",
+      "result": "The git finding extends the memory that already owns diff-count lies, keeping one source of truth. The gate finding went to GOTCHAS.md beside the existing endingCommit entry, because the two share a symptom string and differ in cause, so a reader who lands on the existing entry alone will hunt for an amend they never made."
+    },
+    {
+      "action": "Dispatched cross-family adversarial review",
+      "result": "code-review agent on gpt-5.6-terra, a different model family than the author, tasked to verify the git semantics from the man page rather than folklore, reproduce the three-row table, and check which side of --left-right is the behind count."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Record the ending commit in a follow-up commit, never by amending the commit that carries this log.",
+    "Issue #4401 tracks the ADR-043 correction note."
+  ]
+}
