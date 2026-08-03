@@ -9,7 +9,7 @@ license: MIT
 metadata:
   domains: [memory, citations, verification]
   type: utility
-  adr: ADR-007, ADR-037
+  adr: ADR-007, ADR-038
 ---
 
 # Memory Enhancement
@@ -36,82 +36,120 @@ Manage citations, verify code references, and track confidence scores for Serena
 ```text
 Need memory enhancement?
 │
-├─ Add citation to memory → add-citation command
+├─ Add citation to memory → edit the memory file (no CLI command)
 ├─ Verify citations → verify or verify-all command
 ├─ Check memory health → health command
 ├─ Traverse memory graph → graph command
-└─ Update confidence → update-confidence command
+└─ Show confidence scores → confidence command
 ```
+
+## Command Surface
+
+Global options come **before** the subcommand. Placing `--repo-root` or
+`--memories-dir` after the subcommand exits 2.
+
+```text
+python -m memory_enhancement [--repo-root PATH] [--memories-dir PATH] <command>
+```
+
+| Command | Options | Exit codes |
+|---------|---------|------------|
+| `verify` | `--memory-id ID` | 1 if any citation is invalid, or the id is unknown |
+| `verify-all` | `--json` | 1 if any citation is invalid |
+| `health` | `--json`, `--text`, `--markdown` (default) | 1 if any citation is broken or stale, or any memory is stale |
+| `graph` | `--start ID` (required), `--depth N` | 1 if the start id is unknown |
+| `confidence` | none | 0 |
+| `search` | `QUERY` (positional), `--top N`, `--json` | 0 |
+
+`--memories-dir` must resolve inside `--repo-root`; otherwise the CLI exits 1.
+A memory id is its path under the memories directory without the `.md`
+suffix, so `.serena/memories/testing/foo.md` has the id `testing/foo`.
 
 ## Process
 
 ### Phase 1: Identify Target Memory
 
-Locate memory file by ID or path:
+Locate the memory file by id:
 
-1. **Check default directory** - Look in `.serena/memories/` for `<memory-id>.md`
-2. **Try direct path** - If full path provided, use it directly
-3. **Validate existence** - Error if memory file not found (exit code 2)
+1. **Derive the id** - The id is the path under the memories directory without
+   the `.md` suffix (`.serena/memories/testing/foo.md` has id `testing/foo`).
+2. **Point at a different tree** - Pass `--memories-dir PATH` before the
+   subcommand. It must resolve inside `--repo-root`.
+3. **Validate existence** - `verify --memory-id <id>` prints
+   `Memory not found: <id>` and exits 1 when the id is unknown.
 
 **Verification:** Memory file exists and is readable
 
 ### Phase 2: Add/Verify Citations
 
-Use CLI commands with structured output:
-
 #### Add Citation
 
-```bash
-python -m memory_enhancement add-citation <memory-id> --file <path> --line <num> --snippet <text>
+There is no `add-citation` command. Citations are markdown, so add one by
+editing the memory file and appending a citation line to its body:
+
+```text
+[cite:file](src/api.py) - the error handler lives here
 ```
 
-**Parameters:**
+**Syntax:** `[cite:<source-type>](<target>) - <context>`
 
-- `memory-id` - Memory identifier or file path
-- `--file` - Relative file path from repository root (required)
-- `--line` - Line number (1-indexed, optional for file-level citations)
-- `--snippet` - Code snippet for fuzzy matching (optional)
-- `--dry-run` - Preview changes without writing (optional)
+- `source-type` - one of `file`, `function`, `issue`, `pr`, `adr`, `memory`, `url`
+- `target` - repository-relative path or identifier; must be non-empty
+- `context` - optional prose after ` - `, kept as the citation context
 
-**Exit Codes** (ADR-035):
+An unrecognized `source-type` warns on stderr and the citation is dropped, so
+the memory can still exit 0 with the citation missing. Verify after editing.
+A `citations:` block in YAML frontmatter is **not** read by this tool.
 
-- 0: Success
-- 1: Validation failed (stale citation)
-- 2: Invalid arguments or file not found
-- 3: File I/O error
+**Verification:** `verify --memory-id <id>` lists the new citation
 
 #### Verify Citations
 
 ```bash
 # Single memory
-python -m memory_enhancement verify <memory-id> [--json]
+python -m memory_enhancement verify --memory-id <memory-id>
 
-# All memories
-python -m memory_enhancement verify-all [--dir .serena/memories] [--json]
+# All memories, human-readable
+python -m memory_enhancement verify-all
+
+# All memories, JSON for CI
+python -m memory_enhancement verify-all --json
 ```
 
 **Output Indicators:**
 
-- ✅ VALID - All citations point to valid locations
-- ❌ STALE - Some citations are invalid
-- Confidence score (0.0-1.0)
-- Detailed mismatch reasons
+- `[PASS] <target> - <reason>` - citation resolves
+- `[FAIL] <target> - <reason>` - citation is broken or stale
+- Exit code 1 when any citation is invalid
 
 **Verification:** Citations validated against current codebase state
 
-### Phase 3: Update Confidence
+### Phase 3: Show Confidence
 
-Recalculate based on verification results:
+Recalculate scores from current verification results:
 
 ```bash
-python -m memory_enhancement update-confidence <memory-id>
+python -m memory_enhancement confidence
 ```
+
+Prints `<memory-id>: <score>` for every memory. The command computes scores on
+each run and **does not write them back** to the memory files, and it has no
+single-memory filter.
 
 **Confidence Calculation:**
 
-```text
-confidence = valid_citations / total_citations
-```
+A weighted blend of four factors, clamped to `0.0-1.0`:
+
+| Factor | Weight | Definition |
+|--------|--------|------------|
+| Citation validity | 0.50 | valid citations / total citations; **1.0 when there are none** |
+| Update recency | 0.25 | decays linearly to 0 over 90 days since `updated_at` |
+| Link count | 0.15 | outgoing links / 10, capped at 1.0 |
+| Memory freshness | 0.10 | decays linearly to 0 over 365 days since `created_at` |
+
+A memory with no citations therefore does not score low; it scores high on
+validity and is limited only by age and link count. Read a high score as
+"nothing is known to be broken", not "this was checked against code".
 
 **Interpretation:**
 
@@ -121,9 +159,8 @@ confidence = valid_citations / total_citations
 | 0.7 - 0.9 | Medium confidence | Review stale citations |
 | 0.5 - 0.7 | Low confidence | Update memory or mark obsolete |
 | 0.0 - 0.5 | Very low confidence | Memory likely outdated |
-| No citations | Default (0.5) | Add citations to improve confidence |
 
-**Verification:** Confidence score updated in YAML frontmatter
+**Verification:** `confidence` prints a score for every memory
 
 ### Phase 4: Report Results
 
@@ -131,54 +168,51 @@ Display summary with actionable recommendations:
 
 #### List Citations
 
+There is no `list-citations` command. Verifying a memory prints its citations
+alongside their status:
+
 ```bash
-python -m memory_enhancement list-citations <memory-id> [--json]
+python -m memory_enhancement verify --memory-id <memory-id>
 ```
 
 Human-readable output:
 
 ```text
-Citations for memory-001:
-Total: 3
-
-✅ src/api.py:42
-   Snippet: handleError
-
-❌ src/client.ts:100
-   Reason: Line 100 exceeds file length (95 lines)
-
-✅ scripts/test.py
+testing/demo:
+  [PASS] src/api.py - File exists
+  [FAIL] src/missing.py - File not found: src/missing.py
 ```
 
-JSON output for programmatic usage:
+For machine-readable output across every memory, use `verify-all --json`. It
+emits a flat array, one object per citation:
 
 ```json
-{
-  "citations": [
-    {
-      "path": "src/api.py",
-      "line": 42,
-      "snippet": "handleError",
-      "valid": true,
-      "mismatch_reason": null,
-      "verified": "2026-01-24T14:30:00"
-    }
-  ]
-}
+[
+  {
+    "memory_id": "testing/demo",
+    "target": "src/api.py",
+    "source_type": "file",
+    "valid": true,
+    "reason": "File exists"
+  }
+]
 ```
 
 #### Health Report
 
 ```bash
-python -m memory_enhancement health [--format markdown|json] [--include-graph]
+python -m memory_enhancement health --json
 ```
 
-Generates comprehensive report with:
+Reports the following, and nothing else:
 
-- Total memories with citations
-- Stale memory count and percentage
-- Memories ranked by staleness (worst first)
-- Optional: Orphaned memories (disconnected from graph)
+- `total_memories`, `total_citations`
+- `valid_citations`, `stale_citations`, `broken_citations`, `unverified_citations`
+- `health_score` (`(valid + 0.5 * stale) / total`; 1.0 for an empty corpus, 0.0 when memories exist but carry no citations)
+- `stale_memories` (ids only, unordered)
+- `recommendations` (prose strings)
+
+There is no orphan detection and no staleness ranking.
 
 **Verification:** Report generated successfully
 
@@ -186,22 +220,27 @@ Generates comprehensive report with:
 
 | Operation | CLI Command | Key Parameters |
 |-----------|-------------|----------------|
-| Add citation | `python -m memory_enhancement add-citation` | `<memory-id>`, `--file`, `--line`, `--snippet` |
-| Verify memory | `python -m memory_enhancement verify` | `<memory-id>`, `--json` |
-| Verify all | `python -m memory_enhancement verify-all` | `--dir`, `--json` |
-| Health report | `python -m memory_enhancement health` | `--json`, `--markdown`, `--summary` |
-| Update confidence | `python -m memory_enhancement update-confidence` | `<memory-id>` |
-| List citations | `python -m memory_enhancement list-citations` | `<memory-id>`, `--json` |
-| Graph traversal | `python -m memory_enhancement graph` | `<root-id>`, `--strategy`, `--max-depth` |
+| Add citation | none; edit the memory body | `[cite:<type>](<target>) - <context>` |
+| Verify memory | `python -m memory_enhancement verify` | `--memory-id` |
+| Verify all | `python -m memory_enhancement verify-all` | `--json` |
+| Health report | `python -m memory_enhancement health` | `--json`, `--text`, `--markdown` |
+| Show confidence | `python -m memory_enhancement confidence` | none |
+| List citations | `python -m memory_enhancement verify` | `--memory-id` |
+| Graph traversal | `python -m memory_enhancement graph` | `--start`, `--depth` |
+| Search memories | `python -m memory_enhancement search` | `QUERY`, `--top`, `--json` |
+
+Prefix any of these with `--repo-root PATH` or `--memories-dir PATH` to point
+at a different tree. Both are global options and must precede the subcommand.
 
 ## Anti-Patterns
 
 | Avoid | Why | Instead |
 |-------|-----|---------|
-| Adding citations without verifying file exists | Adds invalid citations immediately | Let CLI validate on add |
-| Skipping confidence updates after verification | Confidence becomes stale | Run `update-confidence` after big code changes |
+| Placing `--repo-root` after the subcommand | argparse rejects it and exits 2 | Put global options first |
+| Adding a citation without checking the target | Nothing validates on write; it is a text edit | Run `verify --memory-id <id>` right after editing |
+| Putting citations in YAML frontmatter | The parser only reads `[cite:...]` in the body | Add the citation line to the memory body |
+| Reading a high confidence score as verified | Memories with no citations score high on validity | Check `total_citations` before trusting a score |
 | Using absolute paths | Breaks on different machines | Use repo-relative paths |
-| Adding duplicate citations | Clutters frontmatter | CLI automatically updates existing citations |
 | Forgetting to verify after refactoring | Citations go stale silently | Run `verify-all` regularly or in CI |
 
 ## Integration with Existing Skills
@@ -213,11 +252,11 @@ Generates comprehensive report with:
 
 ### Phase 5: Health Reporting
 
-Run batch health checks with exemption support:
+Run batch health checks:
 
 ```bash
-# Full report (human-readable)
-python -m memory_enhancement health [--dir .serena/memories] [--repo-root .]
+# Full report (human-readable markdown, the default)
+python -m memory_enhancement --repo-root . --memories-dir .serena/memories health
 
 # JSON output (for CI parsing)
 python -m memory_enhancement health --json
@@ -225,35 +264,19 @@ python -m memory_enhancement health --json
 # Markdown output (for PR comments)
 python -m memory_enhancement health --markdown
 
-# Summary only
-python -m memory_enhancement health --summary
+# Plain text output
+python -m memory_enhancement health --text
 ```
 
-**Status Indicators:**
+The three format flags are mutually exclusive. There is no exemption
+mechanism: `exempt: true` in frontmatter has no effect, and every memory in
+the directory is scanned.
 
-- [HEALTHY] - All citations valid or no citations
-- [STALE] - One or more citations are invalid
-- [EXEMPT] - Marked with `exempt: true` in frontmatter (skips verification)
-- [ERROR] - Failed to parse memory file
+**Exit Codes:**
 
-**Exemption Mechanism:**
-
-Add `exempt: true` to a memory's YAML frontmatter to exclude it from staleness checks.
-Use this for memories that reference external resources or intentionally static content.
-
-```yaml
----
-id: historical-context
-subject: Project History
-exempt: true
----
-```
-
-**Exit Codes** (ADR-035):
-
-- 0: All memories healthy or exempt
-- 1: One or more memories are stale
-- 2: Error (directory not found, parse failure)
+- 0: No broken citations, no stale citations, no stale memories
+- 1: One or more memories are broken or stale
+- 2: argparse rejected the command line
 
 ## CI Integration
 
@@ -269,68 +292,31 @@ The `.github/workflows/memory-health.yml` workflow runs health checks on all PRs
 
 ### Citation Verification Workflow
 
-The `.github/workflows/citation-verify.yml` verifies individual citations:
+The `.github/workflows/citation-verify.yml` workflow verifies citations:
 
-Replaces the example below with the actual deployed workflow.
-
-### Example workflow (for reference)
-
-```yaml
-name: Memory Citation Validation
-
-on:
-  pull_request:
-    paths:
-      - '.serena/memories/**'
-      - 'src/**'
-      - 'scripts/**'
-
-jobs:
-  verify:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: actions/setup-python@40c6b50cc6aa807e2d020b243100c016221d604c # v5.3.0
-        with:
-          python-version: '3.12'
-      - run: pip install -e .
-      - run: python -m memory_enhancement verify-all --json > results.json
-        continue-on-error: true
-      - run: cat results.json
-      - name: Comment on PR
-        if: failure()
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
-        with:
-          script: |
-            const results = require('./results.json');
-            const stale = results.filter(r => !r.valid);
-            if (stale.length > 0) {
-              await github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.name,
-                body: `⚠️ ${stale.length} stale memory citation(s) detected. Run \`python -m memory_enhancement verify-all\` locally for details.`
-              });
-            }
-```
-
-Initially set `continue-on-error: true` (warning only). After adoption, make blocking.
+- Runs on every pull request to `main`, plus `workflow_dispatch`
+- Filters on `.serena/memories/**` and `.claude/skills/memory-enhancement/**`
+- Runs `python3 -m memory_enhancement --repo-root . --memories-dir .serena/memories verify-all`
+- Blocking: a stale or broken citation exits 1 and fails the check
+- Posts no PR comment
+- Pairs with a `skip-verification` job so the required check still reports on
+  pull requests that touch neither path
 
 ## Verification
 
 After using this skill:
 
-- [ ] Citations validated against current codebase
-- [ ] Confidence scores updated in memory frontmatter
+- [ ] Citations validated against the current codebase
+- [ ] Confidence scores read from `confidence` output, not from frontmatter
 - [ ] Stale memories identified and reported
 - [ ] Health report generated (if requested)
-- [ ] Exit codes follow ADR-035 standard
+- [ ] Any memory edits written to the memory body, not to frontmatter
 
 ## References
 
 - [examples.md](references/examples.md) - Usage examples and workflows
 - [confidence-scoring.md](references/confidence-scoring.md) - How confidence is calculated
 - [ADR-007](../../.agents/architecture/ADR-007-memory-first-architecture.md) - Memory-first architecture
-- [ADR-037](../../.agents/architecture/ADR-037-reflexion-schema.md) - Reflexion memory schema (if exists)
+- [ADR-038](../../.agents/architecture/ADR-038-reflexion-memory-schema.md) - Reflexion memory schema
 
-<!-- vendor-portability: declared. This skill links .agents/architecture/ADR-007 and ADR-037 as the memory-first and reflexion-schema ADRs. Both are documentation citations; the enhancement logic does not read them, and a vendored install loses only the links. Issue #2050. -->
+<!-- vendor-portability: declared. This skill links .agents/architecture/ADR-007 and ADR-038 as the memory-first and reflexion-schema ADRs, and names .github/workflows/memory-health.yml and .github/workflows/citation-verify.yml as the CI that runs these commands. All four sit outside the plugin root and are absent from a vendored install. Every one is a documentation citation; the enhancement logic reads none of them, the CLI behaves identically without them, and a vendored install loses only the links and the description of this repository's CI wiring. Issue #2050. -->

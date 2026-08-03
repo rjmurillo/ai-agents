@@ -92,9 +92,11 @@ class TestValidatePathWithinRepo:
         )
         assert result.is_relative_to(repo_root)
 
-    def test_symlink_outside_repo_rejected(self, repo_root: Path, tmp_path: Path) -> None:
+    def test_symlink_outside_repo_rejected(
+        self, repo_root: Path, external_tmp_path: Path
+    ) -> None:
         """Symlink pointing outside repo root is rejected."""
-        external_dir = tmp_path / "external"
+        external_dir = external_tmp_path / "external"
         external_dir.mkdir()
         external_file = external_dir / "secret.txt"
         external_file.write_text("secret")

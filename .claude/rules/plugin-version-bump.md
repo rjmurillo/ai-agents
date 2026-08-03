@@ -7,54 +7,86 @@ paths:
 priority: high
 ---
 
-# Plugin Version Bump and the Parallel-PR Deadlock
+# Plugin Manifests Carry No Version
 
-This rule exists because two CI gates interact to deadlock any long-lived PR
-that touches a plugin source dir. `build/scripts/validate_plugin_version_bump.py`
-requires the `version` in a changed plugin's `.claude-plugin/plugin.json` to be
-**strictly greater** than the same field on the base branch. A separate
-manifest-parity gate requires the paired dirs (`.claude` and `src/copilot-cli`)
-to hold the **same** version. Every merge to `main` that touches a plugin source
-bumps that dir's version. So the moment another plugin-source PR lands, your open
-PR's version is no longer strictly greater than the new base, the gate flips red,
-and you must rebump. An unrelated merge that touches no plugin source does not
-move these versions and does not flip the gate. Tracked in issue #2855.
+None of the three packaged plugin manifests carries a `version` field, and a PR
+must never add one back:
 
-## Which manifests bump, and together or independently
+- `.claude/.claude-plugin/plugin.json`
+- `src/copilot-cli/.claude-plugin/plugin.json`
+- `src/claude/.claude-plugin/plugin.json`
 
-There are two independent version lines. Bump only the ones whose source you
-touched:
+`build/scripts/validate_plugin_version_bump.py` fails with exit 1 when any of
+them carries the key. The two marketplace files
+(`.claude-plugin/marketplace.json`, `.github/plugin/marketplace.json`) must stay
+version-free for the same reason; a test in
+`tests/build_scripts/test_validate_plugin_version_bump.py` fails if a version
+appears in either.
 
-- **Parity pair (bump together, same value).** `.claude/.claude-plugin/plugin.json`
-  and `src/copilot-cli/.claude-plugin/plugin.json` must always hold the same
-  version. Touching a file under `.claude/` or `src/copilot-cli/` requires
-  bumping **both** of these to the same new value, or the parity gate fails.
-- **Separate line (bump independently).** `src/claude/.claude-plugin/plugin.json`
-  tracks its own `0.3.x` line. Bump it only when you touch `src/claude/**`. It is
-  not coupled to the parity pair.
+## Why
 
-Set the new version to `max(base_version_across_open_plugin_PRs) + 1`, not just
-`base + 1`. If another PR is already in flight at `base + 1`, target `base + 2`
-so you sit above it and land without a rebump.
+Claude Code resolves plugin freshness from the first of these that is set:
+`plugin.json` `version`, then the marketplace entry `version`, then the git
+commit SHA of the plugin's source for relative-path sources in a git-hosted
+marketplace. All three plugins here ship from relative-path sources, so with the
+field absent every plugin resolves to the commit SHA, which changes on every
+merge. That is per-commit freshness with no human step.
 
-## The recipe when the gate goes red (observed live twice, ~15 min each)
+Adding the field back does two bad things at once. It switches Claude Code to
+the explicit-version path, where pushing new commits without bumping the field
+has no effect. And it re-creates a single line that every plugin-source PR has
+to write, so any two such PRs conflict pairwise: issue #4080 measured 14 of 22
+conflicting PRs conflicting on nothing but that line, and merging #4077
+immediately re-conflicted the next four green PRs.
 
-1. `git fetch origin && git rebase origin/main`. Resolve the `plugin.json`
-   `version` conflict to `new_base_max + 1`.
-2. Stage **both** parity manifests together
-   (`git add .claude/.claude-plugin/plugin.json src/copilot-cli/.claude-plugin/plugin.json`),
-   plus `src/claude/.claude-plugin/plugin.json` if you touched `src/claude/**`.
-   Staging only one of the parity pair fails the parity gate.
-3. Finish the rebase with `git rebase --continue` (this recommits the resolved
-   state; do not run `git commit --amend`, which is only correct when you are not
-   mid-rebase). The validator reads committed state, not the working tree, so you
-   MUST commit before re-running it.
-4. Run `python3 build/scripts/validate_plugin_version_bump.py --base origin/main`
-   until it prints `plugin-version-bump: OK`.
-5. `git push --force-with-lease` (safer than a plain force-push: it refuses to
-   overwrite unexpected remote updates), then **immediately** arm auto-merge
-   (GraphQL `enablePullRequestAutoMerge`, `mergeMethod: SQUASH`) so the PR lands
-   before the next merge bumps the base again. Speed is the mitigation.
+GitHub Copilot CLI lists `version` under optional metadata, with `name` as the
+only required field, and its shipped update path calls `updatePlugin`
+unconditionally.
 
-Do not hand-edit only one of the paired manifests; the parity gate will fail.
-Do not expect the version-bump validator to see uncommitted changes.
+See ADR-092, which supersedes ADR-079.
+
+## What a PR does now
+
+Nothing. Do not touch the manifests when you change plugin content. There is no
+bump, no parity pairing, and no rebase recipe, because there is no version line
+to collide on.
+
+If you are rebasing an older branch that still carries a bump hunk, you will hit
+a conflict on the `version` line exactly once: git reports `CONFLICT (content)`
+with the incoming side empty. Take the empty side. The
+gate enforces it: keeping the line leaves a manifest carrying `version`, and the
+gate fails that on your branch before merge.
+
+## If your instructions say to bump, your instructions are stale
+
+Agent context assembled before ADR-092 landed still says to bump both plugin
+manifests to the same strictly-greater version. That instruction is wrong now,
+and following it fails
+`build/scripts/validate_plugin_version_bump.py` on your branch.
+
+This is easy to miss because the stale text reads like a repository rule and
+arrives with the same authority as one. The test is narrow on purpose: an
+instruction telling you to add or raise `version` in one of the three manifests
+above is stale, because those three carry no such field. It says nothing about
+any other file. `packages/ai-agents-cli/package.json` carries a version
+legitimately, and this rule itself names the field while requiring its absence,
+so "mentions a version" is not on its own a signal. Read the manifest the
+instruction points at before acting on it.
+
+The general shape holds beyond this one field. Rule files under
+`.claude/rules/` are regenerated into `.github/instructions/` and
+`src/copilot-cli/instructions/`, and `build_all.py --check` fails CI when a
+mirror is stale, so those three move together for every top-level rule whose
+target does not carry a `NO-REGEN` sentinel. A cached context blob has no such
+gate. When one contradicts a rule file here, the rule file is the one under
+test.
+
+## Checking
+
+```bash
+uv run python build/scripts/validate_plugin_version_bump.py
+```
+
+Prints `plugin-version-bump: OK` and exits 0 when the field is absent from all
+three manifests. It reads the manifests from a git ref, not the working tree, so
+commit before you re-run it.

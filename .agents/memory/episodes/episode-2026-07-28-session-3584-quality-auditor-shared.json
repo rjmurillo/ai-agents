@@ -1,0 +1,121 @@
+{
+  "id": "episode-2026-07-28-session-3584-quality-auditor-shared",
+  "session": "2026-07-28-session-3584-quality-auditor-shared",
+  "timestamp": "2026-07-28T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix issue #3584 by promoting quality-auditor to shared agent surfaces so routed installs can invoke it.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured issue #3584 on current main. Only .claude/agents carried quality-auditor while orchestrator rows already named it in install surfaces.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added shared, GitHub, src/claude, Copilot CLI, and VS Code quality-auditor surfaces, then regenerated agent outputs and the catalog.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added 15 reachability tests covering the five missing surfaces and the existing orchestrator route rows.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Revert check in sibling worktree ai-agents-3584-revert restored the five new agent surfaces to origin/main while keeping tests. Result: all 15 tests failed, proving the tests are not tautological.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-28T01:38:04+00:00",
+      "type": "commit",
+      "content": "Commit: 6a98b368",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-28T01:32:31+00:00",
+      "type": "commit",
+      "content": "Commit: 19bd37e0",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e009"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-28T01:35:03+00:00",
+      "type": "commit",
+      "content": "Commit: 9fbfa455",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-28T01:36:35+00:00",
+      "type": "commit",
+      "content": "Commit: c517ae65",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Learnings captured: route reachability is a cross-surface contract. A matrix row is not enough unless every install has the named agent prompt and the generated mirrors validate from the shared source.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ]
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 4,
+    "files_changed": 2
+  },
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "stamp_only by migrate_causal_version.py on 2026-08-02: v2 edge rebuild agrees with stored edges"
+}

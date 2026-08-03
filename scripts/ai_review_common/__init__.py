@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+from scripts.ai_review_common.feature_review import (
+    VALID_RECOMMENDATIONS,
+    get_feature_review_assignees,
+    get_feature_review_labels,
+    get_feature_review_recommendation,
+)
 from scripts.ai_review_common.issue_triage import (
     convert_to_json_escaped,
     format_collapsible_section,
@@ -15,12 +21,6 @@ from scripts.ai_review_common.issue_triage import (
     write_log_error,
     write_output,
     write_step_summary,
-)
-from scripts.ai_review_common.feature_review import (
-    VALID_RECOMMENDATIONS,
-    get_feature_review_assignees,
-    get_feature_review_labels,
-    get_feature_review_recommendation,
 )
 from scripts.ai_review_common.quality_gate import (
     FAIL_VERDICTS,

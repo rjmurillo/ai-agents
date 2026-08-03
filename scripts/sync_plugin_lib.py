@@ -58,17 +58,10 @@ IMPORT_CONVERSIONS: list[tuple[re.Pattern[str], str]] = [
 # Files that exist only in the lib copy and must not be deleted during sync.
 LIB_ONLY_FILES: set[str] = set()
 
-CANONICAL_NOTE = "Canonical: {src_rel}. Sync via scripts/sync_plugin_lib.py."
-
 
 # ---------------------------------------------------------------------------
 # Core logic
 # ---------------------------------------------------------------------------
-
-
-def _build_canonical_note(src_rel: str) -> str:
-    """Return the canonical-copy docstring line for a given source path."""
-    return CANONICAL_NOTE.format(src_rel=src_rel)
 
 
 def _convert_imports(content: str) -> str:
@@ -78,48 +71,10 @@ def _convert_imports(content: str) -> str:
     return content
 
 
-def _replace_first_docstring_line(content: str, note: str) -> str:
-    """Replace the first line inside a module-level docstring with *note*.
-
-    Handles both triple-double-quote and triple-single-quote styles.
-    If the module has no leading docstring, prepend one.
-    """
-    # Single-line docstring: """some text.""" (opening and closing on same line)
-    match = re.match(r'^("""|\'\'\')[^\n]*?\1', content)
-    if match:
-        quote = match.group(1)
-        close_end = match.end()
-        after = content[close_end:]
-        return f'{quote}{note}{quote}{after}'
-
-    # Multi-line docstring: """text\n...\n"""
-    match = re.match(r'^("""|\'\'\')\s*\n?', content)
-    if match:
-        quote = match.group(1)
-        # Find the end of the first line after the opening quotes
-        rest_start = match.end()
-        # Skip past the original first content line
-        newline_pos = content.find("\n", rest_start)
-        if newline_pos == -1:
-            after = ""
-        else:
-            after = content[newline_pos:]
-        return f'{quote}{note}{after}'
-
-    # No docstring found: prepend one
-    print(
-        "[WARNING] sync_plugin_lib: No module docstring found in source, prepending canonical note",
-        file=sys.stderr,
-    )
-    return f'"""{note}"""\n\n{content}'
-
-
 def _transform_file(src_path: Path, src_dir_rel: str) -> str:
     """Read a source file and return its plugin-ready content."""
     content = src_path.read_text(encoding="utf-8")
     content = _convert_imports(content)
-    src_rel = f"{src_dir_rel}/{src_path.name}"
-    content = _replace_first_docstring_line(content, _build_canonical_note(src_rel))
     return content
 
 
@@ -223,9 +178,7 @@ def _remove_stale_files(
                 try:
                     dst_file.unlink()
                 except OSError as exc:
-                    changes.append(
-                        f"  [ERROR] Cannot remove {dst_rel}/{dst_file.name}: {exc}"
-                    )
+                    changes.append(f"  [ERROR] Cannot remove {dst_rel}/{dst_file.name}: {exc}")
                     had_errors = True
 
     return changes, had_errors
@@ -264,13 +217,21 @@ def sync_pair(
     had_errors = False
 
     sync_changes, sync_errors = _sync_files(
-        src_dir, dst_dir, src_rel, dst_rel, src_files, check_only=check_only,
+        src_dir,
+        dst_dir,
+        src_rel,
+        dst_rel,
+        src_files,
+        check_only=check_only,
     )
     changes.extend(sync_changes)
     had_errors = had_errors or sync_errors
 
     stale_changes, stale_errors = _remove_stale_files(
-        dst_dir, dst_rel, src_files, check_only=check_only,
+        dst_dir,
+        dst_rel,
+        src_files,
+        check_only=check_only,
     )
     changes.extend(stale_changes)
     had_errors = had_errors or stale_errors
@@ -330,12 +291,8 @@ def _imports_scripts_package(tree: ast.Module) -> bool:
         """Return the literal module string of a dynamic import call, else None."""
         target = node.func
         is_dynamic = (
-            isinstance(target, ast.Name)
-            and target.id in {"__import__", "import_module"}
-        ) or (
-            isinstance(target, ast.Attribute)
-            and target.attr in {"import_module", "__import__"}
-        )
+            isinstance(target, ast.Name) and target.id in {"__import__", "import_module"}
+        ) or (isinstance(target, ast.Attribute) and target.attr in {"import_module", "__import__"})
         if not is_dynamic:
             return None
         if node.args:

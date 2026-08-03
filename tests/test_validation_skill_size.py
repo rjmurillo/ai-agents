@@ -13,6 +13,8 @@ import pytest
 
 from scripts.validation import skill_size as _skill_size_mod
 from scripts.validation.skill_size import (
+    RATIONALE_MIN_CHARS,
+    RATIONALE_SEARCH_LINES,
     SKILL_BYTE_LIMIT,
     SKILL_BYTE_TARGET,
     SKILL_BYTE_WARNING,
@@ -22,10 +24,18 @@ from scripts.validation.skill_size import (
     StagedDiscoveryError,
     check_skill_size,
     get_staged_skill_files,
+    has_exception_rationale,
     has_size_exception,
     main,
     read_staged_blob_bytes,
 )
+
+_FIXTURE_REASON = (
+    "size-exception rationale for this fixture. The gate demands a stated reason "
+    "beside a declared escape hatch, so a fixture that exercises the exception "
+    "path must carry one too or it tests a shape the repository forbids."
+)
+_FIXTURE_COMMENT = f"<!--\n{_FIXTURE_REASON}\n-->\n"
 
 # ---------------------------------------------------------------------------
 # has_size_exception
@@ -97,7 +107,9 @@ class TestCheckSkillSize:
     def test_exceeds_limit_with_exception(self, tmp_path: Path) -> None:
         skill = tmp_path / "SKILL.md"
         skill.write_text(
-            "---\nname: test\nsize-exception: true\n---\n" + "line\n" * SKILL_SIZE_LIMIT
+            "---\nname: test\nsize-exception: true\n---\n"
+            + _FIXTURE_COMMENT
+            + "line\n" * SKILL_SIZE_LIMIT
         )
 
         result = check_skill_size(skill)
@@ -180,7 +192,9 @@ class TestCheckSkillSizeBytes:
     def test_exceeds_byte_limit_with_exception(self, tmp_path: Path) -> None:
         skill = tmp_path / "SKILL.md"
         skill.write_text(
-            "---\nname: test\nsize-exception: true\n---\n" + ("x" * 600 + "\n") * 50,
+            "---\nname: test\nsize-exception: true\n---\n"
+            + _FIXTURE_COMMENT
+            + ("x" * 600 + "\n") * 50,
             encoding="utf-8",
         )
 
@@ -239,13 +253,26 @@ class TestCheckSkillSizeBytes:
         # decide to decompose the skill or re-seed the constant. Mirrors the
         # instruction-budget anchor test. Reads raw bytes directly so it pins the
         # byte dimension without coupling to the line check.
+        #
+        # Both trees, not just .claude/skills (issue #4015): the generated
+        # Copilot mirror ships skills too, and measuring one tree while claiming
+        # the corpus is the reporting bug this test would otherwise repeat.
+        # Bodies with a declared size-exception are skipped because the
+        # validator downgrades them to a warning by design;
+        # src/copilot-cli/skills/spec/SKILL.md is the live case at 69,383 bytes.
         repo_root = Path(__file__).resolve().parents[1]
-        skills = sorted((repo_root / ".claude" / "skills").rglob("SKILL.md"))
-        assert skills, "expected shipped skills under .claude/skills"
+        skills = sorted(
+            skill
+            for prefix in _skill_size_mod._SKILL_TREE_PREFIXES
+            for skill in (repo_root / prefix).rglob("SKILL.md")
+        )
+        assert skills, "expected shipped skills under the skill trees"
         oversized = [
-            (str(skill), len(skill.read_bytes()))
+            (str(skill), len(raw))
             for skill in skills
-            if len(skill.read_bytes()) > SKILL_BYTE_LIMIT
+            for raw in [skill.read_bytes()]
+            if len(raw) > SKILL_BYTE_LIMIT
+            and not has_size_exception(raw.decode("utf-8", errors="replace"))
         ]
         assert not oversized, (
             f"ratchet seed too low: these bodies exceed "
@@ -295,7 +322,7 @@ class TestCheckSkillSizeBytes:
         skill_dir = tmp_path / "skill"
         skill_dir.mkdir()
         (skill_dir / "SKILL.md").write_text(
-            "---\nname: test\nsize-exception: true\n---\n" + "line\n" * 600
+            "---\nname: test\nsize-exception: true\n---\n" + _FIXTURE_COMMENT + "line\n" * 600
         )
 
         exit_code = main(["--path", str(tmp_path), "--ci"])
@@ -316,7 +343,7 @@ class TestCheckSkillSizeBytes:
         skill_dir = tmp_path / "skill"
         skill_dir.mkdir()
         (skill_dir / "SKILL.md").write_text(
-            "---\nname: test\nsize-exception: true\n---\n" + "x" * 500,
+            "---\nname: test\nsize-exception: true\n---\n" + _FIXTURE_COMMENT + "x" * 500,
             encoding="utf-8",
         )
 
@@ -395,7 +422,9 @@ class TestStagedBlobValidation:
         big = b"x" * (SKILL_BYTE_LIMIT + 64)
         skill = self._write_skill(tmp_path, b"---\nname: big\n---\n" + big)
         self._stage_all(tmp_path)
-        skill.write_bytes(b"---\nname: big\nsize-exception: true\n---\n" + big)
+        skill.write_bytes(
+            b"---\nname: big\nsize-exception: true\n---\n" + _FIXTURE_COMMENT.encode() + big
+        )
 
         monkeypatch.chdir(tmp_path)
         assert main(["--staged-only", "--ci"]) == 1
@@ -408,7 +437,10 @@ class TestStagedBlobValidation:
         # Proves exception parsing reads the staged blob too.
         self._init_repo(tmp_path)
         big = b"x" * (SKILL_BYTE_LIMIT + 64)
-        skill = self._write_skill(tmp_path, b"---\nname: big\nsize-exception: true\n---\n" + big)
+        skill = self._write_skill(
+            tmp_path,
+            b"---\nname: big\nsize-exception: true\n---\n" + _FIXTURE_COMMENT.encode() + big,
+        )
         self._stage_all(tmp_path)
         skill.write_bytes(b"---\nname: big\n---\n" + big)  # exception removed, unstaged
 
@@ -761,7 +793,7 @@ class TestStagedBlobValidation:
         _rev_parse_result = subprocess.run(
             ["git", "rev-parse", "--local-env-vars"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
         )
         if _rev_parse_result.returncode != 0:
             pytest.skip("git build does not support --local-env-vars")
@@ -951,3 +983,286 @@ class TestStagedBlobValidation:
         discovered = {p.as_posix() for p in get_staged_skill_files()}
         assert "src/copilot-cli/skills/big/SKILL.md" in discovered
         assert main(["--staged-only", "--ci"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# has_exception_rationale (Issue #3632)
+# ---------------------------------------------------------------------------
+
+_LONG_REASON = (
+    "size-exception rationale. The 500-line ceiling in skill_size.py wants this "
+    "body split into references/, but the overage predates this change and the "
+    "split alters runtime behavior for every caller, so it needs its own tests "
+    "rather than riding along here. Issue #3632 retires the key."
+)
+
+
+def _oversized(lines: int = SKILL_SIZE_LIMIT + 10) -> str:
+    return "\n".join(f"line {n}" for n in range(lines))
+
+
+def _doc(frontmatter: str, head: str = "", body: str | None = None) -> str:
+    return f"---\n{frontmatter}\n---\n{head}\n{body if body is not None else _oversized()}"
+
+
+class TestHasExceptionRationale:
+    """Rationale detection for a declared size-exception."""
+
+    def test_long_comment_in_head_qualifies(self) -> None:
+        assert has_exception_rationale(f"<!--\n{_LONG_REASON}\n-->\nbody") is True
+
+    def test_absent_comment_does_not_qualify(self) -> None:
+        assert has_exception_rationale("---\nsize-exception: true\n---\nbody") is False
+
+    def test_token_comment_is_too_short(self) -> None:
+        assert has_exception_rationale("<!-- size-exception -->\nbody") is False
+
+    def test_long_comment_without_the_keyword_does_not_qualify(self) -> None:
+        unrelated = _LONG_REASON.replace("size-exception", "generation note")
+        assert has_exception_rationale(f"<!--\n{unrelated}\n-->\nbody") is False
+
+    def test_comment_opening_past_the_window_does_not_qualify(self) -> None:
+        filler = "\n".join("x" for _ in range(RATIONALE_SEARCH_LINES + 5))
+        assert has_exception_rationale(f"{filler}\n<!--\n{_LONG_REASON}\n-->") is False
+
+    def test_comment_opening_inside_the_window_may_close_outside_it(self) -> None:
+        padding = "\n".join(f"{_LONG_REASON} continued." for _ in range(60))
+        content = f"<!--\n{_LONG_REASON}\n{padding}\n-->"
+        assert content.count("\n") > RATIONALE_SEARCH_LINES
+        assert has_exception_rationale(content) is True
+
+    def test_empty_content_does_not_qualify(self) -> None:
+        assert has_exception_rationale("") is False
+
+    def test_keyword_match_is_case_insensitive(self) -> None:
+        shouted = _LONG_REASON.replace("size-exception", "SIZE-EXCEPTION")
+        assert has_exception_rationale(f"<!--\n{shouted}\n-->") is True
+
+    def test_body_at_the_length_floor_qualifies(self) -> None:
+        reason = "size-exception " + "j" * (RATIONALE_MIN_CHARS - len("size-exception "))
+        assert len(reason) == RATIONALE_MIN_CHARS
+        assert has_exception_rationale(f"<!--{reason}-->") is True
+
+    def test_body_one_char_below_the_floor_does_not_qualify(self) -> None:
+        reason = "size-exception " + "j" * (RATIONALE_MIN_CHARS - len("size-exception ") - 1)
+        assert len(reason) == RATIONALE_MIN_CHARS - 1
+        assert has_exception_rationale(f"<!--{reason}-->") is False
+
+
+class TestExceptionRequiresRationale:
+    """check_skill_size refuses an undocumented escape hatch."""
+
+    def test_oversized_exception_without_rationale_fails(self, tmp_path: Path) -> None:
+        target = tmp_path / "SKILL.md"
+        target.write_text(_doc("name: big\nsize-exception: true"), encoding="utf-8")
+        result = check_skill_size(target)
+        assert result.passed is False
+        assert any("no rationale" in e for e in result.errors)
+
+    def test_oversized_exception_with_rationale_passes(self, tmp_path: Path) -> None:
+        target = tmp_path / "SKILL.md"
+        target.write_text(
+            _doc("name: big\nsize-exception: true", head=f"<!--\n{_LONG_REASON}\n-->"),
+            encoding="utf-8",
+        )
+        result = check_skill_size(target)
+        assert result.passed is True
+        assert result.warning is True
+
+    def test_within_limits_exception_without_rationale_still_passes(self, tmp_path: Path) -> None:
+        """A declared-but-unused exception is dead config, not a blocking defect."""
+        target = tmp_path / "SKILL.md"
+        target.write_text(_doc("name: small\nsize-exception: true", body="tiny"), encoding="utf-8")
+        result = check_skill_size(target)
+        assert result.passed is True
+
+    def test_oversized_without_exception_reports_only_the_size_error(self, tmp_path: Path) -> None:
+        target = tmp_path / "SKILL.md"
+        target.write_text(_doc("name: big"), encoding="utf-8")
+        result = check_skill_size(target)
+        assert result.passed is False
+        assert not any("no rationale" in e for e in result.errors)
+
+    def test_byte_overage_alone_also_requires_a_rationale(self, tmp_path: Path) -> None:
+        """The byte ceiling is an independent dimension and must gate the same way."""
+        fat = "w" * (SKILL_BYTE_LIMIT + 100)
+        target = tmp_path / "SKILL.md"
+        target.write_text(_doc("name: fat\nsize-exception: true", body=fat), encoding="utf-8")
+        assert len(fat.splitlines()) < SKILL_SIZE_LIMIT
+        result = check_skill_size(target)
+        assert result.passed is False
+        assert any("no rationale" in e for e in result.errors)
+
+    def test_shipped_spec_forms_carry_a_rationale(self) -> None:
+        """After the spec split (issue #3632), spec.md is under the 200-line ceiling.
+
+        The old size-exception on spec.md is no longer needed. This test pins
+        that regression: the split must not be undone without a new exception.
+        """
+        root = Path(__file__).resolve().parents[1]
+        for relative in (
+            ".claude/commands/spec.md",
+            "src/copilot-cli/skills/spec/SKILL.md",
+        ):
+            content = (root / relative).read_text(encoding="utf-8")
+            line_count = len(content.splitlines())
+            assert line_count <= 200, (
+                f"{relative} has {line_count} lines; the spec split (issue #3632) "
+                "must keep it at or under 200 lines. Add a size-exception with rationale "
+                "if you must exceed this, or split further."
+            )
+            assert not has_size_exception(content), (
+                f"{relative} unexpectedly declares size-exception; "
+                "the spec split removed the need for it."
+            )
+
+
+class TestDefaultScanCorpus:
+    """The full scan measures every tree the staged scan matches (issue #4015).
+
+    Before this, `--path` defaulted to `.claude/skills` and a full audit opened
+    98 of 209 SKILL.md bodies, then printed "All skill files within size
+    limits", a sentence about a corpus it had never read. The staged branch was
+    already correct, so the gate never under-counted; the audit path did.
+
+    These tests build a fake project root and point the module's `_PROJECT_ROOT`
+    at it, so discovery runs against a controlled two-tree corpus with no git,
+    no network, and no dependence on the live repository's contents.
+    """
+
+    @staticmethod
+    def _write_skill(root: Path, prefix: str, name: str, body: str) -> Path:
+        target = root / prefix / name / "SKILL.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(body, encoding="utf-8")
+        return target
+
+    @staticmethod
+    def _small() -> str:
+        return "---\nname: test\n---\nSmall skill\n"
+
+    @staticmethod
+    def _oversized() -> str:
+        return "---\nname: test\n---\n" + "line\n" * 600
+
+    def _fake_root(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+        monkeypatch.delenv("SKILL_PATH", raising=False)
+        monkeypatch.setattr(_skill_size_mod, "_PROJECT_ROOT", tmp_path)
+        return tmp_path
+
+    def test_default_scan_covers_both_trees(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        root = self._fake_root(tmp_path, monkeypatch)
+        self._write_skill(root, ".claude/skills", "alpha", self._small())
+        self._write_skill(root, "src/copilot-cli/skills", "beta", self._small())
+
+        exit_code = main([])
+
+        assert exit_code == 0
+        out = capsys.readouterr().out
+        assert "Found 2 SKILL.md file(s)" in out
+        assert "  Total:    2" in out
+
+    def test_oversized_body_in_mirror_tree_only_fails_ci(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The regression guard. Against the single-tree default this returned 0
+        # because the mirror body was never opened.
+        root = self._fake_root(tmp_path, monkeypatch)
+        self._write_skill(root, ".claude/skills", "alpha", self._small())
+        self._write_skill(root, "src/copilot-cli/skills", "big", self._oversized())
+
+        assert main(["--ci"]) == 1
+
+    def test_explicit_path_still_narrows_the_scan(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # --path stays the narrowing override: the oversized mirror body is out
+        # of scope when the caller names one tree.
+        root = self._fake_root(tmp_path, monkeypatch)
+        self._write_skill(root, ".claude/skills", "alpha", self._small())
+        self._write_skill(root, "src/copilot-cli/skills", "big", self._oversized())
+
+        assert main(["--ci", "--path", str(root / ".claude" / "skills")]) == 0
+
+    def test_skill_path_env_var_still_narrows_the_scan(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        root = self._fake_root(tmp_path, monkeypatch)
+        self._write_skill(root, ".claude/skills", "alpha", self._small())
+        self._write_skill(root, "src/copilot-cli/skills", "big", self._oversized())
+        monkeypatch.setenv("SKILL_PATH", str(root / ".claude" / "skills"))
+
+        assert main(["--ci"]) == 0
+
+    def test_absent_tree_is_named_and_survivor_is_still_measured(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # A vendored install legitimately ships one tree, so an absent prefix is
+        # not a failure. It is named, because silence about an unscanned tree is
+        # what let the single-tree scan read as a whole-repository result.
+        root = self._fake_root(tmp_path, monkeypatch)
+        self._write_skill(root, ".claude/skills", "alpha", self._small())
+
+        exit_code = main(["--ci"])
+
+        assert exit_code == 0
+        out = capsys.readouterr().out
+        assert "Scanning skill trees: .claude/skills" in out
+        assert "absent, not scanned: src/copilot-cli/skills" in out
+        assert "  Total:    1" in out
+
+    def test_no_trees_present_reports_nothing_found(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        self._fake_root(tmp_path, monkeypatch)
+
+        exit_code = main(["--ci"])
+
+        assert exit_code == 0
+        out = capsys.readouterr().out
+        assert "(none present)" in out
+        assert "No SKILL.md files found to validate." in out
+
+    def test_default_corpus_files_is_anchored_on_project_root(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # cwd-independence (.claude/rules/ci-scripts.md MUST-8): running the
+        # audit from a subdirectory must not change which corpus it measures.
+        root = self._fake_root(tmp_path, monkeypatch)
+        self._write_skill(root, ".claude/skills", "alpha", self._small())
+        self._write_skill(root, "src/copilot-cli/skills", "beta", self._small())
+        monkeypatch.chdir(root / "src")
+
+        found = _skill_size_mod.default_corpus_files()
+
+        assert [path.name for path in found] == ["SKILL.md", "SKILL.md"]
+        assert {path.parent.name for path in found} == {"alpha", "beta"}
+
+    def test_display_path_is_repo_relative_from_a_subdirectory(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # The corpus is _PROJECT_ROOT-anchored and absolute, so a cwd-only
+        # display fell back to the absolute path from any subdirectory, and
+        # from `/` produced a slash-stripped path that resolves to nothing.
+        root = self._fake_root(tmp_path, monkeypatch)
+        self._write_skill(root, ".claude/skills", "alpha", self._oversized())
+        (root / "src").mkdir(parents=True, exist_ok=True)
+        monkeypatch.chdir(root / "src")
+
+        main([])
+
+        out = capsys.readouterr().out.replace("\\", "/")
+        assert ".claude/skills/alpha/SKILL.md" in out
+        assert str(root) not in out
+
+    def test_display_path_falls_back_to_absolute_outside_both_roots(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Edge case: a file under neither _PROJECT_ROOT nor cwd keeps its
+        # absolute path rather than being mangled into a relative one.
+        monkeypatch.setattr(_skill_size_mod, "_PROJECT_ROOT", tmp_path / "elsewhere")
+        outside = tmp_path / "outside" / "SKILL.md"
+
+        assert _skill_size_mod._relative_display(outside) == str(outside)

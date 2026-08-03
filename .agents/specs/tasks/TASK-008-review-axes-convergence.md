@@ -202,7 +202,7 @@ All tasks reference DESIGN-008 for interface contracts and REQ-008 for acceptanc
 - `ai-pr-quality-gate.yml` drift-check job: `needs: []` (runs in parallel with other jobs); `if: always()` is NOT set (drift-check failing should block merge regardless of other job results).
 - The `actions/github-script` SHA can be sourced from the existing workflow file where it is already used. Match the existing pinned SHA.
 
-**Testing requirements:** TASK-008-05 covers the hook via `tests/hooks/test_drift_check.py`. At this task, manual test: (1) introduce a one-character diff in a `.github/prompts/` file; run `git push --no-verify` (bypass) to confirm CI catches it; (2) restore the file; confirm hook passes.
+**Testing requirements:** TASK-008-05 covers the hook via `tests/build_scripts/test_generate_pr_quality_prompts.py`. At this task, manual test: (1) introduce a one-character diff in a `.github/prompts/` file; run `git push --no-verify` (bypass) to confirm CI catches it; (2) restore the file; confirm hook passes.
 
 ---
 
@@ -215,17 +215,17 @@ All tasks reference DESIGN-008 for interface contracts and REQ-008 for acceptanc
 **Blocked by:** TASK-008-02 (module), TASK-008-03 (generator), TASK-008-04 (hook step).
 
 **In scope:**
-- `tests/lib/test_ai_review_common.py`: full truth table for `merge_verdicts`, all `get_verdict_emoji` tokens, 100% coverage.
+- `tests/test_ai_review.py`: full truth table for `merge_verdicts`, all `get_verdict_emoji` tokens, 100% coverage.
 - `tests/build_scripts/test_generate_pr_quality_prompts.py`: idempotency, partial-write recovery, schema validation, NO-REGEN sentinel, exit codes.
-- `tests/hooks/test_drift_check.py`: positive (no drift, exit 0) and negative (drift, unified diff, exit 1).
+- `tests/build_scripts/test_generate_pr_quality_prompts.py`: positive (no drift, exit 0) and negative (drift, unified diff, exit 1).
 - `tests/integration/test_vendored_install.py`: fresh-checkout with only `.claude/` subtree.
 
 **Out of scope:** Tests for `/review` command prose (manual verification only; commands are markdown, not Python).
 
 **Acceptance Criteria:**
-- [ ] `pytest tests/lib/test_ai_review_common.py --cov=.claude/lib/ai_review_common.py --cov-fail-under=100` passes.
+- [ ] `pytest tests/test_ai_review.py --cov=.claude/lib/ai_review_common.py --cov-fail-under=100` passes.
 - [ ] `pytest tests/build_scripts/test_generate_pr_quality_prompts.py` passes; includes idempotency, partial-write, schema validation, exit-code assertions.
-- [ ] `pytest tests/hooks/test_drift_check.py` passes positive and negative paths.
+- [ ] `pytest tests/build_scripts/test_generate_pr_quality_prompts.py` passes positive and negative paths.
 - [ ] `pytest tests/integration/test_vendored_install.py` passes in temp directory with only `.claude/` subtree.
 - [ ] No test uses `pytest.mark.skip` without a linked issue number in the reason string.
 - [ ] All tests follow AAA (Arrange/Act/Assert) structure with one blank line between sections.
@@ -236,10 +236,10 @@ All tasks reference DESIGN-008 for interface contracts and REQ-008 for acceptanc
 | File | Action | Description |
 |------|--------|-------------|
 | `tests/lib/__init__.py` | Create (if absent) | Package marker |
-| `tests/lib/test_ai_review_common.py` | Create | Verdict module tests |
+| `tests/test_ai_review.py` | Create | Verdict module tests |
 | `tests/build_scripts/__init__.py` | Create (if absent) | Package marker |
 | `tests/build_scripts/test_generate_pr_quality_prompts.py` | Create | Generator tests |
-| `tests/hooks/test_drift_check.py` | Create | Hook drift tests |
+| `tests/build_scripts/test_generate_pr_quality_prompts.py` | Create | Hook drift tests |
 | `tests/integration/test_vendored_install.py` | Create | Vendored install test |
 
 **Implementation notes:**

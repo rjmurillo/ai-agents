@@ -7,7 +7,7 @@ description: Symptom-to-triage playbook for this repo's recurring failures. Bloc
 
 # ai-agents Debugging Playbook
 
-<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
+<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, .github/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
 Symptom-first triage for this repository's known failure modes. Every row below was earned by a real incident; the retro path is cited so you can read the full story. The playbook answers one question: given this symptom, what is the FIRST command to run, what experiment discriminates between causes, and what trap has already cost someone real time here?
 
 Vocabulary used once: a "guard" is a PreToolUse or pre-push hook that can block an action (exit 2 blocks, exit 0 allows). A "drift gate" is a CI check that fails when a generated tree no longer matches its canonical source. A "discriminating experiment" is one cheap action whose outcome splits the hypothesis space in two.
@@ -31,7 +31,7 @@ Vocabulary used once: a "guard" is a PreToolUse or pre-push hook that can block 
 | How the harness itself behaves (payload shapes, plugin roots) | `agent-harness-reference` |
 | Fix a NON_COMPLIANT session log | `session-log-fixer` |
 | Classify guard health from telemetry | `guard-maturity` |
-| Resolve merge conflicts | `merge-resolver` |
+| Resolve merge conflicts | Agent: merge-resolver |
 | Query agent JSONL event logs | `observability` |
 
 ## Process
@@ -55,7 +55,7 @@ Find your symptom in the master table. Run the first command exactly as written 
 |---------|---------------|---------------------------|----------|------|
 | Any CI failure you did not expect | Check whether the same job fails on main before touching your branch | Same failure on main = pre-existing, not yours; file or link an issue instead of "fixing" your PR | Memory `.serena/memories/ci-infrastructure-observations.md` (PR #1361) | Hours misattributed to PR code when main was already red |
 | Drift gate red (generated tree differs from source) | Identify which of the 4 surfaces failed, then run its local command: `uv run python build/generate_agents.py --validate`, `uv run python build/scripts/build_all.py --check`, `uv run python ./scripts/sync_plugin_lib.py --check`, `uv run python ./scripts/validation/run_install_parity_ci.py` (build_all imports PyYAML; bare `python3` fails in a fresh shell, see `ai-agents-generation-and-release`) | Ask the DIRECTION question before editing anything: which tree is canonical here? Agents: `templates/agents/*.shared.md` is source. Rules/skills/hooks/commands: `.claude/` is source | Edit the canonical tree, regenerate, commit source and generated together (`ai-agents-generation-and-release`) | 2025-12-15 disaster: agent edited the SOURCE to match the GENERATED tree; drift output shows a difference, not a direction (retro `2025-12-15-drift-detection-disaster.md`) |
-| Plugin version bump gate red | Read the failure list from `python3 scripts/validation/run_plugin_version_bump_ci.py` (workflow `validate-plugin-version-bump.yml`) | Which tree did you change? `.claude/`, `src/claude/`, and `src/copilot-cli/` each have their own `.claude-plugin/plugin.json` | Bump the changed tree's version to a strictly greater semver (`build/scripts/validate_plugin_version_bump.py:20`). Never trust a written version snapshot; re-verify with `grep -m1 version .claude/.claude-plugin/plugin.json src/claude/.claude-plugin/plugin.json src/copilot-cli/.claude-plugin/plugin.json` (dated table lives in `ai-agents-config-catalog`) | Manifest parity is checked separately (`build/scripts/check_plugin_manifest_parity.py`, issue #2222); bumping one mirrored tree but not its twin trades one red for another |
+| Plugin version-field gate red (`VERSION FIELD PRESENT`) | Read the failure list from `python3 scripts/validation/run_plugin_version_bump_ci.py` (workflow `validate-plugin-version-bump.yml`) | Which file carries the field? The gate names it: one of the three `.claude-plugin/plugin.json` manifests, or an entry in `.claude-plugin/marketplace.json` or `.github/plugin/marketplace.json` | DELETE the `version` key from the named file, then re-run `python3 build/scripts/validate_plugin_version_bump.py` until it prints `plugin-version-bump: OK` | The gate inverted in ADR-092 (supersedes ADR-079): it now fails on the field's PRESENCE. Adding a version back to clear a red gate makes it permanently red. Parity no longer covers versions; `check_plugin_manifest_parity.py` checks description component counts only |
 | Session protocol check posts NON_COMPLIANT | Read the verdict comment; the workflow is `.github/workflows/ai-session-protocol.yml` (verdict at line 247) | Is the log missing, or malformed? Missing = create it; malformed = fix fields | Invoke `session-log-fixer` | Custom checklist formats fail automated validation; copy the SESSION-PROTOCOL.md template exactly |
 | Coverage pin trips at ~63% (or another surprise number) | Re-run the pinned step's EXACT file list locally, e.g. `pytest tests/test_ai_review.py tests/test_verdict.py tests/test_quality_gate.py --cov=scripts.ai_review_common.verdict --cov-branch --cov-fail-under=100` | Does the number change when you add/remove test files? The pin is file-set sensitive (issue #1963): running one file alone reports 63% | Run all files that exercise the module; add tests for genuinely uncovered branches (`.github/workflows/pytest.yml:137-165`) | `--cov` must use module-name form. The file-path form produced "Module never imported" + 0% with pytest-cov 7.x on Python 3.14 (issue #2063, tested in PR #2078). Do not switch forms without re-verifying both locally and in CI |
 | Syntax gate fails on code that runs fine locally | `python3 scripts/validation/validate_python_syntax.py` | Does the flagged construct exist only in Python 3.14 (e.g. PEP 758 unparenthesized except clauses)? | Rewrite to parse at the support floor. The gate compiles every tracked file at the 3.10 floor grammar, not the 3.14 dev target (issue #2655, `scripts/validation/validate_python_syntax.py:2-49`) | "It passes on my 3.14" is exactly the failure the gate exists to catch: a 3.13 host would wedge on import |
@@ -83,10 +83,11 @@ If three read-only commands have not identified the cause, stop and escalate to 
 1. Apply the fix on the canonical surface only.
 2. Re-run the exact failing check locally, not a proxy for it:
    - Tests: `uv run pytest tests/ -x` (note: `.claude/skills/*/tests/` are NOT collected by default; run them explicitly, e.g. `uv run pytest .claude/skills/<name>/tests/ -q`)
-   - Full shift-left sweep: `python3 scripts/validation/pre_pr.py` (exit codes per ADR-035: 0 ok, 1 logic, 2 config)
+   - Full shift-left sweep: `uv run python scripts/validation/pre_pr.py` (exit codes per ADR-035: 0 ok, 1 logic, 2 config)
    - Drift: the specific surface command from the table above
-3. Commit with the discipline gates expect: 5 files or fewer per commit, 20 commits or fewer per PR (`git rev-list --count HEAD ^origin/main`).
-4. Escape hatches (`[skip-drift-check]`, etc.) require documented justification and are cataloged in `ai-agents-config-catalog`. Using one IS the incident report; say so in the PR.
+3. Prove the check can still fail. Re-run it with a deliberate defect injected; a gate that prints OK both ways is not covering your change. Three here pass in ways that read as success: `validate_install_parity.py` is a co-change check, not a content comparison, and it skips RULE groups entirely (`:378`) and exempts diffs touching only hand-maintained agent copies (`:389`); that script and `run_plugin_version_bump_ci.py` both diff a base ref, so an uncommitted control is invisible and you must commit the control first; and `detect_agent_drift.py` compares only the 18 headings named in its `SECTIONS_TO_COMPARE` allowlist (`:57-76`), at an 80 percent similarity threshold (`:668`), whose exit code `.github/workflows/drift-detection.yml:35-42` captures and discards. Anything under an unlisted heading is never compared at all: replacing all 22 agent names in the orchestrator's capability matrix in one install copy still reports "OK (100.0% similar)" and exits 0.
+4. Commit with the discipline gates expect: 5 files or fewer per commit. Plan for 20 commits per PR; validation may allow 40 after a qualifying base merge (`git rev-list --count HEAD ^origin/main`).
+5. Escape hatches (`[skip-drift-check]`, etc.) require documented justification and are cataloged in `ai-agents-config-catalog`. Using one IS the incident report; say so in the PR.
 
 ## Traps That Cost Real Time
 
@@ -121,6 +122,7 @@ Before declaring the failure triaged and fixed:
 - [ ] The symptom was matched to a table row, and the FIRST command output (not a guess) identified the cause
 - [ ] The discriminating experiment was run and its outcome recorded in the session log or PR description
 - [ ] The exact failing check passes locally (same command, same file set as CI), not a proxy
+- [ ] The check was proven to still fail with a defect injected, so its pass is about your change and not vacuous
 - [ ] No escape hatch was used; or if one was, the PR description says which, why, and links the infrastructure issue
 - [ ] If the fix touched a canonical surface with mirrors, the drift command for that surface passes and source plus generated are in the same commit
 
@@ -131,11 +133,11 @@ Verified against the working tree on 2026-07-03. Retro-cited short SHAs do not r
 | Fact | Source | Re-verify with |
 |------|--------|----------------|
 | EVENT= stderr telemetry schema | `.claude/hooks/PreToolUse/push_guard_base.py:19,49-53,421` | `grep -n "EVENT=" .claude/hooks/PreToolUse/push_guard_base.py` |
-| 4 drift surfaces run in CI | `.github/workflows/validate-generated-agents.yml:119-166` | `grep -n "run_install_parity\|sync_plugin_lib\|build_all\|generate_agents" .github/workflows/validate-generated-agents.yml` |
+| 4 drift surfaces run in CI | `.github/workflows/validate-generated-agents.yml:165-225` | `grep -n "run_install_parity\|sync_plugin_lib\|build_all\|generate_agents" .github/workflows/validate-generated-agents.yml` |
 | `[skip-drift-check]` bypass marker | `.github/workflows/agent-drift-detection.yml:17,65-69` | `grep -n "skip-drift-check" .github/workflows/agent-drift-detection.yml` |
-| Strictly-greater plugin bump rule | `build/scripts/validate_plugin_version_bump.py:20,46` | `grep -n "strictly greater" build/scripts/validate_plugin_version_bump.py` |
-| Plugin versions (volatile) | three `.claude-plugin/plugin.json` files | `grep -m1 version .claude/.claude-plugin/plugin.json src/claude/.claude-plugin/plugin.json src/copilot-cli/.claude-plugin/plugin.json` |
-| NON_COMPLIANT verdict string | `.github/workflows/ai-session-protocol.yml:247` | `grep -n "NON_COMPLIANT" .github/workflows/ai-session-protocol.yml` |
+| Version-field prohibition | `build/scripts/validate_plugin_version_bump.py` docstring, section RULE | `grep -n "MUST NOT carry" build/scripts/validate_plugin_version_bump.py` |
+| No version in any manifest or marketplace entry | three `.claude-plugin/plugin.json` files, both `marketplace.json` files | `python3 build/scripts/validate_plugin_version_bump.py` |
+| NON_COMPLIANT verdict string | `.github/workflows/ai-session-protocol.yml:261` | `grep -n "NON_COMPLIANT" .github/workflows/ai-session-protocol.yml` |
 | Coverage pin file-set sensitivity and 63% | `.github/workflows/pytest.yml:137-147` (issue #1963) | `grep -n "63%" .github/workflows/pytest.yml` |
 | Module-name --cov form requirement | `.github/workflows/pytest.yml:150-165` (issue #2063, PR #2078) | `grep -n "Module never imported" .github/workflows/pytest.yml` |
 | Syntax gate parses at 3.10 floor | `scripts/validation/validate_python_syntax.py:2-49` (issue #2655) | `sed -n '1,50p' scripts/validation/validate_python_syntax.py` |
@@ -144,6 +146,8 @@ Verified against the working tree on 2026-07-03. Retro-cited short SHAs do not r
 | Payload field names depend on event-key casing | `.serena/memories/copilot-hooks-observations.md` | `grep -n "toolName" .serena/memories/copilot-hooks-observations.md` |
 | Reproduce-on-main rule (PR #1361) | `.serena/memories/ci-infrastructure-observations.md` | `grep -n "1361" .serena/memories/ci-infrastructure-observations.md` |
 | pre_pr.py sequence and exit codes | `scripts/validation/pre_pr.py:1-30` | `sed -n '1,30p' scripts/validation/pre_pr.py` |
+| install-parity checks co-change, not content; skips RULE and hand-maintained-only diffs | `build/scripts/validate_install_parity.py:378,389` | `sed -n '376,392p' build/scripts/validate_install_parity.py` |
+| Agent drift compares an 18-heading allowlist at 80 percent similarity, reported not enforced | `build/scripts/detect_agent_drift.py:57-76,668`, `.github/workflows/drift-detection.yml:35-42` | `sed -n '57,76p;668p' build/scripts/detect_agent_drift.py; sed -n '35,42p' .github/workflows/drift-detection.yml` |
 | testpaths exclude skill tests | `pyproject.toml:41` | `grep -n testpaths pyproject.toml` |
 | FAILURE-MODES.md 11 sections | `.agents/governance/FAILURE-MODES.md:32-404` | `grep -n "^## " .agents/governance/FAILURE-MODES.md` |
 

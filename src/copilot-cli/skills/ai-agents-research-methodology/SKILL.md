@@ -71,7 +71,7 @@ made after seeing the data is a description, not a test. Concretely:
 2. Validate the setup with zero spend first:
 
    ```bash
-   python3 scripts/eval/eval-prompt-change.py \
+   uv run python scripts/eval/eval-prompt-change.py \
      --prompt templates/agents/analyst.shared.md \
      --scenarios tests/evals/analyst-scenarios.json \
      --base-ref main --dry-run
@@ -185,8 +185,7 @@ memory, eval numbers, ADR (if governance), calibrated gate, monitoring hook.
 
 Retirement gets recorded, never silenced. The exemplar is issue #2230: a
 launcher-level fail-open wrapper was proposed, evaluated, and REJECTED as a
-silent-failure anti-pattern; the rejection is recorded with rationale in the
-#2205 retro decision table
+silent-failure anti-pattern; the rejection is recorded with rationale in the #2205 retro decision table
 (.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:411) and
 the binding principle lives in `.claude/rules/generated-artifacts.md`. Because
 the rejection was written down, nobody re-proposes it. An unrecorded rejection
@@ -206,7 +205,7 @@ is a future duplicate proposal.
 
 ## Where Good Ideas Historically Came From
 
-- **Retro mining.** `.agents/retrospective/` (95 files as of 2026-07-03) is the
+- **Retro mining.** `.agents/retrospective/` is the
   richest vein; `ai-agents-failure-archaeology` indexes the major ones.
   Retro-cited short SHAs do not resolve locally even with full history present
   (~1471 commits as of 2026-07-03), so retros and memories, not `git log`,
@@ -274,7 +273,7 @@ volatile facts:
 | eval scripts and `--dry-run` | `scripts/eval/eval-prompt-change.py:567`; `scripts/eval/` listing | `ls scripts/eval/ && grep -n "dry-run" scripts/eval/eval-prompt-change.py` |
 | Contradiction log format | `.claude/rules/search-before-building.md` | `grep -n "decision-" .claude/rules/search-before-building.md` |
 | ADR-069 still proposed | `.agents/architecture/ADR-069-context-corpus-is-the-product.md:2` | `head -5 .agents/architecture/ADR-069-context-corpus-is-the-product.md` |
-| Retro corpus size (95 files) | `.agents/retrospective/` | `ls .agents/retrospective/ \| wc -l` |
+| Retro corpus size | `.agents/retrospective/` | `python3 -c "import pathlib;print(sum(1 for p in pathlib.Path('.agents/retrospective').glob('*.md') if p.name != 'INDEX.md'))"` |
 | guard-maturity tiers | `.claude/skills/guard-maturity/SKILL.md` | `grep -n "Budding" .claude/skills/guard-maturity/SKILL.md` |
 
 Uncertainty flag: the `EVENT=` telemetry consumer pipeline beyond the

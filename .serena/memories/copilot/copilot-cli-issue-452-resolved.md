@@ -6,6 +6,13 @@ GitHub Copilot CLI issue #452 ("User-level agents not loaded") has been resolved
 
 ## References Removed
 
+Line numbers below are as of session 2026-01-18 and are deliberately not
+maintained: they record where the removed text used to live. They do not
+resolve against the current tree, and should not be "corrected" to point at
+whatever now occupies those lines. Paths, unlike the line numbers, track the
+current tree: entry 3 was `.agents/planning/cva-install-scripts.md` when the
+text was removed and moved to `.agents/archive/planning/` later, in PR #3442.
+
 ### Session: 2026-01-18-session-01
 
 **Files Updated:**

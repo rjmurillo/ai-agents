@@ -26,9 +26,18 @@
 |-------------|--------------|---------|
 | Function execution | Test calls the function under test | `$result = Get-Something` |
 | Mock isolation | External dependencies mocked | `Mock gh { ... }` |
-| Output validation | Return values checked | `$result \| Should -Be $expected` |
-| Error conditions | Exception paths tested | `{ Bad-Input } \| Should -Throw` |
+| Output validation | Return values checked | see assertions below |
+| Error conditions | Exception paths tested | see assertions below |
 | Edge cases | Boundary values covered | null, empty, max values |
+
+Assertion forms are shown outside the table. A markdown table cannot carry a
+bare `|`, and the escaped `\|` a table would need is a PowerShell parse error,
+so a copied assertion would fail with `ParserError` rather than run.
+
+```powershell
+$result | Should -Be $expected
+{ Bad-Input } | Should -Throw
+```
 
 ## Test Review Checklist
 

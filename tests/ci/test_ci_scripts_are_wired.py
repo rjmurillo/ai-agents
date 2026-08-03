@@ -42,7 +42,28 @@ _WORKFLOW_DIRS = (
 # Guards that are deliberately not invoked from a workflow. Each needs a
 # non-empty reason, so that adding one is a decision rather than a way to
 # silence this test.
-_NOT_WORKFLOW_INVOKED: dict[str, str] = {}
+_NOT_WORKFLOW_INVOKED: dict[str, str] = {
+    "build_triage_summary_comment.py": (
+        "Library entrypoint invoked by post_issue_triage_summary_comment.py; "
+        "tests/ci/test_ai_issue_triage_workflow.py verifies the wrapper calls it."
+    ),
+    "count_ratchet.py": (
+        "Library holding the ratchet policy shared by ruff_count_ratchet.py and "
+        "taste_count_ratchet.py, both of which are workflow-invoked. It has no "
+        "main() and no shebang; tests/ci/test_count_ratchet.py covers it "
+        "directly (issue #3779)."
+    ),
+    "mutation_harness_ciperms.py": (
+        "Developer tool for verifying CI security tests (issues #3964 and #4151). "
+        "Run manually with `uv run --frozen python3 scripts/ci/mutation_harness_ciperms.py`. "
+        "It orchestrates pytest sub-processes and is not wired into CI itself."
+    ),
+    "parse_drift_results.py": (
+        "Subprocess helper called by drift_collect_details.py (ADR-006 extraction "
+        "batch 6). drift_collect_details.py is the workflow-invoked entry point; "
+        "parse_drift_results.py is its implementation detail."
+    ),
+}
 
 
 def _yaml_files() -> list[Path]:

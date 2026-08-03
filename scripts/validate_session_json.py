@@ -32,7 +32,7 @@ import argparse
 import json
 import re
 import sys
-from datetime import datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -204,6 +204,12 @@ _CONTRAST_CONJUNCTION = re.compile(r"(?i)\b(but|however|except|though|although)\
 # not a pytest outcome count.
 _NUMERIC_COUNT_TOKENS = frozenset({"skipped"})
 _DIGIT_BEFORE_TOKEN = re.compile(r"(?:^|[,;:]\s*)\d+\s*$")
+# pytest summary lines report counts as "<N> passed", "<N> skipped", etc. across
+# multi-word summaries like "94 passed plus 1 skipped". The narrow prefix check
+# in _DIGIT_BEFORE_TOKEN misses these when the count appears after a word (not a
+# delimiter). This pattern recognises any "<N> outcome-word" in the full evidence
+# string, acting as a secondary escape for the "skipped" token. Issue #3939.
+_PYTEST_SUMMARY_CONTEXT = re.compile(r"\b\d+\s+(?:passed|failed|xfailed|xpassed|error(?:s)?)\b")
 
 # Legacy field name for backward compatibility with existing session logs.
 # Issue #868: "handoffNotUpdated" with Complete=false was a confusing double negative.
@@ -251,10 +257,30 @@ def has_case_insensitive(data: dict[str, Any], key: str) -> bool:
 _INCOMPLETE_MUST_PREFIX = "Incomplete MUST: "
 _MISSING_REQUIRED_PREFIX = "Missing required item: "
 _MUST_NOT_VIOLATED_PREFIX = "MUST NOT violated: "
+
+# Every check in validate_must_item is gated on the item's own `level`, so a
+# required item that declares no level at all is not merely unenforced: it is
+# unread. Measured over the committed corpus, 138 required items carry no
+# level, including 19 branchVerified and 4 notOnMain. Those are the two items
+# that answer "did this session run on main", so the silent ones are the ones
+# that matter most (issue #3747).
+_MISSING_LEVEL_PREFIX = "Missing level: "
+
+# SESSION-PROTOCOL.md line 20 already states that deviation from a MUST
+# "requires documented justification". Enforcing that sentence is what closes
+# the demotion bypass: an author can still declare a required item SHOULD when
+# the harness genuinely cannot satisfy it, but the deviation has to be written
+# down and attributable. Measured over the corpus, all 257 existing demotions
+# already carry evidence, so this enforces current practice rather than
+# changing it.
+_UNJUSTIFIED_DEMOTION_PREFIX = "Unjustified demotion: "
+
 _MUST_FAILURE_PREFIXES: tuple[str, ...] = (
     _INCOMPLETE_MUST_PREFIX,
     _MISSING_REQUIRED_PREFIX,
     _MUST_NOT_VIOLATED_PREFIX,
+    _MISSING_LEVEL_PREFIX,
+    _UNJUSTIFIED_DEMOTION_PREFIX,
 )
 
 
@@ -289,6 +315,23 @@ def validate_session_section(session: dict[str, Any], result: ValidationResult) 
     branch = session.get("branch")
     if isinstance(branch, str) and branch and not BRANCH_PATTERN.match(branch):
         result.warnings.append(f"Branch '{branch}' doesn't follow conventional naming")
+
+    # Validate session date is not in the future. A future date means the agent
+    # wrote tomorrow's date or a placeholder; the log will be invisible to
+    # branch-context-policy date filtering (issue #3717).
+    session_date_str = session.get("date")
+    if isinstance(session_date_str, str):
+        try:
+            session_date = date.fromisoformat(session_date_str)
+            today = datetime.now(tz=timezone.utc).date()
+            if session_date > today:
+                result.errors.append(
+                    f"Session date '{session_date_str}' is in the future "
+                    f"(today is {today.isoformat()}); branch-context-policy "
+                    "will not pick up this log"
+                )
+        except ValueError:
+            pass  # Schema already rejects non-date strings via its pattern
 
     # Validate commit SHA format
     commit = session.get("startingCommit")
@@ -400,7 +443,26 @@ def _is_numeric_test_count(evidence: str, match: re.Match[str]) -> bool:
     """
     if match.group(0).lower() not in _NUMERIC_COUNT_TOKENS:
         return False
-    return bool(_DIGIT_BEFORE_TOKEN.search(evidence[: match.start()]))
+    prefix = evidence[: match.start()]
+    if bool(_DIGIT_BEFORE_TOKEN.search(prefix)):
+        return True
+    # _PYTEST_SUMMARY_CONTEXT must only apply to the clause that contains the
+    # matched token. Searching the entire evidence string falsely excuses
+    # "354 passed; markdownlint step skipped": "354 passed" satisfies the
+    # pattern even though the "skipped" belongs to a different clause and is a
+    # genuine contradiction. See post-#4001 adversarial review.
+    clause_start = 0
+    for sep in (";", "\n"):
+        pos = evidence.rfind(sep, 0, match.start())
+        if pos >= 0:
+            clause_start = max(clause_start, pos + 1)
+    clause_end = len(evidence)
+    for sep in (";", "\n"):
+        pos = evidence.find(sep, match.end())
+        if 0 <= pos < clause_end:
+            clause_end = pos
+    clause = evidence[clause_start:clause_end].strip()
+    return bool(_PYTEST_SUMMARY_CONTEXT.search(clause))
 
 
 def _has_contradiction(evidence: str) -> bool:
@@ -563,10 +625,95 @@ def validate_evidence_agrees_with_session(data: dict[str, Any], result: Validati
     claims_commit = isinstance(committed, dict) and (
         get_case_insensitive(committed, "complete") is True
     )
-    if claims_commit and not str(data.get("endingCommit") or "").strip():
+    ending = str(data.get("endingCommit") or "").strip()
+    if claims_commit and not ending:
         result.warnings.append(
             "changesCommitted is complete but endingCommit is empty; "
             "record the final commit SHA or mark the item incomplete"
+        )
+    elif ending and COMMIT_SHA_PATTERN.match(ending):
+        # A malformed value is the schema's to report; restating it here would
+        # print the same fact under two spellings.
+        #
+        # Imported here rather than at module scope: every module-level import
+        # in this file sits below a sys.path insert and so needs an E402
+        # suppression, and a new suppression is exactly what the push gate
+        # refuses. Function scope needs none, and the module is already loaded.
+        from scripts.validation.session_scope import (
+            NOT_AN_ANCESTOR,
+            commit_reachability_problem,
+        )
+
+        problem = commit_reachability_problem(ending, _PROJECT_ROOT)
+        if problem is not None:
+            # State the observation and list only the candidates the check did
+            # not already rule out. Naming one cause sends readers after a
+            # mistake they did not make: this repository merges by squash,
+            # which orphans every branch SHA a session log records. And when
+            # the object is present but unreachable, `git cat-file -e` already
+            # found it here, so it was pushed (issue #4347).
+            causes = (
+                "the PR was squash merged, which orphans the branch SHA; the "
+                "commit was amended or rebased after the log named it"
+            )
+            if problem != NOT_AN_ANCESTOR:
+                causes += "; the SHA was never pushed"
+            result.errors.append(
+                f"endingCommit {ending!r} {problem}. Candidate causes, most "
+                f"likely first: {causes}. Record the SHA in a follow-up "
+                "commit (issue #3618)"
+            )
+
+    if "nextSteps" not in data:
+        result.warnings.append(
+            "nextSteps is missing; SESSION-PROTOCOL.md lists it as a required "
+            "top-level field. Record the follow-ups, or write [] to state there "
+            "are none"
+        )
+
+
+def _validate_required_item_level(
+    level: object,
+    is_complete: object,
+    evidence: object,
+    item_name: str,
+    section_name: str,
+    result: ValidationResult,
+) -> None:
+    """Stop a required item deciding how hard it will be checked.
+
+    Every other check in ``validate_must_item`` reads the item's own ``level``,
+    so the document controls its own enforcement. Two ways out of a MUST follow
+    from that, and both are closed here.
+
+    An absent ``level`` skips every branch, so the item is unread rather than
+    merely lenient. A demotion to SHOULD silences an incomplete MUST outright,
+    which is the bypass issue #3747 reports.
+
+    Demotion stays legal, because a harness can genuinely lack a capability the
+    protocol assumes: Serena is not reachable from Copilot CLI, and 61 logs say
+    so. What it may no longer be is silent. SESSION-PROTOCOL.md line 20 already
+    requires documented justification for deviating from a MUST, so an
+    incomplete demoted item without evidence is a protocol failure under the
+    rule as written.
+    """
+    if level is None:
+        result.errors.append(
+            f"{_MISSING_LEVEL_PREFIX}{section_name}.{item_name} declares no level, "
+            "so no requirement check applies to it. Required items must declare "
+            'one ("MUST", "MUST NOT", or "SHOULD" with justification).'
+        )
+        return
+
+    if level in ("MUST", "MUST NOT") or is_complete:
+        return
+
+    if not (isinstance(evidence, str) and evidence.strip()):
+        result.errors.append(
+            f"{_UNJUSTIFIED_DEMOTION_PREFIX}{section_name}.{item_name} is required "
+            f"but declares level {level!r} while incomplete, with no evidence. "
+            "SESSION-PROTOCOL.md requires documented justification to deviate "
+            "from a MUST."
         )
 
 
@@ -575,6 +722,8 @@ def validate_must_item(
     item_name: str,
     section_name: str,
     result: ValidationResult,
+    *,
+    is_required: bool = False,
 ) -> None:
     """Validate a MUST requirement item.
 
@@ -583,6 +732,9 @@ def validate_must_item(
         item_name: Name of the item being checked.
         section_name: Section name for error messages.
         result: ValidationResult to update with errors/warnings.
+        is_required: Whether the schema names this item as required for the
+            section. Required items answer to two extra rules, because for
+            them the document must not be able to choose its own enforcement.
     """
     if not isinstance(check_data, dict):
         # Six committed logs from 2026-01 and 2026-02 store a bare boolean here
@@ -600,6 +752,9 @@ def validate_must_item(
     is_complete = get_case_insensitive(check_data, "complete")
     evidence = get_case_insensitive(check_data, "evidence")
     level = get_case_insensitive(check_data, "level")
+
+    if is_required:
+        _validate_required_item_level(level, is_complete, evidence, item_name, section_name, result)
 
     if level == "MUST" and not is_complete:
         result.errors.append(f"{_INCOMPLETE_MUST_PREFIX}{section_name}.{item_name}")
@@ -642,7 +797,13 @@ def validate_checklist_section(
 
     for item_name in items_to_check:
         if item_name in section_data:
-            validate_must_item(section_data[item_name], item_name, section_name, result)
+            validate_must_item(
+                section_data[item_name],
+                item_name,
+                section_name,
+                result,
+                is_required=item_name in required_items,
+            )
         else:
             result.errors.append(f"{_MISSING_REQUIRED_PREFIX}{section_name}.{item_name}")
 
@@ -701,6 +862,15 @@ def validate_protocol_compliance(
         validate_session_end(protocol["sessionEnd"], result)
 
 
+# Root fields promoted to schema-required by issue #3763, and the only ones an
+# already-committed log is excused from. SESSION-PROTOCOL.md has listed all six
+# root fields as required since it was written, and build_session_log emits all
+# six, but the schema named only two, so the schema was the one document
+# disagreeing with both. Renaming an old log still cannot conjure these four,
+# so they relax in record mode (issue #3385).
+_RELAXED_FOR_EXISTING_LOGS = frozenset({"schemaVersion", "workLog", "endingCommit", "nextSteps"})
+
+
 def _load_schema() -> dict[str, Any]:
     """Read the committed schema.
 
@@ -717,7 +887,9 @@ def _describe(error: jsonschema.ValidationError) -> str:
     return f"Schema: {location}: {error.message}"
 
 
-def validate_against_schema(data: object, result: ValidationResult) -> None:
+def validate_against_schema(
+    data: object, result: ValidationResult, *, existing_log: bool = False
+) -> None:
     """Append every schema violation in ``data`` to ``result``.
 
     Reports all violations rather than the first, so one commit round fixes the
@@ -741,6 +913,13 @@ def validate_against_schema(data: object, result: ValidationResult) -> None:
     handler alone still lets the gate die with a traceback. ``check_schema``
     validates against the metaschema and turns all of them into ``SchemaError``.
     It costs about 4ms against the committed schema.
+
+    ``existing_log`` relaxes exactly the four root fields promoted to
+    ``required`` for issue #3763. The rest of the schema still binds, because
+    shape is always the record's own property (see ``validate_session_log``).
+    Those four are the exception the #3385 rename case already established: a
+    rename cannot supply a ``workLog`` the session never wrote down, and
+    fabricating one to clear a gate is the behaviour that issue forbids.
     """
     try:
         schema = _load_schema()
@@ -753,6 +932,14 @@ def validate_against_schema(data: object, result: ValidationResult) -> None:
             f"Schema: {SCHEMA_PATH.name} root is not a JSON object, schema layer skipped"
         )
         return
+
+    if existing_log and isinstance(schema.get("required"), list):
+        schema = {
+            **schema,
+            "required": [
+                name for name in schema["required"] if name not in _RELAXED_FOR_EXISTING_LOGS
+            ],
+        }
 
     validator_cls = validator_for(schema)
     try:
@@ -772,7 +959,9 @@ def validate_against_schema(data: object, result: ValidationResult) -> None:
         result.errors.append(_describe(error))
 
 
-def validate_session_log(data: object, *, existing_log: bool = False) -> ValidationResult:
+def validate_session_log(
+    data: object, *, existing_log: bool = False, creation_mode: bool = False
+) -> ValidationResult:
     """Validate a session log against the committed schema and protocol rules.
 
     Args:
@@ -780,6 +969,13 @@ def validate_session_log(data: object, *, existing_log: bool = False) -> Validat
             any JSON value can reach here, so the type is the parser's, not the
             schema's. The schema reports a non-object; the protocol checks below
             need a mapping and are skipped without one.
+        creation_mode: True when the log was just created and session-end
+            evidence does not yet exist. The full schema still binds (required
+            fields, correct types, ``notOnMain``), but ``validate_protocol_compliance``
+            and ``validate_evidence_agrees_with_session`` are skipped because
+            the session has not run yet. Use this at creation time only; use
+            ``existing_log`` for logs already committed. The two modes are
+            mutually exclusive; if both are set, ``existing_log`` wins.
         existing_log: True when the log was already committed and this change
             only edits it. Two different questions are bundled in this file, and
             they have different answers on an old log. Shape ("is this record
@@ -804,7 +1000,7 @@ def validate_session_log(data: object, *, existing_log: bool = False) -> Validat
     """
     result = ValidationResult()
 
-    validate_against_schema(data, result)
+    validate_against_schema(data, result, existing_log=existing_log)
 
     # A valid session log must be a JSON object at the root. If it's not (e.g.,
     # an array or primitive), the schema validation above already reported the
@@ -818,10 +1014,14 @@ def validate_session_log(data: object, *, existing_log: bool = False) -> Validat
     if isinstance(data.get("session"), dict):
         validate_session_section(data["session"], result)
 
-    if not existing_log and isinstance(data.get("protocolCompliance"), dict):
+    # creation_mode: the session just started; checklist items are incomplete
+    # by design and evidence-agreement checks have nothing to compare against.
+    # existing_log wins when both are set (see docstring).
+    skip_compliance = existing_log or creation_mode
+    if not skip_compliance and isinstance(data.get("protocolCompliance"), dict):
         validate_protocol_compliance(data["protocolCompliance"], result)
 
-    if not existing_log:
+    if not existing_log and not creation_mode:
         validate_evidence_agrees_with_session(data, result)
 
     return result
@@ -1021,10 +1221,20 @@ def parse_args() -> argparse.Namespace:
         "--existing-log",
         action="store_true",
         help=(
-            "Validate as a record only: skip the session-compliance checklist. "
-            "Set this for a log that was already committed and is only being "
-            "edited, where a checklist item cannot be made true retroactively. "
-            "A newly added log must not set it."
+            "Skip protocol-compliance and evidence-agreement checks: validate "
+            "schema and shape only. Use for a log already committed where "
+            "a checklist item cannot be made true retroactively."
+        ),
+    )
+    parser.add_argument(
+        "--creation-mode",
+        action="store_true",
+        help=(
+            "Validate a freshly created log: full schema check plus structural "
+            "shape, but skip protocol-compliance (checklist items are incomplete "
+            "by design) and evidence-agreement (nothing to agree against yet). "
+            "Use only at session-creation time; use --existing-log for already-"
+            "committed logs."
         ),
     )
     parser.add_argument(
@@ -1106,7 +1316,9 @@ def main() -> int:
                 _PROJECT_ROOT,
             )
 
-        result = validate_session_log(data, existing_log=existing_log)
+        result = validate_session_log(
+            data, existing_log=existing_log, creation_mode=args.creation_mode
+        )
         validate_filename_number(validated_path, data, result)
 
         # Report results

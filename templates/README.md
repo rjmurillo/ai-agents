@@ -112,13 +112,13 @@ Do NOT use `runSubagent(...)`, `Task(...)`, or `#runSubagent` directly in templa
 
 ```bash
 # Generate all agents
-python3 build/generate_agents.py
+uv run python build/generate_agents.py
 
 # Preview without writing
-python3 build/generate_agents.py --what-if
+uv run python build/generate_agents.py --what-if
 
 # Validate generated files match templates
-python3 build/generate_agents.py --validate
+uv run python build/generate_agents.py --validate
 ```
 
 ### Modify an Agent
@@ -129,7 +129,7 @@ For **universal changes** (content that applies to ALL platforms):
 
 1. Edit the source template: `templates/agents/{agent}.shared.md`
 2. **Also edit**: `src/claude/{agent}.md` (MANUAL - not auto-synced!)
-3. Regenerate: `python3 build/generate_agents.py`
+3. Regenerate: `uv run python build/generate_agents.py`
 4. Commit template, Claude source, and generated files together
 
 For **Claude-specific changes** (MCP tools, Serena integration):
@@ -173,7 +173,7 @@ For **Claude-specific changes** (MCP tools, Serena integration):
    ```
 
 3. Add agent content following existing patterns
-4. Run `python3 build/generate_agents.py`
+4. Run `uv run python build/generate_agents.py`
 5. Update documentation (README.md, CLAUDE.md)
 
 ## Drift Detection
@@ -349,9 +349,9 @@ land in REQ-003 M3.
 ### Validating locally
 
 ```bash
-python3 build/scripts/validate_templates_schema.py
+uv run python build/scripts/validate_templates_schema.py
 # or for a single file:
-python3 build/scripts/validate_templates_schema.py \
+uv run python build/scripts/validate_templates_schema.py \
     --platform templates/platforms/copilot-cli.yaml
 ```
 

@@ -4,9 +4,13 @@ description: Security specialist with a defense-first mindset. Threat-models cha
 model: opus
 metadata:
   tier: builder
+# Requires fresh context and separate tool state to threat-model without inherited assumptions.
+isolation_required: true
 argument-hint: Specify the code, feature, or changes to security review
 ---
 # Security Agent
+
+> **Autonomy Guardrail**: Apply the autonomy rule from `AGENTS.md`, confirm before external/irreversible actions.
 
 ## Core Identity
 

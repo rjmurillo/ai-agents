@@ -1,0 +1,29 @@
+{
+  "id": "episode-2026-07-27-session-3502-remove-causal-graph",
+  "session": "2026-07-27-session-3502-remove-causal-graph",
+  "timestamp": "2026-07-27T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Remove the Tier 3 causal graph and its merge-driver machinery after establishing it is a derived cache with no runtime readers",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 19176c7da041cdd43cc0e90122e39175d4f4173d",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 97
+  },
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "stamp_only by migrate_causal_version.py on 2026-08-02: v2 edge rebuild agrees with stored edges"
+}

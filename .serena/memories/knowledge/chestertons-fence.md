@@ -45,6 +45,31 @@ When changing existing systems:
 | Refactor complex code | `Search-Memory.ps1 -Query "[component] edge case"` |
 | Change workflow | `Search-Memory.ps1 -Query "[workflow] rationale"` |
 
+### Correction: memory is not the only place the sign is posted
+
+Added 2026-08-02 from `.agents/retrospective/2026-08-02-wrong-fix-before-search.md`.
+
+Line 19 above claims "Memory search IS the investigation mechanism Chesterton's Fence demands."
+That is too strong. Memory holds what a past session chose to write down. It does not hold what
+a contributor observed and filed but never worked on.
+
+Measured counter-example: `scripts/validation/pre_pr_sequence.py` crossed a file-size ceiling
+and blocked every push in the repo. Memory held nothing about that file's shape. Issue **#4285**
+was open and its title stated the fence outright: the file is a registration list, so a
+complexity ceiling is the wrong measure and extraction only resets the counter. I designed and
+shipped the extraction anyway (PR #4302), then closed it unmerged.
+
+The fence's sign was on the issue tracker. A memory-only search would not have found it, and
+did not.
+
+Add one row to the protocol above, and run it in addition to the memory search, never instead:
+
+| Change Type | Issue Search |
+|-------------|--------------|
+| Any change to a specific file | `gh issue list -R <repo> --state open --limit 400 --search "<filename>" --json number,title` |
+
+See `.serena/memories/process/process-search-open-issues-before-designing-a-fix.md`.
+
 ## Memory as Git Archaeology
 
 **Tier 1 (Semantic)**: Why does X exist?
@@ -57,10 +82,8 @@ When changing existing systems:
 - Failure episodes document edge cases encountered
 - Success episodes show what worked
 
-**Tier 3 (Causal)**: What patterns led to Z outcome?
-- Causal graph shows decision → outcome paths
-- Success patterns show what to repeat
-- Failure patterns show what to avoid
+A Tier 3 causal graph once sat above these. ADR-089 deleted it: nothing read
+it, and its aggregated "patterns" were noise. Read the episodes directly.
 
 ## Enforcement (BLOCKING Gate)
 

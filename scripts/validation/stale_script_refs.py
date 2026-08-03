@@ -81,6 +81,7 @@ def git_ls_files(repo_root: Path, patterns: tuple[str, ...] | None = None) -> se
         check=True,
         capture_output=True,
         text=True,
+        errors="replace",
         encoding="utf-8",
     )
     return {line.strip() for line in result.stdout.splitlines() if line.strip()}

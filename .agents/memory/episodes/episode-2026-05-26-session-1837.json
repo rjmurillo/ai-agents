@@ -12,14 +12,19 @@
       "type": "commit",
       "content": "Commit: e33d08f4",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e002",
+        "e003"
+      ]
     },
     {
       "id": "e002",
       "timestamp": "2026-05-26T03:49:24.736920+00:00",
       "type": "test",
       "content": "markdownlint-cli2 ran via pre-commit hook; .agents/ excluded from lint scope; 0 errors in staged files",
-      "caused_by": [],
+      "caused_by": [
+        "e001"
+      ],
       "leads_to": []
     },
     {
@@ -27,7 +32,9 @@
       "timestamp": "2026-05-26T03:49:24.736920+00:00",
       "type": "test",
       "content": "pre_pr.py: 2 pre-existing failures (merge-resolver drift 20.9%, lint on other files); 0 new failures from this change",
-      "caused_by": [],
+      "caused_by": [
+        "e001"
+      ],
       "leads_to": []
     }
   ],
@@ -39,5 +46,7 @@
     "commits": 1,
     "files_changed": 3
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 2"
 }

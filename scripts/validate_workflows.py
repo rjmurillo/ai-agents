@@ -10,10 +10,10 @@ This script validates:
 5. Required fields and common issues
 
 Usage:
-    python scripts/validate_workflows.py                    # Validate all workflows
-    python scripts/validate_workflows.py path/to/file.yml   # Validate specific file
-    python scripts/validate_workflows.py --changed          # Validate only changed files
-    python scripts/validate_workflows.py --act              # Run with act (if installed)
+    uv run python scripts/validate_workflows.py                    # Validate all workflows
+    uv run python scripts/validate_workflows.py path/to/file.yml   # Validate specific file
+    uv run python scripts/validate_workflows.py --changed          # Validate only changed files
+    uv run python scripts/validate_workflows.py --act              # Run with act (if installed)
 
 Exit codes:
     0: All validations passed
@@ -243,34 +243,142 @@ class WorkflowValidator:
                     f"Set top-level or per-job permissions to follow least-privilege."
                 )
 
-    # Patterns for attacker-controlled GitHub context data.
-    # These can be set by external contributors via PR titles, branch names, etc.
-    # See: https://securitylab.github.com/resources/github-actions-preventing-pwn-requests/
-    _DANGEROUS_PATTERNS: list[str] = [
-        r"github\.event\.issue\.title",
-        r"github\.event\.issue\.body",
-        r"github\.event\.pull_request\.title",
-        r"github\.event\.pull_request\.body",
-        r"github\.event\.comment\.body",
-        r"github\.event\.review\.body",
-        r"github\.event\.review_comment\.body",
-        r"github\.event\.discussion\.title",
-        r"github\.event\.discussion\.body",
-        r"github\.event\.pages\.\S*\.page_name",
-        r"github\.event\.commits\.\S*\.message",
-        r"github\.event\.commits\.\S*\.author\.name",
-        r"github\.event\.commits\.\S*\.author\.email",
-        r"github\.head_ref",
-    ]
+    # Expression heads that cannot carry attacker-supplied free text.
+    #
+    # This is an allowlist, not a blocklist. The previous shape enumerated
+    # dangerous contexts, which meant every context nobody had thought of
+    # yet defaulted to "safe". `inputs.*` from `workflow_dispatch` was one
+    # such gap and produced a live command-injection hole in two workflows
+    # (issue #3664). Unknown now defaults to "unsafe".
+    #
+    # Each entry is admitted for a stated reason:
+    #   github.event_name        GitHub-generated enum of event names.
+    #   github.job               Job id from the workflow file itself.
+    #   github.run_*             Integers GitHub assigns.
+    #   github.repository*       Slug; GitHub constrains the charset.
+    #   github.actor*, triggering_actor   Login; GitHub constrains the charset.
+    #   github.sha, *_url, workspace, action_path, api_url, graphql_url
+    #                            GitHub-generated, not user text.
+    #   github.event.*.number    Integers GitHub assigns.
+    #   github.workflow_ref, github.repository_id, github.repository_owner_id
+    #                            GitHub-generated identifiers.
+    #
+    # Deliberately absent: github.ref, github.ref_name, github.head_ref, and
+    # github.base_ref all carry a branch name, which a fork author chooses.
+    #
+    # secrets.* is absent from this set but is still permitted, because
+    # `secrets.` sits in _DERIVED_EXPRESSION_PREFIXES above and
+    # _classify_expression checks that arm too. Setting a secret needs
+    # repository admin, which already implies workflow write, so this check
+    # does not treat a secret value as attacker-supplied text. Flagging it
+    # would be a policy change across every workflow that hands a token to a
+    # `run:` block, not a tightening of this list. Whether a secret reaching a
+    # shell argument is acceptable is a separate exposure question this check
+    # does not answer. TestSafeHeadCommentMatchesBehavior pins both halves.
+    _SAFE_EXPRESSION_HEADS: frozenset[str] = frozenset(
+        {
+            "github.event_name",
+            "github.job",
+            "github.run_id",
+            "github.run_number",
+            "github.run_attempt",
+            "github.repository",
+            "github.repository_id",
+            "github.repository_owner",
+            "github.repository_owner_id",
+            "github.actor",
+            "github.actor_id",
+            "github.triggering_actor",
+            "github.sha",
+            "github.server_url",
+            "github.api_url",
+            "github.graphql_url",
+            "github.workspace",
+            "github.action_path",
+            "github.workflow",
+            "github.workflow_ref",
+            "github.event.number",
+            "github.event.issue.number",
+            "github.event.pull_request.number",
+            "github.event.discussion.number",
+        }
+    )
+
+    # Prefixes whose safety depends on what produced the value, so they are
+    # resolved by the taint pass in `validate_expression_injection` rather
+    # than by the head allowlist above.
+    #
+    # `secrets.` sits here because a secret is not attacker-supplied: the
+    # threat this check models is an outsider steering the shell, and an
+    # outsider who can already set a secret has write access and does not
+    # need an injection. Leaking a secret into a log is a real but separate
+    # concern with its own gate.
+    # `env.` is deliberately absent. Nothing generates it: a workflow author
+    # binds it, and the binding may read `inputs.*` or an event body. Treating
+    # it as derived made a two-line bypass of this whole check, because
+    # `${{ env.X }}` in a `run:` block is substituted before the shell starts
+    # exactly like the `${{ inputs.x }}` it was bound from. `secrets.` and
+    # `vars.` stay because writing either needs repository admin, which already
+    # implies workflow write. TestEnvIsNotALaunderingHop pins both halves.
+    _DERIVED_EXPRESSION_PREFIXES: tuple[str, ...] = (
+        "needs.",
+        "matrix.",
+        "vars.",
+        "secrets.",
+        "runner.",
+        "strategy.",
+        "job.",
+    )
+
+    # Every context reference inside an expression, regardless of how many
+    # function calls or operators wrap it. Working from the references
+    # rather than from the leading token means `hashFiles('**/lock')` is
+    # safe (it names no context) while `fromJSON(inputs.blob)` is not (the
+    # argument still reaches the shell).
+    _CONTEXT_REFERENCE: re.Pattern[str] = re.compile(
+        r"\b(?:github|inputs|steps|needs|matrix|env|vars|secrets|runner|strategy|job)"
+        r"(?:\.[A-Za-z0-9_-]+|\[[^\]]*\])*"
+    )
+
+    def _classify_expression(self, expression: str, tainted_steps: set[str]) -> str | None:
+        """Return a reason string when the expression is unsafe in a run block.
+
+        Returns None when every context the expression names resolves to a
+        value GitHub generates, or to a step output no attacker-controlled
+        input reached.
+        """
+        for match in self._CONTEXT_REFERENCE.finditer(expression):
+            # `a[0].b` and `a.0.b` name the same thing to GitHub. Normalizing
+            # the index syntax keeps one spelling from slipping past a check
+            # written against the other.
+            reference = re.sub(r"\[['\"]?([^\]'\"]*)['\"]?\]", r".\1", match.group(0))
+            if reference in self._SAFE_EXPRESSION_HEADS:
+                continue
+            if reference.startswith("steps."):
+                parts = reference.split(".")
+                producer = parts[1] if len(parts) > 1 else ""
+                if producer in tainted_steps:
+                    return (
+                        f"'{producer}' derives its output from attacker-controlled "
+                        f"input, so this value carries the same taint"
+                    )
+                continue
+            if reference.startswith(self._DERIVED_EXPRESSION_PREFIXES):
+                continue
+            return f"'{reference}' is not a GitHub-generated value"
+        return None
 
     def validate_expression_injection(self, file_path: Path, content: dict[str, Any]) -> None:
         """Detect expression injection in run blocks.
 
-        Flags ${{...}} in run: blocks when the expression references
-        attacker-controlled data (issue titles, branch names, commit
-        messages, comment bodies).
+        Flags any ``${{ }}`` interpolated straight into a ``run:`` block
+        unless the expression resolves to a value GitHub generates. Taint
+        propagates one hop: a step that reads an unsafe expression and
+        writes to ``$GITHUB_OUTPUT`` marks its own outputs unsafe for every
+        later step in the same job, because binding the value through
+        ``env:`` at the producer stops the injection there but does not
+        sanitize what the producer publishes.
         """
-        combined = re.compile("|".join(self._DANGEROUS_PATTERNS))
         jobs = content.get("jobs", {})
         # validate_workflow_structure already reports a non-mapping `jobs`.
         # Repeating the error here would double-count it, but iterating it
@@ -281,21 +389,83 @@ class WorkflowValidator:
         for job_name, job in jobs.items():
             if not isinstance(job, dict):
                 continue
-            steps = job.get("steps", [])
-            for step_idx, step in enumerate(steps):
-                if not isinstance(step, dict):
-                    continue
-                run_block = step.get("run")
-                if not isinstance(run_block, str):
-                    continue
+            self._check_job_expressions(file_path, job_name, job)
+
+    def _check_job_expressions(self, file_path: Path, job_name: str, job: dict[str, Any]) -> None:
+        steps = job.get("steps", [])
+        if not isinstance(steps, list):
+            return
+        tainted_steps: set[str] = set()
+        for step_idx, step in enumerate(steps):
+            if not isinstance(step, dict):
+                continue
+            run_block = step.get("run")
+            raw_env = step.get("env")
+            step_env: dict[Any, Any] = raw_env if isinstance(raw_env, dict) else {}
+            reads_unsafe = False
+
+            if isinstance(run_block, str):
                 for match in re.finditer(r"\$\{\{(.+?)\}\}", run_block):
                     expr = match.group(1).strip()
-                    if combined.search(expr):
-                        self.errors.append(
-                            f"{file_path}: Job '{job_name}' step {step_idx + 1}: "
-                            f"Expression injection risk: '${{{{ {expr} }}}}' in run block. "
-                            f"Use an environment variable instead."
-                        )
+                    reason = self._classify_expression(expr, tainted_steps)
+                    if reason is None:
+                        continue
+                    reads_unsafe = True
+                    self.errors.append(
+                        f"{file_path}: Job '{job_name}' step {step_idx + 1}: "
+                        f"Expression injection risk: '${{{{ {expr} }}}}' in run block "
+                        f"({reason}). Bind it through the step's 'env:' and "
+                        f"reference the quoted shell variable instead."
+                    )
+
+            for env_value in step_env.values():
+                if not isinstance(env_value, str):
+                    continue
+                for match in re.finditer(r"\$\{\{(.+?)\}\}", env_value):
+                    if self._classify_expression(match.group(1).strip(), tainted_steps):
+                        reads_unsafe = True
+
+            step_id = step.get("id")
+            if (
+                reads_unsafe
+                and isinstance(step_id, str)
+                and isinstance(run_block, str)
+                and "GITHUB_OUTPUT" in run_block
+            ):
+                tainted_steps.add(step_id)
+
+    # A plain (unquoted) YAML scalar ends at an unescaped ` #`, which starts a
+    # comment. GitHub renders the truncated remainder as the step name and
+    # reports nothing, so a name carrying an issue reference silently loses
+    # everything from the `#` onward (issue #3652).
+    _UNQUOTED_HASH_SCALAR: re.Pattern[str] = re.compile(
+        r"^\s*-?\s*(name|description):\s+(?![\"'|>&*])(?P<value>\S.*\s#.*)$"
+    )
+
+    def validate_name_truncation(self, file_path: Path) -> None:
+        """Flag plain scalars whose value is cut short by an inline comment.
+
+        Operates on raw text. By the time the YAML loader has run, the
+        truncation has already happened and left no trace to compare
+        against.
+        """
+        try:
+            raw = file_path.read_text(encoding="utf-8")
+        except OSError as exc:  # pragma: no cover - surfaced by the caller
+            self.errors.append(f"{file_path}: Failed to read: {exc}")
+            return
+        for line_no, line in enumerate(raw.splitlines(), 1):
+            match = self._UNQUOTED_HASH_SCALAR.match(line)
+            if not match:
+                continue
+            value = match.group("value").rstrip()
+            kept, _, dropped = value.partition(" #")
+            self.errors.append(
+                f"{file_path}:{line_no}: Unquoted '#' truncates this "
+                f"{match.group(1)} at the YAML comment marker. GitHub sees "
+                f"'{kept.rstrip()}' and drops '#{dropped}'. Wrap the value in "
+                f'double quotes: {match.group(1)}: "{value}"'
+            )
 
     def validate_file(self, file_path: Path) -> bool:
         """Validate a single workflow or action file."""
@@ -334,6 +504,9 @@ class WorkflowValidator:
 
         # Step 5: Expression injection detection (security)
         self.validate_expression_injection(file_path, content)
+
+        # Step 6: Silent name truncation at an unquoted comment marker
+        self.validate_name_truncation(file_path)
 
         return len(self.errors) == 0
 

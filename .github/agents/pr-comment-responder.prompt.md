@@ -318,7 +318,7 @@ fi
 REMAINING=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
 
 # Artifact state
-PENDING=$(grep -c "Status: pending\|Status: \[ACKNOWLEDGED\]" .agents/pr-comments/PR-[number]/comments.md)
+PENDING=$(grep -c "^\*\*Status\*\*: pending\|^\*\*Status\*\*: \[ACKNOWLEDGED\]\|^\*\*Status\*\*: \[NEW\]" .agents/pr-comments/PR-[number]/comments.md)
 
 if [ "$REMAINING" -ne 0 ] || [ "$PENDING" -ne 0 ]; then
   echo "[BLOCKED] API unresolved: $REMAINING, Artifact pending: $PENDING"
@@ -1082,15 +1082,15 @@ gh pr edit [number] --body "[updated body]"
 
 ```bash
 # Count addressed vs total
-ADDRESSED=$(grep -c "Status: \[COMPLETE\]" .agents/pr-comments/PR-[number]/comments.md)
-WONTFIX=$(grep -c "Status: \[WONTFIX\]" .agents/pr-comments/PR-[number]/comments.md)
+ADDRESSED=$(grep -Ec "^\*\*Status\*\*: \[COMPLETE\]" .agents/pr-comments/PR-[number]/comments.md)
+WONTFIX=$(grep -Ec "^\*\*Status\*\*: \[WONTFIX\]" .agents/pr-comments/PR-[number]/comments.md)
 TOTAL=$TOTAL_COMMENTS
 
 echo "Verification: $((ADDRESSED + WONTFIX)) / $TOTAL comments addressed"
 
 if [ "$((ADDRESSED + WONTFIX))" -lt "$TOTAL" ]; then
   echo "[WARNING] INCOMPLETE: $((TOTAL - ADDRESSED - WONTFIX)) comments remaining"
-  grep -B5 "Status: \[ACKNOWLEDGED\]\|Status: pending" .agents/pr-comments/PR-[number]/comments.md
+  grep -B5 "^\*\*Status\*\*: \[ACKNOWLEDGED\]\|^\*\*Status\*\*: pending\|^\*\*Status\*\*: \[NEW\]" .agents/pr-comments/PR-[number]/comments.md
   # Return to Phase 3 for unaddressed comments
 fi
 ```
@@ -1180,16 +1180,24 @@ if [ -n "$error" ]; then
     exit 1
 fi
 
-# Check for failures
-failed=$(echo "$checks" | jq -r '.FailedCount')
-if [ "$failed" -gt 0 ]; then
+# Check for failures and unusable merge refs
+merge_ref_usable=$(echo "$checks" | jq -r '.Data.MergeRefUsable')
+all_passing=$(echo "$checks" | jq -r '.Data.AllPassing')
+failed=$(echo "$checks" | jq -r '.Data.FailedCount')
+if [ "$merge_ref_usable" = "false" ]; then
+    echo "[BLOCKED] PR merge ref cannot be built, so CI status is incomplete"
+    exit 1
+elif [ "$failed" -gt 0 ]; then
     echo "[BLOCKED] $failed CI check(s) not passing:"
-    echo "$checks" | jq -r '.Checks[] | select(.Conclusion != "SUCCESS" and .Conclusion != "NEUTRAL" and .Conclusion != "SKIPPED") | "  - \(.Name): \(.Conclusion)\n    Details: \(.DetailsUrl)"'
+    echo "$checks" | jq -r '.Data.Checks[] | select(.Conclusion != "SUCCESS" and .Conclusion != "NEUTRAL" and .Conclusion != "SKIPPED") | "  - \(.Name): \(.Conclusion)\n    Details: \(.DetailsUrl)"'
     # Do NOT claim completion - return to Phase 6 for fixes
+    exit 1
+elif [ "$all_passing" != "true" ]; then
+    echo "[BLOCKED] CI checks are not all passing"
     exit 1
 fi
 
-passed=$(echo "$checks" | jq -r '.PassedCount')
+passed=$(echo "$checks" | jq -r '.Data.PassedCount')
 echo "[PASS] All CI checks passing ($passed checks)"
 ```
 
@@ -1209,9 +1217,9 @@ echo "[PASS] All CI checks passing ($passed checks)"
 
 | Criterion | Check | Status |
 |-----------|-------|--------|
-| All comments resolved | `grep -c "Status: \[COMPLETE\]\|\[WONTFIX\]"` equals total | [ ] |
+| All comments resolved | `grep -c -e "^\*\*Status\*\*: \[COMPLETE\]" -e "^\*\*Status\*\*: \[WONTFIX\]" "$COMMENT_MAP"` equals total | [ ] |
 | No new comments | Re-check returned 0 new | [ ] |
-| CI checks pass | `get_pr_checks.py --pull-request [number]` AllPassing = true | [ ] |
+| CI checks pass | `get_pr_checks.py --pull-request [number]` MergeRefUsable = true and AllPassing = true | [ ] |
 | No unresolved threads | `gh pr view --json reviewThreads` all resolved | [ ] |
 | Commits pushed | `git status` shows "up to date with origin" | [ ] |
 

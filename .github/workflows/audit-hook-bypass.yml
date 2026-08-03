@@ -46,24 +46,14 @@ jobs:
       - name: Run bypass detection
         id: detect
         run: |
-          # Issue #2808: `|| true` masked the crash path. detect_hook_bypass.py
-          # returns 0=no indicators, 1=indicators (intended non-blocking audit),
-          # 2=config/crash. Capture the code and hard-fail on >=2 instead of
-          # reporting a clean audit when the detector never ran.
-          set +e
-          python3 scripts/detect_hook_bypass.py \
+          # Issue #2808: `|| true` masked the crash path. The exit contract
+          # (0=clean, 1=indicators found, >=2=crash) is enforced in a tested
+          # script (ADR-006: no logic in YAML) so a broken audit cannot be
+          # reported as a clean one.
+          python3 scripts/ci/run_hook_bypass_audit.py \
+            --detector scripts/detect_hook_bypass.py \
             --base-ref origin/main \
             --output artifacts/hook-bypass-audit.json
-          rc=$?
-          set -e
-          # Exit contract: 0=clean, 1=indicators found (non-blocking), >=2=error.
-          # A crash (rc>=2) must NOT be masked as "0 indicators": that would hide a
-          # broken audit (#2808). Fail the step on rc>=2 and on missing JSON.
-          if [ "$rc" -ge 2 ]; then
-            echo "::error::detect_hook_bypass.py failed to run (exit $rc)"
-            exit "$rc"
-          fi
-          test -s artifacts/hook-bypass-audit.json
           # Count extraction lives in a tested script (ADR-006: no logic in YAML).
           python3 scripts/ci/parse_hook_bypass_results.py \
             --input artifacts/hook-bypass-audit.json \
@@ -83,4 +73,4 @@ jobs:
         with:
           name: hook-bypass-audit
           path: artifacts/hook-bypass-audit.json
-          retention-days: 90
+          retention-days: 7

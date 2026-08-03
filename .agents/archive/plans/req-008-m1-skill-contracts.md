@@ -2,6 +2,15 @@
 
 Verified 2026-05-09 on branch `feat/req-008-step-0-5-memory-first-gate`.
 
+## Metadata
+
+| Field | Value |
+|---|---|
+| **Status** | Abandoned |
+
+> **Closeout note:** Abandoned on 2026-07-27. Evidence: this was an M1 findings note, not the live plan; the misnumbered work shipped later as REQ-017.
+
+
 ## Verification
 
 | Skill | Path | Status |

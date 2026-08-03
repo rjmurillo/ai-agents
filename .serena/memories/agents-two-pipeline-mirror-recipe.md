@@ -9,14 +9,39 @@ To change shared agent behavior, edit BOTH of these in the same change, then reg
 
 Then run `python3 build/generate_agents.py` to refresh the generated copies (`src/copilot-cli/agents/`, `src/vs-code-agents/`).
 
-`build/scripts/detect_agent_drift.py` FAILS if `src/claude/<agent>.md` diverges from the shared body in `templates/agents/<agent>.shared.md`. So the two must move in lockstep. Do NOT hand-edit the generated `src/copilot-cli/` or `src/vs-code-agents/` copies (canonical-source-mirror rule); add behavior to the template and regenerate.
+No check compares `src/claude/<agent>.md` against the shared body in `templates/agents/<agent>.shared.md`. `build/scripts/detect_agent_drift.py` never reads a template body; it scores `src/claude` against `src/vs-code-agents` over an 18-section allowlist, and it is a similarity floor (default 80), not an equality check. What enforces the lockstep is co-change in a diff (`build/scripts/validate_install_parity.py`), so the two must move together in the same PR diff. Do NOT hand-edit the generated `src/copilot-cli/` or `src/vs-code-agents/` copies (canonical-source-mirror rule); add behavior to the template and regenerate.
 
 ## Why (evidence)
 
-Issue #2707 shipped SkillOpt determinism fixes for `silent-failure-hunter` (an AGENT, alongside two skills). The agent fix required this two-pipeline edit; getting it wrong trips the drift gate. Contrasts with skills, which are single-source under `.claude/skills/` and mirrored to `src/copilot-cli/skills/` via `build/scripts/generate_skills.py` (directory-copy), and with slash commands (generate_commands.py).
+Issue #2707 shipped SkillOpt determinism fixes for `silent-failure-hunter` (an AGENT, alongside two skills). The agent fix required this two-pipeline edit. Getting it wrong is NOT caught by the drift gate: `silent-failure-hunter` matches zero allowlisted sections, so `detect_agent_drift.py` returns a hardcoded 100.0 for it whatever the file contains (verified 2026-08-01 at `7e8d3ac2f4` by replacing its entire generated body with one unrelated sentence: still RC=0 / 100.0 / OK). Co-change parity is the only check watching that pair. Contrasts with skills, which are single-source under `.claude/skills/` and mirrored to `src/copilot-cli/skills/` via `build/scripts/generate_skills.py` (directory-copy), and with slash commands (generate_commands.py).
 
 ## Apply when
 
 Editing any agent's shared behavior. See `.claude/rules/claude-agents.md` MUST-1 for the binding rule.
 
 Source: issue/PR #2707 (MERGED); `.claude/rules/claude-agents.md`; `build/scripts/detect_agent_drift.py`.
+
+## Correction (2026-08-03): four hand-maintained surfaces, not two
+
+The recipe above names two files to edit. Measurement says four. `build_all.py`
+prints `Output Root: <repo>/src` and writes only `src/copilot-cli/agents/` and
+`src/vs-code-agents/`. Every other agent surface is hand-maintained, so a
+one-character fix to the shared body has to be repeated by hand in three more
+places:
+
+| Surface | Written by | Checked by |
+|---|---|---|
+| `templates/agents/<a>.shared.md` | hand | source of the two generated copies |
+| `src/claude/<a>.md` | hand | co-change parity (`validate_install_parity.py`) |
+| `.claude/agents/<a>.md` | hand | `check_agent_content_parity.py`: byte-identical to `src/claude/` |
+| `.github/agents/<a>.prompt.md` | hand | `detect_agent_drift.py` install-copy comparison vs `.claude/agents/` |
+| `src/copilot-cli/agents/<a>.agent.md` | `build_all.py` | drift gate |
+| `src/vs-code-agents/<a>.agent.md` | `build_all.py` | drift gate |
+
+Also: `build/scripts/generate_agents.py` does not exist. `build_all.py` imports
+the module and calls it; invoking the path directly gives Errno 2.
+
+Evidence: PR #4069, 2026-08-03. A bare `|` inside a backticked grep pattern in a
+table cell tripped MD056 in all six copies. Running `build_all.py` fixed two of
+them. `check_agent_content_parity.py` then reported the trees byte-identical only
+after the remaining three were edited by hand.

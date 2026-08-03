@@ -1,4 +1,4 @@
-"""Canonical: scripts/github_core/rate_limit.py. Sync via scripts/sync_plugin_lib.py.
+"""GitHub API rate-limit checks.
 
 Extracted from ``scripts/github_core/api.py`` (Issue #1910) as a cohesive
 module. ``api.py`` re-exports ``RateLimitResult``, ``DEFAULT_RATE_THRESHOLDS``,
@@ -40,6 +40,7 @@ def _fetch_rate_limit() -> dict:
         ["gh", "api", "rate_limit"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=30,
     )
     if result.returncode != 0:

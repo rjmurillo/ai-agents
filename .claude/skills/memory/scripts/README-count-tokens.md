@@ -4,22 +4,26 @@
 
 ```bash
 # Count tokens in single file
-python3 count_memory_tokens.py .serena/memories/memory-index.md
+uv run python count_memory_tokens.py .serena/memories/memory-index.md
 
 # Count all memories in directory
-python3 count_memory_tokens.py .serena/memories --total
+uv run python count_memory_tokens.py .serena/memories --total
 
 # Recursive with custom pattern
-python3 count_memory_tokens.py .serena/memories -r --pattern "*.md" --total
+uv run python count_memory_tokens.py .serena/memories -r --pattern "*.md" --total
 
 # Force recount (ignore cache)
-python3 count_memory_tokens.py .serena/memories -f
+uv run python count_memory_tokens.py .serena/memories -f
 ```
 
 ## Installation
 
+`tiktoken` is already a project dependency (`pyproject.toml`), so `uv sync`
+covers it. Install it standalone only when running outside the project venv:
+
 ```bash
-pip install tiktoken
+uv sync          # inside the repo
+uv pip install tiktoken   # standalone
 ```
 
 ## Caching
@@ -30,18 +34,30 @@ Token counts are cached in `.serena/.token-cache.json` for performance:
 - Speeds up repeated queries by 10-100×
 - Safe to delete cache file (will rebuild on next run)
 
-## Integration with PowerShell
+## Integration with the Memory Router
 
-From `Search-Memory.ps1`:
+Import the counter directly rather than parsing CLI output:
 
-```powershell
-# Get token count for memory
-$tokenCount = python3 .claude/skills/memory/scripts/count_memory_tokens.py "$memoryPath" |
-    Select-String -Pattern '(\d+,?\d*) tokens' |
-    ForEach-Object { $_.Matches.Groups[1].Value -replace ',' }
+```python
+import os
+import sys
+from pathlib import Path
 
-Write-Host "Found memory: $($memory.Name) ($tokenCount tokens)"
+_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT") or ".claude"
+sys.path.insert(0, f"{_root}/skills/memory")
+sys.path.insert(0, f"{_root}/skills/memory/scripts")
+
+from count_memory_tokens import get_memory_token_count
+from memory_core.memory_router import search_memory
+
+for memory in search_memory("context engineering", max_results=5):
+    if memory.path:
+        tokens = get_memory_token_count(Path(memory.path))
+        print(f"Found memory: {memory.name} ({tokens} tokens)")
 ```
+
+`search_memory.py --format table` already prints a `Tokens` column and a
+cumulative budget line, so prefer the CLI when you only need the display.
 
 ## Output Format
 
@@ -71,6 +87,6 @@ Token cost visibility enables informed ROI decisions:
 
 > "Display token counts for each item so agents can decide whether expensive retrieval is worth the cost."
 
-See: [Context Engineering Analysis](/.agents/analysis/context-engineering.md)
+See `.agents/analysis/context-engineering.md` in the `rjmurillo/ai-agents` repository. It does not ship with this skill; a consumer install cannot resolve it.
 
 <!-- vendor-portability: declared. This README links .agents/analysis/context-engineering.md as background. It is a documentation citation; the count-tokens script runs without it and a vendored install loses only the link. Issue #2050. -->

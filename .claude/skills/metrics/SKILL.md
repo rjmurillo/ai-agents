@@ -1,9 +1,6 @@
 ---
 name: metrics
-description: Collect agent usage metrics from git history and generate health reports.
-  Use when measuring agent adoption, reviewing system health, or producing periodic
-  dashboards. Collects 4 of the metrics defined in docs/agent-metrics.md (Invocation
-  Rate, Coverage, Infrastructure Review, Usage Distribution).
+description: Collect agent usage metrics from git history and generate health reports. Use when measuring agent adoption, reviewing system health, or producing periodic dashboards. Collects Invocation Rate, Coverage, Infrastructure Review, and Usage Distribution. Use when you say "collect agent metrics", "generate metrics dashboard", or "weekly metrics report".
 license: MIT
 metadata:
 version: 1.0.0
@@ -217,9 +214,11 @@ Update the `INFRASTRUCTURE_PATTERNS` / `$InfrastructurePatterns` arrays for new 
 
 ## Related Documents
 
-- [Agent Metrics Definition](../../../docs/agent-metrics.md)
-- [Dashboard Template](../metrics/dashboard-template.md)
-- [Baseline Report](../metrics/baseline-report.md)
-- [CI Workflow](../../../.github/workflows/agent-metrics.yml)
+Backticked paths below are in the `rjmurillo/ai-agents` repository. They do not ship with this skill; a consumer install cannot resolve them.
 
-<!-- vendor-portability: declared. This skill reads the consumer's .agents/* artifacts as metric inputs and can archive formatted output to .agents/metrics/. Inputs are whatever the consumer repo contains; the archive path is an optional write target created on demand. Issue #2050. -->
+- `docs/agent-metrics.md`. Agent metrics definitions.
+- `.agents/metrics/dashboard-template.md`. Dashboard template.
+- `.agents/metrics/baseline-report.md`. Baseline report.
+- `.github/workflows/agent-metrics.yml`. CI workflow.
+
+<!-- vendor-portability: declared. This skill reads the consumer's .agents/* artifacts as metric inputs and can archive formatted output to .agents/metrics/. Inputs are whatever the consumer repo contains; the archive path is an optional write target created on demand. It also cites docs/agent-metrics.md, .agents/metrics/dashboard-template.md, .agents/metrics/baseline-report.md, and .github/workflows/agent-metrics.yml as background reading. Issue #2050. -->

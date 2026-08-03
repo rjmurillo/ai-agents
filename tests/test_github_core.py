@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import subprocess
 from datetime import UTC, datetime
@@ -11,11 +12,15 @@ from unittest.mock import patch
 import pytest
 
 from scripts.github_core import (
+    REPO_ROOT_GIT_FAILED,
+    REPO_ROOT_NOT_A_REPO,
+    REPO_ROOT_OK,
     FetchStatus,
     RateLimitResult,
     RepoInfo,
     assert_gh_authenticated,
     assert_valid_body_file,
+    bot_config,
     check_workflow_rate_limit,
     count_unresolved_threads,
     create_issue_comment,
@@ -36,11 +41,12 @@ from scripts.github_core import (
     is_github_name_valid,
     is_safe_file_path,
     resolve_repo_params,
+    resolve_repo_root,
     safe_log_str,
     update_issue_comment,
+    validation,
 )
 from scripts.github_core.api import _403_PATTERN, _retry_after_delay
-from scripts.github_core import bot_config
 from scripts.github_core.bot_config import _DEFAULT_BOTS
 from tests.mock_fidelity import assert_mock_keys_match
 
@@ -106,6 +112,11 @@ class TestIsGitHubNameValid:
     def test_valid_repo(self):
         assert is_github_name_valid("ai-agents", "Repo") is True
 
+    @pytest.mark.parametrize("name_type", ["repo", "Repo", "REPO"])
+    def test_repo_name_type_is_case_insensitive(self, name_type: str):
+        assert is_github_name_valid("ai-agents", name_type) is True
+        assert is_github_name_valid("..", name_type) is False
+
     def test_repo_allows_dots(self):
         assert is_github_name_valid("my.repo.name", "Repo") is True
 
@@ -126,6 +137,40 @@ class TestIsGitHubNameValid:
     def test_invalid_type_returns_false(self):
         assert is_github_name_valid("foo", "Invalid") is False
 
+    @pytest.mark.parametrize("name", [".", ".."])
+    @pytest.mark.parametrize("name_type", ["repo", "Repo", "REPO"])
+    def test_repo_rejects_the_two_directory_aliases(self, name: str, name_type: str):
+        """`.` and `..` are the only names GitHub refuses outright.
+
+        They are also the two that carry traversal meaning once a caller
+        interpolates them into a URL path, which several callers do.
+
+        `name_type` is documented case-insensitive, so the rejection has to
+        hold for every spelling a caller may pass. Testing one spelling would
+        let a guard that keys off a single literal survive.
+        """
+        assert is_github_name_valid(name, name_type) is False
+
+    @pytest.mark.parametrize("name", [".", ".."])
+    @pytest.mark.parametrize("name_type", ["owner", "Owner", "OWNER"])
+    def test_owner_rejects_the_two_directory_aliases(self, name: str, name_type: str):
+        assert is_github_name_valid(name, name_type) is False
+
+    def test_longer_dot_runs_stay_valid(self):
+        """Only the two aliases are reserved. `...` is a legal repository name.
+
+        Rejecting every all-dot name would be a wider rule than GitHub's and
+        would fail a name a user can really create.
+        """
+        assert is_github_name_valid("...", "Repo") is True
+        assert is_github_name_valid("....", "Repo") is True
+
+    def test_dots_elsewhere_in_a_name_stay_valid(self):
+        """The guard matches whole names, not substrings."""
+        assert is_github_name_valid("..leading", "Repo") is True
+        assert is_github_name_valid("trailing..", "Repo") is True
+        assert is_github_name_valid("mid..dle", "Repo") is True
+
 
 # ---------------------------------------------------------------------------
 # Validation: is_safe_file_path
@@ -145,15 +190,46 @@ class TestIsSafeFilePath:
     def test_default_base_is_repo_root(self, tmp_path: Path):
         child = tmp_path / "file.txt"
         child.touch()
-        with patch("scripts.github_core.repo.get_repo_root", return_value=tmp_path):
+        with patch(
+            "scripts.github_core.repo.resolve_repo_root",
+            return_value=(tmp_path, REPO_ROOT_OK),
+        ):
             assert is_safe_file_path(str(child)) is True
 
-    def test_default_base_falls_back_to_cwd(self, tmp_path: Path):
+    def test_default_base_falls_back_to_cwd_when_there_is_no_repository(self, tmp_path: Path):
+        """Git answered. "No repository" is a fact, so cwd is a real boundary."""
         child = tmp_path / "file.txt"
         child.touch()
-        with patch("scripts.github_core.repo.get_repo_root", return_value=None):
+        with patch(
+            "scripts.github_core.repo.resolve_repo_root",
+            return_value=(None, REPO_ROOT_NOT_A_REPO),
+        ):
             with patch("os.getcwd", return_value=str(tmp_path)):
                 assert is_safe_file_path(str(child)) is True
+
+    def test_git_failure_does_not_silently_become_a_cwd_check(self, tmp_path: Path):
+        """The false accept. Git failed, so containment cannot be answered.
+
+        Before this fix the base silently became the working directory, so a
+        path nowhere near the repository passed the repository containment
+        check purely because the process happened to be sitting next to it.
+        """
+        child = tmp_path / "file.txt"
+        child.touch()
+        with patch(
+            "scripts.github_core.repo.resolve_repo_root",
+            return_value=(None, REPO_ROOT_GIT_FAILED),
+        ):
+            with patch("os.getcwd", return_value=str(tmp_path)):
+                assert is_safe_file_path(str(child)) is False
+
+    def test_explicit_base_never_consults_git(self, tmp_path: Path):
+        """A caller-supplied base is authoritative; git must not be run at all."""
+        child = tmp_path / "file.txt"
+        child.touch()
+        with patch("scripts.github_core.repo.resolve_repo_root") as resolver:
+            assert is_safe_file_path(str(child), str(tmp_path)) is True
+        resolver.assert_not_called()
 
     def test_rejects_backslash_traversal(self):
         assert is_safe_file_path("foo\\..\\bar") is False
@@ -202,9 +278,7 @@ class TestAssertValidBodyFile:
         finally:
             f.unlink(missing_ok=True)
 
-    def test_accepts_tmpdir_file_when_base_is_none(
-        self, tmp_path: Path, monkeypatch
-    ):
+    def test_accepts_tmpdir_file_when_base_is_none(self, tmp_path: Path, monkeypatch):
         """File under TMPDIR accepted when allowed_base is None (mktemp staging)."""
         monkeypatch.setenv("TMPDIR", str(tmp_path))
         body = tmp_path / "pr-reply.md"
@@ -216,9 +290,7 @@ class TestAssertValidBodyFile:
         import tempfile
 
         monkeypatch.delenv("TMPDIR", raising=False)
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".md", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
             f.write("draft")
             tmp_file = f.name
         try:
@@ -226,16 +298,14 @@ class TestAssertValidBodyFile:
         finally:
             Path(tmp_file).unlink(missing_ok=True)
 
-    def test_rejects_file_outside_repo_and_all_tempdirs(
-        self, tmp_path: Path, monkeypatch
-    ):
+    def test_rejects_file_outside_repo_and_all_tempdirs(self, external_tmp_path: Path, monkeypatch):
         """File outside both repo and every candidate temp root is rejected."""
-        outside_dir = tmp_path / "not-a-temp-dir"
+        outside_dir = external_tmp_path / "not-a-temp-dir"
         outside_dir.mkdir()
         outside_file = outside_dir / "body.md"
         outside_file.write_text("hello")
 
-        unrelated_tmp = tmp_path / "unrelated-tmp"
+        unrelated_tmp = external_tmp_path / "unrelated-tmp"
         unrelated_tmp.mkdir()
         monkeypatch.setenv("TMPDIR", str(unrelated_tmp))
 
@@ -516,7 +586,6 @@ class TestGhGraphQL:
             with pytest.raises(RuntimeError, match="Failed to parse"):
                 gh_graphql("query { ... }")
 
-
     def test_retries_transient_504_then_succeeds(self):
         """A transient HTTP 504 followed by success returns data (issue #2631)."""
         ok = json.dumps({"data": {"viewer": {"login": "u"}}})
@@ -524,9 +593,10 @@ class TestGhGraphQL:
             _completed(rc=1, stderr="gh: We couldn't respond in time. (HTTP 504)"),
             _completed(stdout=ok),
         ]
-        with patch("scripts.github_core.api.time.sleep") as sleep_mock, patch(
-            "subprocess.run", side_effect=responses
-        ) as run_mock:
+        with (
+            patch("scripts.github_core.api.time.sleep") as sleep_mock,
+            patch("subprocess.run", side_effect=responses) as run_mock,
+        ):
             result = gh_graphql("query { viewer { login } }")
         assert result == {"viewer": {"login": "u"}}
         assert run_mock.call_count == 2
@@ -535,9 +605,10 @@ class TestGhGraphQL:
     def test_retries_exhausted_on_persistent_504_raises(self):
         """Three consecutive 504s exhaust the bounded retry and raise (issue #2631)."""
         resp = _completed(rc=1, stderr="gh: timeout (HTTP 504)")
-        with patch("scripts.github_core.api.time.sleep") as sleep_mock, patch(
-            "subprocess.run", return_value=resp
-        ) as run_mock:
+        with (
+            patch("scripts.github_core.api.time.sleep") as sleep_mock,
+            patch("subprocess.run", return_value=resp) as run_mock,
+        ):
             with pytest.raises(RuntimeError, match="GraphQL request failed"):
                 gh_graphql("query { viewer { login } }")
         assert run_mock.call_count == 3
@@ -551,18 +622,20 @@ class TestGhGraphQL:
                 _completed(rc=1, stderr=f"server error (HTTP {code})"),
                 _completed(stdout=ok),
             ]
-            with patch("scripts.github_core.api.time.sleep"), patch(
-                "subprocess.run", side_effect=responses
-            ) as run_mock:
+            with (
+                patch("scripts.github_core.api.time.sleep"),
+                patch("subprocess.run", side_effect=responses) as run_mock,
+            ):
                 gh_graphql("query { x }")
             assert run_mock.call_count == 2, code
 
     def test_permanent_404_does_not_retry(self):
         """A permanent client error (404, not 5xx/429) fails fast without retry."""
         resp = _completed(rc=1, stderr="gh: Not Found (HTTP 404)")
-        with patch("scripts.github_core.api.time.sleep") as sleep_mock, patch(
-            "subprocess.run", return_value=resp
-        ) as run_mock:
+        with (
+            patch("scripts.github_core.api.time.sleep") as sleep_mock,
+            patch("subprocess.run", return_value=resp) as run_mock,
+        ):
             with pytest.raises(RuntimeError, match="GraphQL request failed"):
                 gh_graphql("query { x }")
         assert run_mock.call_count == 1
@@ -570,12 +643,11 @@ class TestGhGraphQL:
 
     def test_graphql_level_error_does_not_retry(self):
         """A GraphQL-level error (HTTP 200 with errors) is permanent, no retry."""
-        resp = _completed(
-            stdout=json.dumps({"data": None, "errors": [{"message": "Bad"}]})
-        )
-        with patch("scripts.github_core.api.time.sleep") as sleep_mock, patch(
-            "subprocess.run", return_value=resp
-        ) as run_mock:
+        resp = _completed(stdout=json.dumps({"data": None, "errors": [{"message": "Bad"}]}))
+        with (
+            patch("scripts.github_core.api.time.sleep") as sleep_mock,
+            patch("subprocess.run", return_value=resp) as run_mock,
+        ):
             with pytest.raises(RuntimeError, match="GraphQL errors"):
                 gh_graphql("query { x }")
         assert run_mock.call_count == 1
@@ -665,9 +737,7 @@ class TestGetAllPRsWithComments:
         }
 
         with patch("subprocess.run", return_value=_completed(stdout=json.dumps(graphql_response))):
-            result = get_all_prs_with_comments(
-                "owner", "repo", datetime(2026, 1, 1, tzinfo=UTC)
-            )
+            result = get_all_prs_with_comments("owner", "repo", datetime(2026, 1, 1, tzinfo=UTC))
         assert len(result) == 1
         assert result[0]["number"] == 1
 
@@ -686,9 +756,7 @@ class TestGetAllPRsWithComments:
         }
 
         with patch("subprocess.run", return_value=_completed(stdout=json.dumps(graphql_response))):
-            result = get_all_prs_with_comments(
-                "owner", "repo", datetime(2026, 1, 1, tzinfo=UTC)
-            )
+            result = get_all_prs_with_comments("owner", "repo", datetime(2026, 1, 1, tzinfo=UTC))
         assert len(result) == 1
 
     def test_raises_when_repository_is_null(self):
@@ -717,9 +785,7 @@ class TestGetAllPRsWithComments:
         }
 
         with patch("subprocess.run", return_value=_completed(stdout=json.dumps(graphql_response))):
-            result = get_all_prs_with_comments(
-                "owner", "repo", datetime(2026, 1, 1, tzinfo=UTC)
-            )
+            result = get_all_prs_with_comments("owner", "repo", datetime(2026, 1, 1, tzinfo=UTC))
         assert len(result) == 0
 
 
@@ -862,9 +928,7 @@ class TestGetTrustedSourceComments:
 class TestGetBotAuthorsConfig:
     def test_returns_dict_with_required_keys(self, tmp_path: Path):
         config = tmp_path / "bot-authors.yml"
-        config.write_text(
-            "reviewer:\n  - bot1\nautomation:\n  - bot2\nrepository:\n  - bot3\n"
-        )
+        config.write_text("reviewer:\n  - bot1\nautomation:\n  - bot2\nrepository:\n  - bot3\n")
         # Mock _find_repo_root to skip CWE-22 check (tmp_path is outside repo)
         with patch("scripts.github_core.bot_config._find_repo_root", return_value=None):
             result = get_bot_authors_config(config_path=str(config), force=True)
@@ -872,9 +936,7 @@ class TestGetBotAuthorsConfig:
 
     def test_each_category_has_entries(self, tmp_path: Path):
         config = tmp_path / "bot-authors.yml"
-        config.write_text(
-            "reviewer:\n  - r1\n  - r2\nautomation:\n  - a1\nrepository:\n  - p1\n"
-        )
+        config.write_text("reviewer:\n  - r1\n  - r2\nautomation:\n  - a1\nrepository:\n  - p1\n")
         with patch("scripts.github_core.bot_config._find_repo_root", return_value=None):
             result = get_bot_authors_config(config_path=str(config), force=True)
         assert len(result["reviewer"]) == 2
@@ -1016,7 +1078,7 @@ class TestFetchStatus:
         unlike a bare-string sentinel which would silently miss.
         """
         with pytest.raises(AttributeError):
-            _ = getattr(FetchStatus, "OK_TYPO")
+            _ = FetchStatus.OK_TYPO
 
 
 class TestCountUnresolvedThreads:
@@ -1039,7 +1101,7 @@ class TestCountUnresolvedThreads:
         ]
         assert count_unresolved_threads(nodes) == 2
 
-    def test_missing_isResolved_defaults_to_resolved(self):
+    def test_missing_is_resolved_defaults_to_resolved(self):
         """A malformed thread without isResolved defaults to resolved
         (treated as not unresolved). Prevents a missing field from
         silently inflating the unresolved count.
@@ -1047,7 +1109,7 @@ class TestCountUnresolvedThreads:
         nodes = [{}, {"id": "x"}]
         assert count_unresolved_threads(nodes) == 0
 
-    def test_explicit_null_isResolved_defaults_to_resolved(self):
+    def test_explicit_null_is_resolved_defaults_to_resolved(self):
         """An explicit null isResolved from the GraphQL payload is treated the
         same as a missing field (resolved), so it is not counted as unresolved.
         """
@@ -1082,56 +1144,52 @@ class TestFilterUnresolvedThreads:
 
 class TestGetUnresolvedReviewThreads:
     def test_returns_unresolved_threads(self):
-        graphql_response = json.dumps({
-            "data": {
-                "repository": {
-                    "pullRequest": {
-                        "reviewThreads": {
-                            "nodes": [
-                                _thread("t1", False, 1),
-                                _thread("t2", True, 2),
-                                _thread("t3", False, 3),
-                            ]
+        graphql_response = json.dumps(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "reviewThreads": {
+                                "nodes": [
+                                    _thread("t1", False, 1),
+                                    _thread("t2", True, 2),
+                                    _thread("t3", False, 3),
+                                ]
+                            }
                         }
                     }
                 }
             }
-        })
+        )
         with patch("subprocess.run", return_value=_completed(stdout=graphql_response)):
             result = get_unresolved_review_threads("owner", "repo", 42)
         assert len(result) == 2
         assert all(not t["isResolved"] for t in result)
 
     def test_returns_empty_on_all_resolved(self):
-        graphql_response = json.dumps({
-            "data": {
-                "repository": {
-                    "pullRequest": {
-                        "reviewThreads": {
-                            "nodes": [
-                                _thread("t1", True, 1),
-                            ]
+        graphql_response = json.dumps(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "reviewThreads": {
+                                "nodes": [
+                                    _thread("t1", True, 1),
+                                ]
+                            }
                         }
                     }
                 }
             }
-        })
+        )
         with patch("subprocess.run", return_value=_completed(stdout=graphql_response)):
             result = get_unresolved_review_threads("owner", "repo", 42)
         assert result == []
 
     def test_returns_empty_on_no_threads(self):
-        graphql_response = json.dumps({
-            "data": {
-                "repository": {
-                    "pullRequest": {
-                        "reviewThreads": {
-                            "nodes": []
-                        }
-                    }
-                }
-            }
-        })
+        graphql_response = json.dumps(
+            {"data": {"repository": {"pullRequest": {"reviewThreads": {"nodes": []}}}}}
+        )
         with patch("subprocess.run", return_value=_completed(stdout=graphql_response)):
             result = get_unresolved_review_threads("owner", "repo", 42)
         assert result == []
@@ -1157,40 +1215,40 @@ class TestGetUnresolvedReviewThreads:
         the second page entirely and reported "0 unresolved" while threads
         sat there. With pagination, all 105 are returned.
         """
-        page_one = json.dumps({
-            "data": {
-                "repository": {
-                    "pullRequest": {
-                        "reviewThreads": {
-                            "pageInfo": {
-                                "hasNextPage": True,
-                                "endCursor": "CURSOR_PAGE_2",
-                            },
-                            "nodes": [
-                                _thread(f"page1-{i}", False, i) for i in range(100)
-                            ],
+        page_one = json.dumps(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "reviewThreads": {
+                                "pageInfo": {
+                                    "hasNextPage": True,
+                                    "endCursor": "CURSOR_PAGE_2",
+                                },
+                                "nodes": [_thread(f"page1-{i}", False, i) for i in range(100)],
+                            }
                         }
                     }
                 }
             }
-        })
-        page_two = json.dumps({
-            "data": {
-                "repository": {
-                    "pullRequest": {
-                        "reviewThreads": {
-                            "pageInfo": {
-                                "hasNextPage": False,
-                                "endCursor": None,
-                            },
-                            "nodes": [
-                                _thread(f"page2-{i}", False, 1000 + i) for i in range(5)
-                            ],
+        )
+        page_two = json.dumps(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "reviewThreads": {
+                                "pageInfo": {
+                                    "hasNextPage": False,
+                                    "endCursor": None,
+                                },
+                                "nodes": [_thread(f"page2-{i}", False, 1000 + i) for i in range(5)],
+                            }
                         }
                     }
                 }
             }
-        })
+        )
 
         responses = [_completed(stdout=page_one), _completed(stdout=page_two)]
         with patch("subprocess.run", side_effect=responses) as mock_run:
@@ -1199,7 +1257,9 @@ class TestGetUnresolvedReviewThreads:
         assert mock_run.call_count == 2, (
             "Pagination loop did not call gh twice; pageInfo.hasNextPage=true was ignored"
         )
-        assert len(result) == 105, f"Expected 105 unresolved threads across pages, got {len(result)}"
+        assert len(result) == 105, (
+            f"Expected 105 unresolved threads across pages, got {len(result)}"
+        )
         page1_ids = {f"page1-{i}" for i in range(100)}
         page2_ids = {f"page2-{i}" for i in range(5)}
         actual_ids = {t["id"] for t in result}
@@ -1211,33 +1271,37 @@ class TestGetUnresolvedReviewThreads:
         Without that, GitHub returns page 1 again forever. We assert the
         gh argv on call #2 contains the cursor value from page 1.
         """
-        page_one = json.dumps({
-            "data": {
-                "repository": {
-                    "pullRequest": {
-                        "reviewThreads": {
-                            "pageInfo": {
-                                "hasNextPage": True,
-                                "endCursor": "CURSOR_FROM_PAGE_1",
-                            },
-                            "nodes": [_thread("t1", False, 1)],
+        page_one = json.dumps(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "reviewThreads": {
+                                "pageInfo": {
+                                    "hasNextPage": True,
+                                    "endCursor": "CURSOR_FROM_PAGE_1",
+                                },
+                                "nodes": [_thread("t1", False, 1)],
+                            }
                         }
                     }
                 }
             }
-        })
-        page_two = json.dumps({
-            "data": {
-                "repository": {
-                    "pullRequest": {
-                        "reviewThreads": {
-                            "pageInfo": {"hasNextPage": False, "endCursor": None},
-                            "nodes": [],
+        )
+        page_two = json.dumps(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "reviewThreads": {
+                                "pageInfo": {"hasNextPage": False, "endCursor": None},
+                                "nodes": [],
+                            }
                         }
                     }
                 }
             }
-        })
+        )
 
         responses = [_completed(stdout=page_one), _completed(stdout=page_two)]
         with patch("subprocess.run", side_effect=responses) as mock_run:
@@ -1252,18 +1316,20 @@ class TestGetUnresolvedReviewThreads:
 
     def test_pagination_stops_when_endcursor_is_empty(self):
         """Defensive: a hasNextPage=true with empty endCursor must not loop forever."""
-        page_one = json.dumps({
-            "data": {
-                "repository": {
-                    "pullRequest": {
-                        "reviewThreads": {
-                            "pageInfo": {"hasNextPage": True, "endCursor": ""},
-                            "nodes": [_thread("t1", False, 1)],
+        page_one = json.dumps(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "reviewThreads": {
+                                "pageInfo": {"hasNextPage": True, "endCursor": ""},
+                                "nodes": [_thread("t1", False, 1)],
+                            }
                         }
                     }
                 }
             }
-        })
+        )
 
         with patch("subprocess.run", side_effect=[_completed(stdout=page_one)]) as mock_run:
             result = get_unresolved_review_threads("owner", "repo", 42)
@@ -1278,6 +1344,7 @@ class TestGetUnresolvedReviewThreads:
         would not see why a transport error occurred.
         """
         import logging
+
         with caplog.at_level(logging.WARNING, logger="scripts.github_core.api"):
             with patch(
                 "subprocess.run",
@@ -1287,17 +1354,15 @@ class TestGetUnresolvedReviewThreads:
                     result = get_unresolved_review_threads("owner", "repo", 42)
         assert result == []
         assert any(
-            "op=review_threads_failed" in r.message
-            and "reason=graphql_error" in r.message
+            "op=review_threads_failed" in r.message and "reason=graphql_error" in r.message
             for r in caplog.records
         ), "api.py-level transport error must log op=review_threads_failed reason=graphql_error"
 
     def test_field_missing_logs_reason_at_api_level(self, caplog):
         """When pullRequest is null, api.py path emits reason=pr_not_found."""
         import logging
-        graphql_response = json.dumps({
-            "data": {"repository": {"pullRequest": None}}
-        })
+
+        graphql_response = json.dumps({"data": {"repository": {"pullRequest": None}}})
         with caplog.at_level(logging.WARNING, logger="scripts.github_core.api"):
             with patch(
                 "subprocess.run",
@@ -1305,9 +1370,9 @@ class TestGetUnresolvedReviewThreads:
             ):
                 result = get_unresolved_review_threads("owner", "repo", 42)
         assert result == []
-        assert any(
-            "reason=pr_not_found" in r.message for r in caplog.records
-        ), "Null pullRequest must log reason=pr_not_found at api.py level"
+        assert any("reason=pr_not_found" in r.message for r in caplog.records), (
+            "Null pullRequest must log reason=pr_not_found at api.py level"
+        )
 
     def test_nodes_missing_logs_reason_at_api_level(self, caplog):
         """reviewThreads.nodes is null (distinct from connection-missing).
@@ -1317,18 +1382,21 @@ class TestGetUnresolvedReviewThreads:
         so operators grepping by reason find both surfaces.
         """
         import logging
-        graphql_response = json.dumps({
-            "data": {
-                "repository": {
-                    "pullRequest": {
-                        "reviewThreads": {
-                            "nodes": None,
-                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+
+        graphql_response = json.dumps(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "reviewThreads": {
+                                "nodes": None,
+                                "pageInfo": {"hasNextPage": False, "endCursor": None},
+                            }
                         }
                     }
                 }
             }
-        })
+        )
         with caplog.at_level(logging.WARNING, logger="scripts.github_core.api"):
             with patch(
                 "subprocess.run",
@@ -1336,9 +1404,9 @@ class TestGetUnresolvedReviewThreads:
             ):
                 result = get_unresolved_review_threads("owner", "repo", 42)
         assert result == []
-        assert any(
-            "reason=nodes_missing" in r.message for r in caplog.records
-        ), "Null reviewThreads.nodes must log reason=nodes_missing"
+        assert any("reason=nodes_missing" in r.message for r in caplog.records), (
+            "Null reviewThreads.nodes must log reason=nodes_missing"
+        )
 
     def test_cursor_missing_emits_warning_and_logs_reason(self, caplog):
         """When hasNextPage=true but endCursor is empty/null, the loop must
@@ -1348,29 +1416,33 @@ class TestGetUnresolvedReviewThreads:
         Defensive guardrail flagged by Copilot review on PR #1897.
         """
         import logging
-        page_one = json.dumps({
-            "data": {
-                "repository": {
-                    "pullRequest": {
-                        "reviewThreads": {
-                            "pageInfo": {"hasNextPage": True, "endCursor": ""},
-                            "nodes": [_thread("t1", False, 1)],
+
+        page_one = json.dumps(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "reviewThreads": {
+                                "pageInfo": {"hasNextPage": True, "endCursor": ""},
+                                "nodes": [_thread("t1", False, 1)],
+                            }
                         }
                     }
                 }
             }
-        })
+        )
         with caplog.at_level(logging.WARNING, logger="scripts.github_core.api"):
             with patch(
-                "subprocess.run", side_effect=[_completed(stdout=page_one)],
+                "subprocess.run",
+                side_effect=[_completed(stdout=page_one)],
             ) as mock_run:
                 with pytest.warns(UserWarning, match=r"cursor_missing"):
                     result = get_unresolved_review_threads("owner", "repo", 42)
         assert mock_run.call_count == 1
         assert len(result) == 1
-        assert any(
-            "reason=cursor_missing" in r.message for r in caplog.records
-        ), "cursor_missing branch must emit op=review_threads_failed reason=cursor_missing"
+        assert any("reason=cursor_missing" in r.message for r in caplog.records), (
+            "cursor_missing branch must emit op=review_threads_failed reason=cursor_missing"
+        )
 
     def test_mid_pagination_structural_failure_emits_warning(self, caplog):
         """Page 1 OK, page 2 structurally invalid → caller sees a warning.
@@ -1381,30 +1453,36 @@ class TestGetUnresolvedReviewThreads:
         with no signal that pages 2+ were dropped.
         """
         import logging
-        page_one = json.dumps({
-            "data": {
-                "repository": {
-                    "pullRequest": {
-                        "reviewThreads": {
-                            "pageInfo": {"hasNextPage": True, "endCursor": "cur1"},
-                            "nodes": [_thread("t1", False, 1)],
+
+        page_one = json.dumps(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "reviewThreads": {
+                                "pageInfo": {"hasNextPage": True, "endCursor": "cur1"},
+                                "nodes": [_thread("t1", False, 1)],
+                            }
                         }
                     }
                 }
             }
-        })
+        )
         page_two_invalid = json.dumps({"data": {"repository": None}})
         with caplog.at_level(logging.WARNING, logger="scripts.github_core.api"):
-            with patch("subprocess.run", side_effect=[
-                _completed(stdout=page_one),
-                _completed(stdout=page_two_invalid),
-            ]):
+            with patch(
+                "subprocess.run",
+                side_effect=[
+                    _completed(stdout=page_one),
+                    _completed(stdout=page_two_invalid),
+                ],
+            ):
                 with pytest.warns(UserWarning, match=r"structural_failure"):
                     result = get_unresolved_review_threads("owner", "repo", 42)
         assert len(result) == 1, "page 1 result must be preserved on page 2 failure"
-        assert any(
-            "reason=structural_failure" in r.message for r in caplog.records
-        ), "mid-pagination structural failure must emit reason=structural_failure"
+        assert any("reason=structural_failure" in r.message for r in caplog.records), (
+            "mid-pagination structural failure must emit reason=structural_failure"
+        )
 
     def test_pagination_cap_emits_warning_and_stops(self):
         """At-cap exit must warn the caller, not silently truncate.
@@ -1421,28 +1499,27 @@ class TestGetUnresolvedReviewThreads:
         # Every page reports hasNextPage=True and a fresh cursor; one
         # unresolved thread per page so we can count.
         def _page_response(page_idx: int) -> str:
-            return json.dumps({
-                "data": {
-                    "repository": {
-                        "pullRequest": {
-                            "reviewThreads": {
-                                "pageInfo": {
-                                    "hasNextPage": True,
-                                    "endCursor": f"CURSOR_PAGE_{page_idx + 1}",
-                                },
-                                "nodes": [
-                                    _thread(f"page{page_idx}-t", False, page_idx)
-                                ],
+            return json.dumps(
+                {
+                    "data": {
+                        "repository": {
+                            "pullRequest": {
+                                "reviewThreads": {
+                                    "pageInfo": {
+                                        "hasNextPage": True,
+                                        "endCursor": f"CURSOR_PAGE_{page_idx + 1}",
+                                    },
+                                    "nodes": [_thread(f"page{page_idx}-t", False, page_idx)],
+                                }
                             }
                         }
                     }
                 }
-            })
+            )
 
         # Provide cap+5 pages. Loop must stop at cap.
         responses = [
-            _completed(stdout=_page_response(i))
-            for i in range(_REVIEW_THREADS_MAX_PAGES + 5)
+            _completed(stdout=_page_response(i)) for i in range(_REVIEW_THREADS_MAX_PAGES + 5)
         ]
 
         with patch("subprocess.run", side_effect=responses) as mock_run:
@@ -1462,31 +1539,37 @@ class TestGetUnresolvedReviewThreads:
 # Rate limits
 # ---------------------------------------------------------------------------
 
-RATE_LIMIT_ALL_OK = json.dumps({
-    "resources": {
-        "core": {"remaining": 5000, "limit": 5000, "reset": 1234567890},
-        "search": {"remaining": 30, "limit": 30, "reset": 1234567890},
-        "code_search": {"remaining": 10, "limit": 10, "reset": 1234567890},
-        "graphql": {"remaining": 5000, "limit": 5000, "reset": 1234567890},
+RATE_LIMIT_ALL_OK = json.dumps(
+    {
+        "resources": {
+            "core": {"remaining": 5000, "limit": 5000, "reset": 1234567890},
+            "search": {"remaining": 30, "limit": 30, "reset": 1234567890},
+            "code_search": {"remaining": 10, "limit": 10, "reset": 1234567890},
+            "graphql": {"remaining": 5000, "limit": 5000, "reset": 1234567890},
+        }
     }
-})
+)
 
-RATE_LIMIT_CORE_LOW = json.dumps({
-    "resources": {
-        "core": {"remaining": 50, "limit": 5000, "reset": 1234567890},
-        "search": {"remaining": 30, "limit": 30, "reset": 1234567890},
-        "code_search": {"remaining": 10, "limit": 10, "reset": 1234567890},
-        "graphql": {"remaining": 5000, "limit": 5000, "reset": 1234567890},
+RATE_LIMIT_CORE_LOW = json.dumps(
+    {
+        "resources": {
+            "core": {"remaining": 50, "limit": 5000, "reset": 1234567890},
+            "search": {"remaining": 30, "limit": 30, "reset": 1234567890},
+            "code_search": {"remaining": 10, "limit": 10, "reset": 1234567890},
+            "graphql": {"remaining": 5000, "limit": 5000, "reset": 1234567890},
+        }
     }
-})
+)
 
-RATE_LIMIT_MISSING_RESOURCE = json.dumps({
-    "resources": {
-        "core": {"remaining": 5000, "limit": 5000, "reset": 1234567890},
-        "search": {"remaining": 30, "limit": 30, "reset": 1234567890},
-        "graphql": {"remaining": 5000, "limit": 5000, "reset": 1234567890},
+RATE_LIMIT_MISSING_RESOURCE = json.dumps(
+    {
+        "resources": {
+            "core": {"remaining": 5000, "limit": 5000, "reset": 1234567890},
+            "search": {"remaining": 30, "limit": 30, "reset": 1234567890},
+            "graphql": {"remaining": 5000, "limit": 5000, "reset": 1234567890},
+        }
     }
-})
+)
 
 
 class TestCheckWorkflowRateLimit:
@@ -1618,9 +1701,7 @@ class TestYamlFallback:
     def test_parse_simple_yaml_matches_yaml_safe_load(self) -> None:
         import yaml as _yaml
 
-        text = (_REPO_ROOT / ".github" / "bot-authors.yml").read_text(
-            encoding="utf-8"
-        )
+        text = (_REPO_ROOT / ".github" / "bot-authors.yml").read_text(encoding="utf-8")
         reference = _yaml.safe_load(text)
         assert bot_config._parse_simple_yaml(text) == reference
 
@@ -1636,9 +1717,7 @@ class TestYamlFallback:
         assert bot_config.is_bot("coderabbitai[bot]")
         assert not bot_config.is_bot("octocat-human")
 
-    def test_missing_file_without_yaml_uses_defaults(
-        self, tmp_path, monkeypatch
-    ) -> None:
+    def test_missing_file_without_yaml_uses_defaults(self, tmp_path, monkeypatch) -> None:
         monkeypatch.setattr(bot_config, "yaml", None)
         missing = str(tmp_path / "none.yml")
         cfg = bot_config.get_bot_authors_config(config_path=missing, force=True)
@@ -1654,9 +1733,7 @@ class TestParseSimpleYaml:
         }
 
     def test_inline_comment_stripped_from_item(self) -> None:
-        assert bot_config._parse_simple_yaml("bots:\n  - foo  # note\n") == {
-            "bots": ["foo"]
-        }
+        assert bot_config._parse_simple_yaml("bots:\n  - foo  # note\n") == {"bots": ["foo"]}
 
     def test_comments_and_blanks_ignored(self) -> None:
         text = "# header\n\nbots:\n  - foo\n\n  - bar\n# trailer\n"
@@ -1664,38 +1741,24 @@ class TestParseSimpleYaml:
 
     def test_item_with_space_and_brackets_preserved(self) -> None:
         text = "bots:\n  - Copilot   # no suffix\n  - renovate[bot]\n"
-        assert bot_config._parse_simple_yaml(text) == {
-            "bots": ["Copilot", "renovate[bot]"]
-        }
+        assert bot_config._parse_simple_yaml(text) == {"bots": ["Copilot", "renovate[bot]"]}
 
     def test_literal_hash_in_item_preserved(self) -> None:
-        assert bot_config._parse_simple_yaml("bots:\n  - foo#bar\n") == {
-            "bots": ["foo#bar"]
-        }
+        assert bot_config._parse_simple_yaml("bots:\n  - foo#bar\n") == {"bots": ["foo#bar"]}
 
     def test_inline_scalar_value(self) -> None:
-        assert bot_config._parse_simple_yaml("name: value\n") == {
-            "name": "value"
-        }
+        assert bot_config._parse_simple_yaml("name: value\n") == {"name": "value"}
 
     def test_quoted_value_unwrapped(self) -> None:
-        assert bot_config._parse_simple_yaml('name: "value"\n') == {
-            "name": "value"
-        }
+        assert bot_config._parse_simple_yaml('name: "value"\n') == {"name": "value"}
 
     def test_quoted_item_unwrapped(self) -> None:
-        assert bot_config._parse_simple_yaml("bots:\n  - 'foo'\n") == {
-            "bots": ["foo"]
-        }
+        assert bot_config._parse_simple_yaml("bots:\n  - 'foo'\n") == {"bots": ["foo"]}
 
     def test_hash_inside_quoted_item_preserved(self) -> None:
         # A # inside quotes is literal content, not a comment marker.
-        assert bot_config._parse_simple_yaml("bots:\n  - 'foo # bar'\n") == {
-            "bots": ["foo # bar"]
-        }
-        assert bot_config._parse_simple_yaml('name: "value # note"\n') == {
-            "name": "value # note"
-        }
+        assert bot_config._parse_simple_yaml("bots:\n  - 'foo # bar'\n") == {"bots": ["foo # bar"]}
+        assert bot_config._parse_simple_yaml('name: "value # note"\n') == {"name": "value # note"}
 
     def test_empty_text(self) -> None:
         assert bot_config._parse_simple_yaml("") == {}
@@ -1710,9 +1773,7 @@ class TestParseSimpleYaml:
 
     def test_mismatched_quote_left_intact(self) -> None:
         # Only a matched surrounding pair is stripped.
-        assert bot_config._parse_simple_yaml("bots:\n  - \"foo'\n") == {
-            "bots": ['"foo\'']
-        }
+        assert bot_config._parse_simple_yaml("bots:\n  - \"foo'\n") == {"bots": ["\"foo'"]}
 
     def test_colon_value_without_space(self) -> None:
         # Per YAML spec, a colon without a following space is part of a plain
@@ -1722,20 +1783,15 @@ class TestParseSimpleYaml:
         assert bot_config._parse_simple_yaml("name:value\n") == {}
 
     def test_crlf_line_endings(self) -> None:
-        assert bot_config._parse_simple_yaml("bots:\r\n  - foo\r\n") == {
-            "bots": ["foo"]
-        }
+        assert bot_config._parse_simple_yaml("bots:\r\n  - foo\r\n") == {"bots": ["foo"]}
 
 
 class TestMirrorParity:
     """The install mirrors must equal the canonical loader's sync transform.
 
-    The mirrors are NOT byte-identical to the canonical file. scripts/sync_plugin_lib.py
-    (_transform_file -> _replace_first_docstring_line) rewrites the first module
-    docstring line to a canonical note and converts intra-package absolute imports to
-    relative ones. Asserting raw byte-identity always fails on the first docstring line.
-    This test asserts each mirror equals the transform the sync tool itself produces, so
-    it cannot drift from the real sync contract.
+    scripts/sync_plugin_lib.py (_transform_file) converts intra-package absolute
+    imports to relative ones. The mirrors must equal that output exactly so
+    they cannot drift from the real sync contract.
     """
 
     def test_mirrors_match_sync_transform(self) -> None:
@@ -1754,3 +1810,324 @@ class TestMirrorParity:
             "src/copilot-cli/lib/github_core/bot_config.py",
         ):
             assert (_REPO_ROOT / mirror).read_text(encoding="utf-8") == expected, mirror
+
+
+# ---------------------------------------------------------------------------
+# Captured-text decoding across github_core
+# ---------------------------------------------------------------------------
+
+
+class TestCapturedTextDecoding:
+    """Every captured-text reader in this package pins its codec.
+
+    Without an explicit ``encoding`` Python decodes with the locale's
+    preferred codec, so a cp1252 or cp932 runner turns the same bytes into
+    different characters without raising. `gh` emits raw UTF-8 and `git`
+    emits raw filesystem bytes, so both readers are exposed.
+    """
+
+    def test_rate_limit_pins_utf8(self):
+        from scripts.github_core import rate_limit
+
+        with patch("subprocess.run", return_value=_completed(stdout=RATE_LIMIT_ALL_OK)) as run:
+            rate_limit._fetch_rate_limit()
+        assert run.call_args.kwargs.get("encoding") == "utf-8"
+        assert "errors" not in run.call_args.kwargs
+
+    def test_repo_root_pins_utf8(self, tmp_path: Path):
+        from scripts.github_core import repo
+
+        with patch("subprocess.run", return_value=_completed(stdout=str(tmp_path))) as run:
+            repo.get_repo_root()
+        assert run.call_args.kwargs.get("encoding") == "utf-8"
+        assert "errors" not in run.call_args.kwargs
+
+    def test_repo_root_returns_none_when_git_output_will_not_decode(self):
+        """Strict decoding must not crash a helper documented to return None.
+
+        Filesystem paths on POSIX are bytes, so a checkout under a name that is
+        not valid UTF-8 makes ``subprocess.run`` raise while decoding. The
+        function promises ``None`` on failure, and every caller anchors paths on
+        the result, so an escaping decode error would take out unrelated tools.
+        """
+        from scripts.github_core import repo
+
+        boom = UnicodeDecodeError("utf-8", b"\x80", 0, 1, "invalid start byte")
+        with patch("subprocess.run", side_effect=boom):
+            assert repo.get_repo_root() is None
+
+    def test_repo_root_survives_a_non_ascii_path(self, tmp_path: Path):
+        """The repo root seeds every derived path, so a mojibake read is load-bearing."""
+        from scripts.github_core import repo
+
+        root = tmp_path / "\u30d7\u30ed\u30b8\u30a7\u30af\u30c8"
+        root.mkdir()
+        with patch("subprocess.run", return_value=_completed(stdout=f"{root}\n")):
+            assert repo.get_repo_root() == root
+
+
+class TestEscapedNewlineBodyError:
+    """Guard against inline --body strings that carry literal backslash-n.
+
+    Issue #3777. Two shipped issues (#3598, #3646) reached GitHub with their
+    line breaks written as the two characters backslash and n, so GitHub
+    rendered each as one unbroken paragraph and dropped every heading, list
+    and table. Nothing errored at the time.
+
+    The premise recorded in #3777 ("0 real newlines") is wrong and was
+    re-measured before this guard was written: #3598 carries 15 literal
+    sequences and 1 real newline, #3646 carries 9 and 1, in both cases a
+    trailing newline supplied by the API. A naive ``"\\n" not in body``
+    check therefore misses both, which is why the predicate strips first.
+    """
+
+    def test_flags_escaped_newlines_with_no_real_break(self) -> None:
+        body = "## Summary\\n\\nSome text\\n- item"
+        message = validation.escaped_newline_body_error(body)
+        assert message is not None
+        assert "3 literal backslash-n" in message
+        assert "--body-file" in message
+
+    def test_flags_the_measured_shape_of_issue_3598(self) -> None:
+        """Trailing-newline-only bodies are the real-world failure shape."""
+        body = "## Summary\\n\\nDetail\\n" + "\n"
+        assert validation.escaped_newline_body_error(body) is not None
+
+    def test_allows_escaped_newlines_alongside_real_ones(self) -> None:
+        """A code fence may legitimately show a backslash-n sequence."""
+        body = '## Notes\n\n```python\nprint("a\\nb")\n```\n'
+        assert validation.escaped_newline_body_error(body) is None
+
+    def test_allows_a_normal_multiline_body(self) -> None:
+        assert validation.escaped_newline_body_error("## H\n\ntext\n") is None
+
+    def test_allows_a_single_line_body_without_escapes(self) -> None:
+        assert validation.escaped_newline_body_error("Just one line.") is None
+
+    def test_allows_empty_and_none_bodies(self) -> None:
+        """Empty-body rejection belongs to the callers, not this predicate."""
+        assert validation.escaped_newline_body_error("") is None
+        assert validation.escaped_newline_body_error(None) is None
+
+    def test_message_counts_every_occurrence(self) -> None:
+        message = validation.escaped_newline_body_error("a\\nb\\nc")
+        assert message is not None
+        assert "2 literal backslash-n" in message
+
+
+class TestEscapedNewlineGuardIsWiredAtEveryInlineBodySite:
+    """Isolating control: each caller must reject a corrupt inline body.
+
+    A shared predicate that no caller invokes fixes nothing. Issue #3777 is
+    about the six scripts that pass an inline ``--body`` straight to gh, so
+    the guard is only load-bearing if every one of them calls it.
+    """
+
+    # Three sites reach the guard through inline_body_error, which folds the
+    # empty-body check in with it so the host main() spends one branch
+    # instead of two. Two sites call escaped_newline_body_error directly
+    # because their empty-body rule differs (new_issue.py validates only the
+    # title; edit_issue_body.py rejects empty strings with exit 1).
+    _SITE_ENTRY_POINTS = {
+        "issue/new_issue.py": "escaped_newline_body_error",
+        "issue/edit_issue_body.py": "escaped_newline_body_error",
+        "issue/post_issue_comment.py": "inline_body_error",
+        "pr/post_pr_comment_reply.py": "inline_body_error",
+        "pr/add_pr_review_thread_reply.py": "inline_body_error",
+    }
+
+    def _script(self, rel: str) -> str:
+        root = Path(__file__).resolve().parents[1]
+        path = root / ".claude" / "skills" / "github" / "scripts" / rel
+        assert path.is_file(), f"missing script: {path}"
+        return path.read_text(encoding="utf-8")
+
+    @pytest.mark.parametrize("rel,entry", sorted(_SITE_ENTRY_POINTS.items()))
+    def test_site_imports_and_calls_the_shared_predicate(self, rel: str, entry: str) -> None:
+        source = self._script(rel)
+        assert "from github_core.validation import" in source, rel
+        tree = ast.parse(source)
+        called = any(
+            isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == entry
+            for node in ast.walk(tree)
+        )
+        assert called, f"{rel} never calls {entry}"
+
+    def test_pr_copy_cites_the_canonical_source(self) -> None:
+        """The PR path carries a second copy and must say where it came from.
+
+        new_pr.py resolves only its own directory on sys.path, so importing
+        github_core would mean adding the lib bootstrap the other scripts
+        use, which hard-exits 2 whenever .claude/lib is absent. On the push
+        path that trades a rendering bug for an outage. The copy therefore
+        lives in the sibling module new_pr.py already imports from, and the
+        citation is what keeps the two findable from each other.
+
+        Behaviour is pinned by
+        tests/test_new_pr.py::TestValidation6EscapedNewlineCheck; only the
+        cross-reference is asserted here, because no runtime test can.
+        """
+        source = self._script("pr/validate_pr_description.py")
+        assert "scripts/github_core/validation.py::escaped_newline_body_error" in source
+        assert "validate_no_escaped_newlines" in self._script("pr/new_pr.py")
+
+
+class TestInlineBodyError:
+    """The folded predicate the three symmetric callers use.
+
+    Issue #3777. Both rejections are reported through one branch so the
+    host main() functions, all of which already carry a noqa: C901, do not
+    grow another. post_issue_comment.py::main measured 21 before this change
+    and 20 after.
+
+    Check order is deliberately untested. A body that strips to empty cannot
+    contain a literal backslash-n, because neither backslash nor n is
+    whitespace, so the two conditions are mutually exclusive. Verified
+    exhaustively over 9331 bodies drawn from space, tab, newline, backslash,
+    n and x up to length 5: zero satisfy both. Swapping the arms is an
+    equivalent mutant, and a test asserting the order would never fail.
+    """
+
+    def test_rejects_an_empty_body(self) -> None:
+        assert validation.inline_body_error("") == "Body cannot be empty."
+
+    def test_rejects_a_none_body(self) -> None:
+        assert validation.inline_body_error(None) == "Body cannot be empty."
+
+    def test_rejects_a_whitespace_only_body(self) -> None:
+        assert validation.inline_body_error("  \n\t ") == "Body cannot be empty."
+
+    def test_rejects_escaped_newlines(self) -> None:
+        message = validation.inline_body_error("## H\\n\\ntext")
+        assert message is not None
+        assert "literal backslash-n" in message
+
+    def test_allows_a_normal_body(self) -> None:
+        assert validation.inline_body_error("## H\n\ntext\n") is None
+
+
+class TestResolveRepoRoot:
+    """`None` alone cannot distinguish "no repository" from "git failed".
+
+    `is_safe_file_path` uses the repository root as a containment base for a
+    path-traversal check (CWE-22). Falling back to the working directory is
+    correct only when git has confirmed there is no repository. When git could
+    not answer, the root is unknown rather than absent, and substituting a
+    different base answers a question nobody asked.
+    """
+
+    def test_success_returns_root_and_ok(self, tmp_path: Path):
+        from scripts.github_core import repo
+
+        with patch("subprocess.run", return_value=_completed(stdout=f"{tmp_path}\n")):
+            assert repo.resolve_repo_root() == (tmp_path, REPO_ROOT_OK)
+
+    def test_git_reporting_no_repository_is_distinguishable(self):
+        from scripts.github_core import repo
+
+        stderr = "fatal: not a git repository (or any of the parent directories): .git\n"
+        with patch("subprocess.run", return_value=_completed(stderr=stderr, rc=128)):
+            assert repo.resolve_repo_root() == (None, REPO_ROOT_NOT_A_REPO)
+
+    def test_unrecognized_git_failure_fails_closed(self):
+        """An exit code we cannot explain must not be read as "no repository"."""
+        from scripts.github_core import repo
+
+        stderr = "fatal: index file smaller than expected\n"
+        with patch("subprocess.run", return_value=_completed(stderr=stderr, rc=128)):
+            assert repo.resolve_repo_root() == (None, REPO_ROOT_GIT_FAILED)
+
+    def test_empty_stderr_on_failure_fails_closed(self):
+        from scripts.github_core import repo
+
+        with patch("subprocess.run", return_value=_completed(rc=1)):
+            assert repo.resolve_repo_root() == (None, REPO_ROOT_GIT_FAILED)
+
+    def test_timeout_is_git_failed(self):
+        from scripts.github_core import repo
+
+        boom = subprocess.TimeoutExpired(cmd=["git"], timeout=10)
+        with patch("subprocess.run", side_effect=boom):
+            assert repo.resolve_repo_root() == (None, REPO_ROOT_GIT_FAILED)
+
+    def test_missing_git_binary_is_git_failed(self):
+        from scripts.github_core import repo
+
+        with patch("subprocess.run", side_effect=FileNotFoundError):
+            assert repo.resolve_repo_root() == (None, REPO_ROOT_GIT_FAILED)
+
+    def test_undecodable_output_is_git_failed(self):
+        from scripts.github_core import repo
+
+        boom = UnicodeDecodeError("utf-8", b"\x80", 0, 1, "invalid start byte")
+        with patch("subprocess.run", side_effect=boom):
+            assert repo.resolve_repo_root() == (None, REPO_ROOT_GIT_FAILED)
+
+    def test_locale_is_pinned_so_the_stderr_match_is_deterministic(self):
+        """Git translates `fatal: not a git repository`. LC_ALL=C pins it.
+
+        Without this the discriminator would silently degrade to "git failed"
+        on a non-English runner, and every default-base containment check on
+        that machine would start refusing.
+        """
+        from scripts.github_core import repo
+
+        with patch("subprocess.run", return_value=_completed(stdout="/tmp\n")) as run:
+            repo.resolve_repo_root()
+        assert run.call_args.kwargs["env"]["LC_ALL"] == "C"
+
+    def test_inherited_environment_is_preserved(self):
+        """Pinning the locale must not blank PATH and friends."""
+        import os
+
+        from scripts.github_core import repo
+
+        with patch("subprocess.run", return_value=_completed(stdout="/tmp\n")) as run:
+            repo.resolve_repo_root()
+        env = run.call_args.kwargs["env"]
+        for key in os.environ:
+            if key != "LC_ALL":
+                assert env[key] == os.environ[key]
+
+    def test_stderr_match_is_case_insensitive(self):
+        from scripts.github_core import repo
+
+        stderr = "FATAL: NOT A GIT REPOSITORY\n"
+        with patch("subprocess.run", return_value=_completed(stderr=stderr, rc=128)):
+            assert repo.resolve_repo_root() == (None, REPO_ROOT_NOT_A_REPO)
+
+    def test_relative_output_is_anchored_like_before(self, tmp_path: Path):
+        from scripts.github_core import repo
+
+        with patch("subprocess.run", return_value=_completed(stdout="sub\n")):
+            root, reason = repo.resolve_repo_root(start_dir=tmp_path)
+        assert reason == REPO_ROOT_OK
+        assert root == (tmp_path / "sub").resolve()
+
+    def test_start_dir_is_forwarded(self, tmp_path: Path):
+        from scripts.github_core import repo
+
+        with patch("subprocess.run", return_value=_completed(stdout=f"{tmp_path}\n")) as run:
+            repo.resolve_repo_root(start_dir=tmp_path)
+        assert run.call_args.args[0] == [
+            "git",
+            "-C",
+            str(tmp_path),
+            "rev-parse",
+            "--show-toplevel",
+        ]
+
+    def test_get_repo_root_keeps_its_none_contract(self):
+        """Every existing caller reads `None`; the wrapper must not change that."""
+        from scripts.github_core import repo
+
+        stderr = "fatal: not a git repository\n"
+        with patch("subprocess.run", return_value=_completed(stderr=stderr, rc=128)):
+            assert repo.get_repo_root() is None
+        with patch("subprocess.run", side_effect=FileNotFoundError):
+            assert repo.get_repo_root() is None
+
+    def test_public_export_matches_the_module(self):
+        from scripts.github_core import repo
+
+        assert resolve_repo_root is repo.resolve_repo_root

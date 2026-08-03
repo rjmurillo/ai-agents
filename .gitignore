@@ -11,6 +11,10 @@ testResults.xml
 # Transient eval artifacts (ADR-057): re-runnable, not source of truth
 .agents/audit/eval-*/
 
+# Model sweep run artifacts: runtime evidence under a tracked fixture tree.
+evals/*/reports/sweep-*/
+evals/*/runs/sweep-*/
+
 # Transient PR-creation validation-skip audit logs: one record per
 # `new_pr.py --skip-validation` invocation; reproducible from git
 # history + hook output, not source of truth.
@@ -82,6 +86,28 @@ ENV/
 .agents/audit/pr*-reply.md
 .agents/audit/pr*-body-*.md
 
+# scripts/ci/build_pr_validation_report.py writes this to the repo root.
+# Harmless on an ephemeral runner, untracked litter in a working tree.
+# tests/ci/test_workflow_artifacts_are_ignored.py keeps this list complete;
+# every rule stays anchored so it cannot hide a same-named file elsewhere.
+/pr-validation-report.md
+/metrics-report.txt
+/metrics.json
+/hook-bypass-count.txt
+/comment-body.md
+/comment.md
+/drift-count.txt
+/drift-details.md
+/drift-results.json
+/issue-body.md
+/homework-results.json
+/health-report.json
+/health-report.md
+/memory-health-report.md
+/memory-validation-results.json
+/quality-grades.json
+/quality-grades.md
+
 # Hook runtime logs and caches
 .claude/hooks/audit.log
 
@@ -146,3 +172,23 @@ bun.lockb
 # truth and must not land in git. Only the .gitkeep seed is tracked so the
 # directory exists on a fresh clone.
 .agents/metrics/drift-events.jsonl
+
+# Model-sweep output (#3597). eval-model-sweep.py roots its artifacts at
+# REPO_ROOT, so every run drops directories and an aggregate report inside the
+# tracked evals/ tree where `git add evals` would commit them. Runtime evidence
+# is regenerable and is not source of truth. Scoped to the `sweep-` run-id
+# prefix that make_run_id guarantees, so tracked fixtures stay visible.
+evals/*/reports/sweep-*
+evals/*/runs/sweep-*
+
+# Unexpanded tilde artifacts (#4295). A tool that joins "~" as a literal path
+# segment instead of expanding it creates a real directory named `~` in its
+# working directory rather than writing to $HOME. #1186 committed one that way.
+# The result reads like a home directory path in `git ls-files`, which is the
+# misreading that caused it.
+#
+# Root anchored on purpose. This catches the known recurrence at the repository
+# root and does not catch a `~` directory deeper in the tree, so a legitimately
+# named file there stays tracked. A tool invoked from a subdirectory still
+# produces an unignored `docs/~/...`; that hole is real and is not closed here.
+/~/

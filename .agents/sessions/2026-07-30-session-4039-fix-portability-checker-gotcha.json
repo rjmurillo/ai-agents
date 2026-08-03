@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4039,
+    "date": "2026-07-30",
+    "branch": "rjmurillo/fix-portability-gotcha",
+    "startingCommit": "55d09173",
+    "objective": "Correct the portability checker count and paths in the shared gotchas file"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Copilot CLI harness exposes no serena/ or mcp__serena__ tools, so context came through the AGENTS.md file fallback: read .serena/memories/ci/deployment-001-agent-self-containment.md directly"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md Serena Init section read in context; file fallback path exercised as that section directs"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md is read-only per ADR-014 and carries no gotchas-file carryover"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current reports rjmurillo/fix-portability-gotcha in worktree /tmp/gotchawt"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Worktree branch is rjmurillo/fix-portability-gotcha, created from origin/main; the main checkout holds main and was never switched"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All items in this section carry evidence"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md untouched; git status shows it unmodified"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No memory write needed: .serena/memories/ci/deployment-001-agent-self-containment.md already records that all four checkers live in scripts/validation/. The memory was correct and the gotchas file had drifted from it, so this change moves the document toward the memory rather than the reverse"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 invoked on the file and reported 'Linting: 0 files, 0 issues in 0 files' because .agents/** is in the config ignore list. That green is the silent false pass this very document warns about, so it is recorded as a no-op rather than as a passing lint. The checks that do apply were run: taste-lints on the file, and an existence audit of every path it cites"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Single commit correcting the checker table"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Every file-like path cited in GOTCHAS.md audited for existence, with a negative control against the pre-fix file that flags exactly the two absent build/scripts/ paths"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Verify objective deliverables landed on main",
+      "outcome": "GOTCHAS.md present and referenced from AGENTS.md and .github/copilot-instructions.md; CLAUDE.md inherits through its @AGENTS.md import, so the gotchas reach all three entry points without duplication"
+    },
+    {
+      "task": "Audit the portability checker gotcha",
+      "outcome": "Found three claimed checkers against four real ones, with build/scripts/ paths for two that resolve nowhere. Corrected the count, the paths, and added the missing exec-path checker with the inverse relationship the names hide"
+    },
+    {
+      "task": "Audit every path cited in the document",
+      "outcome": "13 file-like paths cited, 0 missing after the fix. Negative control against the pre-fix file flags exactly the two absent paths, so the check can fail"
+    }
+  ],
+  "endingCommit": "9f795dc333060451ed52249ad73ac46ef989312e",
+  "nextSteps": []
+}

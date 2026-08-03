@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -83,6 +84,45 @@ def validate_copilot_agent_frontmatter(repo_root: Path) -> bool:
     return bool(exit_code == 0)
 
 
+def validate_shipped_skill_routes(repo_root: Path) -> bool:
+    """Every ``Skill: <name>`` route in a plugin root must resolve in that root.
+
+    Wraps ``scripts/validation/check_shipped_skill_routes.py``. Catches the
+    coordination-drift class where a skill is deliberately dropped from a
+    shipping set (``templates/platforms/copilot-cli.yaml``) but a routing table
+    keeps pointing at it. Issue #2026 dropped ``merge-resolver`` from the
+    Copilot toolkit as repo-specific; ``autoplan`` kept routing to it, so a
+    consumer with a merge conflict was sent to a skill the plugin does not
+    contain. Every gate passed because each control plane was self-consistent.
+
+    The check carries no allowlist, so it also fails a route naming a skill
+    that exists nowhere. Exit 2 (a vacuous scan, an unreadable file, no plugin
+    root) is treated as failure alongside exit 1: a gate that could not run has
+    not passed.
+
+    Fails closed when the validator is absent rather than raising
+    MissingScriptSkip; a silent skip would defeat the gate.
+    """
+    script = repo_root / "scripts" / "validation" / "check_shipped_skill_routes.py"
+    if not script.exists():
+        print(
+            "[ERROR] check_shipped_skill_routes.py absent; the shipped-route "
+            "gate cannot run. Hard failure: the gate is the point of "
+            "registering this validator.",
+            file=sys.stderr,
+        )
+        return False
+
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(script), "--root", str(repo_root)]
+    )
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:40]:
+            print(line)
+    return bool(exit_code == 0)
+
+
 def validate_install_parity(repo_root: Path) -> bool:
     """Detect install-copy drift across SHARED_AGENT and RULE parity groups.
 
@@ -104,6 +144,41 @@ def validate_install_parity(repo_root: Path) -> bool:
     return bool(_run_build_script_gate(
         repo_root, "validate_install_parity.py", "install-parity"
     ))
+
+
+def validate_agent_content_parity(repo_root: Path) -> bool:
+    """Fail when .claude/agents/ and src/claude/ have differing file content.
+
+    validate_install_parity checks co-change in a diff (did both siblings move
+    together). It does NOT compare file contents on disk. This gate fills that
+    gap: it reads both trees and byte-compares every shared file.
+
+    Wraps ``build/scripts/check_agent_content_parity.py``. Exit 0 = clean,
+    exit 1 = drift found, exit 2 = configuration error. All non-zero exits are
+    hard failures; a configuration error means the gate could not run, so we
+    fail closed.
+    """
+    script = repo_root / "build" / "scripts" / "check_agent_content_parity.py"
+    if not script.is_file():
+        print(
+            f"[ERROR] check_agent_content_parity.py not found at {script}",
+            file=sys.stderr,
+        )
+        return False
+
+    result = subprocess.run(
+        [sys.executable, str(script)],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    output = (result.stdout + result.stderr).strip()
+    if output:
+        for line in output.splitlines()[:40]:
+            print(line)
+    return result.returncode == 0
 
 
 def validate_plugin_version_bump(repo_root: Path) -> bool:

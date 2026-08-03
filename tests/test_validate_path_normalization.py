@@ -7,6 +7,7 @@ extensions, and exclusion paths.
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -16,6 +17,7 @@ import pytest
 _BUILD_SCRIPTS = Path(__file__).resolve().parent.parent / "build" / "scripts"
 sys.path.insert(0, str(_BUILD_SCRIPTS))
 
+import validate_path_normalization as vpn  # noqa: E402
 from validate_path_normalization import (  # noqa: E402
     FORBIDDEN_PATTERNS,
     ScanResult,
@@ -25,6 +27,10 @@ from validate_path_normalization import (  # noqa: E402
     scan_directory,
     scan_file,
 )
+
+
+def _init_git_repo(path: Path) -> None:
+    subprocess.run(["git", "init"], cwd=path, check=True, capture_output=True)
 
 
 class TestForbiddenPatterns:
@@ -113,6 +119,41 @@ class TestCollectFiles:
             (sub / "file.md").write_text("content")
         files = collect_files(tmp_path, [".md"], [".git", "bin", "obj"])
         assert len(files) == 1
+
+    def test_omits_git_ignored_files(self, tmp_path: Path) -> None:
+        _init_git_repo(tmp_path)
+        (tmp_path / ".gitignore").write_text(".pytest_cache/\n")
+        (tmp_path / "root.md").write_text("ok\n")
+        ignored = tmp_path / ".pytest_cache" / "basetemp" / "probe" / "repo" / "build"
+        ignored.mkdir(parents=True)
+        (ignored / "GENERATION-AUDIT.md").write_text("leaked /home/runner/cache\n")
+
+        files = collect_files(tmp_path, [".md"], [])
+
+        assert files == [tmp_path / "root.md"]
+
+    def test_scans_outside_repository_when_git_check_ignore_fails_open(
+        self, tmp_path: Path
+    ) -> None:
+        (tmp_path / "bad.md").write_text("leaked /home/runner/cache\n")
+
+        result = scan_directory(tmp_path, [".md"], [], FORBIDDEN_PATTERNS)
+
+        assert result.files_scanned == 1
+        assert len(result.violations) == 1
+
+    def test_scans_all_files_when_git_binary_unavailable(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def raise_not_found(*args: object, **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+            raise FileNotFoundError
+
+        monkeypatch.setattr(vpn.subprocess, "run", raise_not_found)
+        (tmp_path / "doc.md").write_text("ok\n")
+
+        files = collect_files(tmp_path, [".md"], [])
+
+        assert files == [tmp_path / "doc.md"]
 
 
 class TestScanFile:
@@ -281,6 +322,29 @@ class TestMain:
         result = main(["--path", str(tmp_path), "--fail-on-violation"])
         assert result == 1
 
+    def test_returns_0_for_git_ignored_violation_with_fail_flag(self, tmp_path: Path) -> None:
+        _init_git_repo(tmp_path)
+        (tmp_path / ".gitignore").write_text(".pytest_cache/\n")
+        ignored = tmp_path / ".pytest_cache" / "basetemp" / "probe"
+        ignored.mkdir(parents=True)
+        (ignored / "GENERATION-AUDIT.md").write_text("leaked /home/runner/cache\n")
+        (tmp_path / "root.md").write_text("clean\n")
+
+        result = main(["--path", str(tmp_path), "--fail-on-violation"])
+
+        assert result == 0
+
+    def test_tracked_file_matching_ignore_pattern_still_fails(self, tmp_path: Path) -> None:
+        _init_git_repo(tmp_path)
+        (tmp_path / ".gitignore").write_text("*.md\n")
+        tracked = tmp_path / "tracked.md"
+        tracked.write_text("leaked /home/runner/cache\n")
+        subprocess.run(["git", "add", "-f", "tracked.md"], cwd=tmp_path, check=True)
+
+        result = main(["--path", str(tmp_path), "--fail-on-violation"])
+
+        assert result == 1
+
     def test_returns_0_no_files(self, tmp_path: Path) -> None:
         result = main(["--path", str(tmp_path)])
         assert result == 0
@@ -351,3 +415,4 @@ class TestMain:
         captured = capsys.readouterr()
         assert "Line 2" in captured.out
         assert "Windows Absolute Path" in captured.out
+

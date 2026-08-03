@@ -36,7 +36,7 @@ class TestValidateMarkdownLint:
                     assert validate_markdown_lint(tmp_path) is True
 
         mock_run.assert_called_once_with(
-            ["npx", "markdownlint-cli2", "--fix", "README.md", "docs/guide.md"],
+            ["npx", "markdownlint-cli2@0.23.1", "--fix", "--", "README.md", "docs/guide.md"],
             cwd=tmp_path,
         )
 
@@ -59,7 +59,7 @@ class TestValidateMarkdownLint:
                     assert validate_markdown_lint(tmp_path) is True
 
         mock_run.assert_called_once_with(
-            ["npx", "markdownlint-cli2", "README.md"],
+            ["npx", "markdownlint-cli2@0.23.1", "--", "README.md"],
             cwd=tmp_path,
         )
 
@@ -78,7 +78,7 @@ class TestValidateMarkdownLint:
                     assert validate_markdown_lint(tmp_path) is False
 
         mock_run.assert_called_once_with(
-            ["npx", "markdownlint-cli2", "--fix", "**/*.md"],
+            ["npx", "markdownlint-cli2@0.23.1", "--fix", "--", "**/*.md"],
             cwd=tmp_path,
         )
 

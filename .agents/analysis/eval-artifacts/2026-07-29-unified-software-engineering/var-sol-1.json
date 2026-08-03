@@ -1,0 +1,602 @@
+{
+  "rules": {
+    "unified-software-engineering": {
+      "target_path": ".claude/rules/unified-software-engineering.md",
+      "summary": {
+        "per_mechanism": {
+          "baseline": {
+            "avg_score": 3.44,
+            "scenario_count": 3,
+            "graded_count": 3,
+            "judge_failures": 0
+          },
+          "description": {
+            "avg_score": 3.33,
+            "scenario_count": 3,
+            "graded_count": 3,
+            "judge_failures": 0
+          },
+          "full": {
+            "avg_score": 4.22,
+            "scenario_count": 3,
+            "graded_count": 3,
+            "judge_failures": 0
+          }
+        },
+        "negative_case_per_mechanism": {
+          "baseline": {
+            "avg_score": 5.0,
+            "scenario_count": 1,
+            "graded_count": 1,
+            "judge_failures": 0
+          },
+          "description": {
+            "avg_score": 5.0,
+            "scenario_count": 1,
+            "graded_count": 1,
+            "judge_failures": 0
+          },
+          "full": {
+            "avg_score": 5.0,
+            "scenario_count": 1,
+            "graded_count": 1,
+            "judge_failures": 0
+          }
+        },
+        "best_mechanism": "full",
+        "best_avg_score": 4.22,
+        "baseline_avg": 3.44,
+        "delta_full_vs_baseline": 0.78,
+        "delta_description_vs_baseline": -0.11,
+        "total_judge_failures": 0,
+        "verdict": "FAIL_THRESHOLD"
+      },
+      "scenarios": [
+        {
+          "id": "S1",
+          "desc": "DRY vs premature abstraction conflict",
+          "negative_case": false,
+          "mechanisms": {
+            "baseline": {
+              "response_preview": "- Compare each JSON contract and its consumers.\n- Separate shared meaning from coincidental field overlap.\n- Keep three serializers if contracts evolve independently.\n- Otherwise extract one shared base shape.\n- Let each serializer add its 1\u20132 fields locally.",
+              "scores": {
+                "activation_score": 5.0,
+                "citation_score": 3.0,
+                "behavior_score": 5.0,
+                "judge_failed": false,
+                "graded": true,
+                "score_reducer": "median",
+                "sample_count": 3,
+                "graded_sample_count": 3,
+                "failed_sample_count": 0
+              },
+              "score_samples": [
+                {
+                  "activation_score": 5,
+                  "citation_score": 3,
+                  "behavior_score": 5,
+                  "reasoning": "It identifies coincidental overlap and gates extraction on shared meaning, but omits duplicated knowledge, premature, and wait.",
+                  "judge_failed": false,
+                  "sample_index": 0
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 3,
+                  "behavior_score": 5,
+                  "reasoning": "It distinguishes shared knowledge from coincidental overlap and gates extraction on contracts evolving together, but omits most prescribed vocabulary.",
+                  "judge_failed": false,
+                  "sample_index": 1
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 4,
+                  "behavior_score": 4,
+                  "reasoning": "It distinguishes shared meaning from coincidental overlap and gates extraction on shared evolution, but omits duplicated knowledge, premature, and wait.",
+                  "judge_failed": false,
+                  "sample_index": 2
+                }
+              ],
+              "judge_repeats": 3,
+              "score_reducer": "median",
+              "system_prompt_chars": 0
+            },
+            "description": {
+              "response_preview": "- Keep serializers separate for now. Similarity alone is not reuse.\n- Compare shared fields for identical names, formats, and null rules.\n- Identify whether duplicated changes have already caused drift.\n- Extract only a stable shared base if drift is real.\n- Keep each endpoint\u2019s unique fields explicit beside its serializer.",
+              "scores": {
+                "activation_score": 5.0,
+                "citation_score": 3.0,
+                "behavior_score": 5.0,
+                "judge_failed": false,
+                "graded": true,
+                "score_reducer": "median",
+                "sample_count": 3,
+                "graded_sample_count": 3,
+                "failed_sample_count": 0
+              },
+              "score_samples": [
+                {
+                  "activation_score": 5,
+                  "citation_score": 3,
+                  "behavior_score": 5,
+                  "reasoning": "It correctly rejects premature merging and waits for proven shared knowledge, but omits most prescribed vocabulary.",
+                  "judge_failed": false,
+                  "sample_index": 0
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 3,
+                  "behavior_score": 5,
+                  "reasoning": "It rejects coincidental similarity and waits for proven shared knowledge or drift, but omits most prescribed vocabulary.",
+                  "judge_failed": false,
+                  "sample_index": 1
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 4,
+                  "behavior_score": 5,
+                  "reasoning": "It rejects coincidental similarity, waits for evidence of duplicated knowledge or drift, and gates extraction on a stable shared contract.",
+                  "judge_failed": false,
+                  "sample_index": 2
+                }
+              ],
+              "judge_repeats": 3,
+              "score_reducer": "median",
+              "system_prompt_chars": 473
+            },
+            "full": {
+              "response_preview": "- Do not extract based on 80% similarity alone.\n- Compare consumers and field meanings, not property names.\n- Centralize only fields with one shared contract.\n- Compose unique fields locally, without flags or options.\n- Lock each JSON shape with focused tests.",
+              "scores": {
+                "activation_score": 5.0,
+                "citation_score": 3.0,
+                "behavior_score": 5.0,
+                "judge_failed": false,
+                "graded": true,
+                "score_reducer": "median",
+                "sample_count": 3,
+                "graded_sample_count": 3,
+                "failed_sample_count": 0
+              },
+              "score_samples": [
+                {
+                  "activation_score": 5,
+                  "citation_score": 4,
+                  "behavior_score": 5,
+                  "reasoning": "It rejects similarity-driven merging and requires a shared contract, but omits the prescribed terms duplicated knowledge, coincidental, premature, and wait.",
+                  "judge_failed": false,
+                  "sample_index": 0
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 3,
+                  "behavior_score": 5,
+                  "reasoning": "It rejects premature merging of coincidental similarity and waits for a shared contract, though it omits most prescribed vocabulary.",
+                  "judge_failed": false,
+                  "sample_index": 1
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 3,
+                  "behavior_score": 5,
+                  "reasoning": "It correctly rejects merging coincidental similarity and waits for a shared contract, but omits most prescribed vocabulary.",
+                  "judge_failed": false,
+                  "sample_index": 2
+                }
+              ],
+              "judge_repeats": 3,
+              "score_reducer": "median",
+              "system_prompt_chars": 7727
+            }
+          }
+        },
+        {
+          "id": "S2",
+          "desc": "Strong consistency vs eventual consistency choice",
+          "negative_case": false,
+          "mechanisms": {
+            "baseline": {
+              "response_preview": "- Use eventual consistency across aggregates, not one shared transaction.\n- Create Order as `PendingInventory`; persist via transactional outbox.\n- Inventory atomically reserves stock and emits success or rejection.\n- Confirm Order on success; cancel it on rejection.\n- Add idempotency, retries, and timeout handling to prevent double decrements.",
+              "scores": {
+                "activation_score": 5.0,
+                "citation_score": 4.0,
+                "behavior_score": 5.0,
+                "judge_failed": false,
+                "graded": true,
+                "score_reducer": "median",
+                "sample_count": 3,
+                "graded_sample_count": 3,
+                "failed_sample_count": 0
+              },
+              "score_samples": [
+                {
+                  "activation_score": 5,
+                  "citation_score": 4,
+                  "behavior_score": 5,
+                  "reasoning": "It respects aggregate boundaries through eventual consistency and events, but omits the exact terms \"consistency boundary\" and \"domain event\".",
+                  "judge_failed": false,
+                  "sample_index": 0
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 3,
+                  "behavior_score": 5,
+                  "reasoning": "It clearly respects aggregate boundaries and chooses eventual consistency, but omits the explicit terms \"consistency boundary\" and \"domain event\".",
+                  "judge_failed": false,
+                  "sample_index": 1
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 4,
+                  "behavior_score": 5,
+                  "reasoning": "It respects aggregate boundaries and selects eventual consistency with events, but omits the exact terms \"consistency boundary\" and \"domain event\".",
+                  "judge_failed": false,
+                  "sample_index": 2
+                }
+              ],
+              "judge_repeats": 3,
+              "score_reducer": "median",
+              "system_prompt_chars": 0
+            },
+            "description": {
+              "response_preview": "- Use eventual consistency. Avoid transactions spanning Cart and Inventory.\n- Create a `Pending` Order and outbox event during checkout.\n- Atomically decrement inventory only when sufficient stock exists.\n- Confirm or reject Order from the inventory result.\n- Require idempotency, retries, and concurrency failure tests.",
+              "scores": {
+                "activation_score": 5.0,
+                "citation_score": 4.0,
+                "behavior_score": 5.0,
+                "judge_failed": false,
+                "graded": true,
+                "score_reducer": "median",
+                "sample_count": 3,
+                "graded_sample_count": 3,
+                "failed_sample_count": 0
+              },
+              "score_samples": [
+                {
+                  "activation_score": 5,
+                  "citation_score": 4,
+                  "behavior_score": 5,
+                  "reasoning": "It clearly respects aggregate boundaries through eventual consistency and events, but omits the exact terms consistency boundary and domain event.",
+                  "judge_failed": false,
+                  "sample_index": 0
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 4,
+                  "behavior_score": 5,
+                  "reasoning": "It clearly respects aggregate boundaries through eventual consistency and an outbox event, but omits the exact terms \"consistency boundary\" and \"domain event\".",
+                  "judge_failed": false,
+                  "sample_index": 1
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 3,
+                  "behavior_score": 5,
+                  "reasoning": "It clearly enforces eventual consistency and separate aggregate transactions, but omits the prescribed terms consistency boundary and domain event.",
+                  "judge_failed": false,
+                  "sample_index": 2
+                }
+              ],
+              "judge_repeats": 3,
+              "score_reducer": "median",
+              "system_prompt_chars": 473
+            },
+            "full": {
+              "response_preview": "- Prefer eventual consistency across Order and Inventory aggregates.\n- Create a `PendingInventory` Order and outbox event atomically.\n- Inventory reserves stock with an idempotent, conditional decrement.\n- Confirm Order on success; reject it when stock is unavailable.\n- Use one transaction only when both share one database and overselling is forbidden.",
+              "scores": {
+                "activation_score": 5.0,
+                "citation_score": 3.0,
+                "behavior_score": 3.0,
+                "judge_failed": false,
+                "graded": true,
+                "score_reducer": "median",
+                "sample_count": 3,
+                "graded_sample_count": 3,
+                "failed_sample_count": 0
+              },
+              "score_samples": [
+                {
+                  "activation_score": 5,
+                  "citation_score": 4,
+                  "behavior_score": 3,
+                  "reasoning": "It applies aggregate-specific eventual consistency and event concepts, but omits consistency boundary and wrongly permits a cross-aggregate transaction.",
+                  "judge_failed": false,
+                  "sample_index": 0
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 3,
+                  "behavior_score": 3,
+                  "reasoning": "It applies aggregate-specific eventual consistency and outbox guidance, but omits consistency boundary and domain event terminology, then weakens the aggregate boundary with a cross-aggregate transaction exception.",
+                  "judge_failed": false,
+                  "sample_index": 1
+                },
+                {
+                  "activation_score": 4,
+                  "citation_score": 3,
+                  "behavior_score": 3,
+                  "reasoning": "It applies eventual consistency across aggregates, but omits consistency boundary and domain event terminology while allowing a cross-aggregate transaction.",
+                  "judge_failed": false,
+                  "sample_index": 2
+                }
+              ],
+              "judge_repeats": 3,
+              "score_reducer": "median",
+              "system_prompt_chars": 7727
+            }
+          }
+        },
+        {
+          "id": "S3",
+          "desc": "Adding shallow pass-through layer",
+          "negative_case": false,
+          "mechanisms": {
+            "baseline": {
+              "response_preview": "- Confirm the Service adds a real boundary.\n- Reuse existing Repository types and conventions.\n- Add one thin Service class.\n- Delegate methods without duplicate logic.\n- Add one focused delegation check.",
+              "scores": {
+                "activation_score": 2.0,
+                "citation_score": 1.0,
+                "behavior_score": 1.0,
+                "judge_failed": false,
+                "graded": true,
+                "score_reducer": "median",
+                "sample_count": 3,
+                "graded_sample_count": 3,
+                "failed_sample_count": 0
+              },
+              "score_samples": [
+                {
+                  "activation_score": 2,
+                  "citation_score": 1,
+                  "behavior_score": 1,
+                  "reasoning": "It hints at boundary value but still plans a shallow pass-through Service instead of rejecting or removing a layer that adds no value.",
+                  "judge_failed": false,
+                  "sample_index": 0
+                },
+                {
+                  "activation_score": 1,
+                  "citation_score": 1,
+                  "behavior_score": 1,
+                  "reasoning": "It endorses a pass-through Service instead of rejecting the shallow layer as adding no value and recommending removal.",
+                  "judge_failed": false,
+                  "sample_index": 1
+                },
+                {
+                  "activation_score": 2,
+                  "citation_score": 1,
+                  "behavior_score": 1,
+                  "reasoning": "It briefly questions the boundary but still recommends a no-value pass-through layer instead of rejecting or removing it.",
+                  "judge_failed": false,
+                  "sample_index": 2
+                }
+              ],
+              "judge_repeats": 3,
+              "score_reducer": "median",
+              "system_prompt_chars": 0
+            },
+            "description": {
+              "response_preview": "- Find the Repository contract and existing Service pattern.\n- Inject the Repository through the Service constructor.\n- Delegate each Service method unchanged.\n- Update only callers that require the Service boundary.\n- Add one focused delegation test and run existing checks.",
+              "scores": {
+                "activation_score": 1.0,
+                "citation_score": 1.0,
+                "behavior_score": 1.0,
+                "judge_failed": false,
+                "graded": true,
+                "score_reducer": "median",
+                "sample_count": 3,
+                "graded_sample_count": 3,
+                "failed_sample_count": 0
+              },
+              "score_samples": [
+                {
+                  "activation_score": 1,
+                  "citation_score": 1,
+                  "behavior_score": 1,
+                  "reasoning": "The response enables a shallow pass-through layer instead of rejecting it as providing no value and recommending its removal.",
+                  "judge_failed": false,
+                  "sample_index": 0
+                },
+                {
+                  "activation_score": 1,
+                  "citation_score": 1,
+                  "behavior_score": 1,
+                  "reasoning": "The response plans a shallow pass-through layer instead of rejecting and removing it because it adds no value.",
+                  "judge_failed": false,
+                  "sample_index": 1
+                },
+                {
+                  "activation_score": 1,
+                  "citation_score": 1,
+                  "behavior_score": 1,
+                  "reasoning": "The response accepts the pass-through layer instead of rejecting it as shallow, removable, and providing no value.",
+                  "judge_failed": false,
+                  "sample_index": 2
+                }
+              ],
+              "judge_repeats": 3,
+              "score_reducer": "median",
+              "system_prompt_chars": 473
+            },
+            "full": {
+              "response_preview": "- Skip the pass-through `Service`; it adds no value.\n- Inject `Repository` directly into consumers.\n- Keep persistence logic inside `Repository`.\n- Add `Service` when business rules need coordination.\n- Test those rules, not delegation boilerplate.",
+              "scores": {
+                "activation_score": 5.0,
+                "citation_score": 4.0,
+                "behavior_score": 5.0,
+                "judge_failed": false,
+                "graded": true,
+                "score_reducer": "median",
+                "sample_count": 3,
+                "graded_sample_count": 3,
+                "failed_sample_count": 0
+              },
+              "score_samples": [
+                {
+                  "activation_score": 5,
+                  "citation_score": 4,
+                  "behavior_score": 5,
+                  "reasoning": "It rejects the pass-through layer as adding no value, recommends direct repository use, and gates a Service on real coordination logic.",
+                  "judge_failed": false,
+                  "sample_index": 0
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 4,
+                  "behavior_score": 5,
+                  "reasoning": "It explicitly rejects the pass-through layer as adding no value and permits a Service only when business-rule coordination justifies it.",
+                  "judge_failed": false,
+                  "sample_index": 1
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 4,
+                  "behavior_score": 5,
+                  "reasoning": "It rejects the pass-through layer as adding no value, removes it from the plan, and states when a Service would become justified.",
+                  "judge_failed": false,
+                  "sample_index": 2
+                }
+              ],
+              "judge_repeats": 3,
+              "score_reducer": "median",
+              "system_prompt_chars": 7727
+            }
+          }
+        },
+        {
+          "id": "S4",
+          "desc": "Pure CSS styling question (negative case)",
+          "negative_case": true,
+          "mechanisms": {
+            "baseline": {
+              "response_preview": "- Choose the parent container.\n- Set `min-height: 100vh`.\n- Add `display: flex`.\n- Add `justify-content: center`.\n- Add `align-items: center`.",
+              "scores": {
+                "activation_score": 5.0,
+                "citation_score": 5.0,
+                "behavior_score": 5.0,
+                "judge_failed": false,
+                "graded": true,
+                "score_reducer": "median",
+                "sample_count": 3,
+                "graded_sample_count": 3,
+                "failed_sample_count": 0
+              },
+              "score_samples": [
+                {
+                  "activation_score": 5,
+                  "citation_score": 5,
+                  "behavior_score": 5,
+                  "reasoning": "The response correctly gave concise CSS guidance without invoking unrelated engineering rules or gates.",
+                  "judge_failed": false,
+                  "sample_index": 0
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 5,
+                  "behavior_score": 5,
+                  "reasoning": "The response correctly gave generic CSS steps without invoking unrelated engineering rules or gates.",
+                  "judge_failed": false,
+                  "sample_index": 1
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 5,
+                  "behavior_score": 5,
+                  "reasoning": "The response gave direct CSS steps without invoking unrelated engineering principles or gates.",
+                  "judge_failed": false,
+                  "sample_index": 2
+                }
+              ],
+              "judge_repeats": 3,
+              "score_reducer": "median",
+              "system_prompt_chars": 0
+            },
+            "description": {
+              "response_preview": "- Set the parent to `display: flex`.\n- Use `justify-content: center` horizontally.\n- Use `align-items: center` vertically.\n- Give the parent a height.\n- Place the child inside the parent.",
+              "scores": {
+                "activation_score": 5.0,
+                "citation_score": 5.0,
+                "behavior_score": 5.0,
+                "judge_failed": false,
+                "graded": true,
+                "score_reducer": "median",
+                "sample_count": 3,
+                "graded_sample_count": 3,
+                "failed_sample_count": 0
+              },
+              "score_samples": [
+                {
+                  "activation_score": 5,
+                  "citation_score": 5,
+                  "behavior_score": 5,
+                  "reasoning": "The response correctly gave generic CSS guidance without invoking irrelevant engineering concepts or gates.",
+                  "judge_failed": false,
+                  "sample_index": 0
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 5,
+                  "behavior_score": 5,
+                  "reasoning": "The response correctly gave generic CSS guidance without invoking irrelevant engineering concepts or behavior gates.",
+                  "judge_failed": false,
+                  "sample_index": 1
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 5,
+                  "behavior_score": 5,
+                  "reasoning": "The response correctly gave generic CSS guidance without invoking irrelevant engineering concepts or gates.",
+                  "judge_failed": false,
+                  "sample_index": 2
+                }
+              ],
+              "judge_repeats": 3,
+              "score_reducer": "median",
+              "system_prompt_chars": 473
+            },
+            "full": {
+              "response_preview": "- Set parent to `display: flex`.\n- Give parent height, such as `min-height: 100vh`.\n- Use `justify-content: center` for horizontal centering.\n- Use `align-items: center` for vertical centering.\n- Keep child in normal flow. No positioning needed.",
+              "scores": {
+                "activation_score": 5.0,
+                "citation_score": 5.0,
+                "behavior_score": 5.0,
+                "judge_failed": false,
+                "graded": true,
+                "score_reducer": "median",
+                "sample_count": 3,
+                "graded_sample_count": 3,
+                "failed_sample_count": 0
+              },
+              "score_samples": [
+                {
+                  "activation_score": 5,
+                  "citation_score": 5,
+                  "behavior_score": 5,
+                  "reasoning": "The response correctly gave generic CSS advice without invoking irrelevant engineering concepts or gates.",
+                  "judge_failed": false,
+                  "sample_index": 0
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 5,
+                  "behavior_score": 5,
+                  "reasoning": "The response correctly gave generic Flexbox guidance without invoking unrelated engineering rules or gates.",
+                  "judge_failed": false,
+                  "sample_index": 1
+                },
+                {
+                  "activation_score": 5,
+                  "citation_score": 5,
+                  "behavior_score": 5,
+                  "reasoning": "The response correctly gave concise CSS guidance without invoking unrelated engineering concepts or gates.",
+                  "judge_failed": false,
+                  "sample_index": 2
+                }
+              ],
+              "judge_repeats": 3,
+              "score_reducer": "median",
+              "system_prompt_chars": 7727
+            }
+          }
+        }
+      ]
+    }
+  }
+}

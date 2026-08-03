@@ -627,7 +627,7 @@ class TestScriptIntegration:
         result = subprocess.run(
             [sys.executable, str(script_path), "--help"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
 
@@ -642,7 +642,7 @@ class TestScriptIntegration:
         result = subprocess.run(
             [sys.executable, str(script_path), "--path", str(project_root)],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=60,
         )
 
@@ -666,7 +666,7 @@ class TestScriptIntegration:
         result = subprocess.run(
             [sys.executable, str(script_path), "--path", str(project_root), "--quiet"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=60,
         )
         elapsed = time.monotonic() - start

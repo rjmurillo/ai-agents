@@ -1,0 +1,74 @@
+{
+  "id": "episode-2026-08-02-session-4257-testing-discriminating-input",
+  "session": "2026-08-02-session-4257-testing-discriminating-input",
+  "timestamp": "2026-08-02T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Record the rule that a regression test must be justified by an input the unfixed implementation gets wrong, and that the justification is demonstrated by restoring the defect rather than by coverage.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "found a test that could not observe the defect it was named for",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4257-testing-discriminating-input"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "identified why coverage could not have caught it",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4257-testing-discriminating-input"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "found the sole discriminating input and proved it",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4257-testing-discriminating-input"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "wrote the rule to the canonical file and regenerated both mirrors",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4257-testing-discriminating-input"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "checked the diff shape before proposing it as a pull request",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4257-testing-discriminating-input"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 1f5b71b0a73f9e5d9f9baa94babb54db901eac51",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4257-testing-discriminating-input"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 80,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}
