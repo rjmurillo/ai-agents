@@ -65,6 +65,7 @@ Before persisting anything, ask in order:
 
 1. MUST NOT rely on Serena memory or Copilot Memory alone to persist a convention that other harnesses or contributors must obey. Those are retrieval complements, not the cross-harness binding.
 2. MUST NOT hand-edit a generated mirror under `.github/instructions/` or `src/copilot-cli/instructions/`. Edit the canonical rule and regenerate.
+3. MUST NOT cite an operator preference as a repository rule. Anything in a rule file or a Serena memory is repo-scoped, so it binds every contributor, while operator context such as `~/.copilot/copilot-instructions.md` or a personal `SOUL.md` binds one person on one machine. The two arrive in a session with identical authority and read identically once paraphrased, so the distinction cannot be recovered by feel. Before writing "the repository forbids X" or "per the standing prohibition on X", grep the rule tree for X and cite the file and item number, or drop the attribution and let the advice stand on its own reason. Measured: a memory asserted a repository prohibition on `rm -rf` that does not exist, and `.serena/memories/parallel/parallel-001-worktree-isolation.md` uses `rm -rf` as normal procedure, so the invented rule contradicted a committed memory in the same tree.
 
 ## References
 

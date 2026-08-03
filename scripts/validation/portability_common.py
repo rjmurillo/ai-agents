@@ -34,12 +34,11 @@ def load_baseline(path: Path) -> dict[str, int]:
 
     baseline: dict[str, int] = {}
     for key, value in files.items():
-        if value is None:
-            raise ValueError(f"Baseline count for {key!r} is null")
-        try:
-            baseline[str(key)] = int(value)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"Baseline count for {key!r} is not an integer") from exc
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise ValueError(
+                f"Baseline count for {key!r} must be a JSON integer, got {type(value).__name__}"
+            )
+        baseline[str(key)] = value
     return baseline
 
 
@@ -121,14 +120,14 @@ def resolve_baseline_path(
     baseline: Path | None,
     default_baseline_name: str,
     reject_outside_root: bool,
-) -> Path:
+) -> Path | None:
     """Resolve the baseline path, optionally rejecting root escapes.
 
     The single home for this reasoning. Every checker that accepts `--baseline`
     delegates here rather than keeping a copy, because the copies drifted into
     the same defect independently once already: both resolved the path before
     handing it on, which erased the symlink the guard downstream exists to
-    refuse. Returns `Path("")` when the candidate escapes the root.
+    refuse. Returns None when the candidate escapes the root.
     """
     if baseline is None:
         return root / "scripts" / "validation" / default_baseline_name
@@ -140,7 +139,7 @@ def resolve_baseline_path(
     if not candidate.is_absolute():
         candidate = root / candidate
     if not candidate.expanduser().resolve().is_relative_to(root_resolved):
-        return Path("")
+        return None
     # Return the candidate exactly as written, neither resolved nor textually
     # normalised. `resolve()` follows every symlink, which erases the evidence
     # the symlink guard exists to find. Collapsing `..` textually looks safer
@@ -167,7 +166,7 @@ def resolve_checked_baseline(
 
     So this is the single gate rather than a third copy of the pair. Returning
     `None` for either refusal keeps the sentinel uniform too; the checkers had
-    split into `None` and `Path("")` for the same condition, which is the same
+    unified as None for the same condition, which is the same
     drift starting again in the return type.
 
     The symlink refusal belongs here and not only on the write path. The diff
@@ -181,7 +180,7 @@ def resolve_checked_baseline(
     resolved = resolve_baseline_path(
         root, baseline, default_baseline_name, reject_outside_root=True
     )
-    if resolved == Path(""):
+    if resolved is None:
         print(
             f"Refusing a --baseline outside the repository root: {baseline}. "
             "The ratchet only owns the artifact git tracks.",

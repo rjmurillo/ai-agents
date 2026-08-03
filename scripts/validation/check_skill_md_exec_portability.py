@@ -1,85 +1,20 @@
 #!/usr/bin/env python3
-# taste-lint: ignore file-size, parser and CLI stay together to keep ratchet semantics auditable.
 """Exec-path vendor-portability ratchet for skill instruction files (issue #2838).
 
-Companion to ``check_skill_md_portability.py``. That validator counts *prose*
-references to upstream-only trees (``.agents/``, ``.claude/lib/``,
-``.claude/review-axes/``) after stripping fenced code, and it deliberately
-excludes ``.claude/skills/`` because a bare prose cross-link to a sibling skill
-resolves through the install root. This validator is the INVERSE: it looks for
-*executable* invocations of ``.claude/skills/...`` scripts, which the prose
-guard erases when it strips code fences.
+Counts bare ``.claude/skills/...`` executable invocations in skill Markdown.
+In a vendored install the skill tree is at the plugin root, not ``./.claude``,
+so bare paths break. The portable form uses the harness env var fallback:
+``${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/...``.
 
-Why a separate check (issue #2837 is the instance, #2838 the systemic gap):
-  In a vendored plugin install the skill tree is rooted at the harness plugin
-  root, not at ``./.claude``. A command written as
+Opt-out: ``<!-- vendor-portability-exec: <reason> -->`` suppresses a file.
 
-      python3 .claude/skills/github/scripts/pr/test_pr_merge_ready.py --pull-request 1
+Baseline ratchet: fails when a file exceeds its baseline or a clean file
+introduces a new invocation. Use ``--update-baseline`` to tighten after fixes.
 
-  hard-codes the upstream layout. Under Claude Code it happens to work because
-  the checkout root IS ``.claude``; under GitHub Copilot CLI (or any consumer
-  repo that vendored the plugin) ``./.claude/skills/...`` does not exist and the
-  command fails. The portable form resolves the root through a harness env var
-  with a source-tree fallback, e.g.::
+Scope: SKILL.md, references/**/*.md, scripts/README-*.md under .claude/skills/
+and src/copilot-cli/skills/. Missing roots are skipped.
 
-      SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr"
-      python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request 1
-
-  This mirrors the form other skills already ship
-  (``.claude/skills/github/SKILL.md``,
-  ``.claude/skills/pr-comment-responder/SKILL.md``,
-  ``.claude/commands/push-pr.md``).
-
-What it counts:
-  Executable invocations of a bare ``.claude/skills/...`` script inside skill
-  instruction Markdown. The scan covers ``SKILL.md``, ``references/**/*.md``,
-  and ``scripts/README-*.md`` under each skill root. An invocation is either
-  (a) a shell interpreter token
-  (``python``, ``python3``, ``bash``, ``sh``), optionally followed by short
-  options (``python3 -u ...``), then a bare ``.claude/skills/<path>`` ending in
-  ``.py`` or ``.sh``, or (b) a direct ``./``-prefixed executable
-  (``./.claude/skills/x/y.sh``). The lead-in must be a standalone token
-  (start of line, whitespace, backtick, or a shell operator such as ``|`` or
-  ``&&`` precedes it) so that ``bash`` does not match the ``sh`` inside another
-  word. Shell line continuations (a trailing backslash before a newline) are
-  joined before matching so a split invocation is still counted. Path references
-  that route through a resolved variable
-  (``"$SCRIPTS_DIR/..."`` or ``"${CLAUDE_PLUGIN_ROOT:-.claude}/..."``) do NOT
-  match: the literal substring is ``.claude}/skills`` (a ``}`` breaks the
-  ``.claude/skills`` sequence) and there is no interpreter-then-bare-path shape.
-  Prose cross-links (``see .claude/skills/x/SKILL.md``) do NOT match: no
-  execution lead-in and the target is not a ``.py``/``.sh`` script.
-
-Machine-readable opt-out (mirrors the prose guard's escape hatch, but distinct):
-  A skill that genuinely must invoke a bare upstream path can DECLARE it with
-  the HTML comment marker
-
-      <!-- vendor-portability-exec: <free text> -->
-
-  A file containing the marker is suppressed (count 0). The marker is
-  DELIBERATELY distinct from the prose guard's ``vendor-portability`` marker:
-  a file that declared a prose ``.agents/`` dependency for the sibling guard
-  did not thereby consent to exempting its executable ``.claude/skills/...``
-  invocations, which are a different, independently-migratable concern. The
-  marker is a reviewable act; a silent bare invocation is not.
-
-Baseline ratchet:
-  Every current offender is grandfathered in
-  ``skill_md_exec_portability_baseline.json``. The check FAILS only when a
-  file's count rises above its baseline (new drift) or a previously-clean file
-  introduces an invocation. It REPORTS when counts drop so the baseline can be
-  tightened with ``--update-baseline``. This is the same incremental-migration
-  philosophy as the sibling script/markdown guards: block regressions now,
-  migrate the grandfathered offenders skill-by-skill over time.
-
-Scope: ``SKILL.md``, ``references/**/*.md``, and ``scripts/README-*.md`` under
-``.claude/skills/`` and ``src/copilot-cli/skills/`` (both shipped trees).
-Roots that do not exist are skipped.
-
-Exit codes (ADR-035):
-  0 - no drift (counts at or below baseline), or --update-baseline wrote the file
-  1 - drift detected (a file exceeds its baseline or a new file offends)
-  2 - configuration error (no scan roots, baseline unreadable)
+Exit codes (ADR-035): 0=clean, 1=drift, 2=config error.
 """
 
 from __future__ import annotations
@@ -255,54 +190,56 @@ def _iter_skill_files(root: Path) -> list[Path]:
     return sorted(dict.fromkeys(paths))
 
 
-def scan_skill_execs(repo_root: Path) -> dict[str, int]:
-    """Return {relative_posix_path: count} for skill Markdown with >0 invocations.
+def scan_all(repo_root: Path) -> tuple[dict[str, int], dict[str, int], dict[str, int]]:
+    """Scan all skill Markdown files in one traversal.
 
-    Paths are relative to the repo root and POSIX-normalized for cross-OS
-    stability. Files that self-declare via the marker contribute 0 and are
-    omitted. Scan roots that do not exist are skipped.
+    Returns (exec_counts, marker_counts, files_by_root). A single walk ensures
+    the coverage decision and the baseline contents come from the same snapshot,
+    so a concurrent tree mutation cannot produce a short baseline that passes the
+    coverage check.
     """
-    counts: dict[str, int] = {}
+    exec_counts: dict[str, int] = {}
+    marker_counts: dict[str, int] = {}
+    files_by_root: dict[str, int] = {}
     for parts in SCAN_ROOTS:
+        root_name = "/".join(parts)
         root = repo_root.joinpath(*parts)
         if not root.is_dir():
+            files_by_root[root_name] = 0
             continue
-        for path in _iter_skill_files(root):
+        files = _iter_skill_files(root)
+        files_by_root[root_name] = len(files)
+        for path in files:
             try:
                 text = path.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError) as exc:
                 raise OSError(f"Failed to read skill file {path}: {exc}") from exc
+            rel = path.relative_to(repo_root).as_posix()
             n = count_file_invocations(text)
             if n > 0:
-                counts[path.relative_to(repo_root).as_posix()] = n
-    return counts
+                exec_counts[rel] = n
+            m = count_marker_suppressed_invocations(text)
+            if m > 0:
+                marker_counts[rel] = m
+    return exec_counts, marker_counts, files_by_root
+
+
+def scan_skill_execs(repo_root: Path) -> dict[str, int]:
+    """Return {relative_posix_path: count} for skill Markdown with >0 invocations."""
+    exec_counts, _, _ = scan_all(repo_root)
+    return exec_counts
 
 
 def scanned_files_by_root(repo_root: Path) -> dict[str, int]:
-    """Return per-root skill-file counts, absent roots as zero.
-
-    A sum hides one starved root behind a positive total.
-    """
-    dirs = {"/".join(p): repo_root.joinpath(*p) for p in SCAN_ROOTS}
-    return {n: len(_iter_skill_files(d)) if d.is_dir() else 0 for n, d in dirs.items()}
+    """Return per-root skill-file counts, absent roots as zero."""
+    _, _, files_by_root = scan_all(repo_root)
+    return files_by_root
 
 
 def scan_marker_suppressions(repo_root: Path) -> dict[str, int]:
     """Return marker-suppressed invocation counts across every scan root."""
-    counts: dict[str, int] = {}
-    for parts in SCAN_ROOTS:
-        root = repo_root.joinpath(*parts)
-        if not root.is_dir():
-            continue
-        for path in _iter_skill_files(root):
-            try:
-                text = path.read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError) as exc:
-                raise OSError(f"Failed to read skill file {path}: {exc}") from exc
-            n = count_marker_suppressed_invocations(text)
-            if n > 0:
-                counts[path.relative_to(repo_root).as_posix()] = n
-    return counts
+    _, marker_counts, _ = scan_all(repo_root)
+    return marker_counts
 
 
 def _load_baseline(path: Path) -> dict[str, int]:
@@ -520,9 +457,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        current = scan_skill_execs(root)
-        marker_current = scan_marker_suppressions(root)
-        scanned_by_root = scanned_files_by_root(root)
+        current, marker_current, scanned_by_root = scan_all(root)
         dangling = scan_dangling_skill_relative_scripts(root)
     except OSError as exc:
         print(f"Could not scan skill files under {root}: {exc}", file=sys.stderr)
