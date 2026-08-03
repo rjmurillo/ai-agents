@@ -57,9 +57,7 @@ def generate_health_report(
     )
 
 
-def detect_stale_memories(
-    memories_dir: Path, repo_root: Path, max_age_days: int = 30
-) -> list[str]:
+def detect_stale_memories(memories_dir: Path, repo_root: Path, max_age_days: int = 30) -> list[str]:
     """Find memories that are older than max_age_days or have broken citations.
 
     Public API that loads memories from disk. For internal use with
@@ -96,10 +94,7 @@ def _verify_all_memories(
     repo_root: Path,
 ) -> dict[str, list[VerificationResult]]:
     """Verify all citations for all memories, returning results keyed by memory_id."""
-    return {
-        memory.memory_id: verify_all_citations(memory, repo_root)
-        for memory in memories
-    }
+    return {memory.memory_id: verify_all_citations(memory, repo_root) for memory in memories}
 
 
 def _count_citation_statuses_from_results(
@@ -237,11 +232,15 @@ def _calculate_health_score(counts: dict[str, int], total_memories: int) -> floa
     - Valid citations contribute fully (weight 1.0)
     - Stale citations contribute partially (weight 0.5)
     - Broken and unverified citations contribute nothing (weight 0.0)
+
+    An empty corpus (no memories) is vacuously healthy and scores 1.0.
+    A corpus with memories but no citations scores 0.0: the citations
+    have not been added, so there is no citation health to measure.
     """
     if total_memories == 0:
         return 1.0
     if counts["total"] == 0:
-        return 1.0
+        return 0.0
 
     weighted_score = counts["valid"] + counts["stale"] * 0.5
     return max(0.0, min(1.0, weighted_score / counts["total"]))
@@ -256,13 +255,9 @@ def _generate_recommendations(counts: dict[str, int], stale: list[str]) -> list[
             f"Fix {counts['broken']} broken citation(s) to restore reference integrity."
         )
     if counts["unverified"] > 0:
-        recommendations.append(
-            f"Verify {counts['unverified']} unverified citation(s)."
-        )
+        recommendations.append(f"Verify {counts['unverified']} unverified citation(s).")
     if len(stale) > 0:
-        recommendations.append(
-            f"Review {len(stale)} stale memory/memories for relevance."
-        )
+        recommendations.append(f"Review {len(stale)} stale memory/memories for relevance.")
     if counts["total"] == 0:
         recommendations.append("Add citations to memories for traceability.")
 

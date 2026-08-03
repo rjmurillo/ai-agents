@@ -1,0 +1,106 @@
+{
+  "id": "episode-2026-08-02-session-4273-pr-review",
+  "session": "2026-08-02-session-4273-pr-review",
+  "timestamp": "2026-08-02T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Resolve PR #4273 review threads, fix failing checks, validate, push, and report evidence.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-02T17:11:02+00:00",
+      "type": "milestone",
+      "content": "started",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-02-session-4273-pr-review"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-02T17:12:00+00:00",
+      "type": "milestone",
+      "content": "gathered PR context",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-02-session-4273-pr-review"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-02T17:20:00+00:00",
+      "type": "milestone",
+      "content": "merged current main and PR head",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-02-session-4273-pr-review"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-02T17:35:00+00:00",
+      "type": "milestone",
+      "content": "fixed review findings",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e005",
+        "e006"
+      ],
+      "_source_session": "2026-08-02-session-4273-pr-review"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-02T17:43:00+00:00",
+      "type": "milestone",
+      "content": "validated",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4273-pr-review"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-02T17:43:00+00:00",
+      "type": "test",
+      "content": "pre_pr.py passed. Full pytest passed: 21652 passed, 31 skipped, 2 warnings.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4273-pr-review"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-02T17:32:11+00:00",
+      "type": "commit",
+      "content": "Commit: b79abff973",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-02-session-4273-pr-review"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}

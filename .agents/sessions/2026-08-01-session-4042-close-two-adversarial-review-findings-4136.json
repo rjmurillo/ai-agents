@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4042,
+    "date": "2026-08-01",
+    "branch": "fix/dangling-relative-links",
+    "startingCommit": "a556a269df",
+    "objective": "Close two adversarial-review findings on PR 4136: repair a memory citation that named a nonexistent file and was backticked rather than fixed, and extend the session skill declaration to name the exact ADR path MUST 1 requires"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Serena MCP is not exposed in this harness; no serena/ or mcp__serena__ tool is callable. Followed the documented fallback and read .serena/memories/ directly from the worktree. Precedent: session log 4040."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Same reason as serenaActivated. initial_instructions is unreachable without the MCP server; read AGENTS.md and .claude/rules/ from disk instead."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read from the worktree. Not modified (read-only per ADR-014)."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file. Created via .claude/skills/session-init/scripts/new_session_log.py, then renumbered 4041 to 4042 after a collision with the log committed on feat/orchestrator-wave-discipline."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Enumerated the four portability gates under scripts/validation/: check_skill_md_exec_portability, check_skill_md_portability, check_skill_portability, check_vendor_portability. All four run and reported below."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read the skill-first routing table in AGENTS.md before acting; used the github skill path for PR interaction rather than raw gh where a skill exists."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md and .claude/rules/plugin-version-bump.md. The latter is what corrected a manifest error on the sibling branch."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/ from disk (MCP unavailable). Untruncated grep across the store, not a head-limited sample."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned fix/dangling-relative-links."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Confirmed by the same command; the branch is not main or master."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --porcelain run before staging; two modified SKILL.md plus two untracked .agents/ artifacts."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Parent commit a556a269df, recorded before the fix commit."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Every item in this file carries measured evidence; nothing is asserted from memory."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md is untouched. git status --porcelain shows no entry for it."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Serena MCP unreachable in this harness. The durable finding from this change (a vendor-portability declaration must enumerate every upstream path the skill body references, not just the ones a gate happens to check) is recorded in the commit message of 8beb505bc2 and in the retrospective committed alongside this log."
+      },
+      "markdownLintRun": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Ran markdownlint-cli2 scoped to the changed files. It reported 0 issues in 0 files because .markdownlint-cli2.yaml excludes .agents/** and .serena/**, and the two changed SKILL.md files are covered but produced no findings. Recording this as SHOULD rather than claiming a pass on files the config never inspected."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Commit 8beb505bc2, 2 files changed, 2 insertions, 2 deletions. All pre-commit hooks green."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All four portability gates RC=0 after the change: check_skill_md_exec_portability, check_skill_md_portability, check_skill_portability, check_vendor_portability. Dash byte-count on both changed files: 0."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Adversarial review adv-4136 returned two findings. The Required finding is closed by this commit. The Critical finding was measured and disproved as a regression: .claude/skills/ reference counts are identical on origin/main and HEAD for all seven cited files, and git diff origin/main...HEAD | grep -c '^+.*[.]claude/skills/' returns 0."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Retrospective 2026-07-31-backticking-is-not-repair.md committed with this log."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Verify both adversarial-review findings first-hand",
+      "outcome": "Both confirmed. The memory citation named .serena/memories/memory-size-001-decomposition-thresholds.md, which does not exist; the real file is one directory deeper. The session skill declaration named a directory while line 328 cites the ADR by exact filename, which MUST 1 does not permit."
+    },
+    {
+      "task": "Repair both defects in the canonical tree and regenerate mirrors",
+      "outcome": "Three occurrences corrected in README-test-size.md including the vendor-portability declaration that had copied the wrong path. Session declaration extended to name the exact ADR path. build_all.py propagated both to src/copilot-cli. Zero occurrences of the wrong path remain in either tree."
+    },
+    {
+      "task": "Measure whether any gate catches a nonexistent declared path",
+      "outcome": "Negative control run: the broken path was deliberately reintroduced into both trees and all four portability gates exited 0. They validate declaration presence and shape, never path existence. Recorded as the systemic finding in the retrospective."
+    },
+    {
+      "task": "Tighten the portability baseline for an improvement this PR produced",
+      "outcome": "check_skill_md_portability reported security-detection as improved from 2 refs to 0 in both trees. Baseline updated; the diff is exactly those two deletions and nothing else drifted."
+    },
+    {
+      "task": "Correct the PR description",
+      "outcome": "The prior revision published the backticking as a fix and called the ADR declaration an open judgment call. Both corrected. Description gate exits 0 with zero CRITICAL findings."
+    }
+  ],
+  "endingCommit": "8beb505bc2",
+  "nextSteps": [
+    "Re-run adversarial review on the amended PR #4136 on a different model family, per the standing requirement.",
+    "File the follow-up for existence validation of paths named in vendor-portability declarations, which the negative control proved is unenforced.",
+    "Ship the plugin-roots-ship-alone Serena memory as its own atomic PR with re-measured evidence."
+  ]
+}

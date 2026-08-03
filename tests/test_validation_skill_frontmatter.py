@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 import pytest
 
+from scripts.validation import skill_frontmatter as _sf_mod
 from scripts.validation.skill_frontmatter import (
     build_parser,
     get_skill_files,
@@ -599,7 +600,7 @@ class TestBuildParser:
         monkeypatch.delenv("CI", raising=False)
         parser = build_parser()
         args = parser.parse_args([])
-        assert args.path == ".claude/skills"
+        assert args.path is None
         assert args.ci is False
         assert args.staged_only is False
         assert args.changed_files is None
@@ -618,3 +619,156 @@ class TestBuildParser:
             args = parser.parse_args([])
             assert args.path == "/custom/path"
             assert args.ci is True
+
+
+# ---------------------------------------------------------------------------
+# Default corpus (Issue #4015 sibling defect)
+# ---------------------------------------------------------------------------
+
+
+class TestDefaultCorpus:
+    """The default full scan covers both skill trees, not just `.claude/skills`.
+
+    `_SKILL_FILE_PATTERN` has always matched both trees for the staged and
+    changed-files branches, while `--path` defaulted to `.claude/skills` alone.
+    A default run therefore measured 98 of 209 SKILL.md bodies and printed "All
+    skill frontmatter validated successfully!", a whole-corpus sentence derived
+    from 47% of the corpus. This script has no lefthook or workflow caller, so
+    that default is its only invocation path.
+    """
+
+    _VALID = "---\nname: alpha\ndescription: A valid skill.\n---\nBody\n"
+    _INVALID = "---\nname: Not A Valid Name\ndescription: Bad name.\n---\nBody\n"
+
+    @staticmethod
+    def _write_skill(root: Path, prefix: str, name: str, body: str) -> Path:
+        target = root / prefix / name / "SKILL.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(body, encoding="utf-8")
+        return target
+
+    def _fake_root(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+        monkeypatch.delenv("SKILL_PATH", raising=False)
+        monkeypatch.setattr(_sf_mod, "_PROJECT_ROOT", tmp_path)
+        return tmp_path
+
+    def test_default_scan_covers_both_trees(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        root = self._fake_root(tmp_path, monkeypatch)
+        self._write_skill(root, ".claude/skills", "alpha", self._VALID)
+        self._write_skill(root, "src/copilot-cli/skills", "beta", self._VALID)
+
+        exit_code = main([])
+
+        assert exit_code == 0
+        out = capsys.readouterr().out
+        assert "Found 2 SKILL.md file(s)" in out
+        assert "  Total:  2" in out
+
+    def test_malformed_frontmatter_in_mirror_tree_only_fails_ci(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The regression guard. Against the single-tree default this returned 0
+        # because the mirror body was never opened.
+        root = self._fake_root(tmp_path, monkeypatch)
+        self._write_skill(root, ".claude/skills", "alpha", self._VALID)
+        self._write_skill(root, "src/copilot-cli/skills", "bad", self._INVALID)
+
+        assert main(["--ci"]) == 1
+
+    def test_explicit_path_still_narrows_the_scan(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        root = self._fake_root(tmp_path, monkeypatch)
+        self._write_skill(root, ".claude/skills", "alpha", self._VALID)
+        self._write_skill(root, "src/copilot-cli/skills", "bad", self._INVALID)
+
+        assert main(["--ci", "--path", str(root / ".claude" / "skills")]) == 0
+
+    def test_skill_path_env_var_still_narrows_the_scan(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        root = self._fake_root(tmp_path, monkeypatch)
+        self._write_skill(root, ".claude/skills", "alpha", self._VALID)
+        self._write_skill(root, "src/copilot-cli/skills", "bad", self._INVALID)
+        monkeypatch.setenv("SKILL_PATH", str(root / ".claude" / "skills"))
+
+        assert main(["--ci"]) == 0
+
+    def test_absent_tree_is_named_and_survivor_is_still_measured(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        root = self._fake_root(tmp_path, monkeypatch)
+        self._write_skill(root, ".claude/skills", "alpha", self._VALID)
+
+        exit_code = main(["--ci"])
+
+        assert exit_code == 0
+        out = capsys.readouterr().out
+        assert "Scanning skill trees: .claude/skills" in out
+        assert "absent, not scanned: src/copilot-cli/skills" in out
+        assert "  Total:  1" in out
+
+    def test_no_trees_present_reports_nothing_found(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        self._fake_root(tmp_path, monkeypatch)
+
+        exit_code = main(["--ci"])
+
+        assert exit_code == 0
+        out = capsys.readouterr().out
+        assert "(none present)" in out
+        assert "No SKILL.md files found to validate." in out
+
+    def test_default_corpus_files_is_anchored_on_project_root(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # cwd-independence (.claude/rules/ci-scripts.md MUST-8).
+        root = self._fake_root(tmp_path, monkeypatch)
+        self._write_skill(root, ".claude/skills", "alpha", self._VALID)
+        self._write_skill(root, "src/copilot-cli/skills", "beta", self._VALID)
+        (root / "src").mkdir(parents=True, exist_ok=True)
+        monkeypatch.chdir(root / "src")
+
+        found = _sf_mod.default_corpus_files()
+
+        assert {path.parent.name for path in found} == {"alpha", "beta"}
+
+    def test_changed_files_branch_survives_a_none_path(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # --changed-files used to build `Path(args.path)` unconditionally, which
+        # is a TypeError once the default is None.
+        self._fake_root(tmp_path, monkeypatch)
+        skill = self._write_skill(tmp_path, ".claude/skills", "alpha", self._VALID)
+
+        assert main(["--ci", "--changed-files", str(skill)]) == 0
+
+    def test_display_path_is_repo_relative_from_a_subdirectory(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # The corpus is _PROJECT_ROOT-anchored and absolute, so a cwd-only
+        # display fell back to the absolute path from any subdirectory.
+        root = self._fake_root(tmp_path, monkeypatch)
+        self._write_skill(root, ".claude/skills", "alpha", self._VALID)
+        (root / "src").mkdir(parents=True, exist_ok=True)
+        monkeypatch.chdir(root / "src")
+
+        main([])
+
+        out = capsys.readouterr().out
+        assert "Checking: .claude/skills/alpha/SKILL.md" in out.replace("\\", "/")
+        assert str(root) not in out
+
+    def test_display_path_falls_back_to_absolute_outside_both_roots(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Edge case: a file under neither _PROJECT_ROOT nor cwd keeps its
+        # absolute path rather than being mangled into a relative one.
+        monkeypatch.setattr(_sf_mod, "_PROJECT_ROOT", tmp_path / "elsewhere")
+        outside = tmp_path / "outside" / "SKILL.md"
+        outside.parent.mkdir(parents=True, exist_ok=True)
+
+        assert _sf_mod._relative_display(outside) == outside
