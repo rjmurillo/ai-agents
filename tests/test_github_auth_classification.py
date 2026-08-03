@@ -46,6 +46,21 @@ SECONDARY_LIMIT = (
 
 # Captured from issue #3139: authenticated REST returned the GitHub Unicorn page.
 REST_503 = "HTTP 503: Service unavailable (https://api.github.com/user)"
+
+# Captured from the binary, not invented: `gh api --hostname
+# invalid.example.test --method POST ... --verbose` on gh 2.97.0 emits exactly
+# these three lines when it cannot reach the host. None of them carries an HTTP
+# status, so before this fix they classified as INVALID_CREDENTIALS and the
+# preflight told the operator to run `gh auth login` for a dead network, which
+# is the #3139 symptom in its most common form.
+GH_DIAL_FAILURE = (
+    "dial tcp: lookup invalid.example.test on 127.0.0.53:53: no such host"
+)
+GH_CONNECT_FAILURE = (
+    "error connecting to invalid.example.test\n"
+    "check your internet connection or https://githubstatus.com"
+)
+GH_DNS_FAILURE = "dial tcp: lookup api.github.com: no such host"
 # A genuine permission denial. Also 403, and must stay permanent.
 PERMISSION_DENIED = "HTTP 403: Resource not accessible by integration"
 BAD_CREDENTIALS = "HTTP 401: Bad credentials (https://api.github.com/user)"
@@ -73,6 +88,13 @@ class TestClassifyGhFailureText:
 
     def test_rest_5xx_is_transient(self):
         assert classify_gh_failure_text(REST_503) is GhAuthStatus.TRANSIENT_ERROR
+
+    @pytest.mark.parametrize(
+        "body", [GH_DIAL_FAILURE, GH_CONNECT_FAILURE, GH_DNS_FAILURE]
+    )
+    def test_gh_connectivity_wording_is_transient(self, body):
+        """gh's own transport text carries no HTTP status and no curl wording."""
+        assert classify_gh_failure_text(body) is GhAuthStatus.TRANSIENT_ERROR
 
     def test_bad_credentials_is_invalid(self):
         assert classify_gh_failure_text(BAD_CREDENTIALS) is GhAuthStatus.INVALID_CREDENTIALS
@@ -230,6 +252,19 @@ class TestAssertGhAuthenticatedExitCodes:
                 assert_gh_authenticated()
         assert exc.value.code == 4
         assert "gh auth login" in capsys.readouterr().err
+
+    @pytest.mark.parametrize(
+        "body", [GH_DIAL_FAILURE, GH_CONNECT_FAILURE, GH_DNS_FAILURE]
+    )
+    def test_lost_connectivity_exits_3_and_never_says_gh_auth_login(
+        self, body, capsys
+    ):
+        calls = [_completed(stderr=body, rc=1), _completed(stderr=body, rc=1)]
+        with patch("subprocess.run", side_effect=calls):
+            with pytest.raises(SystemExit) as exc:
+                assert_gh_authenticated()
+        assert exc.value.code == 3
+        assert "gh auth login" not in capsys.readouterr().err
 
 
 _HEALTHY_PAYLOAD = json.dumps(

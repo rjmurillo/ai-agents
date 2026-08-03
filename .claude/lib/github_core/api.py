@@ -202,6 +202,21 @@ _TOKEN_REDACTION_PATTERN = re.compile(
 # Signatures that mark a transport (REST/GraphQL) as transiently degraded
 # rather than proof of an invalid token: 5xx responses, the GitHub "Unicorn"
 # page, timeouts, and connection failures (issue #3139).
+#
+# The second block is gh's own connectivity wording, captured from the binary
+# rather than guessed. `gh api --hostname invalid.example.test user` on gh
+# 2.97.0 prints:
+#
+#     dial tcp: lookup invalid.example.test on 127.0.0.53:53: no such host
+#     error connecting to invalid.example.test
+#     check your internet connection or https://githubstatus.com
+#
+# None of the first-block alternatives matches any of those lines, so a plain
+# loss of connectivity used to fall through to INVALID_CREDENTIALS and send the
+# operator to `gh auth login`, which is the exact #3139 symptom. gh is a Go
+# program, so its transport errors carry Go's net wording ("no such host",
+# "i/o timeout", "network is unreachable"), never curl's "could not resolve
+# host"; both are listed because callers also shell out through other clients.
 _TRANSIENT_SIGNATURE = re.compile(
     r"HTTP 5\d\d"
     r"|status(?:\s+code)?\s+5\d\d"
@@ -216,7 +231,16 @@ _TRANSIENT_SIGNATURE = re.compile(
     r"|timeout"
     r"|connection (?:reset|refused|error|timed out)"
     r"|could not resolve host"
-    r"|server error",
+    r"|server error"
+    r"|error connecting to"
+    r"|check your internet connection"
+    r"|githubstatus\.com"
+    r"|dial tcp"
+    r"|no such host"
+    r"|i/o timeout"
+    r"|network is unreachable"
+    r"|tls handshake"
+    r"|unexpected eof",
     re.IGNORECASE,
 )
 
@@ -390,6 +414,47 @@ _RATE_LIMIT_REMEDY = {
 }
 
 
+_MISSING_OR_INVALID_MESSAGE = (
+    "GitHub CLI (gh) is not installed or not authenticated. Run 'gh auth login' first."
+)
+
+
+def describe_gh_auth_failure(result: GhAuthResult) -> tuple[str, int, str]:
+    """Message, ADR-035 exit code, and error type for a non-authenticated result.
+
+    Single source of the auth-failure vocabulary. :func:`assert_gh_authenticated`
+    prints it as plain text and exits; envelope-emitting skill scripts feed it to
+    ``write_skill_error``. Before issue #4344 those scripts called
+    :func:`is_gh_authenticated` and hardcoded the "run gh auth login" message, so
+    a quota refusal reported as ``AuthError`` exit 4, which is the misdiagnosis
+    this module exists to remove.
+
+    Args:
+        result: A non-authenticated :class:`GhAuthResult`.
+
+    Returns:
+        ``(message, exit_code, error_type)``. Missing ``gh`` and confirmed
+        invalid credentials map to exit 4 / ``AuthError``; quota refusals and
+        transport failures map to exit 3 / ``ApiError`` (the envelope vocabulary
+        in ADR-056 has no rate-limit member).
+    """
+    if result.status in _AUTH_FAILURE_STATUSES:
+        return _MISSING_OR_INVALID_MESSAGE, 4, "AuthError"
+
+    detail = f" ({result.detail})" if result.detail else ""
+    remedy = _RATE_LIMIT_REMEDY.get(result.status)
+    if remedy is None:
+        return (
+            "GitHub API is temporarily unavailable (transport error); this is "
+            f"not an authentication failure. Retry shortly.{detail}",
+            3,
+            "ApiError",
+        )
+    reset_hint = _rate_limit_reset_hint()
+    evidence = f" Buckets: {reset_hint}." if reset_hint else ""
+    return f"{remedy}{detail}{evidence}", 3, "ApiError"
+
+
 def assert_gh_authenticated() -> None:
     """Ensure GitHub CLI can authenticate. Raises SystemExit if not.
 
@@ -401,23 +466,8 @@ def assert_gh_authenticated() -> None:
     result = check_gh_auth()
     if result.status is GhAuthStatus.AUTHENTICATED:
         return
-    if result.status in _AUTH_FAILURE_STATUSES:
-        error_and_exit(
-            "GitHub CLI (gh) is not installed or not authenticated. Run 'gh auth login' first.",
-            4,
-        )
-
-    detail = f" ({result.detail})" if result.detail else ""
-    remedy = _RATE_LIMIT_REMEDY.get(result.status)
-    if remedy is None:
-        error_and_exit(
-            "GitHub API is temporarily unavailable (transport error); this is "
-            f"not an authentication failure. Retry shortly.{detail}",
-            3,
-        )
-    reset_hint = _rate_limit_reset_hint()
-    evidence = f" Buckets: {reset_hint}." if reset_hint else ""
-    error_and_exit(f"{remedy}{detail}{evidence}", 3)
+    message, code, _ = describe_gh_auth_failure(result)
+    error_and_exit(message, code)
 
 
 # ---------------------------------------------------------------------------
