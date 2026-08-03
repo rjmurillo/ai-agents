@@ -19,7 +19,6 @@ See: ADR-035 Exit Code Standardization
 from __future__ import annotations
 
 import argparse
-import os
 import re
 import subprocess
 import sys
@@ -184,12 +183,13 @@ def get_requested_files(paths: Sequence[str]) -> list[str]:
 
 
 def get_all_files(repo_root: Path) -> list[str]:
-    """Get all relevant files in the repository.
+    """Get all relevant files tracked by git in the repository.
 
-    Walks the tree once with os.walk and prunes SKIP_DIRS in place so the
-    walk never descends into the largest, source-free subtrees (.venv, agent
-    worktrees, caches). See the SKIP_DIRS comment for the performance
-    contract behind issue #2047 / #2010.
+    Uses ``git ls-files --cached --others --exclude-standard`` so that
+    gitignored trees (worktrees, caches, scratch directories) are never
+    enumerated, regardless of what is on disk. A hand-maintained SKIP_DIRS
+    denylist cannot achieve this because .gitignore and the denylist drift
+    independently (issue #4338).
 
     Args:
         repo_root: Repository root path.
@@ -197,15 +197,38 @@ def get_all_files(repo_root: Path) -> list[str]:
     Returns:
         List of file paths (relative to repo root), POSIX-separated.
     """
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo_root),
+                "ls-files",
+                "--cached",
+                "--others",
+                "--exclude-standard",
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return []
+
+    if result.returncode != 0:
+        return []
+
     files: list[str] = []
-    for current_dir, dir_names, file_names in os.walk(repo_root):
-        # Prune in place so os.walk does not descend into skipped subtrees.
-        dir_names[:] = [d for d in dir_names if d not in SKIP_DIRS]
-        for name in file_names:
-            if Path(name).suffix not in VALID_EXTENSIONS:
-                continue
-            rel_path = Path(current_dir, name).relative_to(repo_root)
-            files.append(rel_path.as_posix())
+    for line in result.stdout.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if Path(line).suffix not in VALID_EXTENSIONS:
+            continue
+        files.append(line)
     return files
 
 

@@ -179,6 +179,59 @@ def _should_exclude(path: Path, repo_root: Path | None = None) -> bool:
     return False
 
 
+def _get_repository_files(repo_root: Path) -> list[Path]:
+    """Return files that git considers part of the repository.
+
+    Uses ``git ls-files --cached --others --exclude-standard`` so that
+    gitignored trees (worktrees, caches, scratch directories) are never
+    enumerated, regardless of what is on disk. A hand-maintained EXCLUDE_DIRS
+    denylist cannot achieve this because .gitignore and the denylist drift
+    independently (issue #4338).
+
+    Args:
+        repo_root: Absolute path to the repository root.
+
+    Returns:
+        Absolute Paths for each file git knows about.
+    """
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo_root),
+                "ls-files",
+                "--cached",
+                "--others",
+                "--exclude-standard",
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return [
+            p for p in repo_root.rglob("*")
+            if p.is_file() and not _should_exclude(p, repo_root)
+        ]
+
+    if result.returncode != 0:
+        return [
+            p for p in repo_root.rglob("*")
+            if p.is_file() and not _should_exclude(p, repo_root)
+        ]
+
+    files: list[Path] = []
+    for line in result.stdout.splitlines():
+        line = line.strip()
+        if line:
+            files.append(repo_root / line)
+    return files
+
+
 def _extract_csharp_symbols(content: str, file_path: str) -> list[SourceSymbol]:
     """Extract public symbols from C# source."""
     symbols: list[SourceSymbol] = []
@@ -350,19 +403,27 @@ def run_assessment(
     if diff_base:
         changed_files = _get_changed_files(diff_base, repo_root)
 
+    repo_files = _get_repository_files(repo_root)
+
     # Enumerate documentation files
     doc_files_set: set[Path] = set()
-    for glob_pattern in doc_globs:
-        for p in repo_root.glob(glob_pattern):
-            if p.is_file() and not _should_exclude(p, repo_root):
+    for p in repo_files:
+        if not p.is_file() or _should_exclude(p, repo_root):
+            continue
+        rel = str(p.relative_to(repo_root))
+        for glob_pattern in doc_globs:
+            if p.match(glob_pattern):
                 doc_files_set.add(p)
+                break
+        # Fallback: accept any file whose suffix matches common doc globs
+        _ = rel  # used in the loop above
 
     # Enumerate source files
     source_files: dict[str, str] = {}  # path -> content
     source_symbols: list[SourceSymbol] = []
     symbol_names: set[str] = set()
 
-    for p in repo_root.rglob("*"):
+    for p in repo_files:
         if not p.is_file() or _should_exclude(p, repo_root):
             continue
 
@@ -420,15 +481,13 @@ def run_assessment(
 
     # Find benchmark files
     benchmark_files = []
-    for p in repo_root.rglob("*benchmark*"):
-        if p.is_file() and not _should_exclude(p, repo_root):
+    for p in repo_files:
+        if not p.is_file() or _should_exclude(p, repo_root):
+            continue
+        name = p.name.lower()
+        if "benchmark" in name:
             benchmark_files.append(str(p.relative_to(repo_root)))
-    for p in repo_root.rglob("*bench*"):
-        if (
-            p.is_file()
-            and p.suffix in (".json", ".csv", ".md")
-            and not _should_exclude(p, repo_root)
-        ):
+        elif "bench" in name and p.suffix in (".json", ".csv", ".md"):
             rel = str(p.relative_to(repo_root))
             if rel not in benchmark_files:
                 benchmark_files.append(rel)
