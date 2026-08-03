@@ -42,8 +42,15 @@ def _fake(
     validator_rc: int = 0,
     git_rc: int = 0,
     extra_stdout: str = "",
+    declared: int | None = None,
+    omit_summary: bool = False,
+    warning_prefix: str = "WARNING: ",
 ):
-    """subprocess.run stub dispatched on argv, never on call order."""
+    """subprocess.run stub dispatched on argv, never on call order.
+
+    ``declared``, ``omit_summary``, and ``warning_prefix`` exist to reproduce
+    the output-format drift that the summary cross-check guards against.
+    """
 
     def _run(cmd, **kwargs):
         argv = [str(part) for part in cmd]
@@ -51,7 +58,10 @@ def _fake(
             stdout = "".join(f".serena/memories/{name}\0" for name in tracked)
             return subprocess.CompletedProcess(cmd, git_rc, stdout=stdout, stderr="")
         if str(ratchet._VALIDATOR) in argv:
-            body = "".join(f"WARNING: {w}\n" for w in warnings) + extra_stdout
+            body = "".join(f"{warning_prefix}{w}\n" for w in warnings) + extra_stdout
+            if not omit_summary:
+                total = len(warnings) if declared is None else declared
+                body += f"Memory tier validation passed. {total} warning(s).\n"
             return subprocess.CompletedProcess(cmd, validator_rc, stdout=body, stderr="")
         raise AssertionError(f"unexpected subprocess call: {argv}")
 
@@ -183,6 +193,73 @@ class TestCurrentCount:
         validator_calls = [a for a in seen if str(ratchet._VALIDATOR) in a]
         assert validator_calls, "the validator was never invoked"
         assert all("--ci" not in argv for argv in validator_calls)
+
+
+class TestOutputFormatGuard:
+    """The silent-zero guard: a clean exit alone must not be trusted.
+
+    Raised as High severity by an adversarial review on a second model family.
+    A validator that renames its prefix or moves warnings to stderr still exits
+    0, prefix matching then finds nothing, and the ratchet reports a healthy 0
+    for a tree carrying 425 violations. ``--update`` would write that 0 into the
+    baseline and disarm the gate for good.
+    """
+
+    def test_renamed_warning_prefix_is_an_error_not_a_zero(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            _fake(warnings=(ATOMIC_WARNING, INDEX_WARNING), warning_prefix="WARN: "),
+        )
+        assert ratchet.current_count(_repo(tmp_path)) is None
+
+    def test_warnings_moved_off_stdout_are_an_error_not_a_zero(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Warnings on stderr: stdout keeps the summary, the lines are gone."""
+        monkeypatch.setattr(subprocess, "run", _fake(warnings=(), declared=425))
+        assert ratchet.current_count(_repo(tmp_path)) is None
+
+    def test_missing_summary_line_is_an_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(subprocess, "run", _fake(omit_summary=True))
+        assert ratchet.current_count(_repo(tmp_path)) is None
+
+    def test_declared_total_below_the_parsed_lines_is_an_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Guards the other direction too, such as a multi-line warning body."""
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            _fake(warnings=(ATOMIC_WARNING, INDEX_WARNING), declared=1),
+        )
+        assert ratchet.current_count(_repo(tmp_path)) is None
+
+    def test_a_genuinely_clean_tree_still_counts_zero(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The discriminating control: a real 0 must survive the guard.
+
+        Without this, the guard could be satisfied by rejecting every zero,
+        which would break the day the backlog is actually cleared.
+        """
+        monkeypatch.setattr(subprocess, "run", _fake(warnings=()))
+        assert ratchet.current_count(_repo(tmp_path)) == 0
+
+    def test_the_guard_names_the_cause_on_stderr(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            subprocess, "run", _fake(warnings=(ATOMIC_WARNING,), declared=99)
+        )
+        ratchet.current_count(_repo(tmp_path))
+        err = capsys.readouterr().err
+        assert "declared 99 warnings" in err
+        assert "memory_index_count_ratchet.py" in err
 
 
 class TestListViolations:
