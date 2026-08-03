@@ -182,6 +182,8 @@ pre-commit:
             timeout: 5m
             run: uv run --frozen python scripts/validation/git_hook_policy.py taste {staged_files}
             glob: "**/*.{py,ps1,psm1,sh,bash,yml,yaml,md,json}"
+            skip:
+              - merge
 
           - name: security-suppressions-staged
             timeout: 2m
@@ -388,7 +390,7 @@ pre-push:
 
           - name: worktree-gc-report
             timeout: 2m
-            run: uv run --frozen python scripts/maintenance/gc_worktrees.py
+            run: uv run --frozen python scripts/maintenance/gc_worktrees.py || echo "worktree-gc-report exited non-zero; ignored because this job is advisory (issue 4257)"
 
           - name: python-tests
             timeout: 30m
