@@ -26,7 +26,12 @@ These rules apply to every change in this repository.
 
 ## MUST NOT
 
-1. MUST NOT force-push shared branches.
+1. MUST NOT force-push shared branches. `_check_non_fast_forward` in
+   `scripts/validation/git_hook_policy.py` enforces it by ancestry, since a
+   hook never sees argv. One escape is sanctioned: `FORCE_PUSH_OK=1`, for an
+   unshared branch or a `--force-with-lease` pinned to an observed remote SHA,
+   which `.github/scripts/safe_push_pr_branch.py` sets for you. It narrows one
+   guard and leaves the rest running, so it is not a MUST NOT 2 bypass. #4293.
 2. MUST NOT skip hooks or bypass signing. ADR-086 lines 95 to 98 enumerate five
    local bypasses and state that policy forbids using them to skip required
    checks: `git --no-verify`, `LEFTHOOK=0`, an overridden `LEFTHOOK_BIN`, a
