@@ -11,12 +11,11 @@ point. Import the class directly only from tests.
 
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 import tempfile
 import time
-from pathlib import Path
+from typing import cast
 
 from _copilot_cli_constants import (
     FOOTER_COLUMN,
@@ -28,7 +27,7 @@ from _copilot_cli_constants import (
     TRACE_LINE_PREFIXES,
     UNVERIFIED_MODEL_ENV,
 )
-from _eval_common import require_str_or_none
+from _copilot_cli_transcript import read_session_transcript
 
 __all__ = ["_CopilotCLIProvider"]
 
@@ -113,210 +112,19 @@ class _CopilotCLIProvider:
         self.system_fingerprint: str | None = None
 
     @classmethod
-    def _session_state_root(cls) -> Path:
-        override = os.environ.get(cls._SESSION_STATE_ENV)
-        if not override:
-            return Path.home() / ".copilot" / "session-state"
-        root = Path(override)
-        if not root.is_absolute():
-            # The CLI inherits this variable but runs with cwd set to a
-            # per-call sandbox, so it resolves a relative value there while
-            # this process resolves it here. The two never agree, so every
-            # transcript reads as missing, and that refusal blames the
-            # transcript and invites the opt-in that grades raw stdout. Name
-            # the real cause instead of failing the same way each call.
-            raise RuntimeError(
-                f"{cls._PROVIDER_LABEL} needs {cls._SESSION_STATE_ENV} to be "
-                f"absolute; got {override!r}, which the CLI resolves against a "
-                "per-call sandbox this process cannot read."
-            )
-        return root
-
-    @staticmethod
-    def _read_candidate(path: Path, since: float) -> str | None:
-        """Read one current transcript candidate, or skip an unusable file."""
-        try:
-            if path.stat().st_mtime < since:
-                return None
-            return path.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            return None
-
-    @staticmethod
-    def _parse_event(
-        line: str,
-    ) -> tuple[str, dict[str, object], dict[str, object]] | None:
-        """Return one object-shaped event and data mapping."""
-        try:
-            event = json.loads(line)
-        except json.JSONDecodeError:
-            return None
-        if not isinstance(event, dict):
-            return None
-        data = event.get("data")
-        if not isinstance(data, dict):
-            return None
-        kind = event.get("type")
-        if not isinstance(kind, str):
-            return None
-        return kind, data, event
-
-    @classmethod
-    def _read_assistant_message(
-        cls,
-        event: dict[str, object],
-        data: dict[str, object],
-    ) -> tuple[str, str | None] | None:
-        """Return accepted text and validated model metadata."""
-        if cls._is_subagent_message(event, data):
-            return None
-        content = data.get("content")
-        if not isinstance(content, str):
-            raise RuntimeError(
-                f"{cls._PROVIDER_LABEL} session transcript is malformed: "
-                "an assistant message carries content of type "
-                f"{type(content).__name__}, not text. Reading past it "
-                "would grade a truncated answer as whole, so the run is refused."
-            )
-        if not content.strip():
-            return None
-        spoke = require_str_or_none(data.get("model"), "model")
-        return content.strip(), spoke
-
-    @classmethod
-    def _read_matching_session(
-        cls,
-        raw: str,
-        sandbox: str,
-    ) -> tuple[str, str | None] | None:
-        """Read accepted assistant messages from one matching session."""
-        matched = False
-        message_models: list[str] = []
-        unattributed = False
-        chunks: list[str] = []
-        for raw_line in raw.splitlines():
-            parsed = cls._parse_event(raw_line.strip())
-            if parsed is None:
-                continue
-            kind, data, event = parsed
-            if kind == "session.start":
-                context = data.get("context")
-                cwd = context.get("cwd") if isinstance(context, dict) else None
-                if cwd != sandbox:
-                    return None
-                matched = True
-                continue
-            if kind != "assistant.message" or not matched:
-                continue
-            accepted = cls._read_assistant_message(event, data)
-            if accepted is None:
-                continue
-            content, spoke = accepted
-            chunks.append(content)
-            if spoke and spoke not in message_models:
-                message_models.append(spoke)
-            if not spoke:
-                unattributed = True
-        if not matched:
-            return None
-        return "\n\n".join(chunks), cls._model_that_spoke(
-            message_models, unattributed=unattributed
-        )
-
-    @classmethod
     def _read_session_transcript(
         cls, sandbox: str, *, since: float
     ) -> tuple[str, str | None] | None:
-        """Return ``(answer, model_actually_used)`` from the session event log.
-
-        The CLI writes one `events.jsonl` per session under its session-state
-        directory, where `assistant.message` carries the reply text and tool
-        calls sit in a sibling `toolRequests` field. Reading that is strictly
-        better than scraping stdout, where tool-call traces and the stats
-        footer are interleaved with the answer and have to be guessed apart.
-
-        Sessions are matched on `session.start.data.context.cwd`, which is the
-        unique temp directory this call created. That is race-free when several
-        models run at once, unlike picking the newest file. ``since`` bounds the
-        scan to logs touched by this call, so the cost does not grow with the
-        operator's session history.
-
-        Returns ``None`` when no matching session is found, which leaves the
-        caller on the stdout path. That path no longer grades silently: it
-        refuses a reply carrying tool traces, and refuses an unconfirmed model
-        unless the operator opts in, because the `model` field read here is the
-        only evidence about which model actually answered.
-
-        A matched session whose message content is not text raises instead of
-        returning ``None``. Skipping the message would grade a truncated answer
-        as whole. Returning ``None`` would report a log this reader could not
-        decode as a log that does not exist, and the operator who opted in to a
-        missing transcript did not opt in to a corrupt one. Absence and
-        corruption are different answers, so they take different exits.
-        """
-        root = cls._session_state_root()
-        try:
-            candidates = sorted(root.glob("*/events.jsonl"))
-        except OSError:
-            return None
-        for path in candidates:
-            raw = cls._read_candidate(path, since)
-            if raw is None:
-                continue
-            transcript = cls._read_matching_session(raw, sandbox)
-            if transcript is not None:
-                return transcript
-        return None
-
-    @staticmethod
-    def _is_subagent_message(
-        event: dict[str, object], data: dict[str, object]
-    ) -> bool:
-        """Say whether this message came from a sub-agent, not the model asked.
-
-        A sub-agent runs its own model and writes into the parent session's
-        log, so its text is internal working output that no user ever sees.
-        Joining it into the answer grades text the requested model did not
-        write, and its model would either taint the attribution or refuse a run
-        whose real answer was fine.
-
-        Two markers are available and either alone is enough: the CLI stamps
-        `agentId` on the event and `parentToolCallId` on the message. They
-        usually travel together but not always. One scan of 3777 session logs
-        found 2576 messages, across three sessions, carrying `agentId` alone,
-        and none carrying `parentToolCallId` alone. Requiring both, or reading
-        only the second, would have joined those 2576 into a graded answer. No
-        marker in that scan was null, so testing for the key and testing its
-        value agreed on every message.
-
-        The markers are not a proxy for the model field. In the same scan 36%
-        of marked messages named a model that an unmarked message in the same
-        log also used, so classifying by "ran a different model than the
-        primary" would have accepted tens of thousands of sub-agent messages.
-        """
-        return "agentId" in event or "parentToolCallId" in data
-
-    @staticmethod
-    def _model_that_spoke(
-        message_models: list[str], *, unattributed: bool
-    ) -> str | None:
-        """Return the single model that produced every accepted message.
-
-        `assistant.message` carries the model that generated that specific
-        text. The session's opening `selectedModel` does not: a
-        `session.model_change` event can supersede it mid-session, and it is
-        absent entirely from most observed session logs, so reading it would
-        both miss substitutions and refuse the common case.
-
-        Returns ``None`` unless exactly one model accounts for the whole
-        answer. More than one model means the answer is a blend that no single
-        model produced. ``unattributed`` means some message contributed text
-        while naming no model, so a second message naming one would otherwise
-        vouch for text it did not write.
-        """
-        if unattributed or len(message_models) != 1:
-            return None
-        return message_models[0]
+        """Return model-attributed text from this call session."""
+        return cast(
+            tuple[str, str | None] | None,
+            read_session_transcript(
+                sandbox,
+                since=since,
+                env_name=cls._SESSION_STATE_ENV,
+                provider_label=cls._PROVIDER_LABEL,
+            ),
+        )
 
     @classmethod
     def _is_footer_line(cls, line: str) -> bool:
