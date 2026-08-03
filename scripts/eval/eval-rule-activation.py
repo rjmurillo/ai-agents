@@ -44,11 +44,13 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import datetime
 import difflib
 import json
 import math
 import re
 import statistics
+import subprocess
 import sys
 import time
 from collections.abc import Callable, Iterator
@@ -2988,6 +2990,37 @@ def _process_one_rule(
     }, n_calls
 
 
+def _build_run_provenance() -> dict[str, Any]:
+    """Return git SHA, branch, and timestamp for the current run.
+
+    Failures are caught per field so a missing git binary or detached HEAD
+    does not abort an otherwise valid run. Unknown fields record None rather
+    than a fabricated value.
+    """
+    prov: dict[str, Any] = {
+        "timestamp_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "git_sha": None,
+        "git_branch": None,
+    }
+    try:
+        prov["git_sha"] = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        prov["git_branch"] = subprocess.check_output(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+    except Exception:  # noqa: BLE001
+        pass
+    return prov
+
+
 def main() -> int:
     args = _parse_args()
     if args.judge_repeats < 1:
@@ -3011,6 +3044,7 @@ def main() -> int:
 
     all_results: dict[str, Any] = {
         "schema_version": RESULTS_SCHEMA_VERSION,
+        "run": _build_run_provenance(),
         "rules": {},
     }
     state = _RunState()
