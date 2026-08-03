@@ -240,18 +240,18 @@ def detect_scope(base_branch: str = "main") -> ScopeResult | None:
         # only count files this PR actually touches relative to what is being
         # merged in.
         #
-        # Exception (Issue #4418): when MERGE_HEAD is an ancestor of the base
-        # branch, the branch is merging its own remote tip, not an upstream
-        # branch. MERGE_HEAD is *behind* main, so counting staged files against
-        # it inflates the count by every file main gained since that tip
-        # (observed: 635 reported when 17 were real). Fall through to the
+        # Exception (Issue #4418): when MERGE_HEAD is a proper ancestor of the
+        # base branch, the branch is merging its own old remote tip, not the
+        # upstream branch. MERGE_HEAD is behind main, so counting staged files
+        # against it inflates the count by every file main gained since that
+        # tip (observed: 635 reported when 17 were real). Fall through to the
         # normal merge-base path in this case.
-        if not is_ancestor(merge_head, base_ref):
+        base_commit = get_ref_commit(base_ref)
+        if merge_head == base_commit or not is_ancestor(merge_head, base_ref):
             files = sorted(set(get_index_files_against_ref(merge_head)))
-            base_commit = get_ref_commit(base_ref) or merge_head
             return ScopeResult(
                 file_count=len(files),
-                merge_base=base_commit[:12],
+                merge_base=(base_commit or merge_head)[:12],
                 current_branch=branch,
                 files=tuple(files),
             )
