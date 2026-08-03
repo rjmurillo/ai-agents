@@ -101,7 +101,10 @@ two of the three suspicious pairs there were parent and child.
 
 So the path above is not a suggestion. Any agent or script that pushes in this
 repo uses exactly `/tmp/push-lock-<branch-with-slashes-replaced-by-dashes>.lock`
-and nothing else. If you find another form in a prompt, a skill, or a memory,
+and nothing else. What is mandated is the exact *string*, not the directory:
+see "Every agent must name the lock identically" below for why, and for the
+conditions under which the directory should change. If you find another form in
+a prompt, a skill, or a memory,
 correct it rather than adding a third. Historical records are the exception:
 `.agents/retrospective/2026-07-31-test-infrastructure-cluster.md` records the
 older `/tmp/aiagents-push.lock` as what was running at the time, and a
