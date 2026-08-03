@@ -6,13 +6,23 @@
   "outcome": "success",
   "task": "Correct the session-4234 episode files_changed metric to match git ground truth for PR 4392",
   "decisions": [],
-  "events": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: c047cab62",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4392-episode-metric-correction"
+    }
+  ],
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 3
   },
   "lessons": []
