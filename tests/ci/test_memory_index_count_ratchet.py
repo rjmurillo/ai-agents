@@ -1,3 +1,5 @@
+# taste-lint: ignore file-size, this suite covers one ratchet end to end and its
+# fail-open cases are only meaningful next to the counts they contradict.
 """Tests for the unindexed-memory count ratchet (issue #4313).
 
 The subprocess fake dispatches on the argument vector rather than on call
