@@ -24,9 +24,7 @@
       "type": "milestone",
       "content": "Closed the 6-agent adr-review debate on the session-end lint scope",
       "caused_by": [],
-      "leads_to": [
-        "e008"
-      ],
+      "leads_to": [],
       "_source_session": "2026-08-02-session-4401-session-quirks"
     },
     {
@@ -35,9 +33,7 @@
       "type": "milestone",
       "content": "Measured the two-dot versus three-dot diff on a branch 7 commits behind main",
       "caused_by": [],
-      "leads_to": [
-        "e008"
-      ],
+      "leads_to": [],
       "_source_session": "2026-08-02-session-4401-session-quirks"
     },
     {
@@ -46,9 +42,7 @@
       "type": "milestone",
       "content": "Diagnosed an opaque 'Session End validation failed' from new_pr.py",
       "caused_by": [],
-      "leads_to": [
-        "e008"
-      ],
+      "leads_to": [],
       "_source_session": "2026-08-02-session-4401-session-quirks"
     },
     {
@@ -57,9 +51,7 @@
       "type": "milestone",
       "content": "Checked the fix was safe before moving the ref",
       "caused_by": [],
-      "leads_to": [
-        "e008"
-      ],
+      "leads_to": [],
       "_source_session": "2026-08-02-session-4401-session-quirks"
     },
     {
@@ -68,9 +60,7 @@
       "type": "milestone",
       "content": "Chose the persistence surface for each finding rather than defaulting to a new memory file",
       "caused_by": [],
-      "leads_to": [
-        "e008"
-      ],
+      "leads_to": [],
       "_source_session": "2026-08-02-session-4401-session-quirks"
     },
     {
@@ -79,9 +69,7 @@
       "type": "milestone",
       "content": "Dispatched cross-family adversarial review",
       "caused_by": [],
-      "leads_to": [
-        "e008"
-      ],
+      "leads_to": [],
       "_source_session": "2026-08-02-session-4401-session-quirks"
     },
     {
@@ -90,38 +78,24 @@
       "type": "milestone",
       "content": "Applied the cross-family review findings on the memory append",
       "caused_by": [],
-      "leads_to": [
-        "e008"
-      ],
+      "leads_to": [],
       "_source_session": "2026-08-02-session-4401-session-quirks"
     },
     {
       "id": "e008",
-      "timestamp": "2026-08-03T05:26:51+00:00",
+      "timestamp": "2026-08-02T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 4d43af4d6",
-      "caused_by": [
-        "e001",
-        "e002",
-        "e003",
-        "e004",
-        "e005",
-        "e006",
-        "e007"
-      ],
-      "leads_to": [
-        "e009"
-      ],
+      "caused_by": [],
+      "leads_to": [],
       "_source_session": "2026-08-02-session-4401-session-quirks"
     },
     {
       "id": "e009",
-      "timestamp": "2026-08-03T06:25:29+00:00",
+      "timestamp": "2026-08-02T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 0e55194e2",
-      "caused_by": [
-        "e008"
-      ],
+      "caused_by": [],
       "leads_to": [],
       "_source_session": "2026-08-02-session-4401-session-quirks"
     }
@@ -132,7 +106,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 2,
-    "files_changed": 2
+    "files_changed": 3
   },
   "lessons": []
 }

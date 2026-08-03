@@ -150,7 +150,6 @@
   ],
   "endingCommit": "0e55194e2",
   "nextSteps": [
-    "Record the ending commit in a follow-up commit, never by amending the commit that carries this log.",
     "Issue #4401 tracks the ADR-043 correction note."
   ]
 }

@@ -129,8 +129,9 @@ Refs #3618.
 
 ## The same `endingCommit` error also fires when you never amended anything
 
-The tell is that the SHA in the message is one you have never seen, and the log
-it came from is not yours.
+The tell is that the log it validated is not yours. Do not rely on the
+push-hook summary to name the SHA. It may only show the broad Session End
+failure line below.
 
 `new_pr.py --base` defaults to the **local** `main` ref, not `origin/main`, and
 uses it for both the PR target and the changed-file set. A stale local `main`
