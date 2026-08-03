@@ -249,7 +249,7 @@ jobs:
       # the actors who author workflow changes is weaker than the hook it
       # backstops, not equal to it.
       - name: Run ADR-006 run-block ratchet
-        run: python3 scripts/ci/adr006_run_block_scanner.py --max 58
+        run: python3 scripts/ci/adr006_run_block_scanner.py --max 0
 
       # Issue #3779: taste-lints emits severity="error" and nothing could fail
       # because of one. The linter itself is correct (it exits 10 on an error),
