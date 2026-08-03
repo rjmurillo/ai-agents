@@ -175,11 +175,39 @@ class TestMain:
         result = main(["--path", str(tmp_path), "--ci"])
         assert result == 1
 
-    def test_over_limit_no_ci_exits_0(self, tmp_path: Path) -> None:
+    def test_over_limit_no_ci_exits_0(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Advisory mode is the absence of CI, so the test has to remove it.
+
+        ``--ci`` defaults to ``os.environ.get("CI", "").lower() in ("true", "1")``
+        in ``scripts/validation/command_size.py``, so this case is only "no CI"
+        when the variable is unset. GitHub Actions sets ``CI=true`` on every
+        runner, so the assertion passed on a developer machine and failed on the
+        runner: one commit, two answers, and a report naming a pytest temp file
+        no contributor could match to a change.
+        """
+        monkeypatch.delenv("CI", raising=False)
         f = tmp_path / "big.md"
         f.write_text(_GOOD_FRONTMATTER + _body(COMMAND_SIZE_LIMIT + 50))
         result = main(["--path", str(tmp_path)])
         assert result == 0
+
+    @pytest.mark.parametrize("ci_value", ["true", "TRUE", "1"])
+    def test_ci_env_alone_exits_1(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ci_value: str
+    ) -> None:
+        """The env default is the contract, not an accident, so pin it too.
+
+        Deleting ``CI`` above would otherwise leave the env-driven branch of the
+        ``--ci`` default untested, and a later change that dropped the env
+        lookup would make every CI run of this validator advisory without
+        failing a test.
+        """
+        monkeypatch.setenv("CI", ci_value)
+        f = tmp_path / "big.md"
+        f.write_text(_GOOD_FRONTMATTER + _body(COMMAND_SIZE_LIMIT + 50))
+        assert main(["--path", str(tmp_path)]) == 1
 
     def test_env_ci_true_blocks_without_the_flag(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
