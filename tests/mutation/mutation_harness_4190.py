@@ -22,6 +22,9 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 _TARGET = _REPO_ROOT / "scripts" / "security" / "run_semgrep.py"
 _TESTS = [
     "tests/test_run_semgrep_pinning.py",
+    # Covers the exec-fault handler in _run_semgrep, whose mutant below is
+    # invisible to the pinning tests.
+    "tests/test_run_semgrep.py",
 ]
 
 
@@ -81,6 +84,17 @@ def run_mutants() -> None:
             "weaken version regex to match any semgrep line",
             b'        r\'^\\s*"semgrep==([^"]+)",\\s*$\',',
             b'        r\'"semgrep==([^"]+)",\',  # MUTANT-DELETED-4190',
+        ),
+        (
+            "flip the platform mapping for the venv sibling filename",
+            b'sibling_name = "semgrep.exe" if os.name == "nt" else "semgrep"',
+            b'sibling_name = "semgrep" if os.name == "nt" else "semgrep.exe"'
+            b"  # MUTANT-DELETED-4190",
+        ),
+        (
+            "drop OSError from the scan spawn failure handler",
+            b"        except (subprocess.SubprocessError, OSError) as e:",
+            b"        except subprocess.SubprocessError as e:  # MUTANT-DELETED-4190",
         ),
         (
             "suppress _SemgrepExecutableError on no PATH semgrep",
