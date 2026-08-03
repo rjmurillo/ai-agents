@@ -1043,6 +1043,13 @@ def main() -> int:
     if args.changed_only and args.base:
         base_assessments = _get_base_assessments(files, args.base, args.context)
         exit_code = check_regressions(assessments, base_assessments)
+        if exit_code == 0:
+            new_assessments = [
+                assessment
+                for assessment in assessments
+                if str(assessment.file_path) not in base_assessments
+            ]
+            exit_code = check_thresholds(new_assessments, config, args.context)
     else:
         exit_code = check_thresholds(assessments, config, args.context)
 

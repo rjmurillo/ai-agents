@@ -11,9 +11,8 @@ Test strategy
 - Unit-test ``check_regressions`` directly using hand-crafted
   ``FileAssessment`` instances whose values are literals, not derived from
   the code under test.
-- Integration-test ``main()`` via ``subprocess.run`` with a real Python file
-  that is over the LOC-based threshold but has a better score at HEAD than
-  at BASE.  The git layer is mocked so the test is hermetic.
+- Unit-test the ``main`` branch point so changed existing files use regression
+  mode and new files still use the absolute threshold gate.
 
 Platform note: all tests run on Linux.  The ``git show`` subprocess in
 ``_get_base_assessments`` is mocked; no real git repo is required.
@@ -24,6 +23,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 from unittest.mock import patch
+
+import pytest
 
 # sys.path manipulation is required before the assess import.  The skill's
 # scripts directory is not on sys.path by default.
@@ -42,6 +43,9 @@ from assess import (
     QualityScore,
     check_regressions,
     check_thresholds,
+)
+from assess import (
+    main as assess_main,
 )
 
 # ---------------------------------------------------------------------------
@@ -166,6 +170,42 @@ class TestCheckThresholdsStillAbsolute:
             non_redundancy=9.0,
         )
         assert check_thresholds([assessment], config, "production") == 0
+
+    def test_regression_mode_applies_thresholds_to_new_files(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        new_file = _make_assessment("new/file.py", cohesion=5.0)
+        seen: list[list[FileAssessment]] = []
+
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "assess.py",
+                "--target",
+                ".",
+                "--changed-only",
+                "--base",
+                "origin/main",
+                "--format",
+                "json",
+            ],
+        )
+        monkeypatch.setattr("assess.get_files_to_assess", lambda *_args: [Path("new/file.py")])
+        monkeypatch.setattr("assess.assess_file", lambda *_args: new_file)
+        monkeypatch.setattr("assess._get_base_assessments", lambda *_args: {})
+        monkeypatch.setattr("assess.check_regressions", lambda *_args: 0)
+
+        def fake_check_thresholds(
+            assessments: list[FileAssessment], _config: dict[str, object], _context: str
+        ) -> int:
+            seen.append(assessments)
+            return 11
+
+        monkeypatch.setattr("assess.check_thresholds", fake_check_thresholds)
+
+        assert assess_main() == 11
+        assert seen == [[new_file]]
 
 
 # ---------------------------------------------------------------------------

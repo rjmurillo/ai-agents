@@ -118,8 +118,8 @@ def _gh_base_ref(repo_root: Path) -> str | None:
         )
         if up_rc == 0 and up_out.strip() and "@{" not in up_out:
             upstream = up_out.strip()
-            # upstream is typically "origin/<branch>"; strip the remote prefix
-            head_branch = upstream.removeprefix("origin/")
+            # upstream is typically "<remote>/<branch>"; strip any remote prefix.
+            head_branch = upstream.split("/", 1)[1] if "/" in upstream else upstream
             exit_code, stdout, _ = _run_subprocess(
                 [
                     "gh",

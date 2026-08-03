@@ -37,7 +37,7 @@ if sys.platform == "win32":
 
     def _lock_file(fd: int) -> None:
         """Acquire an exclusive lock on an open file descriptor (Windows)."""
-        msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
+        msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
 
     def _unlock_file(fd: int) -> None:
         """Release the lock on an open file descriptor (Windows)."""
