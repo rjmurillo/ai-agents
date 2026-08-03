@@ -83,11 +83,10 @@ _MEMORIES_DIR = ".serena/memories"
 _WARNING_PREFIX = "WARNING: "
 
 # ``validate_memory_tier.py`` prints one ``WARNING: `` line per warning and then
-# declares the total. Matching both and requiring them to agree is what makes a
-# format change loud (see ``_warning_lines``).
-_SUMMARY_RE = re.compile(
-    r"^Memory tier validation passed\. (\d+) warning\(s\)\.$", re.MULTILINE
-)
+# declares the total on the final line. The whole of stdout is parsed as that
+# grammar, so anything else is rejected rather than partially understood (see
+# ``_warning_lines``).
+_SUMMARY_RE = re.compile(r"Memory tier validation passed\. (\d+) warning\(s\)\.")
 
 
 def _warning_lines(repo_root: Path) -> list[str] | None:
@@ -101,13 +100,20 @@ def _warning_lines(repo_root: Path) -> list[str] | None:
     A clean exit is not enough on its own. If the validator ever renames its
     ``WARNING: `` prefix or routes warnings to stderr, prefix matching finds
     nothing while the exit code stays 0, and the ratchet reports a healthy zero
-    for a tree carrying hundreds of violations. So the parsed count is
-    cross-checked against the total the validator declares in its own summary
-    line, which is a second signal that a format change cannot move in step.
-    Disagreement means the output is no longer understood, which is an external
-    error, not a count. A multi-line warning body would also trip this; that is
-    the intended direction, because it fails loudly and names the cause instead
-    of silently under-counting.
+    for a tree carrying hundreds of violations. So the whole of stdout is parsed
+    as a strict grammar instead: the last non-empty line must be the summary,
+    every line before it must carry the ``WARNING: `` prefix, and the count of
+    those lines must equal the total the summary declares.
+
+    Parsing the whole output rather than searching it is what closes two
+    fail-open holes. Searching for the summary anywhere accepts the first match,
+    so a stale or duplicated summary printed before the real one supplies the
+    count while the real result is ignored. And a warning body containing a
+    newline splits into one prefixed line and one bare continuation, which the
+    count cross-check alone cannot see because both the declared and the parsed
+    totals stay equal. Requiring every non-final line to carry the prefix
+    catches the continuation; requiring the summary to be last catches the
+    stale duplicate. Any deviation is an external error, not a count.
     """
     validator = repo_root / _VALIDATOR
     if not validator.is_file():
@@ -133,19 +139,26 @@ def _warning_lines(repo_root: Path) -> list[str] | None:
         )
         sys.stderr.write(proc.stdout[-4000:])
         return None
-    declared = _SUMMARY_RE.search(proc.stdout)
+    lines = [line for line in proc.stdout.splitlines() if line.strip()]
+    declared = _SUMMARY_RE.fullmatch(lines[-1]) if lines else None
     if declared is None:
         sys.stderr.write(
-            "memory tier validator exited 0 without its summary line, so its "
-            "output format is no longer the one this ratchet parses. Update "
-            f"{Path(__file__).name} to match it rather than trusting the count.\n"
+            "memory tier validator exited 0 without ending in its summary line, "
+            "so its output format is no longer the one this ratchet parses. "
+            f"Update {Path(__file__).name} to match it rather than trusting the "
+            "count.\n"
         )
         return None
-    warnings = [
-        line[len(_WARNING_PREFIX):].strip()
-        for line in proc.stdout.splitlines()
-        if line.startswith(_WARNING_PREFIX)
-    ]
+    body = lines[:-1]
+    stray = next((line for line in body if not line.startswith(_WARNING_PREFIX)), None)
+    if stray is not None:
+        sys.stderr.write(
+            "memory tier validator printed a line that is neither a "
+            f"{_WARNING_PREFIX!r} warning nor its summary: {stray!r}. The output "
+            f"format changed; update {Path(__file__).name} to match it.\n"
+        )
+        return None
+    warnings = [line[len(_WARNING_PREFIX):].strip() for line in body]
     if len(warnings) != int(declared.group(1)):
         sys.stderr.write(
             f"memory tier validator declared {declared.group(1)} warnings but "

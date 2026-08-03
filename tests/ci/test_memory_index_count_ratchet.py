@@ -42,6 +42,7 @@ def _fake(
     validator_rc: int = 0,
     git_rc: int = 0,
     extra_stdout: str = "",
+    leading_stdout: str = "",
     declared: int | None = None,
     omit_summary: bool = False,
     warning_prefix: str = "WARNING: ",
@@ -55,17 +56,20 @@ def _fake(
     def _run(cmd, **kwargs):
         argv = [str(part) for part in cmd]
         if "ls-files" in argv:
-            # Assert the pathspec, not just the subcommand. Without this a glob
-            # mutation (".serena/memories/**" -> "*.py") empties the tracked set,
-            # the ratchet reports zero violations, and every count test still
-            # passes. Terra's adversarial review found that fail-open hole.
-            assert f"{ratchet._MEMORIES_DIR}/**" in argv, (
-                f"git ls-files must scope to the memories tree, got: {argv}"
+            # Assert the complete pathspec, not membership. Membership alone
+            # still passes when a mutation ADDS an exclusion pathspec
+            # (":(exclude).serena/memories/**"), which empties the tracked set
+            # and reports zero violations. Terra's adversarial review found both
+            # the missing-glob and the added-exclusion shapes of this hole.
+            assert argv[argv.index("--") + 1:] == [f"{ratchet._MEMORIES_DIR}/**"], (
+                f"git ls-files must scope to exactly the memories tree, got: {argv}"
             )
             stdout = "".join(f".serena/memories/{name}\0" for name in tracked)
             return subprocess.CompletedProcess(cmd, git_rc, stdout=stdout, stderr="")
         if str(ratchet._VALIDATOR) in argv:
-            body = "".join(f"{warning_prefix}{w}\n" for w in warnings) + extra_stdout
+            body = leading_stdout + "".join(
+                f"{warning_prefix}{w}\n" for w in warnings
+            ) + extra_stdout
             if not omit_summary:
                 total = len(warnings) if declared is None else declared
                 body += f"Memory tier validation passed. {total} warning(s).\n"
@@ -106,14 +110,80 @@ class TestCurrentCount:
         monkeypatch.setattr(subprocess, "run", _fake(warnings=()))
         assert ratchet.current_count(_repo(tmp_path)) == 0
 
-    def test_ignores_output_lines_that_are_not_warnings(
+    def test_rejects_output_lines_that_are_neither_warning_nor_summary(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        """Unrecognized stdout is an external error, not a count.
+
+        Ignoring stray lines is the fail-open direction: it lets a partially
+        understood format produce a number the ratchet then trusts. Rejecting
+        names the drift instead.
+        """
         monkeypatch.setattr(
             subprocess,
             "run",
             _fake(extra_stdout="Scanned 896 files\nSummary: 1 warning\n"),
         )
+        assert ratchet.current_count(_repo(tmp_path)) is None
+
+    def test_rejects_summary_that_is_not_the_final_line(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A stale summary printed before the real one must not supply the count.
+
+        Searching stdout for the summary accepts the first match. A leading
+        ``0 warning(s).`` line then agrees with zero parsed warnings above it,
+        so the cross-check passes and the ratchet reports a false zero while the
+        real trailing summary is ignored.
+        """
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            _fake(leading_stdout="Memory tier validation passed. 0 warning(s).\n"),
+        )
+        assert ratchet.current_count(_repo(tmp_path)) is None
+
+    def test_rejects_warning_body_containing_a_newline(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A wrapped warning must not silently halve the count.
+
+        The continuation line carries no prefix, so prefix counting sees one
+        warning and the summary declares one. The counts agree and the drift is
+        invisible to the cross-check alone.
+        """
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            _fake(warnings=("nested/\nfile.md: not referenced by any domain index",)),
+        )
+        assert ratchet.current_count(_repo(tmp_path)) is None
+
+    def test_rejects_summary_text_embedded_in_a_warning_body(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The summary must be read from the final line, not found anywhere.
+
+        Searching all of stdout matches the summary wherever it appears,
+        including inside a warning body. The declared total then comes from
+        attacker- or drift-controlled text rather than the validator's own
+        result. Reading only the final line makes that unreachable.
+        """
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            _fake(
+                warnings=(
+                    "Memory tier validation passed. 0 warning(s).",
+                    ATOMIC_WARNING,
+                ),
+                declared=2,
+            ),
+        )
+        # Only the tracked memory survives the tracked-file filter, so the
+        # healthy answer is 1. Under a search-anywhere mutation the declared
+        # total is read as 0 from inside the first warning body, disagrees with
+        # the 2 parsed lines, and the scan is rejected as unreadable instead.
         assert ratchet.current_count(_repo(tmp_path)) == 1
 
     def test_untracked_memory_is_not_counted(
@@ -337,20 +407,28 @@ class TestWindowsPathSeparators:
     def test_windows_subject_still_honours_priority_paths(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        """A Windows-shaped subject must still sort into the priority band.
+
+        The non-priority warning is emitted FIRST and the complete order is
+        asserted. Pairing the Windows warning with a priority warning naming the
+        same file would not discriminate: both land in the same band whether or
+        not separators are normalized, so the order never changes and a lost
+        normalization passes.
+        """
+        other = "topic/unrelated.md: not referenced by any domain index"
         monkeypatch.setattr(
             subprocess,
             "run",
             _fake(
-                warnings=(ATOMIC_WARNING, self.WINDOWS_WARNING),
-                tracked=("git/rebase-costs.md",),
+                warnings=(other, self.WINDOWS_WARNING),
+                tracked=("git/rebase-costs.md", "topic/unrelated.md"),
             ),
         )
         violations = ratchet.list_violations(
             _repo(tmp_path),
             frozenset({".serena/memories/git/rebase-costs.md"}),
         )
-        assert violations is not None
-        assert violations[0] == ATOMIC_WARNING
+        assert violations == [self.WINDOWS_WARNING, other]
 
     def test_untracked_windows_subject_is_still_excluded(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
