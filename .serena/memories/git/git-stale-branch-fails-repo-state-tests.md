@@ -150,12 +150,17 @@ rather than a file list:
 
 ```
 .md         9     83516     83000     21998   100.6%    FAIL
-FAIL: One or more languages exceed the always-on instruction ceiling.
 ```
 
-A percentage reads as a property of your branch's content. It is a property of
-the corpus, and the corpus is whatever your branch last saw. Measured
-2026-08-03 on a branch 9 commits behind whose entire diff was two
+A percentage reads as a verdict on your branch's content. It is a ratio, and
+both sides of it live in the tree, so either side can move underneath you. Here
+the numerator did not move at all: the corpus measured 83516 bytes on the stale
+branch and 83516 bytes after merging `main`. The ceiling moved, from 83000 to
+84000, and the same corpus went from 100.6% FAIL to 99.4% PASS with no content
+change. Read the raw columns, not the percentage. When the measured size is
+identical across the merge, the branch was never the cause.
+
+Measured 2026-08-03 on a branch 9 commits behind whose entire diff was two
 `.serena/memories/*.md` files, which are not always-on instructions and cannot
 move that total: `pre_pr.py` on `origin/main` reported `All validations passed`,
 the same command on the stale branch failed Count Ratchets, Skill Markdown
@@ -165,6 +170,12 @@ three with no other edit.
 Run `pre_pr.py` on current `main` first whenever a gate fails on a branch whose
 diff plausibly cannot reach it. Main passing and the branch failing localizes
 the cause to the branch's age in one command, before you read any diagnostic.
+
+While a fleet is merging, this expires fast. On 2026-08-03 a branch went from
+merged-with-main to 8 commits behind, with the taste baseline moved from 597 to
+596, during the 7 minutes one `pre_pr.py` run took. Merge `main` immediately
+before the push, then re-check only the gates that failed, which costs about 30
+seconds, rather than paying another 25 minute push to find out.
 
 The tell in all four: the named files or numbers have nothing to do with your
 diff. Before reading one line of the diagnostic, run:
