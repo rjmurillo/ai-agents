@@ -21,7 +21,14 @@ from scripts.validation.checks_spec import validate_rule_activation_coverage
 from scripts.validation.pre_pr import MissingScriptSkip
 
 GATE_SOURCE = Path(gate.__file__).resolve()
+_VALIDATION_DIR = GATE_SOURCE.parent
 POSITIVE_PROMPT = "Fix the token expiration bug in auth.py before it ships."
+
+# Modules that check_rule_activation_coverage.py imports at runtime via
+# sys.path.insert(0, script_dir) -- must be copied alongside the gate script.
+_RUNTIME_DEPS = [
+    "portability_baseline.py",
+]
 
 
 def _build_repo(root: Path, *, with_script: bool = True) -> Path:
@@ -59,6 +66,8 @@ def _build_repo(root: Path, *, with_script: bool = True) -> Path:
     validation_dir.mkdir(parents=True)
     if with_script:
         shutil.copy(GATE_SOURCE, validation_dir / GATE_SOURCE.name)
+        for dep in _RUNTIME_DEPS:
+            shutil.copy(_VALIDATION_DIR / dep, validation_dir / dep)
     baseline = validation_dir / gate.DEFAULT_BASELINE_NAME
     baseline.write_text(
         json.dumps(gate.build_baseline_payload(set(), set())), encoding="utf-8"
