@@ -175,7 +175,7 @@ class TestCheckGhAuth:
 class TestAssertGhAuthenticatedExitCodes:
     def test_success_does_not_exit(self):
         with patch("subprocess.run", return_value=_completed(rc=0)):
-            assert_gh_authenticated() is None
+            assert assert_gh_authenticated() is None
 
     @pytest.mark.parametrize("body", [REST_503, REST_403_QUOTA, SECONDARY_LIMIT])
     def test_upstream_conditions_exit_3(self, body, capsys):
