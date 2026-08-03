@@ -36,6 +36,10 @@ def make_repo(tmp_path: Path, files: dict[str, str]) -> Path:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    # CI runners carry no global git identity, so a commit here exits 128 there
+    # while passing locally. Configure the temp repo instead of inheriting.
+    for key, value in (("user.email", "test@example.invalid"), ("user.name", "Test")):
+        subprocess.run(["git", "config", key, value], cwd=tmp_path, check=True)
     subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
     return tmp_path
 
