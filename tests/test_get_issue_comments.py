@@ -255,3 +255,49 @@ class TestMain:
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-v"]))
+
+
+class TestNormalizePreservesIds:
+    """Issue #4378: id and node_id must be preserved in normalized output."""
+
+    def test_id_and_node_id_preserved(self, capsys):
+        page = [{
+            "user": {"login": "alice"},
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T00:00:00Z",
+            "body": "hello",
+            "html_url": "https://github.com/o/r/issues/1#c1",
+            "id": 123456789,
+            "node_id": "IC_abc123",
+        }]
+        with patch("get_issue_comments.assert_gh_authenticated"), \
+             patch("get_issue_comments.resolve_repo_params",
+                   return_value=type("R", (), {"owner": "o", "repo": "r"})()) , \
+             patch("subprocess.run",
+                   return_value=_completed(stdout=json.dumps([page]), rc=0)):
+            rc = main(["--issue", "1"])
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        comment = out["Data"]["comments"][0]
+        assert comment["id"] == 123456789
+        assert comment["node_id"] == "IC_abc123"
+
+    def test_missing_id_yields_none(self, capsys):
+        page = [{
+            "user": {"login": "alice"},
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T00:00:00Z",
+            "body": "hello",
+            "html_url": "https://github.com/o/r/issues/1#c1",
+        }]
+        with patch("get_issue_comments.assert_gh_authenticated"), \
+             patch("get_issue_comments.resolve_repo_params",
+                   return_value=type("R", (), {"owner": "o", "repo": "r"})()) , \
+             patch("subprocess.run",
+                   return_value=_completed(stdout=json.dumps([page]), rc=0)):
+            rc = main(["--issue", "1"])
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        comment = out["Data"]["comments"][0]
+        assert comment["id"] is None
+        assert comment["node_id"] is None

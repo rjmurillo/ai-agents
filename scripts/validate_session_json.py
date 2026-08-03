@@ -112,13 +112,24 @@ _SHA_RE = re.compile(r"\b[0-9a-f]{7,40}\b")
 # on". Both spellings appear across the corpus.
 _BRANCH_EVIDENCE_ITEMS = ("branchVerified", "notOnMain", "verifyBranch")
 
-# Minimum required session start items (must exist in every session log)
+# Minimum required session start items (must exist in every session log).
+#
+# Kept in lockstep with every item ``new_session_log_json.py`` emits at
+# ``"level": "MUST"``. Four MUST items were absent from this set (issue #4405),
+# which made the gate strictly easier to satisfy by deleting a checklist item
+# than by completing it: a deleted key was silent, an incomplete key failed.
+# ``test_every_generator_must_item_is_required`` pins the two lists together so
+# this cannot drift again the next time an item is added to either side.
 SESSION_START_REQUIRED_ITEMS = frozenset(
     {
         "serenaActivated",
         "serenaInstructions",
         "handoffRead",
         "sessionLogCreated",
+        "skillScriptsListed",
+        "usageMandatoryRead",
+        "constraintsRead",
+        "memoriesLoaded",
         "branchVerified",
         "notOnMain",
     }
@@ -663,6 +674,29 @@ def validate_evidence_agrees_with_session(data: dict[str, Any], result: Validati
                 f"likely first: {causes}. Record the SHA in a follow-up "
                 "commit (issue #3618)"
             )
+
+    # A session that committed cannot have its base equal its tip. When the log
+    # is written after the work commit, startingCommit captures HEAD as it
+    # already stands, so the two fields hold the same SHA. The episode extractor
+    # excludes the base commit by design, so the session's only commit vanishes
+    # and the episode records metrics.commits 0. The episode-store ratchet then
+    # blocks the push naming the episode, several steps from the wrong field.
+    # Reject the bad input here instead, where the field is (issue #4415).
+    if (
+        claims_commit
+        and ending
+        and isinstance(starting, str)
+        and len(starting) >= _SHORT_SHA
+        and _same_commit(ending, starting)
+    ):
+        result.errors.append(
+            f"startingCommit and endingCommit are the same commit ({ending!r}) while "
+            "changesCommitted is complete; a session's base cannot also be its tip. "
+            "The log was most likely created after the work commit, so startingCommit "
+            "captured HEAD rather than the base. Set startingCommit to the parent of "
+            "the session's first commit. Left as-is, the extracted episode records "
+            "metrics.commits 0 and the episode-store ratchet blocks the push (issue #4415)"
+        )
 
     if "nextSteps" not in data:
         result.warnings.append(

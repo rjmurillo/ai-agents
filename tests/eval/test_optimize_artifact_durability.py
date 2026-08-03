@@ -26,6 +26,8 @@ from types import SimpleNamespace
 
 import pytest
 
+pytestmark = pytest.mark.windows_path
+
 _EVAL_DIR = Path(__file__).resolve().parents[2] / "scripts" / "eval"
 # Scope the sys.path mutation to the module load and remove it afterward so it
 # does not leak into other tests (mirrors tests/eval/test_optimize_artifact_cli.py).

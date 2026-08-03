@@ -1,0 +1,128 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4412,
+    "date": "2026-08-02",
+    "branch": "docs/gotchas-spec-gate-snippet",
+    "startingCommit": "29f958956",
+    "objective": "Make the spec-coverage gotcha greppable by quoting what the gate actually prints."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "complete": false,
+        "evidence": "Serena MCP tools were not exposed in this harness; read .serena/memories/linting/linting-exclusions.md directly from the tree instead."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "complete": false,
+        "evidence": "Tool unavailable in this harness; used the file-tree fallback documented in AGENTS.md."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Read .agents/HANDOFF.md at session start."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "This file, .agents/sessions/2026-08-02-session-4412-gotchas-spec-gate-snippet.json."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "git branch --show-current returned docs/gotchas-spec-gate-snippet in the wt-gotcha worktree."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Branch created with git switch -c off origin/main; main is not checked out in this worktree."
+      }
+    },
+    "sessionEnd": {
+      "validationRun": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "uv run --frozen python scripts/validation/pre_pr.py run before commit."
+      },
+      "sessionLogValidated": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "uv run --frozen python scripts/validate_session_json.py .agents/sessions/2026-08-02-session-4412-gotchas-spec-gate-snippet.json returned exit 0."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Did not edit .agents/HANDOFF.md."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "complete": true,
+        "evidence": "The genuinely new fact, that --no-globs does not disable ignores, was added to .serena/memories/linting/linting-exclusions.md on branch docs/memory-markdownlint-empty-scope rather than duplicated here."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "pre_pr.py reported no BLOCKING findings for this branch."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "GOTCHAS.md, the memory episode, and this session log were committed together in 1654e6bda62492248e8f043f38182a40aadf1a4b."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Scoped markdownlint ran over the one changed markdown file via the pre-commit hook group."
+      },
+      "checklistComplete": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "The GOTCHAS.md ratchet and spec-gate snippets were corrected, reviewed against source, and committed in 1654e6bda62492248e8f043f38182a40aadf1a4b."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-08-02T17:40:00-07:00",
+      "action": "checked an existing branch for redundancy before opening a PR",
+      "evidence": "wt-gotcha carried three commits. Comparing its GOTCHAS.md headings against origin/main showed no difference, and e6c387ff2 had already merged the same two entries. Only a snippet reformat remained unmerged, and that reformat produced an unbalanced JSON object inside a ```json fence."
+    },
+    {
+      "time": "2026-08-02T17:48:00-07:00",
+      "action": "verified what the gate actually prints instead of trusting either version",
+      "evidence": "scripts/quality_gate/external_signal_gate.py line 110 builds aggregator_argv as ['--json'], so gate_aggregator.main always takes the JSON branch at line 155 and prints json.dumps(payload, indent=2). The payload keys are verdict, reason, and signals."
+    },
+    {
+      "time": "2026-08-02T17:52:00-07:00",
+      "action": "established that the merged snippet cannot be found by grep",
+      "evidence": "GOTCHAS.md quoted 'verdict: NEEDS_REVIEW   reason: closed-loop:external-signal-inconclusive' as one lowercase prose line. Real output is indented, quoted JSON keys on separate lines. A reader searching CI logs for the documented string finds nothing, which defeats the entry."
+    },
+    {
+      "time": "2026-08-02T17:58:00-07:00",
+      "action": "quoted the two lines a reader will actually search for",
+      "evidence": "Replaced the prose line with the verbatim JSON key lines in a text fence, and said in the lead-in that the gate prints JSON so the reader greps quoted keys. A text fence avoids claiming a truncated object parses as JSON, which the abandoned reformat did."
+    },
+    {
+      "time": "2026-08-02T18:02:00-07:00",
+      "action": "started from origin/main rather than salvaging the stale branch",
+      "evidence": "git switch -c docs/gotchas-spec-gate-snippet origin/main. Rebasing a branch whose commits were already merged risks conflicts and replays content that is on main, so a fresh branch keeps the diff to the one hunk that is genuinely new."
+    },
+    {
+      "timestamp": "2026-08-03T00:10:00Z",
+      "action": "Added a GOTCHAS section for the count ratchets blocking a branch that is behind origin/main, measured after a 22-minute push failure.",
+      "outcome": "Verified this is a different mechanism from the existing per-file mypy/ruff ratchet section: quoted the real BASELINE ABOVE BASE string from scripts/ci/count_ratchet.py:330, and timed the four gates locally at 2 seconds"
+    },
+    {
+      "timestamp": "2026-08-03T01:00:00Z",
+      "action": "Cross-family adversarial review on gpt-5.6-terra returned 2 High, 2 Medium, 1 Low against the first draft of the ratchet section. Verified every finding against source and adopted all five.",
+      "outcome": "High: the ratchets sit in the same parallel:true group as python-tests, so the 'runs after the suite' ordering claim was false; reworded to the wait, with the measured 946s vs 2.6s split. High: the quoted failure text mixed baseline and measured count into one placeholder, a combination the code cannot emit; replaced with real output generated by calling _above_base_message directly. Medium: gate_aggregator has a reachable prose path when run by hand, so the JSON claim is now scoped to the spec wrapper. Medium: amending is safe whenever the recorded SHA stays an ancestor, not only at HEAD~1. Low: ruff_count_ratchet needs --extra dev to match the hook"
+    }
+  ],
+  "nextSteps": [
+    "Open the PR for this one-hunk documentation correction.",
+    "Delete the superseded docs/gotchas-* branch once this lands; two of its three commits are already on main as e6c387ff2."
+  ],
+  "endingCommit": ""
+}

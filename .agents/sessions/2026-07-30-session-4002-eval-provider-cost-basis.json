@@ -1,0 +1,264 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4002,
+    "date": "2026-07-30",
+    "branch": "fix/eval-provider-cost-basis",
+    "startingCommit": "9ea1bea51",
+    "objective": "Fix issue 4002: eval-agent-vs-baseline --provider is a dead flag because the plan-time USD gate rejects every model absent from the Anthropic-only pricing table, before any provider dispatch"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP tools were not exposed in this harness inventory. Fell back to the documented path: read .claude/rules, AGENTS.md, and .agents/governance/PROJECT-CONSTRAINTS.md directly."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Fallback path used per AGENTS.md Serena Init. Repository rules read from .claude/rules/*.md before editing."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read and left unmodified. Issue 4002 filed from a reproduced plan-time failure before any edit."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub skill used for issue creation. security-review and doubt-driven-development skills active."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill-first routing honored: issue filed through the GitHub skill rather than ad hoc gh scripting."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md, .claude/rules/testing.md, and .claude/rules/ci-scripts.md read. scripts/eval is a cost-reporting path, so the external-claims rule against inventing third-party prices applies directly to this fix."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Prior session context carried forward: the Anthropic account is budget-capped until 2026-08-01, which is what makes a working --provider the only path back to running evals before then."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/eval-provider-cost-basis, branched from origin/main at 9ea1bea51. Work was started on an unrelated branch and relocated with git stash before the first commit."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/eval-provider-cost-basis"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Worktree clean at 9ea1bea51 before the first commit."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "9ea1bea51"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "The dead flag is reproduced, fixed, and proven by a live eval run through GitHub Models. Three further defects found by an adversarial review on a different model family were each reproduced and fixed."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md unchanged."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "The durable lesson is enforced in code rather than memory. cost_basis now resolves the provider with the same expression the transport uses, and eight tests fail the next time the two drift apart."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No Markdown authored in the diff. Changes are six Python modules under scripts/eval, three test modules, and this log."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Six conventional commits: three for the original fix (plan, report, CLI), one recording this log's ending commit, and two for the adversarial review findings."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "1763 passed, 4 skipped across tests/eval and tests/evals. ruff check clean on every changed file. Zero em or en dashes, byte verified. A live run against GitHub Models completed with two successful API calls and exit 0 while the Anthropic account is budget-capped."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue 4002 plus the three adversarial review findings each addressed and recorded in the work log below."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "diagnosis",
+      "action": "Reproduced the dead flag on the real fixture corpus",
+      "detail": "eval-agent-vs-baseline --provider github-models --model openai/gpt-4o-mini exited 2 with \"No pricing rate for model_id='openai/gpt-4o-mini'\" before any API call. _plan_runner._estimate_cost_usd raises UnsupportedModelError for any id absent from MODEL_PRICING_RATES_USD_PER_1K_TOKENS, which is Anthropic-only, and that raise happens inside build_plan ahead of provider dispatch. The CLI already wrote args.provider into os.environ at line 1134, twenty lines before the build_plan call, so the seam existed and the plan simply never consulted it.",
+      "outcome": "Issue 4002 filed with the reproduction and root cause"
+    },
+    {
+      "phase": "design",
+      "action": "Decided the biller is the provider, not the model",
+      "detail": "GitHub Models meters requests against an account allowance and publishes no per-token price. Inventing a USD rate would surface a fabricated number in an operator-facing cost report as though it were real, so no third-party rate was added. Printing $0.00 was rejected for the reason the aggregator's own docstring already gave: zero renders a free run and hides the missing price. cost_basis(provider) answers \"requests\" only for quota-billed providers and \"usd\" for everything else, so any per-token vendor added later inherits the strict raise-on-unpriced rule unchanged.",
+      "outcome": "Design fixed before code, with the no-fabrication rule explicit"
+    },
+    {
+      "phase": "implementation",
+      "action": "TDD red, then three atomic commits",
+      "detail": "Nine tests written first: six plan-side, three aggregator-side. Confirmed red at 9 failed, 153 passed. Blast radius was seven files, over the five-file atomic ceiling, so the work was split: plan-time basis, then report-time basis, then CLI wiring and writer rendering. The basis helper moved into _eval_common the moment it gained a second consumer, because that module documents itself as the owner of pricing knowledge and a peer should not import an underscore-prefixed name from _plan_runner.",
+      "outcome": "Commits 8f29248a4, 73dadb58d, 64800b5d9"
+    },
+    {
+      "phase": "verification",
+      "action": "Caught a defect I introduced, before pushing",
+      "detail": "The new in-process CLI test called cli_main, which mutates global process environment. That value leaked into the pytest session and broke 10 downstream tests in a different module. Proven by isolation: that file alone passed 106, and with the new test running first it failed 10 and passed 97. Fixed by pinning EVAL_PROVIDER with monkeypatch in both new CLI tests. The underlying sharp edge is unchanged and real for any future in-process CLI test.",
+      "outcome": "Self-caught before push; no downstream breakage shipped"
+    },
+    {
+      "phase": "verification",
+      "action": "Proved the fix end to end with a before, after, and control triple",
+      "detail": "On the real 16-fixture security corpus. Before: exit 2 with the pricing error. After: planned_calls=96, cost_estimate_requests=96, basis=quota, exit 0. Control on the Anthropic default: cost_estimate_usd=2.22 with rate_as_of=2026-07-08, byte identical to the figure measured before any of these commits. The USD path did not move.",
+      "outcome": "Fix proven without disturbing the priced path"
+    },
+    {
+      "phase": "verification",
+      "action": "Ran a live eval through GitHub Models",
+      "detail": "Plan-time success was not sufficient evidence, because the whole point of the fix is to make evals runnable while the Anthropic account is capped. A one-fixture, one-run evaluation produced two successful API calls (agent 7066 tokens in and 103 out, baseline 105 and 106), zero errors, a written report, and exit 0. The report carried cost_estimate_usd=null with cost_basis=requests and the line \"metered as requests, not billed per token\". No fabricated dollar figure appeared anywhere.",
+      "outcome": "Evals are runnable again despite the budget cap"
+    },
+    {
+      "phase": "verification",
+      "action": "Closed the optimizer loop on that live report",
+      "detail": "optimize-artifact.py extract --kind agent parsed the live report into optimizer results carrying upstream_model=openai/gpt-4o-mini in its provenance, so the new provider path and the optimizer compose correctly.",
+      "outcome": "Live eval to optimizer pipeline proven on real data"
+    },
+    {
+      "phase": "review",
+      "action": "Ran an adversarial review on a different model family",
+      "detail": "The review returned three findings and all three reproduced. One: the plan read args.provider while the report read EVAL_PROVIDER, so selecting a provider through the environment alone made one run report two different bases. Two: eval-model-sweep crashed with a TypeError on float(None) when parsing a quota-billed child report. Three: cost_basis compared raw strings while resolve_provider normalizes with strip and lower, so GitHub-Models routed to GitHub Models but still printed a USD estimate. All three were regressions introduced earlier on this branch.",
+      "outcome": "Three real regressions found by an outside model"
+    },
+    {
+      "phase": "implementation",
+      "action": "Fixed findings 1 and 3 with one root change",
+      "detail": "Both symptoms had the same cause: cost_basis invented its own resolution rule instead of using the one that decides who gets billed. It now resolves provider exactly as _providers.resolve_provider does, (name or EVAL_PROVIDER or \"anthropic\").strip().lower(). Eight tests written first, four red. After the fix, env-only selection and the GitHub-Models spelling both report basis=quota, while the Anthropic control still prints cost_estimate_usd=2.22.",
+      "outcome": "Commit 42b9154da"
+    },
+    {
+      "phase": "implementation",
+      "action": "Fixed finding 2 in the model sweep",
+      "detail": "dict.get's default could not cover the case: the key is present and holds None, so the default never fires and float(None) raises. The sweep now carries the child's null through unchanged and records the child's own cost_basis beside it, rather than re-deriving an answer the child already settled. Serialization renders the null instead of substituting 0.0. Reports predating cost_basis read as usd, so old artifacts parse as before. Four tests written first, all four red with the TypeError.",
+      "outcome": "Commit 04fde6ebf"
+    },
+    {
+      "phase": "verification",
+      "action": "Proved the rule kind end to end, the last of the three the optimizer declares",
+      "detail": "optimize-artifact.py declares --kind {agent,rule,hook}. hook and agent were proven; rule was not. eval-rule-activation.py has no --provider flag, but call_api and verify_model_available both fall back to EVAL_PROVIDER, so the env var reaches the transport. Ran 18 real calls over tests/evals/rule-scenarios/secret-redaction.json through GitHub Models on openai/gpt-4o-mini: verdict computed, report written, exit 0. The optimizer then extracted three scored tasks from it. All three kinds now run on live data.",
+      "outcome": "Rule kind proven; a provenance defect surfaced in the process"
+    },
+    {
+      "phase": "diagnosis",
+      "action": "Found the gate's cross-model refusal was dead for the rule kind",
+      "detail": "The live extraction recorded upstream_model 'not-applicable' for a run that made 18 model calls. _provenance_mismatch compares every provenance key, upstream_model included, so it refuses to gate two extractions from different models. cmd_extract's rule branch never passed the report to _extract_provenance, so both sides recorded the same literal string and compared equal. Built a discrimination proof rather than asserting the bug: agent A sonnet vs agent B gpt-4o-mini refused with 'extraction parameter mismatch: upstream_model differs', while the rule pair returned no refusal. The protection exists and was missing for exactly one kind. Adding provider support is what made this reachable: an incumbent scored before the Anthropic cap and a challenger scored through GitHub Models after it would have been compared as though one model produced both.",
+      "outcome": "Defect reproduced with a control before any code changed"
+    },
+    {
+      "phase": "implementation",
+      "action": "Made the rule kind record the model and seed that produced its scores",
+      "detail": "Two halves, committed separately because either alone is inert. Consumer: _rule_upstream_metadata returns the model and seed in the shape _extract_provenance already reads off an agent report, so the rule kind resolves upstream identity through the same code rather than a second copy. A second copy is exactly how the cost_basis defect happened earlier on this branch. Runs that disagree fail closed, for the same reason the envelope already requires matching rule names: reducing across runs assumes one population. Absent metadata records 'unknown-model', honest about ignorance, where 'not-applicable' asserted a falsehood. Producer: the report writes model_id and seed beside rules, not inside it, because a key inside would be scored as a rule name. 11 consumer tests written first with 10 red, 6 producer tests with 4 red.",
+      "outcome": "Commits 700a66c46 and 1fd9174a0"
+    },
+    {
+      "phase": "verification",
+      "action": "Grounded the fix on a second live run rather than on my own tests",
+      "detail": "Producer tests and consumer tests are two loops written against code written in the same session, so passing both proves only internal consistency. Ran the rule eval again through GitHub Models with a seed of 3: the report carried model_id openai/gpt-4o-mini and seed 3, the extractor read both into provenance, and the pair the gate previously accepted is now refused with 'extraction parameter mismatch: upstream_model differs'. Refusing is correct there, because nothing in the older report says which model scored it.",
+      "outcome": "Full chain verified on data no test produced"
+    },
+    {
+      "phase": "implementation",
+      "action": "Stopped the rule dry run from quoting a sonnet dollar rate for quota billed providers",
+      "detail": "_print_dry_run_summary multiplied estimated tokens by 3, the sonnet per-million input rate, and printed the product unconditionally. Measured: the same plan printed the same sonnet input rate figure under both anthropic and github-models, byte identical. The second run spends no dollars and does not use sonnet. Fixed by asking cost_basis, which resolves the provider exactly as the transport does, so this file gets no separate opinion about which provider is which. The call count still prints under both bases because it is the one figure that is true regardless of who bills. An unrecognized provider keeps the USD estimate, because an unknown transport is not evidence of a free one. 8 tests written first, 5 red.",
+      "outcome": "Commit c7154520f"
+    },
+    {
+      "phase": "verification",
+      "action": "Checked the sibling scripts for the same fabricated dollar figure",
+      "detail": "eval-agents.py, eval-knowledge-integration.py, and eval-prompt-change.py print call counts and token counts with no dollar figure, so none can fabricate one. eval-skill-overlap.py prints USD but raises PricingError when the model has no rate entry, so it refuses rather than inventing a number. The rule script was the only one that fabricated. No follow-up needed.",
+      "outcome": "Scope confirmed complete, not assumed"
+    },
+    {
+      "phase": "implementation",
+      "action": "Purged another session's events from this session's episode file",
+      "detail": "A bot review thread read the episode as a document of record and noticed it described a different change set than the diff. It was right: 12 of the 30 events came from the session log this one was copied from, extracted before commit 0fa58a1b4 rewrote the log. Rewriting the log did not fix the episode, because the commit hook always runs the extractor with --preserve, which unions the fresh extraction into the existing file. Content extracted from a wrong log therefore survives every later run by design, and --force is the only path that drops it. Regenerated with --force: 30 events become 17, every one of which traces to a workLog entry here. The general defect is that correcting a session log cannot correct its episode through any automatic path.",
+      "outcome": "Episode matches the log; the systemic gap is recorded for filing"
+    },
+    {
+      "phase": "implementation",
+      "action": "Made the declared report type match what actually gets written",
+      "detail": "A bot review read Report as the authoritative serialized shape and called it out of sync with the writer. The premise was wrong and saying so mattered: _build_report_json serializes AggregateResult, which already carries cost_basis, and Report is constructed exactly once in the repo, in a test that asserts only default values. The observation underneath was still right. Report is DESIGN-004 section 5.6 declaring the report shape, and it said cost_estimate_usd was a float with no cost_basis, which stopped describing the artifact the moment a quota metered provider wrote a null cost beside a basis. Five tests first, four red. One asserts the annotation rather than runtime tolerance, because dataclasses do not enforce types and constructing with None would have passed under the old annotation and proven nothing.",
+      "outcome": "Commit 0fc7823be"
+    },
+    {
+      "phase": "verification",
+      "action": "Ran adversarial review round 24 on a third model family",
+      "detail": "Previous rounds ran on gpt-5.6-terra. This one ran on gemini-3.1-pro-preview against the three rule provenance commits, with the diff extracted into the repo because sub-agents cannot read outside it. It cleared the parts I asked it to attack hardest, including the falsy seed path and the agent and hook branches, and returned one Required finding in the file I thought was already settled.",
+      "outcome": "One real finding, verified before acting on it"
+    },
+    {
+      "phase": "implementation",
+      "action": "Classified Copilot CLI as quota billed after the review found it fabricating",
+      "detail": "Centralizing the dry-run decision in cost_basis was the right move, but the set that function reads was never audited against the provider registry. copilot and copilot-cli are registered transports that shell out to an authenticated GitHub Copilot CLI covered by a subscription, spend no per-token dollars, and were absent from the quota set, so they fell through the silent usd default. I checked the registry before accepting the finding, because adding a pricing opinion for a transport the tool cannot dispatch to would have been its own fabrication. Both names are registered, and the provider module documents copilot-cli as the preferred path, so the fabricated figure was live on the most recommended route. Reproduced on the real CLI: copilot-cli printed the sonnet input rate where github-models printed the requests line. Fixed the two names, then fixed the class: 17 tests pin every registry name to a declared basis and assert the registry and the classification cover the same set, so a new provider can no longer inherit a billing model by omission. Verified after on the real CLI.",
+      "outcome": "Commit b0deadc5f"
+    }
+  ],
+  "outcomes": {
+    "summary": "--provider works. A non-Anthropic provider now plans, runs, and reports, proven by live evals through GitHub Models while the Anthropic account is budget-capped. The cost basis follows the transport that actually gets billed, so no fabricated USD figure can reach an operator-facing report or a dry-run plan, and no third-party price was invented to achieve it. All three optimizer kinds, agent, rule, and hook, now run on live data, and the rule kind records which model produced its scores so the gate's cross-model refusal works for it as it already did for agents.",
+    "filesChanged": 15,
+    "testsAdded": 71
+  },
+  "learnings": {
+    "primary": "When two pieces of code answer the same question, the one that decides the consequence is the authority. cost_basis and resolve_provider both answered \"which provider is this\", and cost_basis answered differently. Because resolve_provider picks the transport that actually gets charged, any disagreement makes cost_basis wrong by construction, not merely inconsistent. The fix was not to add cases to a lookup but to delete the second answer and defer to the first.",
+    "secondary": [
+      "dict.get's default does not fire when the key exists and holds None. Making a field nullable silently breaks every consumer that relied on that default, and those consumers do not appear in a grep of the diff.",
+      "An adversarial review on a different model family found three real regressions that my own None-safety audit missed, including a consumer in a module I never opened. All three reproduced; none was taken on the reviewer's word.",
+      "Proving a plan-time gate opens is not proving the capability works. The live run was the evidence that mattered, and it was cheap to get once the gate was open.",
+      "A required field filled with a placeholder passes validation and defeats the check it feeds. upstream_model is validated non-empty and compared by _provenance_mismatch to refuse cross-model gating. The rule kind auto-filled the literal 'not-applicable', which satisfied non-empty while carrying no information, so every rule comparison passed. A placeholder that is grammatically valid and semantically false is worse than a missing field, because the missing field would have raised.",
+      "Proving a capability on one input kind does not prove it on the others the same tool declares. The optimizer declares agent, rule, and hook. Running rule for the first time surfaced a dead gate protection immediately. A kind nobody has run is a kind nobody has tested.",
+      "A discrimination proof is stronger than a failure demonstration and costs one extra control. Showing the rule pair compared would have proved only that something was permissive; showing the agent pair refused through the same function established that the protection exists and was absent for exactly one kind, which told me which side to fix.",
+      "Correcting a fabricated session log does not correct the episode extracted from it. The commit hook only ever passes --preserve, which unions rather than replaces, so wrong content extracted once is permanent through the automatic path. --force exists and nothing invokes it. A correction mechanism that cannot reach a derived artifact leaves the derived artifact as the surviving copy of the error.",
+      "Centralizing a decision does not audit the data the decision reads. cost_basis became the single answer to which provider bills how, and the fix was correct, but the frozenset it consults still omitted two registered transports, so the defect stayed live on the provider the docs recommend most. The durable fix was not the two names, it was the test that pins every registry entry to a declared basis so omission stops being a silent classification."
+    ]
+  },
+  "endingCommit": "b0deadc5f",
+  "nextSteps": [
+    "Drive PR 4005 to closure and answer any bot review threads.",
+    "eval-rule-activation.py has no --provider flag and only honors EVAL_PROVIDER, so it lacks the ergonomics parity the agent script has. Working as designed, but worth filing as a gap.",
+    "eval-skill-overlap.py line 158 carries the same Anthropic-only raise, but that script has no provider flag or plumbing at all, so giving it provider support is new scope rather than a bug fix. Decide whether to file it.",
+    "cli_main mutating global process environment is a latent trap for every future in-process CLI test. Not yet filed.",
+    "File the episode preserve gap: the commit hook runs extract_session_episode.py with --preserve unconditionally, so a corrected session log cannot purge wrong events from its episode without a manual --force run."
+  ]
+}
