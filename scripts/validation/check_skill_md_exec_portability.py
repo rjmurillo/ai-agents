@@ -1,85 +1,20 @@
 #!/usr/bin/env python3
-# taste-lint: ignore file-size, parser and CLI stay together to keep ratchet semantics auditable.
 """Exec-path vendor-portability ratchet for skill instruction files (issue #2838).
 
-Companion to ``check_skill_md_portability.py``. That validator counts *prose*
-references to upstream-only trees (``.agents/``, ``.claude/lib/``,
-``.claude/review-axes/``) after stripping fenced code, and it deliberately
-excludes ``.claude/skills/`` because a bare prose cross-link to a sibling skill
-resolves through the install root. This validator is the INVERSE: it looks for
-*executable* invocations of ``.claude/skills/...`` scripts, which the prose
-guard erases when it strips code fences.
+Counts bare ``.claude/skills/...`` executable invocations in skill Markdown.
+In a vendored install the skill tree is at the plugin root, not ``./.claude``,
+so bare paths break. The portable form uses the harness env var fallback:
+``${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/...``.
 
-Why a separate check (issue #2837 is the instance, #2838 the systemic gap):
-  In a vendored plugin install the skill tree is rooted at the harness plugin
-  root, not at ``./.claude``. A command written as
+Opt-out: ``<!-- vendor-portability-exec: <reason> -->`` suppresses a file.
 
-      python3 .claude/skills/github/scripts/pr/test_pr_merge_ready.py --pull-request 1
+Baseline ratchet: fails when a file exceeds its baseline or a clean file
+introduces a new invocation. Use ``--update-baseline`` to tighten after fixes.
 
-  hard-codes the upstream layout. Under Claude Code it happens to work because
-  the checkout root IS ``.claude``; under GitHub Copilot CLI (or any consumer
-  repo that vendored the plugin) ``./.claude/skills/...`` does not exist and the
-  command fails. The portable form resolves the root through a harness env var
-  with a source-tree fallback, e.g.::
+Scope: SKILL.md, references/**/*.md, scripts/README-*.md under .claude/skills/
+and src/copilot-cli/skills/. Missing roots are skipped.
 
-      SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr"
-      python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request 1
-
-  This mirrors the form other skills already ship
-  (``.claude/skills/github/SKILL.md``,
-  ``.claude/skills/pr-comment-responder/SKILL.md``,
-  ``.claude/commands/push-pr.md``).
-
-What it counts:
-  Executable invocations of a bare ``.claude/skills/...`` script inside skill
-  instruction Markdown. The scan covers ``SKILL.md``, ``references/**/*.md``,
-  and ``scripts/README-*.md`` under each skill root. An invocation is either
-  (a) a shell interpreter token
-  (``python``, ``python3``, ``bash``, ``sh``), optionally followed by short
-  options (``python3 -u ...``), then a bare ``.claude/skills/<path>`` ending in
-  ``.py`` or ``.sh``, or (b) a direct ``./``-prefixed executable
-  (``./.claude/skills/x/y.sh``). The lead-in must be a standalone token
-  (start of line, whitespace, backtick, or a shell operator such as ``|`` or
-  ``&&`` precedes it) so that ``bash`` does not match the ``sh`` inside another
-  word. Shell line continuations (a trailing backslash before a newline) are
-  joined before matching so a split invocation is still counted. Path references
-  that route through a resolved variable
-  (``"$SCRIPTS_DIR/..."`` or ``"${CLAUDE_PLUGIN_ROOT:-.claude}/..."``) do NOT
-  match: the literal substring is ``.claude}/skills`` (a ``}`` breaks the
-  ``.claude/skills`` sequence) and there is no interpreter-then-bare-path shape.
-  Prose cross-links (``see .claude/skills/x/SKILL.md``) do NOT match: no
-  execution lead-in and the target is not a ``.py``/``.sh`` script.
-
-Machine-readable opt-out (mirrors the prose guard's escape hatch, but distinct):
-  A skill that genuinely must invoke a bare upstream path can DECLARE it with
-  the HTML comment marker
-
-      <!-- vendor-portability-exec: <free text> -->
-
-  A file containing the marker is suppressed (count 0). The marker is
-  DELIBERATELY distinct from the prose guard's ``vendor-portability`` marker:
-  a file that declared a prose ``.agents/`` dependency for the sibling guard
-  did not thereby consent to exempting its executable ``.claude/skills/...``
-  invocations, which are a different, independently-migratable concern. The
-  marker is a reviewable act; a silent bare invocation is not.
-
-Baseline ratchet:
-  Every current offender is grandfathered in
-  ``skill_md_exec_portability_baseline.json``. The check FAILS only when a
-  file's count rises above its baseline (new drift) or a previously-clean file
-  introduces an invocation. It REPORTS when counts drop so the baseline can be
-  tightened with ``--update-baseline``. This is the same incremental-migration
-  philosophy as the sibling script/markdown guards: block regressions now,
-  migrate the grandfathered offenders skill-by-skill over time.
-
-Scope: ``SKILL.md``, ``references/**/*.md``, and ``scripts/README-*.md`` under
-``.claude/skills/`` and ``src/copilot-cli/skills/`` (both shipped trees).
-Roots that do not exist are skipped.
-
-Exit codes (ADR-035):
-  0 - no drift (counts at or below baseline), or --update-baseline wrote the file
-  1 - drift detected (a file exceeds its baseline or a new file offends)
-  2 - configuration error (no scan roots, baseline unreadable)
+Exit codes (ADR-035): 0=clean, 1=drift, 2=config error.
 """
 
 from __future__ import annotations
