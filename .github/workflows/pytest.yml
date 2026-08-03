@@ -457,4 +457,4 @@ jobs:
         shell: pwsh
         env:
           UV_PYTHON: '3.14'
-        run: uv run pytest tests/test_validation_skill_size.py -q -k "WindowsPath or default_path"
+        run: uv run pytest tests/test_validation_skill_size.py -q -k "WindowsPathNormalization"

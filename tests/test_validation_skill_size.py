@@ -1315,5 +1315,5 @@ class TestGetSkillFilesWindowsPathNormalization:
         ]
         result = get_skill_files(str(tmp_path), changed_files=paths)
         assert all(p.name == "SKILL.md" for p in result)
-        assert len(result) <= 2  # both slash variants may resolve to same file
+        assert len(result) == 1  # both slash variants normalize to the same file
 

@@ -521,7 +521,14 @@ def get_skill_files(
         if not skill_files:
             return []
         normalized = [f.replace("\\", "/") for f in skill_files]
-        return [Path(f) for f in normalized if Path(f).exists()]
+        # Deduplicate: callers may pass the same path with mixed slash styles.
+        # Resolve via dict keyed by the normalized string to preserve order.
+        seen: dict[str, Path] = {}
+        for f in normalized:
+            p = Path(f)
+            if p.exists() and f not in seen:
+                seen[f] = p
+        return list(seen.values())
 
     if staged_only:
         return get_staged_skill_files()
