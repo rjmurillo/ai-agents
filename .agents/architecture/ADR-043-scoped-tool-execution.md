@@ -209,3 +209,46 @@ git diff --name-only --diff-filter=d HEAD '*.md'  # should not include some-file
 
 *Created: 2026-01-21*
 *GitHub Issue: #948*
+
+## Correction Note (2026-08-03, Issue #4401)
+
+The Implementation Notes section states:
+
+> **Note:** The `--no-globs` flag disables config file glob patterns, ensuring
+> only specified files are processed.
+
+The first clause is correct. The second clause implies a guarantee that the flag
+does not provide.
+
+`--no-globs` governs the config's `globs` key, which can only add input paths.
+It prevents config globs from expanding the set beyond what you passed. It says
+nothing about `ignores`. Files you explicitly pass that match an `ignores` entry
+are still dropped silently, and `markdownlint-cli2` exits 0 having linted zero
+of them.
+
+Two facts make this especially relevant in this repository:
+
+1. This repository's `.markdownlint-cli2.yaml` defines no `globs` key, so
+   `--no-globs` is inert here. The config documents this at the site of the
+   removal: "top-level `globs:` removed deliberately" and "ignores stays in
+   config so explicit walks still honor exclusions." That last clause is the
+   direct contradiction of "only specified files are processed."
+
+2. `ignores` covers a substantial share of the tree, including `.agents/**`,
+   `.serena/**`, and `**/CLAUDE.md`, the paths agents edit most. The exact
+   share drifts with every merge and must not be hardcoded; measure it when it
+   matters.
+
+The current scoped lint entry point is:
+
+```bash
+uv run --frozen python scripts/validation/pre_pr.py --markdown-lint-only -- <files>
+```
+
+This wrapper reports how many files were actually read, making silent drops
+visible. The raw `xargs npx markdownlint-cli2 --no-globs` commands above remain
+as historical record of the original decision; the Python wrapper is the
+current implementation.
+
+The original Decision and Implementation Notes are preserved unchanged above.
+This note corrects only the mechanical claim about `--no-globs` scope.

@@ -1,0 +1,65 @@
+{
+  "id": "episode-2026-08-03-session-4401-agent-context-skill-docs",
+  "session": "2026-08-03-session-4401-agent-context-skill-docs",
+  "timestamp": "2026-08-03T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Drive issues 4321, 4229, 4401, 4381 to terminal state: FIXED or CLOSED with justification",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Triage all four issues",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4401-agent-context-skill-docs"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Issue 4321 triage",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4401-agent-context-skill-docs"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Issue 4229 triage",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4401-agent-context-skill-docs"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Issue 4401 adr-review",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4401-agent-context-skill-docs"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Issue 4381 triage",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4401-agent-context-skill-docs"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5
+  },
+  "lessons": []
+}
