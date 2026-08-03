@@ -50,6 +50,7 @@ Need GitHub data?
 ├─ CI failure logs → get_pr_check_logs.py
 ├─ Review comments → get_pr_review_comments.py
 ├─ Review threads → get_pr_review_threads.py
+├─ Review verdicts (approved / changes requested) → get_pr_reviews.py
 ├─ Unique reviewers → get_pr_reviewers.py
 ├─ Unaddressed bot comments → get_unaddressed_comments.py
 ├─ PR merged check → test_pr_merged.py
@@ -125,6 +126,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `get_pr_check_logs.py` | Fetch logs from failing CI checks | `--pull-request`, `--max-lines`, `--context-lines` |
 | `get_pr_review_comments.py` | Paginated review comments with stale detection | `--pull-request`, `--include-issue-comments`, `--detect-stale`, `--exclude-stale`, `--only-stale` |
 | `get_pr_review_threads.py` | Thread-level review data | `--pull-request`, `--unresolved-only` |
+| `get_pr_reviews.py` | Review submissions (verdict state and body) | `--pull-request`, `--state`, `--output-format {json,human,auto}` |
 | `get_pr_reviewers.py` | Enumerate unique reviewers | `--pull-request`, `--exclude-bots` |
 | `get_unaddressed_comments.py` | Bot comments needing attention | `--pull-request` |
 | `get_unresolved_review_threads.py` | Unresolved thread IDs | `--pull-request` |
