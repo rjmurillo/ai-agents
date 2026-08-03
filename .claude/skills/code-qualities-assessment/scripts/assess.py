@@ -624,7 +624,7 @@ def build_comparisons(
         path = Path(head.file_path)
         content = get_file_at_revision(path, revision)
         if content is None:
-            comparisons.append(FileComparison(head.file_path, True, [], [], []))
+            comparisons.append(compare_assessments(None, head, tolerance))
             new_files.append(head)
             continue
         comparisons.append(compare_assessments(assess_content(path, content), head, tolerance))
