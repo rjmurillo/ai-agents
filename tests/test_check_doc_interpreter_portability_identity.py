@@ -150,8 +150,11 @@ def test_make_repo_commits_without_ambient_git_identity(tmp_path: Path) -> None:
 def test_make_repo_identity_is_local_not_global(tmp_path: Path) -> None:
     """Negative control: the identity must live in the repo, not leak outward.
 
-    Reading with --local proves make_repo wrote repo-scoped config rather than
-    the test passing only because the developer has a global identity set.
+    `--local` never falls back to the global or system scope, so a non-empty
+    answer here proves make_repo wrote repo-scoped config rather than the
+    sibling test passing only because the developer has a global identity set.
+    The address itself is not asserted: pinning it would fail on a rename that
+    keeps the invariant intact.
     """
     repo = make_repo(tmp_path, {"README.md": "text\n"})
 
@@ -163,4 +166,4 @@ def test_make_repo_identity_is_local_not_global(tmp_path: Path) -> None:
         check=True,
     )
 
-    assert email.stdout.strip() == "test@example.invalid"
+    assert "@" in email.stdout.strip()

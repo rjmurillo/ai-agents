@@ -221,7 +221,7 @@ Uses `git diff --cached --check MERGE_HEAD` when a merge is in progress (MERGE_H
 
 | Criterion | Evidence |
 |-----------|----------|
-| All conflicts resolved | `git status --porcelain \| grep -c '^UU'` returns 0 |
+| All conflicts resolved | `python3 -c "import subprocess, sys; r=subprocess.run(['git','status','--porcelain'],capture_output=True,text=True,encoding='utf-8',errors='replace'); sys.exit(r.returncode) if r.returncode else print(sum(1 for l in r.stdout.splitlines() if l.startswith('UU')))"` returns 0 |
 | No merge markers remain | `python3 .claude/skills/merge-resolver/scripts/verify_no_conflict_markers.py` exits 0 (during merge: checks staged vs MERGE_HEAD AND working tree vs index; outside merge: checks working tree+index vs HEAD; ignores intentional fenced examples in committed docs -- issues #2424, #4058) |
 | Session protocol valid | `validate_session_json.py` exits 0 |
 | Markdown lint passes | `npx markdownlint-cli2` exits 0 |
