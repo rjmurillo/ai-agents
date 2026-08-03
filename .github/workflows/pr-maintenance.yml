@@ -243,3 +243,11 @@ jobs:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
           SUMMARY_JSON: ${{ needs.discover-prs.outputs.summary-json }}
         run: python3 scripts/ci/write_pr_maintenance_summary.py
+
+      # Issue #4355: three of six sampled open PRs were already fixed on main
+      # and nothing said so until someone rebased. Report only; the signal has
+      # a known false positive (#4163) and needs a human to confirm.
+      - name: Report PR supersession candidates
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+        run: python3 scripts/report_pr_supersession.py | tee -a "$GITHUB_STEP_SUMMARY"
