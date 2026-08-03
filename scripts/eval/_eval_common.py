@@ -44,6 +44,28 @@ MODEL_PRICING_RATES_USD_PER_1K_TOKENS: dict[str, dict[str, float]] = {
 PRICING_RATE_AS_OF = "2026-08-01"
 
 
+def require_str_or_none(value: object, field: str) -> str | None:
+    """Return `value` when it is a string or absent; raise when it is neither.
+
+    The single write policy for provider-supplied provenance. Every site that
+    records one of these fields routes through here, so the archive can only
+    ever hold a string or a null.
+
+    Coercing a malformed value to `None` instead records "the provider
+    supplied nothing" for a value the provider did supply, and the reader
+    that already refuses this shape (`_run_persistence._validate_payload`,
+    which raises `MalformedRunRecordError` on a present non-string
+    `system_fingerprint`) can then never fire on data this codebase wrote.
+    That is a false observation about the provider rather than a visible
+    refusal (issue #4123).
+    """
+    if value is None or isinstance(value, str):
+        return value
+    raise RuntimeError(
+        f"provider returned a non-string {field} ({type(value).__name__})"
+    )
+
+
 def aggregate_multi_run_scores(
     run_scores: list[dict[str, Any]],
     dimensions: list[str],

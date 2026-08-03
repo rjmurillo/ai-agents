@@ -47,6 +47,7 @@ from typing import TYPE_CHECKING, Any, Protocol, cast
 # when a caller has the repo root on sys.path, and a monkeypatch applied to
 # one copy would not reach the other.
 from _copilot_cli import _CopilotCLIProvider
+from _eval_common import require_str_or_none
 
 # GitHub Models inference endpoint (OpenAI-compatible). Verified 2026-06:
 # https://models.github.ai/inference with a GitHub PAT as the bearer token.
@@ -250,7 +251,7 @@ class _OpenAICompatibleProvider:
                 f"{self._provider_label} API returned non-text content for model {model}."
             )
         fingerprint = getattr(resp, "system_fingerprint", None)
-        self.system_fingerprint = fingerprint if isinstance(fingerprint, str) else None
+        self.system_fingerprint = require_str_or_none(fingerprint, "system_fingerprint")
         return content
 
 

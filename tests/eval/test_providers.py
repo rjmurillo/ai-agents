@@ -94,7 +94,7 @@ class _FakeChoice:
 
 
 class _FakeResponse:
-    def __init__(self, content: object, system_fingerprint: str | None = "fp-test") -> None:
+    def __init__(self, content: object, system_fingerprint: object = "fp-test") -> None:
         self.choices = [_FakeChoice(content)]
         if system_fingerprint is not None:
             self.system_fingerprint = system_fingerprint
@@ -222,6 +222,31 @@ def test_openai_provider_tolerates_missing_system_fingerprint(
 
     provider.complete(messages=[{"role": "user", "content": "hi"}], model="gpt-4o")
 
+    assert provider.system_fingerprint is None
+
+
+@pytest.mark.parametrize("malformed", [123, 4.5, True, {"id": "fp"}, ["fp"]])
+def test_openai_provider_raises_on_non_string_system_fingerprint(
+    fake_openai: type[_FakeOpenAI], monkeypatch: pytest.MonkeyPatch, malformed: object
+) -> None:
+    """A present but malformed fingerprint is refused, not recorded as absent.
+
+    Before #4123 this branch coerced the value to `None`, so the archive said
+    the provider supplied no fingerprint for a response that supplied one the
+    reader would have rejected. `True` is in the set because `bool` is not
+    `str` and would otherwise be written through as provenance.
+    """
+
+    def _return_malformed(self: _FakeCompletions, **kwargs: object) -> _FakeResponse:
+        self._recorder.append(kwargs)
+        return _FakeResponse("answer", system_fingerprint=malformed)
+
+    monkeypatch.setattr(_FakeCompletions, "create", _return_malformed)
+    provider = _providers.resolve_provider("openai")
+
+    with pytest.raises(RuntimeError, match="non-string system_fingerprint"):
+        provider.complete(messages=[{"role": "user", "content": "hi"}], model="gpt-4o")
+    # The malformed value never reached the field the report reads.
     assert provider.system_fingerprint is None
 
 

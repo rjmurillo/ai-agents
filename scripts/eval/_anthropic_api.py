@@ -16,6 +16,10 @@ import urllib.request
 from pathlib import Path
 from typing import Any, cast
 
+# Sibling import; loaded under the same EVAL_DIR sys.path entry every caller
+# of this module already uses to reach it by bare name.
+from _eval_common import require_str_or_none
+
 # Single source of truth for the default eval model. Every eval script imports
 # this instead of hard-coding an id, so a model bump is a one-line change here
 # (issue #2858). The previous default `claude-sonnet-4-20250514` is a dead id
@@ -158,8 +162,11 @@ def call_api(
             if seed is not None:
                 kwargs["seed"] = seed
             text = cast(str, selected_provider.complete(**kwargs))
-            fingerprint = getattr(selected_provider, "system_fingerprint", None)
-            if metadata is not None and isinstance(fingerprint, str):
+            fingerprint = require_str_or_none(
+                getattr(selected_provider, "system_fingerprint", None),
+                "system_fingerprint",
+            )
+            if metadata is not None and fingerprint is not None:
                 metadata["system_fingerprint"] = fingerprint
             return text
     body: dict[str, Any] = {
