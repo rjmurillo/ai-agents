@@ -261,6 +261,33 @@ def audit_all_skills(skills_path: Path) -> list[SkillAuditResult]:
     return results
 
 
+def _print_recommendation_group(
+    title: str,
+    results: list[SkillAuditResult],
+    *,
+    sort_by_lines: bool = False,
+) -> None:
+    """Print one recommendation group when it has entries."""
+    if not results:
+        return
+
+    print("-" * 60)
+    print(title)
+    print("-" * 60)
+    ordered = sorted(results, key=lambda x: -x.line_count) if sort_by_lines else results
+    for result in ordered:
+        if result.rating == "error":
+            print(f"  {result.name}: {result.file_path}")
+        else:
+            print(
+                f"  {result.name}: {result.line_count} lines, "
+                f"score={result.modularity_score}"
+            )
+        for recommendation in result.recommendations:
+            print(f"    -> {recommendation}")
+    print()
+
+
 def print_report(results: list[SkillAuditResult]) -> None:
     """Print a human-readable audit report."""
     if not results:
@@ -283,35 +310,17 @@ def print_report(results: list[SkillAuditResult]) -> None:
         print(f"Errors:       {len(errors)}")
     print()
 
-    if errors:
-        print("-" * 60)
-        print("ERRORS (unreadable skills)")
-        print("-" * 60)
-        for r in errors:
-            print(f"  {r.name}: {r.file_path}")
-            for rec in r.recommendations:
-                print(f"    -> {rec}")
-        print()
-
-    if oversized:
-        print("-" * 60)
-        print("OVERSIZED (exceed 500-line limit)")
-        print("-" * 60)
-        for r in sorted(oversized, key=lambda x: -x.line_count):
-            print(f"  {r.name}: {r.line_count} lines, score={r.modularity_score}")
-            for rec in r.recommendations:
-                print(f"    -> {rec}")
-        print()
-
-    if warnings:
-        print("-" * 60)
-        print("WARNING (300-500 lines or low modularity score)")
-        print("-" * 60)
-        for r in sorted(warnings, key=lambda x: -x.line_count):
-            print(f"  {r.name}: {r.line_count} lines, score={r.modularity_score}")
-            for rec in r.recommendations:
-                print(f"    -> {rec}")
-        print()
+    _print_recommendation_group("ERRORS (unreadable skills)", errors)
+    _print_recommendation_group(
+        "OVERSIZED (exceed 500-line limit)",
+        oversized,
+        sort_by_lines=True,
+    )
+    _print_recommendation_group(
+        "WARNING (300-500 lines or low modularity score)",
+        warnings,
+        sort_by_lines=True,
+    )
 
     print("-" * 60)
     print("ALL SKILLS (sorted by modularity score)")
