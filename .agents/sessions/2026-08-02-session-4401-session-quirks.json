@@ -142,6 +142,10 @@
     {
       "action": "Dispatched cross-family adversarial review",
       "result": "code-review agent on gpt-5.6-terra, a different model family than the author, tasked to verify the git semantics from the man page rather than folklore, reproduce the three-row table, and check which side of --left-right is the behind count."
+    },
+    {
+      "action": "Applied the cross-family review findings on the memory append",
+      "result": "code-review on gpt-5.6-terra returned 0 Critical and 0 High, and three accuracy findings, all adopted. It disproved my phrasing that a non-zero --left-right left count predicts the size of the lie: the count is commits, not lines, and it measured left 9 against 6924 invented deletions. It caught that 'adds three lines' sat unexplained beside a 118-insertion row, the difference being the 115-line session log. And it found the two-dot row no longer reproduced, because the branch had fallen to 9 behind while the review ran, which is the claim rather than a caveat on it, so the base SHA is now pinned and the re-measurement recorded. It confirmed from the man pages, not folklore, that git diff A..B is an alias for git diff A B and that three-dot is merge-base based, which is the semantics the entry depends on."
     }
   ],
   "endingCommit": "b055e5270",
