@@ -1069,6 +1069,83 @@ class TestJudgeSampleReduction:
         assert full["scores"]["activation_score"] == 5
         assert full["scores"]["citation_score"] == 5
         assert full["scores"]["behavior_score"] == 5
+        assert "system_fingerprint" not in full
+
+    def test_eval_one_scenario_refuses_a_malformed_response_fingerprint(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(eval_mod, "RATE_LIMIT_SLEEP_SEC", 0)
+
+        def fake_call_api(*args: object, **kwargs: object) -> str:
+            metadata = kwargs["metadata"]
+            assert isinstance(metadata, dict)
+            metadata["system_fingerprint"] = {"id": "fp"}
+            return "response"
+
+        monkeypatch.setattr(eval_mod, "_call_api", fake_call_api)
+        monkeypatch.setattr(
+            eval_mod,
+            "score_response",
+            lambda *args, **kwargs: {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "judge_failed": False,
+            },
+        )
+
+        with pytest.raises(RuntimeError, match="non-string system_fingerprint"):
+            eval_mod.eval_one_scenario(
+                "key",
+                self._rule(),
+                "rule",
+                self._scenario(),
+                "model",
+                dry_run=False,
+                seed=10,
+                judge_repeats=1,
+                judge_reducer="median",
+            )
+
+    def test_eval_one_scenario_records_a_string_response_fingerprint(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(eval_mod, "RATE_LIMIT_SLEEP_SEC", 0)
+
+        def fake_call_api(*args: object, **kwargs: object) -> str:
+            metadata = kwargs["metadata"]
+            assert isinstance(metadata, dict)
+            metadata["system_fingerprint"] = "fp-4123"
+            return "response"
+
+        monkeypatch.setattr(eval_mod, "_call_api", fake_call_api)
+        monkeypatch.setattr(
+            eval_mod,
+            "score_response",
+            lambda *args, **kwargs: {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "judge_failed": False,
+            },
+        )
+
+        result = eval_mod.eval_one_scenario(
+            "key",
+            self._rule(),
+            "rule",
+            self._scenario(),
+            "model",
+            dry_run=False,
+            seed=10,
+            judge_repeats=1,
+            judge_reducer="median",
+        )
+
+        assert {
+            data["system_fingerprint"]
+            for data in result["mechanisms"].values()
+        } == {"fp-4123"}
 
     def test_eval_one_scenario_persists_failed_sample_without_reducing_it(self, monkeypatch):
         monkeypatch.setattr(eval_mod, "RATE_LIMIT_SLEEP_SEC", 0)

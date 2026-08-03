@@ -40,7 +40,7 @@ from typing import Literal, Protocol, cast
 # Sibling import; loaded under the same EVAL_DIR sys.path entry that the CLI uses.
 import _eval_api_adapter_constants as _constants
 from _anthropic_api import call_api, load_api_key
-from _eval_common import require_str_or_none
+from _eval_common import MalformedProviderMetadataError, require_str_or_none
 
 OutcomeLiteral = Literal["success", "error"]
 
@@ -285,9 +285,10 @@ class AnthropicAPIAdapter:
         `ANTHROPIC_API_KEY` available to `_default_transport_factory`).
         Construction failure is categorized as `auth` since the production
         transport's only resolve-time dependency is `load_api_key()`.
-        Never raises on transport failure; the caller inspects `outcome`
-        and `error_category`. Logs one structured line per attempt to
-        stderr.
+        Ordinary transport failures return a categorized result. Malformed
+        provider metadata raises before retry or logging because retrying the
+        same unreadable response shape would misreport a contract violation as
+        a provider outage. Logs one structured line per ordinary attempt.
 
         Raises `ValueError` when `max_retries` is below 1. That is a caller
         configuration mistake, not a provider failure, and the two must not
@@ -382,6 +383,8 @@ class AnthropicAPIAdapter:
             attempt_start = self._clock()
             try:
                 raw = transport(prompt, model_id, system)
+            except MalformedProviderMetadataError:
+                raise
             except Exception as exc:  # broad on purpose: categorize then decide
                 category = _categorize_error(exc)
                 latency_ms = (self._clock() - attempt_start) * 1000.0
@@ -447,6 +450,10 @@ class AnthropicAPIAdapter:
                 self._sleep(backoff)
                 continue
 
+            fingerprint = require_str_or_none(
+                getattr(transport, "system_fingerprint", None),
+                "system_fingerprint",
+            )
             # Success path. Token counts are estimated from text length until
             # `_anthropic_api.call_api` surfaces a `usage` envelope; callers
             # see `tokens_estimated=True` so cost numbers carry that caveat.
@@ -477,7 +484,7 @@ class AnthropicAPIAdapter:
                 error_category=None,
                 attempts=attempt,
                 tokens_estimated=True,
-                system_fingerprint=getattr(transport, "system_fingerprint", None),
+                system_fingerprint=fingerprint,
             )
 
         # The entry guard pins `max_retries >= 1`, so the loop body runs at

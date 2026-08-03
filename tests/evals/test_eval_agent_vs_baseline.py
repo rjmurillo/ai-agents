@@ -2981,6 +2981,90 @@ class TestTransportsRefuseAMalformedFingerprint:
             transport("prompt", "claude-sonnet-4-6", "")
         assert transport.system_fingerprint is None
 
+    def test_call_model_propagates_malformed_provider_metadata(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        class _Provider:
+            def __init__(self) -> None:
+                self.system_fingerprint: object = 123
+                self.calls = 0
+
+            def complete(self, **kwargs: object) -> str:
+                self.calls += 1
+                return "answer"
+
+        provider = _Provider()
+        transport = adapter_mod._OpenAIProviderTransport(provider, seed=None)
+        adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
+
+        with pytest.raises(RuntimeError, match="non-string system_fingerprint"):
+            adapter.call_model(
+                prompt="x",
+                model_id="gpt-4o",
+                fixture_id="F-FP",
+                variant="agent",
+                run_index=0,
+            )
+
+        assert provider.calls == 1
+        assert capsys.readouterr().err == ""
+
+    def test_call_model_validates_the_injected_transport_seam(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        class _Transport:
+            system_fingerprint: object = {"id": "fp"}
+
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def __call__(self, prompt: str, model_id: str, system: str) -> str:
+                self.calls += 1
+                return "answer"
+
+        transport = _Transport()
+        adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
+
+        with pytest.raises(RuntimeError, match="non-string system_fingerprint"):
+            adapter.call_model(
+                prompt="x",
+                model_id="gpt-4o",
+                fixture_id="F-FP-SEAM",
+                variant="agent",
+                run_index=0,
+            )
+
+        assert transport.calls == 1
+        assert capsys.readouterr().err == ""
+
+    @pytest.mark.parametrize("fingerprint", [None, "", "fp-1"])
+    def test_call_model_accepts_valid_fingerprint_states(
+        self, fingerprint: str | None
+    ) -> None:
+        class _Transport:
+            def __init__(self) -> None:
+                self.system_fingerprint = fingerprint
+                self.calls = 0
+
+            def __call__(self, prompt: str, model_id: str, system: str) -> str:
+                self.calls += 1
+                return "answer"
+
+        transport = _Transport()
+        adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
+
+        result = adapter.call_model(
+            prompt="x",
+            model_id="gpt-4o",
+            fixture_id="F-FP-VALID",
+            variant="agent",
+            run_index=0,
+        )
+
+        assert result.outcome == "success"
+        assert result.system_fingerprint == fingerprint
+        assert transport.calls == 1
+
 
 class TestAdapterNonPositiveMaxRetries:
     """`max_retries <= 0` is refused instead of reported as a provider error.
