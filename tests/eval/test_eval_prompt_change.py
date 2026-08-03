@@ -1291,10 +1291,6 @@ class TestIsProviderOutage:
         [
             "Anthropic API returned HTTP 400: usage limits, regain 2026-07-01",
             "GitHub Models API returned HTTP 429: too many requests",
-            (
-                "GitHub Models API returned HTTP 410: Error code: 410 - "
-                "{'error': {'code': 'github_models_retirement_brownout'}}"
-            ),
             "OpenAI API request timed out",
             "OpenAI API network error: ConnectionError",
             "GitHub Models API returned HTTP 503",
@@ -1311,6 +1307,15 @@ class TestIsProviderOutage:
             "Unknown EVAL_PROVIDER 'bogus'. Valid: anthropic, github, openai",
             "Scenario file not found: tests/evals/x.json",
             "could not parse judge response",
+            # GitHub Models retired 2026-07-30; the skip-net no longer covers
+            # its retirement response. A permanent-retirement error must surface
+            # as a real failure so the gate is not silently dead. (issue #4339)
+            (
+                "GitHub Models API returned HTTP 410: Error code: 410 - "
+                "{'error': {'code': 'github_models_retirement_brownout'}}"
+            ),
+            "retirement brownout",
+            "github models is temporarily unavailable",
         ],
     )
     def test_non_outage_errors_are_not_skippable(self, message: str) -> None:
