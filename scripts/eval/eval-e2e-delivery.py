@@ -34,7 +34,6 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any, cast
 
 # eval-* scripts import sibling helpers by bare name, so the eval dir must be
 # importable when this file runs as a script.
@@ -111,10 +110,10 @@ def _resolve_agents(names: list[str], ref: str | None) -> dict[str, str]:
 def _run_cell(
     api_key: str,
     agent_prompt: str,
-    fixture: dict[str, Any],
+    fixture: dict,
     model: str,
     provider: str | None,
-) -> dict[str, Any]:
+) -> dict:
     """One (fixture, agent) run: emit a plan, then judge it."""
     plan = call_api(
         api_key,
@@ -139,7 +138,7 @@ def _run_cell(
     )
     scored = parse_judge_response(verdict)
     scored["plan_chars"] = len(plan)
-    return cast(dict[str, Any], scored)
+    return scored
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -207,7 +206,7 @@ def main(argv: list[str] | None = None) -> int:
         verify_model_available(api_key, model=args.model)
     provider = os.environ.get("EVAL_PROVIDER") or None
 
-    records: list[dict[str, Any]] = []
+    records: list[dict] = []
     for fixture in fixtures:
         for agent in agent_names:
             for run_index in range(args.runs):
