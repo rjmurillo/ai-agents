@@ -79,7 +79,7 @@
       "detail": "Replaced per-branch blocking flock and fixed-hash 4-slot recipes with slot-scanner (flock -n --conflict-exit-code 99 scanning /tmp/aiagents-push-$s.lock slots 0..3). Updated git-lock-pushes-per-branch-not-globally.md, git-detached-push-dies-if-log-dir-vanishes.md, bash-anchor-grep-patterns-on-test-logs.md, and .agents/governance/GOTCHAS.md."
     }
   ],
-  "endingCommit": "944a237b4b",
+  "endingCommit": "5f27499705",
   "nextSteps": [
     "Push and confirm checks pass.",
     "Update PR #4437 body to reflect the corrected recipe."
