@@ -294,6 +294,31 @@ jobs:
           # CI-only: see taste-lint ratchet step above for the --depth=1 caveat.
           git fetch --depth=1 origin "$BASE_REF"
           uv run --frozen python3 scripts/ci/type_ignore_count_ratchet.py --base-ref FETCH_HEAD
+      # Issue #4398: the three count ratchets measure the branch head, not the
+      # merged result. A branch cut before main lowered a baseline can pass its
+      # own count check yet breach the ceiling once it lands. This step evaluates
+      # all three ratchets against the result of merging HEAD into base_ref, so
+      # the stale-branch hole is closed at merge time, not only at push time.
+      #
+      # The check is complementary to reserve-band enforcement (issue #4345),
+      # which closes the concurrent-admission hole. Neither subsumes the other.
+      #   - merge-tree ratchet: one stale PR merging green against old main.
+      #     PR #4272 is the canonical example (file grew past ceiling on old main).
+      #   - reserve band: three PRs each passing the SAME current main;
+      #     union breaches (measured: af27638a6 +891, 9a7bd1d93 +339,
+      #     7b5279967 +259; each passed alone, cumulative 82603 -> 83201
+      #     against 83000 ceiling).
+      #
+      # Conflict policy: a conflicting PR cannot merge anyway; skip with a
+      # message rather than blocking on a check that duplicates the merge gate.
+      - name: Run merge-tree ratchet
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          # CI-only: --depth=1 keeps this disposable checkout shallow.
+          # See taste-lint ratchet step above for the caveat on working clones.
+          git fetch --depth=1 origin "$BASE_REF"
+          uv run --frozen python3 scripts/ci/merge_tree_ratchet_check.py --base-ref FETCH_HEAD
       # Issue #3770: `conflict-marker-policy` runs only at pre-commit over the
       # index. Every route that skips local hooks reached the remote unchecked:
       # a server-side merge from the "Update branch" button, `--no-verify`, a
