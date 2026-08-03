@@ -42,6 +42,24 @@
       "caused_by": [],
       "leads_to": [],
       "_source_session": "2026-08-02-session-9001-rbd-4260-merge"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "commit merge session",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-9001-rbd-4260-merge"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: f8876aa0ee",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-9001-rbd-4260-merge"
     }
   ],
   "metrics": {
@@ -49,7 +67,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 3
   },
   "lessons": []

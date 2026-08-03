@@ -127,8 +127,13 @@
     {
       "action": "fix episode metrics 2",
       "detail": "Set commits=1 in episode file (stash pop lost prior fix)"
+    },
+    {
+      "action": "commit merge session",
+      "sha": "f8876aa0ee",
+      "detail": "Merged origin/main; fixed episode metrics"
     }
   ],
   "nextSteps": [],
-  "endingCommit": ""
+  "endingCommit": "f8876aa0ee"
 }
