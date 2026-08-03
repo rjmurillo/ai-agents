@@ -211,6 +211,7 @@ always-on file.
 
 That leaves 14,152 always-on bytes of book-derived rule, 20.1% of the
 70,510-byte always-on corpus measured at source. `code-quality` and
+70,510-byte always-on corpus measured at source. `code-quality` and
 `pragmatic-programmer` had no scenario file at all until PR #4017 added one to
 each on 2026-08-03, which is how they grew unchallenged for four months.
 
