@@ -163,3 +163,24 @@ def test_main_passes_valid_arguments_through():
         )
 
     assert code == 0
+
+
+def test_failure_message_reports_attempts_actually_made(capsys):
+    """A permanent refusal breaks out on attempt 1; do not claim three."""
+    with patch("subprocess.run", return_value=_completed(stderr=NOT_FOUND, rc=1)):
+        _mod.assign_reviewer(
+            "rjmurillo/ai-agents", "4328", "rjmurillo-bot", sleep=lambda _s: None
+        )
+
+    assert "after 1 attempt(s)" in capsys.readouterr().err
+
+
+def test_failure_message_reports_the_full_budget_when_it_is_spent(capsys):
+    responses = [_completed(stderr=GRAPHQL_QUOTA, rc=1)] * _mod.MAX_ATTEMPTS
+
+    with patch("subprocess.run", side_effect=responses):
+        _mod.assign_reviewer(
+            "rjmurillo/ai-agents", "4328", "rjmurillo-bot", sleep=lambda _s: None
+        )
+
+    assert f"after {_mod.MAX_ATTEMPTS} attempt(s)" in capsys.readouterr().err

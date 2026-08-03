@@ -137,9 +137,12 @@ def assign_reviewer(
         )
         sleep(delay)
 
+    # Report the attempts actually made, not the budget. A permanent refusal
+    # breaks out on attempt 1, and claiming three would send the next reader
+    # hunting for two retries that never happened.
     print(
         f"Could not request review from {reviewer} on PR #{pr_number} "
-        f"after {MAX_ATTEMPTS} attempts: {last_error}",
+        f"after {attempt} attempt(s): {last_error}",
         file=sys.stderr,
     )
     return _EXIT_EXTERNAL
