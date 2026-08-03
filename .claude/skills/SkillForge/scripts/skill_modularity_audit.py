@@ -10,8 +10,8 @@ shorter is always better. See references/modularity-guidelines.md.
 This script audits all skills in .claude/skills/ and produces a report with
 modularity scores and refactoring recommendations. Its length curve is one-sided:
 it subtracts above 300 lines and subtracts nothing below, so nothing signals that
-a skill has been cut past the standard range the study ranked first. Tracked in
-issue #4327.
+a skill has been cut past the standard range the study ranked first. Tracked at
+https://github.com/rjmurillo/ai-agents/issues/4327.
 
 Modularity scoring:
     - Lines: penalized above 300 (warning) and 500 (error) thresholds
