@@ -380,7 +380,6 @@ class TestGetPrCommentsByReviewer:
         assert result["reviewers"][1]["login"] == "bob"
         assert result["reviewers"][1]["total_comments"] == 1
 
-
     # -----------------------------------------------------------------------
     # Bot alias canonicalization (issue #4378)
     # -----------------------------------------------------------------------
@@ -420,12 +419,8 @@ class TestGetPrCommentsByReviewer:
     def test_shared_copilot_login_is_separated_by_account_id(self):
         result = self._run(
             review_comments=[
-                _make_review_comment(
-                    "Copilot", user_type="Bot", actor_id=175728472
-                ),
-                _make_review_comment(
-                    "Copilot", user_type="Bot", actor_id=198982749
-                ),
+                _make_review_comment("Copilot", user_type="Bot", actor_id=175728472),
+                _make_review_comment("Copilot", user_type="Bot", actor_id=198982749),
             ],
         )
         reviewers = {r["login"]: r for r in result["reviewers"]}
