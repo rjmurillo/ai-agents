@@ -30,7 +30,7 @@ for executable invocations of exactly that tree. All four live in
 |---|---|---|
 | `scripts/validation/check_vendor_portability.py` | skill scripts | code that reads an upstream-only path |
 | `scripts/validation/check_skill_portability.py` | skill scripts | drift against the script baseline |
-| `scripts/validation/check_skill_md_portability.py` | skill `.md` | an upstream path cited in **prose** |
+| `scripts/validation/check_skill_md_portability.py` | skill `.md`, `.claude/commands/`, `templates/agents/` | an upstream path cited in **prose** |
 | `scripts/validation/check_skill_md_exec_portability.py` | skill `.md` | a bare `.claude/skills/...` script **invocation** |
 
 Symptom: the first two pass, you commit, and the push is rejected by
@@ -98,6 +98,34 @@ protocol literally (create and stage at start) cannot pass both gates.
 
 Symptom: a commit is rejected by one of the two policies no matter which order
 you try. Refs #3904.
+
+## Never record `endingCommit` and then amend
+
+`endingCommit` must name a commit that is still reachable:
+`scripts/validation/session_scope.py` runs `git merge-base --is-ancestor <sha>
+HEAD`. Amending the commit that carried the log rewrites it, so the SHA you
+just recorded no longer exists on the branch and the check fails.
+
+Record the SHA of the commit carrying the work, then commit that edit as a
+**follow-up commit**. A commit is its own ancestor, so naming current `HEAD`
+and committing the change on top passes.
+
+Two traps make this expensive rather than merely annoying:
+
+- A `[PASS]` from `scripts/validate_session_json.py` does not survive an amend.
+  The validator reads the SHA against the `HEAD` of the moment. Re-run it after
+  any amend, not just after the first write.
+- The check runs inside the push hook **after** the Python suite, which
+  measured 1116 seconds on one run. A one-line metadata error therefore costs
+  roughly twenty minutes to surface.
+
+Symptom, from the push hook rather than from the standalone validator:
+
+```text
+endingCommit '<sha>' names a commit that is not an ancestor of HEAD
+```
+
+Refs #3618.
 
 ## Run validation with `uv run python`, never bare `python3`
 
@@ -254,6 +282,56 @@ at byte level before editing.
 
 The validator takes `--pr-number` and fetches the **live** body, so push and
 update the PR before running it locally.
+
+## Spec coverage blocks when the PR body has no checked acceptance boxes
+
+`Validate Spec Coverage` fails with this, and the reason names a rule rather
+than a missing file, so it reads like an infrastructure fault:
+
+```
+verdict: NEEDS_REVIEW   reason: closed-loop:external-signal-inconclusive
+```
+
+The cause is a missing section in **the PR body**, not the issue.
+`scripts/external_signals/gate_aggregator.py` requires at least one signal of
+kind `external` whose verdict is passing or warning. The only external signal
+is `acceptance-criteria`, which
+`scripts/quality_gate/spec_external_signal_gate.py` parses out of
+`PR_BODY_FILE`. All boxes checked gives PASS, any box unchecked gives FAIL, and
+**no section at all gives UNKNOWN**, which empties the external list and
+blocks. The other two signals come from the model, and two readings from one
+model are one measurement, so the gate is right to refuse them alone.
+
+Two parsing constraints, both in `scripts/external_signals/acceptance_criteria.py`:
+
+- The heading must match `^#{1,6}\s*acceptance(\s+criteria)?\s*$`.
+- Items must be `- [x]` task-list checkboxes. **A numbered list does not
+  parse**, so copying an issue's `1.` through `5.` criteria verbatim still
+  yields UNKNOWN.
+
+Reproduce and fix offline rather than pushing to find out. This runs the real
+gate and replaces a CI cycle with one second:
+
+```bash
+gh pr view "$PR" --json body --jq .body > body.md
+PR_BODY_FILE=body.md TRACE_VERDICT=PASS COMPLETENESS_VERDICT=PARTIAL \
+  uv run --frozen python scripts/quality_gate/spec_external_signal_gate.py
+```
+
+Exit 0 means PASS or WARN. Editing the body re-triggers the gate, so no new
+commit is needed.
+
+**Do not read the PR comment to find out whether this passed.** The
+`AI-SPEC-VALIDATION` comment is posted once and never updated, so it keeps
+showing the first run's verdict. A red check can display `Final Verdict: PASS`
+indefinitely. Read the job log instead, and note that `gh run view
+--log-failed` returns only cleanup noise for this job:
+
+```bash
+gh run view --job "$JOB_ID" --log | sed 's/\x1b\[[0-9;]*m//g' | grep -P 'VERDICT|"verdict"|"reason"'
+```
+
+Refs #4369 for the stale comment defect.
 
 ## Never put a literal pipe inside a Markdown table cell
 

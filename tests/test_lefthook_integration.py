@@ -1667,7 +1667,7 @@ def test_branch_context_fails_open_when_git_is_unavailable(
     def no_git(*args: object, **kwargs: object) -> NoReturn:
         raise FileNotFoundError(2, "No such file or directory: 'git'")
 
-    monkeypatch.setattr(policy.subprocess, "run", no_git)
+    monkeypatch.setattr(policy.subprocess, "Popen", no_git)
 
     assert policy.check_branch_context(repo) == 0
 
@@ -2071,12 +2071,21 @@ def test_git_command_boundary_forces_utf8_replacement(
     monkeypatch.setenv("SEMGREP_BASELINE_REF", "HEAD")
     monkeypatch.setenv("SEMGREP_URL", "https://attacker.invalid")
 
-    def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
-        captured["args"] = args[0]
-        captured.update(kwargs)
-        return _completed(0)
+    class FakePopen:
+        returncode = 0
+        pid = os.getpid()
 
-    monkeypatch.setattr(policy.subprocess, "run", fake_run)
+        def __init__(self, args: Sequence[str], **kwargs: object) -> None:
+            captured["args"] = args
+            captured.update(kwargs)
+
+        def communicate(
+            self, *, input: object = None, timeout: float | None = None
+        ) -> tuple[str, str]:
+            captured["timeout"] = timeout
+            return ("", "")
+
+    monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
 
     policy._run_git(tmp_path, ["status", "--short"])
 
@@ -2107,20 +2116,30 @@ def test_command_boundary_maps_timeout_to_external_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def time_out(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
-        command = args[0]
-        timeout = kwargs["timeout"]
-        assert isinstance(command, list)
-        assert all(isinstance(part, str) for part in command)
-        assert isinstance(timeout, (int, float))
-        raise subprocess.TimeoutExpired(
-            command,
-            timeout,
-            output="partial output\n",
-            stderr="child stalled\n",
-        )
+    class FakePopen:
+        pid = os.getpid()
 
-    monkeypatch.setattr(policy.subprocess, "run", time_out)
+        def __init__(self, args: Sequence[str], **kwargs: object) -> None:
+            self._args = list(args)
+            self._called = 0
+
+        def communicate(
+            self, *, input: object = None, timeout: float | None = None
+        ) -> tuple[str, str]:
+            self._called += 1
+            if self._called == 1:
+                raise subprocess.TimeoutExpired(
+                    self._args,
+                    timeout or 0.0,
+                    output="partial output\n",
+                    stderr="child stalled\n",
+                )
+            return ("", "")
+
+        def kill(self) -> None:
+            pass
+
+    monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
 
     result = policy._run_command(
         [sys.executable, "scripts/slow_tool.py", "scan"],
@@ -2140,20 +2159,30 @@ def test_binary_command_boundary_maps_timeout_to_external_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def time_out(*args: object, **kwargs: object) -> subprocess.CompletedProcess[bytes]:
-        command = args[0]
-        timeout = kwargs["timeout"]
-        assert isinstance(command, list)
-        assert all(isinstance(part, str) for part in command)
-        assert isinstance(timeout, (int, float))
-        raise subprocess.TimeoutExpired(
-            command,
-            timeout,
-            output=b"partial bytes\n",
-            stderr=b"binary child stalled\n",
-        )
+    class FakePopen:
+        pid = os.getpid()
 
-    monkeypatch.setattr(policy.subprocess, "run", time_out)
+        def __init__(self, args: Sequence[str], **kwargs: object) -> None:
+            self._args = list(args)
+            self._called = 0
+
+        def communicate(
+            self, *, input: object = None, timeout: float | None = None
+        ) -> tuple[bytes, bytes]:
+            self._called += 1
+            if self._called == 1:
+                raise subprocess.TimeoutExpired(
+                    self._args,
+                    timeout or 0.0,
+                    output=b"partial bytes\n",
+                    stderr=b"binary child stalled\n",
+                )
+            return (b"", b"")
+
+        def kill(self) -> None:
+            pass
+
+    monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
 
     result = policy._run_command_bytes(
         ["git", "-c", "core.commitGraph=false", "diff", "--name-only"],
@@ -3157,7 +3186,6 @@ def test_semgrep_disables_native_suppressions(
     assert "--x-ignore-semgrepignore-files" in calls[0]
     assert "--max-target-bytes=0" in calls[0]
     assert "--no-exclude-binary-files" in calls[0]
-    assert "--exclude-rule" not in calls[0]
     assert "--" in calls[0]
     assert str(tmp_path / "source.py") in calls[0]
     assert str(tmp_path) not in calls[0]
@@ -5022,8 +5050,9 @@ def test_push_policy_blocks_main_and_preserves_destination_branch(
 ) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
-    head = "1" * 40
-    remote = "2" * 40
+    # Use real commits so the non-fast-forward check can resolve the objects.
+    remote = _commit_file(repo, "tracked", "base\n")
+    head = _commit_file(repo, "tracked", "head\n")
     destinations: list[str | None] = []
 
     def capture_limit(update: policy.PushUpdate, _root: Path) -> int:
@@ -5066,6 +5095,213 @@ def test_new_branch_uses_origin_main_for_policy_bases(tmp_path: Path) -> None:
     assert update.base == base
     assert update.head == head
     assert update.range_spec == f"{base}..{head}"
+
+
+# ---------------------------------------------------------------------------
+# _check_non_fast_forward tests (issue #4293)
+# ---------------------------------------------------------------------------
+
+
+def _make_push_ref(
+    local_sha: str,
+    remote_sha: str,
+    remote_ref: str = "refs/heads/feature/test",
+    local_ref: str = "refs/heads/feature/test",
+) -> policy.PushRef:
+    return policy.PushRef(local_ref, local_sha, remote_ref, remote_sha)
+
+
+def test_non_fast_forward_passes_on_fast_forward_push(tmp_path: Path) -> None:
+    """Fast-forward push: remote_sha is an ancestor of local_sha."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    remote_sha = _commit_file(repo, "f.txt", "v1\n")
+    local_sha = _commit_file(repo, "f.txt", "v2\n")
+    push_ref = _make_push_ref(local_sha, remote_sha)
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 0
+
+
+def test_non_fast_forward_blocks_history_rewrite(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Force push: local_sha does not descend from remote_sha."""
+    monkeypatch.delenv("FORCE_PUSH_OK", raising=False)
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    base = _commit_file(repo, "f.txt", "base\n")
+    # Two divergent branches from base.
+    _git(repo, "checkout", "-q", "-b", "side")
+    side_sha = _commit_file(repo, "f.txt", "side\n")
+    _git(repo, "checkout", "-q", "feature/test")
+    feature_sha = _commit_file(repo, "f.txt", "feature\n")
+    # Push feature as if remote is on side (not an ancestor).
+    push_ref = _make_push_ref(feature_sha, side_sha)
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 1
+    err = capsys.readouterr().err
+    assert "not a fast-forward" in err
+    assert "universal.md" in err
+    assert base  # suppress unused-variable warning
+
+
+def test_non_fast_forward_passes_new_branch(tmp_path: Path) -> None:
+    """New branch: remote_sha is all zeros, nothing to rewrite."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    local_sha = _commit_file(repo, "f.txt", "v1\n")
+    push_ref = _make_push_ref(local_sha, "0" * 40)
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 0
+
+
+def test_non_fast_forward_passes_deletion(tmp_path: Path) -> None:
+    """Branch deletion (local_sha all zeros) is not a force push."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    remote_sha = _commit_file(repo, "f.txt", "v1\n")
+    push_ref = _make_push_ref("0" * 40, remote_sha)
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 0
+
+
+def test_non_fast_forward_returns_2_when_remote_object_absent(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Missing remote object: guard fails closed, not a false positive."""
+    monkeypatch.delenv("FORCE_PUSH_OK", raising=False)
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    local_sha = _commit_file(repo, "f.txt", "v1\n")
+    # A plausible-looking SHA that is not present in the repo.
+    absent_sha = "abcdef1234567890abcdef1234567890abcdef12"
+    push_ref = _make_push_ref(local_sha, absent_sha)
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 2
+    err = capsys.readouterr().err
+    assert "not present in the local object store" in err
+    assert "git fetch" in err
+
+
+def test_non_fast_forward_skips_non_branch_refs(tmp_path: Path) -> None:
+    """Tag refs and other non-branch refs are out of scope.
+
+    The remote_sha and local_sha are on divergent branches (neither is an
+    ancestor of the other), so without the non-branch guard this test would
+    fail.  The guard must fire first and return 0 before the ancestry check.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    base = _commit_file(repo, "f.txt", "base\n")
+    # Create two divergent branches from base.
+    _git(repo, "checkout", "-q", "-b", "branch-a")
+    branch_a_sha = _commit_file(repo, "f.txt", "branch-a\n")
+    _git(repo, "checkout", "-q", base)
+    _git(repo, "checkout", "-q", "-b", "branch-b")
+    branch_b_sha = _commit_file(repo, "f.txt", "branch-b\n")
+    # local=branch_b, remote=branch_a: genuinely divergent (non-ancestor).
+    # If the branch guard were absent, this would reach the ancestry check
+    # and return 1.  The guard must fire and return 0 first.
+    push_ref = _make_push_ref(
+        branch_b_sha, branch_a_sha, remote_ref="refs/tags/v1.0.0"
+    )
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 0
+    assert base  # suppress unused-variable warning
+
+
+def test_non_fast_forward_env_var_bypasses_block(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """FORCE_PUSH_OK=1 allows a rewrite with a warning."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    base = _commit_file(repo, "f.txt", "base\n")
+    _git(repo, "checkout", "-q", "-b", "side")
+    side_sha = _commit_file(repo, "f.txt", "side\n")
+    _git(repo, "checkout", "-q", "feature/test")
+    feature_sha = _commit_file(repo, "f.txt", "feature\n")
+    push_ref = _make_push_ref(feature_sha, side_sha)
+    monkeypatch.setenv("FORCE_PUSH_OK", "1")
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 0
+    err = capsys.readouterr().err
+    assert "bypassed" in err
+    assert base  # suppress unused-variable warning
+
+
+def test_check_push_refs_blocks_force_push_end_to_end(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """check_push_refs end-to-end: force push is caught."""
+    monkeypatch.delenv("FORCE_PUSH_OK", raising=False)
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    base = _commit_file(repo, "f.txt", "base\n")
+    _git(repo, "checkout", "-q", "-b", "side")
+    side_sha = _commit_file(repo, "f.txt", "side\n")
+    _git(repo, "checkout", "-q", "feature/test")
+    feature_sha = _commit_file(repo, "f.txt", "feature\n")
+    monkeypatch.setattr(policy, "_fetch_origin_main", lambda _repo_root: None)
+    monkeypatch.setattr(policy, "warn_if_push_files_incomplete", lambda *_args: None)
+    stream = io.StringIO(
+        f"refs/heads/feature/test {feature_sha} refs/heads/feature/test {side_sha}\n"
+    )
+
+    result = policy.check_push_refs(stream, repo)
+
+    assert result == 1
+    err = capsys.readouterr().err
+    assert "not a fast-forward" in err
+    assert base  # suppress unused-variable warning
+
+
+def test_check_push_refs_multi_ref_catches_second_rewrite(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Multiple refs: only the second is a rewrite; the first is a new branch."""
+    monkeypatch.delenv("FORCE_PUSH_OK", raising=False)
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "f.txt", "base\n")
+    _git(repo, "checkout", "-q", "-b", "side")
+    side_sha = _commit_file(repo, "f.txt", "side\n")
+    _git(repo, "checkout", "-q", "feature/test")
+    feature_sha = _commit_file(repo, "f.txt", "feature\n")
+    monkeypatch.setattr(policy, "_fetch_origin_main", lambda _repo_root: None)
+    monkeypatch.setattr(policy, "warn_if_push_files_incomplete", lambda *_args: None)
+    zero = "0" * 40
+    stream = io.StringIO(
+        # First ref: new branch (zero remote), passes.
+        f"refs/heads/new-branch {feature_sha} refs/heads/new-branch {zero}\n"
+        # Second ref: force push, blocked.
+        f"refs/heads/feature/test {feature_sha} refs/heads/feature/test {side_sha}\n"
+    )
+
+    result = policy.check_push_refs(stream, repo)
+
+    assert result == 1
+    assert "not a fast-forward" in capsys.readouterr().err
 
 
 def test_commit_limit_queries_the_destination_branch(
@@ -6300,11 +6536,20 @@ def test_pytest_policy_cleans_hook_environment(
     ):
         monkeypatch.setenv(key, "leaked")
 
-    def fake_run(*_args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
-        captured.update(kwargs)
-        return _completed(0)
+    class FakePopen:
+        returncode = 0
+        pid = os.getpid()
 
-    monkeypatch.setattr(policy.subprocess, "run", fake_run)
+        def __init__(self, _args: Sequence[str], **kwargs: object) -> None:
+            captured.update(kwargs)
+
+        def communicate(
+            self, *, input: object = None, timeout: float | None = None
+        ) -> tuple[str, str]:
+            captured["timeout"] = timeout
+            return ("", "")
+
+    monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
 
     assert policy.run_pytest(tmp_path) == 0
     env = captured["env"]
@@ -6499,11 +6744,20 @@ def test_cli_e2e_runs_with_clean_plugin_environment(
     monkeypatch.setattr(policy.shutil, "which", lambda name: name if name == "copilot" else None)
     captured: dict[str, object] = {}
 
-    def fake_run(*_args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
-        captured.update(kwargs)
-        return _completed(0)
+    class FakePopen:
+        returncode = 0
+        pid = os.getpid()
 
-    monkeypatch.setattr(policy.subprocess, "run", fake_run)
+        def __init__(self, _args: Sequence[str], **kwargs: object) -> None:
+            captured.update(kwargs)
+
+        def communicate(
+            self, *, input: object = None, timeout: float | None = None
+        ) -> tuple[str, str]:
+            captured["timeout"] = timeout
+            return ("", "")
+
+    monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
 
     assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 0
     env = captured["env"]
@@ -9661,3 +9915,35 @@ def test_the_tracked_scan_reports_a_git_failure_as_a_config_error(
     not_a_repo.mkdir()
 
     assert policy.check_tracked_conflict_markers(not_a_repo) == 2
+
+
+# ---------------------------------------------------------------------------
+# _semgrep_command excludes python36/37 compatibility families (#4217 unblock)
+# ---------------------------------------------------------------------------
+
+
+def test_semgrep_command_excludes_python36_compat_family() -> None:
+    """_semgrep_command must exclude the python36 compatibility rule family.
+
+    pyproject.toml sets python_requires >= 3.14. The python36 compatibility
+    rules flag valid patterns such as subprocess.Popen(encoding=, errors=) as
+    errors, producing false positives that block legitimate pushes.
+    """
+    cmd = policy._semgrep_command("auto", ["path/to/file.py"])
+    exclude_values = [
+        cmd[i + 1] for i, arg in enumerate(cmd) if arg == "--exclude-rule"
+    ]
+    assert any(
+        "python.lang.compatibility.python36" in v for v in exclude_values
+    ), f"python36 compat family not excluded. --exclude-rule values: {exclude_values}"
+
+
+def test_semgrep_command_excludes_python37_compat_family() -> None:
+    """_semgrep_command must exclude the python37 compatibility rule family."""
+    cmd = policy._semgrep_command("auto", ["path/to/file.py"])
+    exclude_values = [
+        cmd[i + 1] for i, arg in enumerate(cmd) if arg == "--exclude-rule"
+    ]
+    assert any(
+        "python.lang.compatibility.python37" in v for v in exclude_values
+    ), f"python37 compat family not excluded. --exclude-rule values: {exclude_values}"

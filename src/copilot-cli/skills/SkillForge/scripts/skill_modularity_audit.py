@@ -1,10 +1,17 @@
 #!/usr/bin/env python3
 """Audit skill modularity based on SkillsBench research findings.
 
-SkillsBench (Feb 2026) found that smaller, modular skills (2-3 modules)
-significantly outperform large data dumps. This script audits all skills
-in .claude/skills/ and produces a report with modularity scores and
-refactoring recommendations.
+SkillsBench (Feb 2026) measured skill shape against task-macro pass rate. Two to
+three skills scored +19.0 pp against one skill's +18.0 pp, while four or more fell
+to +10.1 pp. On length, standard beat compact (+21.5 vs +19.0 pp) and exhaustive
+documentation collapsed to +0.7 pp. The finding is focused over exhaustive, not
+shorter is always better. See references/modularity-guidelines.md.
+
+This script audits all skills in .claude/skills/ and produces a report with
+modularity scores and refactoring recommendations. Its length curve is one-sided:
+it subtracts above 300 lines and subtracts nothing below, so nothing signals that
+a skill has been cut past the standard range the study ranked first. Tracked at
+https://github.com/rjmurillo/ai-agents/issues/4327.
 
 Modularity scoring:
     - Lines: penalized above 300 (warning) and 500 (error) thresholds

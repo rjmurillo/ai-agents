@@ -101,15 +101,15 @@
     ],
     "github/scripts/pr/close_pr.py": [
       [
+        "close_result = subprocess.run(",
+        0
+      ],
+      [
         "state_result = subprocess.run(",
         0
       ],
       [
         "subprocess.run(",
-        0
-      ],
-      [
-        "close_result = subprocess.run(",
         0
       ]
     ],
@@ -157,15 +157,15 @@
     ],
     "github/scripts/pr/get_pr_context.py": [
       [
-        "pr_result = subprocess.run(",
-        0
-      ],
-      [
         "diff_result = subprocess.run(",
         0
       ],
       [
         "files_result = subprocess.run(",
+        0
+      ],
+      [
+        "pr_result = subprocess.run(",
         0
       ]
     ],
@@ -247,7 +247,11 @@
     ],
     "github/scripts/test_workflow_locally.py": [
       [
-        "result = subprocess.run(",
+        "act_version = subprocess.run(",
+        0
+      ],
+      [
+        "docker_result = subprocess.run(",
         0
       ],
       [
@@ -255,11 +259,7 @@
         0
       ],
       [
-        "act_version = subprocess.run(",
-        0
-      ],
-      [
-        "docker_result = subprocess.run(",
+        "result = subprocess.run(",
         0
       ],
       [
@@ -269,11 +269,11 @@
     ],
     "guard-maturity/scripts/run_report.py": [
       [
-        "proc = subprocess.run(cmd, capture_output=True, text=True, check=False)",
+        "proc = subprocess.run(",
         0
       ],
       [
-        "proc = subprocess.run(",
+        "proc = subprocess.run(cmd, capture_output=True, text=True, check=False)",
         0
       ]
     ],
@@ -325,11 +325,11 @@
     ],
     "orphan-ref-validator/tests/test_scan.py": [
       [
-        "shallow = subprocess.run(",
+        "log = subprocess.run(",
         0
       ],
       [
-        "log = subprocess.run(",
+        "shallow = subprocess.run(",
         0
       ]
     ],
@@ -382,16 +382,46 @@
       ]
     ],
     "session-end/scripts/complete_session_log.py": [
-      79,
-      95,
-      178,
-      192,
-      210,
-      222,
-      244,
-      251,
-      271,
-      288
+      [
+        "result = subprocess.run(",
+        0
+      ],
+      [
+        "result = subprocess.run(",
+        1
+      ],
+      [
+        "result = subprocess.run(",
+        2
+      ],
+      [
+        "result = subprocess.run(",
+        3
+      ],
+      [
+        "result = subprocess.run(",
+        4
+      ],
+      [
+        "result = subprocess.run(",
+        5
+      ],
+      [
+        "result = subprocess.run(",
+        6
+      ],
+      [
+        "result = subprocess.run(",
+        7
+      ],
+      [
+        "staged = subprocess.run(",
+        0
+      ],
+      [
+        "unstaged = subprocess.run(",
+        0
+      ]
     ],
     "session-end/scripts/rework_warning.py": [
       [
@@ -431,20 +461,23 @@
     ],
     "session-log-fixer/scripts/get_validation_errors.py": [
       [
+        "log_result = subprocess.run(",
+        0
+      ],
+      [
         "pr_result = subprocess.run(",
         0
       ],
       [
         "runs_result = subprocess.run(",
         0
-      ],
-      [
-        "log_result = subprocess.run(",
-        0
       ]
     ],
     "session/scripts/test_investigation_eligibility.py": [
-      56
+      [
+        "result = subprocess.run(",
+        0
+      ]
     ],
     "style-enforcement/scripts/check_style.py": [
       [

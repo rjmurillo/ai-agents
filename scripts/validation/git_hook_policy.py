@@ -12,6 +12,7 @@ import os
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -509,6 +510,33 @@ def _clean_git_env() -> dict[str, str]:
     return env
 
 
+_SUPPORTS_PGROUP = hasattr(os, "killpg")
+
+
+def _killpg_safe(pid: int) -> None:
+    """Send SIGTERM then SIGKILL to the process group containing ``pid``.
+
+    Uses SIGTERM first (giving the group a chance to clean up open resources
+    such as a bound port), then SIGKILL after. Guards against signalling the
+    hook's own process group when setsid did not fire (Windows, or a failed
+    exec where the child kept our PGID).
+    """
+    try:
+        pgid = os.getpgid(pid)
+    except OSError:
+        return
+    if pgid == os.getpgid(0):
+        return
+    try:
+        os.killpg(pgid, signal.SIGTERM)
+    except OSError:
+        pass
+    try:
+        os.killpg(pgid, signal.SIGKILL)
+    except OSError:
+        pass
+
+
 def _run_command(
     args: Sequence[str],
     repo_root: Path,
@@ -518,29 +546,57 @@ def _run_command(
     process_env: Mapping[str, str] | None = None,
     timeout_seconds: float = DEFAULT_SUBPROCESS_TIMEOUT_SECONDS,
 ) -> subprocess.CompletedProcess[str]:
+    """Run a command and return a CompletedProcess with exit code 3 on timeout.
+
+    On timeout the whole process group is killed via SIGTERM then SIGKILL so
+    grandchildren (e.g. the gh-act artifact server) do not survive to hold
+    ports open (Issue #4217, same defect as #3948 one level up). ``input_text``
+    is written to stdin so callers that previously relied on
+    ``subprocess.run(..., input=)`` keep the same semantics.
+    """
     env = dict(process_env) if process_env is not None else _clean_git_env()
     if extra_env is not None:
         env.update(extra_env)
     command = list(args)
     try:
-        return subprocess.run(
+        proc = subprocess.Popen(
             command,
             cwd=repo_root,
             env=env,
-            input=input_text,
+            stdin=subprocess.PIPE if input_text is not None else subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             encoding="utf-8",
             errors="replace",
-            capture_output=True,
-            check=False,
+            start_new_session=_SUPPORTS_PGROUP,
+        )
+    except OSError as exc:
+        return subprocess.CompletedProcess(command, 3, "", str(exc))
+    try:
+        stdout, stderr = proc.communicate(
+            input=input_text,
             timeout=timeout_seconds,
         )
+        return subprocess.CompletedProcess(command, proc.returncode, stdout, stderr)
     except subprocess.TimeoutExpired as error:
-        stdout = _timeout_text(error.stdout)
+        if _SUPPORTS_PGROUP:
+            _killpg_safe(proc.pid)
+        else:
+            proc.kill()
+        stdout_raw, stderr_raw = proc.communicate()
+        stdout = _timeout_text(error.stdout) or stdout_raw
         stderr = _append_timeout_message(
-            _timeout_text(error.stderr),
+            _timeout_text(error.stderr) or stderr_raw,
             _timeout_message(command, timeout_seconds),
         )
         return subprocess.CompletedProcess(command, 3, stdout, stderr)
+    except BaseException:
+        if _SUPPORTS_PGROUP:
+            _killpg_safe(proc.pid)
+        else:
+            proc.kill()
+        proc.communicate()
+        raise
 
 
 def _run_command_bytes(
@@ -549,23 +605,45 @@ def _run_command_bytes(
     *,
     timeout_seconds: float = DEFAULT_SUBPROCESS_TIMEOUT_SECONDS,
 ) -> subprocess.CompletedProcess[bytes]:
+    """Byte-mode variant of ``_run_command``.
+
+    Kills the process group on timeout for the same reason as ``_run_command``
+    (Issue #4217).
+    """
     command = list(args)
     try:
-        return subprocess.run(
+        proc = subprocess.Popen(
             command,
             cwd=repo_root,
             env=_clean_git_env(),
-            capture_output=True,
-            check=False,
-            timeout=timeout_seconds,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=_SUPPORTS_PGROUP,
         )
+    except OSError as exc:
+        return subprocess.CompletedProcess(command, 3, b"", str(exc).encode())
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout_seconds)
+        return subprocess.CompletedProcess(command, proc.returncode, stdout, stderr)
     except subprocess.TimeoutExpired as error:
-        stdout = _timeout_bytes(error.stdout)
+        if _SUPPORTS_PGROUP:
+            _killpg_safe(proc.pid)
+        else:
+            proc.kill()
+        stdout_raw, stderr_raw = proc.communicate()
+        stdout = _timeout_bytes(error.stdout) or stdout_raw
         stderr = _append_timeout_bytes(
-            _timeout_bytes(error.stderr),
+            _timeout_bytes(error.stderr) or stderr_raw,
             _timeout_message(command, timeout_seconds).encode(),
         )
         return subprocess.CompletedProcess(command, 3, stdout, stderr)
+    except BaseException:
+        if _SUPPORTS_PGROUP:
+            _killpg_safe(proc.pid)
+        else:
+            proc.kill()
+        proc.communicate()
+        raise
 
 
 def _timeout_text(value: bytes | str | None) -> str:
@@ -3473,6 +3551,21 @@ def _semgrep_command(
     targets: Sequence[str],
     repo_root: Path = REPO_ROOT,
 ) -> list[str]:
+    # python.lang.compatibility.python3{6,7} rules flag arguments like
+    # subprocess Popen(encoding=, errors=) that are valid on Python 3.6+.
+    # This repo requires Python 3.14 (pyproject.toml python_requires >=3.14),
+    # so those compatibility warnings are false positives here.
+    # Full rule IDs required: prefix matching does not suppress with --exclude-rule.
+    exclude_compat_rules = [
+        "--exclude-rule",
+        "python.lang.compatibility.python36.python36-compatibility-Popen1",
+        "--exclude-rule",
+        "python.lang.compatibility.python36.python36-compatibility-Popen2",
+        "--exclude-rule",
+        "python.lang.compatibility.python37.python37-compatibility-Popen1",
+        "--exclude-rule",
+        "python.lang.compatibility.python37.python37-compatibility-Popen2",
+    ]
     return [
         _resolve_semgrep_executable(repo_root),
         "scan",
@@ -3487,6 +3580,7 @@ def _semgrep_command(
         "--max-target-bytes=0",
         "--no-exclude-binary-files",
         "--json",
+        *exclude_compat_rules,
         "--",
         *targets,
     ]
@@ -4923,9 +5017,88 @@ def _fetch_origin_main(repo_root: Path) -> None:
         print("WARNING: could not refresh origin/main; using local ref", file=sys.stderr)
 
 
+# Environment variable that allows force-pushing a branch the actor owns.
+# Set to "1" for a single push of a personal feature branch that has been
+# deliberately rebased.  universal.md MUST NOT #1 still applies: this escape
+# is for branches only the author has touched.  Use the 4-slot semaphore
+# described in AGENTS.md to serialize, not this env var.
+FORCE_PUSH_OK_ENV = "FORCE_PUSH_OK"
+
+
+def _check_non_fast_forward(push_ref: PushRef, repo_root: Path) -> int:
+    """Return 1 when push_ref rewrites published history on a branch ref.
+
+    Detects a force push by testing whether the current remote tip
+    (remote_sha) is reachable from what is about to land (local_sha).  If it
+    is not reachable, the push discards commits the remote already has.
+
+    Returns:
+        0 - fast-forward, new branch, deletion, non-branch ref, or env-var
+            escape active.
+        1 - non-fast-forward detected (history rewrite).
+        2 - remote object absent locally; fetch first.
+    """
+    # Only guard branch refs.
+    if _branch_name(push_ref.remote_ref) is None:
+        return 0
+
+    # Deletions and new branches do not rewrite history.
+    if push_ref.is_deletion or push_ref.is_new:
+        return 0
+
+    if os.environ.get(FORCE_PUSH_OK_ENV) == "1":
+        print(
+            f"WARNING: force-push check bypassed via {FORCE_PUSH_OK_ENV}=1 "
+            f"for {push_ref.remote_ref}",
+            file=sys.stderr,
+        )
+        return 0
+
+    # The remote tip must be present locally before we can test ancestry.
+    # merge-base --is-ancestor exits non-zero both for "not an ancestor" and
+    # for "unknown object", so we must distinguish those two cases first.
+    if not _commit_ref_exists(repo_root, push_ref.remote_sha):
+        print(
+            f"ERROR: remote tip {push_ref.remote_sha[:12]} for "
+            f"{push_ref.remote_ref} is not present in the local object store. "
+            "Run 'git fetch' and retry.",
+            file=sys.stderr,
+        )
+        return 2
+
+    result = _run_git(
+        repo_root,
+        ["merge-base", "--is-ancestor", push_ref.remote_sha, push_ref.local_sha],
+    )
+    if result.returncode == 0:
+        # remote_sha is an ancestor of local_sha: fast-forward push.
+        return 0
+
+    # returncode == 1 means not-an-ancestor; anything else is a git error.
+    # Fail closed in both cases.
+    print(
+        f"ERROR: push to {push_ref.remote_ref} is not a fast-forward. "
+        f"Remote tip {push_ref.remote_sha[:12]} is not reachable from "
+        f"{push_ref.local_sha[:12]}. "
+        "This rewrites published history, which universal.md MUST NOT #1 forbids. "
+        f"To override for a personal branch you own, set {FORCE_PUSH_OK_ENV}=1.",
+        file=sys.stderr,
+    )
+    return 1
+
+
 def _protected_push_destination(push_ref: PushRef) -> str | None:
     branch = _branch_name(push_ref.remote_ref)
     return branch if branch in {"main", "master"} else None
+
+
+def _check_all_non_fast_forward(refs: list[PushRef], repo_root: Path) -> int:
+    """Run _check_non_fast_forward for each ref; return first non-zero result."""
+    for push_ref in refs:
+        result = _check_non_fast_forward(push_ref, repo_root)
+        if result != 0:
+            return result
+    return 0
 
 
 def check_push_refs(stream: TextIO, repo_root: Path) -> int:
@@ -4950,6 +5123,9 @@ def check_push_refs(stream: TextIO, repo_root: Path) -> int:
     if protected is not None:
         print(f"ERROR: cannot delete or update protected branch '{protected}'", file=sys.stderr)
         return 1
+    nff_result = _check_all_non_fast_forward(refs, repo_root)
+    if nff_result != 0:
+        return nff_result
     active_refs = [push_ref for push_ref in refs if not push_ref.is_deletion]
     if active_refs:
         warn_if_push_files_incomplete(active_refs, repo_root)
