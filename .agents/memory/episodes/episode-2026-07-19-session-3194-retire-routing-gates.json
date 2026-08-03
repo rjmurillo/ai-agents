@@ -12,7 +12,9 @@
       "type": "milestone",
       "content": "Removed routing_gates from all three registration sources and deleted the hook",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e005"
+      ]
     },
     {
       "id": "e002",
@@ -20,7 +22,9 @@
       "type": "milestone",
       "content": "Deleted the two routing_gates test files and repointed the harness-reference doc",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e005"
+      ]
     },
     {
       "id": "e003",
@@ -28,7 +32,9 @@
       "type": "milestone",
       "content": "Regenerated the Copilot mirror after the hook removal",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e005"
+      ]
     },
     {
       "id": "e004",
@@ -36,14 +42,21 @@
       "type": "milestone",
       "content": "Bumped both project-toolkit plugin manifests and reverted the blocked ADR-033 amendment",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e005"
+      ]
     },
     {
       "id": "e005",
-      "timestamp": "2026-07-19T00:00:00+00:00",
+      "timestamp": "2026-07-19T16:33:07+00:00",
       "type": "commit",
       "content": "Commit: d967c2e8",
-      "caused_by": [],
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004"
+      ],
       "leads_to": []
     }
   ],
