@@ -526,6 +526,9 @@ class TestIsAncestor:
             from scripts.detect_scope_explosion import is_ancestor
 
             assert is_ancestor("abc123", "abc123") is True
+
+
+class TestReport:
     """Tests for report function."""
 
     def test_below_warn_returns_zero(self, capsys: CaptureFixture[str]) -> None:
