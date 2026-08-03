@@ -9,8 +9,8 @@ Coverage:
 - regression: one counter over baseline -> EXIT_REGRESSION
 - conflict: merge-tree exits 1 -> EXIT_OK with skip message
 - git failure: merge-tree exits 2 -> EXIT_EXTERNAL
-- counter returns None: -> EXIT_REGRESSION (external error)
-- baseline unreadable at base ref: -> EXIT_REGRESSION (config error)
+- counter returns None: -> EXIT_EXTERNAL
+- baseline unreadable at base ref: -> EXIT_CONFIG
 - scratch dir cleanup: always cleaned up, even on failure
 - negative control: a cosmetic comment change to the script does NOT break
   the regression test (proves the test is not asserting on line number)
@@ -163,8 +163,8 @@ class TestMergeTreeRatchetCheck:
         )
         assert rc == _m.EXIT_EXTERNAL
 
-    def test_counter_returns_none_is_regression(self, tmp_path: Path) -> None:
-        """Counter returning None -> EXIT_REGRESSION (external error per count_ratchet contract)."""
+    def test_counter_returns_none_is_external(self, tmp_path: Path) -> None:
+        """Counter returning None -> EXIT_EXTERNAL."""
         repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
         with (
             patch("scripts.ci.ruff_count_ratchet.current_count", return_value=None),
@@ -172,7 +172,22 @@ class TestMergeTreeRatchetCheck:
             patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
         ):
             rc = _m.main(["--repo-root", str(repo), "--base-ref", "HEAD"])
-        assert rc == _m.EXIT_REGRESSION
+        assert rc == _m.EXIT_EXTERNAL
+
+    def test_missing_baseline_returns_config(self, tmp_path: Path) -> None:
+        """Missing baseline at base ref -> EXIT_CONFIG."""
+        repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
+        _git(repo, "rm", "scripts/ci/ruff_count_baseline.txt")
+        _commit_all(repo, "remove ruff baseline")
+
+        with (
+            patch("scripts.ci.ruff_count_ratchet.current_count", return_value=0),
+            patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
+            patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
+        ):
+            rc = _m.main(["--repo-root", str(repo), "--base-ref", "HEAD"])
+
+        assert rc == _m.EXIT_CONFIG
 
     def test_scratch_dir_cleaned_on_success(self, tmp_path: Path) -> None:
         """Scratch dir must be removed on a clean run."""

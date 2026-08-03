@@ -100,6 +100,43 @@ def _is_safe_archive_member(name: str) -> bool:
     return not path.is_absolute() and ".." not in path.parts
 
 
+def _write_archive_member(
+    archive: tarfile.TarFile,
+    member: tarfile.TarInfo,
+    dest: Path,
+) -> bool:
+    """Write one safe git archive member without tarfile.extract* helpers."""
+    if not _is_safe_archive_member(member.name):
+        sys.stderr.write(f"unsafe archive member rejected: {member.name}\n")
+        return False
+
+    target = dest / member.name
+    if member.isdir():
+        target.mkdir(parents=True, exist_ok=True)
+        return True
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if member.isreg():
+        source = archive.extractfile(member)
+        if source is None:
+            sys.stderr.write(f"archive member unreadable: {member.name}\n")
+            return False
+        with source, target.open("wb") as output:
+            shutil.copyfileobj(source, output)
+        target.chmod(member.mode & 0o777)
+        return True
+
+    if member.issym():
+        if not _is_safe_archive_member(member.linkname):
+            sys.stderr.write(f"unsafe archive symlink rejected: {member.name}\n")
+            return False
+        target.symlink_to(member.linkname)
+        return True
+
+    sys.stderr.write(f"unsupported archive member type: {member.name}\n")
+    return False
+
+
 def _extract_tree(repo_root: Path, tree_oid: str, dest: Path) -> bool:
     """Extract git tree into dest. Returns True on success."""
     dest.mkdir(parents=True, exist_ok=True)
@@ -117,10 +154,8 @@ def _extract_tree(repo_root: Path, tree_oid: str, dest: Path) -> bool:
     try:
         with tarfile.open(fileobj=io.BytesIO(archive_proc.stdout), mode="r|") as archive:
             for member in archive:
-                if not _is_safe_archive_member(member.name):
-                    sys.stderr.write(f"unsafe archive member rejected: {member.name}\n")
+                if not _write_archive_member(archive, member, dest):
                     return False
-                archive.extract(member, dest)
     except (tarfile.TarError, OSError) as exc:
         sys.stderr.write(
             "tarfile extraction failed:\n"
@@ -177,18 +212,18 @@ def _check_one(
     label: str,
     count: int | None,
     baseline: int | None,
-) -> tuple[bool, str]:
-    """Return (regression, message)."""
+) -> tuple[int, str]:
+    """Return (exit code, message)."""
     if count is None:
-        return True, f"{label}: EXTERNAL ERROR - counter returned None"
+        return EXIT_EXTERNAL, f"{label}: EXTERNAL ERROR - counter returned None"
     if baseline is None:
-        return True, f"{label}: CONFIG ERROR - baseline at base ref unreadable"
+        return EXIT_CONFIG, f"{label}: CONFIG ERROR - baseline at base ref unreadable"
     if count > baseline:
         return (
-            True,
+            EXIT_REGRESSION,
             f"{label}: REGRESSION. {count} > baseline {baseline} (+{count - baseline}).",
         )
-    return False, f"{label}: OK. {count} <= {baseline}."
+    return EXIT_OK, f"{label}: OK. {count} <= {baseline}."
 
 
 def _evaluate_merged_tree(repo_root: Path, base_ref: str) -> int:
@@ -230,16 +265,16 @@ def _evaluate_merged_tree(repo_root: Path, base_ref: str) -> int:
     finally:
         shutil.rmtree(scratch_root, ignore_errors=True)
 
-    regressions: list[str] = []
+    exit_code = EXIT_OK
     for label, count in counts.items():
-        failed, msg = _check_one(label, count, baselines[label])
-        if failed:
-            regressions.append(msg)
+        code, msg = _check_one(label, count, baselines[label])
+        exit_code = max(exit_code, code)
+        if code != EXIT_OK:
             print(f"merge-tree-ratchet: {msg}", file=sys.stderr)
         else:
             print(f"merge-tree-ratchet: {msg}")
 
-    if regressions:
+    if exit_code != EXIT_OK:
         print(
             "\nmerge-tree-ratchet: BLOCKED. The merged result breaches a ratchet ceiling.\n"
             "This means your branch is measured against a stale main, or your changes\n"
@@ -248,7 +283,7 @@ def _evaluate_merged_tree(repo_root: Path, base_ref: str) -> int:
             "(See issue #4398 for context.)",
             file=sys.stderr,
         )
-        return EXIT_REGRESSION
+        return exit_code
 
     print(
         f"merge-tree-ratchet: OK. Merged tree passes all three ratchets "
