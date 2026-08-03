@@ -879,7 +879,10 @@ def _script_commit() -> str:
             return "unknown"
 
         result = subprocess.run(
-            ["git", "-C", repo_root, "log", "-1", "--format=%h", "--", pathspec],
+            [
+                "git", "-c", "log.showSignature=false",
+                "-C", repo_root, "log", "-1", "--format=%h", "--", pathspec,
+            ],
             capture_output=True,
             encoding="utf-8",
             errors="replace",
