@@ -35,6 +35,7 @@ from scripts.github_core.api import (  # noqa: E402
     get_all_prs_with_comments,
     resolve_repo_params,
 )
+from scripts.github_core.bot_config import canonicalize_login  # noqa: E402
 from scripts.github_core.repo import get_repo_root  # noqa: E402
 from scripts.llm_classification import (  # noqa: E402
     LLMClassifier,
@@ -160,12 +161,15 @@ def get_comments_by_reviewer(
         prs: List of PR dicts from GraphQL with reviewThreads.
 
     Returns:
-        Dict mapping reviewer login to ReviewerStats.
+        Dict mapping canonical reviewer login to ReviewerStats.
     """
     reviewer_stats: dict[str, ReviewerStats] = {}
 
     for pr in prs:
-        pr_author = (pr.get("author") or {}).get("login", "")
+        # Canonical identity on both sides: one integration reaches the API
+        # under several logins, so a raw-login key counts it as several
+        # reviewers in the committed statistics (issue #4378).
+        pr_author = canonicalize_login((pr.get("author") or {}).get("login", ""))
 
         threads = pr.get("reviewThreads", {}).get("nodes", [])
         for thread in threads:
@@ -174,7 +178,9 @@ def get_comments_by_reviewer(
             comments_nodes = thread.get("comments", {}).get("nodes", [])
 
             for comment in comments_nodes:
-                comment_author = (comment.get("author") or {}).get("login", "")
+                comment_author = canonicalize_login(
+                    (comment.get("author") or {}).get("login", "")
+                )
 
                 # Skip self-comments (reviewer commenting on their own PR)
                 if comment_author == pr_author:

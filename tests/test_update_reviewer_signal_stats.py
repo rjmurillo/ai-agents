@@ -297,6 +297,36 @@ class TestCommentsByReviewer:
         result = get_comments_by_reviewer([])
         assert result == {}
 
+    def test_one_integration_under_several_logins_is_one_reviewer(self) -> None:
+        """Raw-login keys counted the Copilot reviewer three times (issue #4378)."""
+        prs = [
+            _make_pr(
+                1,
+                "author1",
+                [
+                    ("Copilot", "C1"),
+                    ("copilot-pull-request-reviewer", "C2"),
+                    ("copilot-pull-request-reviewer[bot]", "C3"),
+                ],
+            )
+        ]
+        result = get_comments_by_reviewer(prs)
+        assert list(result) == ["github-copilot[bot]"]
+        assert result["github-copilot[bot]"].total_comments == 3
+
+    def test_an_aliased_author_commenting_on_its_own_pr_is_still_a_self_comment(self) -> None:
+        prs = [_make_pr(1, "app/copilot-swe-agent", [("copilot-swe-agent[bot]", "Self")])]
+        result = get_comments_by_reviewer(prs)
+        assert result == {}
+
+    def test_a_review_of_a_coding_agent_pr_is_counted(self) -> None:
+        """The reviewer and the coding agent are two accounts, not one."""
+        prs = [
+            _make_pr(1, "app/copilot-swe-agent", [("copilot-pull-request-reviewer[bot]", "R")])
+        ]
+        result = get_comments_by_reviewer(prs)
+        assert list(result) == ["github-copilot[bot]"]
+
     def test_comments_are_comment_data_instances(self) -> None:
         prs = [_make_pr(1, "author1", [("reviewer1", "Comment")])]
         result = get_comments_by_reviewer(prs)
