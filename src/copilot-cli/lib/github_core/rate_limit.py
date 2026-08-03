@@ -37,7 +37,14 @@ class RateLimitResult:
 # rate_limit endpoint is exempt from the limit it reports. Reading only
 # ``remaining`` therefore reports the API as healthy during a refusal that
 # fails every real call (issue #4326). One non-exempt probe closes the gap.
-_PROBE_ENDPOINT = "user"
+#
+# ``meta`` rather than ``user`` on purpose: it counts against core (so a
+# refusal is observable) and it answers for every token type. ``GET /user``
+# returns 403 "Resource not accessible by integration" for an Actions
+# installation token, which would make this gate fail closed forever for any
+# caller that is not using a PAT. Both current callers use a PAT; the next one
+# might not.
+_PROBE_ENDPOINT = "meta"
 
 
 def _probe_api_serving() -> str:
