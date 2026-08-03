@@ -112,16 +112,46 @@ git merge-base --is-ancestor origin/<branch> HEAD && echo "local is ahead or equ
 git rev-parse HEAD origin/<branch>     # equal means the work is on the remote
 ```
 
+Do not read the pre-push hook's success banner as push completion. This repo's
+hook prints
+
+```
+RESULT: All validations passed
+
+Ready to create pull request!
+```
+
+and that text appears in the push log roughly two minutes in, while the ref
+transfer has not started. Misread once on 2026-08-02: `ls-remote` came back
+empty right after that banner, which looked like a failed push and was actually
+a push still running. The only completion signals are a non empty
+`git ls-remote origin <branch>` matching local `HEAD`, or the `REAL_EXIT=` line
+the wrapper appends after `git push` returns.
+
 Better than detecting the race is preventing it. Serialize pushes through a
-lockfile, which also keeps concurrent agents from running several full pytest
-suites at once on the same machine:
+lockfile, keyed on the branch:
 
 ```bash
-flock /tmp/aiagents-push.lock git push -u origin <branch>
+BR=<branch>
+SLUG=$(printf '%s' "$BR" | tr '/' '-')
+flock "/tmp/push-lock-$SLUG.lock" git push -u origin "$BR"
 ```
 
 `flock` waits for the lock rather than failing, so a queued push runs when the
 one ahead of it finishes instead of racing it.
+
+Key the lock on the branch, not on the repo. The collision that actually
+happens is two agents pushing the SAME ref; two pushes to different refs never
+contended. A single global lock (`/tmp/aiagents-push.lock`) serializes every
+push behind an 11 minute pre-push hook it did not need to wait for. See
+`git/git-lock-pushes-per-branch-not-globally.md` for the measurement.
+
+Every agent must name the lock identically or it excludes nothing. Measured
+2026-08-02: three schemes were live at once (`/tmp/aiagents-push.lock`,
+`/tmp/aiagents-push-$SLOT.lock` hashed into four slots, and the per branch
+path above), and one branch had two concurrent pushes running under two
+different lock names. `flock` only excludes processes that agree on the path,
+so the extra schemes bought nothing and hid the race.
 
 ## Evidence
 

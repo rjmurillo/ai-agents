@@ -1,4 +1,4 @@
-"""Canonical: scripts/github_core/__init__.py. Sync via scripts/sync_plugin_lib.py.
+"""GitHub Core module: shared helpers for GitHub CLI operations.
 
 NOTE: Plugin-distributed copy at .claude/lib/github_core/.
 Run ``python3 scripts/sync_plugin_lib.py`` to sync changes.
