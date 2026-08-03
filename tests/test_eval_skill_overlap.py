@@ -633,7 +633,7 @@ def test_run_dry_run_exits_ok_without_api_calls(tmp_path, monkeypatch, capsys):
     _make_skill_dir(skills_root, "a")
     _make_skill_dir(skills_root, "b")
     monkeypatch.setattr(eso, "SKILLS_DIR", skills_root)
-    monkeypatch.setattr(eso, "_load_api_key", _boom)
+    monkeypatch.setattr(eso, "_load_api_key_for_selected_provider", _boom)
     cluster = _write_valid_cluster(tmp_path)
     args = eso.build_parser().parse_args(["--pairs", str(cluster), "--dry-run"])
 
@@ -700,7 +700,7 @@ def test_run_returns_logic_exit_when_skill_dir_missing(tmp_path, monkeypatch):
     empty_skills = tmp_path / "skills_root"
     empty_skills.mkdir()
     monkeypatch.setattr(eso, "SKILLS_DIR", empty_skills)
-    monkeypatch.setattr(eso, "_load_api_key", lambda: "fake-key")
+    monkeypatch.setattr(eso, "_load_api_key_for_selected_provider", lambda: "fake-key")
     monkeypatch.setattr(eso, "make_response_fn", lambda key, model: (lambda p, c: "r"))
     monkeypatch.setattr(eso, "make_judge_fn", lambda key, model: (lambda p, r, e: 3.0))
     args = eso.build_parser().parse_args(["--pairs", str(cluster)])
@@ -725,7 +725,7 @@ def test_run_returns_external_exit_on_api_failure(tmp_path, monkeypatch):
         raise RuntimeError("Anthropic API returned HTTP 503")
 
     monkeypatch.setattr(eso, "SKILLS_DIR", skills_root)
-    monkeypatch.setattr(eso, "_load_api_key", lambda: "fake-key")
+    monkeypatch.setattr(eso, "_load_api_key_for_selected_provider", lambda: "fake-key")
     monkeypatch.setattr(eso, "make_response_fn", lambda key, model: _failing_respond)
     monkeypatch.setattr(eso, "make_judge_fn", lambda key, model: (lambda p, r, e: 3.0))
     args = eso.build_parser().parse_args(["--pairs", str(cluster)])
@@ -746,7 +746,7 @@ def test_run_returns_external_exit_on_invalid_judge_payload(tmp_path, monkeypatc
     cluster = _write_valid_cluster(tmp_path)
 
     monkeypatch.setattr(eso, "SKILLS_DIR", skills_root)
-    monkeypatch.setattr(eso, "_load_api_key", lambda: "fake-key")
+    monkeypatch.setattr(eso, "_load_api_key_for_selected_provider", lambda: "fake-key")
     monkeypatch.setattr(eso, "make_response_fn", lambda key, model: (lambda p, c: "r"))
     monkeypatch.setattr(
         eso,
@@ -776,7 +776,7 @@ def test_run_returns_external_exit_when_api_key_missing(tmp_path, monkeypatch):
         raise RuntimeError("ANTHROPIC_API_KEY not found")
 
     monkeypatch.setattr(eso, "SKILLS_DIR", skills_root)
-    monkeypatch.setattr(eso, "_load_api_key", _no_key)
+    monkeypatch.setattr(eso, "_load_api_key_for_selected_provider", _no_key)
     args = eso.build_parser().parse_args(["--pairs", str(cluster)])
 
     # Act
@@ -818,7 +818,7 @@ def test_run_full_live_path_writes_report(tmp_path, monkeypatch):
 
     monkeypatch.setattr(eso, "SKILLS_DIR", skills_root)
     monkeypatch.setattr(eso, "REPORTS_DIR", reports_root)
-    monkeypatch.setattr(eso, "_load_api_key", lambda: "fake-key")
+    monkeypatch.setattr(eso, "_load_api_key_for_selected_provider", lambda: "fake-key")
     monkeypatch.setattr(eso, "make_response_fn", lambda key, model: respond)
     monkeypatch.setattr(eso, "make_judge_fn", lambda key, model: judge)
     monkeypatch.setattr(eso.time, "sleep", lambda _s: None)
@@ -847,7 +847,7 @@ def test_main_dry_run_returns_zero(tmp_path, monkeypatch):
     _make_skill_dir(skills_root, "a")
     _make_skill_dir(skills_root, "b")
     monkeypatch.setattr(eso, "SKILLS_DIR", skills_root)
-    monkeypatch.setattr(eso, "_load_api_key", _no_key)
+    monkeypatch.setattr(eso, "_load_api_key_for_selected_provider", _no_key)
     cluster = _write_valid_cluster(tmp_path)
 
     # Act
