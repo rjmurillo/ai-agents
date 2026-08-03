@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size
 """Tests for scripts/eval/optimize-artifact.py (issue #3422).
 
 The CLI is the surface an optimizing agent drives. Its job is to make the

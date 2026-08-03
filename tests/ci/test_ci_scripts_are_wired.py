@@ -60,6 +60,11 @@ _NOT_WORKFLOW_INVOKED: dict[str, str] = {
         "main() and no shebang; tests/ci/test_count_ratchet.py covers it "
         "directly (issue #3779)."
     ),
+    "mutation_harness_ciperms.py": (
+        "Developer tool for verifying CI security tests (issues #3964 and #4151). "
+        "Run manually with `uv run --frozen python3 scripts/ci/mutation_harness_ciperms.py`. "
+        "It orchestrates pytest sub-processes and is not wired into CI itself."
+    ),
     "parse_drift_results.py": (
         "Subprocess helper called by drift_collect_details.py (ADR-006 extraction "
         "batch 6). drift_collect_details.py is the workflow-invoked entry point; "

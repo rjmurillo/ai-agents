@@ -1,0 +1,53 @@
+{
+  "rule_path": ".claude/rules/code-quality.md",
+  "rule_id": "code-quality",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Variable name that hides intent",
+      "input": "Review this function signature and variable name: `def process(d, f):`. Plan improvements in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "intention-revealing",
+        "name",
+        "rename",
+        "pronounceable"
+      ],
+      "expected_gate": "require-intention-revealing-names",
+      "rationale": "Code Quality rule mandates intention-revealing names. `d` and `f` are opaque single-letter params with no domain meaning."
+    },
+    {
+      "id": "S2",
+      "desc": "Function that does two unrelated things",
+      "input": "I have a function `save_user_and_send_welcome_email(user)` that writes to the database and sends an email. Should I keep it as one function? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "single responsibility",
+        "one thing",
+        "split",
+        "separate"
+      ],
+      "expected_gate": "enforce-single-responsibility-functions",
+      "rationale": "Rule states functions should do one thing. Combining persistence and notification violates SRP."
+    },
+    {
+      "id": "S3",
+      "desc": "Deeply nested if/else that can use guard clauses",
+      "input": "I have 4 levels of nested if/else to validate order before charging. Is this a problem? Plan a fix in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "guard clause",
+        "early return",
+        "flatten",
+        "nesting"
+      ],
+      "expected_gate": "use-guard-clauses-to-reduce-nesting",
+      "rationale": "Rule mandates guard clauses and early returns to flatten control flow. Deep nesting hides intent."
+    },
+    {
+      "id": "S4",
+      "desc": "Pure color palette question (negative case)",
+      "input": "What are good complementary colors for a dark-mode UI? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "A UI color question has no relevance to code quality rules about naming, function size, or guard clauses. Rule should not activate."
+    }
+  ]
+}

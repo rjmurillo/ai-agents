@@ -4972,9 +4972,88 @@ def _fetch_origin_main(repo_root: Path) -> None:
         print("WARNING: could not refresh origin/main; using local ref", file=sys.stderr)
 
 
+# Environment variable that allows force-pushing a branch the actor owns.
+# Set to "1" for a single push of a personal feature branch that has been
+# deliberately rebased.  universal.md MUST NOT #1 still applies: this escape
+# is for branches only the author has touched.  Use the 4-slot semaphore
+# described in AGENTS.md to serialize, not this env var.
+FORCE_PUSH_OK_ENV = "FORCE_PUSH_OK"
+
+
+def _check_non_fast_forward(push_ref: PushRef, repo_root: Path) -> int:
+    """Return 1 when push_ref rewrites published history on a branch ref.
+
+    Detects a force push by testing whether the current remote tip
+    (remote_sha) is reachable from what is about to land (local_sha).  If it
+    is not reachable, the push discards commits the remote already has.
+
+    Returns:
+        0 - fast-forward, new branch, deletion, non-branch ref, or env-var
+            escape active.
+        1 - non-fast-forward detected (history rewrite).
+        2 - remote object absent locally; fetch first.
+    """
+    # Only guard branch refs.
+    if _branch_name(push_ref.remote_ref) is None:
+        return 0
+
+    # Deletions and new branches do not rewrite history.
+    if push_ref.is_deletion or push_ref.is_new:
+        return 0
+
+    if os.environ.get(FORCE_PUSH_OK_ENV) == "1":
+        print(
+            f"WARNING: force-push check bypassed via {FORCE_PUSH_OK_ENV}=1 "
+            f"for {push_ref.remote_ref}",
+            file=sys.stderr,
+        )
+        return 0
+
+    # The remote tip must be present locally before we can test ancestry.
+    # merge-base --is-ancestor exits non-zero both for "not an ancestor" and
+    # for "unknown object", so we must distinguish those two cases first.
+    if not _commit_ref_exists(repo_root, push_ref.remote_sha):
+        print(
+            f"ERROR: remote tip {push_ref.remote_sha[:12]} for "
+            f"{push_ref.remote_ref} is not present in the local object store. "
+            "Run 'git fetch' and retry.",
+            file=sys.stderr,
+        )
+        return 2
+
+    result = _run_git(
+        repo_root,
+        ["merge-base", "--is-ancestor", push_ref.remote_sha, push_ref.local_sha],
+    )
+    if result.returncode == 0:
+        # remote_sha is an ancestor of local_sha: fast-forward push.
+        return 0
+
+    # returncode == 1 means not-an-ancestor; anything else is a git error.
+    # Fail closed in both cases.
+    print(
+        f"ERROR: push to {push_ref.remote_ref} is not a fast-forward. "
+        f"Remote tip {push_ref.remote_sha[:12]} is not reachable from "
+        f"{push_ref.local_sha[:12]}. "
+        "This rewrites published history, which universal.md MUST NOT #1 forbids. "
+        f"To override for a personal branch you own, set {FORCE_PUSH_OK_ENV}=1.",
+        file=sys.stderr,
+    )
+    return 1
+
+
 def _protected_push_destination(push_ref: PushRef) -> str | None:
     branch = _branch_name(push_ref.remote_ref)
     return branch if branch in {"main", "master"} else None
+
+
+def _check_all_non_fast_forward(refs: list[PushRef], repo_root: Path) -> int:
+    """Run _check_non_fast_forward for each ref; return first non-zero result."""
+    for push_ref in refs:
+        result = _check_non_fast_forward(push_ref, repo_root)
+        if result != 0:
+            return result
+    return 0
 
 
 def check_push_refs(stream: TextIO, repo_root: Path) -> int:
@@ -4999,6 +5078,9 @@ def check_push_refs(stream: TextIO, repo_root: Path) -> int:
     if protected is not None:
         print(f"ERROR: cannot delete or update protected branch '{protected}'", file=sys.stderr)
         return 1
+    nff_result = _check_all_non_fast_forward(refs, repo_root)
+    if nff_result != 0:
+        return nff_result
     active_refs = [push_ref for push_ref in refs if not push_ref.is_deletion]
     if active_refs:
         warn_if_push_files_incomplete(active_refs, repo_root)
