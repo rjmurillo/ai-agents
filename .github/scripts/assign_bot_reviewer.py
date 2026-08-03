@@ -22,6 +22,14 @@ Exit codes (ADR-035):
     2 - Configuration error (missing or malformed arguments).
     3 - External error after the retry budget is spent.
     4 - Authentication error.
+
+``--tolerate-external`` downgrades exit 3 to exit 0 after printing a
+``::warning::``. It exists so a lost race against a rate limit does not red a
+job that is not one of the required checks. It is deliberately narrower than
+``continue-on-error: true`` on the step: a blanket tolerance also swallows exit
+4, so an expired or revoked ``secrets.BOT_PAT`` would read as a green job
+forever with a missing bot review as the only symptom. Auth and config failures
+still fail the step.
 """
 
 from __future__ import annotations
@@ -41,12 +49,16 @@ workspace = os.environ.get(
 sys.path.insert(0, workspace)
 
 from scripts.github_core.api import (  # noqa: E402
+    REFUSAL_BACKOFF_SECONDS,
     GhAuthStatus,
     classify_gh_failure_text,
 )
 
-MAX_ATTEMPTS = 3
-BACKOFF_BASE_SECONDS = 5.0
+# One attempt per rung, plus the first. The ladder is the shared one, sized to
+# the recovery measured on issue #4326 ("the next call of the same shape
+# succeeded about a minute later"). The 5s-then-10s budget this started with
+# spent 15s against that condition, which is inside the same window.
+MAX_ATTEMPTS = len(REFUSAL_BACKOFF_SECONDS) + 1
 GH_TIMEOUT_SECONDS = 30
 
 _EXIT_OK = 0
@@ -77,6 +89,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--repo", required=True, help="owner/name")
     parser.add_argument("--pull-request", required=True, help="PR number")
     parser.add_argument("--reviewer", required=True, help="Login to request")
+    parser.add_argument(
+        "--tolerate-external",
+        action="store_true",
+        help=(
+            "Exit 0 after warning when the retry budget is spent. Auth and "
+            "config failures still exit non-zero."
+        ),
+    )
     return parser
 
 
@@ -103,9 +123,14 @@ def assign_reviewer(
     repo: str,
     pr_number: str,
     reviewer: str,
-    sleep: Callable[[float], object] = time.sleep,
+    sleep: Callable[[float], object] | None = None,
 ) -> int:
-    """Request the review, retrying refusals that clear on their own."""
+    """Request the review, retrying refusals that clear on their own.
+
+    ``sleep`` is resolved at call time, not bound as a default, so a test that
+    patches ``time.sleep`` actually intercepts it.
+    """
+    wait = time.sleep if sleep is None else sleep
     last_error = ""
     for attempt in range(1, MAX_ATTEMPTS + 1):
         try:
@@ -129,13 +154,13 @@ def assign_reviewer(
         if status not in _RETRYABLE or attempt == MAX_ATTEMPTS:
             break
 
-        delay = BACKOFF_BASE_SECONDS * attempt
+        delay = REFUSAL_BACKOFF_SECONDS[attempt - 1]
         print(
             f"Attempt {attempt}/{MAX_ATTEMPTS} refused ({status.value}); "
             f"retrying in {delay:.0f}s: {last_error}",
             file=sys.stderr,
         )
-        sleep(delay)
+        wait(delay)
 
     # Report the attempts actually made, not the budget. A permanent refusal
     # breaks out on attempt 1, and claiming three would send the next reader
@@ -156,7 +181,15 @@ def main(argv: list[str] | None = None) -> int:
     if "/" not in args.repo:
         print(f"--repo must be owner/name: {args.repo}", file=sys.stderr)
         return _EXIT_CONFIG
-    return assign_reviewer(args.repo, args.pull_request, args.reviewer)
+
+    code = assign_reviewer(args.repo, args.pull_request, args.reviewer)
+    if code == _EXIT_EXTERNAL and args.tolerate_external:
+        print(
+            "::warning::Bot reviewer not assigned; the API refused the request "
+            "for the whole retry budget. Not failing the job.",
+        )
+        return _EXIT_OK
+    return code
 
 
 if __name__ == "__main__":

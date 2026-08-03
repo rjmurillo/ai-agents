@@ -77,7 +77,7 @@ def test_quota_refusal_is_retried_and_then_succeeds():
         )
 
     assert code == 0
-    assert delays == [5.0, 10.0]
+    assert delays == list(_mod.REFUSAL_BACKOFF_SECONDS)
 
 
 def test_persistent_quota_refusal_exits_external():
@@ -184,3 +184,102 @@ def test_failure_message_reports_the_full_budget_when_it_is_spent(capsys):
         )
 
     assert f"after {_mod.MAX_ATTEMPTS} attempt(s)" in capsys.readouterr().err
+
+
+def test_retry_budget_reaches_the_measured_recovery():
+    """The retry has to outlast the refusal, or it only burns extra requests.
+
+    Issue #4326 measured the refusal clearing "about a minute" later. The 5s and
+    10s ladder this started with spent 15s, entirely inside that window, so all
+    three attempts hit the same condition and the job failed anyway.
+    """
+    responses = [_completed(stderr=GRAPHQL_QUOTA, rc=1)] * _mod.MAX_ATTEMPTS
+    sleeps: list[float] = []
+
+    with patch("subprocess.run", side_effect=responses):
+        _mod.assign_reviewer(
+            "rjmurillo/ai-agents", "4328", "rjmurillo-bot", sleep=sleeps.append
+        )
+
+    assert sleeps == list(_mod.REFUSAL_BACKOFF_SECONDS)
+    assert sum(sleeps) >= 45.0
+
+
+def test_tolerate_external_downgrades_a_spent_budget_to_success(capsys):
+    responses = [_completed(stderr=GRAPHQL_QUOTA, rc=1)] * _mod.MAX_ATTEMPTS
+
+    with patch("subprocess.run", side_effect=responses), patch("time.sleep"):
+        code = _mod.main(
+            [
+                "--repo",
+                "rjmurillo/ai-agents",
+                "--pull-request",
+                "4328",
+                "--reviewer",
+                "rjmurillo-bot",
+                "--tolerate-external",
+            ]
+        )
+
+    assert code == 0
+    assert "::warning::Bot reviewer not assigned" in capsys.readouterr().out
+
+
+def test_tolerate_external_still_fails_on_an_auth_error(capsys):
+    """A revoked BOT_PAT must stay visible.
+
+    This is what `continue-on-error: true` on the step swallowed: the exit-4
+    branch had no surviving observer, so an expired secret read as a green job
+    forever and the only symptom was a missing bot review.
+    """
+    with patch("subprocess.run", return_value=_completed(stderr=BAD_CREDENTIALS, rc=1)):
+        code = _mod.main(
+            [
+                "--repo",
+                "rjmurillo/ai-agents",
+                "--pull-request",
+                "4328",
+                "--reviewer",
+                "rjmurillo-bot",
+                "--tolerate-external",
+            ]
+        )
+
+    assert code == 4
+    assert "::warning::Bot reviewer not assigned" not in capsys.readouterr().out
+
+
+def test_tolerate_external_still_fails_on_a_config_error():
+    assert (
+        _mod.main(
+            [
+                "--repo",
+                "not-a-repo",
+                "--pull-request",
+                "4328",
+                "--reviewer",
+                "rjmurillo-bot",
+                "--tolerate-external",
+            ]
+        )
+        == 2
+    )
+
+
+def test_workflow_scopes_the_tolerance_to_the_script_not_the_step():
+    """No blanket `continue-on-error` on the step that can swallow exit 4."""
+    import yaml
+
+    workflow = yaml.safe_load(
+        (
+            Path(__file__).resolve().parents[1]
+            / ".github"
+            / "workflows"
+            / "auto-assign-reviewer.yml"
+        ).read_text(encoding="utf-8")
+    )
+    steps = workflow["jobs"]["assign-reviewer"]["steps"]
+    assign = next(s for s in steps if "assign_bot_reviewer.py" in s.get("run", ""))
+
+    assert assign.get("continue-on-error") is None
+    assert "--tolerate-external" in assign["run"]
