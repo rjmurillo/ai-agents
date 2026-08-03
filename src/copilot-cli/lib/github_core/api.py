@@ -267,7 +267,11 @@ _TRANSIENT_HTTP_PATTERN = re.compile(r"\(?\bHTTP\s+(429|500|502|503|504)\b")
 # genuine permission denial is also 403; both status AND message text must
 # match to distinguish a burst refusal from a permanent auth error.
 _TRANSIENT_403_PATTERN = re.compile(
-    r"\(?\bHTTP\s+403\b.*?(?:rate.limit|API rate)",
+    r"(?:"
+    r"\(?\bHTTP\s+403\b.*?(?:rate.limit|API rate)"
+    r"|"
+    r"(?:rate.limit|API rate).*?\(?\bHTTP\s+403\b"
+    r")",
     re.IGNORECASE | re.DOTALL,
 )
 
