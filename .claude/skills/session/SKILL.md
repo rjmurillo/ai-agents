@@ -302,7 +302,7 @@ This skill is the single owner of investigation-only QA eligibility checks. The 
 
 ## Vendored install
 
-<!-- vendor-portability: declared. This skill references protocol/ADR/artifact paths under .agents/ (sessions, architecture, SESSION-PROTOCOL.md, analysis, critique, memory, retrospective, security) for eligibility allowlists and documentation links. The eligibility script inspects staged git paths only; missing upstream artifact directories affect docs/reference links, not script I/O. Issue #2050. -->
+<!-- vendor-portability: declared. This skill references protocol/ADR/artifact paths under .agents/ (sessions, architecture, SESSION-PROTOCOL.md, analysis, critique, memory, retrospective, security), specifically .agents/architecture/ADR-034-investigation-session-qa-exemption.md and .agents/SESSION-PROTOCOL.md, and scripts/validate_session_json.py and scripts/modules/. The eligibility script inspects staged git paths only; missing upstream artifact directories affect docs/reference links, not script I/O. Issue #2050. -->
 
 This skill depends on upstream-only paths. In a vendored install (a consumer
 repo that is not `rjmurillo/ai-agents`) these paths do not exist:
@@ -321,10 +321,12 @@ skill has disclosed its path dependencies instead of hiding them in prose.
 
 ## Related
 
+Backticked paths below are in the `rjmurillo/ai-agents` repository. They do not ship with this skill; a consumer install cannot resolve them.
+
 | Reference | Description |
 |-----------|-------------|
-| [ADR-034](../../../.agents/architecture/ADR-034-investigation-session-qa-exemption.md) | Investigation Session QA Exemption architecture decision |
-| [SESSION-PROTOCOL.md](../../../.agents/SESSION-PROTOCOL.md) | Session start/end requirements (Phase 2.5) |
+| `.agents/architecture/ADR-034-investigation-session-qa-exemption.md` | Investigation Session QA Exemption architecture decision |
+| `.agents/SESSION-PROTOCOL.md` | Session start/end requirements (Phase 2.5) |
 | [Issue #662](https://github.com/rjmurillo/ai-agents/issues/662) | Create QA skip eligibility check skill |
-| [validate_session_json.py](../../../scripts/validate_session_json.py) | Validates session JSON format (separate from eligibility) |
+| `scripts/validate_session_json.py` | Validates session JSON format (separate from eligibility) |
 | [test_session_eligibility.py](tests/test_session_eligibility.py) | Pytest tests ensuring pattern consistency |

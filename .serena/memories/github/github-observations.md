@@ -25,7 +25,7 @@ These are corrections that MUST be followed:
   - Evidence: Filtering threads with `not isResolved and not isOutdated` returned 0 unresolved, but mergeStateStatus stayed BLOCKED. Fetching all threads and sweeping `not isResolved` found 9 outdated-but-not-resolved copilot-pull-request-reviewer threads that had to be explicitly resolved before merge succeeded.
 - **`gh sub-issue create` uses `--body STRING`, not `--body-file FILE`.** The sub-issue extension does NOT inherit `gh pr create`'s `--body-file` flag. Pass body content as a string literal. Pre-author bodies in memory, then invoke the command per-issue with the string. (Session 2026-04-13)
   - Evidence: First batch of 4 Stage issue creations failed with `unknown flag: --body-file`. Retried with `--body` string arg and all 4 succeeded.
-- **No reopen script in `.claude/skills/github/scripts/issue/`.** When an issue is accidentally auto-closed (e.g., Epic auto-close from closing keywords), use `gh issue reopen N --repo owner/repo` via `ctx_execute` — the skill-first-guard hook blocks `Bash gh` but not `ctx_execute gh`. Consider adding a `reopen_issue.py` script to close this gap. (Session 2026-04-13)
+- **No reopen script in `.claude/skills/github/scripts/issue/`.** When an issue is accidentally auto-closed (e.g., Epic auto-close from closing keywords), use `gh issue reopen N --repo owner/repo` via `ctx_execute`, because the skill-first-guard hook blocks `Bash gh` but not `ctx_execute gh`. Consider adding a `reopen_issue.py` script to close this gap. (Session 2026-04-13)
 
 ## Preferences (MED confidence)
 
