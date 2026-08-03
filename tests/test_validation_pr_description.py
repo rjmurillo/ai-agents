@@ -2307,6 +2307,34 @@ class TestValidateClosingLinks:
         issues = self._fn("`Refs #10`\n")
         assert issues == []
 
+    def test_cross_repo_ref_in_code_span_keeps_owner_repo_qualifier(self) -> None:
+        # Backticks suppress the closing link whatever repository the
+        # reference names, so the finding stands. The message must echo the
+        # qualifier back: a bare "#5" would name this repository's own issue 5,
+        # which is a different issue from other-org/other-repo#5.
+        issues = self._fn("`Fixes other-org/other-repo#5`\n")
+
+        assert len(issues) == 1
+        assert issues[0].severity == "CRITICAL"
+        assert "other-org/other-repo#5" in issues[0].message
+        assert "issue #5" not in issues[0].message
+
+    def test_cross_repo_ref_in_fenced_block_keeps_owner_repo_qualifier(self) -> None:
+        issues = self._fn("```\nFixes other-org/other-repo#5\n```\n")
+
+        assert len(issues) == 1
+        assert issues[0].issue_type == "Closing keyword in fenced code block"
+        assert "other-org/other-repo#5" in issues[0].message
+        assert "issue #5" not in issues[0].message
+
+    def test_same_repo_ref_message_has_no_stray_slash(self) -> None:
+        # The optional repo group must contribute nothing when it did not match.
+        issues = self._fn("`Fixes #3710`\n")
+
+        assert len(issues) == 1
+        assert "issue #3710" in issues[0].message
+        assert "/#3710" not in issues[0].message
+
     def test_no_keywords_returns_no_issues(self) -> None:
         issues = self._fn("Changes something.\n")
         assert issues == []

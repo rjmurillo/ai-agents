@@ -623,7 +623,7 @@ _DASH_RE: re.Pattern[str] = re.compile("[\u2013\u2014]")
 # Matches closing keywords that GitHub auto-closes issues on merge.
 # "Refs" is intentionally excluded: it mentions but does not close.
 _AUTO_CLOSE_KW: re.Pattern[str] = re.compile(
-    r"\b(?:close[sd]?|fix(?:es|ed)?|resolve[sd]?)\s+(?:[\w.-]+/[\w.-]+)?#(\d+)",
+    r"\b(?:close[sd]?|fix(?:es|ed)?|resolve[sd]?)\s+(?P<repo>[\w.-]+/[\w.-]+)?#(?P<number>\d+)",
     re.IGNORECASE,
 )
 
@@ -675,7 +675,13 @@ def validate_closing_links(
     for m in _AUTO_CLOSE_KW.finditer(body):
         pos = m.start()
         full_kw = m.group(0)
-        issue_num = m.group(1)
+        issue_num = m.group("number")
+        # Echo back the owner/repo qualifier the author actually wrote.
+        # Dropping it renames the issue: "Fixes other-org/other-repo#5" would
+        # be reported, and remediated, as this repository's own #5, which is a
+        # different issue. Backticks suppress the closing link whatever repo
+        # the reference names, so the finding itself stands either way.
+        issue_ref = f"{m.group('repo') or ''}#{issue_num}"
 
         if _in_any_range(pos, code_span_ranges):
             issues.append(
@@ -685,9 +691,9 @@ def validate_closing_links(
                     file="<pr-body>",
                     message=(
                         f"Closing keyword '{full_kw}' is inside an inline code span. "
-                        f"GitHub will not close issue #{issue_num} on merge. "
+                        f"GitHub will not close issue {issue_ref} on merge. "
                         "Remove the surrounding backticks and place the keyword "
-                        f"on its own line: Fixes #{issue_num}"
+                        f"on its own line: Fixes {issue_ref}"
                     ),
                 )
             )
@@ -699,9 +705,9 @@ def validate_closing_links(
                     file="<pr-body>",
                     message=(
                         f"Closing keyword '{full_kw}' is inside a fenced code block. "
-                        f"GitHub will not close issue #{issue_num} on merge. "
+                        f"GitHub will not close issue {issue_ref} on merge. "
                         "Add a plain closing line outside any code block: "
-                        f"Fixes #{issue_num}"
+                        f"Fixes {issue_ref}"
                     ),
                 )
             )
@@ -713,10 +719,10 @@ def validate_closing_links(
                     file="<pr-body>",
                     message=(
                         f"Closing keyword '{full_kw}' will not auto-close issue "
-                        f"#{issue_num} because this PR targets '{base_ref}' "
+                        f"{issue_ref} because this PR targets '{base_ref}' "
                         f"instead of '{default_branch}'. GitHub only auto-closes "
                         "issues for PRs merged into the default branch. "
-                        f"Close issue #{issue_num} manually once this stack lands."
+                        f"Close issue {issue_ref} manually once this stack lands."
                     ),
                 )
             )
