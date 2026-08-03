@@ -1302,7 +1302,7 @@ def _dedupe_events(
             continue
         seen.add(key)
         entry = dict(entry)
-        if midnight:
+        if midnight and entry.get("type") != "commit":
             entry["timestamp"] = midnight
         out.append(entry)
     for i, entry in enumerate(out, 1):
