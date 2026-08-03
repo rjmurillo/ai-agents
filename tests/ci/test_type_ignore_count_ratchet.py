@@ -268,12 +268,19 @@ class TestMain:
         rc = ratchet.main(["--base-ref", "origin/main"])
         assert rc == count_ratchet.EXIT_REGRESSION
 
-    def test_base_ref_stale_branch_message_uses_count(
+    def test_a_stale_branch_is_told_what_the_base_ref_already_allows(
         self,
         tmp_path: Path,
         capsys: pytest.CaptureFixture,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        """Baseline 10, base 5, count 4: the base ref already allows 4.
+
+        Shares ``count_ratchet`` with the taste and ruff ratchets, so this
+        pins that the type-ignore entry point reaches the same verdict. The
+        discrimination against a count the base ref does *not* allow is pinned
+        once, on the shared code, in ``test_taste_count_ratchet.py``.
+        """
         baseline = _write_baseline(tmp_path, "10")
         monkeypatch.setattr(ratchet, "_BASELINE_PATH", baseline)
 
@@ -293,5 +300,9 @@ class TestMain:
         rc = ratchet.main(["--base-ref", "origin/main"])
         captured = capsys.readouterr()
         assert rc == count_ratchet.EXIT_REGRESSION
-        assert "BRANCH BEHIND" in captured.err
-        assert "BASELINE RAISED" not in captured.err
+        assert "BASELINE ABOVE BASE" in captured.err
+        assert "The measured count is 4" in captured.err
+        assert "nothing in this tree added a violation" in captured.err
+        assert captured.err.index("merge or rebase") < captured.err.index(
+            "fix the violations"
+        )
