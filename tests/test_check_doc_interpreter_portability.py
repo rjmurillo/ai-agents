@@ -40,7 +40,7 @@ def make_repo(tmp_path: Path, files: dict[str, str]) -> Path:
     return tmp_path
 
 
-def write_baseline(repo: Path, files: dict[str, int]) -> Path:
+def write_baseline(repo: Path, files: dict[str, int | list[str]]) -> Path:
     """Write a baseline JSON and return its path."""
     path = repo / "baseline.json"
     path.write_text(json.dumps({"files": files}), encoding="utf-8")

@@ -107,8 +107,8 @@ def test_legacy_int_baseline_fires_on_count_rise(
 
 def test_diff_against_baseline_swap_detection() -> None:
     """Unit-level: diff_against_baseline fires when baseline has list values and current swaps."""
-    current = {"doc.md": ["script_b.py"]}
-    base = {"doc.md": ["script_a.py"]}
+    current: dict[str, list[str]] = {"doc.md": ["script_b.py"]}
+    base: dict[str, list[str] | int] = {"doc.md": ["script_a.py"]}
     regressions, improvements = diff_against_baseline(current, base)
     assert regressions, "swap must produce a regression"
     assert "script_b.py" in regressions[0]
