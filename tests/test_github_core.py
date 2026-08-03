@@ -46,7 +46,12 @@ from scripts.github_core import (
     update_issue_comment,
     validation,
 )
-from scripts.github_core.api import _403_PATTERN, _retry_after_delay
+from scripts.github_core.api import (
+    _403_PATTERN,
+    _graphql_remaining,
+    _is_rest_reachable,
+    _retry_after_delay,
+)
 from scripts.github_core.bot_config import _DEFAULT_BOTS
 from tests.mock_fidelity import assert_mock_keys_match
 
@@ -454,6 +459,95 @@ class TestAssertGhAuthenticated:
             with pytest.raises(SystemExit) as exc:
                 assert_gh_authenticated()
             assert exc.value.code == 4
+
+
+class TestIsGhAuthenticatedQuotaFallback:
+    """is_gh_authenticated falls back to REST when gh auth status returns non-zero (issue #4344)."""
+
+    def test_true_when_auth_status_fails_but_rest_succeeds(self):
+        # First call: gh auth status -> rc=1; second: gh api rate_limit -> rc=0
+        calls = iter([
+            _completed(rc=1),  # gh auth status
+            _completed(rc=0),  # gh api rate_limit (REST)
+        ])
+        with patch("subprocess.run", side_effect=lambda *a, **k: next(calls)):
+            assert is_gh_authenticated() is True
+
+    def test_false_when_both_auth_status_and_rest_fail(self):
+        calls = iter([
+            _completed(rc=1),  # gh auth status
+            _completed(rc=1),  # gh api rate_limit
+        ])
+        with patch("subprocess.run", side_effect=lambda *a, **k: next(calls)):
+            assert is_gh_authenticated() is False
+
+
+class TestAssertGhAuthenticatedQuotaDiagnosis:
+    """assert_gh_authenticated emits exit 3 (not 4) for quota exhaustion (issue #4344)."""
+
+    def _rate_limit_payload(self, graphql_remaining: int) -> str:
+        return json.dumps({
+            "resources": {"graphql": {"remaining": graphql_remaining, "limit": 5000}}
+        })
+
+    def test_exits_3_when_auth_status_fails_rest_fails_but_second_rest_succeeds_graphql_zero(self):
+        # is_gh_authenticated: auth_status fails, _is_rest_reachable fails -> returns False.
+        # assert_gh_authenticated: _is_rest_reachable ok, _graphql_remaining=0 -> exit 3.
+        payload = self._rate_limit_payload(0)
+        calls = iter([
+            _completed(rc=1),                  # gh auth status (is_gh_authenticated)
+            _completed(rc=1),                  # _is_rest_reachable in is_gh_authenticated: fails
+            _completed(rc=0, stdout=payload),  # _is_rest_reachable in assert_gh_authenticated: ok
+            _completed(rc=0, stdout=payload),  # _graphql_remaining
+        ])
+        with patch("subprocess.run", side_effect=lambda *a, **k: next(calls)):
+            with pytest.raises(SystemExit) as exc:
+                assert_gh_authenticated()
+        # quota exhaustion -> exit 3, not 4
+        assert exc.value.code == 3
+
+    def test_exits_4_when_both_checks_fail(self):
+        calls = iter([
+            _completed(rc=1),  # gh auth status
+            _completed(rc=1),  # gh api rate_limit (fallback fails too)
+            _completed(rc=1),  # gh auth status (second check)
+            _completed(rc=1),  # gh api rate_limit
+        ])
+        with patch("subprocess.run", side_effect=lambda *a, **k: next(calls)):
+            with pytest.raises(SystemExit) as exc:
+                assert_gh_authenticated()
+        assert exc.value.code == 4
+
+
+class TestIsRestReachable:
+    def test_true_on_successful_rate_limit(self):
+        with patch("subprocess.run", return_value=_completed(rc=0)):
+            assert _is_rest_reachable() is True
+
+    def test_false_on_failed_rate_limit(self):
+        with patch("subprocess.run", return_value=_completed(rc=1)):
+            assert _is_rest_reachable() is False
+
+    def test_false_on_gh_not_found(self):
+        with patch("subprocess.run", side_effect=FileNotFoundError):
+            assert _is_rest_reachable() is False
+
+
+class TestGraphqlRemaining:
+    def test_returns_remaining_count(self):
+        payload = json.dumps({
+            "resources": {"graphql": {"remaining": 42, "limit": 5000}}
+        })
+        with patch("subprocess.run", return_value=_completed(rc=0, stdout=payload)):
+            assert _graphql_remaining() == 42
+
+    def test_returns_none_on_failure(self):
+        with patch("subprocess.run", return_value=_completed(rc=1)):
+            assert _graphql_remaining() is None
+
+    def test_returns_none_on_bad_json(self):
+        with patch("subprocess.run", return_value=_completed(rc=0, stdout="not json")):
+            assert _graphql_remaining() is None
 
 
 # ---------------------------------------------------------------------------

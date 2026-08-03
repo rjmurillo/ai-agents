@@ -470,7 +470,9 @@ def _patch_post():
 
 
 def _patch_head(sha=_SHA):
-    return patch.object(_mod, "_git_head_sha", return_value=sha)
+    # Patch _resolve_base_sha directly so both the authoritative-GitHub path
+    # and the local-git fallback are bypassed in existing acquire tests.
+    return patch.object(_mod, "_resolve_base_sha", return_value=sha or ("0" * 40))
 
 
 def _patch_login(login=_AUTHOR):
@@ -850,3 +852,119 @@ class TestMainExitCodes:
                 ["acquire", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
             )
         assert rc == 0
+
+
+# ===========================================================================
+# _gh_pr_head_sha and _resolve_base_sha (issue #4357)
+# ===========================================================================
+
+_PR_HEAD = "b" * 40
+_MAIN_HEAD = "c" * 40
+
+_GQL_PR_HEAD_RESPONSE = {
+    "repository": {
+        "pullRequest": {
+            "headRefOid": _PR_HEAD,
+        }
+    }
+}
+
+
+def _patch_gql(return_value=None, side_effect=None):
+    """Patch gh_graphql inside pr_autofix_lease."""
+    if side_effect is not None:
+        return patch.object(_mod, "gh_graphql", side_effect=side_effect)
+    return patch.object(_mod, "gh_graphql", return_value=return_value)
+
+
+class TestGhPrHeadSha:
+    def test_returns_pr_head_on_success(self):
+        with _patch_gql(return_value=_GQL_PR_HEAD_RESPONSE):
+            sha = _mod._gh_pr_head_sha("o", "r", 1)
+        assert sha == _PR_HEAD
+
+    def test_returns_none_on_graphql_failure(self):
+        with _patch_gql(side_effect=RuntimeError("GraphQL request failed")):
+            sha = _mod._gh_pr_head_sha("o", "r", 1)
+        assert sha is None
+
+    def test_returns_none_when_pr_absent(self):
+        with _patch_gql(return_value={"repository": {"pullRequest": None}}):
+            sha = _mod._gh_pr_head_sha("o", "r", 1)
+        assert sha is None
+
+    def test_returns_none_on_non_sha_value(self):
+        bad = {"repository": {"pullRequest": {"headRefOid": "not-a-sha"}}}
+        with _patch_gql(return_value=bad):
+            sha = _mod._gh_pr_head_sha("o", "r", 1)
+        assert sha is None
+
+
+class TestResolveBaseSha:
+    def test_uses_authoritative_sha_when_local_matches(self):
+        with (
+            _patch_gql(return_value=_GQL_PR_HEAD_RESPONSE),
+            patch.object(_mod, "_git_head_sha", return_value=_PR_HEAD),
+        ):
+            sha = _mod._resolve_base_sha("o", "r", 1)
+        assert sha == _PR_HEAD
+
+    def test_uses_authoritative_sha_and_warns_on_mismatch(self, caplog):
+        import logging
+        with (
+            _patch_gql(return_value=_GQL_PR_HEAD_RESPONSE),
+            patch.object(_mod, "_git_head_sha", return_value=_MAIN_HEAD),
+            caplog.at_level(logging.WARNING, logger="pr_autofix_lease"),
+        ):
+            sha = _mod._resolve_base_sha("o", "r", 1)
+        # Returns the authoritative PR head, not local HEAD
+        assert sha == _PR_HEAD
+        assert "checkout_mismatch" in caplog.text
+
+    def test_falls_back_to_local_head_when_api_fails(self, caplog):
+        import logging
+        with (
+            _patch_gql(side_effect=RuntimeError("api down")),
+            patch.object(_mod, "_git_head_sha", return_value=_MAIN_HEAD),
+            caplog.at_level(logging.WARNING, logger="pr_autofix_lease"),
+        ):
+            sha = _mod._resolve_base_sha("o", "r", 1)
+        assert sha == _MAIN_HEAD
+        assert "pr_head_unavailable" in caplog.text
+
+    def test_zero_sentinel_when_both_unavailable(self):
+        with (
+            _patch_gql(side_effect=RuntimeError("api down")),
+            patch.object(_mod, "_git_head_sha", return_value=None),
+        ):
+            sha = _mod._resolve_base_sha("o", "r", 1)
+        assert sha == "0" * 40
+
+    def test_acquire_records_authoritative_pr_head_as_base_sha(self):
+        """Acquire uses the GitHub PR head as base_sha, not local git HEAD."""
+        with (
+            _patch_gql(return_value=_GQL_PR_HEAD_RESPONSE),
+            patch.object(_mod, "_git_head_sha", return_value=_MAIN_HEAD),
+            _patch_list([]),
+            _patch_post(),
+            _patch_login(),
+        ):
+            result = acquire(_OWNER, _SESSION, "o", "r", 1, now=_NOW)
+        assert result.action == "ACT"
+        # base_sha must be the authoritative PR head, not local main HEAD
+        assert result.base_sha == _PR_HEAD
+
+    def test_acquire_warns_when_invoked_from_wrong_checkout(self, caplog):
+        """Acquire logs a warning when local HEAD differs from PR head."""
+        import logging
+        with (
+            _patch_gql(return_value=_GQL_PR_HEAD_RESPONSE),
+            patch.object(_mod, "_git_head_sha", return_value=_MAIN_HEAD),
+            _patch_list([]),
+            _patch_post(),
+            _patch_login(),
+            caplog.at_level(logging.WARNING, logger="pr_autofix_lease"),
+        ):
+            result = acquire(_OWNER, _SESSION, "o", "r", 1, now=_NOW)
+        assert result.action == "ACT"
+        assert "checkout_mismatch" in caplog.text
