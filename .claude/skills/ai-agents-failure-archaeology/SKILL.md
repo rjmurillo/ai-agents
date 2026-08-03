@@ -10,8 +10,9 @@ license: MIT
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
 This repo's rules are fossils of incidents. Before you challenge a gate, weaken
 a guard, or propose a "simpler" approach, check whether that battle was already
-fought and what it cost. The canon lives in `.agents/retrospective/` (95 files
-as of 2026-07-02) and `.serena/memories/` (122 files). Full local history is
+fought and what it cost. The canon lives in `.agents/retrospective/` and
+`.serena/memories/`; the provenance table below carries the commands that count
+both. Full local history is
 present (`git rev-list --count HEAD` = ~1471 as of 2026-07-03), but retro-cited
 short SHAs (e.g. `ddb76e0`, `01e76615a`) may not resolve locally, so archaeology
 still routes through the retros and memories as primary sources, not `git log`.
@@ -101,8 +102,8 @@ When the tables above do not answer the question:
 
 1. **Search retros by keyword**, not the index:
    `grep -rli "<term>" .agents/retrospective/`. Do NOT trust
-   `.agents/retrospective/INDEX.md`: it lists 5 data rows against 95 files
-   (verified 2026-07-03, `wc -l` = 12).
+   `.agents/retrospective/INDEX.md`: it indexes a small fraction of the retro
+   files. The provenance table's coverage command prints both numbers.
 2. **Search memories**: `grep -rli "<term>" .serena/memories/` or the
    `memory-search` skill. Decision memories (`decision-*.md`) record settled
    contracts; `root-cause-*.md` record why gates exist;
@@ -161,8 +162,8 @@ working tree on that date. Volatile facts and their re-verification commands:
 
 | Fact | Source | Re-verify |
 |------|--------|-----------|
-| 95 retro files, INDEX.md has 5 data rows | `.agents/retrospective/` | `python3 -c "import os; print(len(os.listdir('.agents/retrospective')))"; wc -l .agents/retrospective/INDEX.md` |
-| 122 memory files | `.serena/memories/` | `python3 -c "import os; print(len(os.listdir('.serena/memories/')))"` |
+| Retro file count and INDEX.md coverage | `.agents/retrospective/` and `.agents/retrospective/INDEX.md` | `python3 -c "import pathlib;d=pathlib.Path('.agents/retrospective');f={p.name for p in d.glob('*.md')}-{'INDEX.md'};t=(d/'INDEX.md').read_text();print(len(f),'retro files,',sum(n in t for n in f),'indexed')"` |
+| Memory file count | `.serena/memories/` | `python3 -c "import pathlib;print(len(list(pathlib.Path('.serena/memories').rglob('*.md'))))"` |
 | Full history present (~1471 commits) but retro-cited SHAs unresolvable | local clone | `git rev-list --count HEAD; git cat-file -t ddb76e0` (expect a count near 1471 and "Not a valid object name") |
 | 11 failure modes | `.agents/governance/FAILURE-MODES.md:16-28` | `python3 -c "print(sum(1 for l in open('.agents/governance/FAILURE-MODES.md') if l[:2]=='\x7c ' and l[2].isdigit()))"` |
 | Historical SKIP_PREPUSH removal | Session 1187 retrospective | Confirm current Git hook jobs in `lefthook.yml`; do not reintroduce a global bypass |

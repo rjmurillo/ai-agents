@@ -51,7 +51,8 @@ The audit script's length curve is one-sided. `_score_modularity` subtracts poin
 lines and subtracts nothing below, so a 40-line skill and a 280-line skill score identically
 on length, and no check flags a skill as too short. The table above says compact returned 2.5
 points less than standard length. An author who cuts toward the floor to protect the score is
-optimizing away from the measured optimum, and the tool stays silent. Tracked in #4327.
+optimizing away from the measured optimum, and the tool stays silent. Tracked at
+<https://github.com/rjmurillo/ai-agents/issues/4327>.
 
 ## Compare against no skill before you claim the skill helps
 
