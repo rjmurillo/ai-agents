@@ -24,7 +24,7 @@
       "content": "The issue reports a bare pip install list inline in pytest.yml. That detail is stale: the install moved into the shared .github/actions/setup-code-env/action.yml and became 'uv pip install --system -e \".[dev]\"'. The substance is unchanged, that command re-resolves from pyproject.toml and never reads uv.lock.",
       "caused_by": [],
       "leads_to": [
-        "e002"
+        "e016"
       ]
     },
     {
@@ -32,11 +32,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Measured the drift rather than assuming it. Built two venvs, one from the lock via uv export and one the way CI resolves today, then diffed uv pip freeze. 30 of 111 packages differ, including mypy 2.1.0 to 2.3.0, pytest 9.0.3 to 9.1.1, ruff 0.15.16 to 0.15.22, coverage 7.13.1 to 7.15.2 and pydantic 2.12.5 to 2.13.4. CI has been grading every PR with different tools than the lock pins.",
-      "caused_by": [
-        "e001"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e003"
+        "e016"
       ]
     },
     {
@@ -44,11 +42,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Rejected uv sync --frozen with data. It installs into a project .venv, and 148 steps across 15 workflows invoke python, pytest, ruff and mypy bare, relying on the --system install. Converting all of them is a far larger change than this issue, and each conversion is a chance to break a green gate.",
-      "caused_by": [
-        "e002"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e004"
+        "e016"
       ]
     },
     {
@@ -56,11 +52,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Rejected --require-hashes with data. The first attempt failed on 'no hash provided for click==8.3.3' and the second, run from a neutral directory, failed on semgrep==1.171.0 needing mcp==1.23.3 against a pinned mcp==1.28.1. Root cause is [tool.uv] override-dependencies, which lists exactly click==8.3.3 and mcp==1.28.1. uv injects overrides without hashes and uv export does not emit them, so hashed installs cannot work on this lock. Exact version pinning, which is what the acceptance criterion asks for, still holds.",
-      "caused_by": [
-        "e003"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e005"
+        "e016"
       ]
     },
     {
@@ -68,11 +62,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Rewrote the install step to export the lock and install from it, keeping --system intact: uv export --frozen --extra dev --no-emit-project, then uv pip install --system -r on the export, then uv pip install --system --no-deps -e . for the project itself. The no-lock branch keeps the old unpinned command as a guarded fallback. Confirmed the export is platform-universal (it carries pywin32 under a sys_platform == 'win32' marker) so the Windows runners are covered.",
-      "caused_by": [
-        "e004"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e006"
+        "e016"
       ]
     },
     {
@@ -80,11 +72,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Ran the full sequence into a scratch venv and then ran the repo's own tests under it: 207 passed. shellcheck clean at --severity=warning and bash -n clean on the extracted step body. uv lock --check confirms the lock is in sync, so uv export --frozen will not fail the gate on arrival.",
-      "caused_by": [
-        "e005"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e008"
+        "e016"
       ]
     },
     {
@@ -94,7 +84,7 @@
       "content": "Ran the full sequence into a scratch venv and then ran the repo's own tests under it: 207 passed. shellcheck clean at --severity=warning and bash -n clean on the extracted step body. uv lock --check confirms the lock is in sync, so uv export --frozen will not fail the gate on arrival.",
       "caused_by": [],
       "leads_to": [
-        "e015"
+        "e016"
       ]
     },
     {
@@ -102,11 +92,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Added tests/ci/test_setup_code_env_installs_locked_deps.py, 5 tests pinning that the step reads the lock, installs from the export, installs the project with --no-deps, and permits the unpinned command only on the lock-absent fallback branch. Negative control: stashing the action fails 4 of the 5; restoring it passes all 5. The full tests/ci suite passes at 330.",
-      "caused_by": [
-        "e006"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e009"
+        "e016"
       ]
     },
     {
@@ -114,11 +102,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "First CI run on PR #3724 failed one check: the ADR-006 run-block ratchet, 78 violations against --max 77. The new install step reached 15 code lines with two branches, which is exactly the shape ADR-006 forbids in YAML.",
-      "caused_by": [
-        "e008"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e010"
+        "e016"
       ]
     },
     {
@@ -126,11 +112,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Chose extraction over raising the ratchet. Bumping --max would have banked the regression the ratchet exists to prevent, and 34 open issues are extraction chores against the same counter.",
-      "caused_by": [
-        "e009"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e011"
+        "e016"
       ]
     },
     {
@@ -138,11 +122,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Moved the logic to scripts/ci/install_locked_deps.py, standard library only because it runs before the dependencies it installs exist. The action step is now a single call. The measurement and both rejected alternatives moved into the module docstring, which is a better home than a YAML comment. Scanner now reports 77, so the gate passes without moving the threshold.",
-      "caused_by": [
-        "e010"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e012"
+        "e016"
       ]
     },
     {
@@ -150,11 +132,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Confirmed python3 is available at that point in the action: the preceding Store Python version step already runs python3 --version, after actions/setup-python.",
-      "caused_by": [
-        "e011"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e013"
+        "e016"
       ]
     },
     {
@@ -162,11 +142,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Rewrote the tests to drive the module with a recording stub uv on PATH rather than pattern matching a shell string. 20 tests now cover the locked path ordering, the no-lock and no-pyproject fallbacks, failure propagation, and that the action delegates instead of regrowing its own copy of the logic.",
-      "caused_by": [
-        "e012"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e014"
+        "e016"
       ]
     },
     {
@@ -174,27 +152,43 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Negative controls on the extraction: making the script do the pre-fix unpinned install fails 9 tests; re-inlining the logic in the action fails the 2 delegation tests. Restored, all 20 pass. ruff and mypy clean, 346 tests pass in tests/ci/.",
-      "caused_by": [
-        "e013"
-      ],
-      "leads_to": []
+      "caused_by": [],
+      "leads_to": [
+        "e016"
+      ]
     },
     {
       "id": "e015",
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "test",
       "content": "Ran the full sequence into a scratch venv and then ran the repo's own tests under it: 207 passed. shellcheck clean at --severity=warning and bash -n clean on the extracted step body. uv lock --check confirms the lock is in sync, so uv export --frozen will not fail the gate on arrival.  6",
-      "caused_by": [
-        "e007"
-      ],
-      "leads_to": []
+      "caused_by": [],
+      "leads_to": [
+        "e016"
+      ]
     },
     {
       "id": "e016",
-      "timestamp": "2026-07-28T00:00:00+00:00",
+      "timestamp": "2026-07-29T03:59:25+00:00",
       "type": "commit",
       "content": "Commit: 6c388333f",
-      "caused_by": [],
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010",
+        "e011",
+        "e012",
+        "e013",
+        "e014",
+        "e015"
+      ],
       "leads_to": []
     }
   ],

@@ -12,7 +12,9 @@
       "type": "milestone",
       "content": "Recovered prior Wave-2 triage report and confirmed it is already on main",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e002",
@@ -20,7 +22,9 @@
       "type": "milestone",
       "content": "Diffed report verdicts against current catalog",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e003",
@@ -28,7 +32,9 @@
       "type": "milestone",
       "content": "Triaged the 3 new skills",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e004",
@@ -36,7 +42,9 @@
       "type": "milestone",
       "content": "Verified action-slate resolution",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e005",
@@ -44,7 +52,9 @@
       "type": "milestone",
       "content": "Appended verification addendum to report and committed",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e006",
@@ -52,7 +62,9 @@
       "type": "milestone",
       "content": "Ran pre-PR validation",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e007",
@@ -60,14 +72,24 @@
       "type": "milestone",
       "content": "Ran test suite for verification evidence",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e008",
-      "timestamp": "2026-06-27T00:00:00+00:00",
+      "timestamp": "2026-06-27T19:51:38+00:00",
       "type": "commit",
       "content": "Commit: 3b9f48f53b1834e939c2b7c8fac3866fc380f692",
-      "caused_by": [],
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007"
+      ],
       "leads_to": []
     }
   ],
