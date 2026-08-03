@@ -17,7 +17,7 @@ These two fixes are complementary. Say so in any PR that ships this gate.
 
 Mechanism:
     git merge-tree --write-tree <base> <head>
-    git archive <tree-oid> | tar -x -C <scratch>
+    git archive <tree-oid>, extract with Python tarfile into <scratch>
     git init <scratch>, git -C <scratch> add -A, git -C <scratch> commit
     run current_count() from each ratchet against <scratch>
     compare against baselines at <base>
@@ -44,11 +44,13 @@ Exit codes (AGENTS.md contract):
 from __future__ import annotations
 
 import argparse
+import io
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -92,6 +94,12 @@ def _merge_tree_oid(repo_root: Path, base_ref: str) -> tuple[str | None, bool]:
     return None, False
 
 
+def _is_safe_archive_member(name: str) -> bool:
+    """Return True when a git archive member stays inside the extract root."""
+    path = PurePosixPath(name)
+    return not path.is_absolute() and ".." not in path.parts
+
+
 def _extract_tree(repo_root: Path, tree_oid: str, dest: Path) -> bool:
     """Extract git tree into dest. Returns True on success."""
     dest.mkdir(parents=True, exist_ok=True)
@@ -106,16 +114,17 @@ def _extract_tree(repo_root: Path, tree_oid: str, dest: Path) -> bool:
             f"{archive_proc.stderr.decode('utf-8', errors='replace')}\n"
         )
         return False
-    tar_proc = subprocess.run(
-        ["tar", "-x", "-C", str(dest)],
-        input=archive_proc.stdout,
-        capture_output=True,
-        check=False,
-    )
-    if tar_proc.returncode != 0:
+    try:
+        with tarfile.open(fileobj=io.BytesIO(archive_proc.stdout), mode="r|") as archive:
+            for member in archive:
+                if not _is_safe_archive_member(member.name):
+                    sys.stderr.write(f"unsafe archive member rejected: {member.name}\n")
+                    return False
+                archive.extract(member, dest)
+    except (tarfile.TarError, OSError) as exc:
         sys.stderr.write(
-            f"tar failed (rc {tar_proc.returncode}):\n"
-            f"{tar_proc.stderr.decode('utf-8', errors='replace')}\n"
+            "tarfile extraction failed:\n"
+            f"{exc}\n"
         )
         return False
     return True
