@@ -25,6 +25,7 @@ try:
     import _anthropic_api  # noqa: E402
     import _eval_api_adapter  # noqa: E402
     import _providers  # noqa: E402
+    from _eval_common import MalformedProviderMetadataError  # noqa: E402
 finally:
     sys.path[:] = _ORIGINAL_SYS_PATH
 
@@ -1036,19 +1037,14 @@ def test_copilot_complete_nonzero_exit_reports_the_exit_code_not_an_http_status(
     assert _eval_api_adapter._categorize_error(exc_info.value) == "rate_limit"
 
 
-def test_copilot_exit_excerpt_strips_control_bytes_and_bounds_length(
+def test_copilot_exit_error_serializes_only_a_fixed_safe_code(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Both halves of the excerpt are load-bearing and neither was covered.
-
-    The control-byte filter keeps an escape sequence out of a terminal that
-    renders this message. The 200-character bound keeps a stderr dump out of
-    the exception. The comment above the excerpt claimed both before any test
-    held them.
-    """
+    """No byte from attacker-controlled stderr reaches the exception."""
+    raw = "\x1b[31mred\x07 " + "z" * 400
     _capture_run(
         monkeypatch,
-        _FakeCompleted(stderr="\x1b[31mred\x07 " + "z" * 400, returncode=1),
+        _FakeCompleted(stderr=raw, returncode=1),
     )
     provider = _providers._CopilotCLIProvider()
 
@@ -1056,24 +1052,17 @@ def test_copilot_exit_excerpt_strips_control_bytes_and_bounds_length(
         provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
 
     message = str(exc_info.value)
-    assert "\x1b" not in message
-    assert "\x07" not in message
-    assert "red" in message
-    assert message.count("z") == 200 - len("[31mred ")
+    assert raw not in message
+    assert "[31mred" not in message
+    assert "z" not in message
+    assert "error=provider process failure" in message
+    assert "process output redacted" in message
 
 
-def test_copilot_exit_excerpt_does_not_redact_a_short_credential(
+def test_copilot_exit_error_does_not_serialize_a_short_credential(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Characterization, not endorsement. See the comment above the excerpt.
-
-    A token short enough to fit the bound is printable ascii, so it survives
-    both filters intact. Nothing here makes that safe. The exposure is
-    contained by the caller: the adapter keeps only `error_category` and
-    reports `raw_response=None`, so this text reaches no artifact. This pins
-    the limitation so that adding a redactor, or surfacing the message
-    somewhere it would persist, is a visible change rather than a silent one.
-    """
+    """Credential-shaped stderr maps to a fixed authentication code."""
     secret = "ghp_" + "A" * 36
     _capture_run(
         monkeypatch,
@@ -1084,7 +1073,10 @@ def test_copilot_exit_excerpt_does_not_redact_a_short_credential(
     with pytest.raises(RuntimeError) as exc_info:
         provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
 
-    assert secret in str(exc_info.value)
+    message = str(exc_info.value)
+    assert secret not in message
+    assert "error=authentication failed" in message
+    assert _eval_api_adapter._categorize_error(exc_info.value) == "auth"
 
 
 def test_copilot_complete_generic_exit_code_stays_transient(
@@ -1221,6 +1213,38 @@ def _run_writing_session(
     monkeypatch.setenv("COPILOT_SESSION_STATE_DIR", str(root))
 
 
+def _run_writing_malformed_model_session(
+    monkeypatch: pytest.MonkeyPatch,
+    root: Path,
+) -> list[int]:
+    """Write one answer whose present model metadata is not text."""
+    calls: list[int] = []
+
+    def fake_run(argv: list[str], **kwargs: object) -> _FakeCompleted:
+        calls.append(1)
+        session_dir = root / "malformed-model"
+        session_dir.mkdir(parents=True, exist_ok=True)
+        events = [
+            {
+                "type": "session.start",
+                "data": {"context": {"cwd": kwargs["cwd"]}},
+            },
+            {
+                "type": "assistant.message",
+                "data": {"content": "answer", "model": {"id": "claude-opus-5"}},
+            },
+        ]
+        (session_dir / "events.jsonl").write_text(
+            "\n".join(json.dumps(event) for event in events) + "\n",
+            encoding="utf-8",
+        )
+        return _FakeCompleted(stdout="stdout fallback text\n")
+
+    monkeypatch.setattr(_copilot_cli.subprocess, "run", fake_run)
+    monkeypatch.setenv("COPILOT_SESSION_STATE_DIR", str(root))
+    return calls
+
+
 def test_copilot_prefers_the_session_transcript_over_stdout(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
@@ -1332,6 +1356,44 @@ def test_the_malformed_transcript_refusal_survives_the_unverified_opt_in(
     message = str(excinfo.value)
     assert "malformed" in message
     assert "a clean stdout answer" not in message
+    assert provider.system_fingerprint is None
+
+
+def test_malformed_model_metadata_stops_after_one_normal_call(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv("EVAL_COPILOT_ALLOW_UNVERIFIED_MODEL", raising=False)
+    calls = _run_writing_malformed_model_session(monkeypatch, tmp_path)
+    provider = _providers._CopilotCLIProvider()
+
+    with pytest.raises(
+        MalformedProviderMetadataError, match="non-string model \\(dict\\)"
+    ):
+        provider.complete(
+            messages=[{"role": "user", "content": "q"}],
+            model="claude-opus-5",
+        )
+
+    assert calls == [1]
+    assert provider.system_fingerprint is None
+
+
+def test_malformed_model_metadata_stops_after_one_opted_in_call(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("EVAL_COPILOT_ALLOW_UNVERIFIED_MODEL", "1")
+    calls = _run_writing_malformed_model_session(monkeypatch, tmp_path)
+    provider = _providers._CopilotCLIProvider()
+
+    with pytest.raises(
+        MalformedProviderMetadataError, match="non-string model \\(dict\\)"
+    ):
+        provider.complete(
+            messages=[{"role": "user", "content": "q"}],
+            model="claude-opus-5",
+        )
+
+    assert calls == [1]
     assert provider.system_fingerprint is None
 
 
@@ -1961,9 +2023,9 @@ class TestTheModelIsReadFromTheMessageThatAnswered:
 
         assert out == "the answer"
 
-    @pytest.mark.parametrize("bad", [123, None, "", {"name": "opus"}, ["opus"]])
-    def test_a_lone_message_with_a_blank_model_reads_as_unattributed(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path, bad: object
+    @pytest.mark.parametrize("missing", [None, ""])
+    def test_a_lone_message_with_no_model_name_reads_as_unattributed(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path, missing: object
     ) -> None:
         # An empty string is not the name of a model. Treating it as one would
         # report a substitution by a model called "", which sends the operator
@@ -1973,29 +2035,29 @@ class TestTheModelIsReadFromTheMessageThatAnswered:
         _run_writing_raw_session(
             monkeypatch,
             tmp_path,
-            lambda cwd: [_start(cwd), _msg("the answer", model=bad)],
+            lambda cwd: [_start(cwd), _msg("the answer", model=missing)],
         )
         provider = _providers._CopilotCLIProvider()
 
         with pytest.raises(RuntimeError, match="could not confirm which model"):
             provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
-    @pytest.mark.parametrize("bad", [123, None, "", {"name": "opus"}, ["opus"]])
-    def test_a_message_whose_model_is_not_a_name_is_unattributed(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path, bad: object
+    @pytest.mark.parametrize("malformed", [123, {"name": "opus"}, ["opus"]])
+    def test_a_present_non_string_model_is_malformed(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path, malformed: object
     ) -> None:
         _run_writing_raw_session(
             monkeypatch,
             tmp_path,
             lambda cwd: [
                 _start(cwd),
-                _msg("the answer", model=bad),
+                _msg("the answer", model=malformed),
                 _msg("second part", model="claude-opus-5"),
             ],
         )
         provider = _providers._CopilotCLIProvider()
 
-        with pytest.raises(RuntimeError, match="could not confirm which model"):
+        with pytest.raises(MalformedProviderMetadataError, match="non-string model"):
             provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
 

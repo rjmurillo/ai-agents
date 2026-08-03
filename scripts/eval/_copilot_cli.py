@@ -28,8 +28,34 @@ from _copilot_cli_constants import (
     TRACE_LINE_PREFIXES,
     UNVERIFIED_MODEL_ENV,
 )
+from _eval_common import require_str_or_none
 
 __all__ = ["_CopilotCLIProvider"]
+
+_ERROR_CLASSIFICATION_CHARS = 4096
+_AUTH_ERROR_HINTS = (
+    "authentication failed",
+    "not logged in",
+    "not signed in",
+    "login required",
+)
+
+
+def _safe_process_error(returncode: int, stderr: str) -> RuntimeError:
+    """Describe a failed CLI process without serializing its output."""
+    lowered = stderr[:_ERROR_CLASSIFICATION_CHARS].lower()
+    if "rate limit" in lowered:
+        error_code = "rate limit"
+    elif "timed out" in lowered or "timeout" in lowered:
+        error_code = "request timed out"
+    elif any(hint in lowered for hint in _AUTH_ERROR_HINTS):
+        error_code = "authentication failed"
+    else:
+        error_code = "provider process failure"
+    return RuntimeError(
+        f"{PROVIDER_LABEL} exited with code {returncode}: error={error_code}; "
+        "process output redacted"
+    )
 
 
 class _CopilotCLIProvider:
@@ -106,6 +132,97 @@ class _CopilotCLIProvider:
             )
         return root
 
+    @staticmethod
+    def _read_candidate(path: Path, since: float) -> str | None:
+        """Read one current transcript candidate, or skip an unusable file."""
+        try:
+            if path.stat().st_mtime < since:
+                return None
+            return path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return None
+
+    @staticmethod
+    def _parse_event(
+        line: str,
+    ) -> tuple[str, dict[str, object], dict[str, object]] | None:
+        """Return one object-shaped event and data mapping."""
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            return None
+        if not isinstance(event, dict):
+            return None
+        data = event.get("data")
+        if not isinstance(data, dict):
+            return None
+        kind = event.get("type")
+        if not isinstance(kind, str):
+            return None
+        return kind, data, event
+
+    @classmethod
+    def _read_assistant_message(
+        cls,
+        event: dict[str, object],
+        data: dict[str, object],
+    ) -> tuple[str, str | None] | None:
+        """Return accepted text and validated model metadata."""
+        if cls._is_subagent_message(event, data):
+            return None
+        content = data.get("content")
+        if not isinstance(content, str):
+            raise RuntimeError(
+                f"{cls._PROVIDER_LABEL} session transcript is malformed: "
+                "an assistant message carries content of type "
+                f"{type(content).__name__}, not text. Reading past it "
+                "would grade a truncated answer as whole, so the run is refused."
+            )
+        if not content.strip():
+            return None
+        spoke = require_str_or_none(data.get("model"), "model")
+        return content.strip(), spoke
+
+    @classmethod
+    def _read_matching_session(
+        cls,
+        raw: str,
+        sandbox: str,
+    ) -> tuple[str, str | None] | None:
+        """Read accepted assistant messages from one matching session."""
+        matched = False
+        message_models: list[str] = []
+        unattributed = False
+        chunks: list[str] = []
+        for raw_line in raw.splitlines():
+            parsed = cls._parse_event(raw_line.strip())
+            if parsed is None:
+                continue
+            kind, data, event = parsed
+            if kind == "session.start":
+                context = data.get("context")
+                cwd = context.get("cwd") if isinstance(context, dict) else None
+                if cwd != sandbox:
+                    return None
+                matched = True
+                continue
+            if kind != "assistant.message" or not matched:
+                continue
+            accepted = cls._read_assistant_message(event, data)
+            if accepted is None:
+                continue
+            content, spoke = accepted
+            chunks.append(content)
+            if spoke and spoke not in message_models:
+                message_models.append(spoke)
+            if not spoke:
+                unattributed = True
+        if not matched:
+            return None
+        return "\n\n".join(chunks), cls._model_that_spoke(
+            message_models, unattributed=unattributed
+        )
+
     @classmethod
     def _read_session_transcript(
         cls, sandbox: str, *, since: float
@@ -143,60 +260,12 @@ class _CopilotCLIProvider:
         except OSError:
             return None
         for path in candidates:
-            try:
-                if path.stat().st_mtime < since:
-                    continue
-                raw = path.read_text(encoding="utf-8", errors="replace")
-            except OSError:
+            raw = cls._read_candidate(path, since)
+            if raw is None:
                 continue
-            matched = False
-            message_models: list[str] = []
-            unattributed = False
-            chunks: list[str] = []
-            for line in raw.splitlines():
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    event = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if not isinstance(event, dict):
-                    continue
-                data = event.get("data")
-                if not isinstance(data, dict):
-                    continue
-                kind = event.get("type")
-                if kind == "session.start":
-                    context = data.get("context")
-                    cwd = context.get("cwd") if isinstance(context, dict) else None
-                    if cwd != sandbox:
-                        break
-                    matched = True
-                elif kind == "assistant.message" and matched:
-                    if cls._is_subagent_message(event, data):
-                        continue
-                    content = data.get("content")
-                    if not isinstance(content, str):
-                        raise RuntimeError(
-                            f"{cls._PROVIDER_LABEL} session transcript is "
-                            "malformed: an assistant message carries content of "
-                            f"type {type(content).__name__}, not text. Reading "
-                            "past it would grade a truncated answer as whole, "
-                            "so the run is refused."
-                        )
-                    if content.strip():
-                        chunks.append(content.strip())
-                        spoke = data.get("model")
-                        if isinstance(spoke, str) and spoke:
-                            if spoke not in message_models:
-                                message_models.append(spoke)
-                        else:
-                            unattributed = True
-            if matched:
-                return "\n\n".join(chunks), cls._model_that_spoke(
-                    message_models, unattributed=unattributed
-                )
+            transcript = cls._read_matching_session(raw, sandbox)
+            if transcript is not None:
+                return transcript
         return None
 
     @staticmethod
@@ -337,6 +406,135 @@ class _CopilotCLIProvider:
             for line in text.splitlines()
         )
 
+    def _run_process(
+        self,
+        argv: list[str],
+        sandbox: str,
+    ) -> subprocess.CompletedProcess[str]:
+        """Run one isolated CLI process and return only successful output."""
+        try:
+            # argv is built from literals and validated fields. shell=False is
+            # the default, so nothing here reaches a shell.
+            completed = subprocess.run(
+                argv,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=self._timeout,
+                cwd=sandbox,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(
+                f"{self._provider_label} API request timed out after "
+                f"{self._timeout:.0f}s. The service may be slow or unreachable."
+            ) from exc
+        except FileNotFoundError as exc:
+            raise RuntimeError(
+                f"{self._provider_label} network error: executable "
+                f"{self._executable!r} not found on PATH. Install the "
+                "GitHub Copilot CLI or pass a different executable."
+            ) from exc
+        except OSError as exc:
+            raise RuntimeError(
+                f"{self._provider_label} API network error: {type(exc).__name__}. "
+                "Check that the Copilot CLI is installed and authenticated."
+            ) from exc
+        if completed.returncode != 0:
+            stderr = completed.stderr or completed.stdout or ""
+            raise _safe_process_error(completed.returncode, stderr)
+        return completed
+
+    def _build_prompt(
+        self,
+        messages: list[dict[str, str]],
+        system: str,
+    ) -> str:
+        """Fold supported messages into the CLI's single prompt channel."""
+        for message in messages:
+            role = message.get("role", "")
+            if role not in ("user", "system"):
+                raise RuntimeError(
+                    f"{self._provider_label} API does not support message role "
+                    f"{role!r}. Copilot CLI can only fold user/system messages "
+                    "into its single prompt channel."
+                )
+        parts = [system.strip()] if system.strip() else []
+        parts.extend(
+            str(message.get("content", "")).strip()
+            for message in messages
+            if str(message.get("content", "")).strip()
+        )
+        prompt = "\n\n".join(parts)
+        if not prompt:
+            raise RuntimeError(
+                f"{self._provider_label} requires a non-empty prompt; "
+                "system and messages were both blank."
+            )
+        return prompt
+
+    def _build_argv(self, prompt: str, model: str) -> list[str]:
+        """Build the fixed, shell-free Copilot CLI invocation."""
+        return [
+            self._executable,
+            "--prompt",
+            prompt,
+            "--model",
+            model,
+            "--allow-all-tools",
+            "--no-custom-instructions",
+            "--disable-builtin-mcps",
+            "--no-ask-user",
+            "--no-color",
+            "--log-level",
+            "none",
+        ]
+
+    def _read_answer(
+        self,
+        completed: subprocess.CompletedProcess[str],
+        transcript: tuple[str, str | None] | None,
+        model: str,
+    ) -> tuple[str, str | None]:
+        """Return answer text and confirmed model, or refuse attribution loss."""
+        answer = ""
+        model_used: str | None = None
+        if transcript is not None:
+            answer, model_used = transcript
+            if model_used is not None and model_used != model:
+                raise RuntimeError(
+                    f"{self._provider_label} API returned no choices for model "
+                    f"{model}: the session ran {model_used} instead."
+                )
+        if not answer:
+            answer = self._strip_footer(completed.stdout or "")
+            if answer and self._may_carry_tool_trace(answer):
+                raise RuntimeError(
+                    f"{self._provider_label} could not read a reply for model "
+                    f"{model}: the session transcript was unavailable and a line "
+                    "in stdout opens with a CLI trace marker. Nothing on this "
+                    "path can tell a trace apart from an answer that starts the "
+                    "same way, so the run is refused rather than graded. Point "
+                    f"{self._SESSION_STATE_ENV} at the CLI session directory so "
+                    "the structured transcript can be read."
+                )
+        if not answer:
+            raise RuntimeError(
+                f"{self._provider_label} API returned no choices for model {model}."
+            )
+        if model_used is None and not self._unverified_model_allowed():
+            raise RuntimeError(
+                f"{self._provider_label} could not confirm which model answered "
+                f"for {model}: no session transcript was readable, and the CLI "
+                "accepts --model without confirming it. This transport only "
+                "feeds model-attributed results, so an unconfirmed reply is a "
+                f"score for an unknown model. Point {self._SESSION_STATE_ENV} "
+                "at the CLI session directory, or set "
+                f"{self._UNVERIFIED_MODEL_ENV}=1 to accept that loss knowingly."
+            )
+        return answer, model_used
+
     def complete(
         self,
         *,
@@ -360,134 +558,13 @@ class _CopilotCLIProvider:
         # that input without complaint, so the loss would be silent. See #4128.
         del max_tokens, temperature, seed
 
-        # Guard against unsupported message roles before any subprocess call.
-        # Copilot CLI only folds user and system messages into its single
-        # prompt channel. Other roles (e.g., assistant) cannot be represented
-        # faithfully and must fail visibly.
-        for msg in messages:
-            role = msg.get("role", "")
-            if role not in ("user", "system"):
-                raise RuntimeError(
-                    f"{self._provider_label} API does not support message role "
-                    f"{role!r}. Copilot CLI can only fold user/system messages "
-                    "into its single prompt channel."
-                )
-
-        parts = [system.strip()] if system.strip() else []
-        parts.extend(
-            str(m.get("content", "")).strip()
-            for m in messages
-            if str(m.get("content", "")).strip()
-        )
-        prompt = "\n\n".join(parts)
-        if not prompt:
-            raise RuntimeError(
-                f"{self._provider_label} requires a non-empty prompt; "
-                "system and messages were both blank."
-            )
-
-        argv = [
-            self._executable,
-            "--prompt",
-            prompt,
-            "--model",
-            model,
-            "--allow-all-tools",
-            "--no-custom-instructions",
-            "--disable-builtin-mcps",
-            "--no-ask-user",
-            "--no-color",
-            "--log-level",
-            "none",
-        ]
+        prompt = self._build_prompt(messages, system)
+        argv = self._build_argv(prompt, model)
         with tempfile.TemporaryDirectory(prefix="eval-copilot-") as sandbox:
             started = time.time()
-            try:
-                # argv is built above from literals and validated fields, and
-                # shell=False is the default, so nothing here reaches a shell.
-                completed = subprocess.run(
-                    argv,
-                    capture_output=True,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    timeout=self._timeout,
-                    cwd=sandbox,
-                    check=False,
-                )
-            except subprocess.TimeoutExpired as exc:
-                raise RuntimeError(
-                    f"{self._provider_label} API request timed out after "
-                    f"{self._timeout:.0f}s. The service may be slow or unreachable."
-                ) from exc
-            except FileNotFoundError as exc:
-                raise RuntimeError(
-                    f"{self._provider_label} network error: executable "
-                    f"{self._executable!r} not found on PATH. Install the "
-                    "GitHub Copilot CLI or pass a different executable."
-                ) from exc
-            except OSError as exc:
-                raise RuntimeError(
-                    f"{self._provider_label} API network error: {type(exc).__name__}. "
-                    "Check that the Copilot CLI is installed and authenticated."
-                ) from exc
+            completed = self._run_process(argv, sandbox)
             transcript = self._read_session_transcript(sandbox, since=started - 5.0)
-
-        if completed.returncode != 0:
-            # CWE-200: strip control bytes, bound the volume. Neither step
-            # redacts. A credential short enough to fit is copied verbatim,
-            # confirmed here for a 40-character token, so this line is not what
-            # keeps a secret out of an eval artifact. The caller is. The adapter
-            # catches this error, keeps only `error_category`, and reports
-            # `raw_response=None`, so the text reaches no log line, no result
-            # field, and no report. Surfacing it anywhere needs a redactor
-            # first, and this comment is the only warning that says so.
-            stderr = completed.stderr or completed.stdout or ""
-            excerpt = "".join(ch for ch in stderr if 32 <= ord(ch) < 127)[:200]
-            raise RuntimeError(
-                f"{self._provider_label} exited with code "
-                f"{completed.returncode}: {excerpt}"
-            )
-        answer = ""
-        model_verified = False
-        model_used: str | None = None
-        if transcript is not None:
-            answer, model_used = transcript
-            # The CLI accepts --model without confirming it. Silent substitution
-            # would attribute one model's behavior to another, which is worse
-            # than a failed run, so treat it as an error rather than a note.
-            if model_used is not None and model_used != model:
-                raise RuntimeError(
-                    f"{self._provider_label} API returned no choices for model "
-                    f"{model}: the session ran {model_used} instead."
-                )
-            model_verified = model_used is not None
-        if not answer:
-            answer = self._strip_footer(completed.stdout or "")
-            if answer and self._may_carry_tool_trace(answer):
-                raise RuntimeError(
-                    f"{self._provider_label} could not read a reply for model "
-                    f"{model}: the session transcript was unavailable and a line "
-                    "in stdout opens with a CLI trace marker. Nothing on this "
-                    "path can tell a trace apart from an answer that starts the "
-                    "same way, so the run is refused rather than graded. Point "
-                    f"{self._SESSION_STATE_ENV} at the CLI session directory so "
-                    "the structured transcript can be read."
-                )
-        if not answer:
-            raise RuntimeError(
-                f"{self._provider_label} API returned no choices for model {model}."
-            )
-        if not model_verified and not self._unverified_model_allowed():
-            raise RuntimeError(
-                f"{self._provider_label} could not confirm which model answered "
-                f"for {model}: no session transcript was readable, and the CLI "
-                "accepts --model without confirming it. This transport only "
-                "feeds model-attributed results, so an unconfirmed reply is a "
-                f"score for an unknown model. Point {self._SESSION_STATE_ENV} "
-                "at the CLI session directory, or set "
-                f"{self._UNVERIFIED_MODEL_ENV}=1 to accept that loss knowingly."
-            )
+        answer, model_used = self._read_answer(completed, transcript, model)
         # Publish which model the transcript confirmed, reset on every call so
         # an earlier verified reply cannot vouch for a later unverified one.
         # None means nobody confirmed, which is how an archived run tells a

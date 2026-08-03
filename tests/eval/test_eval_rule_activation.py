@@ -38,6 +38,8 @@ _path_added = str(EVAL_DIR) not in sys.path
 if _path_added:
     sys.path.insert(0, str(EVAL_DIR))
 try:
+    import _copilot_cli as copilot_mod  # noqa: E402
+
     _spec = importlib.util.spec_from_file_location(
         "eval_rule_activation", EVAL_DIR / "eval-rule-activation.py"
     )
@@ -1270,6 +1272,7 @@ class TestJudgeSampleReduction:
         assert full["scores"]["graded_sample_count"] == 2
         assert full["scores"]["failed_sample_count"] == 1
 
+
     def test_dry_run_counts_repeated_judge_calls(self, tmp_path, capsys):
         rule_path = REPO_ROOT / ".claude" / "rules" / "working-with-legacy-code.md"
         if not rule_path.is_file():
@@ -1323,6 +1326,92 @@ class TestJudgeSampleReduction:
         captured = capsys.readouterr()
         assert code == 2
         assert "--judge-repeats must be positive" in captured.err
+
+
+class TestCopilotErrorArtifactRedaction:
+    def test_credential_from_process_stderr_never_reaches_persisted_results(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        secret = "ghp_" + "S" * 36
+
+        class _Completed:
+            stdout = ""
+            stderr = f"authentication failed: token {secret}"
+            returncode = 1
+
+        monkeypatch.setattr(
+            copilot_mod.subprocess,
+            "run",
+            lambda *args, **kwargs: _Completed(),
+        )
+        monkeypatch.setenv(
+            "COPILOT_SESSION_STATE_DIR",
+            str(tmp_path / "missing-session-root"),
+        )
+        provider = copilot_mod._CopilotCLIProvider()
+        with pytest.raises(RuntimeError) as exc_info:
+            provider.complete(
+                messages=[{"role": "user", "content": "q"}],
+                model="claude-opus-5",
+            )
+        provider_error = exc_info.value
+        assert secret not in str(provider_error)
+
+        scenario = {
+            "id": "S-LEAK",
+            "desc": "credential leak probe",
+            "input": "do the thing",
+            "expected_gate": "apply-rule",
+        }
+        rule = {"description": "desc", "body": "body"}
+        monkeypatch.setattr(eval_mod, "RATE_LIMIT_SLEEP_SEC", 0)
+
+        def raise_provider_error(*args: object, **kwargs: object) -> str:
+            raise provider_error
+
+        monkeypatch.setattr(eval_mod, "_call_api", raise_provider_error)
+        mechanism_result = eval_mod.eval_one_scenario(
+            "key",
+            rule,
+            "rule",
+            scenario,
+            "model",
+            dry_run=False,
+            judge_repeats=1,
+        )
+
+        monkeypatch.setattr(eval_mod, "_call_api", lambda *args, **kwargs: "response")
+
+        def raise_judge_error(*args: object, **kwargs: object) -> dict[str, object]:
+            raise provider_error
+
+        monkeypatch.setattr(eval_mod, "score_response", raise_judge_error)
+        judge_result = eval_mod.eval_one_scenario(
+            "key",
+            rule,
+            "rule",
+            scenario,
+            "model",
+            dry_run=False,
+            judge_repeats=1,
+        )
+
+        artifact = tmp_path / "results.json"
+        artifact.write_text(
+            json.dumps(
+                {
+                    "rules": {
+                        "mechanism-error": mechanism_result,
+                        "judge-error": judge_result,
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        persisted = artifact.read_text(encoding="utf-8")
+        assert secret not in persisted
+        assert "process output redacted" in persisted
+        assert "error=authentication failed" in persisted
 
 
 # ---------------------------------------------------------------------------
