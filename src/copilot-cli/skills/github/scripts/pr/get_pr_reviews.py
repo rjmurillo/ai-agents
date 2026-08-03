@@ -8,7 +8,8 @@ returns the top-level review object that carries the verdict. ``APPROVED`` and
 ``gh api`` call (issue #4378). This script pages
 ``repos/{owner}/{repo}/pulls/{n}/reviews`` and emits the ADR-056 envelope with
 ``Data.reviews`` as a list of
-``{id, nodeId, author, state, body, submittedAt, url, commitId}``.
+``{id, nodeId, author, authorId, authorObserved, state, body, submittedAt,
+url, commitId}``.
 
 Exit codes follow ADR-035:
     0 - Success
@@ -23,6 +24,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from typing import Any
 
 # Two rungs, both portable. The plugin-root variables win when the host exports
 # them; otherwise walk up from this file, which lands on the lib directory of
@@ -67,7 +69,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--pull-request", type=int, required=True, help="Pull request number",
+        "--pull-request",
+        type=int,
+        required=True,
+        help="Pull request number",
     )
     parser.add_argument(
         "--state",
@@ -78,7 +83,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _normalize(item: dict) -> dict:
+def _normalize(item: dict[str, Any]) -> dict[str, Any]:
     """Reshape one REST review object into the skill's stable field names.
 
     ``author`` is canonicalized so the same integration reporting under
@@ -87,10 +92,14 @@ def _normalize(item: dict) -> dict:
     """
     user = item.get("user")
     observed = user.get("login") if isinstance(user, dict) else None
+    author_id = user.get("id") if isinstance(user, dict) else None
+    if not isinstance(author_id, int):
+        author_id = None
     return {
         "id": item.get("id"),
         "nodeId": item.get("node_id"),
-        "author": canonicalize_login(observed) if observed else None,
+        "author": canonicalize_login(observed, author_id) if observed else None,
+        "authorId": author_id,
         "authorObserved": observed,
         "state": item.get("state"),
         "body": item.get("body") or "",

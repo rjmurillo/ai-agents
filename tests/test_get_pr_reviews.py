@@ -39,11 +39,12 @@ def _api_review(
     state: str = "APPROVED",
     body: str = "ship it",
     review_id: int = 1,
+    author_id: int | None = None,
 ):
     return {
         "id": review_id,
         "node_id": f"PRR_node{review_id}",
-        "user": {"login": login},
+        "user": {"login": login, "id": author_id},
         "state": state,
         "body": body,
         "submitted_at": "2026-08-01T00:00:00Z",
@@ -137,13 +138,29 @@ class TestMain:
 
     def test_copilot_alias_author_is_canonicalized(self, capsys):
         rc = _run(
-            [_api_review(login="Copilot")],
+            [_api_review(login="Copilot", author_id=175728472)],
             ["--pull-request", "1", "--output-format", "json"],
         )
         assert rc == 0
         review = _envelope(capsys)["Data"]["reviews"][0]
         assert review["author"] == "github-copilot[bot]"
+        assert review["authorId"] == 175728472
         assert review["authorObserved"] == "Copilot"
+
+    def test_account_id_separates_two_authors_reported_as_copilot(self, capsys):
+        rc = _run(
+            [
+                _api_review(login="Copilot", author_id=175728472, review_id=1),
+                _api_review(login="Copilot", author_id=198982749, review_id=2),
+            ],
+            ["--pull-request", "1", "--output-format", "json"],
+        )
+        assert rc == 0
+        reviews = _envelope(capsys)["Data"]["reviews"]
+        assert [review["author"] for review in reviews] == [
+            "github-copilot[bot]",
+            "copilot-swe-agent[bot]",
+        ]
 
     def test_missing_user_and_null_body_do_not_raise(self, capsys):
         rc = _run(
@@ -153,4 +170,5 @@ class TestMain:
         assert rc == 0
         review = _envelope(capsys)["Data"]["reviews"][0]
         assert review["author"] is None
+        assert review["authorId"] is None
         assert review["body"] == ""

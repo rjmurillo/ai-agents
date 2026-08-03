@@ -37,9 +37,14 @@ def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
     return subprocess.CompletedProcess(args=[], returncode=rc, stdout=stdout, stderr=stderr)
 
 
-def _api_comment(login: str, body: str, at: str = "2026-06-06T00:00:00Z"):
+def _api_comment(
+    login: str,
+    body: str,
+    at: str = "2026-06-06T00:00:00Z",
+    author_id: int | None = None,
+):
     return {
-        "user": {"login": login},
+        "user": {"login": login, "id": author_id},
         "created_at": at,
         "updated_at": at,
         "body": body,
@@ -95,6 +100,7 @@ class TestMain:
         assert data["issue"] == 2099
         assert data["count"] == 2
         assert data["comments"][0]["author"] == "coderabbitai[bot]"
+        assert data["comments"][0]["authorId"] is None
         assert data["comments"][1]["author"] == "rjmurillo"
         assert data["comments"][1]["body"] == "keep open P3"
         assert "createdAt" in data["comments"][0]
@@ -271,8 +277,24 @@ class TestMain:
         assert comment["id"] == 5161211275
         assert comment["nodeId"] == "IC_kwDOQoWRls8AAAABM6HViw"
 
+    def test_preserves_author_id(self, capsys):
+        item = _api_comment("Copilot", "hi", author_id=175728472)
+        with (
+            patch("get_issue_comments.assert_gh_authenticated"),
+            patch(
+                "get_issue_comments.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("subprocess.run", side_effect=[_slurped([item])]),
+        ):
+            rc = main(["--issue", "1"])
+        assert rc == 0
+        comment = _envelope(capsys)["Data"]["comments"][0]
+        assert comment["author"] == "Copilot"
+        assert comment["authorId"] == 175728472
+
     def test_absent_identifiers_are_none_not_missing(self, capsys):
-        """A payload without id/node_id still carries both keys."""
+        """A payload without identifiers still carries every identifier key."""
         with (
             patch("get_issue_comments.assert_gh_authenticated"),
             patch(
@@ -286,6 +308,7 @@ class TestMain:
         comment = _envelope(capsys)["Data"]["comments"][0]
         assert comment["id"] is None
         assert comment["nodeId"] is None
+        assert comment["authorId"] is None
 
 
 if __name__ == "__main__":
