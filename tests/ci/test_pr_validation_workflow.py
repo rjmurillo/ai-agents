@@ -934,6 +934,8 @@ class TestBotSkipGuardClassification:
     _ALLOWED_BEHIND_GUARD: frozenset[str] = frozenset(
         {
             "Checkout repository",
+            # Throughput setup only. Downstream correctness gates fail if uv is missing.
+            "Setup uv",
             "Setup PowerShell",
             "Validate PR Description vs Diff",
             "Validate PR Description Standards",
