@@ -13,41 +13,41 @@
         "one authoritative"
       ],
       "expected_gate": "enforce-dry-single-source-of-truth",
-      "rationale": "Pragmatic Programmer DRY rule: a business rule with multiple representations will drift. One canonical location eliminates the disagreement."
+      "rationale": "Pragmatic Programmer rule says DRY targets duplicated knowledge, not just text. The same business rule in three places is a DRY violation."
     },
     {
       "id": "S2",
-      "desc": "Manual deployment steps that keep failing due to operator error",
-      "input": "Our deployment has 14 manual steps that the on-call engineer runs from a wiki page. We have two incidents per quarter caused by someone skipping step 9. Plan a fix in 5 short bullets. Do not modify any files.",
+      "desc": "Module that mixes persistence and email logic",
+      "input": "My UserService handles database writes, email validation, and sending welcome emails. Is there a design problem? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "orthogonality",
+        "independent",
+        "coupling",
+        "separate"
+      ],
+      "expected_gate": "enforce-orthogonal-responsibilities",
+      "rationale": "Rule mandates orthogonal components. Mixing persistence, validation, and email delivery means one concern change forces unrelated edits."
+    },
+    {
+      "id": "S3",
+      "desc": "Manual multi-step release checklist",
+      "input": "Our release process requires 12 manual steps documented in a wiki. Every deploy takes 90 minutes. Plan improvements in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "automate",
         "script",
         "repeatable",
         "manual"
       ],
-      "expected_gate": "automate-repetitive-error-prone-tasks",
-      "rationale": "Pragmatic Programmer automation rule: repetitive error-prone steps belong in a script, not tribal knowledge. Human error on step 9 is a process smell."
-    },
-    {
-      "id": "S3",
-      "desc": "Prototype code promoted to production without hardening",
-      "input": "We prototyped a new checkout flow in two days and it worked. The team wants to ship it as-is. Is that a problem? Plan next steps in 5 short bullets. Do not modify any files.",
-      "expected_signals": [
-        "prototype",
-        "hardening",
-        "production",
-        "redesign"
-      ],
-      "expected_gate": "harden-before-promoting-prototype",
-      "rationale": "Pragmatic Programmer prototyping rule: a prototype proves a concept. Shipping it as-is conflates the proof with the deliverable."
+      "expected_gate": "automate-repetitive-processes",
+      "rationale": "Rule mandates automating repetitive, error-prone processes. A 12-step manual release is exactly the target for scripted automation."
     },
     {
       "id": "S4",
-      "desc": "Pure vegetable soup recipe question (negative case)",
-      "input": "What vegetables work best in a minestrone soup? List 5 options. Do not modify any files.",
+      "desc": "Question about database index type (negative case)",
+      "input": "Should I use a B-tree or hash index for a column that is queried only by exact equality? Plan in 5 short bullets. Do not modify any files.",
       "expected_signals": [],
       "expected_gate": "skip-rule-not-applicable",
-      "rationale": "A cooking question has no relevance to software engineering principles. Rule should not activate."
+      "rationale": "A database index type question is a low-level storage concern unrelated to DRY, orthogonality, or automation principles in the Pragmatic Programmer rule."
     }
   ]
 }

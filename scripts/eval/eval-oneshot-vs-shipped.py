@@ -9,8 +9,7 @@ report writing.
 
 Spend boundary: `--dry-run` validates fixtures and prints the call plan with
 ZERO API spend, mirroring the main harness's no-spend path. A live run calls the
-model twice per fixture (agent + judge) and requires a key for the selected
-provider (or none for a keyless provider).
+model twice per fixture (agent + judge) and requires `ANTHROPIC_API_KEY`.
 
 Exit codes (AGENTS.md): 0 ok, 2 config (bad path, malformed fixture, missing
 credentials, report write failure), 3 external (API failure during a live run).
@@ -29,7 +28,6 @@ if str(_EVAL_DIR) not in sys.path:
     sys.path.insert(0, str(_EVAL_DIR))
 
 from _anthropic_api import call_api as _call_api  # noqa: E402
-from _anthropic_api import load_api_key_for_selected_provider as _load_api_key  # noqa: E402
 from _oneshot_bench_core import (  # noqa: E402
     BenchmarkSummary,
     Fixture,
@@ -45,6 +43,12 @@ from _oneshot_bench_core import (  # noqa: E402
 )
 
 
+def _load_api_key_for_selected_provider(*args: object) -> str:
+    from _anthropic_api import load_api_key_for_selected_provider
+
+    return str(load_api_key_for_selected_provider(*args))
+
+
 def _api_error_verdict(reason: str) -> JudgeVerdict:
     """Verdict for a run that never reached the judge (transport failed).
 
@@ -54,6 +58,7 @@ def _api_error_verdict(reason: str) -> JudgeVerdict:
     `api_errors` and `judge_failures` in the aggregate.
     """
     return JudgeVerdict("NONE", (), (), reason, judge_failed=False)
+
 
 EXIT_OK = 0
 EXIT_CONFIG = 2
@@ -80,9 +85,7 @@ def _resolve_repo_child(path: Path, *, arg_name: str, require_dir: bool) -> Path
     return resolved
 
 
-def grade_fixture(
-    fixture: Fixture, *, api_key: str, model: str
-) -> FixtureResult:
+def grade_fixture(fixture: Fixture, *, api_key: str, model: str) -> FixtureResult:
     """Run one fixture end to end: agent proposes, judge grades.
 
     A transport failure on either call is caught and recorded as an errored
@@ -130,9 +133,7 @@ def grade_fixture(
     )
 
 
-def run_live(
-    fixtures: list[Fixture], *, api_key: str, model: str
-) -> BenchmarkSummary:
+def run_live(fixtures: list[Fixture], *, api_key: str, model: str) -> BenchmarkSummary:
     results = [grade_fixture(f, api_key=api_key, model=model) for f in fixtures]
     return aggregate(fixtures, results)
 
@@ -178,8 +179,7 @@ def summary_to_human(summary: BenchmarkSummary, *, model: str) -> str:
     ]
     if summary.judge_failures or summary.api_errors:
         lines.append(
-            f"  harness errors: {summary.api_errors} API, "
-            f"{summary.judge_failures} judge-parse"
+            f"  harness errors: {summary.api_errors} API, {summary.judge_failures} judge-parse"
         )
     for r in summary.per_fixture:
         tag = r.error or r.verdict.grade
@@ -246,9 +246,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv if argv is not None else sys.argv[1:])
     try:
-        fixtures_dir = _resolve_repo_child(
-            args.fixtures, arg_name="--fixtures", require_dir=True
-        )
+        fixtures_dir = _resolve_repo_child(args.fixtures, arg_name="--fixtures", require_dir=True)
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_CONFIG
@@ -267,7 +265,7 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_OK
 
     try:
-        api_key = _load_api_key()
+        api_key = _load_api_key_for_selected_provider()
     except Exception as exc:  # noqa: BLE001 - surface auth/config as exit 2
         print(f"error: cannot load API key: {exc}", file=sys.stderr)
         return EXIT_CONFIG
@@ -275,9 +273,7 @@ def main(argv: list[str] | None = None) -> int:
     summary = run_live(fixtures, api_key=api_key, model=args.model)
     if args.report is not None:
         try:
-            report_path = _resolve_repo_child(
-                args.report, arg_name="--report", require_dir=False
-            )
+            report_path = _resolve_repo_child(args.report, arg_name="--report", require_dir=False)
         except ValueError as exc:
             print(f"error: {exc}", file=sys.stderr)
             return EXIT_CONFIG

@@ -46,8 +46,10 @@ from __future__ import annotations
 import argparse
 import datetime
 import difflib
+import hashlib
 import json
 import math
+import os
 import re
 import statistics
 import subprocess
@@ -139,12 +141,7 @@ def parse_skill_reference(skill_path: Path, reference_path: Path) -> dict[str, s
     skill_name_match = re.search(r"^name:\s*(.+?)$", skill["frontmatter"], re.MULTILINE)
     skill_name = skill_name_match.group(1).strip() if skill_name_match else skill_path.parent.name
     reference_rel = str(reference_path.relative_to(skill_path.parent))
-    body = (
-        "Skill router:\n\n"
-        f"{skill['body']}\n\n"
-        "Selected reference:\n\n"
-        f"{reference['body']}"
-    )
+    body = f"Skill router:\n\n{skill['body']}\n\nSelected reference:\n\n{reference['body']}"
     return {
         "description": skill["description"],
         "body": body,
@@ -592,7 +589,11 @@ Respond in JSON only, no other text:
     except ValueError:
         embedded = _recover_verdict(text)
         if embedded is None:
-            return _judge_parse_failure(text, f"judge parse error: {text[:200]}")
+            return _judge_parse_failure(
+                text,
+                "judge response could not be parsed as JSON",
+                raw_judge_response=text,
+            )
         # _recover_verdict only returns text it already parsed with
         # _strict_json_loads, so this cannot raise.
         parsed = _strict_json_loads(embedded)
@@ -620,13 +621,17 @@ Respond in JSON only, no other text:
         # offers nothing exact to check.
         if _parsed_names_two_verdicts(parsed):
             return _failed_judge(
-                f"ambiguous judge output names two verdicts: {text[:200]}"
+                "ambiguous judge output names two verdicts",
+                raw_judge_response=text,
             )
     if not isinstance(parsed, dict):
-        return _failed_judge(f"judge returned non-object JSON: {text[:200]}")
+        return _failed_judge(
+            "judge returned non-object JSON",
+            raw_judge_response=text,
+        )
     score_error = _judge_score_shape_error(parsed)
     if score_error is not None:
-        return _judge_parse_failure(text, score_error)
+        return _judge_parse_failure(text, score_error, raw_judge_response=text)
     result = {
         "activation_score": _clamp_score(parsed["activation_score"]),
         "citation_score": _clamp_score(parsed["citation_score"]),
@@ -689,9 +694,7 @@ def _reduce_score_samples(
     # average 3.67, and per-field medians publish 5/5/5. Reduce each sample to
     # its own scalar first so the cell is a real observation, or the midpoint
     # of two. The per-field values stay as the per-axis diagnostic.
-    reduced["cell_score"] = reducer(
-        [_sample_scalar(sample) for sample in graded]
-    )
+    reduced["cell_score"] = reducer([_sample_scalar(sample) for sample in graded])
     reduced["judge_failed"] = failed_count > 0
     reduced["graded"] = True
     reduced["score_reducer"] = reducer_name
@@ -704,6 +707,7 @@ def _reduce_score_samples(
 def _sample_scalar(sample: dict[str, Any]) -> float:
     """Collapse one judge sample's three fields to the score it stands for."""
     return sum(float(sample[key]) for key in _SCORE_KEYS) / len(_SCORE_KEYS)
+
 
 _SCORE_FIELDS = ("activation_score", "citation_score", "behavior_score")
 
@@ -723,9 +727,17 @@ _JSON_INT_RE = re.compile(r"-?(?:0|[1-9][0-9]*)\Z")
 _KEY_SHAPED_SCORE_FIELDS = tuple(
     re.compile(
         "(?:"
-        + '"' + re.escape(field) + '"'
-        + "|" + r"\\\"" + re.escape(field) + r"\\\""
-        + "|" + "'" + re.escape(field) + "'"
+        + '"'
+        + re.escape(field)
+        + '"'
+        + "|"
+        + r"\\\""
+        + re.escape(field)
+        + r"\\\""
+        + "|"
+        + "'"
+        + re.escape(field)
+        + "'"
         + r")\s*:"
     )
     for field in _SCORE_FIELDS
@@ -814,9 +826,7 @@ def _span_parses_as_json(text: str, start: int, end: int) -> bool:
     return True
 
 
-def _advance_string_state(
-    char: str, in_string: bool, escaped: bool
-) -> tuple[bool, bool]:
+def _advance_string_state(char: str, in_string: bool, escaped: bool) -> tuple[bool, bool]:
     """Return the ``(in_string, escaped)`` pair after consuming ``char``."""
     if not in_string:
         return char == '"', False
@@ -1168,10 +1178,7 @@ def _parsed_names_two_verdicts(parsed: object) -> bool:
     if _count_score_bearing_objects(parsed) > 1:
         return True
     filed = parsed if isinstance(parsed, dict) else {}
-    return any(
-        _string_contradicts_filed_scores(text, filed)
-        for text in _string_values(parsed)
-    )
+    return any(_string_contradicts_filed_scores(text, filed) for text in _string_values(parsed))
 
 
 def _peel_one_escape_layer(text: str) -> tuple[str, bool]:
@@ -1519,11 +1526,15 @@ def _salvage_scores(text: str) -> dict[str, int] | None:
     return _complete_verdict(_scan_root_members(text, start))
 
 
-def _judge_parse_failure(text: str, reason: str) -> dict[str, Any]:
+def _judge_parse_failure(
+    text: str,
+    reason: str,
+    raw_judge_response: str | None = None,
+) -> dict[str, Any]:
     """Build a failed-judge record, salvaging scores when they are recoverable."""
     salvaged = _salvage_scores(text)
     if salvaged is not None:
-        return {
+        result: dict[str, Any] = {
             "activation_score": _clamp_score(salvaged["activation_score"]),
             "citation_score": _clamp_score(salvaged["citation_score"]),
             "behavior_score": _clamp_score(salvaged["behavior_score"]),
@@ -1531,17 +1542,23 @@ def _judge_parse_failure(text: str, reason: str) -> dict[str, Any]:
             "judge_failed": False,
             "judge_salvaged": True,
         }
-    return _failed_judge(reason)
+        if raw_judge_response is not None:
+            result["raw_judge_response"] = raw_judge_response
+        return result
+    return _failed_judge(reason, raw_judge_response=raw_judge_response)
 
 
-def _failed_judge(reason: str) -> dict[str, Any]:
-    return {
+def _failed_judge(reason: str, raw_judge_response: str | None = None) -> dict[str, Any]:
+    result: dict[str, Any] = {
         "activation_score": 0,
         "citation_score": 0,
         "behavior_score": 0,
         "reasoning": reason,
         "judge_failed": True,
     }
+    if raw_judge_response is not None:
+        result["raw_judge_response"] = raw_judge_response
+    return result
 
 
 def _judge_score_shape_error(parsed: dict[str, Any]) -> str | None:
@@ -1552,14 +1569,10 @@ def _judge_score_shape_error(parsed: dict[str, Any]) -> str | None:
     for field in required_fields:
         value = parsed[field]
         if not isinstance(value, int) or isinstance(value, bool):
-            return (
-                f"judge returned non-integral {field}: "
-                f"{type(value).__name__}"
-            )
+            return f"judge returned non-integral {field}: {type(value).__name__}"
         if value not in _SCORE_RANGE:
             return f"judge returned out-of-range {field}: {value!r}"
     return None
-
 
 
 # ---------------------------------------------------------------------------
@@ -1735,9 +1748,7 @@ def eval_one_scenario(
         for sample_index in range(judge_repeats):
             judge_seed = None if seed is None else seed + sample_index + 1
             try:
-                sample = score_response(
-                    api_key, scenario, response, model=model, seed=judge_seed
-                )
+                sample = score_response(api_key, scenario, response, model=model, seed=judge_seed)
             except RuntimeError as e:
                 sample = {
                     "judge_failed": True,
@@ -1789,9 +1800,7 @@ def _is_valid_score(value: object) -> bool:
     return MIN_RUBRIC_SCORE <= value <= MAX_RUBRIC_SCORE
 
 
-def _scenario_score_triple(
-    scenario: dict[str, Any], mech: str
-) -> tuple[float | None, bool, bool]:
+def _scenario_score_triple(scenario: dict[str, Any], mech: str) -> tuple[float | None, bool, bool]:
     """Return (cell_score, judge_failed, legacy_reduced) for one cell.
 
     Returns `None` for the score when the cell carries no usable measurement:
@@ -1888,12 +1897,11 @@ def _incomplete_mechanisms(
     return sorted(m for m in mechs if _graded_count(per_mech[m]) < pool_size)
 
 
-def _mechanism_summary(
-    pool: list[dict[str, Any]], mech: str
-) -> dict[str, Any]:
+def _mechanism_summary(pool: list[dict[str, Any]], mech: str) -> dict[str, Any]:
     """Compute avg_score over the graded scenarios for one mechanism."""
     scores: list[float] = []
-    failures = 0
+    failure_cells = 0
+    failure_samples = 0
     legacy = 0
     route_missed = 0
     for s in pool:
@@ -1903,9 +1911,11 @@ def _mechanism_summary(
         if score is not None:
             scores.append(score)
         if failed:
-            failures += 1
+            failure_cells += 1
         if legacy_reduced:
             legacy += 1
+        sc = s.get("mechanisms", {}).get(mech, {}).get("scores", {})
+        failure_samples += sc.get("failed_sample_count", 0)
     # None rather than 0.0 when nothing graded. A 0.0 reads as a real score
     # in every consumer: it becomes a published average, a delta against
     # baseline, and a candidate for best_mechanism, none of which any
@@ -1923,7 +1933,9 @@ def _mechanism_summary(
         "avg_score_exact": (sum(scores) / len(scores)) if scores else None,
         "scenario_count": len(pool),
         "graded_count": len(scores),
-        "judge_failures": failures,
+        "judge_failures": failure_cells,
+        "judge_failure_cells": failure_cells,
+        "judge_failure_samples": failure_samples,
         "legacy_reduced_count": legacy,
         "route_mismatch_count": route_missed,
     }
@@ -1993,9 +2005,7 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
 
     for mech in MECHANISMS:
         summary["per_mechanism"][mech] = _mechanism_summary(pos_scenarios, mech)
-        summary["negative_case_per_mechanism"][mech] = _mechanism_summary(
-            neg_scenarios, mech
-        )
+        summary["negative_case_per_mechanism"][mech] = _mechanism_summary(neg_scenarios, mech)
 
     baseline_avg = _gate_avg(summary["per_mechanism"]["baseline"])
     desc_avg = _gate_avg(summary["per_mechanism"]["description"])
@@ -2031,10 +2041,7 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
 
     total_judge_failures = sum(
         summary["per_mechanism"][m]["judge_failures"] for m in MECHANISMS
-    ) + sum(
-        summary["negative_case_per_mechanism"][m]["judge_failures"]
-        for m in MECHANISMS
-    )
+    ) + sum(summary["negative_case_per_mechanism"][m]["judge_failures"] for m in MECHANISMS)
     # `total_judge_failures` stays the whole-run count, because it is the
     # published record of how the judge behaved. The verdict reads a narrower
     # count: for a routed target `full` is a treatment no deployment performs,
@@ -2051,10 +2058,7 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     neg_gate_mechs = ["description"] if routed else [m for m in MECHANISMS if m != "baseline"]
     gating_judge_failures = sum(
         summary["per_mechanism"][m]["judge_failures"] for m in measured_mechs
-    ) + sum(
-        summary["negative_case_per_mechanism"][m]["judge_failures"]
-        for m in neg_gate_mechs
-    )
+    ) + sum(summary["negative_case_per_mechanism"][m]["judge_failures"] for m in neg_gate_mechs)
 
     summary["best_mechanism"] = best_mech
     summary["best_avg_score"] = best_avg
@@ -2075,6 +2079,10 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     )
 
     summary["total_judge_failures"] = total_judge_failures
+    total_judge_failure_samples = sum(
+        summary["per_mechanism"][m]["judge_failure_samples"] for m in MECHANISMS
+    ) + sum(summary["negative_case_per_mechanism"][m]["judge_failure_samples"] for m in MECHANISMS)
+    summary["total_judge_failure_samples"] = total_judge_failure_samples
     # Name the cells whose failures no gate reads. Deriving this in the
     # renderer instead would let the disclosure drift from the exclusion, which
     # is how the negative-baseline exclusion shipped silent in the first place.
@@ -2089,9 +2097,7 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
                 excluded_cells.append(f"{pool_label} {mech}")
     summary["excluded_judge_failure_cells"] = excluded_cells
     summary["gating_judge_failures"] = gating_judge_failures
-    summary["unreachable_mechanisms"] = [
-        m for m in MECHANISMS if m not in measured_mechs
-    ]
+    summary["unreachable_mechanisms"] = [m for m in MECHANISMS if m not in measured_mechs]
     # "Best" is a superlative over a population even though it prints one
     # name. Any candidate the ranking dropped has to be named, or a table row
     # scoring above the winner reads as a broken ordering. Partial coverage
@@ -2138,9 +2144,7 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     # `round` is monotone, so the minimum of the rounded values and the rounded
     # minimum are the same number. The published field is unchanged; only the
     # value the floor is compared against gained its measured precision.
-    summary["worst_negative_avg"] = (
-        None if worst_neg_avg is None else round(worst_neg_avg, 2)
-    )
+    summary["worst_negative_avg"] = None if worst_neg_avg is None else round(worst_neg_avg, 2)
     # Name the population the number was read off. An average over a subset of
     # the negative scenarios, reported as if it covered them all, is the defect
     # this whole change exists to remove.
@@ -2199,8 +2203,7 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     # would put the caveat on a different population than the scores it
     # explains.
     summary["positive_route_mismatches"] = sum(
-        summary["per_mechanism"][m].get("route_mismatch_count", 0)
-        for m in measured_mechs
+        summary["per_mechanism"][m].get("route_mismatch_count", 0) for m in measured_mechs
     )
 
     common = {
@@ -2419,9 +2422,7 @@ def _render_caveats(summary: dict[str, Any]) -> list[str]:
             lines.append(f"{label} pool incomplete at: " + ", ".join(incomplete))
     unreachable = summary.get("unreachable_mechanisms") or []
     if unreachable:
-        lines.append(
-            "Excluded as unreachable for a routed target: " + ", ".join(unreachable)
-        )
+        lines.append("Excluded as unreachable for a routed target: " + ", ".join(unreachable))
     total_jf = summary.get("total_judge_failures", 0)
     gating_jf = summary.get("gating_judge_failures", 0)
     if total_jf != gating_jf:
@@ -2483,30 +2484,27 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
             population = ", ".join(floor_mechs) if floor_mechs else "rule mechanisms"
         source = summary.get("worst_negative_mechanism") or "?"
         graded = summary.get("worst_negative_graded", 0)
-        neg_total = summary["negative_case_per_mechanism"][source]["scenario_count"] if (
-            source in summary.get("negative_case_per_mechanism", {})
-        ) else 0
+        neg_total = (
+            summary["negative_case_per_mechanism"][source]["scenario_count"]
+            if (source in summary.get("negative_case_per_mechanism", {}))
+            else 0
+        )
         restraint = (
             f"worst of [{population}] {worst_neg} (floor {MIN_RESTRAINT_SCORE}), "
             f"from {source} over {graded}/{neg_total} negative scenario(s)"
         )
     dropped = []
     if summary.get("best_mechanism_excluded"):
-        dropped.append(
-            f"{', '.join(summary['best_mechanism_excluded'])} for partial coverage"
-        )
+        dropped.append(f"{', '.join(summary['best_mechanism_excluded'])} for partial coverage")
     if summary.get("best_mechanism_unmeasured"):
-        dropped.append(
-            f"{', '.join(summary['best_mechanism_unmeasured'])} as unmeasured"
-        )
+        dropped.append(f"{', '.join(summary['best_mechanism_unmeasured'])} as unmeasured")
     best_excluded = f", excluding {' and '.join(dropped)}" if dropped else ""
     rows = [
         f"\nRule: {rule_id}",
         f"Verdict: {summary['verdict']}",
         (
             f"Best mechanism: {summary['best_mechanism']} "
-            f"(avg {summary['best_avg_score']})"
-            + best_excluded
+            f"(avg {summary['best_avg_score']})" + best_excluded
             if summary.get("best_mechanism")
             else (
                 "Best mechanism: no reachable rule-enhanced mechanism graded on every scenario"
@@ -2555,9 +2553,7 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Eval rule activation across loading mechanisms."
-    )
+    parser = argparse.ArgumentParser(description="Eval rule activation across loading mechanisms.")
     parser.add_argument(
         "--scenarios",
         nargs="+",
@@ -2570,10 +2566,7 @@ def _parse_args() -> argparse.Namespace:
         "--seed",
         type=int,
         default=DEFAULT_SEED,
-        help=(
-            "Optional seed forwarded to OpenAI-compatible providers "
-            f"(default: {DEFAULT_SEED})."
-        ),
+        help=(f"Optional seed forwarded to OpenAI-compatible providers (default: {DEFAULT_SEED})."),
     )
     parser.add_argument(
         "--dry-run",
@@ -2620,9 +2613,7 @@ def _read_scenarios_json(spath: Path) -> dict[str, Any] | int:
     return data
 
 
-def _validate_scenario_gate(
-    sc: dict[str, Any], idx: int, spath: Path
-) -> int | None:
+def _validate_scenario_gate(sc: dict[str, Any], idx: int, spath: Path) -> int | None:
     """Validate one scenario's ``expected_gate``. Exit code 2 on error.
 
     An absent gate and a misspelled one both used to read as a positive case,
@@ -2718,8 +2709,7 @@ def _validate_scenarios_shape(data: dict[str, Any], spath: Path) -> int | None:
             value = sc.get(required)
             if not isinstance(value, str) or not value.strip():
                 print(
-                    f"ERROR: scenarios[{idx}].{required} must be a non-empty "
-                    f"string in {spath}",
+                    f"ERROR: scenarios[{idx}].{required} must be a non-empty string in {spath}",
                     file=sys.stderr,
                 )
                 return 2
@@ -2800,8 +2790,7 @@ def _resolve_skill_reference(
         reference_path.relative_to(references_dir.resolve())
     except ValueError:
         print(
-            "ERROR: reference_path must be under the skill's references/: "
-            f"{reference_path_str}",
+            f"ERROR: reference_path must be under the skill's references/: {reference_path_str}",
             file=sys.stderr,
         )
         return 2
@@ -2831,8 +2820,7 @@ def _resolve_target_paths(data: dict[str, Any], spath: Path) -> tuple[Path, Path
     has_skill = bool(skill_ref)
     if has_rule == has_skill:
         print(
-            "ERROR: scenario file must set exactly one of rule_path or "
-            f"skill_path in {spath}",
+            f"ERROR: scenario file must set exactly one of rule_path or skill_path in {spath}",
             file=sys.stderr,
         )
         return 2
@@ -2844,9 +2832,7 @@ def _resolve_target_paths(data: dict[str, Any], spath: Path) -> tuple[Path, Path
         return resolved, None
 
     reference_path_str = data.get("reference_path")
-    reference_ref = (
-        reference_path_str.strip() if isinstance(reference_path_str, str) else ""
-    )
+    reference_ref = reference_path_str.strip() if isinstance(reference_path_str, str) else ""
     if not reference_ref:
         resolved = _resolve_skill_path(skill_ref)
         if isinstance(resolved, int):
@@ -2937,11 +2923,7 @@ def _process_one_rule(
         default_id = primary_path.parent.name
     else:
         default_id = primary_path.stem
-    rule_id = (
-        scenarios_data.get("rule_id")
-        or scenarios_data.get("skill_id")
-        or default_id
-    )
+    rule_id = scenarios_data.get("rule_id") or scenarios_data.get("skill_id") or default_id
     if reference_path is None:
         rule = parse_rule(primary_path)
     else:
@@ -2983,42 +2965,54 @@ def _process_one_rule(
     result_paths = {"target_path": str(primary_path.relative_to(REPO_ROOT))}
     if reference_path is not None:
         result_paths["reference_path"] = str(reference_path.relative_to(REPO_ROOT))
-    return rule_id, {
-        **result_paths,
-        "summary": summary,
-        "scenarios": scenario_results,
-    }, n_calls
+    return (
+        rule_id,
+        {
+            **result_paths,
+            "summary": summary,
+            "scenarios": scenario_results,
+        },
+        n_calls,
+    )
 
 
-def _build_run_provenance() -> dict[str, Any]:
-    """Return git SHA, branch, and timestamp for the current run.
-
-    Failures are caught per field so a missing git binary or detached HEAD
-    does not abort an otherwise valid run. Unknown fields record None rather
-    than a fabricated value.
-    """
-    prov: dict[str, Any] = {
-        "timestamp_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        "git_sha": None,
-        "git_branch": None,
-    }
+def _build_run_provenance(args: argparse.Namespace) -> dict[str, Any]:
+    """Collect run metadata so result artifacts are self-describing (issue #3956)."""
+    commit_sha = ""
     try:
-        prov["git_sha"] = subprocess.check_output(
+        result = subprocess.run(
             ["git", "rev-parse", "HEAD"],
-            stderr=subprocess.DEVNULL,
+            capture_output=True,
             text=True,
-        ).strip()
-    except Exception:  # noqa: BLE001
+            encoding="utf-8",
+            timeout=5,
+            check=False,
+            cwd=REPO_ROOT,
+        )
+        if result.returncode == 0:
+            commit_sha = result.stdout.strip()
+    except (FileNotFoundError, OSError, subprocess.SubprocessError):
         pass
+
+    scenario_hash = ""
     try:
-        prov["git_branch"] = subprocess.check_output(
-            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-            stderr=subprocess.DEVNULL,
-            text=True,
-        ).strip()
-    except Exception:  # noqa: BLE001
+        h = hashlib.sha256()
+        for sf in sorted(args.scenarios):
+            path = Path(sf)
+            if path.exists():
+                h.update(path.read_bytes())
+        scenario_hash = h.hexdigest()[:16]
+    except OSError:
         pass
-    return prov
+
+    provider = os.environ.get("EVAL_PROVIDER") or "anthropic"
+    return {
+        "provider": provider,
+        "requested_model": args.model,
+        "timestamp_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "git_commit": commit_sha,
+        "scenario_hash": scenario_hash,
+    }
 
 
 def main() -> int:
@@ -3044,15 +3038,13 @@ def main() -> int:
 
     all_results: dict[str, Any] = {
         "schema_version": RESULTS_SCHEMA_VERSION,
-        "run": _build_run_provenance(),
+        "run": _build_run_provenance(args),
         "rules": {},
     }
     state = _RunState()
 
     for scenario_file in args.scenarios:
-        exit_code = _process_scenario_file(
-            scenario_file, api_key, args, all_results, state
-        )
+        exit_code = _process_scenario_file(scenario_file, api_key, args, all_results, state)
         if exit_code is not None:
             # max, not the bare code: a hard refusal stops the run, but an
             # earlier target may already have recorded something worse. A
@@ -3103,9 +3095,7 @@ def _process_scenario_file(
         return loaded
     scenarios_data, target_paths = loaded
 
-    rule_id, result, n_calls = _process_one_rule(
-        api_key, scenarios_data, target_paths, args
-    )
+    rule_id, result, n_calls = _process_one_rule(api_key, scenarios_data, target_paths, args)
     # Checked before the results are stored and before any spend, so a dry run
     # catches the collision too. Refusing is the visible failure; overwriting
     # is an invisible one that leaves no trace in the published output.
@@ -3124,9 +3114,7 @@ def _process_scenario_file(
 
     if result is not None:
         all_results["rules"][rule_id] = result
-        state.worst_exit = max(
-            state.worst_exit, _classify_verdict(result["summary"]["verdict"])
-        )
+        state.worst_exit = max(state.worst_exit, _classify_verdict(result["summary"]["verdict"]))
     return None
 
 
