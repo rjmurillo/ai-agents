@@ -46,6 +46,7 @@ from github_core.api import (  # noqa: E402
 from github_core.checks_rollup import (  # noqa: E402
     extract_required_check_lists,
     group_checks_by_name,
+    partition_rows_by_run,
 )
 from github_core.output import (  # noqa: E402
     add_output_format_arg,
@@ -245,6 +246,27 @@ def _dedupe_rank(check: dict) -> tuple[int, int]:
     return (_TYPE_RANK.get(check.get("Type"), 2), _check_rank(check))
 
 
+def _collapse_same_run_siblings(rows: list[dict]) -> list[dict]:
+    """Reduce each workflow run's same-named rows to one representative row.
+
+    Within one run, two rows sharing a check name are concurrent siblings, not
+    a supersession, so a failing sibling must win over a passing one. Across
+    runs the caller still prefers the passing entry, which preserves the
+    re-run supersession behavior of issue #2208.
+
+    Refs issue #4499.
+    """
+    representatives: list[dict] = []
+    for group in partition_rows_by_run(rows, "DetailsUrl"):
+        if len(group) == 1:
+            representatives.append(group[0])
+            continue
+        failing = [row for row in group if row.get("IsFailing")]
+        pool = failing if failing else group
+        representatives.append(min(pool, key=_dedupe_rank))
+    return representatives
+
+
 def dedupe_checks(checks: list[dict]) -> list[dict]:
     """Collapse multiple runs of one check name to the winning entry.
 
@@ -254,8 +276,12 @@ def dedupe_checks(checks: list[dict]) -> list[dict]:
     names is preserved. CheckRun rows win over StatusContext rows with the
     same name. Required-check status is retained when any duplicate row for a
     name is required.
+
+    Two rows of the SAME workflow run are collapsed first, pessimistically: a
+    failing sibling beats a passing one because both jobs really ran and one
+    really failed. Only then does cross-run precedence pick the winner.
     """
-    best_by_name: dict[str, dict] = {}
+    rows_by_name: dict[str, list[dict]] = {}
     required_by_name: dict[str, bool] = {}
     pending_by_name: dict[str, bool] = {}
     order: list[str] = []
@@ -268,16 +294,18 @@ def dedupe_checks(checks: list[dict]) -> list[dict]:
         pending_by_name[name] = pending_by_name.get(name, False) or bool(
             check.get("IsPending")
         )
-        current = best_by_name.get(name)
-        if current is None:
-            best_by_name[name] = check
+        if name not in rows_by_name:
+            rows_by_name[name] = []
             order.append(name)
-        elif _dedupe_rank(check) < _dedupe_rank(current):
-            best_by_name[name] = check
+        rows_by_name[name].append(check)
 
     deduped = []
     for name in order:
-        winner = {**best_by_name[name], "IsRequired": required_by_name[name]}
+        candidates = _collapse_same_run_siblings(rows_by_name[name])
+        winner = {
+            **min(candidates, key=_dedupe_rank),
+            "IsRequired": required_by_name[name],
+        }
         winner["IsPending"] = pending_by_name[name]
         deduped.append(winner)
     return deduped
