@@ -49,6 +49,8 @@ AI-assisted coding makes the marginal cost of completeness near-zero. When the c
 
 **Lake vs. ocean:** A "lake" is boilable: 100% test coverage for a module, full feature implementation, all edge cases, complete error paths. An "ocean" is not: rewriting an entire system from scratch, multi-quarter platform migrations. Boil lakes. Flag oceans as out of scope.
 
+Bias completeness toward tests, error paths, edge cases, and documentation accuracy. Treat unrelated dependency upgrades and off-path refactors as ocean.
+
 **Threshold heuristic.** A lake completes within the current session or PR. An ocean spans sessions, PRs, or quarters. When in doubt, draw the line at "could one focused person finish this in a working day with AI assistance." If yes, lake. If no, ocean. If you genuinely cannot tell, the Confusion Protocol in `voice.md` says: stop, name the ambiguity, ask.
 
 **When the complete fix exceeds one response.** Lakes that cannot fit in a single response are still lakes. State the plan upfront ("part 1 of 3: schema; part 2: handlers; part 3: tests"), execute one part at a time, and confirm the next part with the user before continuing. Do not pretend the partial result is complete.
