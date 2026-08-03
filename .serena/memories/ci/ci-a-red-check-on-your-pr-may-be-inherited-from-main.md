@@ -7,10 +7,6 @@ your branch merged with `main`, so a defect on `main` fails on every open PR at
 once. Attribute the failure only after checking whether `main` is red the same
 way.
 
-The same reasoning covers a rejected `git push`. The pre-push hook runs the
-repo's full gate set, so a red `main` blocks any branch that has merged it,
-locally and before any PR exists.
-
 Check `main` first. It costs one command and it is the discriminator.
 
 ```bash
@@ -19,8 +15,10 @@ gh run list --branch main --workflow "<Workflow Name>" --limit 5 \
   -q '.[] | "\(.conclusion)\t\(.headSha[0:10])\t\(.createdAt)"'
 ```
 
-If `main` is failing the same workflow, your branch is a bystander. Merge
-`origin/main` once the fix lands and re-run. Change nothing.
+If `main` is failing the same workflow, your branch is a bystander. Change
+nothing in your diff. Once the fix lands, merge `origin/main` into the branch
+and **push** the merge commit. Only a push fires `synchronize`, which
+recomputes the cached `refs/pull/N/merge`; a rerun replays the stale ref.
 
 ## Red `main` blocks `git push`, not just CI
 

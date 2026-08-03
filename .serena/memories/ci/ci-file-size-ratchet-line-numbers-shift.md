@@ -27,12 +27,12 @@ rule, dropping the line number**:
 # in each checkout
 uv run --frozen python - <<'PY' > ~/src/scratch/taste-<ref>.txt
 import json,subprocess,sys,pathlib
-files=[f for f in subprocess.run(["git","ls-files"],capture_output=True,text=True).stdout.split()
+files=[f for f in subprocess.run(["git","ls-files"],capture_output=True,text=True,encoding="utf-8").stdout.split()
        if pathlib.Path(f).exists()]
 out=set()
 for i in range(0,len(files),400):
     p=subprocess.run([sys.executable,".claude/skills/taste-lints/scripts/taste_lints.py",
-                      "--format","json","--",*files[i:i+400]],capture_output=True,text=True)
+                      "--format","json","--",*files[i:i+400]],capture_output=True,text=True,encoding="utf-8")
     if p.returncode not in (0,10):
         continue
     for v in json.loads(p.stdout).get("violations",[]):
