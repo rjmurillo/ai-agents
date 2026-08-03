@@ -123,6 +123,41 @@
       "time": "2026-08-02T17:26:00-07:00",
       "action": "confirmed no manifest version bump applies",
       "evidence": "plugin-version-bump.instructions.md states all three plugin manifests deliberately carry no version field and that adding one back fails validate_plugin_version_bump.py. AGENTS.md line 24 agrees: 'No manifest version (ADR-092)'."
+    },
+    {
+      "timestamp": "2026-08-02T21:40:00Z",
+      "action": "Ran cross-family adversarial review (code-review agent, gpt-5.6-terra). 0 Critical, 0 High, 2 Medium, 2 Low.",
+      "outcome": "Findings accepted for adoption"
+    },
+    {
+      "timestamp": "2026-08-02T22:10:00Z",
+      "action": "Medium 1: added _tracking_remote() so a repo whose remote is not named 'origin' still resolves a comparison base.",
+      "outcome": "origin wins when present; a single differently named remote is used; several remotes with no origin fall back to the literal base"
+    },
+    {
+      "timestamp": "2026-08-02T22:25:00Z",
+      "action": "Medium 2: the resolver now probes refs/remotes/<remote>/<base> instead of the <remote>/<base> DWIM shorthand.",
+      "outcome": "A local branch named origin/main can no longer shadow the remote-tracking ref and silently reintroduce the stale-base bug"
+    },
+    {
+      "timestamp": "2026-08-02T22:45:00Z",
+      "action": "Low 1: replaced the order-dependent subprocess side_effect lists in TestMain with a command-aware _fake_git dispatcher.",
+      "outcome": "Confirmed the reviewer's claim: --head skips the git branch lookup, so the entry labelled 'git branch' was consumed by the next call. Dispatching on argv removes the ordering coupling and the wrong comments"
+    },
+    {
+      "timestamp": "2026-08-02T23:00:00Z",
+      "action": "Low 2: added TestSessionEndFailureIsDiagnosable covering the selected log name, the fetch guidance, and the validator stdout/stderr passthrough.",
+      "outcome": "The improved abort message is now asserted, not just written"
+    },
+    {
+      "timestamp": "2026-08-02T23:20:00Z",
+      "action": "Discriminating check: ran the suite against origin/main (pre-fix) and against HEAD (hard-coded origin shorthand).",
+      "outcome": "13 failures pre-fix, 9 failures against the shorthand version, 87 pass restored. The DWIM and multi-remote tests each catch a defect the earlier version had"
+    },
+    {
+      "timestamp": "2026-08-02T23:30:00Z",
+      "action": "Regenerated the copilot-cli mirror with build/scripts/generate_skills.py and ran ruff.",
+      "outcome": "diff -q parity confirmed, ruff clean"
     }
   ],
   "nextSteps": [
