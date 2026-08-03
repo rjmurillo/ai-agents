@@ -50,6 +50,22 @@ Key requirements:
 - Evidence-based explanations
 - Text status indicators: [DONE], [WIP], [WONTFIX]
 
+## Comment Map Status Vocabulary
+
+Every comment in `comments.md` carries exactly one status from this table. Gates and
+completion checks use only these values.
+
+| Status | Meaning | Terminal |
+|--------|---------|---------|
+| `[NEW]` | Fetched, not yet acknowledged | No |
+| `[ACKNOWLEDGED]` | Reaction posted, fix not yet committed | No |
+| `[COMPLETE]` | Fix committed and pushed | Yes |
+| `[WONTFIX]` | Explicitly decided not to change | Yes |
+
+Non-terminal statuses (`[NEW]`, `[ACKNOWLEDGED]`) count as pending. Any unrecognized
+status also counts as pending (fail closed). Both counts use the same grep pattern:
+`grep -Ec "Status: \[NEW\]|Status: \[ACKNOWLEDGED\]|Status: pending"`.
+
 ## Prose Self-Check
 
 Before emitting any prose artifact (reply body, comment response, summary, PR or issue body), run the prose-self-check skill (`.claude/skills/prose-self-check/SKILL.md`). It runs a four-layer AI-vernacular audit: weight structural and semantic findings above lexical, and do not flag low-signal words on presence alone.
