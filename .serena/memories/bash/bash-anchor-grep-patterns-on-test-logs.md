@@ -132,9 +132,11 @@ Better than detecting the race is preventing it. Serialize pushes through a
 lockfile, keyed on the branch:
 
 ```bash
-BR=$(git rev-parse --abbrev-ref HEAD)
+BR=$(git branch --show-current)
 SLUG=$(printf '%s' "$BR" | tr '/' '-')
-flock "/tmp/push-lock-$SLUG.lock" git push -u origin "$BR"
+mkdir -p ~/src/scratch/locks
+flock ~/src/scratch/locks/push-lock-$SLUG.lock \
+  git push --force-with-lease origin HEAD:"$BR"
 ```
 
 `flock` waits for the lock rather than failing, so a queued push runs when the
@@ -142,8 +144,8 @@ one ahead of it finishes instead of racing it.
 
 Key the lock on the branch, not on the repo. The collision that actually
 happens is two agents pushing the SAME ref; two pushes to different refs never
-contended. A single global lock (`/tmp/aiagents-push.lock`) serializes every
-push behind an 11 minute pre-push hook it did not need to wait for. See
+contended. A single global lock serializes every push behind an 11 minute
+pre-push hook it did not need to wait for. See
 `git/git-lock-pushes-per-branch-not-globally.md` for the measurement.
 
 Every agent must name the lock identically or it excludes nothing. Measured
@@ -153,12 +155,19 @@ path above), and one branch had two concurrent pushes running under two
 different lock names. `flock` only excludes processes that agree on the path,
 so the extra schemes bought nothing and hid the race.
 
-The lock file currently lives under `/tmp`. The requirement is that every agent
-names it identically, since `flock` excludes only processes that agree on the
-path; `/tmp` is just the one absolute path every agent here can already name.
-The push *log* must not go there: use `~/src/scratch`. See
-`git-lock-pushes-per-branch-not-globally` for the `/tmp`-wipe hazard this
-carries and how to detect it.
+The canonical path is `~/src/scratch/locks/push-lock-<slug>.lock`. It is
+outside `/tmp`, which is wiped periodically on this machine, and is consistent
+with where push logs already go. If you find another form in a prompt, a skill,
+or a memory, correct it rather than adding a third scheme.
+
+The lock file and the log live under the same parent:
+
+```bash
+mkdir -p ~/src/scratch/locks ~/src/scratch
+```
+
+Resolve: use exactly `~/src/scratch/locks/push-lock-$SLUG.lock`, nothing else.
+See `git/git-lock-pushes-per-branch-not-globally.md` for the full rationale.
 
 ## Evidence
 

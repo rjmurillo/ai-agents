@@ -405,20 +405,25 @@ Use a per-branch lock keyed on the exact branch name:
 ```bash
 BR=$(git branch --show-current)
 SLUG=$(printf '%s' "$BR" | tr '/' '-')
-flock "/home/richard/src/GitHub/rjmurillo/ai-agents-pushpol2-push-${SLUG}.lock" \
+mkdir -p ~/src/scratch/locks
+flock ~/src/scratch/locks/push-lock-$SLUG.lock \
   git push --force-with-lease origin HEAD:"$BR"
 ```
 
 Notes:
 - `tr '/' '-'` is required: a branch like `fix/foo` would otherwise create a
   lock file with a `/` in its name, which the shell reads as a directory path.
-- Use an absolute path for the lock file and keep it outside `/tmp` (not durable
-  on this machine).
+- `~/src/scratch/locks/` is outside `/tmp`, which is wiped periodically. The
+  directory must exist before `flock` runs; `mkdir -p` is cheap and idempotent.
 - `--force-with-lease` already fails safely on a lost update. The lock prevents
   the git-object-packing overhead of a concurrent same-branch push, not data loss.
 - Two distinct branches never contend for the same lock file, so their pre-push
   hooks run in parallel. Measured throughput: four concurrent pushes to four
   distinct branches finish in approximately one hook duration, not four.
+- Every pushing agent must use exactly this path. `flock` excludes only
+  processes that open the same file. Three schemes running concurrently provide
+  no exclusion between groups and silently allow same-branch concurrent pushes
+  while appearing protected. Measured 2026-08-02 (issue #4366).
 
 Issue #4283 documents the measured 28-waiter convoy produced by the global lock
 and the first-principles analysis of why the race is per-ref.

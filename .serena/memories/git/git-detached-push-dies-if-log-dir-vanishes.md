@@ -23,14 +23,13 @@ Measured on 2026-08-02: a P0 push was believed in flight for about ten minutes.
 ## Recipe
 
 Write scratch files and logs to `~/src/scratch/`, never `/tmp`. Keep the lock
-file itself at `/tmp/push-lock-<slug>.lock`: a lock is a live kernel object, not
-an artifact, and every agent must agree on one path for mutual exclusion to
-work. Only the log moves.
+file also in `~/src/scratch/locks/` so it survives the same wipe that would
+kill a `/tmp` log.
 
 ```bash
-S=~/src/scratch; mkdir -p "$S"
+S=~/src/scratch; L=~/src/scratch/locks; mkdir -p "$S" "$L"
 BR=<branch>; SLUG=$(printf '%s' "$BR" | tr '/' '-')
-nohup setsid bash -c "flock /tmp/push-lock-$SLUG.lock git push origin $BR \
+nohup setsid bash -c "flock $L/push-lock-$SLUG.lock git push --force-with-lease origin HEAD:$BR \
   > $S/push-$SLUG.log 2>&1; echo REAL_EXIT=\$? >> $S/push-$SLUG.log" >/dev/null 2>&1 &
 ```
 

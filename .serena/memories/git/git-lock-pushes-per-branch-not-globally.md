@@ -35,10 +35,16 @@ Key the lock on the branch, so it still blocks the collision that actually
 happens and blocks nothing else.
 
 ```bash
-BR=$(git rev-parse --abbrev-ref HEAD)
+BR=$(git branch --show-current)
 SLUG=$(printf '%s' "$BR" | tr '/' '-')
-flock "/tmp/push-lock-$SLUG.lock" git push origin "$BR"
+mkdir -p ~/src/scratch/locks
+flock ~/src/scratch/locks/push-lock-$SLUG.lock \
+  git push --force-with-lease origin HEAD:"$BR"
 ```
+
+`~/src/scratch/locks/` is outside `/tmp` and survives the periodic wipe that
+destroys `/tmp` mid-session. The directory must exist before `flock` runs, so
+create it in the same command.
 
 ## Evidence that it is safe
 
@@ -100,11 +106,11 @@ acquired. That pair is not a double push. Check `ppid` before concluding one:
 two of the three suspicious pairs there were parent and child.
 
 So the path above is not a suggestion. Any agent or script that pushes in this
-repo uses exactly `/tmp/push-lock-<branch-with-slashes-replaced-by-dashes>.lock`
-and nothing else. What is mandated is the exact *string*, not the directory:
-see "Every agent must name the lock identically" below for why, and for the
-conditions under which the directory should change. If you find another form in
-a prompt, a skill, or a memory,
+repo uses exactly `~/src/scratch/locks/push-lock-<branch-with-slashes-as-dashes>.lock`
+and nothing else. What is mandated is the exact *string*, not just the naming
+convention: see "Every agent must name the lock identically" below for why, and
+for the conditions under which the directory should change. If you find another
+form in a prompt, a skill, or a memory,
 correct it rather than adding a third. Historical records are the exception:
 `.agents/retrospective/2026-07-31-test-infrastructure-cluster.md` records the
 older `/tmp/aiagents-push.lock` as what was running at the time, and a
@@ -115,20 +121,15 @@ Two details that get "simplified" back into bugs:
 
 - Every agent must name the lock identically. That, not the directory, is the
   requirement: `flock` excludes only processes that open the same path, so a
-  per-user or per-worktree lock directory silently buys nothing. `/tmp` is the
-  current choice because it is the one absolute path every agent in this repo
-  can already name, not because `/tmp` is special. The push *log* is the
-  opposite case and belongs in `~/src/scratch`; `/tmp` was wiped mid-session on
-  2026-08-02 and a detached process whose redirect target had vanished reported
-  nothing at all.
-- That same wipe is a live hazard for the lock, not just the log. If `/tmp` is
-  cleared while a push holds the lock, the next push creates a *new inode* at
-  the same path and `flock` stops excluding the two, which is the split-lock
-  failure under a single filename. It is detectable rather than preventable:
-  compare the inode you hold against the one on disk
-  (`stat -c %i <lockfile>`) after acquiring, and treat a mismatch as a lost
-  lock. If this ever fires in practice, move the path to a directory with no
-  wipe policy rather than adding a second scheme.
+  per-user or per-worktree lock directory silently buys nothing.
+  `~/src/scratch/locks/` is the canonical choice because it is durable across
+  `/tmp` wipes and already used for push logs in this repo. The push *log* is
+  also there; keeping both in `~/src/scratch/` is consistent.
+- The `/tmp` wipe is no longer a hazard for the lock path. It was: if `/tmp`
+  was cleared while a push held the lock, the next push created a *new inode*
+  at the same path and `flock` stopped excluding the two (split-lock failure
+  under a single filename). Moving to `~/src/scratch/locks/` removes that
+  failure class, not merely reduces it.
 - Capture the push status as `echo "REAL_EXIT=$?"` immediately after the `git
   push`, never through a pipeline. `git push | tail -3; echo $?` reports
   `tail`'s status, which is always 0.

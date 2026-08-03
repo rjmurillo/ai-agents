@@ -1,0 +1,29 @@
+{
+  "id": "episode-2026-08-03-session-01",
+  "session": "2026-08-03-session-01",
+  "timestamp": "2026-08-03T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Consolidate three push-lock schemes into one canonical path (issue #4366)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated all four push-lock recipe surfaces to use ~/src/scratch/locks/push-lock-SLUG.lock. Per-branch scheme, durable path outside /tmp.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-01"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 7
+  },
+  "lessons": []
+}

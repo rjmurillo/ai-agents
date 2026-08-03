@@ -1,0 +1,129 @@
+{
+  "schemaVersion": "1.0",
+  "protocolCompliance": {
+    "sessionStart": {
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Evidence": "read AGENTS.md",
+        "Complete": true
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Evidence": "branch fix/push-lock-consolidation-4366",
+        "Complete": true
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Evidence": "n/a docs-only change",
+        "Complete": true
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Evidence": "read .serena/memories/git/*.md",
+        "Complete": true
+      },
+      "serenaActivated": {
+        "level": "MUST",
+        "Evidence": "Serena MCP unavailable, skipped per protocol",
+        "Complete": true
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Evidence": "git status clean",
+        "Complete": true
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Evidence": "read PROJECT-CONSTRAINTS.md",
+        "Complete": true
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Evidence": "Serena MCP unavailable, skipped per protocol",
+        "Complete": true
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Evidence": "origin/main",
+        "Complete": true
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Evidence": "HANDOFF.md read",
+        "Complete": true
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Evidence": "fix/push-lock-consolidation-4366",
+        "Complete": true
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Evidence": "this file",
+        "Complete": true
+      }
+    },
+    "sessionEnd": {
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Evidence": "memories updated as part of this PR",
+        "Complete": true
+      },
+      "checklistComplete": {
+        "level": "MUST",
+        "Evidence": "ratchets pass",
+        "Complete": true
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Evidence": "ratchets pass",
+        "Complete": true
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Evidence": "committed",
+        "Complete": true
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Evidence": "scoped lint",
+        "Complete": true
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Evidence": "",
+        "Complete": false
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Evidence": "",
+        "Complete": false
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Evidence": "HANDOFF.md not touched",
+        "Complete": true
+      }
+    }
+  },
+  "session": {
+    "branch": "fix/push-lock-consolidation-4366",
+    "date": "2026-08-03",
+    "number": 1,
+    "objective": "Consolidate three push-lock schemes into one canonical path (issue #4366)",
+    "startingCommit": "76c4ddfaa"
+  },
+  "workLog": [
+    {
+      "files": [
+        ".serena/memories/git/git-lock-pushes-per-branch-not-globally.md",
+        ".serena/memories/git/git-detached-push-dies-if-log-dir-vanishes.md",
+        ".serena/memories/bash/bash-anchor-grep-patterns-on-test-logs.md",
+        ".agents/governance/GOTCHAS.md"
+      ],
+      "action": "Updated all four push-lock recipe surfaces to use ~/src/scratch/locks/push-lock-SLUG.lock. Per-branch scheme, durable path outside /tmp."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": []
+}
