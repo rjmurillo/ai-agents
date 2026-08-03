@@ -46,6 +46,7 @@ from scan_principles_core import (  # noqa: E402
     check_agent_definition,
     check_script_language,
     get_diff_files,
+    get_diff_line_numbers,
     get_repo_files,
     has_suppression,
     is_safe_path,
@@ -61,9 +62,7 @@ def check_skill_frontmatter(filepath: str, lines: list[str]) -> list[Violation]:
     (sonnet / opus / haiku) accompanied by a model-rationale: field. Versioned
     ids (e.g. claude-opus-4-6) are forbidden for skills.
     """
-    if not filepath.endswith("SKILL.md") or not _has_path_parts(
-        filepath, _SKILLS_PATH_PARTS
-    ):
+    if not filepath.endswith("SKILL.md") or not _has_path_parts(filepath, _SKILLS_PATH_PARTS):
         return []
     if has_suppression(lines, "skill-frontmatter"):
         return []
@@ -264,20 +263,18 @@ def _is_applicable(filepath: str) -> bool:
         return True
     if name == "SKILL.md" and _has_path_parts(filepath, _SKILLS_PATH_PARTS):
         return True
-    if (
-        suffix == ".md"
-        and _has_path_parts(filepath, _AGENTS_PATH_PARTS)
-        and name != "CLAUDE.md"
-    ):
+    if suffix == ".md" and _has_path_parts(filepath, _AGENTS_PATH_PARTS) and name != "CLAUDE.md":
         return True
-    if suffix in (".yml", ".yaml") and _has_path_parts(
-        filepath, _WORKFLOWS_PATH_PARTS
-    ):
+    if suffix in (".yml", ".yaml") and _has_path_parts(filepath, _WORKFLOWS_PATH_PARTS):
         return True
     return False
 
 
-def run_scan(files: list[str], rules: tuple[str, ...]) -> ScanResult:
+def run_scan(
+    files: list[str],
+    rules: tuple[str, ...],
+    diff_lines: dict[str, set[int]] | None = None,
+) -> ScanResult:
     """Run golden principle scan on the given files."""
     result = ScanResult()
 
@@ -295,7 +292,14 @@ def run_scan(files: list[str], rules: tuple[str, ...]) -> ScanResult:
         for rule in rules:
             checker = RULE_CHECKERS.get(rule)
             if checker:
-                result.violations.extend(checker(filepath, lines))
+                violations = checker(filepath, lines)
+                if diff_lines is not None and filepath in diff_lines:
+                    changed = diff_lines[filepath]
+                    # line==0 means file-level; keep when the file is in the diff.
+                    violations = [v for v in violations if v.line == 0 or v.line in changed]
+                elif diff_lines is not None:
+                    violations = []
+                result.violations.extend(violations)
 
     return result
 
@@ -413,9 +417,11 @@ def main() -> int:
     rules = parse_rules(args.rules)
 
     files: list[str] = []
+    diff_lines: dict[str, set[int]] | None = None
     if args.diff_scope is not None:
         try:
             files = get_diff_files(args.diff_scope)
+            diff_lines = get_diff_line_numbers(args.diff_scope)
         except (ValueError, RuntimeError) as exc:
             print(f"golden-principles: {exc}", file=sys.stderr)
             return EXIT_ERROR
@@ -434,7 +440,7 @@ def main() -> int:
         print("golden-principles: no files to scan.")
         return EXIT_SUCCESS
 
-    result = run_scan(files, rules)
+    result = run_scan(files, rules, diff_lines)
 
     output = format_json(result) if args.format == "json" else format_text(result)
 

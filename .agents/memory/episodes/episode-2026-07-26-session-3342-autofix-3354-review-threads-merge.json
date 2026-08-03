@@ -11,11 +11,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Run the live-state and comment inventory gates",
-      "caused_by": [
-        "e005"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e002"
+        "e007"
       ]
     },
     {
@@ -23,11 +21,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Address all five unresolved review threads",
-      "caused_by": [
-        "e001"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e003"
+        "e007"
       ]
     },
     {
@@ -35,11 +31,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Reconcile concurrent remote changes",
-      "caused_by": [
-        "e002"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e004"
+        "e007"
       ]
     },
     {
@@ -47,40 +41,42 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Run targeted and required validation",
-      "caused_by": [
-        "e003"
-      ],
-      "leads_to": []
-    },
-    {
-      "id": "e005",
-      "timestamp": "2026-07-26T00:00:00+00:00",
-      "type": "test",
-      "content": "30 targeted tests; build_all check exit 0; plugin-version-bump OK; pre_pr 30 passed, 0 failed, 4 skipped; full pytest 13,869 passed, 23 skipped, 45 xfailed.",
-      "caused_by": [
-        "e009"
-      ],
-      "leads_to": [
-        "e001"
-      ]
-    },
-    {
-      "id": "e006",
-      "timestamp": "2026-07-26T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 2e153a9eda",
       "caused_by": [],
       "leads_to": [
         "e007"
       ]
     },
     {
-      "id": "e007",
+      "id": "e005",
       "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "test",
+      "content": "30 targeted tests; build_all check exit 0; plugin-version-bump OK; pre_pr 30 passed, 0 failed, 4 skipped; full pytest 13,869 passed, 23 skipped, 45 xfailed.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-26T05:46:07+00:00",
+      "type": "commit",
+      "content": "Commit: 2e153a9eda",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-26T05:22:06+00:00",
       "type": "commit",
       "content": "Commit: 827a4c699c",
       "caused_by": [
-        "e006"
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
       ],
       "leads_to": [
         "e008"
@@ -88,7 +84,7 @@
     },
     {
       "id": "e008",
-      "timestamp": "2026-07-26T00:00:00+00:00",
+      "timestamp": "2026-07-26T05:26:28+00:00",
       "type": "commit",
       "content": "Commit: f673788d4b",
       "caused_by": [
@@ -100,14 +96,14 @@
     },
     {
       "id": "e009",
-      "timestamp": "2026-07-26T00:00:00+00:00",
+      "timestamp": "2026-07-26T05:45:39+00:00",
       "type": "commit",
       "content": "Commit: 58bd9ce0dd",
       "caused_by": [
         "e008"
       ],
       "leads_to": [
-        "e005"
+        "e006"
       ]
     }
   ],

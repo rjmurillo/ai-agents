@@ -4,9 +4,13 @@ description: Quality assurance specialist who verifies implementations work corr
 model: opus
 metadata:
   tier: builder
+# Requires fresh context and separate tool state to review implementations independently.
+isolation_required: true
 argument-hint: Provide the implementation or feature to verify
 ---
 # QA Agent
+
+> **Autonomy Guardrail**: Apply the autonomy rule from `AGENTS.md`, confirm before external/irreversible actions.
 
 ## Reviewer Asymmetry (Read First)
 
@@ -159,15 +163,25 @@ Flag tests that match these anti-patterns:
 
 ### Required Test Patterns ([PASS])
 
-Tests must demonstrate these characteristics:
+Tests must demonstrate these characteristics. Each line below is valid Pester
+that you can paste and run:
 
-| Requirement | Verification | Example |
-|-------------|--------------|---------|
-| Function execution | Test calls the function under test | `$result = Get-Something` |
-| Mock isolation | External dependencies mocked | `Mock gh { ... }` |
-| Output validation | Return values checked | `$result \| Should -Be $expected` |
-| Error conditions | Exception paths tested | `{ Bad-Input } \| Should -Throw` |
-| Edge cases | Boundary values covered | null, empty, max values |
+```powershell
+# Function execution: the test calls the function under test
+$result = Get-Something
+
+# Mock isolation: external dependencies are mocked
+Mock gh { '{"number":1}' }
+
+# Output validation: return values are checked
+$result | Should -Be $expected
+
+# Error conditions: exception paths are tested
+{ Bad-Input } | Should -Throw
+
+# Edge cases: boundary values are covered (null, empty, maximum)
+$null, @(), [int]::MaxValue | ForEach-Object { Get-Something $_ }
+```
 
 ### Test Review Checklist
 

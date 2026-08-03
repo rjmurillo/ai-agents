@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, parser and CLI stay together to keep ratchet semantics auditable.
 """Exec-path vendor-portability ratchet for skill instruction files (issue #2838).
 
 Companion to ``check_skill_md_portability.py``. That validator counts *prose*
@@ -84,10 +85,22 @@ Exit codes (ADR-035):
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
 import re
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from scripts.validation.portability_common import (
+    build_portability_parser,
+    refuse_unsafe_baseline_write,
+    write_baseline_json,
+)
+from scripts.validation.portability_common import (
+    resolve_checked_baseline as _resolve_checked_baseline,
+)
 
 # Shipped skill trees to scan. Both carry SKILL.md files that agents execute:
 # .claude/skills is the canonical tree; src/copilot-cli/skills holds the
@@ -103,6 +116,12 @@ SCAN_ROOTS: tuple[tuple[str, ...], ...] = (
 EXEC_PATTERN = re.compile(
     r"(?<![\w.])(?:(?:python3?|bash|sh)[ \t]+(?:-\S+[ \t]+)*|\./)"
     r"[\"']?(?:\.claude/skills/|build/|scripts/)\S+\.(?:py|sh)(?!\.\w)[\"']?"
+)
+
+# Skill-relative script invocations: ``python3 scripts/foo.py`` (issue #3916).
+_SKILL_REL_SCRIPT_PAT = re.compile(
+    r"(?<![\w.])(?:python3?|bash|sh)[ \t]+(?:-\S+[ \t]+)*"
+    r"[\"']?([a-zA-Z0-9_][a-zA-Z0-9_./-]*/[a-zA-Z0-9_./-]*\.(?:py|sh))[\"']?(?!\.\w)"
 )
 
 # Shell line-continuation: a backslash immediately before a newline splices the
@@ -143,6 +162,60 @@ def _repo_root(start: Path) -> Path:
 def has_portability_marker(text: str) -> bool:
     """Return True if the file self-declares an intentional bare invocation."""
     return _MARKER_PATTERN.search(text) is not None
+
+
+def find_skill_relative_scripts(text: str) -> list[str]:
+    """Return skill-relative script paths; empty when portability-exec marker present."""
+    if has_portability_marker(text):
+        return []
+    joined = _CONTINUATION_PATTERN.sub(" ", text)
+    return _SKILL_REL_SCRIPT_PAT.findall(joined)
+
+
+def _scan_skill_for_dangling(
+    paths: list[Path],
+    skill_root: Path,
+    repo_root: Path,
+    seen: set[tuple[str, str]],
+) -> list[tuple[str, str]]:
+    result: list[tuple[str, str]] = []
+    for path in paths:
+        if not path.is_file() or "__pycache__" in path.parts:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            raise OSError(f"Failed to read {path}: {exc}") from exc
+        rel = path.relative_to(repo_root).as_posix()
+        for script_path in find_skill_relative_scripts(text):
+            if (skill_root / script_path).is_file() or (repo_root / script_path).is_file():
+                continue
+            key = (rel, script_path)
+            if key not in seen:
+                seen.add(key)
+                result.append(key)
+    return result
+
+
+def scan_dangling_skill_relative_scripts(repo_root: Path) -> list[tuple[str, str]]:
+    """Return ``[(file_rel_path, script_path)]`` for unresolvable script refs."""
+    seen: set[tuple[str, str]] = set()
+    dangling: list[tuple[str, str]] = []
+    for parts in SCAN_ROOTS:
+        root = repo_root.joinpath(*parts)
+        if not root.is_dir():
+            continue
+        valid = (
+            p
+            for p in root.iterdir()
+            if p.is_dir() and "__pycache__" not in p.parts and (p / SKILL_FILE_NAME).is_file()
+        )
+        for skill_root in sorted(valid):
+            paths = sorted(
+                set(itertools.chain.from_iterable(skill_root.glob(p) for p in SCAN_FILE_PATTERNS))
+            )
+            dangling.extend(_scan_skill_for_dangling(paths, skill_root, repo_root, seen))
+    return dangling
 
 
 def count_exec_invocations(text: str) -> int:
@@ -203,6 +276,15 @@ def scan_skill_execs(repo_root: Path) -> dict[str, int]:
             if n > 0:
                 counts[path.relative_to(repo_root).as_posix()] = n
     return counts
+
+
+def scanned_files_by_root(repo_root: Path) -> dict[str, int]:
+    """Return per-root skill-file counts, absent roots as zero.
+
+    A sum hides one starved root behind a positive total.
+    """
+    dirs = {"/".join(p): repo_root.joinpath(*p) for p in SCAN_ROOTS}
+    return {n: len(_iter_skill_files(d)) if d.is_dir() else 0 for n, d in dirs.items()}
 
 
 def scan_marker_suppressions(repo_root: Path) -> dict[str, int]:
@@ -305,30 +387,8 @@ def diff_marker_baseline(
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--repo-root",
-        type=Path,
-        default=None,
-        help="Repository root (default: walk up for .claude/skills).",
-    )
-    parser.add_argument(
-        "--baseline",
-        type=Path,
-        default=None,
-        help=f"Baseline JSON (default: scripts/validation/{_DEFAULT_BASELINE_NAME}).",
-    )
-    parser.add_argument(
-        "--update-baseline",
-        action="store_true",
-        help="Rewrite the baseline to the current state and exit 0.",
-    )
-    parser.add_argument(
-        "--output-format",
-        choices=("human", "json"),
-        default="human",
-    )
-    return parser
+    """Delegate to the shared parser; both ratchets take the same flags."""
+    return build_portability_parser(__doc__, _DEFAULT_BASELINE_NAME)
 
 
 def _resolve_root(repo_root: Path | None) -> Path:
@@ -338,26 +398,26 @@ def _resolve_root(repo_root: Path | None) -> Path:
 
 
 def _resolve_baseline_path(root: Path, baseline: Path | None) -> Path | None:
-    if baseline is None:
-        return root / "scripts" / "validation" / _DEFAULT_BASELINE_NAME
-    resolved = baseline.expanduser()
-    if not resolved.is_absolute():
-        resolved = root / resolved
-    resolved = resolved.resolve()
-    if not resolved.is_relative_to(root.resolve()):
-        return None
-    return resolved
+    """Locate the baseline, refusing anything out of root or hidden from review."""
+    return _resolve_checked_baseline(root, baseline, _DEFAULT_BASELINE_NAME)
 
 
 def _write_baseline(
-    baseline_path: Path, current: dict[str, int], marker_current: dict[str, int]
+    root: Path,
+    baseline_path: Path,
+    current: dict[str, int],
+    marker_current: dict[str, int],
+    allow_shrink: bool,
 ) -> int:
     total = sum(current.values())
     marker_total = sum(marker_current.values())
-    baseline_path.write_text(
-        json.dumps(
-            {
-                "_comment": (
+    entries = dict(sorted(current.items()))
+    marker_entries = dict(sorted(marker_current.items()))
+    rc = write_baseline_json(
+        root,
+        baseline_path,
+        {
+            "_comment": (
                     "Exec-path vendor-portability ratchet baseline for skill "
                     "Markdown files (issues #2838, #4013, #4156). The files "
                     "object counts bare '.claude/skills/...', 'build/...', or "
@@ -376,14 +436,15 @@ def _write_baseline(
                     "form: drop the invocation or declare it with a "
                     "'<!-- vendor-portability-exec: ... -->' marker."
                 ),
-                "files": dict(sorted(current.items())),
-                "marker_files": dict(sorted(marker_current.items())),
-            },
-            indent=2,
-        )
-        + "\n",
-        encoding="utf-8",
+            "files": entries,
+            "marker_files": marker_entries,
+        },
+        {"files": entries, "marker_files": marker_entries},
+        "skill files",
+        allow_shrink,
     )
+    if rc:
+        return rc
     print(
         f"Baseline written: {len(current)} files, {total} invocations; "
         f"{len(marker_current)} marker files, {marker_total} suppressed invocations."
@@ -399,6 +460,7 @@ def _print_report(
     output_format: str,
     regressions: list[str],
     improvements: list[str],
+    dangling: list[tuple[str, str]],
     current: dict[str, int],
     baseline: dict[str, int],
 ) -> None:
@@ -410,6 +472,7 @@ def _print_report(
                     "improvements": improvements,
                     "current_total": sum(current.values()),
                     "baseline_total": sum(baseline.values()),
+                    "dangling": dangling,
                 },
                 indent=2,
             )
@@ -424,6 +487,14 @@ def _print_report(
         print("Skill exec-path vendor-portability drift detected (issue #2838, #4013):")
         for line in regressions:
             print(f"  [DRIFT] {line}")
+        return
+    if dangling:
+        print(
+            "Skill-relative scripts resolving nowhere (#3916).\n"
+            "Suppress with '<!-- vendor-portability-exec: ... -->' if intentional:"
+        )
+        for rel_file, script in dangling:
+            print(f"  [DANGLING] {rel_file}: {script!r}")
         return
     print(
         f"No skill exec-path vendor-portability drift. "
@@ -446,21 +517,30 @@ def main(argv: list[str] | None = None) -> int:
 
     baseline_path = _resolve_baseline_path(root, args.baseline)
     if baseline_path is None:
-        print(
-            f"--baseline path is outside the repository root, rejecting: {args.baseline}",
-            file=sys.stderr,
-        )
         return 2
 
     try:
         current = scan_skill_execs(root)
         marker_current = scan_marker_suppressions(root)
+        scanned_by_root = scanned_files_by_root(root)
+        dangling = scan_dangling_skill_relative_scripts(root)
     except OSError as exc:
         print(f"Could not scan skill files under {root}: {exc}", file=sys.stderr)
         return 2
 
     if args.update_baseline:
-        return _write_baseline(baseline_path, current, marker_current)
+        if refuse_unsafe_baseline_write(
+            root,
+            scanned_by_root,
+            baseline_path,
+            {"files": current, "marker_files": marker_current},
+            "skill files",
+            args.allow_baseline_shrink,
+        ):
+            return 2
+        return _write_baseline(
+            root, baseline_path, current, marker_current, args.allow_baseline_shrink
+        )
 
     try:
         baseline = _load_baseline(baseline_path)
@@ -475,9 +555,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     regressions.extend(marker_regressions)
     improvements.extend(marker_improvements)
-    _print_report(args.output_format, regressions, improvements, current, baseline)
+    _print_report(args.output_format, regressions, improvements, dangling, current, baseline)
 
-    return 1 if regressions else 0
+    return 1 if (regressions or dangling) else 0
 
 
 if __name__ == "__main__":

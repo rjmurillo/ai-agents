@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size, hook config is one executable contract and splitting would hide stage order.
 min_version: 2.1.10
 lefthook: uv run --frozen lefthook
 glob_matcher: doublestar
@@ -142,12 +143,20 @@ pre-commit:
             glob: "**/SKILL.md"
             exclude:
               - "evals/**"
-              - "src/copilot-cli/skills/{spec,plan,build,test,ship,checkpoint,pr-review,retro,sync}/SKILL.md"
+              # The generated command mirrors under src/copilot-cli/skills/ are
+              # skipped by _skip_skillforge_path in git_hook_policy.py, which
+              # derives them from .claude/commands/. Do not enumerate them here:
+              # a second copy of that list is what drifts.
 
           - name: skill-size
             timeout: 5m
             run: uv run --frozen python scripts/validation/skill_size.py --staged-only --ci
             glob: "**/SKILL.md"
+
+          - name: command-size
+            timeout: 5m
+            run: uv run --frozen python scripts/validation/command_size.py --changed-files {staged_files} --ci
+            glob: ".claude/commands/*.md"
 
           - name: planning-advisory
             timeout: 5m
@@ -173,6 +182,8 @@ pre-commit:
             timeout: 5m
             run: uv run --frozen python scripts/validation/git_hook_policy.py taste {staged_files}
             glob: "**/*.{py,ps1,psm1,sh,bash,yml,yaml,md,json}"
+            skip:
+              - merge
 
           - name: security-suppressions-staged
             timeout: 2m
@@ -319,6 +330,12 @@ pre-commit:
         - merge
         - run: test "$SKIP_AUTOFIX" = "1"
 
+    - name: commit-file-count
+      timeout: 2m
+      run: uv run --frozen python scripts/validation/git_hook_policy.py atomic-commit
+      skip:
+        - merge
+
     - name: github-bash-policy
       timeout: 2m
       run: uv run --frozen python scripts/validation/git_hook_policy.py github-bash {staged_files}
@@ -370,6 +387,10 @@ pre-push:
             run: uv run --frozen python scripts/validation/pre_pr.py
             env:
               SKIP_AUTOFIX: "1"
+
+          - name: worktree-gc-report
+            timeout: 2m
+            run: uv run --frozen python scripts/maintenance/gc_worktrees.py
 
           - name: python-tests
             timeout: 30m

@@ -512,7 +512,7 @@ class TestCli:
                 "--project-root", str(tmp_path),
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
         )
         assert result.returncode == 0
 
@@ -532,7 +532,7 @@ class TestCli:
                 "--project-root", str(tmp_path),
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
         )
         assert result.returncode == 0
         data = json.loads(result.stdout)
@@ -547,7 +547,7 @@ class TestCli:
                 "--project-root", str(tmp_path),
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
         )
         assert result.returncode == 2
         assert "traversal" in result.stderr
@@ -565,6 +565,6 @@ class TestCli:
                 "--dry-run",
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
         )
         assert result.returncode != 2

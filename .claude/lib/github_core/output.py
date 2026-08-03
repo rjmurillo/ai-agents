@@ -1,4 +1,4 @@
-"""Canonical: scripts/github_core/output.py. Sync via scripts/sync_plugin_lib.py.
+"""Standard skill output helpers per ADR-056.
 
 Provides write_skill_output, write_skill_error, and get_output_format
 functions for consistent skill script output formatting. All skill scripts

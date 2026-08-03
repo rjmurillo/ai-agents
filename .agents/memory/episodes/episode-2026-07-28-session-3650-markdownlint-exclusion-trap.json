@@ -24,7 +24,7 @@
       "content": "Established the trap empirically rather than from recollection. Wrote identical bytes carrying one MD032 violation to two locations and ran markdownlint-cli2 v0.23.2 against each. In tree at .serena/memories/: 'Linting: 0 files', 'Summary: 0 issues in 0 files', exit 0. Out of tree: 'Linting: 1 file', MD032 reported at line 4, exit 1. The in-tree run is green because .serena/** is ignore pattern 12 of 44, so zero files were selected. Read Linting: N files, not the summary, because the summary's trailing count is files-with-issues and reads 0 in both the vacuous and the genuinely clean case.",
       "caused_by": [],
       "leads_to": [
-        "e002"
+        "e003"
       ]
     },
     {
@@ -32,40 +32,41 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Caught and corrected a wrong instruction in my own draft before committing it. The first draft told the reader to lint out of tree with no config, on the reasoning that the absent config means no ignores apply. Running that way against the memory reported 9 issues, all false: this repo disables MD003, MD013, MD029, MD048, MD049, MD050, and MD060, and the flagged MD013 line-length and MD060 table-style rules are among them. Rewrote the procedure to copy the repo config and strip only the ignores and globs keys. Re-verified: Linting: 1 file, 0 issues, exit 0. Also corrected an earlier misreading in the same check, where a tail pipe had masked the true exit codes and made a failing run look like it exited 0; the true codes are 1 out of tree and 0 in tree.",
-      "caused_by": [
-        "e001"
-      ],
-      "leads_to": []
-    },
-    {
-      "id": "e003",
-      "timestamp": "2026-07-28T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 1cde48c0d9",
       "caused_by": [],
       "leads_to": [
-        "e004"
+        "e003"
       ]
     },
     {
-      "id": "e004",
-      "timestamp": "2026-07-28T00:00:00+00:00",
+      "id": "e003",
+      "timestamp": "2026-07-28T18:34:09+00:00",
       "type": "commit",
-      "content": "Commit: 806392cff",
+      "content": "Commit: 1cde48c0d9",
       "caused_by": [
-        "e003"
+        "e001",
+        "e002"
       ],
       "leads_to": [
         "e005"
       ]
     },
     {
+      "id": "e004",
+      "timestamp": "2026-07-28T23:03:41+00:00",
+      "type": "commit",
+      "content": "Commit: 806392cff",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": []
+    },
+    {
       "id": "e005",
-      "timestamp": "2026-07-28T00:00:00+00:00",
+      "timestamp": "2026-07-28T18:34:09+00:00",
       "type": "commit",
       "content": "Commit: 1cde48c0d",
       "caused_by": [
-        "e004"
+        "e003"
       ],
       "leads_to": [
         "e006"
@@ -73,7 +74,7 @@
     },
     {
       "id": "e006",
-      "timestamp": "2026-07-28T00:00:00+00:00",
+      "timestamp": "2026-07-28T18:36:14+00:00",
       "type": "commit",
       "content": "Commit: 5285286c4",
       "caused_by": [
@@ -85,7 +86,7 @@
     },
     {
       "id": "e007",
-      "timestamp": "2026-07-28T00:00:00+00:00",
+      "timestamp": "2026-07-28T18:42:19+00:00",
       "type": "commit",
       "content": "Commit: 51af06095",
       "caused_by": [
@@ -97,7 +98,7 @@
     },
     {
       "id": "e008",
-      "timestamp": "2026-07-28T00:00:00+00:00",
+      "timestamp": "2026-07-28T18:54:33+00:00",
       "type": "commit",
       "content": "Commit: 788a93e94",
       "caused_by": [
@@ -109,13 +110,15 @@
     },
     {
       "id": "e009",
-      "timestamp": "2026-07-28T00:00:00+00:00",
+      "timestamp": "2026-07-28T19:06:24+00:00",
       "type": "commit",
       "content": "Commit: 70a57614a",
       "caused_by": [
         "e008"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e004"
+      ]
     }
   ],
   "metrics": {
@@ -126,5 +129,7 @@
     "commits": 7,
     "files_changed": 1
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "stamp_only by migrate_causal_version.py on 2026-08-02: v2 edge rebuild agrees with stored edges"
 }

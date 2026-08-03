@@ -44,7 +44,11 @@
       "type": "commit",
       "content": "Commit: c789a519f",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e011",
+        "e014",
+        "e019"
+      ]
     },
     {
       "id": "e006",
@@ -68,7 +72,11 @@
       "type": "commit",
       "content": "Commit: 0e91286c7",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e011",
+        "e014",
+        "e019"
+      ]
     },
     {
       "id": "e009",
@@ -91,7 +99,10 @@
       "timestamp": "2026-07-04T00:00:00+00:00",
       "type": "test",
       "content": "uv run pytest tests/test_memory_sync/test_cli.py tests/test_analyze_pr_failure.py -q passed: 69 passed. uv run ruff check on changed files passed. uv run mypy scripts/memory_sync/cli.py scripts/analyze_pr_failure.py passed.",
-      "caused_by": [],
+      "caused_by": [
+        "e005",
+        "e008"
+      ],
       "leads_to": []
     },
     {
@@ -115,7 +126,10 @@
       "timestamp": "2026-07-04T00:00:00+00:00",
       "type": "test",
       "content": "python3 build/scripts/build_all.py --check passed. uv run pytest tests/test_memory_sync/test_cli.py tests/test_analyze_pr_failure.py -q passed: 71 passed. uv run python scripts/validate_session_json.py .agents/sessions/2026-07-04-session-2606-babysit-2823-merge.json passed.",
-      "caused_by": [],
+      "caused_by": [
+        "e005",
+        "e008"
+      ],
       "leads_to": []
     },
     {
@@ -155,7 +169,10 @@
       "timestamp": "2026-07-04T00:00:00+00:00",
       "type": "test",
       "content": "Updated tests/test_atomic_writes_2812.py section header to match update_reviewer_signal_stats helpers and added the missing mock_stdin Callable annotation in tests/hooks/test_auto_approval.py. Targeted tests passed: 63 passed. Ruff passed on both files.",
-      "caused_by": [],
+      "caused_by": [
+        "e005",
+        "e008"
+      ],
       "leads_to": []
     },
     {
@@ -175,5 +192,7 @@
     "commits": 5,
     "files_changed": 37
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 6"
 }

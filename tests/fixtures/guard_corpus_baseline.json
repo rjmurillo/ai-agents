@@ -128,7 +128,7 @@
       33
     ],
     "merge-resolver/scripts/verify_no_conflict_markers.py": [
-      63
+      64
     ],
     "metrics/collect_metrics.py": [
       65,
@@ -138,8 +138,8 @@
       593
     ],
     "orphan-ref-validator/tests/test_scan.py": [
-      2307,
-      2314
+      2317,
+      2324
     ],
     "pr-comment-responder/tests/test_cluster_threads.py": [
       322
@@ -165,18 +165,17 @@
     "security-scan/scripts/scan_vulnerabilities.py": [
       166
     ],
-    "session/scripts/test_investigation_eligibility.py": [
-      56
-    ],
     "session-end/scripts/complete_session_log.py": [
       79,
-      122,
-      136,
-      154,
-      170,
-      177,
-      197,
-      214
+      95,
+      178,
+      192,
+      210,
+      222,
+      244,
+      251,
+      271,
+      288
     ],
     "session-end/scripts/rework_warning.py": [
       82
@@ -197,6 +196,9 @@
       39,
       50,
       133
+    ],
+    "session/scripts/test_investigation_eligibility.py": [
+      56
     ],
     "style-enforcement/scripts/check_style.py": [
       476

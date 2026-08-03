@@ -1,24 +1,16 @@
+# taste-lint: ignore file-size, this suite covers one validator end to end.
 """Tests for the exec-path vendor-portability ratchet (issue #2838).
 
-scripts/validation/check_skill_md_exec_portability.py is the executable-invocation
-counterpart to check_skill_md_portability.py. The prose guard strips fenced code
-and counts upstream-only *prose* path references; it deliberately excludes
-``.claude/skills/`` and erases exec invocations when it strips fences. This
-validator is the inverse: it counts *executable* invocations of bare
-``.claude/skills/...`` scripts (``python3 .claude/skills/.../x.py``) inside
-SKILL.md files, grandfathers current offenders in a JSON baseline, fails on new
-drift, and honors a distinct ``vendor-portability-exec`` HTML-comment opt-out.
-
-These tests cover the detection regex (interpreter tokenization, resolved-var
-and prose-crosslink negatives), the opt-out marker, the two-tree scan, the diff
-ratchet, the CLI exit codes, and assert the committed tree has no drift against
-its baseline.
+Covers: detection regex, opt-out marker, two-tree scan, diff ratchet, CLI exit
+codes, and the committed-tree baseline assertion.
 """
 
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
+import unittest.mock
 from pathlib import Path
 
 import pytest
@@ -30,6 +22,17 @@ try:
     import check_skill_md_exec_portability as cep  # noqa: E402
 finally:
     sys.path[:] = _ORIGINAL_SYS_PATH
+
+
+
+def _seed_git_tree(root: Path) -> None:
+    """Make the fixture a repository: an unverifiable tree refuses the write."""
+    for args in (
+        ("init", "-q", "-b", "main"),
+        ("add", "-A"),
+        ("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "s"),
+    ):
+        subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
 
 
 class TestCountExecInvocations:
@@ -280,6 +283,12 @@ class TestMainCli:
 
     def test_update_baseline_writes_and_exits_zero(self, tmp_path: Path) -> None:
         self._make_skill(tmp_path, "python3 .claude/skills/a/x.py\n")
+        # Every shipped root must hold a readable file or the scan-coverage guard
+        # refuses the write, because one starved root is a partial checkout.
+        second = tmp_path / "src" / "copilot-cli" / "skills" / "a"
+        second.mkdir(parents=True)
+        (second / "SKILL.md").write_text("No bare invocations.\n", encoding="utf-8")
+        _seed_git_tree(tmp_path)
         baseline = tmp_path / "baseline.json"
         rc = cep.main(
             ["--repo-root", str(tmp_path), "--baseline", str(baseline), "--update-baseline"]
@@ -333,6 +342,19 @@ class TestMainCli:
         result = cep._resolve_baseline_path(root, outside)
         assert result is None, "absolute path outside root must return None"
 
+    def test_dangling_scan_oserror_returns_exit_2(self, tmp_path: Path) -> None:
+        # I/O failure must exit 2 (fail-closed), not 0 (false green).
+        self._make_skill(tmp_path, "python3 .claude/skills/a/x.py\n")
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(
+            json.dumps({"files": {".claude/skills/a/SKILL.md": 1}}), encoding="utf-8"
+        )
+        with unittest.mock.patch.object(
+            cep, "scan_dangling_skill_relative_scripts", side_effect=OSError("disk read failed")
+        ):
+            rc = cep.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+        assert rc == 2, "OSError during dangling scan must exit 2, not 0 or 1"
+
 
 class TestPrAutofixConverted:
     """Issue #2837: pr-autofix must ship zero bare invocations."""
@@ -357,6 +379,47 @@ class TestCommittedRepoHasNoDrift:
         baseline = cep._load_baseline(baseline_path)
         regressions, _ = cep.diff_against_baseline(current, baseline)
         assert regressions == [], "\n".join(regressions)
+
+    def test_repo_has_no_dangling_skill_relative_scripts(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+        if not any(root.joinpath(*parts).is_dir() for parts in cep.SCAN_ROOTS):
+            pytest.skip("no skill scan roots in this checkout")
+        assert not (d := cep.scan_dangling_skill_relative_scripts(root)), str(d)
+
+
+class TestDanglingSkillScripts:
+    def _sr(self, tmp_path: Path) -> Path:
+        p = tmp_path / ".claude" / "skills" / "myfoo"
+        p.mkdir(parents=True)
+        return p
+
+    def test_find_skill_relative_scripts(self) -> None:
+        cases = [
+            ("python3 scripts/validation/pre_pr.py\n", ["scripts/validation/pre_pr.py"]),
+            ("python3 .claude/skills/foo/scripts/bar.py\n", []),
+            ('python3 "${ENV:-x}/skills/foo/bar.py"\n', []),
+            ("python3 scripts/dangling.py\n<!-- vendor-portability-exec: examples -->\n", []),
+            ("python3 -u scripts/foo.py\n", ["scripts/foo.py"]),
+        ]
+        for text, expected in cases:
+            assert cep.find_skill_relative_scripts(text) == expected
+
+    def test_detects_script_not_in_skill_dir_or_repo_root(self, tmp_path: Path) -> None:
+        (self._sr(tmp_path) / "SKILL.md").write_text("python3 scripts/nx.py\n", encoding="utf-8")
+        dangling = cep.scan_dangling_skill_relative_scripts(tmp_path)
+        assert len(dangling) == 1 and dangling[0][1] == "scripts/nx.py"
+
+    def test_accepts_script_present_in_skill_dir(self, tmp_path: Path) -> None:
+        sr = self._sr(tmp_path)
+        (sr / "scripts").mkdir()
+        (sr / "scripts" / "s.py").write_text("", encoding="utf-8")
+        (sr / "SKILL.md").write_text("python3 scripts/s.py\n", encoding="utf-8")
+        assert cep.scan_dangling_skill_relative_scripts(tmp_path) == []
+
+    def test_marker_suppresses_dangling_detection(self, tmp_path: Path) -> None:
+        md = "python3 scripts/missing.py\n<!-- vendor-portability-exec: framework -->\n"
+        (self._sr(tmp_path) / "SKILL.md").write_text(md, encoding="utf-8")
+        assert cep.scan_dangling_skill_relative_scripts(tmp_path) == []
 
 
 class TestWorkflowPathFilter:

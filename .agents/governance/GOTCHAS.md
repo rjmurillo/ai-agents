@@ -99,6 +99,34 @@ protocol literally (create and stage at start) cannot pass both gates.
 Symptom: a commit is rejected by one of the two policies no matter which order
 you try. Refs #3904.
 
+## Never record `endingCommit` and then amend
+
+`endingCommit` must name a commit that is still reachable:
+`scripts/validation/session_scope.py` runs `git merge-base --is-ancestor <sha>
+HEAD`. Amending the commit that carried the log rewrites it, so the SHA you
+just recorded no longer exists on the branch and the check fails.
+
+Record the SHA of the commit carrying the work, then commit that edit as a
+**follow-up commit**. A commit is its own ancestor, so naming current `HEAD`
+and committing the change on top passes.
+
+Two traps make this expensive rather than merely annoying:
+
+- A `[PASS]` from `scripts/validate_session_json.py` does not survive an amend.
+  The validator reads the SHA against the `HEAD` of the moment. Re-run it after
+  any amend, not just after the first write.
+- The check runs inside the push hook **after** the Python suite, which
+  measured 1116 seconds on one run. A one-line metadata error therefore costs
+  roughly twenty minutes to surface.
+
+Symptom, from the push hook rather than from the standalone validator:
+
+```text
+endingCommit '<sha>' names a commit that is not an ancestor of HEAD
+```
+
+Refs #3618.
+
 ## Run validation with `uv run python`, never bare `python3`
 
 `scripts/validation/checks_spec.py` shells out to child validators with
@@ -106,7 +134,7 @@ you try. Refs #3904.
 to every child check, and two of them fail with `ModuleNotFoundError:
 markdown_it` because the dependency lives in the project venv.
 
-Symptom: `python3 scripts/validation/pre_pr.py` reports failures that have
+Symptom: `uv run python scripts/validation/pre_pr.py` reports failures that have
 nothing to do with your change. Refs #3938.
 
 ## Instruction-budget ceilings ratchet to measured size
@@ -255,6 +283,56 @@ at byte level before editing.
 The validator takes `--pr-number` and fetches the **live** body, so push and
 update the PR before running it locally.
 
+## Spec coverage blocks when the PR body has no checked acceptance boxes
+
+`Validate Spec Coverage` fails with this, and the reason names a rule rather
+than a missing file, so it reads like an infrastructure fault:
+
+```
+verdict: NEEDS_REVIEW   reason: closed-loop:external-signal-inconclusive
+```
+
+The cause is a missing section in **the PR body**, not the issue.
+`scripts/external_signals/gate_aggregator.py` requires at least one signal of
+kind `external` whose verdict is passing or warning. The only external signal
+is `acceptance-criteria`, which
+`scripts/quality_gate/spec_external_signal_gate.py` parses out of
+`PR_BODY_FILE`. All boxes checked gives PASS, any box unchecked gives FAIL, and
+**no section at all gives UNKNOWN**, which empties the external list and
+blocks. The other two signals come from the model, and two readings from one
+model are one measurement, so the gate is right to refuse them alone.
+
+Two parsing constraints, both in `scripts/external_signals/acceptance_criteria.py`:
+
+- The heading must match `^#{1,6}\s*acceptance(\s+criteria)?\s*$`.
+- Items must be `- [x]` task-list checkboxes. **A numbered list does not
+  parse**, so copying an issue's `1.` through `5.` criteria verbatim still
+  yields UNKNOWN.
+
+Reproduce and fix offline rather than pushing to find out. This runs the real
+gate and replaces a CI cycle with one second:
+
+```bash
+gh pr view "$PR" --json body --jq .body > body.md
+PR_BODY_FILE=body.md TRACE_VERDICT=PASS COMPLETENESS_VERDICT=PARTIAL \
+  uv run --frozen python scripts/quality_gate/spec_external_signal_gate.py
+```
+
+Exit 0 means PASS or WARN. Editing the body re-triggers the gate, so no new
+commit is needed.
+
+**Do not read the PR comment to find out whether this passed.** The
+`AI-SPEC-VALIDATION` comment is posted once and never updated, so it keeps
+showing the first run's verdict. A red check can display `Final Verdict: PASS`
+indefinitely. Read the job log instead, and note that `gh run view
+--log-failed` returns only cleanup noise for this job:
+
+```bash
+gh run view --job "$JOB_ID" --log | sed 's/\x1b\[[0-9;]*m//g' | grep -P 'VERDICT|"verdict"|"reason"'
+```
+
+Refs #4369 for the stale comment defect.
+
 ## Never put a literal pipe inside a Markdown table cell
 
 Escape it as `\|` or reword. A bare `|` breaks rendering and trips bot
@@ -311,3 +389,36 @@ constant was emptied somewhere and every per-file assertion is vacuously true.
 `tests/test_workspace_limits.py` runs via the standard `pytest` suite. It imports
 constants from `scripts/validate_workspace_budget.py` directly, so the test and
 the enforcer always agree (fixed by issue #3951).
+
+## Concurrent pushes: use a per-branch lock, not a global one
+
+The race a push lock exists to prevent is a lost ref update: two writers push
+to the same remote ref and one overwrites the other. Git takes its lock per ref.
+Two pushes to two different branches cannot race for the same lock on the server.
+
+A global `flock /tmp/aiagents-push.lock` wrapping `git push` serializes the
+entire fleet including the 7 to 15 minute pre-push hook. Five concurrent pushes
+to five distinct branches costs 5 x 15 = 75 minutes instead of 15.
+
+Use a per-branch lock keyed on the exact branch name:
+
+```bash
+BR=$(git branch --show-current)
+SLUG=$(printf '%s' "$BR" | tr '/' '-')
+flock "/home/richard/src/GitHub/rjmurillo/ai-agents-pushpol2-push-${SLUG}.lock" \
+  git push --force-with-lease origin HEAD:"$BR"
+```
+
+Notes:
+- `tr '/' '-'` is required: a branch like `fix/foo` would otherwise create a
+  lock file with a `/` in its name, which the shell reads as a directory path.
+- Use an absolute path for the lock file and keep it outside `/tmp` (not durable
+  on this machine).
+- `--force-with-lease` already fails safely on a lost update. The lock prevents
+  the git-object-packing overhead of a concurrent same-branch push, not data loss.
+- Two distinct branches never contend for the same lock file, so their pre-push
+  hooks run in parallel. Measured throughput: four concurrent pushes to four
+  distinct branches finish in approximately one hook duration, not four.
+
+Issue #4283 documents the measured 28-waiter convoy produced by the global lock
+and the first-principles analysis of why the race is per-ref.

@@ -1,0 +1,114 @@
+{
+  "id": "episode-2026-07-31-session-4007-diff-scoped-quality",
+  "session": "2026-07-31-session-4007-diff-scoped-quality",
+  "timestamp": "2026-07-31T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix #4007: diff-scoped quality scans reporting pre-existing whole-file violations",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebased onto origin/main (088292977), resolved plugin.json conflict by bumping to 0.6.5487",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4007-diff-scoped-quality"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Push failed: type-ignore-count-ratchet at 56 vs baseline 55",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4007-diff-scoped-quality"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed unnecessary type: ignore[arg-type] from pr_commit_count.py; used parent[sha] subscript instead",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4007-diff-scoped-quality"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed _filter_violations_for_diff docstring mismatch (grew past threshold vs grew at all)",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4007-diff-scoped-quality"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved 6 copilot reviewer threads: 1 code fix, 4 stale (code already correct), 1 acknowledged limitation",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4007-diff-scoped-quality"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Push succeeded with all pre-push gates passing",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4007-diff-scoped-quality"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: df493aecf",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-07-31-session-4007-diff-scoped-quality"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 82ac28180",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4007-diff-scoped-quality"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 6beb62a76",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4007-diff-scoped-quality"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 40bca0206",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4007-diff-scoped-quality"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 4,
+    "files_changed": 2
+  },
+  "lessons": []
+}

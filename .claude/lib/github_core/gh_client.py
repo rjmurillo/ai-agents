@@ -1,4 +1,4 @@
-"""Canonical: scripts/github_core/gh_client.py. Sync via scripts/sync_plugin_lib.py."""
+"""GhCliClient: concrete GitHubClient backed by the ``gh`` CLI."""
 
 from __future__ import annotations
 
