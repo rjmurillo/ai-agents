@@ -1,5 +1,5 @@
 # Two-pipeline agent mirror recipe
 
-When changing shared agents, update `templates/agents/{agent}.shared.md` and the manual Claude source `src/claude/{agent}.md`; generation syncs Copilot CLI and VS Code outputs, not Claude source. Validate with `build/scripts/build_all.py --check`, `build/scripts/validate_install_parity.py`, and scoped drift checks before push.
+When changing shared agents, update `templates/agents/{agent}.shared.md` and all three hand-maintained copies (`src/claude/{agent}.md`, `.claude/agents/{agent}.md`, `.github/agents/{agent}.agent.md`); generation syncs Copilot CLI and VS Code outputs only, never the hand-maintained copies. Validate with `build/scripts/build_all.py --check`, `build/scripts/validate_install_parity.py --files` naming all six paths, and scoped drift checks before push. Correction verified 2026-07-31: this note previously named only `src/claude/`, which omits two hand-maintained copies and reproduces the PR #1715 divergence. See `.serena/memories/decision-agent-files-are-not-canonical.md`.
 
 Why: PR #2707 session 2596 hit review feedback because agent mirror work must satisfy both generated outputs and the manual Claude source path.

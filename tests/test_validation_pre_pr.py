@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
+import pytest
+
 from scripts.validation.pre_pr import (
     ValidationState,
     _find_latest_session_log,
@@ -13,6 +15,7 @@ from scripts.validation.pre_pr import (
     build_parser,
     main,
     run_validation,
+    validate_design_review_frontmatter,
     validate_session_end,
 )
 
@@ -154,7 +157,6 @@ class TestValidateSessionEnd:
         # scripts/Validate-Session.ps1 does not exist (ADR-042 expungement).
         (tmp_path / "scripts").mkdir(exist_ok=True)
 
-        import pytest
 
         with pytest.raises(MissingScriptSkip):
             validate_session_end(tmp_path)

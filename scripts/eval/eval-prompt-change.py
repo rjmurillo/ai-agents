@@ -721,9 +721,6 @@ def _is_provider_outage(exc: Exception) -> bool:
         "usage limit",  # budget/quota exhausted (HTTP 400 usage limits)
         "rate limit",
         "too many requests",  # 429
-        "github_models_retirement_brownout",
-        "retirement brownout",
-        "github models is temporarily unavailable",
         "timed out",
         "network error",
         "returned http 408",

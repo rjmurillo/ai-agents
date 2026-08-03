@@ -1244,7 +1244,9 @@ def cmd_extract(args: argparse.Namespace) -> int:
             expected_task_ids=expected_task_ids,
         )
     else:
-        results = _extract_rule([_read_json(path) for path in args.input], args)
+        payloads = [_read_json(path) for path in args.input]
+        results = _extract_rule(payloads, args)
+        report = _rule_upstream_metadata(payloads)
     split = None
     group = "all"
     if args.split is not None or args.group is not None:
@@ -1264,6 +1266,47 @@ def cmd_extract(args: argparse.Namespace) -> int:
         }
     )
     return EXIT_OK
+
+
+def _rule_upstream_metadata(payloads: Sequence[object]) -> dict[str, Any]:
+    """The model and seed every rule run agreed on.
+
+    Returned in the shape `_extract_provenance` already reads off an agent
+    report, so the rule kind records its upstream identity through the same
+    resolution rather than a second copy of it. A second copy is how the
+    `cost_basis` defect happened: two functions answering one question, and
+    the one that did not decide the consequence answering differently.
+
+    Disagreement fails closed. Reducing across runs assumes the runs are
+    samples of one population, so two models or two seeds produce an average
+    that describes neither. This is the same reason `_extract_rules_envelope`
+    already requires every run to carry the same rule names.
+
+    Absent metadata is not an error. Reports written before the producer
+    recorded these fields, and the bare scenario array shape that has nowhere
+    to put them, both yield None here and are recorded as "unknown-model" and
+    "unseeded" upstream. That is honest about ignorance, where the previous
+    "not-applicable" asserted the run used no model at all, which is false for
+    a kind whose every score comes from a model call, and which made two runs
+    on different models compare equal at the gate.
+    """
+    metadata: dict[str, Any] = {}
+    for key in ("model_id", "seed"):
+        values = [
+            payload.get(key) if isinstance(payload, Mapping) else None for payload in payloads
+        ]
+        # Compared pairwise rather than through a set: a malformed value can be
+        # unhashable, and that case belongs to `_upstream_value`, which reports
+        # it as a scalar violation instead of a TypeError from this check.
+        differing = [value for value in values[1:] if not _json_strict_equal(value, values[0])]
+        if differing:
+            raise ConfigError(
+                f"every rule run must share the same {key}; "
+                "runs that disagree are not samples of one population and "
+                "cannot be reduced against each other"
+            )
+        metadata[key] = values[0] if values else None
+    return metadata
 
 
 def _report_corpus(path: Path, report: Mapping[str, Any]) -> str | None:
